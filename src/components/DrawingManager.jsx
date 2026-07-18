@@ -27,6 +27,7 @@ import {
     ChevronDown,
     Circle,
     Triangle,
+    Hexagon,
     CornerUpRight,
     Square,
     Crosshair,
@@ -342,6 +343,8 @@ export default function DrawingManager() {
     const [showColorPopup, setShowColorPopup] = useState(false);
     const [showStylePopup, setShowStylePopup] = useState(false);
     const [showLayerPopup, setShowLayerPopup] = useState(false);
+    const [showShapePopup, setShowShapePopup] = useState(false);
+    const [selectedShapeTool, setSelectedShapeTool] = useState('rect');
     const [cqType, setCqType] = useState('rectangular');
     const [cqWidth, setCqWidth] = useState(120);
     const [cqHeight, setCqHeight] = useState(100);
@@ -1574,9 +1577,9 @@ export default function DrawingManager() {
     const getShapeCenter = (shape) => {
         if (shape.type === 'line') {
             return { x: (shape.x1 + shape.x2) / 2, y: (shape.y1 + shape.y2) / 2 };
-        } else if (shape.type === 'circle' || shape.type === 'arc') {
+        } else if (shape.type === 'circle' || shape.type === 'arc' || shape.type === 'ellipse' || shape.type === 'hexagon') {
             return { x: shape.cx, y: shape.cy };
-        } else if (shape.type === 'rect' || shape.type === 'image') {
+        } else if (shape.type === 'rect' || shape.type === 'image' || shape.type === 'triangle') {
             return { x: shape.x + shape.w / 2, y: shape.y + shape.h / 2 };
         } else if (shape.type === 'text') {
             return { x: shape.x, y: shape.y };
@@ -1629,14 +1632,18 @@ export default function DrawingManager() {
                     } else {
                         return { ...shape, y1: 2 * cy - shape.y1, y2: 2 * cy - shape.y2 };
                     }
-                } else if (shape.type === 'rect' || shape.type === 'image') {
+                } else if (shape.type === 'rect' || shape.type === 'image' || shape.type === 'triangle') {
                     if (direction === 'horizontal') {
                         return { ...shape, x: 2 * cx - shape.x - shape.w };
                     } else {
                         return { ...shape, y: 2 * cy - shape.y - shape.h };
                     }
-                } else if (shape.type === 'circle') {
-                    return shape;
+                } else if (shape.type === 'circle' || shape.type === 'ellipse' || shape.type === 'hexagon') {
+                    if (direction === 'horizontal') {
+                        return { ...shape, cx: 2 * cx - shape.cx };
+                    } else {
+                        return { ...shape, cy: 2 * cy - shape.cy };
+                    }
                 } else if (shape.type === 'arc') {
                     if (direction === 'horizontal') {
                         return {
@@ -2563,6 +2570,37 @@ export default function DrawingManager() {
                 color: cadColor,
                 strokeWidth: cadWidth
             });
+        } else if (cadTool === 'ellipse') {
+            setDrawingShape({
+                type: 'ellipse',
+                cx: coords.x,
+                cy: coords.y,
+                rx: 0,
+                ry: 0,
+                color: cadColor,
+                strokeWidth: cadWidth
+            });
+        } else if (cadTool === 'triangle') {
+            setDrawingShape({
+                type: 'triangle',
+                x: coords.x,
+                y: coords.y,
+                x1: coords.x,
+                y1: coords.y,
+                w: 0,
+                h: 0,
+                color: cadColor,
+                strokeWidth: cadWidth
+            });
+        } else if (cadTool === 'hexagon') {
+            setDrawingShape({
+                type: 'hexagon',
+                cx: coords.x,
+                cy: coords.y,
+                r: 0,
+                color: cadColor,
+                strokeWidth: cadWidth
+            });
         } else if (cadTool === 'text') {
             const svgRect = svgRef.current.getBoundingClientRect();
             const parentRect = svgRef.current.parentElement.getBoundingClientRect();
@@ -3100,6 +3138,34 @@ export default function DrawingManager() {
                 w,
                 h
             }));
+        } else if (drawingShape.type === 'ellipse') {
+            const rx = Math.round(Math.abs(coords.x - drawingShape.cx));
+            const ry = Math.round(Math.abs(coords.y - drawingShape.cy));
+            setDrawingShape(prev => ({
+                ...prev,
+                rx,
+                ry
+            }));
+        } else if (drawingShape.type === 'triangle') {
+            const x = Math.min(drawingShape.x1, coords.x);
+            const y = Math.min(drawingShape.y1, coords.y);
+            const w = Math.round(Math.abs(coords.x - drawingShape.x1));
+            const h = Math.round(Math.abs(coords.y - drawingShape.y1));
+            setDrawingShape(prev => ({
+                ...prev,
+                x,
+                y,
+                w,
+                h
+            }));
+        } else if (drawingShape.type === 'hexagon') {
+            const dx = coords.x - drawingShape.cx;
+            const dy = coords.y - drawingShape.cy;
+            const r = Math.round(Math.sqrt(dx * dx + dy * dy));
+            setDrawingShape(prev => ({
+                ...prev,
+                r
+            }));
         }
     };
 
@@ -3448,6 +3514,15 @@ export default function DrawingManager() {
         }
         if (shape.type === 'circle') {
             return Math.PI * (shape.r || 0) * (shape.r || 0);
+        }
+        if (shape.type === 'ellipse') {
+            return Math.PI * (shape.rx || 0) * (shape.ry || 0);
+        }
+        if (shape.type === 'triangle') {
+            return ((shape.w || 0) * (shape.h || 0)) / 2;
+        }
+        if (shape.type === 'hexagon') {
+            return 2.598076 * (shape.r || 0) * (shape.r || 0);
         }
         if (shape.type === 'polyline') {
             return getPolygonArea(shape.points);
@@ -6278,7 +6353,7 @@ export default function DrawingManager() {
                                 { id: 'zoom_reset', icon: 'Search', label: 'Zoom', action: () => { setZoom(1.0); setPanOffset({ x: 0, y: 0 }); } },
                                 { id: '_sep1' },
                                 { id: 'line', icon: 'Slash', label: 'Garis', rotate: true },
-                                { id: 'rect', icon: 'Square', label: 'Bentuk', match: ['rect','circle','arc'] },
+                                { id: 'shape', label: 'Bentuk', match: ['rect', 'circle', 'ellipse', 'triangle', 'hexagon', 'arc', 'polyline'] },
                                 { id: 'text', icon: 'Type', label: 'Teks' },
                                 { id: '_sep2' },
                                 ...PARAM_CATEGORIES.map(cat => ({
@@ -6300,7 +6375,7 @@ export default function DrawingManager() {
                             ].map(item => {
                                 if (item.id.startsWith('_sep')) return <div key={item.id} style={{ width: '1px', height: '20px', backgroundColor: '#cbd5e1', margin: '0 4px' }} />;
                                 
-                                const iconMap = { MousePointer, Hand, Search, Slash, Square, Type, Ruler, FileText, Settings, Trash2, Palette, Layers };
+                                const iconMap = { MousePointer, Hand, Search, Slash, Square, Circle, Triangle, Hexagon, Activity, Type, Ruler, FileText, Settings, Trash2, Palette, Layers };
                                 const IconComp = (item.icon && item.icon !== 'color_swatch' && item.icon !== 'balloon_icon') ? iconMap[item.icon] : null;
                                 
                                 const isActive = item.isToggle ? item.toggleState :
@@ -6308,15 +6383,18 @@ export default function DrawingManager() {
                                     item.id === 'color' ? showColorPopup :
                                     item.id === 'style' ? showStylePopup :
                                     item.id === 'layer' ? showLayerPopup :
+                                    item.id === 'shape' ? (showShapePopup || ['rect', 'circle', 'ellipse', 'triangle', 'hexagon', 'arc', 'polyline'].includes(cadTool)) :
                                     item.match ? item.match.includes(cadTool) : cadTool === item.id;
                                 
                                 const isDanger = item.danger && cadTool === item.id;
                                 
                                 const handleClick = () => {
                                     if (item.action) { item.action(); return; }
-                                    if (item.id === 'color') { setShowColorPopup(!showColorPopup); setShowStylePopup(false); setShowLayerPopup(false); return; }
-                                    if (item.id === 'style') { setShowStylePopup(!showStylePopup); setShowColorPopup(false); setShowLayerPopup(false); return; }
-                                    if (item.id === 'layer') { setShowLayerPopup(!showLayerPopup); setShowColorPopup(false); setShowStylePopup(false); return; }
+                                    if (item.id === 'color') { setShowColorPopup(!showColorPopup); setShowStylePopup(false); setShowLayerPopup(false); setShowShapePopup(false); return; }
+                                    if (item.id === 'style') { setShowStylePopup(!showStylePopup); setShowColorPopup(false); setShowLayerPopup(false); setShowShapePopup(false); return; }
+                                    if (item.id === 'layer') { setShowLayerPopup(!showLayerPopup); setShowColorPopup(false); setShowStylePopup(false); setShowShapePopup(false); return; }
+                                    if (item.id === 'shape') { setShowShapePopup(!showShapePopup); setShowColorPopup(false); setShowStylePopup(false); setShowLayerPopup(false); return; }
+                                    setShowShapePopup(false);
                                     setCadTool(item.id);
                                 };
                                 
@@ -6354,10 +6432,95 @@ export default function DrawingManager() {
                                                 </svg>
                                             ) : item.emoji ? (
                                                 <span style={{ fontSize: '1.25rem', lineHeight: 1, fontWeight: item.emoji === 'R' || item.emoji === 'Ra' ? '800' : 'normal' }}>{item.emoji}</span>
+                                            ) : item.id === 'shape' ? (
+                                                selectedShapeTool === 'rect' ? <Square size={20} /> :
+                                                selectedShapeTool === 'circle' ? <Circle size={20} /> :
+                                                selectedShapeTool === 'triangle' ? <Triangle size={20} /> :
+                                                selectedShapeTool === 'hexagon' ? <Hexagon size={20} /> :
+                                                selectedShapeTool === 'ellipse' ? (
+                                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                        <ellipse cx="12" cy="12" rx="9" ry="5" />
+                                                    </svg>
+                                                ) : selectedShapeTool === 'arc' ? (
+                                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                        <path d="M 5,17 A 10,10 0 0 1 19,17" />
+                                                    </svg>
+                                                ) : selectedShapeTool === 'polyline' ? <Activity size={20} /> : <Square size={20} />
                                             ) : (
                                                 <IconComp size={20} style={item.rotate ? { transform: 'rotate(-45deg)' } : undefined} />
                                             )}
                                         </button>
+                                        
+                                        {item.id === 'shape' && showShapePopup && (
+                                            <div style={{
+                                                position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '8px',
+                                                backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #cbd5e1',
+                                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)', padding: '8px', display: 'flex', flexDirection: 'column',
+                                                zIndex: 100, width: '180px', gap: '4px'
+                                            }}>
+                                                <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#475569', padding: '4px 8px', borderBottom: '1px solid #e2e8f0' }}>Pilih Bentuk CAD</span>
+                                                {[
+                                                    { id: 'rect', label: 'Rectangle (Persegi)', Icon: Square },
+                                                    { id: 'circle', label: 'Circle (Lingkaran)', Icon: Circle },
+                                                    { id: 'ellipse', label: 'Ellipse (Elips)', isCustomSvg: true, svg: (
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginRight: '6px' }}>
+                                                            <ellipse cx="12" cy="12" rx="9" ry="5" />
+                                                        </svg>
+                                                    )},
+                                                    { id: 'triangle', label: 'Triangle (Segitiga)', Icon: Triangle },
+                                                    { id: 'hexagon', label: 'Hexagon (Segienam)', Icon: Hexagon },
+                                                    { id: 'arc', label: 'Arc (Busur)', isCustomSvg: true, svg: (
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginRight: '6px' }}>
+                                                            <path d="M 5,17 A 10,10 0 0 1 19,17" />
+                                                        </svg>
+                                                    )},
+                                                    { id: 'polyline', label: 'Polyline (Garis Ganda)', Icon: Activity }
+                                                ].map(option => {
+                                                    const isSelected = selectedShapeTool === option.id && cadTool === option.id;
+                                                    return (
+                                                        <button
+                                                            key={option.id}
+                                                            onClick={() => {
+                                                                setSelectedShapeTool(option.id);
+                                                                setCadTool(option.id);
+                                                                setShowShapePopup(false);
+                                                                if (option.id === 'arc') {
+                                                                    setArcDrawState('idle');
+                                                                    setArcDraftCoords(null);
+                                                                    toast.success('Klik titik pusat busur (Center), lalu titik radius, dan terakhir titik akhir busur.');
+                                                                } else if (option.id === 'polyline') {
+                                                                    setPolylineDraftPoints([]);
+                                                                    toast.success('Klik untuk memulai polyline. Klik titik demi titik, double-klik untuk menutup.');
+                                                                } else if (option.id === 'rect') {
+                                                                    toast.success('Klik dan seret untuk membuat persegi panjang.');
+                                                                } else if (option.id === 'circle') {
+                                                                    toast.success('Klik dan seret dari pusat untuk membuat lingkaran.');
+                                                                } else if (option.id === 'ellipse') {
+                                                                    toast.success('Klik dan seret dari pusat untuk menentukan radius X dan Y elips.');
+                                                                } else if (option.id === 'triangle') {
+                                                                    toast.success('Klik dan seret untuk menggambar segitiga dalam bounding box.');
+                                                                } else if (option.id === 'hexagon') {
+                                                                    toast.success('Klik dan seret dari pusat untuk membuat segienam beraturan.');
+                                                                }
+                                                            }}
+                                                            style={{
+                                                                display: 'flex', alignItems: 'center', width: '100%', background: 'none', border: 'none',
+                                                                padding: '6px 8px', borderRadius: '4px', textAlign: 'left', fontSize: '0.68rem', cursor: 'pointer',
+                                                                outline: 'none', fontWeight: isSelected ? 'bold' : 'normal',
+                                                                color: isSelected ? '#2563eb' : '#334155',
+                                                                backgroundColor: isSelected ? '#eff6ff' : 'transparent',
+                                                                transition: 'background-color 0.15s'
+                                                            }}
+                                                            onMouseEnter={e => { if (!isSelected) e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
+                                                            onMouseLeave={e => { if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                                        >
+                                                            {option.isCustomSvg ? option.svg : <option.Icon size={14} style={{ marginRight: '6px' }} />}
+                                                            {option.label}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                         
                                         {item.id === 'color' && showColorPopup && (
                                             <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '8px', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #cbd5e1', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', padding: '8px', display: 'flex', gap: '6px', zIndex: 100, width: '160px', flexWrap: 'wrap', justifyContent: 'center' }}>
@@ -6825,7 +6988,7 @@ export default function DrawingManager() {
                                                     const handleShapeMouseEnter = (e) => {
                                                         setHoveredShapeId(shape.id);
                                                         if (cadTool === 'erase') {
-                                                            const els = e.currentTarget.querySelectorAll('line, circle, rect, path, polyline');
+                                                            const els = e.currentTarget.querySelectorAll('line, circle, rect, path, polyline, polygon, ellipse');
                                                             els.forEach(el => {
                                                                 if (el.getAttribute('stroke') !== 'transparent') {
                                                                     el.style.stroke = '#ef4444';
@@ -6847,7 +7010,7 @@ export default function DrawingManager() {
 
                                                     const handleShapeMouseLeave = (e) => {
                                                         setHoveredShapeId(null);
-                                                        const els = e.currentTarget.querySelectorAll('line, circle, rect, path, polyline');
+                                                        const els = e.currentTarget.querySelectorAll('line, circle, rect, path, polyline, polygon, ellipse');
                                                         els.forEach(el => {
                                                             if (el.getAttribute('stroke') !== 'transparent') {
                                                                 el.style.stroke = shape.color;
@@ -6926,6 +7089,67 @@ export default function DrawingManager() {
                                                                 <rect x={shape.x} y={shape.y} width={shape.w} height={shape.h} {...commonProps} fill="none" />
                                                             </g>
                                                         );
+                                                     } else if (shape.type === 'ellipse') {
+                                                         return (
+                                                             <g
+                                                                 key={shape.id}
+                                                                 className={gClassName}
+                                                                 transform={rotationStr}
+                                                                 onClick={handleLocalClick}
+                                                                 onMouseDown={handleLocalMouseDown}
+                                                                 onMouseEnter={handleShapeMouseEnter}
+                                                                 onMouseLeave={handleShapeMouseLeave}
+                                                                 style={{ cursor: cursorStyle }}
+                                                                 pointerEvents={pointerEvents}
+                                                             >
+                                                                 <ellipse cx={shape.cx} cy={shape.cy} rx={shape.rx} ry={shape.ry} stroke="transparent" strokeWidth="15" fill="none" />
+                                                                 <ellipse cx={shape.cx} cy={shape.cy} rx={shape.rx} ry={shape.ry} {...commonProps} fill="none" />
+                                                             </g>
+                                                         );
+                                                     } else if (shape.type === 'triangle') {
+                                                         const pointsStr = `${shape.x + shape.w / 2},${shape.y} ${shape.x + shape.w},${shape.y + shape.h} ${shape.x},${shape.y + shape.h}`;
+                                                         return (
+                                                             <g
+                                                                 key={shape.id}
+                                                                 className={gClassName}
+                                                                 transform={rotationStr}
+                                                                 onClick={handleLocalClick}
+                                                                 onMouseDown={handleLocalMouseDown}
+                                                                 onMouseEnter={handleShapeMouseEnter}
+                                                                 onMouseLeave={handleShapeMouseLeave}
+                                                                 style={{ cursor: cursorStyle }}
+                                                                 pointerEvents={pointerEvents}
+                                                             >
+                                                                 <polygon points={pointsStr} stroke="transparent" strokeWidth="15" fill="none" />
+                                                                 <polygon points={pointsStr} {...commonProps} fill="none" />
+                                                             </g>
+                                                         );
+                                                     } else if (shape.type === 'hexagon') {
+                                                         const cx = shape.cx;
+                                                         const cy = shape.cy;
+                                                         const r = shape.r;
+                                                         const points = [];
+                                                         for (let i = 0; i < 6; i++) {
+                                                             const angle = (i * 60) * (Math.PI / 180);
+                                                             points.push(`${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`);
+                                                         }
+                                                         const pointsStr = points.join(' ');
+                                                         return (
+                                                             <g
+                                                                 key={shape.id}
+                                                                 className={gClassName}
+                                                                 transform={rotationStr}
+                                                                 onClick={handleLocalClick}
+                                                                 onMouseDown={handleLocalMouseDown}
+                                                                 onMouseEnter={handleShapeMouseEnter}
+                                                                 onMouseLeave={handleShapeMouseLeave}
+                                                                 style={{ cursor: cursorStyle }}
+                                                                 pointerEvents={pointerEvents}
+                                                             >
+                                                                 <polygon points={pointsStr} stroke="transparent" strokeWidth="15" fill="none" />
+                                                                 <polygon points={pointsStr} {...commonProps} fill="none" />
+                                                             </g>
+                                                         );
                                                     } else if (shape.type === 'arc') {
                                                         const sa = shape.startAngle ?? 0;
                                                         const ea = shape.endAngle ?? 90;
@@ -7486,6 +7710,39 @@ export default function DrawingManager() {
                                                                 height={drawingShape.h}
                                                             />
                                                         );
+                                                    } else if (drawingShape.type === 'ellipse') {
+                                                        return (
+                                                            <ellipse
+                                                                {...tempProps}
+                                                                cx={drawingShape.cx}
+                                                                cy={drawingShape.cy}
+                                                                rx={drawingShape.rx}
+                                                                ry={drawingShape.ry}
+                                                            />
+                                                        );
+                                                    } else if (drawingShape.type === 'triangle') {
+                                                        const pointsStr = `${drawingShape.x + drawingShape.w / 2},${drawingShape.y} ${drawingShape.x + drawingShape.w},${drawingShape.y + drawingShape.h} ${drawingShape.x},${drawingShape.y + drawingShape.h}`;
+                                                        return (
+                                                            <polygon
+                                                                {...tempProps}
+                                                                points={pointsStr}
+                                                            />
+                                                        );
+                                                    } else if (drawingShape.type === 'hexagon') {
+                                                        const cx = drawingShape.cx;
+                                                        const cy = drawingShape.cy;
+                                                        const r = drawingShape.r;
+                                                        const points = [];
+                                                        for (let i = 0; i < 6; i++) {
+                                                            const angle = (i * 60) * (Math.PI / 180);
+                                                            points.push(`${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`);
+                                                        }
+                                                        return (
+                                                            <polygon
+                                                                {...tempProps}
+                                                                points={points.join(' ')}
+                                                            />
+                                                        );
                                                     }
                                                     return null;
                                                 })()}
@@ -7523,6 +7780,38 @@ export default function DrawingManager() {
                                                             <g style={{ pointerEvents: 'none' }} transform={`translate(${mousePos.x + 15}, ${mousePos.y - 15})`}>
                                                                 <rect x="0" y="-8" width="95" height="18" rx="3" fill="#0f172ae6" stroke="#3b82f6" strokeWidth="1" />
                                                                 <text x="47.5" y="4" fill="#3b82f6" fontSize="8" fontWeight="bold" textAnchor="middle">{`${w.toFixed(1)}x${h.toFixed(1)} ${unit}`}</text>
+                                                            </g>
+                                                        );
+                                                    } else if (drawingShape.type === 'ellipse') {
+                                                        const factor = selectedDwg?.scaleFactor || 1.0;
+                                                        const rx = drawingShape.rx * factor;
+                                                        const ry = drawingShape.ry * factor;
+                                                        const unit = selectedDwg?.scaleFactor ? 'mm' : 'px';
+                                                        return (
+                                                            <g style={{ pointerEvents: 'none' }} transform={`translate(${mousePos.x + 15}, ${mousePos.y - 15})`}>
+                                                                <rect x="0" y="-8" width="95" height="18" rx="3" fill="#0f172ae6" stroke="#3b82f6" strokeWidth="1" />
+                                                                <text x="47.5" y="4" fill="#3b82f6" fontSize="8" fontWeight="bold" textAnchor="middle">{`rx:${rx.toFixed(1)} ry:${ry.toFixed(1)} ${unit}`}</text>
+                                                            </g>
+                                                        );
+                                                    } else if (drawingShape.type === 'triangle') {
+                                                        const factor = selectedDwg?.scaleFactor || 1.0;
+                                                        const w = drawingShape.w * factor;
+                                                        const h = drawingShape.h * factor;
+                                                        const unit = selectedDwg?.scaleFactor ? 'mm' : 'px';
+                                                        return (
+                                                            <g style={{ pointerEvents: 'none' }} transform={`translate(${mousePos.x + 15}, ${mousePos.y - 15})`}>
+                                                                <rect x="0" y="-8" width="95" height="18" rx="3" fill="#0f172ae6" stroke="#3b82f6" strokeWidth="1" />
+                                                                <text x="47.5" y="4" fill="#3b82f6" fontSize="8" fontWeight="bold" textAnchor="middle">{`a:${w.toFixed(1)} t:${h.toFixed(1)} ${unit}`}</text>
+                                                            </g>
+                                                        );
+                                                    } else if (drawingShape.type === 'hexagon') {
+                                                        const factor = selectedDwg?.scaleFactor || 1.0;
+                                                        const r = drawingShape.r * factor;
+                                                        const unit = selectedDwg?.scaleFactor ? 'mm' : 'px';
+                                                        return (
+                                                            <g style={{ pointerEvents: 'none' }} transform={`translate(${mousePos.x + 15}, ${mousePos.y - 15})`}>
+                                                                <rect x="0" y="-8" width="85" height="18" rx="3" fill="#0f172ae6" stroke="#3b82f6" strokeWidth="1" />
+                                                                <text x="42.5" y="4" fill="#3b82f6" fontSize="8.5" fontWeight="bold" textAnchor="middle">{`r: ${r.toFixed(1)} ${unit}`}</text>
                                                             </g>
                                                         );
                                                     }
