@@ -12882,7 +12882,7 @@ const LiveTerminal = () => {
           </div>
         </div>
 
-        {/* RIGHT SIDEBAR: Work Sequence Steps — Icon-based Enterprise Design */}
+        {/* RIGHT SIDEBAR: Work Sequence Steps & System Health Monitor */}
         {selectedApp?.config?.stepListEnabled !== false && showWorkSequence && (
           <div style={{
             width: '62px',
@@ -12892,139 +12892,282 @@ const LiveTerminal = () => {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            overflowY: 'auto',
-            overflowX: 'hidden',
+            justifyContent: 'space-between',
             padding: '14px 0',
             gap: '0px',
             animation: 'fadeIn 0.2s ease-in-out',
             flexShrink: 0,
-            zIndex: 10
+            zIndex: 10,
+            height: '100%'
           }}>
-            {steps.map((step, idx) => {
-              const summary = selectedApp ? getStepRequiredSummary(step) : { total: 0, done: 0, ok: true };
-              const isLocked = !canNavigateToStep(idx);
-              const isActive = idx === currentStepIndex;
-              const isCompleted = idx < currentStepIndex;
-              const hasProgress = selectedApp && summary.total > 0;
+            {/* Upper Section: Steps Scroll Area */}
+            <div style={{
+              flex: 1,
+              width: '100%',
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              paddingBottom: '10px'
+            }}>
+              {steps.map((step, idx) => {
+                const summary = selectedApp ? getStepRequiredSummary(step) : { total: 0, done: 0, ok: true };
+                const isLocked = !canNavigateToStep(idx);
+                const isActive = idx === currentStepIndex;
+                const isCompleted = idx < currentStepIndex;
+                const hasProgress = selectedApp && summary.total > 0;
 
-              return (
-                <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
-                  {/* Connector line above */}
-                  {idx > 0 && (
-                    <div style={{
-                      width: '2px',
-                      height: '10px',
-                      backgroundColor: isCompleted ? '#22c55e' : (isActive ? '#3b82f6' : 'rgba(255,255,255,0.1)'),
-                      transition: 'background-color 0.3s ease',
-                      flexShrink: 0
-                    }} />
-                  )}
-
-                  {/* Step Icon Button */}
-                  <div
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!isLocked) {
-                        setCurrentStepIndex(idx);
-                      } else {
-                        toast.error(`Complete "${steps[currentStepIndex]?.title || 'current step'}" first`, {
-                          icon: '🔒',
-                          style: { borderRadius: '10px', background: '#334155', color: '#fff' }
-                        });
-                      }
-                    }}
-                    title={`${idx + 1}. ${step.title}${hasProgress ? ` (${summary.done}/${summary.total})` : ''}`}
-                    style={{
-                      width: '38px',
-                      height: '38px',
-                      borderRadius: isActive ? '12px' : '50%',
-                      backgroundColor: isActive ? '#1e3a5f' : (isCompleted ? 'rgba(34,197,94,0.15)' : (isLocked ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.07)')),
-                      border: isActive ? '2px solid #3b82f6' : (isCompleted ? '2px solid rgba(34,197,94,0.4)' : '1px solid rgba(255,255,255,0.08)'),
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: isLocked ? 'not-allowed' : 'pointer',
-                      transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                      position: 'relative',
-                      opacity: isLocked ? 0.45 : 1,
-                      boxShadow: isActive
-                        ? '0 0 16px rgba(59,130,246,0.4), 0 0 4px rgba(59,130,246,0.2)'
-                        : (isCompleted ? '0 0 8px rgba(34,197,94,0.2)' : 'none'),
-                      flexShrink: 0
-                    }}
-                    onMouseEnter={e => {
-                      if (!isLocked && !isActive) {
-                        e.currentTarget.style.transform = 'scale(1.15)';
-                        e.currentTarget.style.boxShadow = '0 0 12px rgba(59,130,246,0.3)';
-                        e.currentTarget.style.borderColor = 'rgba(59,130,246,0.5)';
-                      }
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.transform = 'scale(1)';
-                      e.currentTarget.style.boxShadow = isActive
-                        ? '0 0 16px rgba(59,130,246,0.4), 0 0 4px rgba(59,130,246,0.2)'
-                        : (isCompleted ? '0 0 8px rgba(34,197,94,0.2)' : 'none');
-                      e.currentTarget.style.borderColor = isActive ? '#3b82f6' : (isCompleted ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.08)');
-                    }}
-                  >
-                    {/* Inner content: checkmark for completed, lock for locked, number for others */}
-                    {isCompleted ? (
-                      <CheckCircle2 size={16} color="#4ade80" strokeWidth={2.5} />
-                    ) : isLocked ? (
-                      <Lock size={13} color="rgba(255,255,255,0.35)" />
-                    ) : (
-                      <span style={{
-                        fontSize: isActive ? '0.82rem' : '0.72rem',
-                        fontWeight: 900,
-                        color: isActive ? '#93c5fd' : 'rgba(255,255,255,0.7)',
-                        letterSpacing: '-0.02em',
-                        lineHeight: 1
-                      }}>
-                        {idx + 1}
-                      </span>
-                    )}
-
-                    {/* Status dot — top-right corner */}
-                    {hasProgress && (
+                return (
+                  <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+                    {/* Connector line above */}
+                    {idx > 0 && (
                       <div style={{
-                        position: 'absolute',
-                        top: '-2px',
-                        right: '-2px',
-                        width: '10px',
+                        width: '2px',
                         height: '10px',
-                        borderRadius: '50%',
-                        backgroundColor: summary.ok ? '#22c55e' : '#ef4444',
-                        border: '2px solid #0a0f1e',
-                        boxShadow: summary.ok ? '0 0 6px rgba(34,197,94,0.5)' : '0 0 6px rgba(239,68,68,0.5)'
+                        backgroundColor: isCompleted ? '#22c55e' : (isActive ? '#3b82f6' : 'rgba(255,255,255,0.1)'),
+                        transition: 'background-color 0.3s ease',
+                        flexShrink: 0
                       }} />
                     )}
 
-                    {/* Active pulse ring */}
-                    {isActive && (
+                    {/* Step Icon Button */}
+                    <div
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!isLocked) {
+                          setCurrentStepIndex(idx);
+                        } else {
+                          toast.error(`Complete "${steps[currentStepIndex]?.title || 'current step'}" first`, {
+                            icon: '🔒',
+                            style: { borderRadius: '10px', background: '#334155', color: '#fff' }
+                          });
+                        }
+                      }}
+                      title={`${idx + 1}. ${step.title}${hasProgress ? ` (${summary.done}/${summary.total})` : ''}`}
+                      style={{
+                        width: '38px',
+                        height: '38px',
+                        borderRadius: isActive ? '12px' : '50%',
+                        backgroundColor: isActive ? '#1e3a5f' : (isCompleted ? 'rgba(34,197,94,0.15)' : (isLocked ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.07)')),
+                        border: isActive ? '2px solid #3b82f6' : (isCompleted ? '2px solid rgba(34,197,94,0.4)' : '1px solid rgba(255,255,255,0.08)'),
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: isLocked ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                        position: 'relative',
+                        opacity: isLocked ? 0.45 : 1,
+                        boxShadow: isActive
+                          ? '0 0 16px rgba(59,130,246,0.4), 0 0 4px rgba(59,130,246,0.2)'
+                          : (isCompleted ? '0 0 8px rgba(34,197,94,0.2)' : 'none'),
+                        flexShrink: 0
+                      }}
+                      onMouseEnter={e => {
+                        if (!isLocked && !isActive) {
+                          e.currentTarget.style.transform = 'scale(1.15)';
+                          e.currentTarget.style.boxShadow = '0 0 12px rgba(59,130,246,0.3)';
+                          e.currentTarget.style.borderColor = 'rgba(59,130,246,0.5)';
+                        }
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.transform = 'scale(1)';
+                        e.currentTarget.style.boxShadow = isActive
+                          ? '0 0 16px rgba(59,130,246,0.4), 0 0 4px rgba(59,130,246,0.2)'
+                          : (isCompleted ? '0 0 8px rgba(34,197,94,0.2)' : 'none');
+                        e.currentTarget.style.borderColor = isActive ? '#3b82f6' : (isCompleted ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.08)');
+                      }}
+                    >
+                      {/* Inner content: checkmark for completed, lock for locked, number for others */}
+                      {isCompleted ? (
+                        <CheckCircle2 size={16} color="#4ade80" strokeWidth={2.5} />
+                      ) : isLocked ? (
+                        <Lock size={13} color="rgba(255,255,255,0.35)" />
+                      ) : (
+                        <span style={{
+                          fontSize: isActive ? '0.82rem' : '0.72rem',
+                          fontWeight: 900,
+                          color: isActive ? '#93c5fd' : 'rgba(255,255,255,0.7)',
+                          letterSpacing: '-0.02em',
+                          lineHeight: 1
+                        }}>
+                          {idx + 1}
+                        </span>
+                      )}
+
+                      {/* Status dot — top-right corner */}
+                      {hasProgress && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '-2px',
+                          right: '-2px',
+                          width: '10px',
+                          height: '10px',
+                          borderRadius: '50%',
+                          backgroundColor: summary.ok ? '#22c55e' : '#ef4444',
+                          border: '2px solid #0a0f1e',
+                          boxShadow: summary.ok ? '0 0 6px rgba(34,197,94,0.5)' : '0 0 6px rgba(239,68,68,0.5)'
+                        }} />
+                      )}
+
+                      {/* Active pulse ring */}
+                      {isActive && (
+                        <div style={{
+                          position: 'absolute',
+                          inset: '-4px',
+                          borderRadius: '14px',
+                          border: '1px solid rgba(59,130,246,0.2)',
+                          animation: 'maviPulse 2s ease-in-out infinite',
+                          pointerEvents: 'none'
+                        }} />
+                      )}
+                    </div>
+
+                    {/* Connector line below */}
+                    {idx < steps.length - 1 && (
                       <div style={{
-                        position: 'absolute',
-                        inset: '-4px',
-                        borderRadius: '14px',
-                        border: '1px solid rgba(59,130,246,0.2)',
-                        animation: 'maviPulse 2s ease-in-out infinite',
-                        pointerEvents: 'none'
+                        width: '2px',
+                        height: '10px',
+                        backgroundColor: isCompleted ? '#22c55e' : 'rgba(255,255,255,0.1)',
+                        transition: 'background-color 0.3s ease',
+                        flexShrink: 0
                       }} />
                     )}
                   </div>
+                );
+              })}
+            </div>
 
-                  {/* Connector line below */}
-                  {idx < steps.length - 1 && (
-                    <div style={{
-                      width: '2px',
-                      height: '10px',
-                      backgroundColor: isCompleted ? '#22c55e' : 'rgba(255,255,255,0.1)',
-                      transition: 'background-color 0.3s ease',
-                      flexShrink: 0
-                    }} />
-                  )}
-                </div>
-              );
-            })}
+            {/* Separator */}
+            <div style={{
+              width: '30px',
+              height: '1px',
+              backgroundColor: 'rgba(255, 255, 255, 0.08)',
+              margin: '8px 0',
+              flexShrink: 0
+            }} />
+
+            {/* Lower Section: System Health & PLC Monitor */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '12px',
+              flexShrink: 0,
+              paddingBottom: '4px'
+            }}>
+              {/* Server Status Icon */}
+              <div 
+                style={{
+                  position: 'relative',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: isOnline ? '#22c55e' : '#ef4444',
+                  cursor: 'default',
+                  transition: 'all 0.2s'
+                }}
+                title={isOnline ? "Server Connection: Active" : "Server Connection: Offline"}
+              >
+                <Database size={13} />
+                <span style={{
+                  position: 'absolute',
+                  bottom: '1px',
+                  right: '1px',
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  backgroundColor: isOnline ? '#22c55e' : '#ef4444'
+                }} />
+              </div>
+
+              {/* PLC/Broker Status Icon */}
+              <div 
+                style={{
+                  position: 'relative',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#3b82f6',
+                  cursor: 'default'
+                }}
+                title="MQTT Broker / PLC Link: Connected"
+              >
+                <Cpu size={13} />
+                <span style={{
+                  position: 'absolute',
+                  bottom: '1px',
+                  right: '1px',
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  backgroundColor: '#22c55e'
+                }} />
+              </div>
+
+              {/* Camera Connection Status Icon */}
+              <div 
+                style={{
+                  position: 'relative',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#eab308',
+                  cursor: 'default'
+                }}
+                title="Shopfloor Camera: Standby"
+              >
+                <Camera size={13} />
+                <span style={{
+                  position: 'absolute',
+                  bottom: '1px',
+                  right: '1px',
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  backgroundColor: '#22c55e'
+                }} />
+              </div>
+
+              {/* Station Diagnostics Shortcut */}
+              <button 
+                onClick={() => setShowDiagnostics(true)}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(59,130,246,0.1)',
+                  border: '1px solid rgba(59,130,246,0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#60a5fa',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  padding: 0
+                }}
+                title="Launch Diagnostics Panel"
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(59,130,246,0.2)'; e.currentTarget.style.borderColor = 'rgba(59,130,246,0.4)'; e.currentTarget.style.transform = 'scale(1.1)'; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(59,130,246,0.1)'; e.currentTarget.style.borderColor = 'rgba(59,130,246,0.2)'; e.currentTarget.style.transform = 'scale(1)'; }}
+              >
+                <SlidersHorizontal size={13} className="mavi-pulse-diag" style={{ animation: 'maviPulse 2s infinite' }} />
+              </button>
+            </div>
           </div>
         )}
 

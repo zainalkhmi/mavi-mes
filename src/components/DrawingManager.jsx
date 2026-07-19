@@ -344,6 +344,8 @@ export default function DrawingManager() {
     const [showStylePopup, setShowStylePopup] = useState(false);
     const [showLayerPopup, setShowLayerPopup] = useState(false);
     const [showShapePopup, setShowShapePopup] = useState(false);
+    const [showGdtPopup, setShowGdtPopup] = useState(false);
+    const [selectedGdtTool, setSelectedGdtTool] = useState(null);
     const [selectedShapeTool, setSelectedShapeTool] = useState('rect');
     const [cqType, setCqType] = useState('rectangular');
     const [cqWidth, setCqWidth] = useState(120);
@@ -2772,12 +2774,12 @@ export default function DrawingManager() {
                         cx: Math.round((x1 + x2) / 2),
                         cy: Math.round((y1 + y2) / 2),
                         spec: initialSpec,
-                        label: `${catDef.labelId || 'Dimensi'} Baru`,
+                        label: selectedGdtTool ? `${selectedGdtTool} Baru` : `${catDef.labelId || 'Dimensi'} Baru`,
                         category: drawingCategory || 'dimension',
                         measureType: catDef.defaultMeasure,
                         indicatorType: catDef.defaultIndicator,
                         unit: catDef.defaultUnit,
-                        gdt_symbol: catDef.symbol,
+                        gdt_symbol: selectedGdtTool || catDef.symbol,
                         tolMin: (parseFloat(initialSpec) - 0.1).toFixed(2),
                         tolMax: (parseFloat(initialSpec) + 0.1).toFixed(2),
                         variable: suggestedVars[0] || 'Meas_Length',
@@ -2790,7 +2792,7 @@ export default function DrawingManager() {
                         yoloClass: '',
                         deviceLockEnabled: false,
                         deviceProfile: 'Mitutoyo Caliper (BLE)',
-                        gdtFrameEnabled: false,
+                        gdtFrameEnabled: !!selectedGdtTool,
                         gdtTolerance: '',
                         gdtHasDiameter: false,
                         gdtModifier: '',
@@ -2801,6 +2803,7 @@ export default function DrawingManager() {
                     setIsDimModalOpen(true);
                     setDimDrawState('idle');
                     setDimDraftCoords(null);
+                    setSelectedGdtTool(null);
                     toast.success('Titik kedua ditempatkan. Dimensi berhasil dibuat.');
                 }
             } else if (dimDrawState === 'waiting_offset') {
@@ -2829,12 +2832,12 @@ export default function DrawingManager() {
                     setDimModalData({
                         x1, y1, x2, y2, lx, ly, cx, cy,
                         spec: initialSpec,
-                        label: 'Sudut Baru',
+                        label: selectedGdtTool ? `${selectedGdtTool} Baru` : 'Sudut Baru',
                         category: 'angle',
                         measureType: 'angle',
                         indicatorType: 'arc',
                         unit: '°',
-                        gdt_symbol: '∠',
+                        gdt_symbol: selectedGdtTool || '∠',
                         tolMin: (parseFloat(initialSpec) - 1.0).toFixed(1),
                         tolMax: (parseFloat(initialSpec) + 1.0).toFixed(1),
                         variable: suggestedVars[0] || 'Meas_Angle',
@@ -2847,7 +2850,7 @@ export default function DrawingManager() {
                         yoloClass: '',
                         deviceLockEnabled: false,
                         deviceProfile: 'Mitutoyo Caliper (BLE)',
-                        gdtFrameEnabled: false,
+                        gdtFrameEnabled: !!selectedGdtTool,
                         gdtTolerance: '',
                         gdtHasDiameter: false,
                         gdtModifier: '',
@@ -2858,6 +2861,7 @@ export default function DrawingManager() {
                     setIsDimModalOpen(true);
                     setDimDrawState('idle');
                     setDimDraftCoords(null);
+                    setSelectedGdtTool(null);
                     toast.success('Lengan kedua ditentukan. Sudut berhasil dibuat.');
                 }
             }
@@ -4884,13 +4888,16 @@ export default function DrawingManager() {
                 PARALLELISM: '∥',
                 ANGULARITY: '∠',
                 PROFILE_SURFACE: '⌢',
+                PROFILE_LINE: '◠',
                 CONCENTRICITY: '◎',
-                CIRCULAR_RUNOUT: '↗'
+                SYMMETRY: '⌯',
+                CIRCULAR_RUNOUT: '↗',
+                TOTAL_RUNOUT: '⌰'
             };
             
             const sym = symbolMap[gdt.symbol] || gdt.symbol || '⌖';
             const tolerance = gdt.tolerance || '';
-            const modifier = gdt.modifier === 'M' ? 'Ⓜ' : gdt.modifier === 'L' ? 'Ⓛ' : '';
+            const modifier = gdt.modifier === 'M' ? 'Ⓜ' : gdt.modifier === 'L' ? 'Ⓛ' : gdt.modifier === 'F' ? 'Ⓕ' : '';
             const datum1 = gdt.datum1 || '';
             const datum2 = gdt.datum2 || '';
             const datum3 = gdt.datum3 || '';
@@ -6450,17 +6457,9 @@ export default function DrawingManager() {
                                 { id: 'shape', label: 'Bentuk', match: ['rect', 'circle', 'ellipse', 'triangle', 'hexagon', 'arc', 'polyline'] },
                                 { id: 'text', icon: 'Type', label: 'Teks' },
                                 { id: '_sep2' },
-                                ...PARAM_CATEGORIES.map(cat => ({
-                                    id: cat.key,
-                                    isCategory: true,
-                                    label: cat.labelId,
-                                    emoji: cat.icon,
-                                    color: cat.color,
-                                    action: () => handleAddDimension(cat.key)
-                                })),
+                                { id: 'gdt_tools', label: 'Dimensi / GD&T' },
                                 { id: '_sep3' },
                                 { id: 'balloon', icon: 'balloon_icon', label: 'Balloon Mode', isToggle: true, toggleState: isBalloonMode, color: '#ef4444', action: () => setIsBalloonMode(prev => !prev) },
-                                { id: 'symbol', icon: 'Settings', label: 'Simbol' },
                                 { id: 'erase', icon: 'Trash2', label: 'Hapus', danger: true },
                                 { id: '_sep4' },
                                 { id: 'color', icon: 'color_swatch', label: 'Warna' },
@@ -6474,6 +6473,7 @@ export default function DrawingManager() {
                                 
                                 const isActive = item.isToggle ? item.toggleState :
                                     item.isCategory ? (cadTool === 'dimension' && drawingCategory === item.id) :
+                                    item.id === 'gdt_tools' ? (showGdtPopup || cadTool === 'dimension') :
                                     item.id === 'color' ? showColorPopup :
                                     item.id === 'style' ? showStylePopup :
                                     item.id === 'layer' ? showLayerPopup :
@@ -6484,11 +6484,14 @@ export default function DrawingManager() {
                                 
                                 const handleClick = () => {
                                     if (item.action) { item.action(); return; }
-                                    if (item.id === 'color') { setShowColorPopup(!showColorPopup); setShowStylePopup(false); setShowLayerPopup(false); setShowShapePopup(false); return; }
-                                    if (item.id === 'style') { setShowStylePopup(!showStylePopup); setShowColorPopup(false); setShowLayerPopup(false); setShowShapePopup(false); return; }
-                                    if (item.id === 'layer') { setShowLayerPopup(!showLayerPopup); setShowColorPopup(false); setShowStylePopup(false); setShowShapePopup(false); return; }
-                                    if (item.id === 'shape') { setShowShapePopup(!showShapePopup); setShowColorPopup(false); setShowStylePopup(false); setShowLayerPopup(false); return; }
+                                    if (item.id === 'gdt_tools') { setShowGdtPopup(!showGdtPopup); setShowColorPopup(false); setShowStylePopup(false); setShowLayerPopup(false); setShowShapePopup(false); return; }
+                                    if (item.id === 'color') { setShowColorPopup(!showColorPopup); setShowStylePopup(false); setShowLayerPopup(false); setShowShapePopup(false); setShowGdtPopup(false); return; }
+                                    if (item.id === 'style') { setShowStylePopup(!showStylePopup); setShowColorPopup(false); setShowLayerPopup(false); setShowShapePopup(false); setShowGdtPopup(false); return; }
+                                    if (item.id === 'layer') { setShowLayerPopup(!showLayerPopup); setShowColorPopup(false); setShowStylePopup(false); setShowShapePopup(false); setShowGdtPopup(false); return; }
+                                    if (item.id === 'shape') { setShowShapePopup(!showShapePopup); setShowColorPopup(false); setShowStylePopup(false); setShowLayerPopup(false); setShowGdtPopup(false); return; }
                                     setShowShapePopup(false);
+                                    setShowGdtPopup(false);
+                                    setSelectedGdtTool(null);
                                     setCadTool(item.id);
                                 };
                                 
@@ -6499,20 +6502,26 @@ export default function DrawingManager() {
                                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                 padding: '8px', borderRadius: '8px', cursor: 'pointer', outline: 'none',
                                                 minWidth: '40px', height: '40px', transition: 'all 0.2s',
-                                                border: isActive && (item.isCategory || item.isToggle) ? `1px solid ${item.color}80` : isActive ? '1px solid #bfdbfe' : '1px solid transparent',
-                                                color: isDanger ? '#ef4444' : isActive && (item.isCategory || item.isToggle) ? item.color : isActive ? '#2563eb' : (item.isCategory || item.isToggle) ? item.color : '#64748b',
-                                                backgroundColor: isDanger ? '#fee2e2' : isActive && (item.isCategory || item.isToggle) ? `${item.color}20` : isActive ? '#eff6ff' : (item.isCategory || item.isToggle) ? `${item.color}08` : 'transparent',
+                                                border: (item.id === 'gdt_tools' && cadTool === 'dimension') ? `1px solid ${getCategoryDef(drawingCategory).color}80` : isActive && (item.isCategory || item.isToggle) ? `1px solid ${item.color}80` : isActive ? '1px solid #bfdbfe' : '1px solid transparent',
+                                                color: isDanger ? '#ef4444' : (item.id === 'gdt_tools' && cadTool === 'dimension') ? (selectedGdtTool ? '#10b981' : getCategoryDef(drawingCategory).color) : isActive && (item.isCategory || item.isToggle) ? item.color : isActive ? '#2563eb' : (item.isCategory || item.isToggle) ? item.color : '#64748b',
+                                                backgroundColor: isDanger ? '#fee2e2' : (item.id === 'gdt_tools' && cadTool === 'dimension') ? (selectedGdtTool ? 'rgba(16, 185, 129, 0.15)' : `${getCategoryDef(drawingCategory).color}20`) : isActive && (item.isCategory || item.isToggle) ? `${item.color}20` : isActive ? '#eff6ff' : (item.isCategory || item.isToggle) ? `${item.color}08` : 'transparent',
                                             }}
                                             onMouseEnter={(e) => {
                                                 if (!isActive && !isDanger) {
-                                                    e.currentTarget.style.backgroundColor = item.isCategory ? `${item.color}15` : '#f1f5f9';
-                                                    e.currentTarget.style.color = item.isCategory ? item.color : '#334155';
+                                                    const isGdtActive = item.id === 'gdt_tools' && cadTool === 'dimension';
+                                                    if (!isGdtActive) {
+                                                        e.currentTarget.style.backgroundColor = (item.isCategory || item.id === 'gdt_tools') ? `${getCategoryDef(drawingCategory).color}15` : '#f1f5f9';
+                                                        e.currentTarget.style.color = (item.isCategory || item.id === 'gdt_tools') ? getCategoryDef(drawingCategory).color : '#334155';
+                                                    }
                                                 }
                                             }}
                                             onMouseLeave={(e) => {
                                                 if (!isActive && !isDanger) {
-                                                    e.currentTarget.style.backgroundColor = item.isCategory ? `${item.color}08` : 'transparent';
-                                                    e.currentTarget.style.color = item.isCategory ? item.color : '#64748b';
+                                                    const isGdtActive = item.id === 'gdt_tools' && cadTool === 'dimension';
+                                                    if (!isGdtActive) {
+                                                        e.currentTarget.style.backgroundColor = (item.isCategory || item.id === 'gdt_tools') ? `${getCategoryDef(drawingCategory).color}08` : 'transparent';
+                                                        e.currentTarget.style.color = (item.isCategory || item.id === 'gdt_tools') ? getCategoryDef(drawingCategory).color : '#64748b';
+                                                    }
                                                 }
                                             }}
                                         >
@@ -6526,6 +6535,25 @@ export default function DrawingManager() {
                                                 </svg>
                                             ) : item.emoji ? (
                                                 <span style={{ fontSize: '1.25rem', lineHeight: 1, fontWeight: item.emoji === 'R' || item.emoji === 'Ra' ? '800' : 'normal' }}>{item.emoji}</span>
+                                            ) : item.id === 'gdt_tools' ? (
+                                                <span style={{ fontSize: '1.25rem', lineHeight: 1, fontWeight: '800', color: selectedGdtTool ? '#10b981' : getCategoryDef(drawingCategory).color }}>
+                                                    {selectedGdtTool ? (
+                                                        selectedGdtTool === 'POSITION' ? '⌖' :
+                                                        selectedGdtTool === 'FLATNESS' ? '▱' :
+                                                        selectedGdtTool === 'STRAIGHTNESS' ? '⏤' :
+                                                        selectedGdtTool === 'CIRCULARITY' ? '◯' :
+                                                        selectedGdtTool === 'CYLINDRICITY' ? '⌭' :
+                                                        selectedGdtTool === 'PROFILE_SURFACE' ? '⌢' :
+                                                        selectedGdtTool === 'PROFILE_LINE' ? '◠' :
+                                                        selectedGdtTool === 'PERPENDICULARITY' ? '⊥' :
+                                                        selectedGdtTool === 'PARALLELISM' ? '∥' :
+                                                        selectedGdtTool === 'ANGULARITY' ? '∠' :
+                                                        selectedGdtTool === 'CONCENTRICITY' ? '◎' :
+                                                        selectedGdtTool === 'SYMMETRY' ? '⌯' :
+                                                        selectedGdtTool === 'CIRCULAR_RUNOUT' ? '↗' :
+                                                        selectedGdtTool === 'TOTAL_RUNOUT' ? '⌰' : '📏'
+                                                    ) : getCategoryDef(drawingCategory).icon || '📏'}
+                                                </span>
                                             ) : item.id === 'shape' ? (
                                                 selectedShapeTool === 'rect' ? <Square size={20} /> :
                                                 selectedShapeTool === 'circle' ? <Circle size={20} /> :
@@ -6544,6 +6572,126 @@ export default function DrawingManager() {
                                                 <IconComp size={20} style={item.rotate ? { transform: 'rotate(-45deg)' } : undefined} />
                                             )}
                                         </button>
+                                        
+                                        {item.id === 'gdt_tools' && showGdtPopup && (
+                                            <div style={{
+                                                position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '8px',
+                                                backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #cbd5e1',
+                                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)', padding: '8px', display: 'flex', flexDirection: 'column',
+                                                zIndex: 100, width: '220px', gap: '6px', maxHeight: '420px', overflowY: 'auto'
+                                            }}>
+                                                <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#475569', padding: '4px 8px', borderBottom: '1px solid #e2e8f0' }}>ALAT UKUR / DIMENSI GD&T</span>
+                                                
+                                                {/* Group 1: Dimensi Dasar */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                    <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#94a3b8', padding: '2px 8px', textTransform: 'uppercase' }}>Dimensi Dasar</span>
+                                                    {PARAM_CATEGORIES.map(cat => {
+                                                        const isSelected = cadTool === 'dimension' && drawingCategory === cat.key && !selectedGdtTool;
+                                                        return (
+                                                            <button
+                                                                key={cat.key}
+                                                                onClick={() => {
+                                                                    setCadTool('dimension');
+                                                                    setDrawingCategory(cat.key);
+                                                                    setSelectedGdtTool(null);
+                                                                    setShowGdtPopup(false);
+                                                                    handleAddDimension(cat.key);
+                                                                }}
+                                                                style={{
+                                                                    display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
+                                                                    padding: '4px 8px', borderRadius: '4px', border: 'none',
+                                                                    backgroundColor: isSelected ? `${cat.color}15` : 'transparent',
+                                                                    color: isSelected ? cat.color : '#334155',
+                                                                    fontWeight: isSelected ? '700' : 'normal',
+                                                                    fontSize: '0.7rem', cursor: 'pointer', textAlign: 'left'
+                                                                }}
+                                                            >
+                                                                <span style={{ fontSize: '0.9rem', width: '16px', display: 'inline-flex', justifyContent: 'center' }}>{cat.icon}</span>
+                                                                <span>{cat.labelId}</span>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+
+                                                {/* Group 2: GD&T Tolerances */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', borderTop: '1px solid #f1f5f9', paddingTop: '4px' }}>
+                                                    <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#94a3b8', padding: '2px 8px', textTransform: 'uppercase' }}>Karakteristik GD&T</span>
+                                                    {[
+                                                        // Form
+                                                        { id: 'FLATNESS', label: 'Flatness (Kerataan)', icon: '▱', cat: 'dimension' },
+                                                        { id: 'STRAIGHTNESS', label: 'Straightness (Kelurusan)', icon: '⏤', cat: 'dimension' },
+                                                        { id: 'CIRCULARITY', label: 'Circularity (Kebulatan)', icon: '◯', cat: 'diameter' },
+                                                        { id: 'CYLINDRICITY', label: 'Cylindricity (Kesilindrisan)', icon: '⌭', cat: 'diameter' },
+                                                        // Profile
+                                                        { id: 'PROFILE_SURFACE', label: 'Profile of Surface', icon: '⌢', cat: 'dimension' },
+                                                        { id: 'PROFILE_LINE', label: 'Profile of Line', icon: '◠', cat: 'dimension' },
+                                                        // Orientation
+                                                        { id: 'PERPENDICULARITY', label: 'Perpendicularity (Tegak Lurus)', icon: '⊥', cat: 'dimension' },
+                                                        { id: 'PARALLELISM', label: 'Parallelism (Kesejajaran)', icon: '∥', cat: 'dimension' },
+                                                        { id: 'ANGULARITY', label: 'Angularity (Kemiringan)', icon: '∠', cat: 'angle' },
+                                                        // Location
+                                                        { id: 'POSITION', label: 'Position (Posisi)', icon: '⌖', cat: 'dimension' },
+                                                        { id: 'CONCENTRICITY', label: 'Concentricity (Kesepusatan)', icon: '◎', cat: 'diameter' },
+                                                        { id: 'SYMMETRY', label: 'Symmetry (Kesimetrisan)', icon: '⌯', cat: 'dimension' },
+                                                        // Runout
+                                                        { id: 'CIRCULAR_RUNOUT', label: 'Circular Runout', icon: '↗', cat: 'diameter' },
+                                                        { id: 'TOTAL_RUNOUT', label: 'Total Runout', icon: '⌰', cat: 'diameter' }
+                                                    ].map(gdt => {
+                                                        const isSelected = cadTool === 'dimension' && selectedGdtTool === gdt.id;
+                                                        return (
+                                                            <button
+                                                                key={gdt.id}
+                                                                onClick={() => {
+                                                                    setCadTool('dimension');
+                                                                    setDrawingCategory(gdt.cat);
+                                                                    setSelectedGdtTool(gdt.id);
+                                                                    setShowGdtPopup(false);
+                                                                    handleAddDimension(gdt.cat);
+                                                                }}
+                                                                style={{
+                                                                    display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
+                                                                    padding: '4px 8px', borderRadius: '4px', border: 'none',
+                                                                    backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                                                                    color: isSelected ? '#10b981' : '#334155',
+                                                                    fontWeight: isSelected ? '700' : 'normal',
+                                                                    fontSize: '0.7rem', cursor: 'pointer', textAlign: 'left'
+                                                                }}
+                                                            >
+                                                                <span style={{ fontSize: '0.9rem', width: '16px', display: 'inline-flex', justifyContent: 'center', fontWeight: 'bold' }}>{gdt.icon}</span>
+                                                                <span>{gdt.label}</span>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+
+                                                {/* Group 3: Modifiers */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', borderTop: '1px solid #f1f5f9', paddingTop: '4px' }}>
+                                                    <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#94a3b8', padding: '2px 8px', textTransform: 'uppercase' }}>Modifiers (Pengubah)</span>
+                                                    {[
+                                                        { id: 'MMC', label: 'Ⓜ (MMC - Max Material)', desc: 'Gunakan pada panel kanan' },
+                                                        { id: 'LMC', label: 'Ⓛ (LMC - Least Material)', desc: 'Gunakan pada panel kanan' },
+                                                        { id: 'FREE_STATE', label: 'Ⓕ (Free State)', desc: 'Gunakan pada panel kanan' }
+                                                    ].map(mod => (
+                                                        <button
+                                                            key={mod.id}
+                                                            onClick={() => {
+                                                                setShowGdtPopup(false);
+                                                                toast.error(`Modifier ini diatur pada panel kanan setelah meletakkan dimensi.`);
+                                                            }}
+                                                            style={{
+                                                                display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
+                                                                padding: '4px 8px', borderRadius: '4px', border: 'none',
+                                                                backgroundColor: 'transparent', color: '#64748b',
+                                                                fontSize: '0.7rem', cursor: 'pointer', textAlign: 'left'
+                                                            }}
+                                                        >
+                                                            <span style={{ fontSize: '0.7rem', width: '16px', display: 'inline-flex', justifyContent: 'center' }}>⚙</span>
+                                                            <span>{mod.label}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
                                         
                                         {item.id === 'shape' && showShapePopup && (
                                             <div style={{
@@ -9716,17 +9864,30 @@ export default function DrawingManager() {
                                                             <div>
                                                                 <label style={{ ...labelStyle, marginBottom: '2px' }}>Karakteristik</label>
                                                                 <select value={editGdtSymbol} onChange={(e) => updateActiveDimProp('gdt_symbol', e.target.value)} style={selectStyle}>
-                                                                    <option value="POSITION">⌖ Position</option>
-                                                                    <option value="FLATNESS">▱ Flatness</option>
-                                                                    <option value="STRAIGHTNESS">⏤ Straightness</option>
-                                                                    <option value="CIRCULARITY">◯ Circularity</option>
-                                                                    <option value="CYLINDRICITY">⌭ Cylindricity</option>
-                                                                    <option value="PERPENDICULARITY">⊥ Perpendicularity</option>
-                                                                    <option value="PARALLELISM">∥ Parallelism</option>
-                                                                    <option value="ANGULARITY">∠ Angularity</option>
-                                                                    <option value="PROFILE_SURFACE">⌢ Profile</option>
-                                                                    <option value="CONCENTRICITY">◎ Concentricity</option>
-                                                                    <option value="CIRCULAR_RUNOUT">↗ Runout</option>
+                                                                    <optgroup label="Form (Bentuk)">
+                                                                        <option value="FLATNESS">▱ Flatness</option>
+                                                                        <option value="STRAIGHTNESS">⏤ Straightness</option>
+                                                                        <option value="CIRCULARITY">◯ Circularity</option>
+                                                                        <option value="CYLINDRICITY">⌭ Cylindricity</option>
+                                                                    </optgroup>
+                                                                    <optgroup label="Profile (Profil)">
+                                                                        <option value="PROFILE_SURFACE">⌢ Profile of a Surface</option>
+                                                                        <option value="PROFILE_LINE">◠ Profile of a Line</option>
+                                                                    </optgroup>
+                                                                    <optgroup label="Orientation (Orientasi)">
+                                                                        <option value="PERPENDICULARITY">⊥ Perpendicularity</option>
+                                                                        <option value="PARALLELISM">∥ Parallelism</option>
+                                                                        <option value="ANGULARITY">∠ Angularity</option>
+                                                                    </optgroup>
+                                                                    <optgroup label="Location (Lokasi)">
+                                                                        <option value="POSITION">⌖ Position</option>
+                                                                        <option value="CONCENTRICITY">◎ Concentricity</option>
+                                                                        <option value="SYMMETRY">⌯ Symmetry</option>
+                                                                    </optgroup>
+                                                                    <optgroup label="Runout (Penyimpangan)">
+                                                                        <option value="CIRCULAR_RUNOUT">↗ Runout</option>
+                                                                        <option value="TOTAL_RUNOUT">⌰ Total Runout</option>
+                                                                    </optgroup>
                                                                 </select>
                                                             </div>
                                                             <div>
@@ -9754,6 +9915,7 @@ export default function DrawingManager() {
                                                                     <option value="">None</option>
                                                                     <option value="M">Ⓜ (MMC)</option>
                                                                     <option value="L">Ⓛ (LMC)</option>
+                                                                    <option value="F">Ⓕ (Free State)</option>
                                                                 </select>
                                                             </div>
                                                         </div>
@@ -10765,9 +10927,9 @@ export default function DrawingManager() {
                     display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
                 }}>
                     <div style={{
-                        backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0',
-                        width: '450px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
-                        display: 'flex', flexDirection: 'column', gap: '14px', maxHeight: '90vh', overflowY: 'auto', fontFamily: "'Inter', sans-serif"
+                        backgroundColor: 'white', borderRadius: '0px', border: '1px solid #cbd5e1',
+                        width: '450px', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15), 0 10px 10px -5px rgba(0,0,0,0.06)',
+                        display: 'flex', flexDirection: 'column', gap: '14px', maxHeight: '75vh', overflowY: 'auto', fontFamily: "'Inter', sans-serif"
                     }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -11026,17 +11188,30 @@ export default function DrawingManager() {
                                                 onChange={(e) => setDimModalData(prev => ({ ...prev, gdt_symbol: e.target.value }))}
                                                 style={selectStyle}
                                             >
-                                                <option value="POSITION">⌖ Position</option>
-                                                <option value="FLATNESS">▱ Flatness</option>
-                                                <option value="STRAIGHTNESS">⏤ Straightness</option>
-                                                <option value="CIRCULARITY">◯ Circularity</option>
-                                                <option value="CYLINDRICITY">⌭ Cylindricity</option>
-                                                <option value="PERPENDICULARITY">⊥ Perpendicularity</option>
-                                                <option value="PARALLELISM">∥ Parallelism</option>
-                                                <option value="ANGULARITY">∠ Angularity</option>
-                                                <option value="PROFILE_SURFACE">⌢ Profile</option>
-                                                <option value="CONCENTRICITY">◎ Concentricity</option>
-                                                <option value="CIRCULAR_RUNOUT">↗ Runout</option>
+                                                <optgroup label="Form (Bentuk)">
+                                                    <option value="FLATNESS">▱ Flatness</option>
+                                                    <option value="STRAIGHTNESS">⏤ Straightness</option>
+                                                    <option value="CIRCULARITY">◯ Circularity</option>
+                                                    <option value="CYLINDRICITY">⌭ Cylindricity</option>
+                                                </optgroup>
+                                                <optgroup label="Profile (Profil)">
+                                                    <option value="PROFILE_SURFACE">⌢ Profile of a Surface</option>
+                                                    <option value="PROFILE_LINE">◠ Profile of a Line</option>
+                                                </optgroup>
+                                                <optgroup label="Orientation (Orientasi)">
+                                                    <option value="PERPENDICULARITY">⊥ Perpendicularity</option>
+                                                    <option value="PARALLELISM">∥ Parallelism</option>
+                                                    <option value="ANGULARITY">∠ Angularity</option>
+                                                </optgroup>
+                                                <optgroup label="Location (Lokasi)">
+                                                    <option value="POSITION">⌖ Position</option>
+                                                    <option value="CONCENTRICITY">◎ Concentricity</option>
+                                                    <option value="SYMMETRY">⌯ Symmetry</option>
+                                                </optgroup>
+                                                <optgroup label="Runout (Penyimpangan)">
+                                                    <option value="CIRCULAR_RUNOUT">↗ Runout</option>
+                                                    <option value="TOTAL_RUNOUT">⌰ Total Runout</option>
+                                                </optgroup>
                                             </select>
                                         </div>
                                         <div>
@@ -11074,6 +11249,7 @@ export default function DrawingManager() {
                                                 <option value="">None</option>
                                                 <option value="M">Ⓜ (MMC)</option>
                                                 <option value="L">Ⓛ (LMC)</option>
+                                                <option value="F">Ⓕ (Free State)</option>
                                             </select>
                                         </div>
                                     </div>
@@ -11147,7 +11323,7 @@ export default function DrawingManager() {
                 }}>
                     <div style={{
                         backgroundColor: 'white',
-                        borderRadius: '16px',
+                        borderRadius: '0px',
                         width: '500px',
                         maxWidth: '100%',
                         padding: '24px',
@@ -11155,8 +11331,10 @@ export default function DrawingManager() {
                         display: 'flex',
                         flexDirection: 'column',
                         gap: '16px',
-                        border: '1px solid #e2e8f0',
-                        position: 'relative'
+                        border: '1px solid #cbd5e1',
+                        position: 'relative',
+                        maxHeight: '85vh',
+                        overflowY: 'auto'
                     }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
