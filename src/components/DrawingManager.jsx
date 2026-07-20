@@ -75,6 +75,7 @@ const PARAM_CATEGORIES = [
     { key: 'angle', label: 'Angle', labelId: 'Sudut', icon: '∠', color: '#f59e0b', symbol: '∠', defaultUnit: '°', defaultMeasure: 'angle', defaultIndicator: 'arc' },
     { key: 'area', label: 'Area', labelId: 'Luas Area', icon: '▢', color: '#10b981', symbol: '', defaultUnit: 'mm²', defaultMeasure: 'area', defaultIndicator: 'area_box' },
     { key: 'roughness', label: 'Surface Roughness', labelId: 'Kekasaran Permukaan', icon: '△', color: '#ef4444', symbol: 'Ra', defaultUnit: 'μm', defaultMeasure: 'surface_roughness', defaultIndicator: 'callout' },
+    { key: 'datum', label: 'Datum Feature Symbol', labelId: 'Datum Referensi (▕A▏)', icon: '▕A▏', color: '#10b981', symbol: 'A', defaultUnit: '', defaultMeasure: 'datum_feature', defaultIndicator: 'callout' },
     { key: 'custom', label: 'Custom', labelId: 'Kustom', icon: '⚙', color: '#64748b', symbol: '', defaultUnit: 'mm', defaultMeasure: 'custom', defaultIndicator: 'callout' },
 ];
 
@@ -107,6 +108,7 @@ const MEASURE_TYPE_OPTIONS = {
     angle: [{ value: 'angle', label: 'Included Angle' }, { value: 'taper_angle', label: 'Taper Angle' }],
     area: [{ value: 'area', label: 'Cross-Section Area' }, { value: 'surface_area', label: 'Surface Area' }],
     roughness: [{ value: 'surface_roughness', label: 'Ra (Average)' }, { value: 'rz_roughness', label: 'Rz (Max Peak)' }],
+    datum: [{ value: 'datum_feature', label: 'Datum Feature Indicator' }],
     custom: [{ value: 'custom', label: 'Custom Measurement' }],
 };
 
@@ -117,6 +119,7 @@ const INDICATOR_TYPE_OPTIONS = {
     angle: [{ value: 'arc', label: 'Arc (Busur)' }],
     area: [{ value: 'area_box', label: 'Area Box (Kotak)' }],
     roughness: [{ value: 'callout', label: 'Callout Symbol' }],
+    datum: [{ value: 'callout', label: 'Datum Triangle + Box Pointer' }],
     custom: [{ value: 'callout', label: 'Callout Pointer' }, { value: 'horizontal', label: 'Garis Horizontal' }, { value: 'vertical', label: 'Garis Vertikal' }, { value: 'radial', label: 'Pointer Radial' }],
 };
 
@@ -128,6 +131,7 @@ const QMS_VARIABLES_BY_CATEGORY = {
     angle: ['Meas_Angle', 'Taper_Angle', 'Chamfer_Angle', 'Bevel_Angle', 'Inclination'],
     area: ['Meas_Area', 'Cross_Section_Area', 'Surface_Area', 'Contact_Area'],
     roughness: ['Meas_Ra', 'Meas_Rz', 'Surface_Roughness', 'Finish_Quality'],
+    datum: ['Datum_A_Ref', 'Datum_B_Ref', 'Datum_C_Ref'],
     custom: ['Custom_Param_1', 'Custom_Param_2'],
 };
 
@@ -738,7 +742,7 @@ export default function DrawingManager() {
     const [crosshairPos, setCrosshairPos] = useState({ x: 0, y: 0 });
     const [showCrosshair, setShowCrosshair] = useState(false);
     const [orthoMode, setOrthoMode] = useState(false);
-    const [canvasTheme, setCanvasTheme] = useState('white'); // 'white' | 'dark' | 'blueprint'
+    const [canvasTheme, setCanvasTheme] = useState('blueprint'); // 'white' | 'dark' | 'blueprint'
 
     // Canvas theme color map
     const themeColors = {
@@ -4715,6 +4719,91 @@ export default function DrawingManager() {
         const lx = dim.lx ?? 250;
         const ly = dim.ly ?? 200;
 
+        // Special Renderer for Datum Feature Symbol
+        if (dim.category === 'datum') {
+            const datumLabel = (dim.label || 'A').toUpperCase();
+            const boxW = Math.max(24, datumLabel.length * 10 + 12);
+            const boxH = 22;
+            const triSize = 10;
+            const x1 = dim.x1 ?? (lx - 30);
+            const y1 = dim.y1 ?? (ly + 30);
+
+            const dx = lx - x1;
+            const dy = ly - y1;
+            const angle = Math.atan2(dy, dx);
+            const angleDeg = (angle * 180) / Math.PI;
+
+            return (
+                <g key={dim.id}>
+                    {/* Leader line from anchor (x1, y1) to label (lx, ly) */}
+                    {(x1 !== lx || y1 !== ly) && (
+                        <line x1={x1} y1={y1} x2={lx} y2={ly} stroke={color} strokeWidth={isActive ? 2.5 : 1.5} />
+                    )}
+
+                    {/* Datum Triangle ▲ at anchor point (x1, y1) */}
+                    <g transform={`translate(${x1}, ${y1}) rotate(${angleDeg + 90})`}>
+                        <polygon
+                            points={`0,0 -${triSize / 2},${triSize} ${triSize / 2},${triSize}`}
+                            fill="#0f172a"
+                            stroke={color}
+                            strokeWidth="1.5"
+                            strokeLinejoin="round"
+                        />
+                    </g>
+
+                    {/* Datum Outer Box [ A ] at (lx, ly) */}
+                    <rect
+                        x={lx - boxW / 2}
+                        y={ly - boxH / 2}
+                        width={boxW}
+                        height={boxH}
+                        fill="#0f172a"
+                        stroke={color}
+                        strokeWidth={isActive ? 2.5 : 1.5}
+                        rx="2"
+                    />
+                    {/* Inner frame line for ASME Y14.5 aesthetic */}
+                    <rect
+                        x={lx - boxW / 2 + 2}
+                        y={ly - boxH / 2 + 2}
+                        width={boxW - 4}
+                        height={boxH - 4}
+                        fill="none"
+                        stroke={color}
+                        strokeWidth="0.75"
+                        rx="1"
+                    />
+                    <text
+                        x={lx}
+                        y={ly + 4}
+                        textAnchor="middle"
+                        fill="#34d399"
+                        fontSize="11"
+                        fontWeight="900"
+                        fontFamily="monospace"
+                    >
+                        {datumLabel}
+                    </text>
+
+                    {/* Active Pulsing Ring */}
+                    {isActive && (
+                        <rect
+                            x={lx - boxW / 2 - 4}
+                            y={ly - boxH / 2 - 4}
+                            width={boxW + 8}
+                            height={boxH + 8}
+                            fill="none"
+                            stroke="#10b981"
+                            strokeWidth="1.5"
+                            rx="4"
+                        >
+                            <animate attributeName="opacity" values="0.8;0.2;0.8" dur="1.5s" repeatCount="indefinite" />
+                        </rect>
+                    )}
+                </g>
+            );
+        }
+
         let shapeElement = null;
         let textYOffset = 3;
 
@@ -4894,56 +4983,87 @@ export default function DrawingManager() {
                 CIRCULAR_RUNOUT: '↗',
                 TOTAL_RUNOUT: '⌰'
             };
-            
-            const sym = symbolMap[gdt.symbol] || gdt.symbol || '⌖';
-            const tolerance = gdt.tolerance || '';
-            const modifier = gdt.modifier === 'M' ? 'Ⓜ' : gdt.modifier === 'L' ? 'Ⓛ' : gdt.modifier === 'F' ? 'Ⓕ' : '';
-            const datum1 = gdt.datum1 || '';
-            const datum2 = gdt.datum2 || '';
-            const datum3 = gdt.datum3 || '';
-            
-            const segments = [];
-            segments.push({ text: sym, w: 16 });
-            if (tolerance) {
-                segments.push({ text: `${gdt.hasDiameter ? '⌀' : ''}${tolerance}${modifier}`, w: 38 });
-            }
-            if (datum1) segments.push({ text: datum1, w: 14 });
-            if (datum2) segments.push({ text: datum2, w: 14 });
-            if (datum3) segments.push({ text: datum3, w: 14 });
-            
-            const totalW = segments.reduce((sum, s) => sum + s.w, 0);
-            const startX = lx - totalW / 2;
+
+            const mapModifierChar = (m) => {
+                switch (m) {
+                    case 'M': return 'Ⓜ';
+                    case 'L': return 'Ⓛ';
+                    case 'F': return 'Ⓕ';
+                    case 'P': return 'Ⓟ';
+                    case 'T': return 'Ⓣ';
+                    case 'U': return 'Ⓤ';
+                    case 'R': return 'Ⓡ';
+                    case 'S': return 'Ⓢ';
+                    default: return m || '';
+                }
+            };
+
+            const buildRowSegments = (symVal, tolVal, hasDia, modVal, d1, d2, d3) => {
+                const sym = symbolMap[symVal] || symVal || '⌖';
+                const modifier = mapModifierChar(modVal);
+                const segs = [];
+                segs.push({ text: sym, w: 16 });
+                if (tolVal) {
+                    segs.push({ text: `${hasDia ? '⌀' : ''}${tolVal}${modifier}`, w: 38 });
+                }
+                if (d1) segs.push({ text: d1, w: 14 });
+                if (d2) segs.push({ text: d2, w: 14 });
+                if (d3) segs.push({ text: d3, w: 14 });
+                return segs;
+            };
+
+            const tier1Segs = buildRowSegments(gdt.symbol, gdt.tolerance, gdt.hasDiameter, gdt.modifier, gdt.datum1, gdt.datum2, gdt.datum3);
+            const hasComposite = !!gdt.compositeEnabled;
+            const tier2Segs = hasComposite ? buildRowSegments(
+                gdt.symbol2 || gdt.symbol,
+                gdt.tolerance2 || '',
+                gdt.hasDiameter2 || gdt.hasDiameter,
+                gdt.modifier2 || '',
+                gdt.datum1_2 || '',
+                gdt.datum2_2 || '',
+                gdt.datum3_2 || ''
+            ) : [];
+
+            const totalW1 = tier1Segs.reduce((sum, s) => sum + s.w, 0);
+            const totalW2 = hasComposite ? tier2Segs.reduce((sum, s) => sum + s.w, 0) : 0;
+            const maxW = Math.max(totalW1, totalW2);
+            const startX = lx - maxW / 2;
             const h = 14;
-            const frameY = ly - 23; // shift above the label text
-            
-            let currentX = startX;
-            
+            const frameY = ly - (hasComposite ? 34 : 23);
+
+            const renderRow = (segs, rowY) => {
+                let currentX = startX;
+                return (
+                    <g key={rowY}>
+                        <rect x={startX} y={rowY} width={maxW} height={h} fill="#0f172a" stroke="#10b981" strokeWidth="1.25" rx="1" />
+                        {segs.map((seg, i) => {
+                            const cellX = currentX;
+                            currentX += seg.w;
+                            return (
+                                <g key={i}>
+                                    {i > 0 && <line x1={cellX} y1={rowY} x2={cellX} y2={rowY + h} stroke="#10b981" strokeWidth="0.75" />}
+                                    <text
+                                        x={cellX + seg.w / 2}
+                                        y={rowY + 10}
+                                        textAnchor="middle"
+                                        fill="#34d399"
+                                        fontSize="8"
+                                        fontWeight="bold"
+                                        fontFamily="monospace"
+                                    >
+                                        {seg.text}
+                                    </text>
+                                </g>
+                            );
+                        })}
+                    </g>
+                );
+            };
+
             return (
                 <g>
-                    {/* Outer Box */}
-                    <rect x={startX} y={frameY} width={totalW} height={h} fill="#0f172a" stroke="#10b981" strokeWidth="1.25" rx="1" />
-                    {segments.map((seg, i) => {
-                        const cellX = currentX;
-                        currentX += seg.w;
-                        return (
-                            <g key={i}>
-                                {/* Divider Line (skip for first) */}
-                                {i > 0 && <line x1={cellX} y1={frameY} x2={cellX} y2={frameY + h} stroke="#10b981" strokeWidth="0.75" />}
-                                {/* Text */}
-                                <text
-                                    x={cellX + seg.w / 2}
-                                    y={frameY + 10}
-                                    textAnchor="middle"
-                                    fill="#34d399"
-                                    fontSize="8"
-                                    fontWeight="bold"
-                                    fontFamily="monospace"
-                                >
-                                    {seg.text}
-                                </text>
-                            </g>
-                        );
-                    })}
+                    {renderRow(tier1Segs, frameY)}
+                    {hasComposite && renderRow(tier2Segs, frameY + h)}
                 </g>
             );
         };
@@ -5376,44 +5496,360 @@ export default function DrawingManager() {
             flexDirection: 'column',
             backgroundColor: '#f1f5f9',
             fontFamily: "'Inter', sans-serif",
-            padding: '16px',
-            gap: '16px'
+            padding: '12px 16px 24px 16px',
+            gap: '12px',
+            boxSizing: 'border-box',
+            overflow: 'hidden'
         }}>
-            {/* Header */}
+            {/* Header: Single Row Compact Container */}
             <div style={{
-                padding: '12px 20px',
+                padding: '8px 16px',
                 background: '#ffffff',
                 color: '#0f172a',
-                borderTopLeftRadius: '16px',
-                borderTopRightRadius: '16px',
-                borderBottom: '1px solid #e2e8f0',
-                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+                borderRadius: '14px',
+                border: '1px solid #e2e8f0',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 flexShrink: 0,
-                zIndex: 100
+                zIndex: 100,
+                gap: '12px',
+                userSelect: 'none'
             }}>
-                <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ backgroundColor: '#eff6ff', padding: '6px', borderRadius: '6px', display: 'flex', alignItems: 'center' }}>
-                            <Ruler size={16} color="#2563eb" />
-                        </div>
-                        <h2 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', letterSpacing: '0.5px' }}>Inspector Designer</h2>
-                        <span style={{ fontSize: '0.55rem', fontWeight: 800, backgroundColor: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                            CDAT ENTERPRISE
-                        </span>
+                {/* Left: Application Title */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                    <div style={{ backgroundColor: '#eff6ff', padding: '5px', borderRadius: '6px', display: 'flex', alignItems: 'center' }}>
+                        <Ruler size={15} color="#2563eb" />
                     </div>
+                    <h2 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: '#0f172a', letterSpacing: '0.3px', whiteSpace: 'nowrap' }}>Inspector Designer</h2>
+                    <span style={{ fontSize: '0.52rem', fontWeight: 800, backgroundColor: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', padding: '1px 5px', borderRadius: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
+                        CDAT
+                    </span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+
+                {/* Center: CAD Toolbar Widget Pill */}
+                <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#f5f0ff', borderRadius: '8px', border: '1px solid #e0d4f5', padding: '2px 4px', gap: '2px', flexShrink: 0 }}>
+                {[
+                    { id: 'select', icon: 'MousePointer', label: 'Pilih (Select)' },
+                    { id: 'pan', icon: 'Hand', label: 'Pan Hand' },
+                    { id: 'zoom_reset', icon: 'Search', label: 'Reset Zoom', action: () => { setZoom(1.0); setPanOffset({ x: 0, y: 0 }); } },
+                    { id: '_sep1' },
+                    { id: 'line', icon: 'Slash', label: 'Line (Garis)', rotate: true },
+                    { id: 'polyline', icon: 'Activity', label: 'Polyline (Garis Ganda)' },
+                    { id: 'rect', icon: 'Square', label: 'Rectangle (Persegi)' },
+                    { id: 'triangle', icon: 'Triangle', label: 'Triangle (Segitiga)' },
+                    { id: 'hexagon', icon: 'Hexagon', label: 'Hexagon (Segienam)' },
+                    { id: 'circle', icon: 'Circle', label: 'Circle (Lingkaran)' },
+                    { id: 'ellipse', icon: 'ellipse_icon', label: 'Ellipse (Elips)' },
+                    { id: 'text', icon: 'Type', label: 'Teks (Text)' },
+                    { id: 'move', icon: 'Move', label: 'Pindah Elemen' },
+                    { id: '_sep2' },
+                    { id: 'gdt_tools', label: 'Dimensi / GD&T' },
+                    { id: '_sep3' },
+                    { id: 'balloon', icon: 'balloon_icon', label: 'Balloon Mode', isToggle: true, toggleState: isBalloonMode, color: '#ef4444', action: () => setIsBalloonMode(prev => !prev) },
+                    { id: 'erase', icon: 'Trash2', label: 'Hapus', danger: true },
+                    { id: '_sep4' },
+                    { id: 'color', icon: 'color_swatch', label: 'Warna' },
+                    { id: 'style', icon: 'Palette', label: 'Gaya' },
+                    { id: 'layer', icon: 'Layers', label: 'Layer' },
+                ].map(item => {
+                    if (item.id.startsWith('_sep')) return <div key={item.id} style={{ width: '1px', height: '16px', backgroundColor: '#cbd5e1', margin: '0 2px' }} />;
+                    
+                    const iconMap = { MousePointer, Hand, Search, Slash, Square, Circle, Triangle, Hexagon, Activity, Type, Ruler, FileText, Settings, Trash2, Palette, Layers, Move };
+                    const IconComp = (item.icon && item.icon !== 'color_swatch' && item.icon !== 'balloon_icon' && item.icon !== 'ellipse_icon') ? (iconMap[item.icon] || FileText) : null;
+                    
+                    const isActive = item.isToggle ? item.toggleState :
+                        item.isCategory ? (cadTool === 'dimension' && drawingCategory === item.id) :
+                        item.id === 'gdt_tools' ? (showGdtPopup || cadTool === 'dimension') :
+                        item.id === 'color' ? showColorPopup :
+                        item.id === 'style' ? showStylePopup :
+                        item.id === 'layer' ? showLayerPopup :
+                        item.match ? item.match.includes(cadTool) : cadTool === item.id;
+                    
+                    const isDanger = item.danger && cadTool === item.id;
+                    
+                    const handleClick = () => {
+                        if (item.action) { item.action(); return; }
+                        if (item.id === 'gdt_tools') { setShowGdtPopup(!showGdtPopup); setShowColorPopup(false); setShowStylePopup(false); setShowLayerPopup(false); return; }
+                        if (item.id === 'color') { setShowColorPopup(!showColorPopup); setShowStylePopup(false); setShowLayerPopup(false); setShowGdtPopup(false); return; }
+                        if (item.id === 'style') { setShowStylePopup(!showStylePopup); setShowColorPopup(false); setShowLayerPopup(false); setShowGdtPopup(false); return; }
+                        if (item.id === 'layer') { setShowLayerPopup(!showLayerPopup); setShowColorPopup(false); setShowStylePopup(false); setShowLayerPopup(false); return; }
+                        setShowGdtPopup(false);
+                        setSelectedGdtTool(null);
+                        setCadTool(item.id);
+                    };
+                    
+                    return (
+                        <div key={item.id} style={{ position: 'relative' }}>
+                            <button title={item.label} onClick={handleClick}
+                                style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    padding: '5px', borderRadius: '5px', cursor: 'pointer', outline: 'none',
+                                    minWidth: '30px', height: '30px', transition: 'all 0.2s',
+                                    border: (item.id === 'gdt_tools' && cadTool === 'dimension') ? `1px solid ${getCategoryDef(drawingCategory).color}80` : isActive && (item.isCategory || item.isToggle) ? `1px solid ${item.color}80` : isActive ? '1px solid #bfdbfe' : '1px solid transparent',
+                                    color: isDanger ? '#ef4444' : (item.id === 'gdt_tools' && cadTool === 'dimension') ? (selectedGdtTool ? '#10b981' : getCategoryDef(drawingCategory).color) : isActive && (item.isCategory || item.isToggle) ? item.color : isActive ? '#2563eb' : (item.isCategory || item.isToggle) ? item.color : '#64748b',
+                                    backgroundColor: isDanger ? '#fee2e2' : (item.id === 'gdt_tools' && cadTool === 'dimension') ? (selectedGdtTool ? 'rgba(16, 185, 129, 0.15)' : `${getCategoryDef(drawingCategory).color}20`) : isActive && (item.isCategory || item.isToggle) ? `${item.color}20` : isActive ? '#eff6ff' : (item.isCategory || item.isToggle) ? `${item.color}08` : 'transparent',
+                                }}
+                                onMouseEnter={(e) => {
+                                    if (!isActive && !isDanger) {
+                                        const isGdtActive = item.id === 'gdt_tools' && cadTool === 'dimension';
+                                        if (!isGdtActive) {
+                                            e.currentTarget.style.backgroundColor = (item.isCategory || item.id === 'gdt_tools') ? `${getCategoryDef(drawingCategory).color}15` : '#f1f5f9';
+                                            e.currentTarget.style.color = (item.isCategory || item.id === 'gdt_tools') ? getCategoryDef(drawingCategory).color : '#334155';
+                                        }
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    if (!isActive && !isDanger) {
+                                        const isGdtActive = item.id === 'gdt_tools' && cadTool === 'dimension';
+                                        if (!isGdtActive) {
+                                            e.currentTarget.style.backgroundColor = (item.isCategory || item.id === 'gdt_tools') ? `${getCategoryDef(drawingCategory).color}08` : 'transparent';
+                                            e.currentTarget.style.color = (item.isCategory || item.id === 'gdt_tools') ? getCategoryDef(drawingCategory).color : '#64748b';
+                                        }
+                                    }
+                                }}
+                            >
+                                {item.icon === 'color_swatch' ? (
+                                    <div style={{ width: '14px', height: '14px', borderRadius: '50%', backgroundColor: cadColor, border: '1px solid #cbd5e1' }} />
+                                ) : item.icon === 'balloon_icon' ? (
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <circle cx="12" cy="10" r="7" />
+                                        <text x="12" y="13" textAnchor="middle" fontSize="9" fontWeight="800" fill="currentColor" stroke="none">1</text>
+                                        <line x1="12" y1="17" x2="12" y2="23" />
+                                    </svg>
+                                ) : item.icon === 'ellipse_icon' ? (
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <ellipse cx="12" cy="12" rx="9" ry="5" />
+                                    </svg>
+                                ) : item.emoji ? (
+                                    <span style={{ fontSize: '1rem', lineHeight: 1, fontWeight: item.emoji === 'R' || item.emoji === 'Ra' ? '800' : 'normal' }}>{item.emoji}</span>
+                                ) : item.id === 'gdt_tools' ? (
+                                    <span style={{ fontSize: '1rem', lineHeight: 1, fontWeight: '800', color: selectedGdtTool ? '#10b981' : getCategoryDef(drawingCategory).color }}>
+                                        {selectedGdtTool ? (
+                                            selectedGdtTool === 'POSITION' ? '⌖' :
+                                            selectedGdtTool === 'FLATNESS' ? '▱' :
+                                            selectedGdtTool === 'STRAIGHTNESS' ? '⏤' :
+                                            selectedGdtTool === 'CIRCULARITY' ? '◯' :
+                                            selectedGdtTool === 'CYLINDRICITY' ? '⌭' :
+                                            selectedGdtTool === 'PROFILE_SURFACE' ? '⌢' :
+                                            selectedGdtTool === 'PROFILE_LINE' ? '◠' :
+                                            selectedGdtTool === 'PERPENDICULARITY' ? '⊥' :
+                                            selectedGdtTool === 'PARALLELISM' ? '∥' :
+                                            selectedGdtTool === 'ANGULARITY' ? '∠' :
+                                            selectedGdtTool === 'CONCENTRICITY' ? '◎' :
+                                            selectedGdtTool === 'SYMMETRY' ? '⌯' :
+                                            selectedGdtTool === 'CIRCULAR_RUNOUT' ? '↗' :
+                                            selectedGdtTool === 'TOTAL_RUNOUT' ? '⌰' : '📏'
+                                        ) : getCategoryDef(drawingCategory).icon || '📏'}
+                                    </span>
+                                ) : item.id === 'shape' ? (
+                                    selectedShapeTool === 'rect' ? <Square size={16} /> :
+                                    selectedShapeTool === 'circle' ? <Circle size={16} /> :
+                                    selectedShapeTool === 'triangle' ? <Triangle size={16} /> :
+                                    selectedShapeTool === 'hexagon' ? <Hexagon size={16} /> :
+                                    selectedShapeTool === 'ellipse' ? (
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <ellipse cx="12" cy="12" rx="9" ry="5" />
+                                        </svg>
+                                    ) : selectedShapeTool === 'arc' ? (
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <path d="M 5,17 A 10,10 0 0 1 19,17" />
+                                        </svg>
+                                    ) : selectedShapeTool === 'polyline' ? <Activity size={16} /> : <Square size={16} />
+                                ) : (
+                                    <IconComp size={16} style={item.rotate ? { transform: 'rotate(-45deg)' } : undefined} />
+                                )}
+                            </button>
+                            
+                            {item.id === 'gdt_tools' && showGdtPopup && (
+                                <div style={{
+                                    position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '6px',
+                                    backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #cbd5e1',
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)', padding: '8px', display: 'flex', flexDirection: 'column',
+                                    zIndex: 100, width: '220px', gap: '6px', maxHeight: '420px', overflowY: 'auto'
+                                }}>
+                                    <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#475569', padding: '4px 8px', borderBottom: '1px solid #e2e8f0' }}>ALAT UKUR / DIMENSI GD&T</span>
+                                    
+                                    {/* Group 1: Dimensi Dasar */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                        <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#94a3b8', padding: '2px 8px', textTransform: 'uppercase' }}>Dimensi Dasar</span>
+                                        {PARAM_CATEGORIES.map(cat => {
+                                            const isSelected = cadTool === 'dimension' && drawingCategory === cat.key && !selectedGdtTool;
+                                            return (
+                                                <button
+                                                    key={cat.key}
+                                                    onClick={() => {
+                                                        setCadTool('dimension');
+                                                        setDrawingCategory(cat.key);
+                                                        setSelectedGdtTool(null);
+                                                        setShowGdtPopup(false);
+                                                        handleAddDimension(cat.key);
+                                                    }}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
+                                                        padding: '4px 8px', borderRadius: '4px', border: 'none',
+                                                        backgroundColor: isSelected ? `${cat.color}15` : 'transparent',
+                                                        color: isSelected ? cat.color : '#334155',
+                                                        fontWeight: isSelected ? '700' : 'normal',
+                                                        fontSize: '0.7rem', cursor: 'pointer', textAlign: 'left'
+                                                    }}
+                                                >
+                                                    <span style={{ fontSize: '0.9rem', width: '16px', display: 'inline-flex', justifyContent: 'center' }}>{cat.icon}</span>
+                                                    <span>{cat.labelId}</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {/* Group 2: GD&T Tolerances */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', borderTop: '1px solid #f1f5f9', paddingTop: '4px' }}>
+                                        <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#94a3b8', padding: '2px 8px', textTransform: 'uppercase' }}>Karakteristik GD&T</span>
+                                        {[
+                                            { id: 'FLATNESS', label: 'Flatness (Kerataan)', icon: '▱', cat: 'dimension' },
+                                            { id: 'STRAIGHTNESS', label: 'Straightness (Kelurusan)', icon: '⏤', cat: 'dimension' },
+                                            { id: 'CIRCULARITY', label: 'Circularity (Kebulatan)', icon: '◯', cat: 'diameter' },
+                                            { id: 'CYLINDRICITY', label: 'Cylindricity (Kesilindrisan)', icon: '⌭', cat: 'diameter' },
+                                            { id: 'PROFILE_SURFACE', label: 'Profile of Surface', icon: '⌢', cat: 'dimension' },
+                                            { id: 'PROFILE_LINE', label: 'Profile of Line', icon: '◠', cat: 'dimension' },
+                                            { id: 'PERPENDICULARITY', label: 'Perpendicularity (Tegak Lurus)', icon: '⊥', cat: 'dimension' },
+                                            { id: 'PARALLELISM', label: 'Parallelism (Kesejajaran)', icon: '∥', cat: 'dimension' },
+                                            { id: 'ANGULARITY', label: 'Angularity (Kemiringan)', icon: '∠', cat: 'angle' },
+                                            { id: 'POSITION', label: 'Position (Posisi)', icon: '⌖', cat: 'dimension' },
+                                            { id: 'CONCENTRICITY', label: 'Concentricity (Kesepusatan)', icon: '◎', cat: 'diameter' },
+                                            { id: 'SYMMETRY', label: 'Symmetry (Kesetangkupan)', icon: '⌯', cat: 'dimension' },
+                                            { id: 'CIRCULAR_RUNOUT', label: 'Circular Runout', icon: '↗', cat: 'diameter' },
+                                            { id: 'TOTAL_RUNOUT', label: 'Total Runout', icon: '⌰', cat: 'diameter' }
+                                        ].map(gdt => (
+                                            <button
+                                                key={gdt.id}
+                                                onClick={() => {
+                                                    setCadTool('dimension');
+                                                    setDrawingCategory(gdt.cat);
+                                                    setSelectedGdtTool(gdt.id);
+                                                    setShowGdtPopup(false);
+                                                    handleAddDimension(gdt.cat, gdt.id);
+                                                }}
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
+                                                    padding: '4px 8px', borderRadius: '4px', border: 'none',
+                                                    backgroundColor: (cadTool === 'dimension' && selectedGdtTool === gdt.id) ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                                                    color: (cadTool === 'dimension' && selectedGdtTool === gdt.id) ? '#10b981' : '#334155',
+                                                    fontWeight: (cadTool === 'dimension' && selectedGdtTool === gdt.id) ? '700' : 'normal',
+                                                    fontSize: '0.7rem', cursor: 'pointer', textAlign: 'left'
+                                                }}
+                                            >
+                                                <span style={{ fontSize: '0.9rem', width: '16px', display: 'inline-flex', justifyContent: 'center', fontWeight: 'bold' }}>{gdt.icon}</span>
+                                                <span>{gdt.label}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    {/* Group 3: Datum Referensi */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', borderTop: '1px solid #f1f5f9', paddingTop: '4px' }}>
+                                        <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#94a3b8', padding: '2px 8px', textTransform: 'uppercase' }}>Datum Referensi</span>
+                                        <button
+                                            onClick={() => {
+                                                setCadTool('dimension');
+                                                setDrawingCategory('datum');
+                                                setSelectedGdtTool('DATUM_FEATURE');
+                                                setShowGdtPopup(false);
+                                                handleAddDimension('datum');
+                                            }}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
+                                                padding: '4px 8px', borderRadius: '4px', border: 'none',
+                                                backgroundColor: (cadTool === 'dimension' && drawingCategory === 'datum') ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                                                color: (cadTool === 'dimension' && drawingCategory === 'datum') ? '#10b981' : '#334155',
+                                                fontWeight: (cadTool === 'dimension' && drawingCategory === 'datum') ? '700' : 'normal',
+                                                fontSize: '0.7rem', cursor: 'pointer', textAlign: 'left'
+                                            }}
+                                        >
+                                            <span style={{ fontSize: '0.9rem', width: '16px', display: 'inline-flex', justifyContent: 'center', fontWeight: 'bold' }}>▕A▏</span>
+                                            <span>Datum Feature Symbol (▕A▏)</span>
+                                        </button>
+                                    </div>
+
+                                    {/* Group 4: Modifiers */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', borderTop: '1px solid #f1f5f9', paddingTop: '4px' }}>
+                                        <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#94a3b8', padding: '2px 8px', textTransform: 'uppercase' }}>Modifiers Standard (ASME Y14.5)</span>
+                                        {[
+                                            { id: 'MMC', label: 'Ⓜ MMC (Max Material Condition)' },
+                                            { id: 'LMC', label: 'Ⓛ LMC (Least Material Condition)' },
+                                            { id: 'FREE_STATE', label: 'Ⓕ Free State' },
+                                            { id: 'PROJECTED', label: 'Ⓟ Projected Zone' },
+                                            { id: 'TANGENT', label: 'Ⓣ Tangent Plane' },
+                                            { id: 'UNEQUALLY', label: 'Ⓤ Unequally Disposed' },
+                                            { id: 'RFS', label: 'Ⓡ RFS (Regardless of Feature Size)' },
+                                            { id: 'STATISTICAL', label: 'Ⓢ Statistical Tolerance' }
+                                        ].map(mod => (
+                                            <button
+                                                key={mod.id}
+                                                onClick={() => {
+                                                    setShowGdtPopup(false);
+                                                    toast.info(`Modifier ${mod.label} diatur pada panel properti dimensi saat dipilih.`);
+                                                }}
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
+                                                    padding: '4px 8px', borderRadius: '4px', border: 'none',
+                                                    backgroundColor: 'transparent', color: '#64748b',
+                                                    fontSize: '0.7rem', cursor: 'pointer', textAlign: 'left'
+                                                }}
+                                            >
+                                                <span style={{ fontSize: '0.7rem', width: '16px', display: 'inline-flex', justifyContent: 'center' }}>⚙</span>
+                                                <span>{mod.label}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            
+                            {item.id === 'color' && showColorPopup && (
+                                <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '6px', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #cbd5e1', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', padding: '8px', display: 'flex', gap: '6px', zIndex: 100, width: '160px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                                    {['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#000000'].map(c => (
+                                        <button key={c} onClick={() => { setCadColor(c); setShowColorPopup(false); }}
+                                            style={{ width: '18px', height: '18px', borderRadius: '50%', backgroundColor: c, border: cadColor === c ? '2px solid #2563eb' : '1px solid #cbd5e1', cursor: 'pointer', padding: 0 }} />
+                                    ))}
+                                </div>
+                            )}
+                            
+                            {item.id === 'style' && showStylePopup && (
+                                <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '6px', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #cbd5e1', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', padding: '12px', display: 'flex', flexDirection: 'column', zIndex: 100, width: '150px', gap: '6px' }}>
+                                    <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#475569' }}>Tebal Garis: {cadWidth}px</span>
+                                    <input type="range" min="1" max="8" value={cadWidth} onChange={(e) => setCadWidth(parseInt(e.target.value))} style={{ width: '100%', cursor: 'pointer', accentColor: '#2563eb' }} />
+                                </div>
+                            )}
+                            
+                            {item.id === 'layer' && showLayerPopup && (
+                                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '6px', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #cbd5e1', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', padding: '8px 0', display: 'flex', flexDirection: 'column', zIndex: 100, width: '160px', maxHeight: '200px', overflowY: 'auto' }}>
+                                    <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#475569', padding: '4px 12px', borderBottom: '1px solid #e2e8f0' }}>Pilih Layer</span>
+                                    <button onClick={() => { setActiveLayer('All Layers'); setShowLayerPopup(false); }}
+                                        style={{ background: 'none', border: 'none', padding: '6px 12px', textAlign: 'left', fontSize: '0.65rem', cursor: 'pointer', outline: 'none', fontWeight: activeLayer === 'All Layers' ? 'bold' : 'normal', color: activeLayer === 'All Layers' ? '#2563eb' : '#334155', backgroundColor: activeLayer === 'All Layers' ? '#f1f5f9' : 'transparent' }}>
+                                        Semua Layer
+                                    </button>
+                                    {selectedDwg?.layers?.map(layer => (
+                                        <button key={layer} onClick={() => { setActiveLayer(layer); setShowLayerPopup(false); }}
+                                            style={{ background: 'none', border: 'none', padding: '6px 12px', textAlign: 'left', fontSize: '0.65rem', cursor: 'pointer', outline: 'none', fontWeight: activeLayer === layer ? 'bold' : 'normal', color: activeLayer === layer ? '#2563eb' : '#334155', backgroundColor: activeLayer === layer ? '#f1f5f9' : 'transparent' }}>
+                                            {layer}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+                </div>
+
+                {/* Right: Actions & Blueprint Selectors */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                     {/* Active Blueprint Selector Combo Box */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <select
                             value={selectedDwgId}
                             onChange={(e) => {
                                 const id = e.target.value;
                                 setSelectedDwgId(id);
-                                setActiveLayer('All Layers'); // Reset active layer on switch
+                                setActiveLayer('All Layers');
                                 const dwg = drawings.find(d => d.id === id);
                                 if (dwg) {
                                     if (dwg.dimensions && dwg.dimensions.length > 0) {
@@ -5436,7 +5872,7 @@ export default function DrawingManager() {
                                 outline: 'none',
                                 cursor: 'pointer',
                                 minWidth: '150px',
-                                maxWidth: '240px',
+                                maxWidth: '220px',
                                 textOverflow: 'ellipsis',
                                 overflow: 'hidden',
                                 whiteSpace: 'nowrap'
@@ -5454,13 +5890,12 @@ export default function DrawingManager() {
 
                     {/* AutoCAD Layer Selector */}
                     {selectedDwg?.layers && selectedDwg.layers.length > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#64748b' }}>Layer:</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <select
                                 value={activeLayer}
                                 onChange={(e) => setActiveLayer(e.target.value)}
                                 style={{
-                                    padding: '4px 8px',
+                                    padding: '4px 6px',
                                     borderRadius: '6px',
                                     border: '1px solid #cbd5e1',
                                     backgroundColor: '#ffffff',
@@ -5469,10 +5904,10 @@ export default function DrawingManager() {
                                     color: '#475569',
                                     outline: 'none',
                                     cursor: 'pointer',
-                                    minWidth: '120px'
+                                    minWidth: '100px'
                                 }}
                             >
-                                <option value="All Layers" style={{ color: '#1e1b4b' }}>All Layers (AutoCAD)</option>
+                                <option value="All Layers" style={{ color: '#1e1b4b' }}>All Layers</option>
                                 {selectedDwg.layers.map(layer => (
                                     <option key={layer} value={layer} style={{ color: '#1e1b4b' }}>{layer}</option>
                                 ))}
@@ -5484,25 +5919,25 @@ export default function DrawingManager() {
                         <button
                             onClick={handleCreateBlankDrawing}
                             style={{
-                                padding: '6px 12px',
+                                padding: '5px 10px',
                                 borderRadius: '6px',
                                 border: '1px solid #10b981',
                                 backgroundColor: '#10b981',
                                 color: 'white',
-                                fontSize: '0.7rem',
+                                fontSize: '0.68rem',
                                 fontWeight: 700,
                                 cursor: 'pointer',
                                 transition: 'all 0.2s',
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '4px',
+                                gap: '3px',
                                 outline: 'none',
-                                boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)'
+                                boxShadow: '0 2px 6px rgba(16, 185, 129, 0.25)'
                             }}
                             onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#059669'; e.currentTarget.style.borderColor = '#059669'; }}
                             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#10b981'; e.currentTarget.style.borderColor = '#10b981'; }}
                         >
-                            <Plus size={12} strokeWidth={2.5} /> NEW
+                            <Plus size={11} strokeWidth={2.5} /> NEW
                         </button>
                     </div>
 
@@ -5519,38 +5954,38 @@ export default function DrawingManager() {
                             <button
                                 disabled
                                 style={{
-                                    padding: '6px 12px',
+                                    padding: '5px 10px',
                                     borderRadius: '6px',
                                     border: '1px solid rgba(255, 255, 255, 0.15)',
                                     backgroundColor: 'rgba(255, 255, 255, 0.05)',
                                     color: 'rgba(255, 255, 255, 0.6)',
-                                    fontSize: '0.7rem',
+                                    fontSize: '0.68rem',
                                     fontWeight: 700,
                                     cursor: 'not-allowed',
                                     display: 'flex',
                                     alignItems: 'center',
-                                    gap: '6px',
+                                    gap: '4px',
                                     outline: 'none'
                                 }}
                             >
-                                <span style={{ display: 'inline-block', width: '12px', height: '12px', border: '2px solid rgba(255,255,255,0.6)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                                <span style={{ display: 'inline-block', width: '10px', height: '10px', border: '2px solid rgba(255,255,255,0.6)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
                                 {parseProgress}%
                             </button>
                         ) : (
                             <button
                                 onClick={() => fileInputRef.current.click()}
                                 style={{
-                                    padding: '6px 12px',
+                                    padding: '5px 10px',
                                     borderRadius: '6px',
                                     border: '1px solid #ef4444',
                                     backgroundColor: '#ef4444',
                                     color: 'white',
-                                    fontSize: '0.7rem',
+                                    fontSize: '0.68rem',
                                     fontWeight: 700,
                                     cursor: 'pointer',
                                     transition: 'all 0.2s',
                                     outline: 'none',
-                                    boxShadow: '0 2px 8px rgba(239, 68, 68, 0.3)'
+                                    boxShadow: '0 2px 6px rgba(239, 68, 68, 0.25)'
                                 }}
                                 onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#dc2626'; e.currentTarget.style.borderColor = '#dc2626'; }}
                                 onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#ef4444'; e.currentTarget.style.borderColor = '#ef4444'; }}
@@ -5566,7 +6001,7 @@ export default function DrawingManager() {
                         onClick={toggleFullscreen}
                         title={isFullscreen ? 'Keluar Fullscreen (Esc)' : 'Mode Fullscreen'}
                         style={{
-                            padding: '6px',
+                            padding: '5px',
                             borderRadius: '6px',
                             border: '1px solid #cbd5e1',
                             backgroundColor: '#ffffff',
@@ -5581,7 +6016,7 @@ export default function DrawingManager() {
                         onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
                         onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
                     >
-                        {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                        {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
                     </button>
 
                     {/* Drawing Management Dropdown Menu */}
@@ -5591,13 +6026,13 @@ export default function DrawingManager() {
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '6px',
+                                gap: '4px',
                                 border: '1px solid #cbd5e1',
                                 backgroundColor: '#ffffff',
                                 color: '#475569',
-                                padding: '6px 12px',
+                                padding: '5px 10px',
                                 borderRadius: '6px',
-                                fontSize: '0.7rem',
+                                fontSize: '0.68rem',
                                 fontWeight: 700,
                                 cursor: 'pointer',
                                 transition: 'all 0.2s',
@@ -5606,11 +6041,11 @@ export default function DrawingManager() {
                             onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
                             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
                         >
-                            Manajemen Drawing <ChevronDown size={12} />
+                            Manajemen Drawing <ChevronDown size={11} />
                         </button>
                         {showMgmtMenu && (
                             <div style={{
-                                position: 'absolute', top: '100%', right: 0, marginTop: '8px',
+                                position: 'absolute', top: '100%', right: 0, marginTop: '6px',
                                 backgroundColor: 'white', borderRadius: '10px', border: '1px solid #e2e8f0',
                                 boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
                                 padding: '6px 0', zIndex: 100, width: '200px', display: 'flex', flexDirection: 'column'
@@ -5671,13 +6106,13 @@ export default function DrawingManager() {
             </div>
 
             {/* Main Content */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', overflow: 'hidden', minHeight: 0 }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px', overflow: 'hidden', minHeight: 0 }}>
 
                 {/* Top Row: BOC Table (Left) + CAD Canvas (Middle) + Sidebar (Right) */}
                 <div style={{
                     display: 'grid',
                     gridTemplateColumns: `${showBocTable ? '380px' : ''} 1fr ${showQCInspector ? '350px' : ''}`.trim().replace(/\s+/g, ' '),
-                    gap: '16px',
+                    gap: '12px',
                     flex: 1,
                     minHeight: 0,
                     overflow: 'hidden',
@@ -5781,141 +6216,166 @@ export default function DrawingManager() {
                                                 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
                                             }
                                         `}</style>
-                                        <div style={{ overflow: 'auto', flex: 1, border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#ffffff', marginTop: '10px' }}>
-                                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem', textAlign: 'left' }}>
-                                                <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f1f5f9', borderBottom: '2px solid #cbd5e1', zIndex: 5, color: '#475569', fontWeight: 'bold' }}>
-                                                    <tr>
-                                                        <th style={{ padding: '8px 10px' }}>No</th>
-                                                        <th style={{ padding: '8px 10px' }}>Label</th>
-                                                        <th style={{ padding: '8px 10px' }}>Spec Nominal</th>
-                                                        <th style={{ padding: '8px 10px' }}>Batas Toleransi</th>
-                                                        <th style={{ padding: '8px 10px' }}>Severity</th>
-                                                        <th style={{ padding: '8px 10px' }}>Metode Inspeksi</th>
-                                                        <th style={{ padding: '8px 10px' }}>Variabel QMS</th>
-                                                        <th style={{ padding: '8px 10px' }}>Nilai Simulasi</th>
-                                                        <th style={{ padding: '8px 10px' }}>Status</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {(selectedDwg?.dimensions || []).map((dim, idx) => {
-                                                        const simVal = simValues[dim.id] !== undefined ? simValues[dim.id] : parseFloat(dim.spec) || 0;
-                                                        const valStatus = getValidationStatus(simVal, dim.tolMin, dim.tolMax);
-                                                        const isActive = activeDimId === dim.id;
-                                                        const sevStyle = getSeverityStyle(dim.severity);
-                                                        const statStyle = getValidationStatusStyle(valStatus);
-                                                        return (
-                                                            <tr
-                                                                key={dim.id}
-                                                                onClick={() => setActiveDimId(dim.id)}
-                                                                style={{
-                                                                    borderBottom: '1px solid #f1f5f9',
-                                                                    backgroundColor: isActive ? '#f0f7ff' : 'transparent',
-                                                                    cursor: 'pointer',
-                                                                    transition: 'background-color 0.15s'
-                                                                }}
-                                                                onMouseEnter={e => { if (!isActive) e.currentTarget.style.backgroundColor = '#f8fafc'; }}
-                                                                onMouseLeave={e => { if (!isActive) e.currentTarget.style.backgroundColor = 'transparent'; }}
-                                                            >
-                                                                <td style={{ padding: '6px 10px', verticalAlign: 'middle', fontWeight: 'bold' }}>
-                                                                    <span style={{
-                                                                        display: 'inline-flex',
-                                                                        alignItems: 'center',
-                                                                        justifyContent: 'center',
-                                                                        width: '18px',
-                                                                        height: '18px',
-                                                                        borderRadius: '50%',
-                                                                        backgroundColor: isActive ? '#2563eb' : '#64748b',
-                                                                        color: 'white',
-                                                                        fontSize: '0.62rem'
-                                                                    }}>
-                                                                        {idx + 1}
-                                                                    </span>
-                                                                </td>
-                                                                <td style={{ padding: '6px 10px', verticalAlign: 'middle', fontWeight: 600, color: '#1e293b' }}>{dim.label}</td>
-                                                                <td style={{ padding: '6px 10px', verticalAlign: 'middle' }}>{dim.gdt_symbol} {dim.spec} {dim.unit}</td>
-                                                                <td style={{ padding: '6px 10px', verticalAlign: 'middle' }}>
-                                                                    {(() => {
-                                                                        const range = Math.max(0.001, (dim.tolMax - dim.tolMin));
-                                                                        const rawPct = ((simVal - dim.tolMin) / range) * 100;
-                                                                        const pct = Math.max(0, Math.min(100, rawPct));
-                                                                        const isWarning = valStatus === 'PASS' && (pct < 10 || pct > 90);
-                                                                        const trackColor = valStatus === 'FAIL' ? '#ef4444' : isWarning ? '#f59e0b' : '#10b981';
-                                                                        return (
-                                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                                                                <span style={{ fontWeight: 500, color: '#475569' }}>
-                                                                                    {dim.tolMin} ~ {dim.tolMax} {dim.unit}
-                                                                                </span>
-                                                                                <div style={{ position: 'relative', width: '80px', height: '5px', backgroundColor: '#e2e8f0', borderRadius: '3px', marginTop: '1px' }} title={`Deviasi aktual: ${pct.toFixed(0)}%`}>
-                                                                                    {/* Center line (Nominal) */}
-                                                                                    <div style={{ position: 'absolute', left: '50%', top: '-2.5px', width: '1px', height: '10px', backgroundColor: '#cbd5e1' }} />
-                                                                                    {/* Value dot */}
-                                                                                    <div style={{
-                                                                                        position: 'absolute',
-                                                                                        left: `calc(${pct}% - 3px)`,
-                                                                                        top: '-1.5px',
-                                                                                        width: '8px',
-                                                                                        height: '8px',
-                                                                                        borderRadius: '50%',
-                                                                                        backgroundColor: trackColor,
-                                                                                        boxShadow: `0 0 4px ${trackColor}`,
-                                                                                        transition: 'left 0.2s ease'
-                                                                                    }} />
-                                                                                </div>
-                                                                            </div>
-                                                                        );
-                                                                    })()}
-                                                                </td>
-                                                                <td style={{ padding: '6px 10px', verticalAlign: 'middle' }}>
-                                                                    <span style={{
-                                                                        padding: '2px 6px',
-                                                                        borderRadius: '4px',
-                                                                        fontSize: '0.58rem',
-                                                                        fontWeight: 800,
-                                                                        textTransform: 'uppercase',
-                                                                        letterSpacing: '0.02em',
-                                                                        backgroundColor: sevStyle.bg,
-                                                                        color: sevStyle.text,
-                                                                        border: `1px solid ${sevStyle.border}`,
-                                                                        boxShadow: dim.severity === 'Critical' ? '0 0 4px rgba(239, 68, 68, 0.2)' : dim.severity === 'Major' ? '0 0 3px rgba(245, 158, 11, 0.15)' : 'none',
-                                                                        animation: dim.severity === 'Critical' ? 'pulse-red-glow 1.2s infinite' : dim.severity === 'Major' ? 'pulse-yellow-glow 2s infinite' : 'none',
-                                                                        display: 'inline-block'
-                                                                    }}>
-                                                                        {dim.severity || 'Minor'}
-                                                                    </span>
-                                                                </td>
-                                                                <td style={{ padding: '6px 10px', verticalAlign: 'middle', fontWeight: 500, color: '#334155' }}>
-                                                                    {(() => {
-                                                                        const m = dim.inspection_method || 'Caliper';
-                                                                        const icon = m === 'Caliper' ? '📐' : m === 'Micrometer' ? '🔍' : m === 'Vision' ? '🤖' : m === 'CMM' ? '⚙️' : m === 'SCADA' ? '🔌' : '📋';
-                                                                        return `${icon} ${m}`;
-                                                                    })()}
-                                                                </td>
-                                                                <td style={{ padding: '6px 10px', verticalAlign: 'middle', fontFamily: 'monospace', color: '#64748b' }}>{dim.variable || '-'}</td>
-                                                                <td style={{ padding: '6px 10px', verticalAlign: 'middle', fontWeight: 'bold', color: '#0f172a' }}>{simVal} {dim.unit}</td>
-                                                                <td style={{ padding: '6px 10px', verticalAlign: 'middle' }}>
-                                                                    <span style={{
-                                                                        padding: '2px 6px',
-                                                                        borderRadius: '4px',
-                                                                        fontSize: '0.58rem',
-                                                                        fontWeight: 800,
-                                                                        backgroundColor: statStyle.bg,
-                                                                        color: statStyle.text
-                                                                    }}>
-                                                                        {valStatus}
-                                                                    </span>
-                                                                </td>
-                                                            </tr>
-                                                        );
-                                                    })}
-                                                    {(selectedDwg?.dimensions || []).length === 0 && (
-                                                        <tr>
-                                                            <td colSpan="9" style={{ padding: '16px', verticalAlign: 'middle', textAlign: 'center', color: '#64748b' }}>
-                                                                Belum ada parameter yang dipetakan pada blueprint ini.
-                                                            </td>
-                                                        </tr>
-                                                    )}
-                                                </tbody>
-                                            </table>
+                                        <div style={{ overflow: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px', paddingRight: '4px' }}>
+                                            {(selectedDwg?.dimensions || []).map((dim, idx) => {
+                                                const simVal = simValues[dim.id] !== undefined ? simValues[dim.id] : parseFloat(dim.spec) || 0;
+                                                const valStatus = getValidationStatus(simVal, dim.tolMin, dim.tolMax);
+                                                const isActive = activeDimId === dim.id;
+                                                const catDef = getCategoryDef(dim.category);
+                                                const range = Math.max(0.001, (dim.tolMax - dim.tolMin));
+                                                const rawPct = ((simVal - dim.tolMin) / range) * 100;
+                                                const pct = Math.max(0, Math.min(100, rawPct));
+                                                const isWarning = valStatus === 'PASS' && (pct < 10 || pct > 90);
+                                                const trackColor = valStatus === 'FAIL' ? '#ef4444' : isWarning ? '#f59e0b' : '#10b981';
+                                                const sevColors = {
+                                                    Critical: { bg: '#fef2f2', text: '#dc2626', border: '#fca5a5', icon: '🔴' },
+                                                    Major: { bg: '#fffbeb', text: '#d97706', border: '#fde68a', icon: '🟡' },
+                                                    Minor: { bg: '#f0fdf4', text: '#16a34a', border: '#bbf7d0', icon: '🟢' }
+                                                };
+                                                const sev = sevColors[dim.severity] || sevColors.Minor;
+                                                const statusConfig = {
+                                                    PASS: { bg: '#ecfdf5', text: '#059669', border: '#a7f3d0', icon: '✓', label: 'PASS' },
+                                                    FAIL: { bg: '#fef2f2', text: '#dc2626', border: '#fecaca', icon: '✗', label: 'FAIL' },
+                                                    PENDING: { bg: '#f8fafc', text: '#64748b', border: '#e2e8f0', icon: '⏳', label: 'PENDING' }
+                                                };
+                                                const stat = statusConfig[valStatus] || statusConfig.PENDING;
+
+                                                return (
+                                                    <div
+                                                        key={dim.id}
+                                                        onClick={() => setActiveDimId(dim.id)}
+                                                        style={{
+                                                            display: 'flex',
+                                                            flexDirection: 'column',
+                                                            gap: '6px',
+                                                            padding: '10px 12px',
+                                                            borderRadius: '10px',
+                                                            border: isActive ? `2px solid ${catDef.color}` : '1px solid #e2e8f0',
+                                                            backgroundColor: isActive ? `${catDef.color}08` : '#ffffff',
+                                                            cursor: 'pointer',
+                                                            transition: 'all 0.2s ease',
+                                                            boxShadow: isActive ? `0 2px 8px ${catDef.color}20` : '0 1px 2px rgba(0,0,0,0.04)',
+                                                            position: 'relative',
+                                                            overflow: 'hidden'
+                                                        }}
+                                                        onMouseEnter={e => {
+                                                            if (!isActive) {
+                                                                e.currentTarget.style.borderColor = '#cbd5e1';
+                                                                e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.06)';
+                                                                e.currentTarget.style.backgroundColor = '#fafbfc';
+                                                            }
+                                                        }}
+                                                        onMouseLeave={e => {
+                                                            if (!isActive) {
+                                                                e.currentTarget.style.borderColor = '#e2e8f0';
+                                                                e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.04)';
+                                                                e.currentTarget.style.backgroundColor = '#ffffff';
+                                                            }
+                                                        }}
+                                                    >
+                                                        {/* Row 1: Number badge + Label + Status chip */}
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            {/* Number badge */}
+                                                            <span style={{
+                                                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                                                width: '22px', height: '22px', borderRadius: '50%', flexShrink: 0,
+                                                                backgroundColor: isActive ? catDef.color : '#e2e8f0',
+                                                                color: isActive ? 'white' : '#475569',
+                                                                fontSize: '0.65rem', fontWeight: 900
+                                                            }}>
+                                                                {idx + 1}
+                                                            </span>
+
+                                                            {/* Label + Category */}
+                                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                    {dim.label}
+                                                                </div>
+                                                                <div style={{ fontSize: '0.58rem', color: '#94a3b8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px', marginTop: '1px' }}>
+                                                                    <span style={{ color: catDef.color }}>{catDef.icon}</span> {catDef.labelId || catDef.label}
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Status chip badge */}
+                                                            <span style={{
+                                                                display: 'inline-flex', alignItems: 'center', gap: '3px',
+                                                                padding: '3px 8px', borderRadius: '6px', flexShrink: 0,
+                                                                fontSize: '0.6rem', fontWeight: 900, letterSpacing: '0.03em',
+                                                                backgroundColor: stat.bg, color: stat.text, border: `1px solid ${stat.border}`,
+                                                                animation: valStatus === 'FAIL' ? 'pulse-red-glow 1.2s infinite' : 'none'
+                                                            }}>
+                                                                {stat.icon} {stat.label}
+                                                            </span>
+                                                        </div>
+
+                                                        {/* Row 2: Spec + Tolerance range + Severity */}
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                                            {/* Spec nominal */}
+                                                            <span style={{
+                                                                fontSize: '0.68rem', fontWeight: 800, color: '#334155',
+                                                                backgroundColor: '#f1f5f9', padding: '2px 7px', borderRadius: '5px',
+                                                                fontFamily: 'monospace'
+                                                            }}>
+                                                                {dim.gdt_symbol ? `${dim.gdt_symbol} ` : ''}{dim.spec} {dim.unit}
+                                                            </span>
+
+                                                            {/* Tolerance range */}
+                                                            <span style={{
+                                                                fontSize: '0.58rem', fontWeight: 600, color: '#64748b',
+                                                                display: 'flex', alignItems: 'center', gap: '2px'
+                                                            }}>
+                                                                {dim.tolMin} ~ {dim.tolMax} {dim.unit}
+                                                            </span>
+
+                                                            {/* Spacer */}
+                                                            <div style={{ flex: 1 }} />
+
+                                                            {/* Severity chip */}
+                                                            <span style={{
+                                                                display: 'inline-flex', alignItems: 'center', gap: '3px',
+                                                                padding: '2px 7px', borderRadius: '5px', flexShrink: 0,
+                                                                fontSize: '0.55rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em',
+                                                                backgroundColor: sev.bg, color: sev.text, border: `1px solid ${sev.border}`,
+                                                                animation: dim.severity === 'Critical' ? 'pulse-red-glow 1.2s infinite' : dim.severity === 'Major' ? 'pulse-yellow-glow 2s infinite' : 'none'
+                                                            }}>
+                                                                {sev.icon} {dim.severity || 'Minor'}
+                                                            </span>
+                                                        </div>
+
+                                                        {/* Row 3: Mini progress bar */}
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                            <div style={{ flex: 1, position: 'relative', height: '6px', backgroundColor: '#f1f5f9', borderRadius: '3px', overflow: 'hidden' }}>
+                                                                {/* Filled track */}
+                                                                <div style={{
+                                                                    position: 'absolute', left: 0, top: 0, height: '100%',
+                                                                    width: `${pct}%`, borderRadius: '3px',
+                                                                    background: `linear-gradient(90deg, ${trackColor}88, ${trackColor})`,
+                                                                    transition: 'width 0.3s ease, background 0.3s ease'
+                                                                }} />
+                                                                {/* Center nominal line */}
+                                                                <div style={{ position: 'absolute', left: '50%', top: '-1px', width: '1.5px', height: 'calc(100% + 2px)', backgroundColor: '#94a3b8', opacity: 0.5 }} />
+                                                            </div>
+                                                            {/* Actual value */}
+                                                            <span style={{
+                                                                fontSize: '0.62rem', fontWeight: 800, color: trackColor,
+                                                                fontFamily: 'monospace', minWidth: '36px', textAlign: 'right'
+                                                            }}>
+                                                                {simVal} {dim.unit}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                            {(selectedDwg?.dimensions || []).length === 0 && (
+                                                <div style={{
+                                                    padding: '24px 16px', textAlign: 'center', color: '#94a3b8',
+                                                    fontSize: '0.75rem', fontWeight: 600,
+                                                    border: '2px dashed #e2e8f0', borderRadius: '12px',
+                                                    backgroundColor: '#fafbfc'
+                                                }}>
+                                                    Belum ada parameter yang dipetakan pada blueprint ini.
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </>
@@ -6435,7 +6895,6 @@ export default function DrawingManager() {
                                 +
                             </button>
                         </div>
-
                         {/* Hidden image input for canvas image insertion */}
                         <input
                             ref={imageInsertRef}
@@ -6444,363 +6903,6 @@ export default function DrawingManager() {
                             onChange={handleImageInsert}
                             style={{ display: 'none' }}
                         />
-
-                        {/* Horizontal Toolbar Widget Cards */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 0', zIndex: 15, flexShrink: 0, width: '100%' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#f5f0ff', borderRadius: '10px', border: '1px solid #e0d4f5', padding: '4px 6px', gap: '4px', boxShadow: '0 1px 4px rgba(113, 75, 103, 0.08)' }}>
-                            {[
-                                { id: 'select', icon: 'MousePointer', label: 'Pilih' },
-                                { id: 'pan', icon: 'Hand', label: 'Pan' },
-                                { id: 'zoom_reset', icon: 'Search', label: 'Zoom', action: () => { setZoom(1.0); setPanOffset({ x: 0, y: 0 }); } },
-                                { id: '_sep1' },
-                                { id: 'line', icon: 'Slash', label: 'Garis', rotate: true },
-                                { id: 'shape', label: 'Bentuk', match: ['rect', 'circle', 'ellipse', 'triangle', 'hexagon', 'arc', 'polyline'] },
-                                { id: 'text', icon: 'Type', label: 'Teks' },
-                                { id: '_sep2' },
-                                { id: 'gdt_tools', label: 'Dimensi / GD&T' },
-                                { id: '_sep3' },
-                                { id: 'balloon', icon: 'balloon_icon', label: 'Balloon Mode', isToggle: true, toggleState: isBalloonMode, color: '#ef4444', action: () => setIsBalloonMode(prev => !prev) },
-                                { id: 'erase', icon: 'Trash2', label: 'Hapus', danger: true },
-                                { id: '_sep4' },
-                                { id: 'color', icon: 'color_swatch', label: 'Warna' },
-                                { id: 'style', icon: 'Palette', label: 'Gaya' },
-                                { id: 'layer', icon: 'Layers', label: 'Layer' },
-                            ].map(item => {
-                                if (item.id.startsWith('_sep')) return <div key={item.id} style={{ width: '1px', height: '20px', backgroundColor: '#cbd5e1', margin: '0 4px' }} />;
-                                
-                                const iconMap = { MousePointer, Hand, Search, Slash, Square, Circle, Triangle, Hexagon, Activity, Type, Ruler, FileText, Settings, Trash2, Palette, Layers };
-                                const IconComp = (item.icon && item.icon !== 'color_swatch' && item.icon !== 'balloon_icon') ? iconMap[item.icon] : null;
-                                
-                                const isActive = item.isToggle ? item.toggleState :
-                                    item.isCategory ? (cadTool === 'dimension' && drawingCategory === item.id) :
-                                    item.id === 'gdt_tools' ? (showGdtPopup || cadTool === 'dimension') :
-                                    item.id === 'color' ? showColorPopup :
-                                    item.id === 'style' ? showStylePopup :
-                                    item.id === 'layer' ? showLayerPopup :
-                                    item.id === 'shape' ? (showShapePopup || ['rect', 'circle', 'ellipse', 'triangle', 'hexagon', 'arc', 'polyline'].includes(cadTool)) :
-                                    item.match ? item.match.includes(cadTool) : cadTool === item.id;
-                                
-                                const isDanger = item.danger && cadTool === item.id;
-                                
-                                const handleClick = () => {
-                                    if (item.action) { item.action(); return; }
-                                    if (item.id === 'gdt_tools') { setShowGdtPopup(!showGdtPopup); setShowColorPopup(false); setShowStylePopup(false); setShowLayerPopup(false); setShowShapePopup(false); return; }
-                                    if (item.id === 'color') { setShowColorPopup(!showColorPopup); setShowStylePopup(false); setShowLayerPopup(false); setShowShapePopup(false); setShowGdtPopup(false); return; }
-                                    if (item.id === 'style') { setShowStylePopup(!showStylePopup); setShowColorPopup(false); setShowLayerPopup(false); setShowShapePopup(false); setShowGdtPopup(false); return; }
-                                    if (item.id === 'layer') { setShowLayerPopup(!showLayerPopup); setShowColorPopup(false); setShowStylePopup(false); setShowShapePopup(false); setShowGdtPopup(false); return; }
-                                    if (item.id === 'shape') { setShowShapePopup(!showShapePopup); setShowColorPopup(false); setShowStylePopup(false); setShowLayerPopup(false); setShowGdtPopup(false); return; }
-                                    setShowShapePopup(false);
-                                    setShowGdtPopup(false);
-                                    setSelectedGdtTool(null);
-                                    setCadTool(item.id);
-                                };
-                                
-                                return (
-                                    <div key={item.id} style={{ position: 'relative' }}>
-                                        <button title={item.label} onClick={handleClick}
-                                            style={{
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                padding: '8px', borderRadius: '8px', cursor: 'pointer', outline: 'none',
-                                                minWidth: '40px', height: '40px', transition: 'all 0.2s',
-                                                border: (item.id === 'gdt_tools' && cadTool === 'dimension') ? `1px solid ${getCategoryDef(drawingCategory).color}80` : isActive && (item.isCategory || item.isToggle) ? `1px solid ${item.color}80` : isActive ? '1px solid #bfdbfe' : '1px solid transparent',
-                                                color: isDanger ? '#ef4444' : (item.id === 'gdt_tools' && cadTool === 'dimension') ? (selectedGdtTool ? '#10b981' : getCategoryDef(drawingCategory).color) : isActive && (item.isCategory || item.isToggle) ? item.color : isActive ? '#2563eb' : (item.isCategory || item.isToggle) ? item.color : '#64748b',
-                                                backgroundColor: isDanger ? '#fee2e2' : (item.id === 'gdt_tools' && cadTool === 'dimension') ? (selectedGdtTool ? 'rgba(16, 185, 129, 0.15)' : `${getCategoryDef(drawingCategory).color}20`) : isActive && (item.isCategory || item.isToggle) ? `${item.color}20` : isActive ? '#eff6ff' : (item.isCategory || item.isToggle) ? `${item.color}08` : 'transparent',
-                                            }}
-                                            onMouseEnter={(e) => {
-                                                if (!isActive && !isDanger) {
-                                                    const isGdtActive = item.id === 'gdt_tools' && cadTool === 'dimension';
-                                                    if (!isGdtActive) {
-                                                        e.currentTarget.style.backgroundColor = (item.isCategory || item.id === 'gdt_tools') ? `${getCategoryDef(drawingCategory).color}15` : '#f1f5f9';
-                                                        e.currentTarget.style.color = (item.isCategory || item.id === 'gdt_tools') ? getCategoryDef(drawingCategory).color : '#334155';
-                                                    }
-                                                }
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                if (!isActive && !isDanger) {
-                                                    const isGdtActive = item.id === 'gdt_tools' && cadTool === 'dimension';
-                                                    if (!isGdtActive) {
-                                                        e.currentTarget.style.backgroundColor = (item.isCategory || item.id === 'gdt_tools') ? `${getCategoryDef(drawingCategory).color}08` : 'transparent';
-                                                        e.currentTarget.style.color = (item.isCategory || item.id === 'gdt_tools') ? getCategoryDef(drawingCategory).color : '#64748b';
-                                                    }
-                                                }
-                                            }}
-                                        >
-                                            {item.icon === 'color_swatch' ? (
-                                                <div style={{ width: '18px', height: '18px', borderRadius: '50%', backgroundColor: cadColor, border: '1px solid #cbd5e1' }} />
-                                            ) : item.icon === 'balloon_icon' ? (
-                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                    <circle cx="12" cy="10" r="7" />
-                                                    <text x="12" y="13" textAnchor="middle" fontSize="9" fontWeight="800" fill="currentColor" stroke="none">1</text>
-                                                    <line x1="12" y1="17" x2="12" y2="23" />
-                                                </svg>
-                                            ) : item.emoji ? (
-                                                <span style={{ fontSize: '1.25rem', lineHeight: 1, fontWeight: item.emoji === 'R' || item.emoji === 'Ra' ? '800' : 'normal' }}>{item.emoji}</span>
-                                            ) : item.id === 'gdt_tools' ? (
-                                                <span style={{ fontSize: '1.25rem', lineHeight: 1, fontWeight: '800', color: selectedGdtTool ? '#10b981' : getCategoryDef(drawingCategory).color }}>
-                                                    {selectedGdtTool ? (
-                                                        selectedGdtTool === 'POSITION' ? '⌖' :
-                                                        selectedGdtTool === 'FLATNESS' ? '▱' :
-                                                        selectedGdtTool === 'STRAIGHTNESS' ? '⏤' :
-                                                        selectedGdtTool === 'CIRCULARITY' ? '◯' :
-                                                        selectedGdtTool === 'CYLINDRICITY' ? '⌭' :
-                                                        selectedGdtTool === 'PROFILE_SURFACE' ? '⌢' :
-                                                        selectedGdtTool === 'PROFILE_LINE' ? '◠' :
-                                                        selectedGdtTool === 'PERPENDICULARITY' ? '⊥' :
-                                                        selectedGdtTool === 'PARALLELISM' ? '∥' :
-                                                        selectedGdtTool === 'ANGULARITY' ? '∠' :
-                                                        selectedGdtTool === 'CONCENTRICITY' ? '◎' :
-                                                        selectedGdtTool === 'SYMMETRY' ? '⌯' :
-                                                        selectedGdtTool === 'CIRCULAR_RUNOUT' ? '↗' :
-                                                        selectedGdtTool === 'TOTAL_RUNOUT' ? '⌰' : '📏'
-                                                    ) : getCategoryDef(drawingCategory).icon || '📏'}
-                                                </span>
-                                            ) : item.id === 'shape' ? (
-                                                selectedShapeTool === 'rect' ? <Square size={20} /> :
-                                                selectedShapeTool === 'circle' ? <Circle size={20} /> :
-                                                selectedShapeTool === 'triangle' ? <Triangle size={20} /> :
-                                                selectedShapeTool === 'hexagon' ? <Hexagon size={20} /> :
-                                                selectedShapeTool === 'ellipse' ? (
-                                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                        <ellipse cx="12" cy="12" rx="9" ry="5" />
-                                                    </svg>
-                                                ) : selectedShapeTool === 'arc' ? (
-                                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                        <path d="M 5,17 A 10,10 0 0 1 19,17" />
-                                                    </svg>
-                                                ) : selectedShapeTool === 'polyline' ? <Activity size={20} /> : <Square size={20} />
-                                            ) : (
-                                                <IconComp size={20} style={item.rotate ? { transform: 'rotate(-45deg)' } : undefined} />
-                                            )}
-                                        </button>
-                                        
-                                        {item.id === 'gdt_tools' && showGdtPopup && (
-                                            <div style={{
-                                                position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '8px',
-                                                backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #cbd5e1',
-                                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)', padding: '8px', display: 'flex', flexDirection: 'column',
-                                                zIndex: 100, width: '220px', gap: '6px', maxHeight: '420px', overflowY: 'auto'
-                                            }}>
-                                                <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#475569', padding: '4px 8px', borderBottom: '1px solid #e2e8f0' }}>ALAT UKUR / DIMENSI GD&T</span>
-                                                
-                                                {/* Group 1: Dimensi Dasar */}
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                                    <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#94a3b8', padding: '2px 8px', textTransform: 'uppercase' }}>Dimensi Dasar</span>
-                                                    {PARAM_CATEGORIES.map(cat => {
-                                                        const isSelected = cadTool === 'dimension' && drawingCategory === cat.key && !selectedGdtTool;
-                                                        return (
-                                                            <button
-                                                                key={cat.key}
-                                                                onClick={() => {
-                                                                    setCadTool('dimension');
-                                                                    setDrawingCategory(cat.key);
-                                                                    setSelectedGdtTool(null);
-                                                                    setShowGdtPopup(false);
-                                                                    handleAddDimension(cat.key);
-                                                                }}
-                                                                style={{
-                                                                    display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
-                                                                    padding: '4px 8px', borderRadius: '4px', border: 'none',
-                                                                    backgroundColor: isSelected ? `${cat.color}15` : 'transparent',
-                                                                    color: isSelected ? cat.color : '#334155',
-                                                                    fontWeight: isSelected ? '700' : 'normal',
-                                                                    fontSize: '0.7rem', cursor: 'pointer', textAlign: 'left'
-                                                                }}
-                                                            >
-                                                                <span style={{ fontSize: '0.9rem', width: '16px', display: 'inline-flex', justifyContent: 'center' }}>{cat.icon}</span>
-                                                                <span>{cat.labelId}</span>
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </div>
-
-                                                {/* Group 2: GD&T Tolerances */}
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', borderTop: '1px solid #f1f5f9', paddingTop: '4px' }}>
-                                                    <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#94a3b8', padding: '2px 8px', textTransform: 'uppercase' }}>Karakteristik GD&T</span>
-                                                    {[
-                                                        // Form
-                                                        { id: 'FLATNESS', label: 'Flatness (Kerataan)', icon: '▱', cat: 'dimension' },
-                                                        { id: 'STRAIGHTNESS', label: 'Straightness (Kelurusan)', icon: '⏤', cat: 'dimension' },
-                                                        { id: 'CIRCULARITY', label: 'Circularity (Kebulatan)', icon: '◯', cat: 'diameter' },
-                                                        { id: 'CYLINDRICITY', label: 'Cylindricity (Kesilindrisan)', icon: '⌭', cat: 'diameter' },
-                                                        // Profile
-                                                        { id: 'PROFILE_SURFACE', label: 'Profile of Surface', icon: '⌢', cat: 'dimension' },
-                                                        { id: 'PROFILE_LINE', label: 'Profile of Line', icon: '◠', cat: 'dimension' },
-                                                        // Orientation
-                                                        { id: 'PERPENDICULARITY', label: 'Perpendicularity (Tegak Lurus)', icon: '⊥', cat: 'dimension' },
-                                                        { id: 'PARALLELISM', label: 'Parallelism (Kesejajaran)', icon: '∥', cat: 'dimension' },
-                                                        { id: 'ANGULARITY', label: 'Angularity (Kemiringan)', icon: '∠', cat: 'angle' },
-                                                        // Location
-                                                        { id: 'POSITION', label: 'Position (Posisi)', icon: '⌖', cat: 'dimension' },
-                                                        { id: 'CONCENTRICITY', label: 'Concentricity (Kesepusatan)', icon: '◎', cat: 'diameter' },
-                                                        { id: 'SYMMETRY', label: 'Symmetry (Kesimetrisan)', icon: '⌯', cat: 'dimension' },
-                                                        // Runout
-                                                        { id: 'CIRCULAR_RUNOUT', label: 'Circular Runout', icon: '↗', cat: 'diameter' },
-                                                        { id: 'TOTAL_RUNOUT', label: 'Total Runout', icon: '⌰', cat: 'diameter' }
-                                                    ].map(gdt => {
-                                                        const isSelected = cadTool === 'dimension' && selectedGdtTool === gdt.id;
-                                                        return (
-                                                            <button
-                                                                key={gdt.id}
-                                                                onClick={() => {
-                                                                    setCadTool('dimension');
-                                                                    setDrawingCategory(gdt.cat);
-                                                                    setSelectedGdtTool(gdt.id);
-                                                                    setShowGdtPopup(false);
-                                                                    handleAddDimension(gdt.cat);
-                                                                }}
-                                                                style={{
-                                                                    display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
-                                                                    padding: '4px 8px', borderRadius: '4px', border: 'none',
-                                                                    backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
-                                                                    color: isSelected ? '#10b981' : '#334155',
-                                                                    fontWeight: isSelected ? '700' : 'normal',
-                                                                    fontSize: '0.7rem', cursor: 'pointer', textAlign: 'left'
-                                                                }}
-                                                            >
-                                                                <span style={{ fontSize: '0.9rem', width: '16px', display: 'inline-flex', justifyContent: 'center', fontWeight: 'bold' }}>{gdt.icon}</span>
-                                                                <span>{gdt.label}</span>
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </div>
-
-                                                {/* Group 3: Modifiers */}
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', borderTop: '1px solid #f1f5f9', paddingTop: '4px' }}>
-                                                    <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#94a3b8', padding: '2px 8px', textTransform: 'uppercase' }}>Modifiers (Pengubah)</span>
-                                                    {[
-                                                        { id: 'MMC', label: 'Ⓜ (MMC - Max Material)', desc: 'Gunakan pada panel kanan' },
-                                                        { id: 'LMC', label: 'Ⓛ (LMC - Least Material)', desc: 'Gunakan pada panel kanan' },
-                                                        { id: 'FREE_STATE', label: 'Ⓕ (Free State)', desc: 'Gunakan pada panel kanan' }
-                                                    ].map(mod => (
-                                                        <button
-                                                            key={mod.id}
-                                                            onClick={() => {
-                                                                setShowGdtPopup(false);
-                                                                toast.error(`Modifier ini diatur pada panel kanan setelah meletakkan dimensi.`);
-                                                            }}
-                                                            style={{
-                                                                display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
-                                                                padding: '4px 8px', borderRadius: '4px', border: 'none',
-                                                                backgroundColor: 'transparent', color: '#64748b',
-                                                                fontSize: '0.7rem', cursor: 'pointer', textAlign: 'left'
-                                                            }}
-                                                        >
-                                                            <span style={{ fontSize: '0.7rem', width: '16px', display: 'inline-flex', justifyContent: 'center' }}>⚙</span>
-                                                            <span>{mod.label}</span>
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                        
-                                        {item.id === 'shape' && showShapePopup && (
-                                            <div style={{
-                                                position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '8px',
-                                                backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #cbd5e1',
-                                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)', padding: '8px', display: 'flex', flexDirection: 'column',
-                                                zIndex: 100, width: '180px', gap: '4px'
-                                            }}>
-                                                <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#475569', padding: '4px 8px', borderBottom: '1px solid #e2e8f0' }}>Pilih Bentuk CAD</span>
-                                                {[
-                                                    { id: 'rect', label: 'Rectangle (Persegi)', Icon: Square },
-                                                    { id: 'circle', label: 'Circle (Lingkaran)', Icon: Circle },
-                                                    { id: 'ellipse', label: 'Ellipse (Elips)', isCustomSvg: true, svg: (
-                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginRight: '6px' }}>
-                                                            <ellipse cx="12" cy="12" rx="9" ry="5" />
-                                                        </svg>
-                                                    )},
-                                                    { id: 'triangle', label: 'Triangle (Segitiga)', Icon: Triangle },
-                                                    { id: 'hexagon', label: 'Hexagon (Segienam)', Icon: Hexagon },
-                                                    { id: 'arc', label: 'Arc (Busur)', isCustomSvg: true, svg: (
-                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginRight: '6px' }}>
-                                                            <path d="M 5,17 A 10,10 0 0 1 19,17" />
-                                                        </svg>
-                                                    )},
-                                                    { id: 'polyline', label: 'Polyline (Garis Ganda)', Icon: Activity }
-                                                ].map(option => {
-                                                    const isSelected = selectedShapeTool === option.id && cadTool === option.id;
-                                                    return (
-                                                        <button
-                                                            key={option.id}
-                                                            onClick={() => {
-                                                                setSelectedShapeTool(option.id);
-                                                                setCadTool(option.id);
-                                                                setShowShapePopup(false);
-                                                                if (option.id === 'arc') {
-                                                                    setArcDrawState('idle');
-                                                                    setArcDraftCoords(null);
-                                                                    toast.success('Klik titik pusat busur (Center), lalu titik radius, dan terakhir titik akhir busur.');
-                                                                } else if (option.id === 'polyline') {
-                                                                    setPolylineDraftPoints([]);
-                                                                    toast.success('Klik untuk memulai polyline. Klik titik demi titik, double-klik untuk menutup.');
-                                                                } else if (option.id === 'rect') {
-                                                                    toast.success('Klik dan seret untuk membuat persegi panjang.');
-                                                                } else if (option.id === 'circle') {
-                                                                    toast.success('Klik dan seret dari pusat untuk membuat lingkaran.');
-                                                                } else if (option.id === 'ellipse') {
-                                                                    toast.success('Klik dan seret dari pusat untuk menentukan radius X dan Y elips.');
-                                                                } else if (option.id === 'triangle') {
-                                                                    toast.success('Klik dan seret untuk menggambar segitiga dalam bounding box.');
-                                                                } else if (option.id === 'hexagon') {
-                                                                    toast.success('Klik dan seret dari pusat untuk membuat segienam beraturan.');
-                                                                }
-                                                            }}
-                                                            style={{
-                                                                display: 'flex', alignItems: 'center', width: '100%', background: 'none', border: 'none',
-                                                                padding: '6px 8px', borderRadius: '4px', textAlign: 'left', fontSize: '0.68rem', cursor: 'pointer',
-                                                                outline: 'none', fontWeight: isSelected ? 'bold' : 'normal',
-                                                                color: isSelected ? '#2563eb' : '#334155',
-                                                                backgroundColor: isSelected ? '#eff6ff' : 'transparent',
-                                                                transition: 'background-color 0.15s'
-                                                            }}
-                                                            onMouseEnter={e => { if (!isSelected) e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
-                                                            onMouseLeave={e => { if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent'; }}
-                                                        >
-                                                            {option.isCustomSvg ? option.svg : <option.Icon size={14} style={{ marginRight: '6px' }} />}
-                                                            {option.label}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-                                        
-                                        {item.id === 'color' && showColorPopup && (
-                                            <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '8px', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #cbd5e1', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', padding: '8px', display: 'flex', gap: '6px', zIndex: 100, width: '160px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                                                {['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#000000'].map(c => (
-                                                    <button key={c} onClick={() => { setCadColor(c); setShowColorPopup(false); }}
-                                                        style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: c, border: cadColor === c ? '2px solid #2563eb' : '1px solid #cbd5e1', cursor: 'pointer', padding: 0 }} />
-                                                ))}
-                                            </div>
-                                        )}
-                                        
-                                        {item.id === 'style' && showStylePopup && (
-                                            <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '8px', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #cbd5e1', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', padding: '12px', display: 'flex', flexDirection: 'column', zIndex: 100, width: '150px', gap: '6px' }}>
-                                                <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#475569' }}>Tebal Garis: {cadWidth}px</span>
-                                                <input type="range" min="1" max="8" value={cadWidth} onChange={(e) => setCadWidth(parseInt(e.target.value))} style={{ width: '100%', cursor: 'pointer', accentColor: '#2563eb' }} />
-                                            </div>
-                                        )}
-                                        
-                                        {item.id === 'layer' && showLayerPopup && (
-                                            <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #cbd5e1', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', padding: '8px 0', display: 'flex', flexDirection: 'column', zIndex: 100, width: '160px', maxHeight: '200px', overflowY: 'auto' }}>
-                                                <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#475569', padding: '4px 12px', borderBottom: '1px solid #e2e8f0' }}>Pilih Layer</span>
-                                                <button onClick={() => { setActiveLayer('All Layers'); setShowLayerPopup(false); }}
-                                                    style={{ background: 'none', border: 'none', padding: '6px 12px', textAlign: 'left', fontSize: '0.65rem', cursor: 'pointer', outline: 'none', fontWeight: activeLayer === 'All Layers' ? 'bold' : 'normal', color: activeLayer === 'All Layers' ? '#2563eb' : '#334155', backgroundColor: activeLayer === 'All Layers' ? '#f1f5f9' : 'transparent' }}>
-                                                    Semua Layer
-                                                </button>
-                                                {selectedDwg?.layers?.map(layer => (
-                                                    <button key={layer} onClick={() => { setActiveLayer(layer); setShowLayerPopup(false); }}
-                                                        style={{ background: 'none', border: 'none', padding: '6px 12px', textAlign: 'left', fontSize: '0.65rem', cursor: 'pointer', outline: 'none', fontWeight: activeLayer === layer ? 'bold' : 'normal', color: activeLayer === layer ? '#2563eb' : '#334155', backgroundColor: activeLayer === layer ? '#f1f5f9' : 'transparent' }}>
-                                                        {layer}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                            </div>
-                        </div>
-
                         {/* AutoCAD Workspace Area (contains Vertical Toolbar + Canvas) */}
                         <div style={{ flex: 1, display: 'flex', flexDirection: 'row', width: '100%', minHeight: 0, overflow: 'hidden' }}>
 
@@ -6809,60 +6911,136 @@ export default function DrawingManager() {
 
                                 {/* Canvas SVG */}
                                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0px', position: 'relative', width: '100%', minHeight: 0 }}>
-                                    
-                                    {/* Floating Zoom Control Pill */}
+
+                                    {/* CAD-Style Ruler - Top */}
                                     <div style={{
-                                        position: 'absolute', bottom: '12px', right: '88px',
-                                        display: 'flex', alignItems: 'center',
-                                        backgroundColor: canvasTheme === 'dark' ? '#1e293b' : canvasTheme === 'blueprint' ? '#0f2a4a' : '#ffffff',
-                                        borderRadius: '30px',
-                                        border: `1px solid ${canvasTheme === 'dark' ? '#334155' : canvasTheme === 'blueprint' ? '#2d6da3' : '#cbd5e1'}`,
-                                        boxShadow: canvasTheme === 'dark' || canvasTheme === 'blueprint' ? '0 4px 12px rgba(0, 0, 0, 0.3)' : '0 4px 12px rgba(0, 0, 0, 0.08)',
-                                        padding: '4px 12px', gap: '10px', zIndex: 20,
-                                        userSelect: 'none', fontFamily: "'Inter', sans-serif"
+                                        position: 'absolute', top: 0, left: '24px', right: 0, height: '22px', zIndex: 15,
+                                        background: canvasTheme === 'dark' ? 'linear-gradient(180deg, #1e293b 0%, #1e293bee 85%, transparent 100%)' :
+                                            canvasTheme === 'blueprint' ? 'linear-gradient(180deg, #0a1e3d 0%, #0a1e3dee 85%, transparent 100%)' :
+                                            'linear-gradient(180deg, #f8fafc 0%, #f8fafcee 85%, transparent 100%)',
+                                        borderBottom: `1px solid ${canvasTheme === 'dark' ? '#334155' : canvasTheme === 'blueprint' ? '#1e4d7a' : '#e2e8f0'}`,
+                                        overflow: 'hidden', userSelect: 'none', pointerEvents: 'none'
                                     }}>
-                                        <button title="Zoom Out" onClick={() => setZoom(prev => Math.max(0.2, prev - 0.1))}
-                                            style={{ backgroundColor: 'transparent', border: 'none', color: canvasTheme !== 'white' ? '#94a3b8' : '#64748b', fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px 4px', outline: 'none', fontWeight: 'bold' }}>-</button>
-                                        <span style={{ fontSize: '0.68rem', fontWeight: 800, color: canvasTheme !== 'white' ? '#e2e8f0' : '#334155', minWidth: '38px', textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
-                                        <button title="Zoom In" onClick={() => setZoom(prev => Math.min(4, prev + 0.1))}
-                                            style={{ backgroundColor: 'transparent', border: 'none', color: canvasTheme !== 'white' ? '#94a3b8' : '#64748b', fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px 4px', outline: 'none', fontWeight: 'bold' }}>+</button>
-                                        <div style={{ width: '1px', height: '12px', backgroundColor: canvasTheme !== 'white' ? '#475569' : '#cbd5e1' }} />
-                                        <button title="Fit to Screen" onClick={() => { setZoom(1.0); setPanOffset({ x: 0, y: 0 }); }}
-                                            style={{ backgroundColor: 'transparent', border: 'none', color: canvasTheme !== 'white' ? '#94a3b8' : '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px', outline: 'none' }}>
-                                            <Maximize size={12} />
-                                        </button>
-                                        <div style={{ width: '1px', height: '12px', backgroundColor: canvasTheme !== 'white' ? '#475569' : '#cbd5e1' }} />
-                                        <button
-                                            title={`Mode: ${canvasTheme === 'white' ? 'Light' : canvasTheme === 'dark' ? 'Dark' : 'Blueprint'} — Klik untuk ganti`}
-                                            onClick={() => setCanvasTheme(prev => prev === 'white' ? 'dark' : prev === 'dark' ? 'blueprint' : 'white')}
-                                            style={{
-                                                backgroundColor: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 4px', outline: 'none', borderRadius: '4px', transition: 'all 0.15s',
-                                                color: canvasTheme === 'blueprint' ? '#38bdf8' : canvasTheme === 'dark' ? '#facc15' : '#64748b',
-                                            }}
-                                        >
-                                            {canvasTheme === 'white' && <Sun size={13} />}
-                                            {canvasTheme === 'dark' && <Moon size={13} />}
-                                            {canvasTheme === 'blueprint' && <span style={{ fontSize: '0.7rem', fontWeight: 800, lineHeight: 1 }}>BP</span>}
-                                            <span style={{ fontSize: '0.58rem', fontWeight: 700 }}>
-                                                {canvasTheme === 'white' ? 'Light' : canvasTheme === 'dark' ? 'Dark' : 'Blueprint'}
-                                            </span>
-                                        </button>
+                                        <svg width="100%" height="22" style={{ display: 'block' }}>
+                                            {(() => {
+                                                const rulerTicks = [];
+                                                const step = zoom >= 2 ? 20 : zoom >= 1 ? 50 : zoom >= 0.5 ? 100 : 200;
+                                                const labelEvery = zoom >= 2 ? 5 : zoom >= 1 ? 2 : 1;
+                                                const tickColor = canvasTheme === 'dark' ? '#475569' : canvasTheme === 'blueprint' ? '#2d6da3' : '#94a3b8';
+                                                const labelColor = canvasTheme === 'dark' ? '#94a3b8' : canvasTheme === 'blueprint' ? '#7dd3fc' : '#64748b';
+                                                const totalWidth = canvasSize.width;
+                                                for (let i = 0; i <= totalWidth; i += step) {
+                                                    const screenX = (i - canvasSize.width / 2) * zoom + canvasSize.width / 2 + panOffset.x;
+                                                    const viewPx = screenX / (canvasSize.width) * 100;
+                                                    const tickIdx = i / step;
+                                                    const isLabel = tickIdx % labelEvery === 0;
+                                                    rulerTicks.push(
+                                                        <g key={`rt_${i}`}>
+                                                            <line x1={`${viewPx}%`} y1={isLabel ? 8 : 14} x2={`${viewPx}%`} y2={22} stroke={tickColor} strokeWidth={isLabel ? 1 : 0.5} />
+                                                            {isLabel && <text x={`${viewPx}%`} y={7} fill={labelColor} fontSize="7" fontFamily="monospace" fontWeight="600" textAnchor="middle" dominantBaseline="middle">{i}</text>}
+                                                        </g>
+                                                    );
+                                                }
+                                                return rulerTicks;
+                                            })()}
+                                        </svg>
                                     </div>
 
-                                    {/* Floating Action Button (FAB) */}
-                                    <button title="Toggle Parameters Panel" onClick={() => setShowQCInspector(prev => !prev)}
-                                        style={{
-                                            position: 'absolute', bottom: '24px', right: '24px', width: '44px', height: '44px',
-                                            borderRadius: '50%', backgroundColor: '#2563eb', color: '#ffffff', border: 'none',
-                                            boxShadow: '0 4px 14px rgba(37, 99, 235, 0.4)', display: 'flex', alignItems: 'center',
-                                            justifyContent: 'center', cursor: 'pointer', zIndex: 20,
-                                            transition: 'transform 0.2s, background-color 0.2s', outline: 'none'
-                                        }}
-                                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#1d4ed8'; e.currentTarget.style.transform = 'scale(1.05)'; }}
-                                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#2563eb'; e.currentTarget.style.transform = 'scale(1)'; }}
-                                    >
-                                        <Sliders size={20} color="white" />
-                                    </button>
+                                    {/* CAD-Style Ruler - Left */}
+                                    <div style={{
+                                        position: 'absolute', top: '22px', left: 0, bottom: 0, width: '24px', zIndex: 15,
+                                        background: canvasTheme === 'dark' ? 'linear-gradient(90deg, #1e293b 0%, #1e293bee 85%, transparent 100%)' :
+                                            canvasTheme === 'blueprint' ? 'linear-gradient(90deg, #0a1e3d 0%, #0a1e3dee 85%, transparent 100%)' :
+                                            'linear-gradient(90deg, #f8fafc 0%, #f8fafcee 85%, transparent 100%)',
+                                        borderRight: `1px solid ${canvasTheme === 'dark' ? '#334155' : canvasTheme === 'blueprint' ? '#1e4d7a' : '#e2e8f0'}`,
+                                        overflow: 'hidden', userSelect: 'none', pointerEvents: 'none'
+                                    }}>
+                                        <svg width="24" height="100%" style={{ display: 'block' }}>
+                                            {(() => {
+                                                const rulerTicks = [];
+                                                const step = zoom >= 2 ? 20 : zoom >= 1 ? 50 : zoom >= 0.5 ? 100 : 200;
+                                                const labelEvery = zoom >= 2 ? 5 : zoom >= 1 ? 2 : 1;
+                                                const tickColor = canvasTheme === 'dark' ? '#475569' : canvasTheme === 'blueprint' ? '#2d6da3' : '#94a3b8';
+                                                const labelColor = canvasTheme === 'dark' ? '#94a3b8' : canvasTheme === 'blueprint' ? '#7dd3fc' : '#64748b';
+                                                const totalHeight = canvasSize.height;
+                                                for (let i = 0; i <= totalHeight; i += step) {
+                                                    const screenY = (i - canvasSize.height / 2) * zoom + canvasSize.height / 2 + panOffset.y;
+                                                    const viewPy = screenY / (canvasSize.height) * 100;
+                                                    const tickIdx = i / step;
+                                                    const isLabel = tickIdx % labelEvery === 0;
+                                                    rulerTicks.push(
+                                                        <g key={`rl_${i}`}>
+                                                            <line x1={isLabel ? 8 : 14} y1={`${viewPy}%`} x2={24} y2={`${viewPy}%`} stroke={tickColor} strokeWidth={isLabel ? 1 : 0.5} />
+                                                            {isLabel && <text x={6} y={`${viewPy}%`} fill={labelColor} fontSize="7" fontFamily="monospace" fontWeight="600" textAnchor="middle" dominantBaseline="middle" transform={`rotate(-90, 6, ${viewPy})`} style={{ transformBox: 'fill-box', transformOrigin: 'center' }}>{i}</text>}
+                                                        </g>
+                                                    );
+                                                }
+                                                return rulerTicks;
+                                            })()}
+                                        </svg>
+                                    </div>
+
+                                    {/* Ruler Corner */}
+                                    <div style={{
+                                        position: 'absolute', top: 0, left: 0, width: '24px', height: '22px', zIndex: 16,
+                                        backgroundColor: canvasTheme === 'dark' ? '#1e293b' : canvasTheme === 'blueprint' ? '#0a1e3d' : '#f1f5f9',
+                                        borderRight: `1px solid ${canvasTheme === 'dark' ? '#334155' : canvasTheme === 'blueprint' ? '#1e4d7a' : '#e2e8f0'}`,
+                                        borderBottom: `1px solid ${canvasTheme === 'dark' ? '#334155' : canvasTheme === 'blueprint' ? '#1e4d7a' : '#e2e8f0'}`,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                    }}>
+                                        <span style={{ fontSize: '6px', fontWeight: 900, color: canvasTheme === 'dark' ? '#64748b' : canvasTheme === 'blueprint' ? '#38bdf8' : '#94a3b8', fontFamily: 'monospace' }}>px</span>
+                                    </div>
+                                    
+                                    {/* Top-Right Floating Controls Bar (Zoom + Theme + QC Panel Toggle) */}
+                                     <div style={{
+                                         position: 'absolute', top: '30px', right: '16px',
+                                         display: 'flex', alignItems: 'center',
+                                         backgroundColor: canvasTheme === 'dark' ? '#1e293b' : canvasTheme === 'blueprint' ? '#0f2a4a' : '#ffffff',
+                                         borderRadius: '30px',
+                                         border: `1px solid ${canvasTheme === 'dark' ? '#334155' : canvasTheme === 'blueprint' ? '#2d6da3' : '#cbd5e1'}`,
+                                         boxShadow: canvasTheme === 'dark' || canvasTheme === 'blueprint' ? '0 4px 14px rgba(0, 0, 0, 0.4)' : '0 4px 14px rgba(0, 0, 0, 0.1)',
+                                         padding: '4px 10px', gap: '8px', zIndex: 20,
+                                         userSelect: 'none', fontFamily: "'Inter', sans-serif"
+                                     }}>
+                                         <button title="Zoom Out" onClick={() => setZoom(prev => Math.max(0.2, prev - 0.1))}
+                                             style={{ backgroundColor: 'transparent', border: 'none', color: canvasTheme !== 'white' ? '#94a3b8' : '#64748b', fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px 4px', outline: 'none', fontWeight: 'bold' }}>-</button>
+                                         <span style={{ fontSize: '0.68rem', fontWeight: 800, color: canvasTheme !== 'white' ? '#e2e8f0' : '#334155', minWidth: '38px', textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
+                                         <button title="Zoom In" onClick={() => setZoom(prev => Math.min(4, prev + 0.1))}
+                                             style={{ backgroundColor: 'transparent', border: 'none', color: canvasTheme !== 'white' ? '#94a3b8' : '#64748b', fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px 4px', outline: 'none', fontWeight: 'bold' }}>+</button>
+                                         <div style={{ width: '1px', height: '12px', backgroundColor: canvasTheme !== 'white' ? '#475569' : '#cbd5e1' }} />
+                                         <button title="Fit to Screen" onClick={() => { setZoom(1.0); setPanOffset({ x: 0, y: 0 }); }}
+                                             style={{ backgroundColor: 'transparent', border: 'none', color: canvasTheme !== 'white' ? '#94a3b8' : '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px', outline: 'none' }}>
+                                             <Maximize size={12} />
+                                         </button>
+                                         <div style={{ width: '1px', height: '12px', backgroundColor: canvasTheme !== 'white' ? '#475569' : '#cbd5e1' }} />
+                                         <button
+                                             title={`Mode: ${canvasTheme === 'white' ? 'Light' : canvasTheme === 'dark' ? 'Dark' : 'Blueprint'} — Klik untuk ganti`}
+                                             onClick={() => setCanvasTheme(prev => prev === 'white' ? 'dark' : prev === 'dark' ? 'blueprint' : 'white')}
+                                             style={{
+                                                 backgroundColor: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 4px', outline: 'none', borderRadius: '4px', transition: 'all 0.15s',
+                                                 color: canvasTheme === 'blueprint' ? '#38bdf8' : canvasTheme === 'dark' ? '#facc15' : '#64748b',
+                                             }}
+                                         >
+                                             {canvasTheme === 'white' && <Sun size={13} />}
+                                             {canvasTheme === 'dark' && <Moon size={13} />}
+                                             {canvasTheme === 'blueprint' && <span style={{ fontSize: '0.7rem', fontWeight: 800, lineHeight: 1 }}>BP</span>}
+                                             <span style={{ fontSize: '0.58rem', fontWeight: 700 }}>
+                                                 {canvasTheme === 'white' ? 'Light' : canvasTheme === 'dark' ? 'Dark' : 'Blueprint'}
+                                             </span>
+                                         </button>
+                                         <div style={{ width: '1px', height: '12px', backgroundColor: canvasTheme !== 'white' ? '#475569' : '#cbd5e1' }} />
+                                         <button title="Toggle Parameters Panel" onClick={() => setShowQCInspector(prev => !prev)}
+                                             style={{
+                                                 backgroundColor: showQCInspector ? '#2563eb' : 'transparent',
+                                                 color: showQCInspector ? 'white' : (canvasTheme !== 'white' ? '#94a3b8' : '#64748b'),
+                                                 border: 'none', borderRadius: '20px', padding: '3px 8px', cursor: 'pointer',
+                                                 display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.62rem', fontWeight: 800,
+                                                 outline: 'none', transition: 'all 0.2s'
+                                             }}
+                                         >
+                                             <Sliders size={12} /> Panel
+                                         </button>
+                                     </div>
                                     
                                     {selectedDwg && ['STL', 'OBJ', 'GLTF', 'GLB'].includes(selectedDwg.fileType) ? (
                                         <CADViewer3DEditor
@@ -9920,12 +10098,85 @@ export default function DrawingManager() {
                                                             </div>
                                                         </div>
 
-                                                        <div>
+                                                         <div>
                                                             <label style={{ ...labelStyle, marginBottom: '2px' }}>Datums (A / B / C)</label>
                                                             <div style={{ display: 'flex', gap: '6px' }}>
                                                                 <input type="text" maxLength="2" placeholder="Pri" value={editGdtDatum1} onChange={(e) => updateActiveDimProp('gdtDatum1', e.target.value.toUpperCase())} style={{ ...inputStyle, textAlign: 'center', padding: '6px' }} />
                                                                 <input type="text" maxLength="2" placeholder="Sec" value={editGdtDatum2} onChange={(e) => updateActiveDimProp('gdtDatum2', e.target.value.toUpperCase())} style={{ ...inputStyle, textAlign: 'center', padding: '6px' }} />
                                                                 <input type="text" maxLength="2" placeholder="Ter" value={editGdtDatum3} onChange={(e) => updateActiveDimProp('gdtDatum3', e.target.value.toUpperCase())} style={{ ...inputStyle, textAlign: 'center', padding: '6px' }} />
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Real-time GD&T Feature Control Frame Preview Box */}
+                                                        <div style={{
+                                                            marginTop: '6px',
+                                                            padding: '8px 10px',
+                                                            backgroundColor: '#ffffff',
+                                                            border: '1px dashed #34a853',
+                                                            borderRadius: '6px',
+                                                            display: 'flex',
+                                                            flexDirection: 'column',
+                                                            alignItems: 'center',
+                                                            gap: '4px'
+                                                        }}>
+                                                            <div style={{ fontSize: '0.58rem', fontWeight: 800, color: '#137333', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                                                                👁️ Live ASME Y14.5 FCF Preview
+                                                            </div>
+                                                            <div style={{
+                                                                display: 'inline-flex',
+                                                                alignItems: 'stretch',
+                                                                border: '2px solid #0f172a',
+                                                                backgroundColor: '#ffffff',
+                                                                fontFamily: "'Courier New', Courier, monospace",
+                                                                fontSize: '0.85rem',
+                                                                fontWeight: 900,
+                                                                color: '#0f172a',
+                                                                boxShadow: '0 2px 4px rgba(0,0,0,0.06)',
+                                                                userSelect: 'none'
+                                                            }}>
+                                                                {/* Symbol Cell */}
+                                                                <div style={{ padding: '3px 7px', borderRight: '2px solid #0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', fontSize: '1rem' }}>
+                                                                    {(() => {
+                                                                        const symMap = {
+                                                                            POSITION: '⌖', FLATNESS: '▱', STRAIGHTNESS: '⏤', CIRCULARITY: '◯', CYLINDRICITY: '⌭',
+                                                                            PROFILE_SURFACE: '⌢', PROFILE_LINE: '◠', PERPENDICULARITY: '⊥', PARALLELISM: '∥',
+                                                                            ANGULARITY: '∠', CONCENTRICITY: '◎', SYMMETRY: '⌯', CIRCULAR_RUNOUT: '↗', TOTAL_RUNOUT: '⌰'
+                                                                        };
+                                                                        return symMap[editGdtSymbol] || '⌖';
+                                                                    })()}
+                                                                </div>
+
+                                                                {/* Tolerance & Modifiers Cell */}
+                                                                <div style={{ padding: '3px 8px', borderRight: (editGdtDatum1 || editGdtDatum2 || editGdtDatum3) ? '2px solid #0f172a' : 'none', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                                                    {editGdtHasDiameter && <span>⌀</span>}
+                                                                    <span>{editGdtTolerance || '0.05'}</span>
+                                                                    {editGdtModifier && (
+                                                                        <span style={{ fontSize: '0.75rem' }}>
+                                                                            {editGdtModifier === 'M' ? 'Ⓜ' : editGdtModifier === 'L' ? 'Ⓛ' : 'Ⓕ'}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+
+                                                                {/* Primary Datum */}
+                                                                {editGdtDatum1 && (
+                                                                    <div style={{ padding: '3px 7px', borderRight: (editGdtDatum2 || editGdtDatum3) ? '2px solid #0f172a' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                                        {editGdtDatum1}
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Secondary Datum */}
+                                                                {editGdtDatum2 && (
+                                                                    <div style={{ padding: '3px 7px', borderRight: editGdtDatum3 ? '2px solid #0f172a' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                                        {editGdtDatum2}
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Tertiary Datum */}
+                                                                {editGdtDatum3 && (
+                                                                    <div style={{ padding: '3px 7px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                                        {editGdtDatum3}
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -11247,9 +11498,14 @@ export default function DrawingManager() {
                                                 style={selectStyle}
                                             >
                                                 <option value="">None</option>
-                                                <option value="M">Ⓜ (MMC)</option>
-                                                <option value="L">Ⓛ (LMC)</option>
+                                                <option value="M">Ⓜ (MMC - Max Material)</option>
+                                                <option value="L">Ⓛ (LMC - Least Material)</option>
                                                 <option value="F">Ⓕ (Free State)</option>
+                                                <option value="P">Ⓟ (Projected Zone)</option>
+                                                <option value="T">Ⓣ (Tangent Plane)</option>
+                                                <option value="U">Ⓤ (Unequally Disposed)</option>
+                                                <option value="R">Ⓡ (RFS - Regardless of Size)</option>
+                                                <option value="S">Ⓢ (Statistical Tolerance)</option>
                                             </select>
                                         </div>
                                     </div>
