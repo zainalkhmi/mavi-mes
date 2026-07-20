@@ -716,6 +716,7 @@ export default function DrawingManager() {
     const [cadTool, setCadTool] = useState('select'); // select, line, circle, rect, text, erase
     const [mirrorMenu, setMirrorMenu] = useState(null); // { shapeId, x, y }
     const [dimContextMenu, setDimContextMenu] = useState(null); // { dimId, x, y }
+    const [shapeContextMenu, setShapeContextMenu] = useState(null); // { shapeId, x, y, shape }
     const [canvasContextMenu, setCanvasContextMenu] = useState(null); // { x, y, canvasX, canvasY }
     const [drawingCategory, setDrawingCategory] = useState('dimension'); // dimension, diameter, radius, angle, etc.
     const [dimMoveMode, setDimMoveMode] = useState(null); // null, 'all', 'label'
@@ -2550,6 +2551,31 @@ export default function DrawingManager() {
         setDimModalData(null);
     };
 
+    const handleDuplicateShape = (shapeToCopy) => {
+        if (!shapeToCopy || !selectedDwg) return;
+        const currentShapes = selectedDwg.shapes || [];
+        const newShape = JSON.parse(JSON.stringify(shapeToCopy));
+        newShape.id = `shape_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+
+        const dx = 15;
+        const dy = 15;
+
+        if (newShape.type === 'line') {
+            newShape.x1 += dx; newShape.y1 += dy;
+            newShape.x2 += dx; newShape.y2 += dy;
+        } else if (newShape.type === 'circle' || newShape.type === 'ellipse' || newShape.type === 'hexagon' || newShape.type === 'arc') {
+            newShape.cx += dx; newShape.cy += dy;
+        } else if (newShape.type === 'rect' || newShape.type === 'triangle' || newShape.type === 'text') {
+            newShape.x += dx; newShape.y += dy;
+        } else if (newShape.type === 'polyline' && Array.isArray(newShape.points)) {
+            newShape.points = newShape.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
+        }
+
+        updateShapes([...currentShapes, newShape]);
+        setSelectedShapeId(newShape.id);
+        toast.success(`Geometri ${newShape.type.toUpperCase()} berhasil diduplikat!`);
+    };
+
     const handleSvgDoubleClick = (e) => {
         if (cadTool === 'polyline' && polylineDraftPoints.length > 2) {
             e.stopPropagation();
@@ -2607,7 +2633,7 @@ export default function DrawingManager() {
             return;
         }
 
-        if (cadTool === 'select' || cadTool === 'move' || cadTool === 'rotate' || cadTool === 'mirror' || cadTool === 'trim') return;
+        if (cadTool === 'select' || cadTool === 'move' || cadTool === 'rotate' || cadTool === 'mirror' || cadTool === 'trim' || cadTool === 'erase') return;
 
         if (!selectedDwg) {
             toast.error("Silakan pilih atau unggah blueprint terlebih dahulu.");
@@ -3019,13 +3045,13 @@ export default function DrawingManager() {
                                 x2: Math.round(startShape.x2 + dx),
                                 y2: Math.round(startShape.y2 + dy)
                             };
-                        } else if (s.type === 'circle' || s.type === 'arc') {
+                        } else if (s.type === 'circle' || s.type === 'arc' || s.type === 'ellipse' || s.type === 'hexagon') {
                             return {
                                 ...s,
                                 cx: Math.round(startShape.cx + dx),
                                 cy: Math.round(startShape.cy + dy)
                             };
-                        } else if (s.type === 'rect' || s.type === 'image') {
+                        } else if (s.type === 'rect' || s.type === 'image' || s.type === 'triangle' || s.type === 'text') {
                             return {
                                 ...s,
                                 x: Math.round(startShape.x + dx),
@@ -7403,6 +7429,29 @@ export default function DrawingManager() {
                                                                 center: shapeCenter,
                                                                 startShape: JSON.parse(JSON.stringify(shape))
                                                             });
+                                                        } else if (cadTool === 'erase') {
+                                                            e.stopPropagation();
+                                                            e.preventDefault();
+                                                            const currentShapes = selectedDwg.shapes || [];
+                                                            updateShapes(currentShapes.filter(s => s.id !== shape.id));
+                                                            toast.success('Bentuk terhapus', { id: 'erase-shape' });
+                                                        }
+                                                    };
+
+                                                    const handleLocalContextMenu = (e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        if (svgRef.current && svgRef.current.parentElement) {
+                                                            const parentRect = svgRef.current.parentElement.getBoundingClientRect();
+                                                            const top = e.clientY - parentRect.top;
+                                                            const left = e.clientX - parentRect.left;
+                                                            setSelectedShapeId(shape.id);
+                                                            setShapeContextMenu({
+                                                                shapeId: shape.id,
+                                                                x: left,
+                                                                y: top,
+                                                                shape: shape
+                                                            });
                                                         }
                                                     };
 
@@ -7467,6 +7516,7 @@ export default function DrawingManager() {
                                                                 transform={rotationStr}
                                                                 onClick={handleLocalClick}
                                                                 onMouseDown={handleLocalMouseDown}
+                                                                onContextMenu={handleLocalContextMenu}
                                                                 onMouseEnter={handleShapeMouseEnter}
                                                                 onMouseLeave={handleShapeMouseLeave}
                                                                 style={{ cursor: cursorStyle }}
@@ -7484,12 +7534,13 @@ export default function DrawingManager() {
                                                                 transform={rotationStr}
                                                                 onClick={handleLocalClick}
                                                                 onMouseDown={handleLocalMouseDown}
+                                                                onContextMenu={handleLocalContextMenu}
                                                                 onMouseEnter={handleShapeMouseEnter}
                                                                 onMouseLeave={handleShapeMouseLeave}
                                                                 style={{ cursor: cursorStyle }}
                                                                 pointerEvents={pointerEvents}
                                                             >
-                                                                <circle cx={shape.cx} cy={shape.cy} r={shape.r} stroke="transparent" strokeWidth="15" fill="none" />
+                                                                <circle cx={shape.cx} cy={shape.cy} r={shape.r} stroke="transparent" strokeWidth="15" fill="rgba(0,0,0,0.001)" />
                                                                 <circle cx={shape.cx} cy={shape.cy} r={shape.r} {...commonProps} fill="none" />
                                                             </g>
                                                         );
@@ -7501,12 +7552,13 @@ export default function DrawingManager() {
                                                                 transform={rotationStr}
                                                                 onClick={handleLocalClick}
                                                                 onMouseDown={handleLocalMouseDown}
+                                                                onContextMenu={handleLocalContextMenu}
                                                                 onMouseEnter={handleShapeMouseEnter}
                                                                 onMouseLeave={handleShapeMouseLeave}
                                                                 style={{ cursor: cursorStyle }}
                                                                 pointerEvents={pointerEvents}
                                                             >
-                                                                <rect x={shape.x} y={shape.y} width={shape.w} height={shape.h} stroke="transparent" strokeWidth="15" fill="none" />
+                                                                <rect x={shape.x} y={shape.y} width={shape.w} height={shape.h} stroke="transparent" strokeWidth="15" fill="rgba(0,0,0,0.001)" />
                                                                 <rect x={shape.x} y={shape.y} width={shape.w} height={shape.h} {...commonProps} fill="none" />
                                                             </g>
                                                         );
@@ -7518,12 +7570,13 @@ export default function DrawingManager() {
                                                                  transform={rotationStr}
                                                                  onClick={handleLocalClick}
                                                                  onMouseDown={handleLocalMouseDown}
+                                                                 onContextMenu={handleLocalContextMenu}
                                                                  onMouseEnter={handleShapeMouseEnter}
                                                                  onMouseLeave={handleShapeMouseLeave}
                                                                  style={{ cursor: cursorStyle }}
                                                                  pointerEvents={pointerEvents}
                                                              >
-                                                                 <ellipse cx={shape.cx} cy={shape.cy} rx={shape.rx} ry={shape.ry} stroke="transparent" strokeWidth="15" fill="none" />
+                                                                 <ellipse cx={shape.cx} cy={shape.cy} rx={shape.rx} ry={shape.ry} stroke="transparent" strokeWidth="15" fill="rgba(0,0,0,0.001)" />
                                                                  <ellipse cx={shape.cx} cy={shape.cy} rx={shape.rx} ry={shape.ry} {...commonProps} fill="none" />
                                                              </g>
                                                          );
@@ -7536,12 +7589,13 @@ export default function DrawingManager() {
                                                                  transform={rotationStr}
                                                                  onClick={handleLocalClick}
                                                                  onMouseDown={handleLocalMouseDown}
+                                                                 onContextMenu={handleLocalContextMenu}
                                                                  onMouseEnter={handleShapeMouseEnter}
                                                                  onMouseLeave={handleShapeMouseLeave}
                                                                  style={{ cursor: cursorStyle }}
                                                                  pointerEvents={pointerEvents}
                                                              >
-                                                                 <polygon points={pointsStr} stroke="transparent" strokeWidth="15" fill="none" />
+                                                                 <polygon points={pointsStr} stroke="transparent" strokeWidth="15" fill="rgba(0,0,0,0.001)" />
                                                                  <polygon points={pointsStr} {...commonProps} fill="none" />
                                                              </g>
                                                          );
@@ -7562,12 +7616,13 @@ export default function DrawingManager() {
                                                                  transform={rotationStr}
                                                                  onClick={handleLocalClick}
                                                                  onMouseDown={handleLocalMouseDown}
+                                                                 onContextMenu={handleLocalContextMenu}
                                                                  onMouseEnter={handleShapeMouseEnter}
                                                                  onMouseLeave={handleShapeMouseLeave}
                                                                  style={{ cursor: cursorStyle }}
                                                                  pointerEvents={pointerEvents}
                                                              >
-                                                                 <polygon points={pointsStr} stroke="transparent" strokeWidth="15" fill="none" />
+                                                                 <polygon points={pointsStr} stroke="transparent" strokeWidth="15" fill="rgba(0,0,0,0.001)" />
                                                                  <polygon points={pointsStr} {...commonProps} fill="none" />
                                                              </g>
                                                          );
@@ -7590,6 +7645,7 @@ export default function DrawingManager() {
                                                                 transform={rotationStr}
                                                                 onClick={handleLocalClick}
                                                                 onMouseDown={handleLocalMouseDown}
+                                                                onContextMenu={handleLocalContextMenu}
                                                                 onMouseEnter={handleShapeMouseEnter}
                                                                 onMouseLeave={handleShapeMouseLeave}
                                                                 style={{ cursor: cursorStyle }}
@@ -7608,6 +7664,7 @@ export default function DrawingManager() {
                                                                 transform={rotationStr}
                                                                 onClick={handleLocalClick}
                                                                 onMouseDown={handleLocalMouseDown}
+                                                                onContextMenu={handleLocalContextMenu}
                                                                 onMouseEnter={handleShapeMouseEnter}
                                                                 onMouseLeave={handleShapeMouseLeave}
                                                                 style={{ cursor: cursorStyle }}
@@ -9503,6 +9560,155 @@ export default function DrawingManager() {
                                                         padding: '4px 0 0 0',
                                                         borderTop: '1px solid #334155',
                                                         marginTop: '2px'
+                                                    }}
+                                                    onMouseEnter={e => e.currentTarget.style.color = 'white'}
+                                                    onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+                                                >
+                                                    Batal
+                                                </button>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {/* Floating Polyline Status Pill */}
+                                    {cadTool === 'polyline' && polylineDraftPoints.length > 0 && (
+                                        <div style={{
+                                            position: 'absolute', top: '30px', left: '50%', transform: 'translateX(-50%)',
+                                            backgroundColor: '#0f172ae6', border: '1px solid #10b981', borderRadius: '30px',
+                                            padding: '6px 14px', display: 'flex', alignItems: 'center', gap: '10px',
+                                            zIndex: 100, color: 'white', fontSize: '0.72rem', fontWeight: 800,
+                                            boxShadow: '0 4px 15px rgba(0,0,0,0.4)', fontFamily: "'Inter', sans-serif"
+                                        }}>
+                                            <span style={{ color: '#34d399' }}>〽️ Polyline ({polylineDraftPoints.length} titik)</span>
+                                            <span style={{ fontSize: '0.62rem', color: '#94a3b8' }}>Klik kanan / Endpoint / Enter untuk selesai</span>
+                                            <button
+                                                onClick={() => {
+                                                    if (polylineDraftPoints.length >= 2) {
+                                                        const currentShapes = selectedDwg.shapes || [];
+                                                        const newShape = {
+                                                            id: `shape_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+                                                            type: 'polyline',
+                                                            points: [...polylineDraftPoints],
+                                                            color: cadColor,
+                                                            strokeWidth: cadWidth
+                                                        };
+                                                        updateShapes([...currentShapes, newShape]);
+                                                        toast.success('Polyline selesai.');
+                                                    }
+                                                    setPolylineDraftPoints([]);
+                                                }}
+                                                style={{
+                                                    backgroundColor: '#10b981', color: 'white', border: 'none',
+                                                    borderRadius: '16px', padding: '3px 10px', fontSize: '0.65rem',
+                                                    fontWeight: 'bold', cursor: 'pointer'
+                                                }}
+                                            >
+                                                ✓ Selesai
+                                            </button>
+                                            <button
+                                                onClick={() => setPolylineDraftPoints([])}
+                                                style={{
+                                                    backgroundColor: '#ef4444', color: 'white', border: 'none',
+                                                    borderRadius: '16px', padding: '3px 10px', fontSize: '0.65rem',
+                                                    fontWeight: 'bold', cursor: 'pointer'
+                                                }}
+                                            >
+                                                ✕ Batal
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Shape Right-Click Context Menu (Move, Copy, Delete) */}
+                                    {shapeContextMenu && (() => {
+                                        const shape = shapeContextMenu.shape;
+                                        if (!shape) return null;
+                                        return (
+                                            <div style={{
+                                                position: 'absolute',
+                                                top: `${shapeContextMenu.y}px`,
+                                                left: `${shapeContextMenu.x}px`,
+                                                transform: 'translate(10px, 10px)',
+                                                backgroundColor: '#0f172af2',
+                                                border: '1px solid #3b82f6',
+                                                borderRadius: '10px',
+                                                padding: '10px',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: '6px',
+                                                zIndex: 1100,
+                                                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5)',
+                                                fontFamily: "'Inter', sans-serif",
+                                                minWidth: '170px',
+                                                backdropFilter: 'blur(4px)',
+                                                borderLeft: '4px solid #3b82f6'
+                                            }}>
+                                                <div style={{ borderBottom: '1px solid #334155', paddingBottom: '4px', marginBottom: '2px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#f8fafc', textTransform: 'uppercase' }}>
+                                                        📐 Geometri {shape.type?.toUpperCase()}
+                                                    </span>
+                                                </div>
+
+                                                {/* Move */}
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedShapeId(shape.id);
+                                                        setCadTool('move');
+                                                        setShapeContextMenu(null);
+                                                        toast.info('Klik dan geser bentuk pada kanvas untuk memindahkan.');
+                                                    }}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 8px',
+                                                        backgroundColor: '#1e293b', color: '#60a5fa', border: '1px solid #1e3a8a',
+                                                        borderRadius: '6px', fontSize: '0.68rem', fontWeight: 'bold', cursor: 'pointer'
+                                                    }}
+                                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#334155'}
+                                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = '#1e293b'}
+                                                >
+                                                    🎯 Pindahkan (Move)
+                                                </button>
+
+                                                {/* Copy / Duplicate */}
+                                                <button
+                                                    onClick={() => {
+                                                        handleDuplicateShape(shape);
+                                                        setShapeContextMenu(null);
+                                                    }}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 8px',
+                                                        backgroundColor: '#1e293b', color: '#10b981', border: '1px solid #064e3b',
+                                                        borderRadius: '6px', fontSize: '0.68rem', fontWeight: 'bold', cursor: 'pointer'
+                                                    }}
+                                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#334155'}
+                                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = '#1e293b'}
+                                                >
+                                                    📋 Duplikat (Copy)
+                                                </button>
+
+                                                {/* Delete */}
+                                                <button
+                                                    onClick={() => {
+                                                        const currentShapes = selectedDwg.shapes || [];
+                                                        updateShapes(currentShapes.filter(s => s.id !== shape.id));
+                                                        setShapeContextMenu(null);
+                                                        toast.success('Geometri terhapus.');
+                                                    }}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 8px',
+                                                        backgroundColor: '#451a03', color: '#ef4444', border: '1px solid #ef444450',
+                                                        borderRadius: '6px', fontSize: '0.68rem', fontWeight: 'bold', cursor: 'pointer'
+                                                    }}
+                                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#7c2d12'}
+                                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = '#451a03'}
+                                                >
+                                                    🗑️ Hapus (Delete)
+                                                </button>
+
+                                                <button
+                                                    onClick={() => setShapeContextMenu(null)}
+                                                    style={{
+                                                        background: 'transparent', border: 'none', color: '#94a3b8',
+                                                        fontSize: '0.62rem', fontWeight: 'bold', cursor: 'pointer',
+                                                        textAlign: 'center', paddingTop: '4px', borderTop: '1px solid #334155', marginTop: '2px'
                                                     }}
                                                     onMouseEnter={e => e.currentTarget.style.color = 'white'}
                                                     onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
