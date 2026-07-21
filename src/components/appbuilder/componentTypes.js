@@ -1038,7 +1038,7 @@ export const COMPONENT_TYPES = {
         label: 'CAD',
         icon: Layers,
         defaultSize: { w: 320, h: 220 },
-        defaultProps: { source: '', fileUrl: '', title: 'CAD Viewer', format: 'STL', backgroundcolor: 'var(--text-primary)', showGrid: true, autoRotate: false, visible: true, triggers: [], visibilityCondition: null, rotation: 0 }
+        defaultProps: { source: '', fileUrl: '', title: 'CAD Viewer', format: 'DWG', backgroundcolor: 'var(--text-primary)', showGrid: true, autoRotate: false, visible: true, triggers: [], visibilityCondition: null, rotation: 0 }
     },
     WEBPAGE: {
         id: 'WEBPAGE',

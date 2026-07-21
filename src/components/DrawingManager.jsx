@@ -28,6 +28,7 @@ import {
     Circle,
     Triangle,
     Hexagon,
+    Crop,
     CornerUpRight,
     Square,
     Crosshair,
@@ -59,7 +60,8 @@ import {
     Palette,
     Maximize,
     Sun,
-    Moon
+    Moon,
+    Target
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getAllDrawings, saveDrawing, deleteDrawing, safeSaveDrawingsToLocalStorage } from '../utils/supabaseUtilityDB';
@@ -582,7 +584,81 @@ export default function DrawingManager() {
     const [isBocCollapsed, setIsBocCollapsed] = useState(false);
     const [showBocTable, setShowBocTable] = useState(true);
     const [showQCInspector, setShowQCInspector] = useState(true);
-    const [qcTab, setQcTab] = useState('properties'); // 'properties' | 'simulator'
+    const [qcTab, setQcTab] = useState('properties'); // 'properties' | 'simulator' | 'region'
+    const [dragRegionState, setDragRegionState] = useState(null);
+
+    // CAD Display Region helper functions
+    const updateDisplayRegion = (newRegion) => {
+        if (!selectedDwg) return;
+        const updatedDwg = {
+            ...selectedDwg,
+            displayRegion: newRegion
+        };
+        setDrawings(prev => prev.map(d => d.id === selectedDwgId ? updatedDwg : d));
+        saveDrawing(updatedDwg).catch(err => console.error('Failed to save display region:', err));
+    };
+
+    const handleAutoFitRegion = () => {
+        if (!selectedDwg) return;
+        const shapes = selectedDwg.shapes || [];
+        if (shapes.length === 0) {
+            const defaultReg = { enabled: true, x: 40, y: 30, w: 420, h: 300 };
+            updateDisplayRegion(defaultReg);
+            toast.success('Region diatur ke standar canvas.');
+            return;
+        }
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        shapes.forEach(shape => {
+            if (!shape) return;
+            if (shape.type === 'line') {
+                minX = Math.min(minX, shape.x1, shape.x2);
+                minY = Math.min(minY, shape.y1, shape.y2);
+                maxX = Math.max(maxX, shape.x1, shape.x2);
+                maxY = Math.max(maxY, shape.y1, shape.y2);
+            } else if (shape.type === 'circle') {
+                minX = Math.min(minX, shape.cx - shape.r);
+                minY = Math.min(minY, shape.cy - shape.r);
+                maxX = Math.max(maxX, shape.cx + shape.r);
+                maxY = Math.max(maxY, shape.cy + shape.r);
+            } else if (shape.type === 'rect' || shape.type === 'image') {
+                minX = Math.min(minX, shape.x);
+                minY = Math.min(minY, shape.y);
+                maxX = Math.max(maxX, shape.x + (shape.w || 0));
+                maxY = Math.max(maxY, shape.y + (shape.h || 0));
+            } else if (shape.type === 'ellipse') {
+                minX = Math.min(minX, shape.cx - shape.rx);
+                minY = Math.min(minY, shape.cy - shape.ry);
+                maxX = Math.max(maxX, shape.cx + shape.rx);
+                maxY = Math.max(maxY, shape.cy + shape.ry);
+            } else if (shape.type === 'triangle' || shape.type === 'hexagon') {
+                minX = Math.min(minX, shape.x);
+                minY = Math.min(minY, shape.y);
+                maxX = Math.max(maxX, shape.x + (shape.w || 0));
+                maxY = Math.max(maxY, shape.y + (shape.h || 0));
+            } else if (shape.type === 'polyline' && Array.isArray(shape.points)) {
+                shape.points.forEach(p => {
+                    minX = Math.min(minX, p.x);
+                    minY = Math.min(minY, p.y);
+                    maxX = Math.max(maxX, p.x);
+                    maxY = Math.max(maxY, p.y);
+                });
+            }
+        });
+
+        if (!Number.isFinite(minX)) {
+            minX = 40; minY = 30; maxX = 460; maxY = 330;
+        }
+
+        const padding = 25;
+        const x = Math.max(0, Math.floor(minX - padding));
+        const y = Math.max(0, Math.floor(minY - padding));
+        const w = Math.max(40, Math.ceil((maxX - minX) + padding * 2));
+        const h = Math.max(40, Math.ceil((maxY - minY) + padding * 2));
+
+        const fitRegion = { enabled: true, x, y, w, h };
+        updateDisplayRegion(fitRegion);
+        toast.success(`Region di-fit ke objek gambar (${w}x${h}px).`);
+    };
 
     // Viewport Panning & Quantity Takeoff States
     const svgRef = useRef(null);
@@ -1424,6 +1500,12 @@ export default function DrawingManager() {
     };
 
     const handleCanvasContextMenu = (e) => {
+        if (cadTool === 'polyline' && polylineDraftPoints.length > 0) {
+            e.preventDefault();
+            e.stopPropagation();
+            finishPolylineDraft();
+            return;
+        }
         if (cadTool !== 'select' || !activeDimId) return;
         e.preventDefault();
         e.stopPropagation();
@@ -1937,12 +2019,63 @@ export default function DrawingManager() {
         setZoom(1.0);
     }, [selectedDwgId]);
 
-    // Hotkeys / Keyboard shortcuts for dimension parameter editing
+    // Helper to finish drafting polyline
+    const finishPolylineDraft = () => {
+        if (cadTool === 'polyline' && polylineDraftPoints.length > 0) {
+            const points = polylineDraftPoints.length > 2 ? polylineDraftPoints.slice(0, -1) : polylineDraftPoints;
+            if (points.length >= 2) {
+                const currentShapes = selectedDwg?.shapes || [];
+                const takeoffShapesList = currentShapes.filter(s => s.takeoffType);
+
+                const newPolyline = {
+                    id: `shape_poly_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+                    type: 'polyline',
+                    points: points,
+                    color: activeTakeoffCategory ? (
+                        activeTakeoffCategory === 'length_cable' ? '#10b981' :
+                            activeTakeoffCategory === 'area_floor' ? '#f59e0b' :
+                                activeTakeoffCategory === 'area_paint' ? '#3b82f6' : cadColor
+                    ) : cadColor,
+                    strokeWidth: cadWidth
+                };
+
+                if (activeTakeoffCategory) {
+                    if (activeTakeoffCategory === 'length_cable') {
+                        newPolyline.takeoffType = 'length';
+                        newPolyline.takeoffSubtype = 'cable_length';
+                        newPolyline.takeoffName = `Pipa #${takeoffShapesList.filter(s => s.takeoffSubtype === 'cable_length').length + 1}`;
+                    } else if (activeTakeoffCategory === 'area_paint') {
+                        newPolyline.takeoffType = 'area';
+                        newPolyline.takeoffSubtype = 'paint_area';
+                        newPolyline.takeoffName = `Luas Ducting #${takeoffShapesList.filter(s => s.takeoffSubtype === 'paint_area').length + 1}`;
+                    } else if (activeTakeoffCategory === 'area_floor') {
+                        newPolyline.takeoffType = 'area';
+                        newPolyline.takeoffSubtype = 'floor_area';
+                        newPolyline.takeoffName = `Luas Isolasi #${takeoffShapesList.filter(s => s.takeoffSubtype === 'floor_area').length + 1}`;
+                    }
+                }
+
+                updateShapes([...currentShapes, newPolyline]);
+                toast.success(activeTakeoffCategory ? 'Item Takeoff berhasil ditambahkan.' : 'Polyline selesai.');
+            }
+            setPolylineDraftPoints([]);
+        }
+    };
+
+    // Hotkeys / Keyboard shortcuts for dimension parameter editing & CAD tools
     useEffect(() => {
         const handleKeyDown = (e) => {
             // Ignore hotkeys if user is currently typing in any input field or textarea
             const activeTag = document.activeElement?.tagName?.toLowerCase();
             if (activeTag === 'input' || activeTag === 'textarea' || document.activeElement?.isContentEditable) {
+                return;
+            }
+
+            // Finish Polyline with Enter / Return key
+            if ((e.key === 'Enter' || e.key === 'NumpadEnter') && cadTool === 'polyline' && polylineDraftPoints.length > 0) {
+                e.preventDefault();
+                e.stopPropagation();
+                finishPolylineDraft();
                 return;
             }
 
@@ -1964,9 +2097,13 @@ export default function DrawingManager() {
                 }
             }
 
-            // 3. Escape -> Clear active selection / close menus
+            // 3. Escape -> Clear active selection / cancel polyline draft / close menus
             if (e.key === 'Escape') {
                 e.preventDefault();
+                if (cadTool === 'polyline' && polylineDraftPoints.length > 0) {
+                    setPolylineDraftPoints([]);
+                    toast.info('Pembuatan polyline dibatalkan.');
+                }
                 setDimContextMenu(null);
                 setDimMoveMode(null);
                 setDimDrawState('idle');
@@ -1987,7 +2124,7 @@ export default function DrawingManager() {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [activeDimId, selectedDwg, handleDeleteDimension, handleDuplicateDimension, setOsnapActive]);
+    }, [activeDimId, selectedDwg, handleDeleteDimension, handleDuplicateDimension, setOsnapActive, cadTool, polylineDraftPoints, finishPolylineDraft]);
 
     const getSnappedCoords = (rawX, rawY) => {
         if (!osnapActive) return { x: rawX, y: rawY, snap: null };
@@ -2020,6 +2157,35 @@ export default function DrawingManager() {
                     addSegment({ x: x + w, y }, { x: x + w, y: y + h });
                     addSegment({ x: x + w, y: y + h }, { x, y: y + h });
                     addSegment({ x, y: y + h }, { x, y });
+                } else if (s.type === 'triangle') {
+                    const x = s.x;
+                    const y = s.y;
+                    const w = s.width;
+                    const h = s.height;
+                    const pTop = { x: x + w / 2, y: y };
+                    const pBL = { x: x, y: y + h };
+                    const pBR = { x: x + w, y: y + h };
+                    rects.push({ x, y, w, h });
+                    addSegment(pTop, pBL);
+                    addSegment(pBL, pBR);
+                    addSegment(pBR, pTop);
+                } else if (s.type === 'hexagon') {
+                    const cx = s.cx ?? (s.x + (s.width || 60) / 2);
+                    const cy = s.cy ?? (s.y + (s.height || 60) / 2);
+                    const r = s.r ?? ((s.width || 60) / 2);
+                    const hexPts = [];
+                    for (let i = 0; i < 6; i++) {
+                        const rad = (i * 60 * Math.PI) / 180;
+                        hexPts.push({ x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) });
+                    }
+                    for (let i = 0; i < 6; i++) {
+                        addSegment(hexPts[i], hexPts[(i + 1) % 6]);
+                    }
+                    circles.push({ cx, cy, r });
+                } else if (s.type === 'ellipse') {
+                    const rx = s.rx ?? s.r ?? ((s.width || 60) / 2);
+                    const ry = s.ry ?? s.r ?? ((s.height || 40) / 2);
+                    circles.push({ cx: s.cx, cy: s.cy, r: Math.max(rx, ry) });
                 } else if (s.type === 'circle') {
                     circles.push({ cx: s.cx, cy: s.cy, r: s.r });
                 } else if (s.type === 'arc') {
@@ -2044,6 +2210,30 @@ export default function DrawingManager() {
                     addSegment({ x: d.x1, y: d.y1 }, { x: d.x2, y: d.y2 });
                 }
             });
+        }
+
+        // Active drawing shapes and polyline draft points
+        if (drawingShape) {
+            if (drawingShape.type === 'line') {
+                addSegment({ x: drawingShape.x1, y: drawingShape.y1 }, { x: drawingShape.x2, y: drawingShape.y2 });
+            } else if (drawingShape.type === 'rect') {
+                const x = drawingShape.x, y = drawingShape.y, w = drawingShape.width, h = drawingShape.height;
+                addSegment({ x, y }, { x: x + w, y });
+                addSegment({ x: x + w, y }, { x: x + w, y: y + h });
+                addSegment({ x: x + w, y: y + h }, { x, y: y + h });
+                addSegment({ x, y: y + h }, { x, y });
+            } else if (drawingShape.type === 'triangle') {
+                const x = drawingShape.x, y = drawingShape.y, w = drawingShape.width, h = drawingShape.height;
+                const pTop = { x: x + w / 2, y };
+                const pBL = { x, y: y + h };
+                const pBR = { x: x + w, y: y + h };
+                addSegment(pTop, pBL); addSegment(pBL, pBR); addSegment(pBR, pTop);
+            }
+        }
+        if (polylineDraftPoints && polylineDraftPoints.length > 0) {
+            for (let i = 0; i < polylineDraftPoints.length - 1; i++) {
+                addSegment(polylineDraftPoints[i], polylineDraftPoints[i + 1]);
+            }
         }
 
         // 1b. Inject hardcoded blueprint mockups for OSNAP detection
@@ -2221,7 +2411,7 @@ export default function DrawingManager() {
             }
         }
 
-        // intersection
+        // intersection (segment-segment, segment-circle, circle-circle)
         if (osnapModes.intersection) {
             const getSegmentIntersection = (p1, p2, p3, p4) => {
                 const denom = (p4.y - p3.y) * (p2.x - p1.x) - (p4.x - p3.x) * (p2.y - p1.y);
@@ -2237,6 +2427,7 @@ export default function DrawingManager() {
                 return null;
             };
 
+            // 1. Segment vs Segment
             for (let i = 0; i < segments.length; i++) {
                 for (let j = i + 1; j < segments.length; j++) {
                     const pt = getSegmentIntersection(segments[i].p1, segments[i].p2, segments[j].p1, segments[j].p2);
@@ -2245,19 +2436,68 @@ export default function DrawingManager() {
                     }
                 }
             }
+
+            // 2. Segment vs Circle
+            const getSegmentCircleIntersection = (p1, p2, c) => {
+                const dx = p2.x - p1.x;
+                const dy = p2.y - p1.y;
+                const lenSq = dx * dx + dy * dy;
+                if (lenSq === 0) return [];
+                const t = ((c.cx - p1.x) * dx + (c.cy - p1.y) * dy) / lenSq;
+                const closestX = p1.x + t * dx;
+                const closestY = p1.y + t * dy;
+                const distSq = (c.cx - closestX) ** 2 + (c.cy - closestY) ** 2;
+                const rSq = c.r ** 2;
+                if (distSq > rSq) return [];
+                const h = Math.sqrt((rSq - distSq) / lenSq);
+                const results = [];
+                const t1 = t - h;
+                const t2 = t + h;
+                if (t1 >= 0 && t1 <= 1) results.push({ x: p1.x + t1 * dx, y: p1.y + t1 * dy });
+                if (t2 >= 0 && t2 <= 1 && Math.abs(t2 - t1) > 1e-4) results.push({ x: p1.x + t2 * dx, y: p1.y + t2 * dy });
+                return results;
+            };
+
+            segments.forEach(s => {
+                circles.forEach(c => {
+                    getSegmentCircleIntersection(s.p1, s.p2, c).forEach(pt => addCandidate(pt.x, pt.y, 'intersection'));
+                });
+            });
+
+            // 3. Circle vs Circle
+            const getCircleCircleIntersection = (c1, c2) => {
+                const dx = c2.cx - c1.cx;
+                const dy = c2.cy - c1.cy;
+                const d = Math.hypot(dx, dy);
+                if (d === 0 || d > c1.r + c2.r || d < Math.abs(c1.r - c2.r)) return [];
+                const a = (c1.r ** 2 - c2.r ** 2 + d ** 2) / (2 * d);
+                const h2 = c1.r ** 2 - a ** 2;
+                if (h2 < 0) return [];
+                const h = Math.sqrt(h2);
+                const x2 = c1.cx + (a * dx) / d;
+                const y2 = c1.cy + (a * dy) / d;
+                const rx = -dy * (h / d);
+                const ry = dx * (h / d);
+                if (h === 0) return [{ x: x2, y: y2 }];
+                return [{ x: x2 + rx, y: y2 + ry }, { x: x2 - rx, y: y2 - ry }];
+            };
+
+            for (let i = 0; i < circles.length; i++) {
+                for (let j = i + 1; j < circles.length; j++) {
+                    getCircleCircleIntersection(circles[i], circles[j]).forEach(pt => addCandidate(pt.x, pt.y, 'intersection'));
+                }
+            }
         }
 
-        const snapRadius = 15 / zoom;
+        const snapRadius = Math.max(30 / zoom, 20);
         let bestTarget = null;
         let minDistance = Infinity;
 
         candidates.forEach(tc => {
             const dist = Math.hypot(tc.x - rawX, tc.y - rawY);
-            if (tc.x >= 0 && tc.x <= canvasSize.width && tc.y >= 0 && tc.y <= canvasSize.height) {
-                if (dist < snapRadius && dist < minDistance) {
-                    minDistance = dist;
-                    bestTarget = tc;
-                }
+            if (dist < snapRadius && dist < minDistance) {
+                minDistance = dist;
+                bestTarget = tc;
             }
         });
 
@@ -2577,53 +2817,25 @@ export default function DrawingManager() {
     };
 
     const handleSvgDoubleClick = (e) => {
-        if (cadTool === 'polyline' && polylineDraftPoints.length > 2) {
+        if (cadTool === 'polyline' && polylineDraftPoints.length > 0) {
             e.stopPropagation();
             e.preventDefault();
-
-            const points = polylineDraftPoints.slice(0, -1);
-            if (points.length >= 2) {
-                const currentShapes = selectedDwg.shapes || [];
-                const takeoffShapesList = currentShapes.filter(s => s.takeoffType);
-
-                const newPolyline = {
-                    id: `shape_poly_${Date.now()}`,
-                    type: 'polyline',
-                    points: points,
-                    color: activeTakeoffCategory ? (
-                        activeTakeoffCategory === 'length_cable' ? '#10b981' :
-                            activeTakeoffCategory === 'area_floor' ? '#f59e0b' :
-                                activeTakeoffCategory === 'area_paint' ? '#3b82f6' : cadColor
-                    ) : cadColor,
-                    strokeWidth: cadWidth
-                };
-
-                if (activeTakeoffCategory) {
-                    if (activeTakeoffCategory === 'length_cable') {
-                        newPolyline.takeoffType = 'length';
-                        newPolyline.takeoffSubtype = 'cable_length';
-                        newPolyline.takeoffName = `Pipa #${takeoffShapesList.filter(s => s.takeoffSubtype === 'cable_length').length + 1}`;
-                    } else if (activeTakeoffCategory === 'area_paint') {
-                        newPolyline.takeoffType = 'area';
-                        newPolyline.takeoffSubtype = 'paint_area';
-                        newPolyline.takeoffName = `Luas Ducting #${takeoffShapesList.filter(s => s.takeoffSubtype === 'paint_area').length + 1}`;
-                    } else if (activeTakeoffCategory === 'area_floor') {
-                        newPolyline.takeoffType = 'area';
-                        newPolyline.takeoffSubtype = 'floor_area';
-                        newPolyline.takeoffName = `Luas Isolasi #${takeoffShapesList.filter(s => s.takeoffSubtype === 'floor_area').length + 1}`;
-                    }
-                }
-
-                updateShapes([...currentShapes, newPolyline]);
-                toast.success(activeTakeoffCategory ? 'Item Takeoff berhasil ditambahkan.' : 'Polyline berhasil ditambahkan.');
-            }
-            setPolylineDraftPoints([]);
+            finishPolylineDraft();
         }
     };
 
     const handleSvgMouseDown = (e) => {
         setDimContextMenu(null);
         setCanvasContextMenu(null);
+
+        // Intercept right click to finish polyline
+        if (e.button === 2 && cadTool === 'polyline' && polylineDraftPoints.length > 0) {
+            e.stopPropagation();
+            e.preventDefault();
+            finishPolylineDraft();
+            return;
+        }
+
         // Intercept middle click, Spacebar + drag, or Pan tool active
         if (e.button === 1 || (e.button === 0 && spacePressed) || (cadTool === 'pan' && e.button === 0)) {
             setIsPanning(true);
@@ -2725,6 +2937,19 @@ export default function DrawingManager() {
                 r: 0,
                 color: cadColor,
                 strokeWidth: cadWidth
+            });
+        } else if (cadTool === 'roi') {
+            setDrawingShape({
+                type: 'roi',
+                x: coords.x,
+                y: coords.y,
+                x1: coords.x,
+                y1: coords.y,
+                w: 0,
+                h: 0,
+                color: '#22c55e',
+                strokeWidth: 2,
+                label: 'ROI Inspection Zone'
             });
         } else if (cadTool === 'text') {
             const svgRect = svgRef.current.getBoundingClientRect();
@@ -2979,6 +3204,51 @@ export default function DrawingManager() {
 
         const coords = getCanvasCoords(e);
         setCrosshairPos(coords);
+
+        if (dragRegionState) {
+            const dx = coords.x - dragRegionState.startX;
+            const dy = coords.y - dragRegionState.startY;
+            const init = dragRegionState.initialRegion;
+            let nextR = { ...init };
+
+            if (dragRegionState.type === 'move') {
+                nextR.x = Math.round(init.x + dx);
+                nextR.y = Math.round(init.y + dy);
+            } else if (dragRegionState.type === 'resize-br') {
+                nextR.w = Math.max(30, Math.round(init.w + dx));
+                nextR.h = Math.max(30, Math.round(init.h + dy));
+            } else if (dragRegionState.type === 'resize-tl') {
+                nextR.x = Math.round(init.x + dx);
+                nextR.y = Math.round(init.y + dy);
+                nextR.w = Math.max(30, Math.round(init.w - dx));
+                nextR.h = Math.max(30, Math.round(init.h - dy));
+            } else if (dragRegionState.type === 'resize-tr') {
+                nextR.y = Math.round(init.y + dy);
+                nextR.w = Math.max(30, Math.round(init.w + dx));
+                nextR.h = Math.max(30, Math.round(init.h - dy));
+            } else if (dragRegionState.type === 'resize-bl') {
+                nextR.x = Math.round(init.x + dx);
+                nextR.w = Math.max(30, Math.round(init.w - dx));
+                nextR.h = Math.max(30, Math.round(init.h + dy));
+            } else if (dragRegionState.type === 'resize-t') {
+                nextR.y = Math.round(init.y + dy);
+                nextR.h = Math.max(30, Math.round(init.h - dy));
+            } else if (dragRegionState.type === 'resize-b') {
+                nextR.h = Math.max(30, Math.round(init.h + dy));
+            } else if (dragRegionState.type === 'resize-l') {
+                nextR.x = Math.round(init.x + dx);
+                nextR.w = Math.max(30, Math.round(init.w - dx));
+            } else if (dragRegionState.type === 'resize-r') {
+                nextR.w = Math.max(30, Math.round(init.w + dx));
+            }
+
+            const updatedDwg = {
+                ...selectedDwg,
+                displayRegion: nextR
+            };
+            setDrawings(prev => prev.map(d => d.id === selectedDwgId ? updatedDwg : d));
+            return;
+        }
 
         if (dragAnchor) {
             const { dimId, anchorKey } = dragAnchor;
@@ -3293,10 +3563,30 @@ export default function DrawingManager() {
                 ...prev,
                 r
             }));
+        } else if (drawingShape.type === 'roi') {
+            const x = Math.min(drawingShape.x1, coords.x);
+            const y = Math.min(drawingShape.y1, coords.y);
+            const w = Math.round(Math.abs(coords.x - drawingShape.x1));
+            const h = Math.round(Math.abs(coords.y - drawingShape.y1));
+            setDrawingShape(prev => ({
+                ...prev,
+                x,
+                y,
+                w,
+                h
+            }));
         }
     };
 
     const handleSvgMouseUp = () => {
+        if (dragRegionState) {
+            setDragRegionState(null);
+            if (selectedDwg) {
+                saveDrawing(selectedDwg).catch(err => console.error('Failed to save display region:', err));
+            }
+            return;
+        }
+
         if (dragAnchor) {
             setDragAnchor(null);
             if (selectedDwg) {
@@ -5568,6 +5858,8 @@ export default function DrawingManager() {
                     { id: 'hexagon', icon: 'Hexagon', label: 'Hexagon (Segienam)' },
                     { id: 'circle', icon: 'Circle', label: 'Circle (Lingkaran)' },
                     { id: 'ellipse', icon: 'ellipse_icon', label: 'Ellipse (Elips)' },
+                    { id: 'roi', icon: 'Target', label: 'ROI (Region of Interest Zone)' },
+                    { id: 'region', icon: 'Crop', label: 'CAD Display Region (Kotak Merah Viewport App Builder)', action: () => { setCadTool('region'); setShowQCInspector(true); setQcTab('region'); } },
                     { id: 'text', icon: 'Type', label: 'Teks (Text)' },
                     { id: 'move', icon: 'Move', label: 'Pindah Elemen' },
                     { id: '_sep2' },
@@ -5582,7 +5874,7 @@ export default function DrawingManager() {
                 ].map(item => {
                     if (item.id.startsWith('_sep')) return <div key={item.id} style={{ width: '1px', height: '16px', backgroundColor: '#cbd5e1', margin: '0 2px' }} />;
                     
-                    const iconMap = { MousePointer, Hand, Search, Slash, Square, Circle, Triangle, Hexagon, Activity, Type, Ruler, FileText, Settings, Trash2, Palette, Layers, Move };
+                    const iconMap = { MousePointer, Hand, Search, Slash, Square, Circle, Triangle, Hexagon, Activity, Type, Ruler, FileText, Settings, Trash2, Palette, Layers, Move, Target, Crop };
                     const IconComp = (item.icon && item.icon !== 'color_swatch' && item.icon !== 'balloon_icon' && item.icon !== 'ellipse_icon') ? (iconMap[item.icon] || FileText) : null;
                     
                     const isActive = item.isToggle ? item.toggleState :
@@ -5944,8 +6236,9 @@ export default function DrawingManager() {
                     <div>
                         <button
                             onClick={handleCreateBlankDrawing}
+                            title="Buat Blueprint Baru"
                             style={{
-                                padding: '5px 10px',
+                                padding: '5px 8px',
                                 borderRadius: '6px',
                                 border: '1px solid #10b981',
                                 backgroundColor: '#10b981',
@@ -5956,14 +6249,14 @@ export default function DrawingManager() {
                                 transition: 'all 0.2s',
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '3px',
+                                justifyContent: 'center',
                                 outline: 'none',
                                 boxShadow: '0 2px 6px rgba(16, 185, 129, 0.25)'
                             }}
                             onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#059669'; e.currentTarget.style.borderColor = '#059669'; }}
                             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#10b981'; e.currentTarget.style.borderColor = '#10b981'; }}
                         >
-                            <Plus size={11} strokeWidth={2.5} /> NEW
+                            <Plus size={14} strokeWidth={2.5} />
                         </button>
                     </div>
 
@@ -5980,7 +6273,7 @@ export default function DrawingManager() {
                             <button
                                 disabled
                                 style={{
-                                    padding: '5px 10px',
+                                    padding: '5px 8px',
                                     borderRadius: '6px',
                                     border: '1px solid rgba(255, 255, 255, 0.15)',
                                     backgroundColor: 'rgba(255, 255, 255, 0.05)',
@@ -5990,6 +6283,7 @@ export default function DrawingManager() {
                                     cursor: 'not-allowed',
                                     display: 'flex',
                                     alignItems: 'center',
+                                    justifyContent: 'center',
                                     gap: '4px',
                                     outline: 'none'
                                 }}
@@ -6000,8 +6294,9 @@ export default function DrawingManager() {
                         ) : (
                             <button
                                 onClick={() => fileInputRef.current.click()}
+                                title="Unggah File Drawing"
                                 style={{
-                                    padding: '5px 10px',
+                                    padding: '5px 8px',
                                     borderRadius: '6px',
                                     border: '1px solid #ef4444',
                                     backgroundColor: '#ef4444',
@@ -6010,24 +6305,63 @@ export default function DrawingManager() {
                                     fontWeight: 700,
                                     cursor: 'pointer',
                                     transition: 'all 0.2s',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
                                     outline: 'none',
                                     boxShadow: '0 2px 6px rgba(239, 68, 68, 0.25)'
                                 }}
                                 onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#dc2626'; e.currentTarget.style.borderColor = '#dc2626'; }}
                                 onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#ef4444'; e.currentTarget.style.borderColor = '#ef4444'; }}
                             >
-                                Unggah
+                                <Upload size={14} />
                             </button>
                         )}
                         <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
                     </div>
+
+                    {/* Dedicated OSNAP Magnet Button */}
+                    <button
+                        onClick={() => {
+                            setOsnapActive(prev => {
+                                const nextVal = !prev;
+                                toast.success(nextVal ? 'OSNAP Magnet Aktif (F3)' : 'OSNAP Magnet Nonaktif', { id: 'osnap-toggle' });
+                                return nextVal;
+                            });
+                        }}
+                        onContextMenu={(e) => {
+                            e.preventDefault();
+                            setShowOsnapModal(true);
+                        }}
+                        title={osnapActive ? 'OSNAP Magnet: AKTIF (F3) - Klik kanan / Klik tombol untuk pengaturan' : 'OSNAP Magnet: NONAKTIF (F3) - Klik untuk mengaktifkan'}
+                        style={{
+                            padding: '5px 8px',
+                            borderRadius: '6px',
+                            border: `1px solid ${osnapActive ? '#2563eb' : '#cbd5e1'}`,
+                            backgroundColor: osnapActive ? '#eff6ff' : '#ffffff',
+                            color: osnapActive ? '#2563eb' : '#475569',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '4px',
+                            outline: 'none',
+                            boxShadow: osnapActive ? '0 0 8px rgba(37, 99, 235, 0.25)' : 'none'
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = osnapActive ? '#dbeafe' : '#f1f5f9'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = osnapActive ? '#eff6ff' : '#ffffff'; }}
+                    >
+                        <Magnet size={14} style={{ color: osnapActive ? '#2563eb' : '#64748b' }} />
+                        <span style={{ fontSize: '0.68rem', fontWeight: 800 }}>OSNAP</span>
+                    </button>
 
                     {/* Fullscreen Toggle Button */}
                     <button
                         onClick={toggleFullscreen}
                         title={isFullscreen ? 'Keluar Fullscreen (Esc)' : 'Mode Fullscreen'}
                         style={{
-                            padding: '5px',
+                            padding: '5px 8px',
                             borderRadius: '6px',
                             border: '1px solid #cbd5e1',
                             backgroundColor: '#ffffff',
@@ -6042,21 +6376,23 @@ export default function DrawingManager() {
                         onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
                         onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
                     >
-                        {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                        {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
                     </button>
 
                     {/* Drawing Management Dropdown Menu */}
                     <div style={{ position: 'relative' }} ref={mgmtMenuRef}>
                         <button
                             onClick={() => setShowMgmtMenu(!showMgmtMenu)}
+                            title="Manajemen Drawing"
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '4px',
+                                justifyContent: 'center',
+                                gap: '3px',
                                 border: '1px solid #cbd5e1',
                                 backgroundColor: '#ffffff',
                                 color: '#475569',
-                                padding: '5px 10px',
+                                padding: '5px 8px',
                                 borderRadius: '6px',
                                 fontSize: '0.68rem',
                                 fontWeight: 700,
@@ -6067,7 +6403,7 @@ export default function DrawingManager() {
                             onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
                             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
                         >
-                            Manajemen Drawing <ChevronDown size={11} />
+                            <Sliders size={14} /> <ChevronDown size={11} />
                         </button>
                         {showMgmtMenu && (
                             <div style={{
@@ -7562,8 +7898,35 @@ export default function DrawingManager() {
                                                                 <rect x={shape.x} y={shape.y} width={shape.w} height={shape.h} {...commonProps} fill="none" />
                                                             </g>
                                                         );
-                                                     } else if (shape.type === 'ellipse') {
-                                                         return (
+                                                    } else if (shape.type === 'roi') {
+                                                        const roiColor = shape.color || '#22c55e';
+                                                        const roiW = shape.w || shape.width || 100;
+                                                        const roiH = shape.h || shape.height || 80;
+                                                        return (
+                                                            <g
+                                                                key={shape.id}
+                                                                className={gClassName}
+                                                                transform={rotationStr}
+                                                                onClick={handleLocalClick}
+                                                                onMouseDown={handleLocalMouseDown}
+                                                                onContextMenu={handleLocalContextMenu}
+                                                                onMouseEnter={handleShapeMouseEnter}
+                                                                onMouseLeave={handleShapeMouseLeave}
+                                                                style={{ cursor: cursorStyle }}
+                                                                pointerEvents={pointerEvents}
+                                                            >
+                                                                <rect x={shape.x} y={shape.y} width={roiW} height={roiH} stroke="transparent" strokeWidth="15" fill="rgba(0,0,0,0.001)" />
+                                                                <rect x={shape.x} y={shape.y} width={roiW} height={roiH} stroke={roiColor} strokeWidth={shape.strokeWidth || 2} strokeDasharray="6 3" fill={`${roiColor}15`} rx="4" />
+                                                                <path d={`M ${shape.x - 2} ${shape.y + 12} L ${shape.x - 2} ${shape.y - 2} L ${shape.x + 12} ${shape.y - 2}`} stroke={roiColor} strokeWidth="3" fill="none" />
+                                                                <path d={`M ${shape.x + roiW - 12} ${shape.y - 2} L ${shape.x + roiW + 2} ${shape.y - 2} L ${shape.x + roiW + 2} ${shape.y + 12}`} stroke={roiColor} strokeWidth="3" fill="none" />
+                                                                <path d={`M ${shape.x - 2} ${shape.y + roiH - 12} L ${shape.x - 2} ${shape.y + roiH + 2} L ${shape.x + 12} ${shape.y + roiH + 2}`} stroke={roiColor} strokeWidth="3" fill="none" />
+                                                                <path d={`M ${shape.x + roiW - 12} ${shape.y + roiH + 2} L ${shape.x + roiW + 2} ${shape.y + roiH + 2} L ${shape.x + roiW + 2} ${shape.y + roiH - 12}`} stroke={roiColor} strokeWidth="3" fill="none" />
+                                                                <rect x={shape.x} y={shape.y - 18} width={Math.max(110, ((shape.label || 'ROI Zone').length * 7) + 24)} height="17" fill={roiColor} rx="3" />
+                                                                <text x={shape.x + 6} y={shape.y - 5} fill="#0f172a" fontSize="10" fontWeight="900" fontFamily="sans-serif">🎯 {shape.label || 'ROI Zone'}</text>
+                                                            </g>
+                                                        );
+                                                    } else if (shape.type === 'ellipse') {
+                                                        return (
                                                              <g
                                                                  key={shape.id}
                                                                  className={gClassName}
@@ -8519,7 +8882,17 @@ export default function DrawingManager() {
                                                 )}
                                                 {/* OSNAP Snapped Point Marker Overlay */}
                                                 {osnapActive && snappedPoint && (
-                                                    <g>
+                                                    <g style={{ pointerEvents: 'none' }}>
+                                                        {/* Magnetic Snap Halo Ring */}
+                                                        <circle
+                                                            cx={snappedPoint.x}
+                                                            cy={snappedPoint.y}
+                                                            r={9}
+                                                            fill="rgba(34, 197, 94, 0.18)"
+                                                            stroke="#22c55e"
+                                                            strokeWidth={1}
+                                                            strokeDasharray="2,2"
+                                                        />
                                                         {snappedPoint.type === 'endpoint' && (
                                                             <rect
                                                                 x={snappedPoint.x - 5}
@@ -9579,24 +9952,10 @@ export default function DrawingManager() {
                                             zIndex: 100, color: 'white', fontSize: '0.72rem', fontWeight: 800,
                                             boxShadow: '0 4px 15px rgba(0,0,0,0.4)', fontFamily: "'Inter', sans-serif"
                                         }}>
-                                            <span style={{ color: '#34d399' }}>〽️ Polyline ({polylineDraftPoints.length} titik)</span>
+                                            <span style={{ color: '#34d399' }}>〽️ Polyline ({Math.max(1, polylineDraftPoints.length - 1)} titik)</span>
                                             <span style={{ fontSize: '0.62rem', color: '#94a3b8' }}>Klik kanan / Endpoint / Enter untuk selesai</span>
                                             <button
-                                                onClick={() => {
-                                                    if (polylineDraftPoints.length >= 2) {
-                                                        const currentShapes = selectedDwg.shapes || [];
-                                                        const newShape = {
-                                                            id: `shape_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-                                                            type: 'polyline',
-                                                            points: [...polylineDraftPoints],
-                                                            color: cadColor,
-                                                            strokeWidth: cadWidth
-                                                        };
-                                                        updateShapes([...currentShapes, newShape]);
-                                                        toast.success('Polyline selesai.');
-                                                    }
-                                                    setPolylineDraftPoints([]);
-                                                }}
+                                                onClick={finishPolylineDraft}
                                                 style={{
                                                     backgroundColor: '#10b981', color: 'white', border: 'none',
                                                     borderRadius: '16px', padding: '3px 10px', fontSize: '0.65rem',
@@ -9783,7 +10142,7 @@ export default function DrawingManager() {
 
                                         <div style={{ width: '1px', height: '12px', backgroundColor: '#334155' }}></div>
 
-                                        <div style={{ display: 'flex', gap: '4px' }}>
+                                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                                             <button
                                                 onClick={() => setGridSnap(g => !g)}
                                                 title="Grid Snap (GRID)"
@@ -9801,7 +10160,7 @@ export default function DrawingManager() {
                                                     gap: '2px'
                                                 }}
                                             >
-                                                            <Magnet size={9} /> SNAP
+                                                <Magnet size={9} /> SNAP
                                             </button>
 
                                             <button
@@ -9824,29 +10183,49 @@ export default function DrawingManager() {
                                                 <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M4 20 L20 20 M4 20 L4 4" /></svg> ORTHO
                                             </button>
 
-                                            <button
-                                                onClick={() => setOsnapActive(o => !o)}
-                                                onContextMenu={(e) => {
-                                                    e.preventDefault();
-                                                    setShowOsnapModal(true);
-                                                }}
-                                                title="Object Snap (F3) - Right click for settings"
-                                                style={{
-                                                    backgroundColor: osnapActive ? '#2563eb20' : 'transparent',
-                                                    border: '1px solid ' + (osnapActive ? '#2563eb' : '#334155'),
-                                                    color: osnapActive ? '#60a5fa' : '#64748b',
-                                                    borderRadius: '4px',
-                                                    padding: '2px 6px',
-                                                    fontSize: '0.55rem',
-                                                    fontWeight: 'bold',
-                                                    cursor: 'pointer',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '2px'
-                                                }}
-                                            >
-                                                <Square size={9} /> OSNAP
-                                            </button>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '1px' }}>
+                                                <button
+                                                    onClick={() => setOsnapActive(o => !o)}
+                                                    onContextMenu={(e) => {
+                                                        e.preventDefault();
+                                                        setShowOsnapModal(true);
+                                                    }}
+                                                    title="Object Snap Magnet (F3) - Klik untuk Toggle / Klik kanan untuk Pengaturan"
+                                                    style={{
+                                                        backgroundColor: osnapActive ? '#2563eb30' : 'transparent',
+                                                        border: '1px solid ' + (osnapActive ? '#2563eb' : '#334155'),
+                                                        color: osnapActive ? '#60a5fa' : '#64748b',
+                                                        borderRadius: '4px 0 0 4px',
+                                                        padding: '2px 6px',
+                                                        fontSize: '0.55rem',
+                                                        fontWeight: 'bold',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '3px'
+                                                    }}
+                                                >
+                                                    <Magnet size={10} /> OSNAP
+                                                </button>
+                                                <button
+                                                    onClick={() => setShowOsnapModal(true)}
+                                                    title="Pengaturan Mode Magnet OSNAP (Endpoint, Midpoint, Center, Intersection)"
+                                                    style={{
+                                                        backgroundColor: osnapActive ? '#2563eb30' : 'transparent',
+                                                        border: '1px solid ' + (osnapActive ? '#2563eb' : '#334155'),
+                                                        borderLeft: 'none',
+                                                        color: osnapActive ? '#60a5fa' : '#64748b',
+                                                        borderRadius: '0 4px 4px 0',
+                                                        padding: '2px 4px',
+                                                        fontSize: '0.55rem',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center'
+                                                    }}
+                                                >
+                                                    <Settings size={9} />
+                                                </button>
+                                            </div>
                                         </div>
 
                                         <div style={{ width: '1px', height: '12px', backgroundColor: '#334155' }}></div>
@@ -9960,6 +10339,24 @@ export default function DrawingManager() {
                                         }}
                                     >
                                         Simulator
+                                    </button>
+                                    <button
+                                        onClick={() => setQcTab('region')}
+                                        style={{
+                                            padding: '6px 12px',
+                                            borderRadius: '6px',
+                                            border: 'none',
+                                            fontSize: '0.72rem',
+                                            fontWeight: 800,
+                                            cursor: 'pointer',
+                                            backgroundColor: qcTab === 'region' ? 'white' : 'transparent',
+                                            color: qcTab === 'region' ? '#ef4444' : '#64748b',
+                                            boxShadow: qcTab === 'region' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
+                                            transition: 'all 0.2s',
+                                            outline: 'none'
+                                        }}
+                                    >
+                                        📷 Region
                                     </button>
                                 </div>
 
@@ -10831,7 +11228,7 @@ export default function DrawingManager() {
                                                                 </button>
                                                                 {/* CENTER Indicator */}
                                                                 <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: '#94a3b8' }} />
-                                                                {/* RIGHT */}
+                                                                 {/* RIGHT */}
                                                                 <button
                                                                     onClick={() => handleMicroStep('x', 1)}
                                                                     style={{ position: 'absolute', right: '6px', width: '30px', height: '30px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: 'white', color: '#475569', fontSize: '0.85rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', outline: 'none' }}
@@ -10878,7 +11275,7 @@ export default function DrawingManager() {
                                         </div>
                                     )}
                                 </div>
-                            ) : (
+                            ) : qcTab === 'simulator' ? (
                                 <div style={{ flex: 1, overflowY: 'auto', padding: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                     {selectedDwg?.dimensions?.length > 0 && (
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '4px' }}>
@@ -11187,7 +11584,122 @@ export default function DrawingManager() {
                                         </div>
                                     )}
                                 </div>
-                            )}
+                            ) : qcTab === 'region' ? (
+                                <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                    {/* Region Banner Header */}
+                                    <div style={{
+                                        padding: '12px', borderRadius: '10px',
+                                        backgroundColor: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.3)',
+                                        display: 'flex', flexDirection: 'column', gap: '6px'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span style={{ fontSize: '1.1rem' }}>📷</span>
+                                            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#dc2626' }}>
+                                                CAD Display Region (Kotak Merah)
+                                            </span>
+                                        </div>
+                                        <p style={{ margin: 0, fontSize: '0.72rem', color: '#64748b', lineHeight: '1.4' }}>
+                                            Area di dalam <strong>Kotak Merah</strong> adalah area presisi yang akan langsung ditampilkan pada <strong>Widget CAD Viewer</strong> di App Builder.
+                                        </p>
+                                    </div>
+
+                                    {/* Action Buttons */}
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <button
+                                            onClick={handleAutoFitRegion}
+                                            style={{
+                                                flex: 1, padding: '9px 12px', borderRadius: '8px', border: 'none',
+                                                backgroundColor: '#ef4444', color: 'white', fontSize: '0.75rem', fontWeight: 800,
+                                                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                                boxShadow: '0 2px 4px rgba(239, 68, 68, 0.3)'
+                                            }}
+                                        >
+                                            <span>⚡</span> Fit ke Objek Gambar
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const def = { enabled: true, x: 20, y: 20, w: 460, h: 320 };
+                                                updateDisplayRegion(def);
+                                                toast.success('Region di-reset ke 100% canvas.');
+                                            }}
+                                            style={{
+                                                padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1',
+                                                backgroundColor: '#f8fafc', color: '#334155', fontSize: '0.75rem', fontWeight: 700,
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            Reset Full
+                                        </button>
+                                    </div>
+
+                                    {/* Coordinate Numeric Inputs */}
+                                    {(() => {
+                                        const region = selectedDwg?.displayRegion || { enabled: true, x: 40, y: 30, w: 420, h: 300 };
+                                        return (
+                                            <>
+                                                <div style={{
+                                                    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px',
+                                                    backgroundColor: '#f8fafc', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0'
+                                                }}>
+                                                    <div>
+                                                        <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', marginBottom: '4px' }}>Posisi X (px)</label>
+                                                        <input
+                                                            type="number"
+                                                            value={region.x}
+                                                            onChange={(e) => updateDisplayRegion({ ...region, x: Math.max(0, parseInt(e.target.value) || 0) })}
+                                                            style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.8rem', fontWeight: 700, outline: 'none' }}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', marginBottom: '4px' }}>Posisi Y (px)</label>
+                                                        <input
+                                                            type="number"
+                                                            value={region.y}
+                                                            onChange={(e) => updateDisplayRegion({ ...region, y: Math.max(0, parseInt(e.target.value) || 0) })}
+                                                            style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.8rem', fontWeight: 700, outline: 'none' }}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', marginBottom: '4px' }}>Lebar / Width (px)</label>
+                                                        <input
+                                                            type="number"
+                                                            value={region.w}
+                                                            onChange={(e) => updateDisplayRegion({ ...region, w: Math.max(30, parseInt(e.target.value) || 30) })}
+                                                            style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.8rem', fontWeight: 700, outline: 'none' }}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 700, color: '#64748b', marginBottom: '4px' }}>Tinggi / Height (px)</label>
+                                                        <input
+                                                            type="number"
+                                                            value={region.h}
+                                                            onChange={(e) => updateDisplayRegion({ ...region, h: Math.max(30, parseInt(e.target.value) || 30) })}
+                                                            style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.8rem', fontWeight: 700, outline: 'none' }}
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Toggle Active Switch */}
+                                                <div style={{
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                                    padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#ffffff'
+                                                }}>
+                                                    <div>
+                                                        <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#1e293b', display: 'block' }}>Aktifkan Region Frame</span>
+                                                        <span style={{ fontSize: '0.65rem', color: '#64748b' }}>Gunakan potongan ini di App Builder</span>
+                                                    </div>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={region.enabled !== false}
+                                                        onChange={(e) => updateDisplayRegion({ ...region, enabled: e.target.checked })}
+                                                        style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#ef4444' }}
+                                                    />
+                                                </div>
+                                            </>
+                                        );
+                                    })()}
+                                </div>
+                            ) : null}
                         </div>
                     )}
 

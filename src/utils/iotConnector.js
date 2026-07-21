@@ -79,7 +79,12 @@ class IOTConnector {
         }
 
         console.log(`Connecting to MQTT broker: ${brokerUrl}`);
-        this.client = mqtt.connect(brokerUrl);
+        this.client = mqtt.connect(brokerUrl, {
+            keepalive: 60,
+            reconnectPeriod: 2000,
+            connectTimeout: 30000,
+            clean: true
+        });
 
         this.client.on('connect', () => {
             this.status = 'connected';

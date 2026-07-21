@@ -117,7 +117,7 @@ import automationEngine from '../utils/automationEngine';
 import WebcamComp from 'react-webcam';
 import Tesseract from 'tesseract.js';
 import { listManualSummaries, getManualById, uploadManualImage } from '../utils/supabaseManualDB';
-import { saveLiveMeasurement } from '../utils/supabaseUtilityDB';
+import { saveLiveMeasurement, getAllDrawings } from '../utils/supabaseUtilityDB';
 import { getAllFrontlineApps, getProductionQueue, loadPlcSettingsFromSupabase, savePlcSettingsToSupabase, getFrontlineAppById } from '../utils/supabaseFrontlineDB';
 import { getTableRecords, queryTableRecords, getTableById, resolveTableIdReference, addTableRecord } from '../utils/supabaseTablesDB';
 import { saveCompletion } from '../utils/supabaseCompletionsDB';
@@ -249,10 +249,110 @@ const LiveAnalyticWrapper = ({ analysisId, title, refreshSeconds, isDark }) => {
   );
 };
 
+const renderDrawingShape = (shape) => {
+  if (!shape) return null;
+  const commonProps = {
+    stroke: shape.color || '#3b82f6',
+    strokeWidth: shape.strokeWidth || 2,
+    fill: 'none'
+  };
+
+  if (shape.type === 'line') {
+    return <line key={shape.id} x1={shape.x1} y1={shape.y1} x2={shape.x2} y2={shape.y2} {...commonProps} />;
+  }
+  if (shape.type === 'circle') {
+    return <circle key={shape.id} cx={shape.cx} cy={shape.cy} r={shape.r} {...commonProps} />;
+  }
+  if (shape.type === 'rect') {
+    return <rect key={shape.id} x={shape.x} y={shape.y} width={shape.w || shape.width || 0} height={shape.h || shape.height || 0} {...commonProps} />;
+  }
+  if (shape.type === 'roi') {
+    const roiColor = shape.color || '#22c55e';
+    const roiW = shape.w || shape.width || 100;
+    const roiH = shape.h || shape.height || 80;
+    return (
+      <g key={shape.id}>
+        <rect x={shape.x} y={shape.y} width={roiW} height={roiH} stroke={roiColor} strokeWidth={shape.strokeWidth || 2} strokeDasharray="6 3" fill={`${roiColor}15`} rx="4" />
+        <path d={`M ${shape.x - 2} ${shape.y + 12} L ${shape.x - 2} ${shape.y - 2} L ${shape.x + 12} ${shape.y - 2}`} stroke={roiColor} strokeWidth="3" fill="none" />
+        <path d={`M ${shape.x + roiW - 12} ${shape.y - 2} L ${shape.x + roiW + 2} ${shape.y - 2} L ${shape.x + roiW + 2} ${shape.y + 12}`} stroke={roiColor} strokeWidth="3" fill="none" />
+        <path d={`M ${shape.x - 2} ${shape.y + roiH - 12} L ${shape.x - 2} ${shape.y + roiH + 2} L ${shape.x + 12} ${shape.y + roiH + 2}`} stroke={roiColor} strokeWidth="3" fill="none" />
+        <path d={`M ${shape.x + roiW - 12} ${shape.y + roiH + 2} L ${shape.x + roiW + 2} ${shape.y + roiH + 2} L ${shape.x + roiW + 2} ${shape.y + roiH - 12}`} stroke={roiColor} strokeWidth="3" fill="none" />
+        <rect x={shape.x} y={shape.y - 18} width={Math.max(100, ((shape.label || 'ROI Zone').length * 7) + 20)} height="16" fill={roiColor} rx="3" />
+        <text x={shape.x + 6} y={shape.y - 5} fill="#0f172a" fontSize="10" fontWeight="900" fontFamily="sans-serif">🎯 {shape.label || 'ROI Zone'}</text>
+      </g>
+    );
+  }
+  if (shape.type === 'ellipse') {
+    return <ellipse key={shape.id} cx={shape.cx} cy={shape.cy} rx={shape.rx} ry={shape.ry} {...commonProps} />;
+  }
+  if (shape.type === 'triangle') {
+    const pointsStr = `${shape.x + (shape.w || 0) / 2},${shape.y} ${shape.x + (shape.w || 0)},${shape.y + (shape.h || 0)} ${shape.x},${shape.y + (shape.h || 0)}`;
+    return <polygon key={shape.id} points={pointsStr} {...commonProps} />;
+  }
+  if (shape.type === 'hexagon') {
+    const cx = shape.cx;
+    const cy = shape.cy;
+    const r = shape.r;
+    const points = [];
+    for (let i = 0; i < 6; i++) {
+      const angle = (i * 60) * (Math.PI / 180);
+      points.push(`${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`);
+    }
+    return <polygon key={shape.id} points={points.join(' ')} {...commonProps} />;
+  }
+  if (shape.type === 'arc') {
+    const sa = shape.startAngle ?? 0;
+    const ea = shape.endAngle ?? 90;
+    const saRad = sa * (Math.PI / 180);
+    const eaRad = ea * (Math.PI / 180);
+    const sx = shape.cx + shape.r * Math.cos(saRad);
+    const sy = shape.cy + shape.r * Math.sin(saRad);
+    const ex = shape.cx + shape.r * Math.cos(eaRad);
+    const ey = shape.cy + shape.r * Math.sin(eaRad);
+    const largeArc = Math.abs(ea - sa) > 180 ? 1 : 0;
+    const sweepFlag = ea > sa ? 1 : 0;
+    const pathD = `M ${sx},${sy} A ${shape.r},${shape.r} 0 ${largeArc},${sweepFlag} ${ex},${ey}`;
+    return <path key={shape.id} d={pathD} {...commonProps} />;
+  }
+  if (shape.type === 'polyline') {
+    const pointsStr = (shape.points || []).map(p => `${p.x},${p.y}`).join(' ');
+    return <polyline key={shape.id} points={pointsStr} {...commonProps} />;
+  }
+  if (shape.type === 'text') {
+    return (
+      <text key={shape.id} x={shape.x} y={shape.y} fill={shape.color || '#f8fafc'} fontSize={shape.fontSize || 14} fontWeight="bold" fontFamily="sans-serif">
+        {shape.text || shape.label || ''}
+      </text>
+    );
+  }
+  if (shape.type === 'image' && (shape.url || shape.dataUrl)) {
+    return (
+      <image key={shape.id} href={shape.url || shape.dataUrl} x={shape.x} y={shape.y} width={shape.w} height={shape.h} preserveAspectRatio="xMidYMid meet" />
+    );
+  }
+  return null;
+};
+
 const CADViewer2D = ({ fileUrl, appVariables, setAppVariables }) => {
-  // Load drawings from database/localStorage
-  const drawings = JSON.parse(localStorage.getItem('mavi_drawings') || '[]');
-  const selectedDwg = drawings.find(d => d.id === fileUrl || d.fileName === fileUrl || d.name === fileUrl) || drawings[0];
+  // Load drawings from database/localStorage with auto-sync
+  const [drawingsList, setDrawingsList] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('mavi_drawings') || '[]'); } catch { return []; }
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    getAllDrawings().then(rows => {
+      if (isMounted && Array.isArray(rows) && rows.length > 0) {
+        setDrawingsList(rows);
+      }
+    }).catch(err => console.warn('Failed to load drawings in CADViewer2D:', err));
+    return () => { isMounted = false; };
+  }, []);
+
+  const selectedDwg = useMemo(() => {
+    if (!fileUrl) return drawingsList[0] || null;
+    return drawingsList.find(d => d.id === fileUrl || d.fileName === fileUrl || d.file_name === fileUrl || d.name === fileUrl) || drawingsList[0] || null;
+  }, [drawingsList, fileUrl]);
 
   const activeDim = appVariables.find(v => v.name === 'Active_Dimension_Key')?.value || 'length';
 
@@ -286,26 +386,70 @@ const CADViewer2D = ({ fileUrl, appVariables, setAppVariables }) => {
   const isFlange = selectedDwg?.id === 'dwg_flange_connector';
   const isCylinder = selectedDwg?.id === 'dwg_hydraulic_cylinder';
 
+  const cropBox = useMemo(() => {
+    if (!selectedDwg) return null;
+
+    // Priority 1: CAD Display Region (Kotak Merah frame from CAD Manager)
+    const reg = selectedDwg.displayRegion;
+    if (reg && reg.enabled !== false && reg.w > 0 && reg.h > 0) {
+      return { rx: reg.x, ry: reg.y, rw: reg.w, rh: reg.h };
+    }
+
+    // Priority 2: ROI shape (Green dashed ROI Inspection Zone)
+    if (Array.isArray(selectedDwg.shapes)) {
+      const roiShape = selectedDwg.shapes.find(s => s && s.type === 'roi' && (s.w || s.width) > 0 && (s.h || s.height) > 0);
+      if (roiShape) {
+        return {
+          rx: roiShape.x,
+          ry: roiShape.y,
+          rw: roiShape.w || roiShape.width,
+          rh: roiShape.h || roiShape.height,
+          label: roiShape.label
+        };
+      }
+    }
+
+    // Priority 3: ROI Dimension balloon
+    if (Array.isArray(selectedDwg.dimensions)) {
+      const roiDim = selectedDwg.dimensions.find(d => d && (d.type === 'roi' || d.category === 'roi') && (d.w > 0 || d.width > 0));
+      if (roiDim) {
+        const rw = roiDim.w || roiDim.width || Math.abs((roiDim.x2 || 0) - (roiDim.x1 || 0));
+        const rh = roiDim.h || roiDim.height || Math.abs((roiDim.y2 || 0) - (roiDim.y1 || 0));
+        const rx = roiDim.x !== undefined ? roiDim.x : Math.min(roiDim.x1 || 0, roiDim.x2 || 0);
+        const ry = roiDim.y !== undefined ? roiDim.y : Math.min(roiDim.y1 || 0, roiDim.y2 || 0);
+        if (rw > 0 && rh > 0) {
+          return { rx, ry, rw, rh, label: roiDim.label || roiDim.name };
+        }
+      }
+    }
+
+    return null;
+  }, [selectedDwg]);
+
+  const viewBoxStr = cropBox ? `${cropBox.rx} ${cropBox.ry} ${cropBox.rw} ${cropBox.rh}` : "0 0 500 360";
+
   return (
     <div style={{ backgroundColor: '#0b1d33', borderRadius: '12px', border: '1px solid #1e3a8a', padding: '16px', display: 'flex', flexDirection: 'column', height: '100%', color: 'white', position: 'relative' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
         <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#93c5fd', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
           📐 {selectedDwg?.name || 'Blueprint 2D CAD'}
         </div>
-        <div style={{ display: 'flex', gap: '8px', fontSize: '0.65rem' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#22c55e' }}></span>PASS</span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#ef4444' }}></span>FAIL</span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#60a5fa' }}></span>ACTIVE</span>
-        </div>
       </div>
 
-      <svg viewBox="0 0 500 360" style={{ flex: 1, width: '100%', height: '100%' }}>
+      <svg viewBox={viewBoxStr} preserveAspectRatio="xMidYMid meet" style={{ flex: 1, width: '100%', height: '100%' }}>
         <defs>
           <pattern id="grid_terminal" width="20" height="20" patternUnits="userSpaceOnUse">
             <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1e3a8a" strokeWidth="0.5" strokeOpacity="0.3" />
           </pattern>
+          {cropBox && (
+            <clipPath id="terminal_cad_roi_clip">
+              <rect x={cropBox.rx} y={cropBox.ry} width={cropBox.rw} height={cropBox.rh} />
+            </clipPath>
+          )}
         </defs>
-        <rect width="100%" height="100%" fill="url(#grid_terminal)" />
+
+        <g clipPath={cropBox ? "url(#terminal_cad_roi_clip)" : undefined}>
+          <rect width="100%" height="100%" fill="url(#grid_terminal)" />
 
         {/* Blueprint Border */}
         <rect x="5" y="5" width="490" height="350" fill="none" stroke="#1e40af" strokeWidth="1" />
@@ -456,7 +600,8 @@ const CADViewer2D = ({ fileUrl, appVariables, setAppVariables }) => {
           </>
         ) : (
           <>
-            {selectedDwg && (selectedDwg.dataUrl || selectedDwg.data_url) ? (
+            {/* Render Background Blueprint Image if available */}
+            {selectedDwg && (selectedDwg.dataUrl || selectedDwg.data_url) && (
               <image
                 href={selectedDwg.dataUrl || selectedDwg.data_url}
                 x="50"
@@ -467,8 +612,17 @@ const CADViewer2D = ({ fileUrl, appVariables, setAppVariables }) => {
                 opacity="0.85"
                 style={{ pointerEvents: 'none' }}
               />
-            ) : (
-              /* ── GENERIC BLUEPRINT FOR NEW DRAWINGS ── */
+            )}
+
+            {/* Render Vector CAD Shapes drawn in Drawing Manager */}
+            {selectedDwg && Array.isArray(selectedDwg.shapes) && selectedDwg.shapes.length > 0 && (
+              <g className="custom-cad-shapes">
+                {selectedDwg.shapes.map(shape => renderDrawingShape(shape))}
+              </g>
+            )}
+
+            {/* Fallback generic blueprint ONLY if no background image and no custom shapes exist */}
+            {(!selectedDwg || ((!selectedDwg.dataUrl && !selectedDwg.data_url) && (!selectedDwg.shapes || selectedDwg.shapes.length === 0))) && (
               <g transform="translate(40, 20)">
                 <rect x="120" y="80" width="240" height="180" fill="none" stroke="#3b82f6" strokeWidth="2" />
                 <circle cx="240" cy="170" r="45" fill="none" stroke="#60a5fa" strokeWidth="1.5" />
@@ -478,7 +632,7 @@ const CADViewer2D = ({ fileUrl, appVariables, setAppVariables }) => {
             )}
 
             {/* Render custom indicators using absolute coordinates */}
-            {selectedDwg.dimensions.map((dim, idx) => {
+            {(selectedDwg?.dimensions || []).map((dim, idx) => {
               const status = getValidationStatus(dim);
               const isActive = activeDim === dim.variable;
               const strokeColor = getStatusColor(status, isActive);
@@ -567,12 +721,9 @@ const CADViewer2D = ({ fileUrl, appVariables, setAppVariables }) => {
             })}
           </>
         )}
+        </g>
       </svg>
 
-      <div style={{ backgroundColor: '#081225', border: '1px solid #1e3a8a', padding: '8px 12px', borderRadius: '6px', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.7rem' }}>
-        <div style={{ color: '#93c5fd', fontWeight: 600 }}>TIPS OPERATOR:</div>
-        <div style={{ color: '#94a3b8' }}>Sentuh dimensi pada gambar di atas untuk memilih parameter input yang akan direkam pada panel kanan.</div>
-      </div>
     </div>
   );
 };
@@ -11509,14 +11660,23 @@ const LiveTerminal = () => {
           />
         );
       }
-      // ── CAD_VIEWER ──
+      // ── CAD_VIEWER / CAD ──
+      case 'CAD':
       case 'CAD_VIEWER': {
-        const fileUrl = comp.props?.fileUrl || '';
-        const drawings = JSON.parse(localStorage.getItem('mavi_drawings') || '[]');
-        const selectedDwg = drawings.find(d => d.id === fileUrl || d.fileName === fileUrl || d.name === fileUrl);
-        const is3D = selectedDwg && ['STL', 'OBJ', 'GLTF', 'GLB'].includes((selectedDwg.fileType || '').toUpperCase());
+        const fileUrl = comp.props?.fileUrl || comp.props?.source || '';
+        const format = (comp.props?.format || '').toUpperCase();
+        const drawings = (() => {
+          try { return JSON.parse(localStorage.getItem('mavi_drawings') || '[]'); } catch { return []; }
+        })();
+        const selectedDwg = drawings.find(d => d.id === fileUrl || d.fileName === fileUrl || d.file_name === fileUrl || d.name === fileUrl);
+        const dwgType = (selectedDwg?.fileType || selectedDwg?.file_type || '').toUpperCase();
+        
+        // 3D viewer is only used if explicitly a 3D format or 3D interactive preset
+        const is3D = fileUrl === 'interactive-3d-cad' || 
+                     ['STL', 'OBJ', 'GLTF', 'GLB', 'STEP', 'IGES'].includes(dwgType) || 
+                     (typeof fileUrl === 'string' && /\.(stl|obj|gltf|glb|step|iges)$/i.test(fileUrl));
 
-        if (fileUrl === 'interactive-3d-cad' || is3D) {
+        if (is3D) {
           return (
             <CADViewer3D 
               fileUrl={fileUrl}
@@ -11525,21 +11685,13 @@ const LiveTerminal = () => {
             />
           );
         }
-        if (fileUrl === 'interactive-2d-blueprint' || selectedDwg) {
-          return (
-            <CADViewer2D 
-              fileUrl={fileUrl}
-              appVariables={appVariables} 
-              setAppVariables={setAppVariables} 
-            />
-          );
-        }
+
         return (
-          <div style={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', height: '100%' }}>
-            <div style={{ fontSize: '2.5rem' }}>🧊</div>
-            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#f8fafc' }}>{comp.props.title || '3D Viewer'}</div>
-            <div style={{ fontSize: '0.7rem', color: '#475569' }}>{comp.props.fileUrl ? comp.props.fileUrl : 'No CAD file configured'}</div>
-          </div>
+          <CADViewer2D 
+            fileUrl={fileUrl}
+            appVariables={appVariables} 
+            setAppVariables={setAppVariables} 
+          />
         );
       }
       case 'MEASUREMENT_WIDGET':

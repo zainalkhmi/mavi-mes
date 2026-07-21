@@ -507,6 +507,15 @@ export function safeSaveDrawingsToLocalStorage(drawingsList) {
 
 
 export async function getAllDrawings() {
+    // If Supabase drawings table failed in this session, load from local storage directly without 400 network calls
+    if (typeof window !== 'undefined' && sessionStorage.getItem('mavi_drawings_offline') === 'true') {
+        try {
+            const cached = localStorage.getItem('mavi_drawings');
+            if (cached) return JSON.parse(cached);
+        } catch (e) {}
+        return [];
+    }
+
     try {
         const supabase = getSupabaseClient();
         const { data, error } = await supabase
@@ -517,17 +526,16 @@ export async function getAllDrawings() {
         
         const mappedData = (data || []).map(d => ({
             ...d,
-            fileName: d.file_name,
-            fileType: d.file_type,
-            dataUrl: d.data_url
+            fileName: d.file_name || d.fileName,
+            fileType: d.file_type || d.fileType,
+            dataUrl: d.data_url || d.dataUrl
         }));
         
-        // Sync local storage cache for offline/fallback use
         safeSaveDrawingsToLocalStorage(mappedData);
         return mappedData;
     } catch (err) {
-        console.warn('[Supabase Fallback] Failed to fetch drawings from database, loading from localStorage:', err);
         if (typeof window !== 'undefined') {
+            sessionStorage.setItem('mavi_drawings_offline', 'true');
             try {
                 const cached = localStorage.getItem('mavi_drawings');
                 if (cached) return JSON.parse(cached);
@@ -541,7 +549,7 @@ export async function getAllDrawings() {
 
 export async function saveDrawing(drawing) {
     const payload = {
-        name: drawing.name,
+        name: drawing.name || 'Untitled Drawing',
         file_name: drawing.fileName || drawing.file_name || '',
         file_type: drawing.fileType || drawing.file_type || 'DXF',
         dimensions: drawing.dimensions || [],
@@ -550,6 +558,29 @@ export async function saveDrawing(drawing) {
         updated_at: new Date().toISOString()
     };
 
+    // If Supabase table is offline/missing column, save locally directly to avoid network 400 error
+    if (typeof window !== 'undefined' && sessionStorage.getItem('mavi_drawings_offline') === 'true') {
+        try {
+            const cachedRaw = localStorage.getItem('mavi_drawings') || '[]';
+            const list = JSON.parse(cachedRaw);
+            const dwgId = drawing.id || ('dwg_custom_' + Date.now());
+            const savedItem = {
+                ...drawing,
+                ...payload,
+                fileName: payload.file_name,
+                fileType: payload.file_type,
+                dataUrl: payload.data_url,
+                id: dwgId
+            };
+            const index = list.findIndex(d => d.id === dwgId);
+            if (index !== -1) list[index] = savedItem;
+            else list.push(savedItem);
+            safeSaveDrawingsToLocalStorage(list);
+            return savedItem;
+        } catch (e) {
+            console.error('[Supabase Fallback] Local save failed:', e);
+        }
+    }
 
     try {
         const supabase = getSupabaseClient();
@@ -570,10 +601,11 @@ export async function saveDrawing(drawing) {
                 const cachedRaw = localStorage.getItem('mavi_drawings') || '[]';
                 let list = JSON.parse(cachedRaw);
                 const mappedData = {
+                    ...drawing,
                     ...result.data,
-                    fileName: result.data.file_name,
-                    fileType: result.data.file_type,
-                    dataUrl: result.data.data_url
+                    fileName: result.data.file_name || drawing.fileName,
+                    fileType: result.data.file_type || drawing.fileType,
+                    dataUrl: result.data.data_url || drawing.dataUrl
                 };
                 const index = list.findIndex(d => d.id === drawing.id || d.id === result.data.id);
                 if (index !== -1) {
@@ -587,40 +619,33 @@ export async function saveDrawing(drawing) {
             }
         }
         return {
+            ...drawing,
             ...result.data,
-            fileName: result.data.file_name,
-            fileType: result.data.file_type,
-            dataUrl: result.data.data_url
+            fileName: result.data.file_name || drawing.fileName,
+            fileType: result.data.file_type || drawing.fileType,
+            dataUrl: result.data.data_url || drawing.dataUrl
         };
     } catch (err) {
-        console.warn('[Supabase Fallback] Failed to save drawing to database, saving to localStorage:', err);
         if (typeof window !== 'undefined') {
+            sessionStorage.setItem('mavi_drawings_offline', 'true');
             try {
                 const cachedRaw = localStorage.getItem('mavi_drawings') || '[]';
                 const list = JSON.parse(cachedRaw);
                 let savedItem;
+                const dwgId = drawing.id || ('dwg_custom_' + Date.now());
                 
-                if (drawing.id) {
-                    const index = list.findIndex(d => d.id === drawing.id);
-                    savedItem = {
-                        ...drawing,
-                        ...payload,
-                        id: drawing.id
-                    };
-                    if (index !== -1) {
-                        list[index] = savedItem;
-                    } else {
-                        list.push(savedItem);
-                    }
+                savedItem = {
+                    ...drawing,
+                    ...payload,
+                    fileName: payload.file_name,
+                    fileType: payload.file_type,
+                    dataUrl: payload.data_url,
+                    id: dwgId
+                };
+                const index = list.findIndex(d => d.id === dwgId);
+                if (index !== -1) {
+                    list[index] = savedItem;
                 } else {
-                    savedItem = {
-                        ...payload,
-                        fileName: payload.file_name,
-                        fileType: payload.file_type,
-                        dataUrl: payload.data_url,
-                        id: 'local-' + Math.random().toString(36).substr(2, 9),
-                        created_at: payload.updated_at
-                    };
                     list.push(savedItem);
                 }
                 

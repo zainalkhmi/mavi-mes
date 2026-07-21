@@ -398,6 +398,7 @@ const AppBuilder = () => {
     const [isCanvasLocked, setIsCanvasLocked] = useState(true);
     const [dragState, setDragState] = useState(null); // { ids, startX, startY, initialPositions }
     const [resizeState, setResizeState] = useState(null); // { id, startX, startY, initialW, initialH }
+    const dragRafRef = useRef(null);
 
     useEffect(() => {
         if (isCanvasLocked) {
@@ -7820,176 +7821,149 @@ const AppBuilder = () => {
             return;
         }
 
-        if ((dragState || resizeState) && history[history.length - 1]?.isDragging !== true) {
-            // Save initial state when starting a drag/resize
-            const currentState = {
-                steps: JSON.parse(JSON.stringify(steps)),
-                baseComponents: JSON.parse(JSON.stringify(baseComponents)),
-                isDragging: true
-            };
-            setHistory(prev => [...prev, currentState].slice(-50));
-            setFuture([]);
-        }
+        if (!dragState && !resizeState) return;
 
-        if (dragState) {
-            let dx = (e.clientX - dragState.startX) / zoomScale;
-            let dy = (e.clientY - dragState.startY) / zoomScale;
+        const clientX = e.clientX;
+        const clientY = e.clientY;
 
-            if (snapToGrid) {
-                // Snap the offset to grid to maintain relative alignment
-                dx = Math.round(dx / GRID_SIZE) * GRID_SIZE;
-                dy = Math.round(dy / GRID_SIZE) * GRID_SIZE;
-            }
+        if (dragRafRef.current) return;
 
-            // Calculate alignment guides
-            const comps = currentStepId === 'BASE' ? baseComponents : currentStep.components;
-            const draggedComps = comps.filter(c => dragState.ids.includes(c.id));
+        dragRafRef.current = requestAnimationFrame(() => {
+            dragRafRef.current = null;
+            if (dragState) {
+                let dx = (clientX - dragState.startX) / zoomScale;
+                let dy = (clientY - dragState.startY) / zoomScale;
 
-            // Clamp drag movement so dragged widgets always stay inside canvas bounds
-            if (draggedComps.length > 0) {
-                const canvasWidth = canvasBaseSize.width;
-                const canvasHeight = canvasBaseSize.height;
-                const getCompVisualSize = (comp) => {
-                    const parsedW = Number(comp?.w);
-                    const parsedH = Number(comp?.h);
-                    const contentW = Number.isFinite(parsedW) ? parsedW : GRID_SIZE;
-                    const contentH = Number.isFinite(parsedH) ? parsedH : GRID_SIZE;
-                    // Removed design padding because component wrapper padding was removed in an earlier step
-                    const designPadding = 0;
-                    return {
-                        w: contentW + designPadding,
-                        h: contentH + designPadding
-                    };
-                };
+                if (snapToGrid) {
+                    dx = Math.round(dx / GRID_SIZE) * GRID_SIZE;
+                    dy = Math.round(dy / GRID_SIZE) * GRID_SIZE;
+                }
 
-                const groupMinX = Math.min(...draggedComps.map(c => dragState.initialPositions[c.id]?.x ?? c.x ?? 0));
-                const groupMinY = Math.min(...draggedComps.map(c => dragState.initialPositions[c.id]?.y ?? c.y ?? 0));
-                const groupMaxX = Math.max(...draggedComps.map(c => {
-                    const initialX = dragState.initialPositions[c.id]?.x ?? c.x ?? 0;
-                    return initialX + getCompVisualSize(c).w;
-                }));
-                const groupMaxY = Math.max(...draggedComps.map(c => {
-                    const initialY = dragState.initialPositions[c.id]?.y ?? c.y ?? 0;
-                    return initialY + getCompVisualSize(c).h;
-                }));
+                const comps = currentStepId === 'BASE' ? baseComponents : (currentStep?.components || []);
+                const draggedComps = comps.filter(c => dragState.ids.includes(c.id));
 
-                const minDx = -groupMinX;
-                const maxDx = canvasWidth - groupMaxX;
-                const minDy = -groupMinY;
-                const maxDy = canvasHeight - groupMaxY;
+                if (draggedComps.length > 0) {
+                    const canvasWidth = canvasBaseSize.width;
+                    const canvasHeight = canvasBaseSize.height;
 
-                dx = maxDx < minDx
-                    ? minDx
-                    : Math.min(Math.max(dx, minDx), maxDx);
-                dy = maxDy < minDy
-                    ? minDy
-                    : Math.min(Math.max(dy, minDy), maxDy);
-            }
+                    const groupMinX = Math.min(...draggedComps.map(c => dragState.initialPositions[c.id]?.x ?? c.x ?? 0));
+                    const groupMinY = Math.min(...draggedComps.map(c => dragState.initialPositions[c.id]?.y ?? c.y ?? 0));
+                    const groupMaxX = Math.max(...draggedComps.map(c => {
+                        const initialX = dragState.initialPositions[c.id]?.x ?? c.x ?? 0;
+                        const contentW = Number.isFinite(Number(c?.w)) ? Number(c.w) : GRID_SIZE;
+                        return initialX + contentW;
+                    }));
+                    const groupMaxY = Math.max(...draggedComps.map(c => {
+                        const initialY = dragState.initialPositions[c.id]?.y ?? c.y ?? 0;
+                        const contentH = Number.isFinite(Number(c?.h)) ? Number(c.h) : GRID_SIZE;
+                        return initialY + contentH;
+                    }));
 
-            const otherComps = comps.filter(c => !dragState.ids.includes(c.id));
+                    const minDx = -groupMinX;
+                    const maxDx = canvasWidth - groupMaxX;
+                    const minDy = -groupMinY;
+                    const maxDy = canvasHeight - groupMaxY;
 
-            const newGuides = { h: [], v: [] };
-            const threshold = 5;
+                    dx = maxDx < minDx ? minDx : Math.min(Math.max(dx, minDx), maxDx);
+                    dy = maxDy < minDy ? minDy : Math.min(Math.max(dy, minDy), maxDy);
+                }
 
-            // We'll use the first dragged component as the reference for crosshairs
-            const refId = dragState.ids[0];
-            const refInitial = dragState.initialPositions[refId];
-            const fx = refInitial.x + dx;
-            const fy = refInitial.y + dy;
-            const fw = comps.find(c => c.id === refId).w;
-            const fh = comps.find(c => c.id === refId).h;
+                // Crosshair alignment guides calculation
+                const otherComps = comps.filter(c => !dragState.ids.includes(c.id));
+                const newGuides = { h: [], v: [] };
+                const threshold = 5;
 
-            const draggedPoints = {
-                v: [fx, fx + fw / 2, fx + fw],
-                h: [fy, fy + fh / 2, fy + fh]
-            };
+                const refId = dragState.ids[0];
+                const refInitial = dragState.initialPositions[refId];
+                if (refInitial) {
+                    const fx = refInitial.x + dx;
+                    const fy = refInitial.y + dy;
+                    const refComp = comps.find(c => c.id === refId);
+                    const fw = refComp ? refComp.w : GRID_SIZE;
+                    const fh = refComp ? refComp.h : GRID_SIZE;
 
-            otherComps.forEach(other => {
-                const otherPoints = {
-                    v: [other.x, other.x + other.w / 2, other.x + other.w],
-                    h: [other.y, other.y + other.h / 2, other.y + other.h]
-                };
+                    otherComps.forEach(other => {
+                        const otherPoints = {
+                            v: [other.x, other.x + (other.w || GRID_SIZE) / 2, other.x + (other.w || GRID_SIZE)],
+                            h: [other.y, other.y + (other.h || GRID_SIZE) / 2, other.y + (other.h || GRID_SIZE)]
+                        };
 
-                draggedPoints.v.forEach(dv => {
-                    otherPoints.v.forEach(ov => {
-                        if (Math.abs(dv - ov) < threshold) {
-                            newGuides.v.push(ov);
-                        }
+                        [fx, fx + fw / 2, fx + fw].forEach(dv => {
+                            otherPoints.v.forEach(ov => {
+                                if (Math.abs(dv - ov) < threshold) newGuides.v.push(ov);
+                            });
+                        });
+
+                        [fy, fy + fh / 2, fy + fh].forEach(dh => {
+                            otherPoints.h.forEach(oh => {
+                                if (Math.abs(dh - oh) < threshold) newGuides.h.push(oh);
+                            });
+                        });
                     });
-                });
 
-                draggedPoints.h.forEach(dh => {
-                    otherPoints.h.forEach(oh => {
-                        if (Math.abs(dh - oh) < threshold) {
-                            newGuides.h.push(oh);
-                        }
-                    });
-                });
-            });
+                    if (newGuides.v.length === 0) newGuides.v.push(fx + fw / 2);
+                    if (newGuides.h.length === 0) newGuides.h.push(fy + fh / 2);
+                }
 
-            // AutoCAD style: Always add crosshairs for the center of the dragged item
-            if (newGuides.v.length === 0) newGuides.v.push(fx + fw / 2);
-            if (newGuides.h.length === 0) newGuides.h.push(fy + fh / 2);
+                setActiveGuides(newGuides);
 
-            setActiveGuides(newGuides);
-
-            if (currentStepId === 'BASE') {
-                setBaseComponents(baseComponents.map(c =>
-                    dragState.ids.includes(c.id)
-                        ? { ...c, x: dragState.initialPositions[c.id].x + dx, y: dragState.initialPositions[c.id].y + dy }
-                        : c
-                ));
-            } else {
-                setSteps(steps.map(s => s.id === currentStepId ? {
-                    ...s,
-                    components: s.components.map(c =>
+                if (currentStepId === 'BASE') {
+                    setBaseComponents(prev => prev.map(c =>
                         dragState.ids.includes(c.id)
                             ? { ...c, x: dragState.initialPositions[c.id].x + dx, y: dragState.initialPositions[c.id].y + dy }
                             : c
-                    )
-                } : s));
+                    ));
+                } else {
+                    setSteps(prev => prev.map(s => s.id === currentStepId ? {
+                        ...s,
+                        components: s.components.map(c =>
+                            dragState.ids.includes(c.id)
+                                ? { ...c, x: dragState.initialPositions[c.id].x + dx, y: dragState.initialPositions[c.id].y + dy }
+                                : c
+                        )
+                    } : s));
+                }
+            } else if (resizeState) {
+                let dx = (clientX - resizeState.startX) / zoomScale;
+                let dy = (clientY - resizeState.startY) / zoomScale;
+
+                if (snapToGrid) {
+                    const newW = resizeState.initialW + dx;
+                    const newH = resizeState.initialH + dy;
+                    const snappedW = Math.round(newW / GRID_SIZE) * GRID_SIZE;
+                    const snappedH = Math.round(newH / GRID_SIZE) * GRID_SIZE;
+                    dx = snappedW - resizeState.initialW;
+                    dy = snappedH - resizeState.initialH;
+                }
+
+                const comps = currentStepId === 'BASE' ? baseComponents : (currentStep?.components || []);
+                const targetComp = comps.find(c => c.id === resizeState.id);
+                let nextW = Math.max(GRID_SIZE, resizeState.initialW + dx);
+                let nextH = Math.max(GRID_SIZE, resizeState.initialH + dy);
+
+                if (targetComp) {
+                    const canvasWidth = canvasBaseSize.width;
+                    const canvasHeight = canvasBaseSize.height;
+
+                    const maxContentW = Math.max(1, canvasWidth - (targetComp.x || 0));
+                    const maxContentH = Math.max(1, canvasHeight - (targetComp.y || 0));
+                    const minW = Math.min(GRID_SIZE, maxContentW);
+                    const minH = Math.min(GRID_SIZE, maxContentH);
+
+                    nextW = Math.min(Math.max(nextW, minW), maxContentW);
+                    nextH = Math.min(Math.max(nextH, minH), maxContentH);
+                }
+
+                if (currentStepId === 'BASE') {
+                    setBaseComponents(prev => prev.map(c => c.id === resizeState.id ? { ...c, w: nextW, h: nextH } : c));
+                } else {
+                    setSteps(prev => prev.map(s => s.id === currentStepId ? {
+                        ...s,
+                        components: s.components.map(c => c.id === resizeState.id ? { ...c, w: nextW, h: nextH } : c)
+                    } : s));
+                }
             }
-        } else if (resizeState) {
-            let dx = (e.clientX - resizeState.startX) / zoomScale;
-            let dy = (e.clientY - resizeState.startY) / zoomScale;
-
-            if (snapToGrid) {
-                const newW = resizeState.initialW + dx;
-                const newH = resizeState.initialH + dy;
-                const snappedW = Math.round(newW / GRID_SIZE) * GRID_SIZE;
-                const snappedH = Math.round(newH / GRID_SIZE) * GRID_SIZE;
-                dx = snappedW - resizeState.initialW;
-                dy = snappedH - resizeState.initialH;
-            }
-
-            const comps = currentStepId === 'BASE' ? baseComponents : (currentStep?.components || []);
-            const targetComp = comps.find(c => c.id === resizeState.id);
-            let nextW = Math.max(GRID_SIZE, resizeState.initialW + dx);
-            let nextH = Math.max(GRID_SIZE, resizeState.initialH + dy);
-
-            if (targetComp) {
-                const canvasWidth = canvasBaseSize.width;
-                const canvasHeight = canvasBaseSize.height;
-                const designPadding = 0;
-
-                const maxContentW = Math.max(1, canvasWidth - (targetComp.x || 0) - designPadding);
-                const maxContentH = Math.max(1, canvasHeight - (targetComp.y || 0) - designPadding);
-                const minW = Math.min(GRID_SIZE, maxContentW);
-                const minH = Math.min(GRID_SIZE, maxContentH);
-
-                nextW = Math.min(Math.max(nextW, minW), maxContentW);
-                nextH = Math.min(Math.max(nextH, minH), maxContentH);
-            }
-
-            if (currentStepId === 'BASE') {
-                setBaseComponents(baseComponents.map(c => c.id === resizeState.id ? { ...c, w: nextW, h: nextH } : c));
-            } else {
-                setSteps(steps.map(s => s.id === currentStepId ? {
-                    ...s,
-                    components: s.components.map(c => c.id === resizeState.id ? { ...c, w: nextW, h: nextH } : c)
-                } : s));
-            }
-        }
+        });
     };
 
     const handleCanvasMouseUp = (e) => {
@@ -8120,6 +8094,10 @@ const AppBuilder = () => {
         setDragState(null);
         setResizeState(null);
         setActiveGuides({ h: [], v: [] });
+        if (dragRafRef.current) {
+            cancelAnimationFrame(dragRafRef.current);
+            dragRafRef.current = null;
+        }
     };
 
     const handleStepDrop = (e, targetId) => {
@@ -8446,7 +8424,8 @@ const AppBuilder = () => {
                     zIndex: stepZIndex,
                     userSelect: 'none',
                     transform: `rotate(${comp.props?.rotation || 0}deg)`,
-                    transition: dragState ? 'none' : 'all 0.1s'
+                    willChange: (dragState?.ids?.includes(comp.id) || resizeState?.id === comp.id) ? 'left, top, width, height' : 'auto',
+                    transition: (dragState || resizeState) ? 'none' : 'box-shadow 0.15s ease, border 0.15s ease'
                 }}
             >
                 {shouldShowDatasourceWarning(comp) && viewMode === 'DESIGN' && (
@@ -12029,15 +12008,318 @@ const AppBuilder = () => {
                         </div>
                     </div>
                 );
-            case 'CAD_VIEWER':
+            case 'CAD_VIEWER': {
+                const showROI = comp.props.showROI !== false;
+                const roiLabel = comp.props.roiLabel || 'Inspection Zone #1';
+                const roiX = comp.props.roiX ?? 20;
+                const roiY = comp.props.roiY ?? 18;
+                const roiW = comp.props.roiW ?? 60;
+                const roiH = comp.props.roiH ?? 55;
+                const roiColor = comp.props.roiColor || '#22c55e';
+                const roiMode = comp.props.roiMode || 'Dimensional Check';
+                const roiScore = comp.props.roiMatchScore || 99.4;
+                const fileUrl = comp.props.fileUrl || '';
+
+                const drawings = (() => {
+                    try { return JSON.parse(localStorage.getItem('mavi_drawings') || '[]'); } catch (e) { return []; }
+                })();
+                const selectedDwg = fileUrl ? drawings.find(d => d.id === fileUrl || d.fileName === fileUrl || d.name === fileUrl) : (drawings[0] || null);
+                const hasSource = !!(comp.props.source || comp.props.fileUrl || selectedDwg);
+
                 return (
-                    <div style={{ width: '100%', height: '100%', borderRadius: '8px', overflow: 'hidden', border: '1px solid #1f2937', backgroundColor: comp.props.backgroundColor || '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                        <div style={{ width: '55%', height: '55%', border: '2px solid rgba(148,163,184,0.7)', transform: 'rotate(12deg)', borderRadius: '6px' }} />
-                        <div style={{ position: 'absolute', bottom: '8px', left: '8px', right: '8px', fontSize: '0.68rem', color: 'var(--border-secondary)', textAlign: 'center' }}>
-                            {(comp.props.source || comp.props.fileUrl) ? 'CAD model loaded' : 'No CAD source set'}
+                    <div style={{
+                        width: '100%', height: '100%', borderRadius: '8px', overflow: 'hidden',
+                        border: '1px solid #1f2937', backgroundColor: comp.props.backgroundColor || '#0f172a',
+                        display: 'flex', flexDirection: 'column', position: 'relative', userSelect: 'none'
+                    }}>
+                        {/* Top Widget Header Bar */}
+                        <div style={{
+                            padding: '6px 10px', backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center',
+                            justifyContent: 'space-between', zIndex: 5
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ fontSize: '0.75rem' }}>📐</span>
+                                <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#f8fafc' }}>
+                                    {selectedDwg?.name || comp.props.title || 'CAD Viewer & Inspection'}
+                                </span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                {showROI && (
+                                    <span style={{
+                                        fontSize: '0.55rem', fontWeight: 800, color: roiColor,
+                                        backgroundColor: `${roiColor}20`, border: `1px solid ${roiColor}50`,
+                                        padding: '1px 6px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '3px'
+                                    }}>
+                                        🎯 {roiLabel} ({roiScore}%)
+                                    </span>
+                                )}
+                                <span style={{ fontSize: '0.58rem', color: '#64748b' }}>
+                                    {selectedDwg?.fileType || comp.props.format || 'DWG'}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* CAD Canvas Preview Area */}
+                        <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                            {/* Blueprint background grid */}
+                            <div style={{
+                                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                                backgroundImage: 'radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px)',
+                                backgroundSize: '16px 16px', pointerEvents: 'none'
+                            }} />
+
+                            {selectedDwg ? (
+                                (() => {
+                                    // ── VIEWBOX / ROI CROPPING CALCULATIONS ──
+                                    let cropBox = null;
+
+                                    // Priority 1: CAD Display Region (Kotak Merah from CAD Manager)
+                                    const reg = selectedDwg.displayRegion;
+                                    if (comp.props.useDisplayRegion !== false && reg && reg.enabled !== false && reg.w > 0 && reg.h > 0) {
+                                        cropBox = { rx: reg.x, ry: reg.y, rw: reg.w, rh: reg.h };
+                                    } else {
+                                        // Priority 2: ROI shape (Green dashed ROI Inspection Zone drawn on blueprint)
+                                        const roiShape = Array.isArray(selectedDwg.shapes) ? selectedDwg.shapes.find(s => s && s.type === 'roi' && (s.w || s.width) > 0 && (s.h || s.height) > 0) : null;
+                                        if (roiShape && comp.props.useROI !== false) {
+                                            cropBox = { 
+                                                rx: roiShape.x, 
+                                                ry: roiShape.y, 
+                                                rw: roiShape.w || roiShape.width, 
+                                                rh: roiShape.h || roiShape.height,
+                                                label: roiShape.label
+                                            };
+                                        } else {
+                                            // Priority 3: ROI Dimension balloon
+                                            const roiDim = Array.isArray(selectedDwg.dimensions) ? selectedDwg.dimensions.find(d => d && (d.type === 'roi' || d.category === 'roi') && (d.w > 0 || d.width > 0)) : null;
+                                            if (roiDim && comp.props.useROI !== false) {
+                                                const rw = roiDim.w || roiDim.width || Math.abs((roiDim.x2 || 0) - (roiDim.x1 || 0));
+                                                const rh = roiDim.h || roiDim.height || Math.abs((roiDim.y2 || 0) - (roiDim.y1 || 0));
+                                                const rx = roiDim.x !== undefined ? roiDim.x : Math.min(roiDim.x1 || 0, roiDim.x2 || 0);
+                                                const ry = roiDim.y !== undefined ? roiDim.y : Math.min(roiDim.y1 || 0, roiDim.y2 || 0);
+                                                if (rw > 0 && rh > 0) {
+                                                    cropBox = { rx, ry, rw, rh, label: roiDim.label || roiDim.name };
+                                                }
+                                            } else {
+                                                // Priority 4: Widget-level ROI props
+                                                if (comp.props.showROI !== false && (comp.props.cropToROI || comp.props.roiW)) {
+                                                    const rx = ((comp.props.roiX ?? 20) / 100) * 500;
+                                                    const ry = ((comp.props.roiY ?? 18) / 100) * 360;
+                                                    const rw = ((comp.props.roiW ?? 60) / 100) * 500;
+                                                    const rh = ((comp.props.roiH ?? 55) / 100) * 360;
+                                                    if (rw > 0 && rh > 0) {
+                                                        cropBox = { rx, ry, rw, rh, label: comp.props.roiLabel };
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    const viewBoxStr = cropBox ? `${cropBox.rx} ${cropBox.ry} ${cropBox.rw} ${cropBox.rh}` : "0 0 500 360";
+                                    const clipId = `cad_roi_clip_${comp.id || 'widget'}`;
+
+                                    return (
+                                        <svg viewBox={viewBoxStr} preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%', position: 'absolute', inset: 0 }}>
+                                            <defs>
+                                                {cropBox && (
+                                                    <clipPath id={clipId}>
+                                                        <rect x={cropBox.rx} y={cropBox.ry} width={cropBox.rw} height={cropBox.rh} />
+                                                    </clipPath>
+                                                )}
+                                            </defs>
+
+                                            {/* CLIPPED GROUP: ONLY Graphics inside ROI rectangle are rendered */}
+                                            <g clipPath={cropBox ? `url(#${clipId})` : undefined}>
+                                                {/* Render Background Image */}
+                                                {(selectedDwg.dataUrl || selectedDwg.data_url) && (
+                                                    <image
+                                                        href={selectedDwg.dataUrl || selectedDwg.data_url}
+                                                        x="50" y="40" width="400" height="280"
+                                                        preserveAspectRatio="xMidYMid meet"
+                                                        opacity="0.85"
+                                                    />
+                                                )}
+                                                {/* Render Shapes */}
+                                                {Array.isArray(selectedDwg.shapes) && selectedDwg.shapes.map((shape, idx) => {
+                                                    if (!shape) return null;
+                                                    const commonProps = { stroke: shape.color || '#3b82f6', strokeWidth: shape.strokeWidth || 2, fill: 'none' };
+                                                    const skey = shape.id || `sh_${idx}`;
+                                                    if (shape.type === 'line') return <line key={skey} x1={shape.x1} y1={shape.y1} x2={shape.x2} y2={shape.y2} {...commonProps} />;
+                                                    if (shape.type === 'circle') return <circle key={skey} cx={shape.cx} cy={shape.cy} r={shape.r} {...commonProps} />;
+                                                    if (shape.type === 'rect') return <rect key={skey} x={shape.x} y={shape.y} width={shape.w || shape.width || 0} height={shape.h || shape.height || 0} {...commonProps} />;
+                                                    if (shape.type === 'roi') {
+                                                        const roiColor = shape.color || '#22c55e';
+                                                        const roiW = shape.w || shape.width || 100;
+                                                        const roiH = shape.h || shape.height || 80;
+                                                        return (
+                                                            <g key={skey}>
+                                                                <rect x={shape.x} y={shape.y} width={roiW} height={roiH} stroke={roiColor} strokeWidth={shape.strokeWidth || 2} strokeDasharray="6 3" fill={`${roiColor}15`} rx="4" />
+                                                            </g>
+                                                        );
+                                                    }
+                                                    if (shape.type === 'ellipse') return <ellipse key={skey} cx={shape.cx} cy={shape.cy} rx={shape.rx} ry={shape.ry} {...commonProps} />;
+                                                    if (shape.type === 'triangle') return <polygon key={skey} points={`${shape.x + (shape.w||0)/2},${shape.y} ${shape.x + (shape.w||0)},${shape.y + (shape.h||0)} ${shape.x},${shape.y + (shape.h||0)}`} {...commonProps} />;
+                                                    if (shape.type === 'hexagon') {
+                                                        const cx = shape.cx || shape.x + (shape.w||40)/2;
+                                                        const cy = shape.cy || shape.y + (shape.h||40)/2;
+                                                        const r = shape.r || (shape.w||40)/2;
+                                                        const pts = Array.from({length: 6}, (_, i) => {
+                                                            const a = (i * 60 - 30) * Math.PI / 180;
+                                                            return `${cx + r * Math.cos(a)},${cy + r * Math.sin(a)}`;
+                                                        }).join(' ');
+                                                        return <polygon key={skey} points={pts} {...commonProps} />;
+                                                    }
+                                                    if (shape.type === 'arc') {
+                                                        const sa = shape.startAngle ?? 0; const ea = shape.endAngle ?? 90;
+                                                        const sx = shape.cx + shape.r * Math.cos(sa * Math.PI / 180);
+                                                        const sy = shape.cy + shape.r * Math.sin(sa * Math.PI / 180);
+                                                        const ex = shape.cx + shape.r * Math.cos(ea * Math.PI / 180);
+                                                        const ey = shape.cy + shape.r * Math.sin(ea * Math.PI / 180);
+                                                        return <path key={skey} d={`M ${sx},${sy} A ${shape.r},${shape.r} 0 ${Math.abs(ea-sa)>180?1:0},${ea>sa?1:0} ${ex},${ey}`} {...commonProps} />;
+                                                    }
+                                                    if (shape.type === 'polyline') return <polyline key={skey} points={(shape.points || []).map(p => `${p.x},${p.y}`).join(' ')} {...commonProps} />;
+                                                    if (shape.type === 'text') return <text key={skey} x={shape.x} y={shape.y} fill={shape.color || '#f8fafc'} fontSize={shape.fontSize || 14} fontWeight="bold">{shape.text || shape.label || ''}</text>;
+                                                    if (shape.type === 'image') return <image key={skey} href={shape.src || shape.dataUrl || shape.url} x={shape.x} y={shape.y} width={shape.w || shape.width || 100} height={shape.h || shape.height || 100} preserveAspectRatio="xMidYMid meet" />;
+                                                    return null;
+                                                })}
+                                                {/* Render Dimensions Balloons & Markers */}
+                                                {Array.isArray(selectedDwg.dimensions) && selectedDwg.dimensions.map((dim, idx) => {
+                                                    if (!dim) return null;
+                                                    const dkey = dim.id || `dim_${idx}`;
+                                                    const isRoi = dim.type === 'roi' || dim.category === 'roi';
+                                                    if (isRoi) {
+                                                        const roiColor = dim.color || '#22c55e';
+                                                        const rx = dim.x !== undefined ? dim.x : Math.min(dim.x1||0, dim.x2||0);
+                                                        const ry = dim.y !== undefined ? dim.y : Math.min(dim.y1||0, dim.y2||0);
+                                                        const rw = dim.w || dim.width || Math.abs((dim.x2||0) - (dim.x1||0)) || 100;
+                                                        const rh = dim.h || dim.height || Math.abs((dim.y2||0) - (dim.y1||0)) || 80;
+                                                        return (
+                                                            <g key={dkey}>
+                                                                <rect x={rx} y={ry} width={rw} height={rh} stroke={roiColor} strokeWidth={2} strokeDasharray="6 3" fill={`${roiColor}15`} rx="4" />
+                                                            </g>
+                                                        );
+                                                    }
+                                                    const bx = dim.x !== undefined ? dim.x : (dim.x1 + dim.x2) / 2;
+                                                    const by = dim.y !== undefined ? dim.y : (dim.y1 + dim.y2) / 2;
+                                                    if (isNaN(bx) || isNaN(by)) return null;
+                                                    return (
+                                                        <g key={dkey}>
+                                                            <circle cx={bx} cy={by} r="10" fill="#2563eb" stroke="white" strokeWidth="1.5" />
+                                                            <text x={bx} y={by + 3.5} textAnchor="middle" fill="white" fontSize="9" fontWeight="bold">
+                                                                {idx + 1}
+                                                            </text>
+                                                        </g>
+                                                    );
+                                                })}
+                                                {/* Fallback wireframe inside SVG if drawing has no dataUrl and no shapes */}
+                                                {(!selectedDwg.dataUrl && !selectedDwg.data_url) && (!selectedDwg.shapes || selectedDwg.shapes.length === 0) && (
+                                                    <g transform="translate(40, 20)">
+                                                        <rect x="120" y="80" width="240" height="180" fill="none" stroke="#3b82f6" strokeWidth="2" />
+                                                        <circle cx="240" cy="170" r="45" fill="none" stroke="#60a5fa" strokeWidth="1.5" />
+                                                        <line x1="240" y1="50" x2="240" y2="290" stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="10,5" />
+                                                        <line x1="80" y1="170" x2="400" y2="170" stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="10,5" />
+                                                    </g>
+                                                )}
+                                            </g>
+
+                                            {/* OVERLAY: Green ROI Border Box surrounding the cropped area */}
+                                            {cropBox && (
+                                                <g style={{ pointerEvents: 'none' }}>
+                                                    <rect x={cropBox.rx} y={cropBox.ry} width={cropBox.rw} height={cropBox.rh} stroke="#22c55e" strokeWidth="2" strokeDasharray="6 3" fill="none" rx="4" />
+                                                    <path d={`M ${cropBox.rx - 2} ${cropBox.ry + 12} L ${cropBox.rx - 2} ${cropBox.ry - 2} L ${cropBox.rx + 12} ${cropBox.ry - 2}`} stroke="#22c55e" strokeWidth="3" fill="none" />
+                                                    <path d={`M ${cropBox.rx + cropBox.rw - 12} ${cropBox.ry - 2} L ${cropBox.rx + cropBox.rw + 2} ${cropBox.ry - 2} L ${cropBox.rx + cropBox.rw + 2} ${cropBox.ry + 12}`} stroke="#22c55e" strokeWidth="3" fill="none" />
+                                                    <path d={`M ${cropBox.rx - 2} ${cropBox.ry + cropBox.rh - 12} L ${cropBox.rx - 2} ${cropBox.ry + cropBox.rh + 2} L ${cropBox.rx + 12} ${cropBox.ry + cropBox.rh + 2}`} stroke="#22c55e" strokeWidth="3" fill="none" />
+                                                    <path d={`M ${cropBox.rx + cropBox.rw - 12} ${cropBox.ry + cropBox.rh + 2} L ${cropBox.rx + cropBox.rw + 2} ${cropBox.ry + cropBox.rh + 2} L ${cropBox.rx + cropBox.rw + 2} ${cropBox.ry + cropBox.rh - 12}`} stroke="#22c55e" strokeWidth="3" fill="none" />
+                                                    <rect x={cropBox.rx + 4} y={cropBox.ry + 4} width={Math.max(110, ((cropBox.label || 'ROI Inspection Zone').length * 7) + 24)} height="18" fill="#22c55e" rx="3" />
+                                                    <text x={cropBox.rx + 10} y={cropBox.ry + 17} fill="white" fontSize="10" fontWeight="bold">
+                                                        🎯 {cropBox.label || 'ROI Inspection Zone'}
+                                                    </text>
+                                                </g>
+                                            )}
+                                        </svg>
+                                    );
+                                })()
+                            ) : (
+                                /* Center CAD Object Placeholder Wireframe */
+                                <div style={{
+                                    width: '55%', height: '55%', border: '2px dashed rgba(148, 163, 184, 0.5)',
+                                    transform: 'rotate(12deg)', borderRadius: '6px', position: 'relative',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                }}>
+                                    <div style={{ width: '60%', height: '60%', border: '1px solid rgba(59, 130, 246, 0.4)', borderRadius: '50%' }} />
+                                </div>
+                            )}
+
+                            {/* ROI (Region of Interest) Overlay Box */}
+                            {showROI && (
+                                <div style={{
+                                    position: 'absolute',
+                                    top: `${roiY}%`,
+                                    left: `${roiX}%`,
+                                    width: `${roiW}%`,
+                                    height: `${roiH}%`,
+                                    border: `2px solid ${roiColor}`,
+                                    backgroundColor: `${roiColor}0d`,
+                                    borderRadius: '6px',
+                                    boxShadow: `0 0 12px ${roiColor}30`,
+                                    boxSizing: 'border-box',
+                                    zIndex: 10,
+                                    transition: 'all 0.2s ease'
+                                }}>
+                                    {/* Corner Target Bracket Markers */}
+                                    <div style={{ position: 'absolute', top: -3, left: -3, width: 10, height: 10, borderTop: `3px solid ${roiColor}`, borderLeft: `3px solid ${roiColor}` }} />
+                                    <div style={{ position: 'absolute', top: -3, right: -3, width: 10, height: 10, borderTop: `3px solid ${roiColor}`, borderRight: `3px solid ${roiColor}` }} />
+                                    <div style={{ position: 'absolute', bottom: -3, left: -3, width: 10, height: 10, borderBottom: `3px solid ${roiColor}`, borderLeft: `3px solid ${roiColor}` }} />
+                                    <div style={{ position: 'absolute', bottom: -3, right: -3, width: 10, height: 10, borderBottom: `3px solid ${roiColor}`, borderRight: `3px solid ${roiColor}` }} />
+
+                                    {/* ROI Badge Title */}
+                                    <div style={{
+                                        position: 'absolute', top: '-18px', left: '4px',
+                                        backgroundColor: roiColor, color: '#0f172a',
+                                        fontSize: '0.55rem', fontWeight: 900, padding: '1px 6px',
+                                        borderRadius: '3px', textTransform: 'uppercase',
+                                        letterSpacing: '0.5px', boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+                                    }}>
+                                        🔍 ROI: {roiLabel}
+                                    </div>
+
+                                    {/* Animated Scan Line */}
+                                    <div style={{
+                                        position: 'absolute', top: 0, left: 0, right: 0, height: '2px',
+                                        backgroundColor: roiColor, boxShadow: `0 0 8px ${roiColor}`,
+                                        animation: 'roiScan 2.5s ease-in-out infinite'
+                                    }} />
+
+                                    {/* ROI Info tag at bottom right */}
+                                    <div style={{
+                                        position: 'absolute', bottom: '3px', right: '4px',
+                                        color: '#94a3b8', fontSize: '0.52rem', fontFamily: 'monospace',
+                                        backgroundColor: 'rgba(15, 23, 42, 0.8)', padding: '1px 4px', borderRadius: '2px'
+                                    }}>
+                                        {roiMode} | {roiW}%x{roiH}%
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Bottom CAD status label */}
+                            <div style={{
+                                position: 'absolute', bottom: '8px', left: '8px', right: '8px',
+                                fontSize: '0.65rem', color: '#64748b', textAlign: 'center', zIndex: 2
+                            }}>
+                                {hasSource ? 'CAD model loaded & verified' : 'No CAD source set'}
+                            </div>
+
+                            <style>{`
+                                @keyframes roiScan {
+                                    0% { top: 0%; opacity: 0.8; }
+                                    50% { top: 96%; opacity: 0.8; }
+                                    100% { top: 0%; opacity: 0.8; }
+                                }
+                            `}</style>
                         </div>
                     </div>
                 );
+            }
             case 'CAMERA_SCANNER':
                 return (
                     <div style={{ width: '100%', height: '100%', backgroundColor: '#000000', borderRadius: '12px', overflow: 'hidden', position: 'relative', border: '4px solid #334155' }}>
@@ -15101,7 +15383,8 @@ const AppBuilder = () => {
                                                     top: comp.y + 'px',
                                                     width: comp.w + 'px',
                                                     height: comp.h + 'px',
-                                                    padding: viewMode === 'PREVIEW' ? '0' : '0',
+                                                    transform: `rotate(${comp.props.rotation || 0}deg)`,
+                                                    willChange: (dragState?.ids?.includes(comp.id) || resizeState?.id === comp.id) ? 'left, top, width, height' : 'auto',
                                                     backgroundColor: viewMode === 'PREVIEW' ? 'transparent' : ((isChromeless || comp.type === 'PRINT_AREA') ? 'transparent' : (isSelected ? 'rgba(59, 130, 246, 0.05)' : 'white')),
                                                     borderRadius: (isChromeless || comp.type === 'PRINT_AREA') || viewMode === 'PREVIEW' ? '0' : '8px',
                                                     border: viewMode === 'PREVIEW' ? 'none' : (isSelected ? '2px solid #3b82f6' : ((isChromeless || comp.type === 'PRINT_AREA') ? 'none' : '1px solid #e2e8f0')),
@@ -19226,6 +19509,118 @@ const AppBuilder = () => {
                                                             <option value="GLTF">GLTF</option>
                                                             <option value="GLB">GLB</option>
                                                         </select>
+
+                                                        {/* REGION OF INTEREST (ROI) CONFIGURATION */}
+                                                        <div style={{ marginTop: '16px', padding: '12px', backgroundColor: 'var(--bg-secondary, #f8fafc)', borderRadius: '8px', border: '1px solid var(--border-primary)' }}>
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                                                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                                    🎯 REGION OF INTEREST (ROI)
+                                                                </span>
+                                                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={selectedComp.props.showROI !== false}
+                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { showROI: e.target.checked })}
+                                                                    />
+                                                                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Tampilkan ROI</span>
+                                                                </label>
+                                                            </div>
+
+                                                            {selectedComp.props.showROI !== false && (
+                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                                                    <div>
+                                                                        <label style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>LABEL ROI ZONE</label>
+                                                                        <input
+                                                                            type="text"
+                                                                            value={selectedComp.props.roiLabel || 'Inspection Zone #1'}
+                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { roiLabel: e.target.value })}
+                                                                            style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--border-primary)', borderRadius: '4px', fontSize: '0.75rem' }}
+                                                                        />
+                                                                    </div>
+
+                                                                    <div>
+                                                                        <label style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>MODE INSPEKSI ROI</label>
+                                                                        <select
+                                                                            value={selectedComp.props.roiMode || 'Dimensional Check'}
+                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { roiMode: e.target.value })}
+                                                                            style={{ width: '100%', padding: '6px 8px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', fontSize: '0.75rem', color: 'var(--text-primary)' }}
+                                                                        >
+                                                                            <option value="Dimensional Check">📏 Dimensional Check (Pemeriksaan Dimensi)</option>
+                                                                            <option value="Defect Detection">🔍 Defect Detection (Deteksi Cacat/Keretakan)</option>
+                                                                            <option value="Surface Quality">✨ Surface Quality (Kualitas Permukaan)</option>
+                                                                            <option value="Pattern Matching">🧩 Pattern Matching (Kesesuaian Pola CAD)</option>
+                                                                        </select>
+                                                                    </div>
+
+                                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                                                        <div>
+                                                                            <label style={{ display: 'block', fontSize: '0.62rem', color: 'var(--text-tertiary)', marginBottom: '2px' }}>POSISI X (%)</label>
+                                                                            <input
+                                                                                type="number"
+                                                                                min="0" max="100"
+                                                                                value={selectedComp.props.roiX ?? 20}
+                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { roiX: Number(e.target.value) })}
+                                                                                style={{ width: '100%', padding: '4px 6px', border: '1px solid var(--border-primary)', borderRadius: '4px', fontSize: '0.72rem' }}
+                                                                            />
+                                                                        </div>
+                                                                        <div>
+                                                                            <label style={{ display: 'block', fontSize: '0.62rem', color: 'var(--text-tertiary)', marginBottom: '2px' }}>POSISI Y (%)</label>
+                                                                            <input
+                                                                                type="number"
+                                                                                min="0" max="100"
+                                                                                value={selectedComp.props.roiY ?? 18}
+                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { roiY: Number(e.target.value) })}
+                                                                                style={{ width: '100%', padding: '4px 6px', border: '1px solid var(--border-primary)', borderRadius: '4px', fontSize: '0.72rem' }}
+                                                                            />
+                                                                        </div>
+                                                                        <div>
+                                                                            <label style={{ display: 'block', fontSize: '0.62rem', color: 'var(--text-tertiary)', marginBottom: '2px' }}>LEBAR / W (%)</label>
+                                                                            <input
+                                                                                type="number"
+                                                                                min="10" max="100"
+                                                                                value={selectedComp.props.roiW ?? 60}
+                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { roiW: Number(e.target.value) })}
+                                                                                style={{ width: '100%', padding: '4px 6px', border: '1px solid var(--border-primary)', borderRadius: '4px', fontSize: '0.72rem' }}
+                                                                            />
+                                                                        </div>
+                                                                        <div>
+                                                                            <label style={{ display: 'block', fontSize: '0.62rem', color: 'var(--text-tertiary)', marginBottom: '2px' }}>TINGGI / H (%)</label>
+                                                                            <input
+                                                                                type="number"
+                                                                                min="10" max="100"
+                                                                                value={selectedComp.props.roiH ?? 55}
+                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { roiH: Number(e.target.value) })}
+                                                                                style={{ width: '100%', padding: '4px 6px', border: '1px solid var(--border-primary)', borderRadius: '4px', fontSize: '0.72rem' }}
+                                                                            />
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div>
+                                                                        <label style={{ display: 'block', fontSize: '0.62rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>WARNA ROI</label>
+                                                                        <div style={{ display: 'flex', gap: '6px' }}>
+                                                                            {[
+                                                                                { name: 'Emerald', hex: '#22c55e' },
+                                                                                { name: 'Cyan', hex: '#06b6d4' },
+                                                                                { name: 'Amber', hex: '#f59e0b' },
+                                                                                { name: 'Rose', hex: '#f43f5e' },
+                                                                                { name: 'Blue', hex: '#3b82f6' }
+                                                                            ].map(c => (
+                                                                                <button
+                                                                                    key={c.hex}
+                                                                                    onClick={() => updateComponentProps(selectedComp.id, { roiColor: c.hex })}
+                                                                                    style={{
+                                                                                        width: '24px', height: '24px', borderRadius: '50%', backgroundColor: c.hex,
+                                                                                        border: (selectedComp.props.roiColor || '#22c55e') === c.hex ? '2px solid white' : 'none',
+                                                                                        boxShadow: (selectedComp.props.roiColor || '#22c55e') === c.hex ? '0 0 6px ' + c.hex : 'none',
+                                                                                        cursor: 'pointer'
+                                                                                    }}
+                                                                                />
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
 
                                                         {/* GD&T Parameter Summary Table */}
                                                         {(() => {
