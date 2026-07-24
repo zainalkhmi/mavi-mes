@@ -48,6 +48,7 @@ import { createProductDrawingInspectionTemplate } from '../utils/productDrawingI
 import { createHydraulicCylinderInspectionTemplate } from '../utils/hydraulicCylinderInspectionTemplate';
 import { createMobileScanInspectionTemplate } from '../utils/mobileScanInspectionTemplate';
 import { createQuickStartHelloWorldTemplate } from '../utils/quickStartHelloWorldTemplate';
+import { createQualityGateTemplate } from '../utils/qualityGateTemplate';
 
 import { saveFrontlineApp, deleteFrontlineApp, getAllFrontlineApps } from '../utils/supabaseFrontlineDB';
 import {
@@ -1461,6 +1462,36 @@ const AppStore = () => {
                     { name: 'Review plan', description: 'Verify composed dynamic quality checklist rows.' },
                     { name: 'Record numeric results', description: 'Input values against dynamic limits.' },
                     { name: 'Inspect unit', description: 'Composed guided visual checklist.' }
+                ]
+            }
+        },
+        {
+            id: 'quality-gate',
+            name: 'Quality Gate',
+            category: 'Quality',
+            description: 'Checkpoint kualitas sebelum shipping: barcode scan, checklist visual, foto, pass/fail decision, dan tanda tangan digital inspector.',
+            longDescription: 'Quality Gate adalah checkpoint terakhir sebelum produk dikirim. Operator melakukan identifikasi produk via barcode, inspeksi visual 4 kriteria (surface, dimension, functional, marking), foto dokumentasi, keputusan APPROVE/REJECT, dan tanda tangan digital. Semua data tersimpan ke database untuk audit trail.',
+            icon: <ShieldCheck size={28} color="#16a34a" />,
+            bg: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+            accent: '#16a34a',
+            rating: 4.8,
+            installs: 'New',
+            features: ['Barcode Scan', '4-Point Visual Checklist', 'Photo Capture', 'PASS/FAIL Decision', 'Digital Signature'],
+            guide: {
+                operation: '1. Scan barcode atau ketik serial number produk.\n2. Isi nama inspector.\n3. Periksa 4 kriteria visual: Surface, Dimension, Functional, Marking.\n4. Ambil foto produk (opsional).\n5. Putuskan APPROVE atau REJECT.\n6. Tanda tangan digital dan simpan.',
+                widgets: ['Barcode Scanner', 'Button PASS/FAIL', 'Webcam Capture', 'Signature Pad', 'Text Display'],
+                components: ['Product Identification', 'Visual Inspection Checklist', 'Decision Panel', 'Done Screen'],
+                tables: [],
+                triggers: [
+                    { event: 'APPROVE', function: 'Menyimpan hasil APPROVED ke database dan mengakhiri sesi inspeksi.' },
+                    { event: 'REJECT', function: 'Menyimpan hasil REJECTED ke database dan mencatat defect notes.' }
+                ],
+                mechanism: 'Quality Gate menggunakan pendekatan checklist visual 4 titik dengan keputusan binary PASS/FAIL. Setiap kriteria memiliki tombol aksi langsung. Hasil akhir ditandatangani secara digital untuk audit compliance.',
+                steps: [
+                    { name: 'Identifikasi Produk', description: 'Scan barcode atau input serial number.' },
+                    { name: 'Inspeksi Visual', description: 'Checklist 4 kriteria: Surface, Dimension, Functional, Marking.' },
+                    { name: 'Keputusan & Sign-Off', description: 'Review hasil, APPROVE/REJECT, tanda tangan digital.' },
+                    { name: 'Selesai', description: 'Konfirmasi hasil dan restart untuk produk berikutnya.' }
                 ]
             }
         },
@@ -3715,6 +3746,8 @@ const AppStore = () => {
                 } catch (qiErr) {
                     console.warn('Could not create Quality Inspection tables:', qiErr);
                 }
+            } else if (templateId === 'quality-gate') {
+                templateApp = createQualityGateTemplate();
             } else if (templateId === 'hc-cylinder-inspection') {
                 templateApp = createHydraulicCylinderInspectionTemplate();
                 try {

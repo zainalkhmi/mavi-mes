@@ -227,6 +227,7 @@ import { ListPickerWidget } from './appbuilder/ListPickerWidget';
 // Re-export for backward compatibility (used by AdminSettings.jsx etc.)
 export { COMPONENT_TYPES } from './appbuilder/componentTypes';
 export { CATEGORIZED_COMPONENTS } from './appbuilder/categorizedComponents';
+import { normalizeType, sanitizeComponentCoords } from './appbuilder/aiHelpers';
 
 import { processDocument } from '../utils/aiService';
 import VisionCamera from './VisionCamera';
@@ -276,166 +277,114 @@ import * as projectMgmt from '../utils/projectManagement';
 
 import ConditionalFormattingPanel from './ConditionalFormattingPanel';
 
+import { useAppBuilderState } from '../hooks/useAppBuilderState';
+
 const AppBuilder = () => {
-    const [appName, setAppName] = useState(DEFAULT_FRONTLINE_APP_NAME);
-    const [hiddenCategories, setHiddenCategories] = useState(() => {
-        try {
-            const val = localStorage.getItem('mavi_hidden_categories');
-            return val ? JSON.parse(val) : [];
-        } catch {
-            return [];
-        }
-    });
-    const [hiddenWidgets, setHiddenWidgets] = useState(() => {
-        try {
-            const val = localStorage.getItem('mavi_hidden_widgets');
-            return val ? JSON.parse(val) : [];
-        } catch {
-            return [];
-        }
-    });
-    const [appMeta, setAppMeta] = useState({
-        version: 1,
-        approval_status: 'DRAFT',
-        is_published: false,
-        lastPublishedAt: null,
-        approved_by: null,
-        approved_at: null
-    });
-    const [appCategory, setAppCategory] = useState(DEFAULT_FRONTLINE_APP_CATEGORY);
-    const [steps, setSteps] = useState([
-        { id: 'screen_1', title: 'Screen 1', stepType: 'Screen', cycleTimeSeconds: 60, components: [], triggers: [], logic: { xml: null, code: '' } }
-    ]);
-    const [globalLogic, setGlobalLogic] = useState({ xml: null, code: '' });
-    const [blocklyRuntimeError, setBlocklyRuntimeError] = useState(null);
-    const [baseComponents, setBaseComponents] = useState([]);
-    const [currentStepId, setCurrentStepId] = useState('screen_1');
-    const [activeLogicScopeId, setActiveLogicScopeId] = useState('STEP'); // 'STEP', 'GLOBAL', or widgetId
-    const [selectedCompIds, setSelectedCompIds] = useState([]);
+    const {
+        appName, setAppName,
+        hiddenCategories, setHiddenCategories,
+        hiddenWidgets, setHiddenWidgets,
+        appMeta, setAppMeta,
+        appCategory, setAppCategory,
+        steps, setSteps,
+        globalLogic, setGlobalLogic,
+        blocklyRuntimeError, setBlocklyRuntimeError,
+        baseComponents, setBaseComponents,
+        currentStepId, setCurrentStepId,
+        activeLogicScopeId, setActiveLogicScopeId,
+        selectedCompIds, setSelectedCompIds,
+        currentAppId, setCurrentAppId,
+        isSaving, setIsSaving,
+        recentlyAddedCompId, setRecentlyAddedCompId,
+        appsList, setAppsList,
+        builderCameras, setBuilderCameras,
+        projectSearch, setProjectSearch,
+        lastSavedSignature, setLastSavedSignature,
+        lastSavedAt, setLastSavedAt,
+        lastDraftSavedAt, setLastDraftSavedAt,
+        viewMode, setViewMode,
+        clipboard, setClipboard,
+        appBackgroundColor, setAppBackgroundColor,
+        appThemeMode, setAppThemeMode,
+        builderTheme, setBuilderTheme,
+        refreshKey, setRefreshKey,
+        zoomScale, setZoomScale,
+        activeGuides, setActiveGuides,
+        sidebarSearch, setSidebarSearch,
+        panOffset, setPanOffset,
+        isPanning, setIsPanning,
+        panStart, setPanStart,
+        activeTab, setActiveTab,
+        appCompletions, setAppCompletions,
+        selectedCompletion, setSelectedCompletion,
+        isCompletionModalOpen, setIsCompletionModalOpen,
+        leftSidebarEnabled, setLeftSidebarEnabled,
+        rightSidebarEnabled, setRightSidebarEnabled,
+        copilotEnabled, setCopilotEnabled,
+        stepListEnabled, setStepListEnabled,
+        selectionBox, setSelectionBox,
+        proUiDialog, setProUiDialog,
+        isFullscreen, setIsFullscreen,
+        isCopilotOpen, setIsCopilotOpen,
+        ghostWidgets, setGhostWidgets,
+        previewTimer, setPreviewTimer,
+        previewChecklistState, setPreviewChecklistState,
+        previewToggleState, setPreviewToggleState,
+        previewQuantityLog, setPreviewQuantityLog,
+        previewFormValues, setPreviewFormValues,
+        previewMenuState, setPreviewMenuState,
+        cameraScannerActive, setCameraScannerActive,
+        activeListPicker, setActiveListPicker,
+        cameraScannerValues, setCameraScannerValues,
+        cameraScannerStatus, setCameraScannerStatus,
+        cameraValues, setCameraValues,
+        uploadValues, setUploadValues,
+        drawValues, setDrawValues,
+        signatureValues, setSignatureValues,
+        signatureAuditTrail, setSignatureAuditTrail,
+        signedStepLocks, setSignedStepLocks,
+        eSignModal, setESignModal,
+        canvasDrawings, setCanvasDrawings,
+        recordingState, setRecordingState,
+        mediaRecorderValues, setMediaRecorderValues,
+        drawActiveRefs,
+        cameraScannerVideoRefs,
+        cameraScannerStreams,
+        cameraScannerIntervals,
+        drawCanvasRefs,
+        drawCtxRefs,
+        signatureCanvasRefs,
+        signatureCtxRefs,
+        signatureActiveRefs,
+        mediaRecorderRefs,
+        mediaChunksRefs,
+        mediaStreamRefs,
+        contextMenu, setContextMenu,
+        isCanvasLocked, setIsCanvasLocked,
+        dragState, setDragState,
+        resizeState, setResizeState,
+        dragRafRef,
+        appTriggers, setAppTriggers,
+        appVariables, setAppVariables,
+        appFunctions, setAppFunctions,
+        tables, setTables,
+        savedAnalyses, setSavedAnalyses,
+        appTables, setAppTables,
+        recordPlaceholders, setRecordPlaceholders,
+        recordPlaceholderData, setRecordPlaceholderData,
+        helpGuide, setHelpGuide,
+        isHelpGuideOpen, setIsHelpGuideOpen,
+        currentStepIdRef,
+        stepsRef,
+        baseComponentsRef,
+        appVariablesRef,
+        appFunctionsRef,
+        appTriggersRef,
+        tablesRef,
+        recordPlaceholdersRef
+    } = useAppBuilderState();
+
     const selectedCompId = selectedCompIds.length === 1 ? selectedCompIds[0] : null;
-    const [currentAppId, setCurrentAppId] = useState(null);
-    const [isSaving, setIsSaving] = useState(false);
-    const [recentlyAddedCompId, setRecentlyAddedCompId] = useState(null);
-    const [appsList, setAppsList] = useState([]);
-    const [builderCameras, setBuilderCameras] = useState([]);
-    const [projectSearch, setProjectSearch] = useState('');
-    const [lastSavedSignature, setLastSavedSignature] = useState(null);
-    const [lastSavedAt, setLastSavedAt] = useState(null);
-    const [lastDraftSavedAt, setLastDraftSavedAt] = useState(null);
-    const [viewMode, setViewMode] = useState('DESIGN'); // DESIGN, PREVIEW, or DIAGRAM
-    const [clipboard, setClipboard] = useState(null);
-    const [appBackgroundColor, setAppBackgroundColor] = useState('#ffffff');
-    const [appThemeMode, setAppThemeMode] = useState('LIGHT');
-    const [builderTheme, setBuilderTheme] = useState(localStorage.getItem('mavi-builder-theme') || 'LIGHT');
-    const [refreshKey, setRefreshKey] = useState(0);
-
-    useEffect(() => {
-        localStorage.setItem('mavi-builder-theme', builderTheme);
-    }, [builderTheme]);
-
-    const [zoomScale, setZoomScale] = useState(1);
-    const [activeGuides, setActiveGuides] = useState({ h: [], v: [] }); // { h: [y1, y2...], v: [x1, x2...] }
-    const [sidebarSearch, setSidebarSearch] = useState('');
-    const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
-    const [isPanning, setIsPanning] = useState(false);
-    const [panStart, setPanStart] = useState({ x: 0, y: 0 });
-    const [activeTab, setActiveTab] = useState('WIDGET'); // WIDGET, SCREEN, APP
-    const [appCompletions, setAppCompletions] = useState([]);
-    const [selectedCompletion, setSelectedCompletion] = useState(null);
-    const [isCompletionModalOpen, setIsCompletionModalOpen] = useState(false);
-    const [leftSidebarEnabled, setLeftSidebarEnabled] = useState(true);
-    const [rightSidebarEnabled, setRightSidebarEnabled] = useState(true);
-    const [copilotEnabled, setCopilotEnabled] = useState(true);
-    const [stepListEnabled, setStepListEnabled] = useState(true);
-    const [selectionBox, setSelectionBox] = useState(null); // { x1, y1, x2, y2 }
-    const [proUiDialog, setProUiDialog] = useState(null); // PRO UI Dialog state
-    const [isFullscreen, setIsFullscreen] = useState(false);
-    const [isCopilotOpen, setIsCopilotOpen] = useState(false);
-    const [ghostWidgets, setGhostWidgets] = useState([]); // Stage widgets for preview
-
-    // --- Preview Mode States (Interactive Widgets) ---
-    const [previewTimer, setPreviewTimer] = useState(0);
-    const [previewChecklistState, setPreviewChecklistState] = useState({});
-    const [previewToggleState, setPreviewToggleState] = useState({});
-    const [previewQuantityLog, setPreviewQuantityLog] = useState({});
-    const [previewFormValues, setPreviewFormValues] = useState({});
-    const [previewMenuState, setPreviewMenuState] = useState({});
-    const [cameraScannerActive, setCameraScannerActive] = useState({});
-    const [activeListPicker, setActiveListPicker] = useState(null); // { compId, searchQuery, elements, title, itemBg, itemText }
-    const [cameraScannerValues, setCameraScannerValues] = useState({});
-    const [cameraScannerStatus, setCameraScannerStatus] = useState({});
-    const [cameraValues, setCameraValues] = useState({});
-    const [uploadValues, setUploadValues] = useState({});
-    const [drawValues, setDrawValues] = useState({});
-    const [signatureValues, setSignatureValues] = useState({});
-    const [signatureAuditTrail, setSignatureAuditTrail] = useState([]);
-    const [signedStepLocks, setSignedStepLocks] = useState({});
-    const [eSignModal, setESignModal] = useState({
-        isOpen: false,
-        compId: null,
-        username: '',
-        password: '',
-        comment: ''
-    });
-    const [canvasDrawings, setCanvasDrawings] = useState({}); // Stores { canvasId: [{type:'line',...}] }
-    const [recordingState, setRecordingState] = useState({});
-    const [mediaRecorderValues, setMediaRecorderValues] = useState({});
-    const [drawActiveRefs] = useState({ current: {} });
-    const cameraScannerVideoRefs = useRef({});
-    const cameraScannerStreams = useRef({});
-    const cameraScannerIntervals = useRef({});
-    const drawCanvasRefs = useRef({});
-    const drawCtxRefs = useRef({});
-    const signatureCanvasRefs = useRef({});
-    const signatureCtxRefs = useRef({});
-    const signatureActiveRefs = useRef({});
-    const mediaRecorderRefs = useRef({});
-    const mediaChunksRefs = useRef({});
-    const mediaStreamRefs = useRef({});
-
-    const [contextMenu, setContextMenu] = useState({ isOpen: false, x: 0, y: 0, compId: null });
-    // Canvas lock/unlock for panning and zooming. Default locked as per user request.
-    const [isCanvasLocked, setIsCanvasLocked] = useState(true);
-    const [dragState, setDragState] = useState(null); // { ids, startX, startY, initialPositions }
-    const [resizeState, setResizeState] = useState(null); // { id, startX, startY, initialW, initialH }
-    const dragRafRef = useRef(null);
-
-    useEffect(() => {
-        if (isCanvasLocked) {
-            setDragState(null);
-            setResizeState(null);
-        }
-    }, [isCanvasLocked]);
-
-    const [appTriggers, setAppTriggers] = useState([]);
-    const [appVariables, setAppVariables] = useState([]);
-    const [appFunctions, setAppFunctions] = useState([]);
-    const [tables, setTables] = useState([]);
-    const [savedAnalyses, setSavedAnalyses] = useState([]);
-    const [appTables, setAppTables] = useState([]);
-    const [recordPlaceholders, setRecordPlaceholders] = useState([]);
-    const [recordPlaceholderData, setRecordPlaceholderData] = useState({});
-    const [helpGuide, setHelpGuide] = useState('');
-    const [isHelpGuideOpen, setIsHelpGuideOpen] = useState(false);
-
-    // Refs to track the latest state synchronously during batch Copilot command execution
-    const currentStepIdRef = useRef(currentStepId);
-    const stepsRef = useRef(steps);
-    const baseComponentsRef = useRef(baseComponents);
-    const appVariablesRef = useRef(appVariables);
-    const appFunctionsRef = useRef(appFunctions);
-    const appTriggersRef = useRef(appTriggers);
-    const tablesRef = useRef(tables);
-    const recordPlaceholdersRef = useRef(recordPlaceholders);
-
-    useEffect(() => { currentStepIdRef.current = currentStepId; }, [currentStepId]);
-    useEffect(() => { stepsRef.current = steps; }, [steps]);
-    useEffect(() => { baseComponentsRef.current = baseComponents; }, [baseComponents]);
-    useEffect(() => { appVariablesRef.current = appVariables; }, [appVariables]);
-    useEffect(() => { appFunctionsRef.current = appFunctions; }, [appFunctions]);
-    useEffect(() => { appTriggersRef.current = appTriggers; }, [appTriggers]);
-    useEffect(() => { tablesRef.current = tables; }, [tables]);
-    useEffect(() => { recordPlaceholdersRef.current = recordPlaceholders; }, [recordPlaceholders]);
 
     const renderTargetVariableOptions = () => {
         const options = [];
@@ -730,94 +679,7 @@ const AppBuilder = () => {
             saveToHistory();
             console.log('[Copilot] Executing Command:', type, payload);
 
-            // --- AI Type Normalization Helper ---
-            const AI_TYPE_ALIASES = {
-                'Panel': 'SHAPE_RECTANGLE', 'panel': 'SHAPE_RECTANGLE',
-                'Container': 'SHAPE_RECTANGLE', 'container': 'SHAPE_RECTANGLE',
-                'Box': 'SHAPE_RECTANGLE', 'box': 'SHAPE_RECTANGLE',
-                'Div': 'SHAPE_RECTANGLE', 'div': 'SHAPE_RECTANGLE',
-                'Flex': 'SHAPE_RECTANGLE', 'flex': 'SHAPE_RECTANGLE',
-                'Card': 'SHAPE_RECTANGLE', 'card': 'SHAPE_RECTANGLE',
-                'Frame': 'SHAPE_RECTANGLE', 'frame': 'SHAPE_RECTANGLE',
-                'Section': 'SHAPE_RECTANGLE', 'section': 'SHAPE_RECTANGLE',
-                'TextInput': 'TEXT_INPUT', 'textInput': 'TEXT_INPUT', 'textinput': 'TEXT_INPUT', 'Input': 'TEXT_INPUT', 'input': 'TEXT_INPUT',
-                'TextArea': 'TEXT_AREA', 'textarea': 'TEXT_AREA', 'Textarea': 'TEXT_AREA',
-                'Label': 'TEXT', 'label': 'TEXT', 'Heading': 'TEXT', 'heading': 'TEXT', 'Title': 'TEXT', 'Paragraph': 'TEXT',
-                'Table': 'INTERACTIVE_TABLE', 'table': 'INTERACTIVE_TABLE', 'DataTable': 'INTERACTIVE_TABLE', 'dataTable': 'INTERACTIVE_TABLE',
-                'Select': 'DROPDOWN', 'select': 'DROPDOWN', 'Spinner': 'DROPDOWN',
-                'Switch': 'BOOLEAN_TOGGLE', 'switch': 'BOOLEAN_TOGGLE', 'Toggle': 'BOOLEAN_TOGGLE', 'toggle': 'BOOLEAN_TOGGLE',
-                'NumberInput': 'NUMBER_INPUT', 'numberInput': 'NUMBER_INPUT', 'number_input': 'NUMBER_INPUT',
-                'Radio': 'RADIO_GROUP', 'radio': 'RADIO_GROUP', 'RadioGroup': 'RADIO_GROUP',
-                'Check': 'CHECKBOX', 'check': 'CHECKBOX', 'Checkbox': 'CHECKBOX',
-                'BarChart': 'CHART', 'LineChart': 'CHART', 'PieChart': 'CHART',
-                'Progress': 'GAUGE', 'ProgressBar': 'GAUGE', 'progress': 'GAUGE',
-                'Scanner': 'BARCODE_SCANNER', 'BarcodeScanner': 'BARCODE_SCANNER', 'Scan': 'BARCODE_SCANNER',
-                'Signature': 'SIGNATURE', 'signature': 'SIGNATURE',
-                'Camera': 'CAMERA_CAPTURE', 'camera': 'CAMERA_CAPTURE',
-                'Video': 'VIDEO', 'video': 'VIDEO',
-                'Document': 'DOCUMENT', 'document': 'DOCUMENT',
-                'Webpage': 'WEBPAGE', 'webpage': 'WEBPAGE', 'WebView': 'EMBED_WEB', 'webview': 'EMBED_WEB',
-                'Checklist': 'CHECKLIST', 'checklist': 'CHECKLIST',
-                'Chart': 'CHART', 'chart': 'CHART',
-                'Gauge': 'GAUGE', 'gauge': 'GAUGE',
-                'Grid': 'GRID', 'grid': 'GRID',
-                'Slider': 'SLIDER', 'slider': 'SLIDER',
-                'Button': 'BUTTON', 'button': 'BUTTON',
-                'Image': 'IMAGE', 'image': 'IMAGE',
-                'Text': 'TEXT', 'text': 'TEXT',
-            };
-
-            const normalizeType = (rawType) => {
-                let resolvedType = rawType;
-                if (!resolvedType) return 'SHAPE_RECTANGLE';
-                if (!COMPONENT_TYPES[resolvedType]) {
-                    const aliased = AI_TYPE_ALIASES[resolvedType];
-                    if (aliased) {
-                        resolvedType = aliased;
-                    } else {
-                        const upperSnake = resolvedType.replace(/([a-z])([A-Z])/g, '$1_$2').toUpperCase();
-                        if (COMPONENT_TYPES[upperSnake]) {
-                            resolvedType = upperSnake;
-                        } else {
-                            resolvedType = 'SHAPE_RECTANGLE';
-                        }
-                    }
-                }
-                return resolvedType;
-            };
-
-            // Safely cast coordinates and dimensions to integers to avoid string concatenation issues
-            const sanitizeComponentCoords = (comp, compType) => {
-                if (!comp || typeof comp !== 'object') return comp;
-                const normalized = { ...comp };
-                const finalType = compType || normalized.type || 'SHAPE_RECTANGLE';
-
-                if (normalized.x !== undefined && normalized.x !== null) {
-                    normalized.x = Math.round(Number(normalized.x));
-                } else {
-                    normalized.x = 0;
-                }
-
-                if (normalized.y !== undefined && normalized.y !== null) {
-                    normalized.y = Math.round(Number(normalized.y));
-                } else {
-                    normalized.y = 0;
-                }
-
-                if (normalized.w !== undefined && normalized.w !== null) {
-                    normalized.w = Math.round(Number(normalized.w));
-                } else {
-                    normalized.w = COMPONENT_TYPES[finalType]?.defaultSize?.w || 100;
-                }
-
-                if (normalized.h !== undefined && normalized.h !== null) {
-                    normalized.h = Math.round(Number(normalized.h));
-                } else {
-                    normalized.h = COMPONENT_TYPES[finalType]?.defaultSize?.h || 80;
-                }
-
-                return normalized;
-            };
+            // --- AI Type Normalization Helper extracted to aiHelpers.js ---
 
             switch (type) {
                 case 'ADD_WIDGET': {

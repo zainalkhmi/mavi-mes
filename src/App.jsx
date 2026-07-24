@@ -37,7 +37,9 @@ import {
 import { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { Link, Route, Routes, useLocation, Navigate, useNavigate } from 'react-router-dom';
 import { getCurrentUser, logout } from './utils/auth';
+import { hasAccess as checkRoleAccess } from './utils/roleAccess';
 import Login from './components/Login';
+import LoadingScreen from './components/layout/LoadingScreen';
 
 // Lazy load heavy components to drastically reduce startup time
 const TableManager = lazy(() => import('./components/TableManager'));
@@ -405,159 +407,11 @@ const App = () => {
     }
   };
 
-  const hasAccess = (path) => {
-    if (!user) return false;
-    const role = user.role?.toUpperCase();
-    
-    // Account Owner: Access to everything
-    if (role === 'ACCOUNT_OWNER') return true;
-    
-    // Administrator / ADMIN: All assets + User Access, but NO technical settings
-    if (role === 'ADMINISTRATOR' || role === 'ADMIN') {
-      return !['/supabase-settings'].includes(path);
-    }
-
-    // n8n webhook settings accessible by ACCOUNT_OWNER and ADMIN
-    if (path === '/n8n-settings') {
-      return role === 'ACCOUNT_OWNER' || role === 'ADMINISTRATOR' || role === 'ADMIN';
-    }
-    
-    // Connector Supervisor: Build apps, manage connectors/functions, logic, analytics, console
-    if (role === 'CONNECTOR_SUPERVISOR') {
-      const allowed = [
-        '/', '/builder', '/file-explorer', '/store', '/app-management', '/variables',
-        '/connectors', '/functions', '/automations', '/analytics', '/dashboards', '/mcp-server',
-        '/player', '/terminal', '/plc-settings', '/voice-inspection'
-      ];
-      return allowed.some(p => path === p || path.startsWith(p + '/'));
-    }
-    
-    // Station Supervisor: Build apps, manage stations/machines/devices/IoT/vision/analytics/console
-    if (role === 'STATION_SUPERVISOR') {
-      const allowed = [
-        '/', '/builder', '/file-explorer', '/store', '/app-management', '/variables',
-        '/stations', '/display-devices', '/machines', '/edge-devices', '/iot-hub', '/vision', '/mcp-server',
-        '/analytics', '/dashboards', '/player', '/terminal', '/plc-settings', '/voice-inspection'
-      ];
-      return allowed.some(p => path === p || path.startsWith(p + '/'));
-    }
-    
-    // Tulip Tables Supervisor: Build apps, manage Tables, analytics, console
-    if (role === 'TABLES_SUPERVISOR') {
-      const allowed = [
-        '/', '/builder', '/file-explorer', '/store', '/app-management', '/variables',
-        '/tables', '/analytics', '/dashboards', '/player', '/terminal', '/voice-inspection'
-      ];
-      return allowed.some(p => path === p || path.startsWith(p + '/'));
-    }
-    
-    // Application Engineer: Build apps, variables, store, analytics, console
-    if (role === 'APPLICATION_ENGINEER' || role === 'ENGINEER') {
-      const allowed = [
-        '/', '/builder', '/file-explorer', '/store', '/app-management', '/variables',
-        '/analytics', '/dashboards', '/player', '/terminal', '/voice-inspection'
-      ];
-      return allowed.some(p => path === p || path.startsWith(p + '/'));
-    }
-    
-    // Viewer: App Store, Analytics, Dashboards, Console
-    if (role === 'VIEWER') {
-      const allowed = [
-        '/', '/store', '/analytics', '/dashboards', '/player', '/terminal', '/voice-inspection'
-      ];
-      return allowed.some(p => path === p || path.startsWith(p + '/'));
-    }
-    
-    // Station Operator / OPERATOR
-    if (role === 'STATION_OPERATOR' || role === 'OPERATOR') {
-      const allowed = ['/player', '/terminal'];
-      return allowed.some(p => path === p || path.startsWith(p + '/'));
-    }
-    
-    return false;
-  };
+  const hasAccess = (path) => checkRoleAccess(user, path);
 
   if (!user) {
     return (
-      <Suspense fallback={
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100vh',
-          width: '100vw',
-          background: 'radial-gradient(circle at center, #0f1c3f 0%, #080f21 100%)',
-          color: '#ffffff',
-          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
-        }}>
-          <div style={{
-            fontSize: '3rem',
-            fontWeight: 800,
-            letterSpacing: '0.15em',
-            color: '#3b82f6',
-            textShadow: '0 0 20px rgba(59, 130, 246, 0.6)',
-            marginBottom: '5px',
-            animation: 'logoPulse 2s ease-in-out infinite'
-          }}>MAVI MES</div>
-          <div style={{
-            fontSize: '0.85rem',
-            fontWeight: 600,
-            color: '#94a3b8',
-            letterSpacing: '0.3em',
-            textTransform: 'uppercase',
-            marginBottom: '40px'
-          }}>Execution System</div>
-          <div style={{
-            position: 'relative',
-            width: '60px',
-            height: '60px',
-            border: '3px solid rgba(59, 130, 246, 0.1)',
-            borderTop: '3px solid #3b82f6',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite'
-          }}>
-            <div style={{
-              position: 'absolute',
-              top: '6px',
-              left: '6px',
-              right: '6px',
-              bottom: '6px',
-              border: '3px solid transparent',
-              borderTop: '3px solid #00f2fe',
-              borderRadius: '50%',
-              animation: 'spin-reverse 1.5s linear infinite'
-            }} />
-          </div>
-          <div style={{
-            marginTop: '25px',
-            fontSize: '0.8rem',
-            fontWeight: 600,
-            color: '#64748b',
-            letterSpacing: '0.05em',
-            textTransform: 'uppercase',
-            animation: 'fadeBlink 1.5s ease-in-out infinite'
-          }}>Memuat Sistem & Modul CAD 3D...</div>
-          <style>{`
-            @keyframes spin {
-              0% { transform: rotate(0deg); }
-              100% { transform: rotate(360deg); }
-            }
-            @keyframes spin-reverse {
-              0% { transform: rotate(360deg); }
-              100% { transform: rotate(0deg); }
-            }
-            @keyframes logoPulse {
-              0%, 100% { transform: scale(0.98); opacity: 0.8; text-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
-              50% { transform: scale(1.02); opacity: 1; text-shadow: 0 0 30px rgba(59, 130, 246, 0.8); }
-            }
-            @keyframes fadeBlink {
-              0%, 100% { opacity: 0.4; }
-              50% { opacity: 1; }
-            }
-          `}</style>
-        </div>
-      }>
+      <Suspense fallback={<LoadingScreen />}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />

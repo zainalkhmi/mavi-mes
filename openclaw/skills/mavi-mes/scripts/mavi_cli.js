@@ -14,7 +14,7 @@
  *   node mavi_cli.js report-daily
  */
 
-const { createClient } = require('@supabase/supabase-js');
+import { createClient } from '@supabase/supabase-js';
 
 // Configuration (fallback to defaults if not set in environment)
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://pypjnzvsolxsddsqworw.supabase.co';
