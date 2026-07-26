@@ -933,3 +933,133 @@ CREATE TRIGGER trg_n8n_completion
     AFTER INSERT ON public.completions
     FOR EACH ROW
     EXECUTE FUNCTION public.notify_n8n_completion();
+
+-- =====================================================
+-- SCADA EXTENSION TABLES
+-- =====================================================
+
+-- 13. Table: historian_tags
+CREATE TABLE IF NOT EXISTS public.historian_tags (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL UNIQUE,
+    unit TEXT DEFAULT '',
+    description TEXT DEFAULT '',
+    data_type TEXT DEFAULT 'number',
+    deadband DOUBLE PRECISION DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.historian_tags TO anon, authenticated;
+ALTER TABLE public.historian_tags ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all historian_tags" ON public.historian_tags;
+CREATE POLICY "Allow all historian_tags" ON public.historian_tags FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+-- 14. Table: historian_samples
+CREATE TABLE IF NOT EXISTS public.historian_samples (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    tag_id UUID REFERENCES public.historian_tags(id) ON DELETE CASCADE,
+    timestamp TIMESTAMPTZ NOT NULL,
+    value DOUBLE PRECISION,
+    synced INTEGER DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_historian_samples_tag_ts ON public.historian_samples(tag_id, timestamp);
+CREATE INDEX IF NOT EXISTS idx_historian_samples_timestamp ON public.historian_samples(timestamp);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.historian_samples TO anon, authenticated;
+ALTER TABLE public.historian_samples ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all historian_samples" ON public.historian_samples;
+CREATE POLICY "Allow all historian_samples" ON public.historian_samples FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+-- 15. Table: scada_alarms
+CREATE TABLE IF NOT EXISTS public.scada_alarms (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    alarm_id TEXT NOT NULL,
+    tag_name TEXT NOT NULL,
+    alarm_type TEXT DEFAULT 'PROCESS',
+    severity INTEGER DEFAULT 3,
+    message TEXT DEFAULT '',
+    state TEXT DEFAULT 'INACTIVE',
+    value DOUBLE PRECISION,
+    setpoint DOUBLE PRECISION,
+    triggered_at TIMESTAMPTZ DEFAULT now(),
+    acknowledged_at TIMESTAMPTZ,
+    acknowledged_by TEXT,
+    returned_to_normal_at TIMESTAMPTZ,
+    escalation_count INTEGER DEFAULT 0,
+    details JSONB DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_scada_alarms_tag_ts ON public.scada_alarms(tag_name, triggered_at);
+CREATE INDEX IF NOT EXISTS idx_scada_alarms_state ON public.scada_alarms(state);
+CREATE INDEX IF NOT EXISTS idx_scada_alarms_severity ON public.scada_alarms(severity);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.scada_alarms TO anon, authenticated;
+ALTER TABLE public.scada_alarms ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all scada_alarms" ON public.scada_alarms;
+CREATE POLICY "Allow all scada_alarms" ON public.scada_alarms FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+-- 16. Table: scada_alarm_definitions
+CREATE TABLE IF NOT EXISTS public.scada_alarm_definitions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    alarm_id TEXT NOT NULL UNIQUE,
+    tag_name TEXT NOT NULL,
+    alarm_type TEXT DEFAULT 'PROCESS',
+    severity INTEGER DEFAULT 3,
+    message TEXT DEFAULT '',
+    description TEXT DEFAULT '',
+    setpoint DOUBLE PRECISION,
+    deadband DOUBLE PRECISION DEFAULT 0,
+    delay INTEGER DEFAULT 0,
+    hysteresis DOUBLE PRECISION DEFAULT 0,
+    condition TEXT DEFAULT 'greater_than',
+    enabled BOOLEAN DEFAULT true,
+    priority INTEGER DEFAULT 3,
+    group_name TEXT DEFAULT 'Default',
+    acknowledge_timeout INTEGER DEFAULT 300000,
+    escalation_delay INTEGER DEFAULT 60000,
+    max_escalations INTEGER DEFAULT 3,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.scada_alarm_definitions TO anon, authenticated;
+ALTER TABLE public.scada_alarm_definitions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all scada_alarm_definitions" ON public.scada_alarm_definitions;
+CREATE POLICY "Allow all scada_alarm_definitions" ON public.scada_alarm_definitions FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+-- 17. Table: scada_audit_logs
+CREATE TABLE IF NOT EXISTS public.scada_audit_logs (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id TEXT,
+    action TEXT NOT NULL,
+    resource TEXT DEFAULT '',
+    details JSONB DEFAULT '{}',
+    ip_address TEXT DEFAULT 'local',
+    session_id TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_scada_audit_user_ts ON public.scada_audit_logs(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_scada_audit_action ON public.scada_audit_logs(action);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.scada_audit_logs TO anon, authenticated;
+ALTER TABLE public.scada_audit_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all scada_audit_logs" ON public.scada_audit_logs;
+CREATE POLICY "Allow all scada_audit_logs" ON public.scada_audit_logs FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+-- 18. Table: scada_reports
+CREATE TABLE IF NOT EXISTS public.scada_reports (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    report_type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    period_start TIMESTAMPTZ,
+    period_end TIMESTAMPTZ,
+    data JSONB DEFAULT '{}',
+    generated_by TEXT DEFAULT 'system',
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.scada_reports TO anon, authenticated;
+ALTER TABLE public.scada_reports ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all scada_reports" ON public.scada_reports;
+CREATE POLICY "Allow all scada_reports" ON public.scada_reports FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);

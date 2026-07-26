@@ -67,6 +67,7 @@ const MachineManager = lazy(() => import('./components/MachineManager'));
 const EdgeDeviceManager = lazy(() => import('./components/EdgeDeviceManager'));
 const IoTHubManager = lazy(() => import('./components/IoTHubManager'));
 const McpServerManager = lazy(() => import('./components/McpServerManager'));
+const SCADADashboard = lazy(() => import('./components/SCADADashboard'));
 const DataEntryFormGuide = lazy(() => import('./components/DataEntryFormGuide'));
 const VariableManager = lazy(() => import('./components/VariableManager'));
 const AnalysisManager = lazy(() => import('./components/AnalysisManager'));
@@ -652,6 +653,7 @@ const App = () => {
                 <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, backgroundColor: 'white', minWidth: '200px', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)', padding: '8px 0', display: 'flex', flexDirection: 'column', zIndex: 1001, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
                   {hasAccess('/player') && <Link to="/player" onClick={() => setConsoleMenuOpen(false)} style={dropdownItemStyle('/player')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/player' ? '#f0f7ff' : 'transparent'}><Play size={16} /> App Player</Link>}
                   {hasAccess('/terminal') && <Link to="/terminal" onClick={() => setConsoleMenuOpen(false)} style={dropdownItemStyle('/terminal')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/terminal' ? '#f0f7ff' : 'transparent'}><Monitor size={16} /> Live Terminal</Link>}
+                  <Link to="/scada" onClick={() => setConsoleMenuOpen(false)} style={dropdownItemStyle('/scada')} onMouseEnter={(e) => e.target.style.backgroundColor = '#f8fafc'} onMouseLeave={(e) => e.target.style.backgroundColor = location.pathname === '/scada' ? '#f0f7ff' : 'transparent'}><Zap size={16} /> SCADA Dashboard</Link>
                 </div>
               )}
             </div>
@@ -995,6 +997,7 @@ const App = () => {
                 <Route path="/functions" element={hasAccess('/functions') ? <FunctionsEditor /> : <Navigate to="/" replace />} />
                 <Route path="/terminal" element={hasAccess('/terminal') ? <LiveTerminal /> : <Navigate to="/" replace />} />
                 <Route path="/terminal/:appId" element={hasAccess('/terminal') ? <LiveTerminal /> : <Navigate to="/" replace />} />
+                <Route path="/scada" element={<SCADADashboard />} />
                 <Route path="/player" element={hasAccess('/player') ? <AppPlayer /> : <Navigate to="/" replace />} />
                 <Route path="/ai-settings" element={hasAccess('/ai-settings') ? <AiSettings /> : <Navigate to="/" replace />} />
                 <Route path="/supabase-settings" element={hasAccess('/supabase-settings') ? <SupabaseSettings /> : <Navigate to="/" replace />} />
