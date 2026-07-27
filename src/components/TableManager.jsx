@@ -20,6 +20,7 @@ import {
     TABLE_FIELD_TYPES
 } from '../utils/supabaseTablesDB';
 import { uploadManualImage, isSupabaseReady } from '../utils/supabaseManualDB';
+import { getTableAppMap } from '../utils/supabaseFrontlineDB';
 
 const FIELD_TYPE_LABELS = {
     text: 'Text',
@@ -343,6 +344,7 @@ const TableManager = () => {
     const [isAggregationEditorOpen, setIsAggregationEditorOpen] = useState(false);
     const [editingAggregation, setEditingAggregation] = useState(null); // { id, name, calculation, field }
     const csvInputRef = useRef(null);
+    const [tableAppMap, setTableAppMap] = useState({});
 
     useEffect(() => {
         loadTables();
@@ -645,6 +647,8 @@ const TableManager = () => {
         try {
             const data = await getTables();
             setTables(data);
+            const appMap = await getTableAppMap();
+            setTableAppMap(appMap);
             if (data.length > 0) {
                 setSelectedTableId((prev) => (prev && data.some(t => t.id === prev)) ? prev : data[0].id);
             } else {
@@ -1234,6 +1238,24 @@ const TableManager = () => {
 
     const filteredTables = tables.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
+    const groupedTables = useMemo(() => {
+        const groups = {};
+        const ungrouped = [];
+        for (const table of filteredTables) {
+            const apps = tableAppMap[table.id];
+            if (apps && apps.length > 0) {
+                for (const appName of apps) {
+                    if (!groups[appName]) groups[appName] = [];
+                    groups[appName].push(table);
+                }
+            } else {
+                ungrouped.push(table);
+            }
+        }
+        const sortedGroupNames = Object.keys(groups).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+        return { groups, sortedGroupNames, ungrouped };
+    }, [filteredTables, tableAppMap]);
+
     return (
         <div style={{
             display: 'flex',
@@ -1330,58 +1352,146 @@ const TableManager = () => {
                         </button>
                     </div>
 
-                    {/* Table List */}
+                    {/* Table List (Grouped by App) */}
                     <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px' }}>
-                        {filteredTables.map(table => (
-                            <div
-                                key={table.id}
-                                onClick={() => setSelectedTableId(table.id)}
-                                style={{
-                                    padding: '10px 16px',
-                                    borderRadius: '8px',
-                                    backgroundColor: selectedTableId === table.id ? TOKENS.sidebarActive : 'transparent',
-                                    color: selectedTableId === table.id ? TOKENS.primary : TOKENS.sidebarText,
-                                    cursor: 'pointer',
+                        {groupedTables.sortedGroupNames.map(appName => (
+                            <div key={appName} style={{ marginBottom: '8px' }}>
+                                <div style={{
+                                    padding: '6px 12px 4px',
+                                    fontSize: '0.7rem',
+                                    fontWeight: 700,
+                                    color: TOKENS.sidebarTextMuted,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.06em',
                                     display: 'flex',
                                     alignItems: 'center',
-                                    gap: '12px',
-                                    marginBottom: '2px',
-                                    transition: 'all 0.2s',
-                                    fontWeight: selectedTableId === table.id ? 700 : 500,
-                                    fontSize: '0.9rem'
-                                }}
-                            >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, overflow: 'hidden' }}>
-                                    <Database size={16} color={selectedTableId === table.id ? TOKENS.primary : TOKENS.sidebarTextMuted} />
-                                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{table.name}</span>
+                                    gap: '6px'
+                                }}>
+                                    <div style={{ width: '12px', height: '2px', borderRadius: '1px', backgroundColor: TOKENS.primary }} />
+                                    {appName}
+                                    <span style={{ fontSize: '0.65rem', color: TOKENS.sidebarTextMuted }}>({groupedTables.groups[appName].length})</span>
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    {selectedTableId === table.id && <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: TOKENS.primary }}></div>}
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDeleteTable(table.id);
-                                        }}
+                                {groupedTables.groups[appName].map(table => (
+                                    <div
+                                        key={table.id}
+                                        onClick={() => setSelectedTableId(table.id)}
                                         style={{
-                                            background: 'none',
-                                            border: 'none',
-                                            color: TOKENS.sidebarTextMuted,
+                                            padding: '8px 12px 8px 24px',
+                                            borderRadius: '6px',
+                                            backgroundColor: selectedTableId === table.id ? TOKENS.sidebarActive : 'transparent',
+                                            color: selectedTableId === table.id ? TOKENS.primary : TOKENS.sidebarText,
                                             cursor: 'pointer',
-                                            padding: '4px',
-                                            borderRadius: '4px',
-                                            opacity: 0,
-                                            transition: 'opacity 0.2s'
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '10px',
+                                            marginBottom: '1px',
+                                            transition: 'all 0.2s',
+                                            fontWeight: selectedTableId === table.id ? 700 : 500,
+                                            fontSize: '0.85rem'
                                         }}
-                                        className="table-delete-action"
                                     >
-                                        <Trash2 size={14} />
-                                    </button>
-                                </div>
-                                <style>{`
-                                div:hover > div > .table-delete-action { opacity: 1 !important; }
-                            `}</style>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, overflow: 'hidden' }}>
+                                            <Database size={14} color={selectedTableId === table.id ? TOKENS.primary : TOKENS.sidebarTextMuted} />
+                                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{table.name}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            {selectedTableId === table.id && <div style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: TOKENS.primary }}></div>}
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDeleteTable(table.id);
+                                                }}
+                                                style={{
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    color: TOKENS.sidebarTextMuted,
+                                                    cursor: 'pointer',
+                                                    padding: '3px',
+                                                    borderRadius: '4px',
+                                                    opacity: 0,
+                                                    transition: 'opacity 0.2s'
+                                                }}
+                                                className="table-delete-action"
+                                            >
+                                                <Trash2 size={12} />
+                                            </button>
+                                        </div>
+                                        <style>{`
+                                        div:hover > div > .table-delete-action { opacity: 1 !important; }
+                                    `}</style>
+                                    </div>
+                                ))}
                             </div>
                         ))}
+                        {groupedTables.ungrouped.length > 0 && (
+                            <div style={{ marginBottom: '8px' }}>
+                                <div style={{
+                                    padding: '6px 12px 4px',
+                                    fontSize: '0.7rem',
+                                    fontWeight: 700,
+                                    color: TOKENS.sidebarTextMuted,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.06em',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                }}>
+                                    <div style={{ width: '12px', height: '2px', borderRadius: '1px', backgroundColor: TOKENS.border }} />
+                                    Ungrouped
+                                    <span style={{ fontSize: '0.65rem', color: TOKENS.sidebarTextMuted }}>({groupedTables.ungrouped.length})</span>
+                                </div>
+                                {groupedTables.ungrouped.map(table => (
+                                    <div
+                                        key={table.id}
+                                        onClick={() => setSelectedTableId(table.id)}
+                                        style={{
+                                            padding: '8px 12px 8px 24px',
+                                            borderRadius: '6px',
+                                            backgroundColor: selectedTableId === table.id ? TOKENS.sidebarActive : 'transparent',
+                                            color: selectedTableId === table.id ? TOKENS.primary : TOKENS.sidebarText,
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '10px',
+                                            marginBottom: '1px',
+                                            transition: 'all 0.2s',
+                                            fontWeight: selectedTableId === table.id ? 700 : 500,
+                                            fontSize: '0.85rem'
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, overflow: 'hidden' }}>
+                                            <Database size={14} color={selectedTableId === table.id ? TOKENS.primary : TOKENS.sidebarTextMuted} />
+                                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{table.name}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            {selectedTableId === table.id && <div style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: TOKENS.primary }}></div>}
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDeleteTable(table.id);
+                                                }}
+                                                style={{
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    color: TOKENS.sidebarTextMuted,
+                                                    cursor: 'pointer',
+                                                    padding: '3px',
+                                                    borderRadius: '4px',
+                                                    opacity: 0,
+                                                    transition: 'opacity 0.2s'
+                                                }}
+                                                className="table-delete-action"
+                                            >
+                                                <Trash2 size={12} />
+                                            </button>
+                                        </div>
+                                        <style>{`
+                                        div:hover > div > .table-delete-action { opacity: 1 !important; }
+                                    `}</style>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Database Info Card */}

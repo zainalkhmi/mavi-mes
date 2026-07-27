@@ -979,3 +979,21 @@ export async function loadPlcSettingsFromSupabase() {
         return { controllers: null, tags: null };
     }
 }
+
+export async function getTableAppMap() {
+    try {
+        const apps = await getAllFrontlineApps();
+        const map = {};
+        for (const app of apps) {
+            const tableIds = app.config?.appTables || [];
+            for (const tId of tableIds) {
+                if (!map[tId]) map[tId] = [];
+                map[tId].push(app.name);
+            }
+        }
+        return map;
+    } catch (e) {
+        console.error('[Supabase] Failed to build table-app map:', e);
+        return {};
+    }
+}
