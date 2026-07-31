@@ -7,6 +7,131 @@ import * as aiService from './aiService';
  * Handles background event-driven workflows for all 20+ Core Node types, AI Agents & Sub-Nodes.
  * Natively integrated with AI Settings (/ai-settings), Sub-Workflows, Webhook Response & Error Fallback Handling.
  */
+export function generateScheduleOutput(timezone = 'Asia/Jakarta') {
+  const now = new Date();
+
+  const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+  const dayName = daysOfWeek[now.getDay()];
+  const monthName = months[now.getMonth()];
+  const year = now.getFullYear().toString();
+  const dayOfMonth = now.getDate().toString();
+
+  const hours = now.getHours();
+  const minutes = now.getMinutes();
+  const seconds = now.getSeconds();
+
+  const getOrdinal = (n) => {
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  };
+
+  const ampm = hours >= 12 ? 'pm' : 'am';
+  const displayHour12 = hours % 12 || 12;
+  const pad2 = (num) => String(num).padStart(2, '0');
+
+  const readableDate = `${monthName} ${getOrdinal(now.getDate())} ${year}, ${displayHour12}:${pad2(minutes)}:${pad2(seconds)} ${ampm}`;
+  const readableTime = `${displayHour12}:${pad2(minutes)}:${pad2(seconds)} ${ampm}`;
+
+  return [
+    {
+      "timestamp": now.toISOString(),
+      "Readable date": readableDate,
+      "Readable time": readableTime,
+      "Day of week": dayName,
+      "Year": year,
+      "Month": monthName,
+      "Day of month": dayOfMonth,
+      "Hour": String(hours),
+      "Minute": String(minutes),
+      "Second": String(seconds),
+      "Timezone": timezone
+    }
+  ];
+}
+
+export function generateWebhookOutput(webhookPath = 'my-webhook', incomingData = {}, executionMode = 'production') {
+  const host = typeof window !== 'undefined' ? window.location.host : 'localhost:5173';
+  const protocol = typeof window !== 'undefined' ? window.location.protocol : 'https:';
+  const baseUrl = `${protocol}//${host}`;
+  const fullWebhookUrl = `${baseUrl}/webhook/${webhookPath.replace(/^\//, '')}`;
+
+  const defaultHeaders = {
+    "host": host,
+    "user-agent": "PostmanRuntime/7.32.3",
+    "content-type": "application/json",
+    "accept": "*/*",
+    "x-forwarded-for": "127.0.0.1"
+  };
+
+  const headers = incomingData.headers || defaultHeaders;
+  const query = incomingData.query || { source: 'facebook', campaign_id: '12345' };
+  const params = incomingData.params || {};
+  const body = incomingData.body || (incomingData.user_id ? incomingData : {
+    user_id: 9876,
+    event: "user_registered",
+    email: "budi@example.com"
+  });
+
+  return [
+    {
+      headers,
+      params,
+      query,
+      body,
+      webhookUrl: fullWebhookUrl,
+      executionMode
+    }
+  ];
+}
+
+export function generateErrorTriggerOutput(errorObj = {}, lastNodeExecuted = 'HTTP Request', workflowName = 'Order Sync Workflow') {
+  const execId = `exec_${Date.now()}`;
+  const errorMessage = typeof errorObj === 'string' ? errorObj : (errorObj.message || 'HTTP Request failed with status code 500');
+  const errorName = errorObj.name || 'NodeApiError';
+  const errorStack = errorObj.stack || `Error: ${errorMessage}\n    at execute (httpNode.js:45)`;
+
+  return [
+    {
+      "execution": {
+        "id": execId,
+        "url": `${typeof window !== 'undefined' ? window.location.origin : 'https://app.mavi.io'}/execution/${execId}`,
+        "error": {
+          "message": errorMessage,
+          "stack": errorStack,
+          "name": errorName
+        },
+        "lastNodeExecuted": lastNodeExecuted,
+        "mode": "production"
+      },
+      "workflow": {
+        "id": `wf_${workflowName.toLowerCase().replace(/\s+/g, '_')}`,
+        "name": workflowName
+      }
+    }
+  ];
+}
+
+export function generateTelegramTriggerOutput(incomingMessage = {}) {
+  const text = incomingMessage.text || 'Halo AI';
+  const chat = incomingMessage.chat || { id: 123456789, type: 'private' };
+  const from = incomingMessage.from || { id: 123456789, first_name: 'Zainal' };
+  const message_id = incomingMessage.message_id || 15;
+
+  return [
+    {
+      message: {
+        message_id,
+        text,
+        chat,
+        from
+      }
+    }
+  ];
+}
+
 class AutomationEngine {
   constructor() {
     this.automations = this.loadAutomations();
@@ -295,6 +420,38 @@ class AutomationEngine {
     const startNode = startFromNode || automation.nodes.find(n => n.type === 'event' || n.type === 'functionCall' || n.id === 'start-node' || n.id === 'start');
     if (!startNode) return;
 
+    if (startNode.type === 'event' && (startNode.data.triggerType === 'SCHEDULE' || startNode.data.triggerType === 'TIMER' || !startNode.data.triggerType)) {
+      const tz = startNode.data.timezone || 'Asia/Jakarta';
+      const schedulePayload = generateScheduleOutput(tz);
+      startNode.data.lastOutput = schedulePayload;
+      eventData.timestamp = schedulePayload[0].timestamp;
+      eventData["Readable date"] = schedulePayload[0]["Readable date"];
+      eventData["Readable time"] = schedulePayload[0]["Readable time"];
+      eventData["Day of week"] = schedulePayload[0]["Day of week"];
+      eventData.Year = schedulePayload[0].Year;
+      eventData.Month = schedulePayload[0].Month;
+      eventData["Day of month"] = schedulePayload[0]["Day of month"];
+      eventData.Hour = schedulePayload[0].Hour;
+      eventData.Minute = schedulePayload[0].Minute;
+      eventData.Second = schedulePayload[0].Second;
+      eventData.Timezone = schedulePayload[0].Timezone;
+    } else if (startNode.type === 'event' && startNode.data.triggerType === 'WEBHOOK') {
+      const path = startNode.data.webhookPath || 'my-webhook';
+      const mode = eventData._isTest ? 'test' : 'production';
+      const webhookPayload = generateWebhookOutput(path, eventData, mode);
+      startNode.data.lastOutput = webhookPayload;
+      eventData.headers = webhookPayload[0].headers;
+      eventData.params = webhookPayload[0].params;
+      eventData.query = webhookPayload[0].query;
+      eventData.body = webhookPayload[0].body;
+      eventData.webhookUrl = webhookPayload[0].webhookUrl;
+      eventData.executionMode = webhookPayload[0].executionMode;
+    } else if (startNode.type === 'event' && startNode.data.triggerType === 'TELEGRAM') {
+      const tgPayload = generateTelegramTriggerOutput(eventData.message ? eventData : {});
+      startNode.data.lastOutput = tgPayload;
+      eventData.message = tgPayload[0].message;
+    }
+
     let currentNode = startFromNode ? startFromNode : this.getNextNode(automation, startNode.id);
 
     while (currentNode) {
@@ -385,12 +542,69 @@ class AutomationEngine {
           currentNode.data.lastOutput = { [currentNode.data.variable]: resolvedVal };
         }
         currentNode = this.getNextNode(automation, currentNode.id);
-      } else if (currentNode.type === 'wait') {
-        const delayMs = Number(currentNode.data.durationMs) || 1000;
-        console.log(`[AutomationEngine] Waiting ${delayMs}ms...`);
-        currentNode.data.lastOutput = { waitingMs: delayMs };
-        await new Promise(r => setTimeout(r, Math.min(delayMs, 10000)));
-        currentNode = this.getNextNode(automation, currentNode.id);
+      } else if (currentNode.type === 'send_email') {
+        // ── 4. SEND EMAIL (SMTP) NODE EXECUTION ───────────────────────────────
+        try {
+          const operation = currentNode.data.operation || 'Send';
+          const fromEmail = currentNode.data.fromEmail || 'Nathan Doe <nate@mavi.io>';
+          const toEmail = currentNode.data.toEmail || 'user@sample.com';
+          const subject = currentNode.data.subject || 'MAVI Workflow Notification';
+          const format = currentNode.data.format || 'HTML';
+          const body = currentNode.data.body || '<p>Automation workflow executed successfully.</p>';
+          const cc = currentNode.data.ccEmail || '';
+          const bcc = currentNode.data.bccEmail || '';
+          const replyTo = currentNode.data.replyTo || '';
+          const attachments = currentNode.data.attachments || '';
+
+          console.log(`[AutomationEngine] [Send Email SMTP] Operation: ${operation} | To: ${toEmail} | Subject: ${subject}`);
+
+          if (operation === 'Send and Wait for Response') {
+            const responseType = currentNode.data.responseType || 'Approval';
+            const limitWaitTime = currentNode.data.limitWaitTime || '24 Hours';
+            const approveLabel = currentNode.data.approveLabel || 'Approve';
+            const declineLabel = currentNode.data.declineLabel || 'Decline';
+
+            console.log(`[AutomationEngine] [Send Email] Pausing workflow execution waiting for recipient response (${responseType}). Timeout: ${limitWaitTime}`);
+
+            const waitOutput = {
+              status: 'PAUSED_WAITING_FOR_RESPONSE',
+              operation,
+              toEmail,
+              subject,
+              responseType,
+              approveLabel,
+              declineLabel,
+              limitWaitTime,
+              sentAt: new Date().toISOString()
+            };
+
+            currentNode.data.lastOutput = waitOutput;
+            eventData._emailWaitState = { pausedNodeId: currentNode.id, waitOutput };
+          } else {
+            const sendOutput = {
+              status: 'EMAIL_SENT',
+              operation: 'Send',
+              fromEmail,
+              toEmail,
+              subject,
+              format,
+              cc,
+              bcc,
+              replyTo,
+              attachments,
+              messageId: `msg_smtp_${Date.now()}`
+            };
+
+            currentNode.data.lastOutput = sendOutput;
+          }
+
+          this.logToSystem(`[Send Email SMTP (${operation})] Sent to ${toEmail}: ${subject}`, 'INFO');
+          currentNode = this.getNextNode(automation, currentNode.id);
+        } catch (err) {
+          console.error(`[AutomationEngine] Send Email failed:`, err);
+          currentNode.data.lastOutput = { error: err.message };
+          currentNode = this.getNextNode(automation, currentNode.id, 'error');
+        }
       } else if (currentNode.type === 'ai_agent') {
         try {
           const modelEdge = automation.edges?.find(e => e.source === currentNode.id && (e.sourceHandle === 'model' || automation.nodes.find(n => n.id === e.target)?.type === 'sub_model'));

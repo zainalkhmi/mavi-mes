@@ -68,7 +68,8 @@ import {
   Cpu as CpuIcon,
   Power,
   Pause,
-  Square
+  Square,
+  HardDrive
 } from 'lucide-react';
 
 // ─── ODOO STYLE COLORFUL COMPACT NODES ──────────────────────────────────────────
@@ -893,6 +894,42 @@ const ErrorTriggerNode = ({ data, selected }) => (
   </div>
 );
 
+// 19. Send Email (SMTP) Node - Official n8n Specification
+const SendEmailNode = ({ data, selected }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+    <div style={{
+      width: '62px',
+      height: '62px',
+      borderRadius: '18px',
+      backgroundColor: '#EA4335',
+      border: `3px solid ${selected ? '#ffffff' : '#C5221F'}`,
+      boxShadow: selected ? '0 0 24px rgba(234, 67, 53, 0.8)' : '0 8px 18px rgba(234, 67, 53, 0.4)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#ffffff',
+      transition: 'all 0.2s ease',
+      position: 'relative'
+    }}>
+      <Handle type="target" position={Position.Left} style={{ width: '12px', height: '12px', background: '#EA4335', border: '2px solid #ffffff', left: '-6px' }} />
+
+      <Mail size={28} />
+
+      <Handle type="source" position={Position.Right} style={{ width: '12px', height: '12px', background: '#EA4335', border: '2px solid #ffffff', right: '-6px' }} />
+    </div>
+
+    <div style={{ textAlign: 'center', marginTop: '8px', maxWidth: '140px' }}>
+      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {data.label || 'Send Email (SMTP)'}
+      </div>
+      <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#EA4335', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+        {data.operation === 'Send and Wait for Response' ? 'Send & Wait Response' : 'Send Email'}
+      </div>
+      <PinBadge output={data.lastOutput} />
+    </div>
+  </div>
+);
+
 const nodeTypes = {
   event: EventNode,
   action: ActionNode,
@@ -911,7 +948,8 @@ const nodeTypes = {
   sub_tool: SubToolNode,
   sub_workflow: SubWorkflowNode,
   respond_webhook: RespondWebhookNode,
-  error_trigger: ErrorTriggerNode
+  error_trigger: ErrorTriggerNode,
+  send_email: SendEmailNode
 };
 
 const initialNodes = [
@@ -1023,6 +1061,7 @@ const AutomationEditor = () => {
   const [isActive, setIsActive] = useState(true);
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [inspectorSubTab, setInspectorSubTab] = useState('PARAMETERS');
 
   const edgeUpdateSuccessful = useRef(true);
   const reactFlowWrapper = useRef(null);
@@ -1872,12 +1911,16 @@ const AutomationEditor = () => {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {[
-                  { icon: Clock, label: 'When timer fires...', sub: 'Schedule recurring tasks', triggerType: 'TIMER' },
-                  { icon: Database, label: 'When record is created...', sub: 'React to new rows', triggerType: 'TABLE_ROW_ADDED' },
-                  { icon: Database, label: 'When record is updated...', sub: 'React to field changes', triggerType: 'TABLE_ROW_UPDATED' },
-                  { icon: Cpu, label: 'When machine outputs...', sub: 'Respond to IoT data', triggerType: 'MACHINE_TRIGGER' },
-                  { icon: Link2, label: 'When connector finishes...', sub: 'Trigger on API callback', triggerType: 'CONNECTOR_TRIGGER' },
-                  { icon: Car, label: 'When OBD2 engine data...', sub: 'React to vehicle sensors', triggerType: 'OBD2_TRIGGER' }
+                  { icon: Play, label: 'Manual Trigger', sub: 'Execute workflow on button click', triggerType: 'MANUAL' },
+                  { icon: Clock, label: 'Schedule Trigger', sub: 'Run on interval or Cron schedule', triggerType: 'SCHEDULE' },
+                  { icon: Zap, label: 'Webhook Trigger', sub: 'Trigger on incoming HTTP request', triggerType: 'WEBHOOK' },
+                  { icon: FileText, label: 'Form Trigger', sub: 'Trigger on user form submission', triggerType: 'FORM' },
+                  { icon: MessageSquare, label: 'Chat Trigger', sub: 'Start workflow from AI chatbot message', triggerType: 'CHAT' },
+                  { icon: Mail, label: 'Email Trigger (IMAP)', sub: 'Trigger when new email arrives in INBOX', triggerType: 'EMAIL_IMAP' },
+                  { icon: Send, label: 'Telegram Trigger', sub: 'Trigger on Telegram Bot message or callback', triggerType: 'TELEGRAM' },
+                  { icon: HardDrive, label: 'Google Drive Trigger', sub: 'Trigger on file created/modified', triggerType: 'GDRIVE' },
+                  { icon: Table, label: 'Google Sheets Trigger', sub: 'Trigger when spreadsheet row changes', triggerType: 'GSHEETS' },
+                  { icon: Database, label: 'Database Trigger', sub: 'Trigger on table INSERT / UPDATE / DELETE', triggerType: 'DATABASE' }
                 ].map((ev, i) => (
                   <div
                     key={i}
@@ -1954,331 +1997,1607 @@ const AutomationEditor = () => {
                 <button onClick={() => setSelectedNode(null)} style={{ background: '#f1f5f9', border: 'none', color: '#64748b', width: '30px', height: '30px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} /></button>
               </div>
 
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                <div>
-                  <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Label</label>
-                  <input
-                    value={selectedNode.data.label || ''}
-                    onChange={(e) => {
-                      const label = e.target.value;
-                      setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, label } } : n));
-                    }}
-                    style={{ width: '100%', padding: '9px', marginTop: '6px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
-                  />
-                </div>
+              {/* ─── N8N COMPLIANT INSPECTOR SUB-TABS ─── */}
+              <div style={{ display: 'flex', borderBottom: '1px solid #cbd5e1', marginBottom: '16px', backgroundColor: '#f1f5f9', borderRadius: '10px', padding: '3px' }}>
+                <button
+                  onClick={() => setInspectorSubTab('PARAMETERS')}
+                  style={{
+                    flex: 1, padding: '7px 4px', border: 'none', borderRadius: '8px',
+                    backgroundColor: inspectorSubTab === 'PARAMETERS' ? '#ffffff' : 'transparent',
+                    color: inspectorSubTab === 'PARAMETERS' ? '#714B67' : '#64748b',
+                    fontWeight: 800, fontSize: '0.74rem', cursor: 'pointer',
+                    boxShadow: inspectorSubTab === 'PARAMETERS' ? '0 2px 6px rgba(0,0,0,0.08)' : 'none',
+                    transition: 'all 0.2s'
+                  }}
+                >⚙️ Parameters</button>
 
-                {/* ─── AI AGENT NODE CONFIGURATION ─── */}
-                {selectedNode.type === 'ai_agent' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: '#f8fafc', padding: '14px', borderRadius: '14px', border: '1px solid #714B67' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#714B67' }}>
-                        <Bot size={18} />
-                        <span style={{ fontSize: '0.82rem', fontWeight: 800 }}>AI Agent Core Settings</span>
-                      </div>
-                      <div style={{ fontSize: '0.62rem', color: '#00A09D', display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#e6f7f7', padding: '3px 8px', borderRadius: '6px', fontWeight: 800 }}>
-                        <ShieldCheck size={12} /> Synced with AI Settings
-                      </div>
-                    </div>
+                <button
+                  onClick={() => setInspectorSubTab('OUTPUT')}
+                  style={{
+                    flex: 1, padding: '7px 4px', border: 'none', borderRadius: '8px',
+                    backgroundColor: inspectorSubTab === 'OUTPUT' ? '#ffffff' : 'transparent',
+                    color: inspectorSubTab === 'OUTPUT' ? '#00A09D' : '#64748b',
+                    fontWeight: 800, fontSize: '0.74rem', cursor: 'pointer',
+                    boxShadow: inspectorSubTab === 'OUTPUT' ? '0 2px 6px rgba(0,0,0,0.08)' : 'none',
+                    transition: 'all 0.2s'
+                  }}
+                >📌 Output Data</button>
 
-                    <div>
-                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Agent Type</label>
-                      <select
-                        value={selectedNode.data.agentType || 'Tools Agent'}
-                        onChange={(e) => {
-                          const agentType = e.target.value;
-                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, agentType } } : n));
-                        }}
-                        style={{ width: '100%', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
-                      >
-                        <option value="Tools Agent">Tools Agent (ReAct Loop)</option>
-                        <option value="Conversational Agent">Conversational Chat Agent</option>
-                        <option value="Plan & Execute Agent">Plan and Execute Agent</option>
-                        <option value="OpenAI Functions Agent">OpenAI Functions Agent</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Default LLM Provider</label>
-                      <select
-                        value={selectedNode.data.provider || 'Gemini'}
-                        onChange={(e) => {
-                          const provider = e.target.value;
-                          const defaultModel = provider === 'Gemini' ? 'gemini-1.5-pro' : provider === 'OpenAI' ? 'gpt-4o' : provider === 'Claude' ? 'claude-3-5-sonnet' : 'llama3:8b';
-                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, provider, modelId: defaultModel } } : n));
-                        }}
-                        style={{ width: '100%', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
-                      >
-                        <option value="Gemini">Google Gemini (Gemini 1.5 Pro / Flash)</option>
-                        <option value="OpenAI">OpenAI (GPT-4o / GPT-4o-mini)</option>
-                        <option value="Claude">Anthropic Claude (Claude 3.5 Sonnet)</option>
-                        <option value="Ollama">Ollama (Local Llama 3 / Mistral)</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>System Instructions / Prompt</label>
-                      <textarea
-                        placeholder="You are an expert MAVI MES AI Assistant. Help optimize production work orders..."
-                        value={selectedNode.data.systemPrompt || ''}
-                        onChange={(e) => {
-                          const systemPrompt = e.target.value;
-                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, systemPrompt } } : n));
-                        }}
-                        style={{ width: '100%', minHeight: '80px', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#714B67', fontSize: '0.78rem' }}
-                      />
-                    </div>
-
-                    <div style={{ backgroundColor: '#ffffff', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                      <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#1e293b', marginBottom: '6px' }}>Docked Sub-Nodes Status:</div>
-                      {(() => {
-                        const sub = getConnectedSubNodes(selectedNode.id);
-                        return (
-                          <div style={{ fontSize: '0.72rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <div style={{ color: '#0284c7' }}>🔵 Model: {sub.model.length > 0 ? sub.model.map(m => m.data.label).join(', ') : 'Default LLM'}</div>
-                            <div style={{ color: '#8E44AD' }}>🟣 Memory: {sub.memory.length > 0 ? sub.memory.map(m => m.data.label).join(', ') : 'None'}</div>
-                            <div style={{ color: '#00A09D' }}>🟢 Tools: {sub.tools.length > 0 ? sub.tools.map(t => t.data.label).join(', ') : 'None'}</div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                )}
-
-                {/* ─── SUB-MODEL NODE CONFIGURATION ─── */}
-                {selectedNode.type === 'sub_model' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: '#f8fafc', padding: '14px', borderRadius: '14px', border: '1px solid #00A09D' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#00A09D' }}>
-                      <Sparkles size={18} />
-                      <span style={{ fontSize: '0.82rem', fontWeight: 800 }}>LLM Model Sub-Node Settings</span>
-                    </div>
-
-                    <div>
-                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>AI Provider</label>
-                      <select
-                        value={selectedNode.data.provider || 'Gemini'}
-                        onChange={(e) => {
-                          const provider = e.target.value;
-                          const label = `${provider} Model`;
-                          const defaultModel = provider === 'Gemini' ? 'gemini-1.5-pro' : provider === 'OpenAI' ? 'gpt-4o' : provider === 'Claude' ? 'claude-3-5-sonnet' : 'llama3:8b';
-                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, provider, label, modelId: defaultModel } } : n));
-                        }}
-                        style={{ width: '100%', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
-                      >
-                        <option value="Gemini">Google Gemini</option>
-                        <option value="OpenAI">OpenAI</option>
-                        <option value="Claude">Anthropic Claude</option>
-                        <option value="Ollama">Ollama (Local LLM)</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Model Version / ID</label>
-                      <select
-                        value={selectedNode.data.modelId || 'gemini-1.5-pro'}
-                        onChange={(e) => {
-                          const modelId = e.target.value;
-                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, modelId } } : n));
-                        }}
-                        style={{ width: '100%', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
-                      >
-                        {selectedNode.data.provider === 'OpenAI' ? (
-                          <>
-                            <option value="gpt-4o">gpt-4o (Most Intelligent)</option>
-                            <option value="gpt-4o-mini">gpt-4o-mini (Fast & Affordable)</option>
-                            <option value="gpt-4-turbo">gpt-4-turbo</option>
-                            <option value="o1-preview">o1-preview (Reasoning)</option>
-                          </>
-                        ) : selectedNode.data.provider === 'Claude' ? (
-                          <>
-                            <option value="claude-3-5-sonnet">claude-3-5-sonnet (Smartest)</option>
-                            <option value="claude-3-haiku">claude-3-haiku (Lightning Fast)</option>
-                            <option value="claude-3-opus">claude-3-opus</option>
-                          </>
-                        ) : selectedNode.data.provider === 'Ollama' ? (
-                          <>
-                            <option value="llama3:8b">llama3:8b (Local Meta)</option>
-                            <option value="mistral:7b">mistral:7b (Local Mistral)</option>
-                            <option value="deepseek-r1">deepseek-r1 (Local Reasoning)</option>
-                          </>
-                        ) : (
-                          <>
-                            <option value="gemini-1.5-pro">gemini-1.5-pro (Long Context 2M)</option>
-                            <option value="gemini-1.5-flash">gemini-1.5-flash (Fast)</option>
-                            <option value="gemini-2.0-flash">gemini-2.0-flash (Latest Next Gen)</option>
-                          </>
-                        )}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Temperature ({selectedNode.data.temperature || 0.7})</label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.05"
-                        value={selectedNode.data.temperature || 0.7}
-                        onChange={(e) => {
-                          const temperature = parseFloat(e.target.value);
-                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, temperature } } : n));
-                        }}
-                        style={{ width: '100%', marginTop: '4px' }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {selectedNode.type === 'code' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Code Snippet (JS / Python)</label>
-                    <textarea
-                      placeholder="return items.map(item => { item.json.total = item.json.qty * item.json.price; return item; });"
-                      value={selectedNode.data.code || ''}
-                      onChange={(e) => {
-                        const code = e.target.value;
-                        setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, code } } : n));
-                      }}
-                      style={{ minHeight: '120px', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#10B981', fontFamily: 'monospace', fontSize: '0.78rem' }}
-                    />
-                  </div>
-                )}
-
-                {selectedNode.type === 'wait' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Pause Duration</label>
-                    <input
-                      placeholder="e.g. 3 Days, 5 Minutes, 1 Hour"
-                      value={selectedNode.data.duration || ''}
-                      onChange={(e) => {
-                        const duration = e.target.value;
-                        setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, duration } } : n));
-                      }}
-                      style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
-                    />
-                  </div>
-                )}
-
-                {selectedNode.type === 'decision' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Condition (IF)</label>
-                    <input
-                      placeholder="Field (e.g. Stock)"
-                      value={selectedNode.data.condition?.field || ''}
-                      onChange={(e) => {
-                        const field = e.target.value;
-                        setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, condition: { ...n.data.condition, field } } } : n));
-                      }}
-                      style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
-                    />
-                    <select
-                      value={selectedNode.data.condition?.operator || '=='}
-                      onChange={(e) => {
-                        const operator = e.target.value;
-                        setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, condition: { ...n.data.condition, operator } } } : n));
-                      }}
-                      style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
-                    >
-                      <option value="==">equals</option>
-                      <option value="!=">not equals</option>
-                      <option value="<">less than</option>
-                      <option value=">">greater than</option>
-                      <option value=">=">greater than or equal (&gt;=)</option>
-                      <option value="contains">contains</option>
-                    </select>
-                    <input
-                      placeholder="Value (e.g. 10)"
-                      value={selectedNode.data.condition?.value || ''}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, condition: { ...n.data.condition, value } } } : n));
-                      }}
-                      style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
-                    />
-                  </div>
-                )}
-
-                {selectedNode.type === 'sub_workflow' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Target Sub-Workflow Name / ID</label>
-                    <select
-                      value={selectedNode.data.workflowName || ''}
-                      onChange={(e) => {
-                        const workflowName = e.target.value;
-                        setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, workflowName, label: `Call: ${workflowName}` } } : n));
-                      }}
-                      style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
-                    >
-                      <option value="">Select Child Workflow...</option>
-                      {automations.map(a => (
-                        <option key={a.id} value={a.name}>{a.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {selectedNode.type === 'respond_webhook' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Response HTTP Status Code</label>
-                    <select
-                      value={selectedNode.data.statusCode || 200}
-                      onChange={(e) => {
-                        const statusCode = Number(e.target.value);
-                        setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, statusCode } } : n));
-                      }}
-                      style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
-                    >
-                      <option value={200}>200 OK (Success)</option>
-                      <option value={201}>201 Created</option>
-                      <option value={400}>400 Bad Request</option>
-                      <option value={500}>500 Internal Server Error</option>
-                    </select>
-                  </div>
-                )}
-
-                {selectedNode.type === 'error_trigger' && (
-                  <div style={{ padding: '12px', borderRadius: '10px', backgroundColor: '#fef2f2', border: '1px solid #fca5a5', color: '#ef4444', fontSize: '0.78rem' }}>
-                    <div style={{ fontWeight: 800, marginBottom: '4px' }}>🛡️ Error Fallback Route</div>
-                    Automatically catches exceptions from any node step and routes execution to connected fallback actions.
-                  </div>
-                )}
-
-                {selectedNode.type === 'action' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Action Type</label>
-                    <select
-                      value={selectedNode.data.type || 'LOG_MESSAGE'}
-                      onChange={(e) => {
-                        const type = e.target.value;
-                        const label = type === 'UPDATE_RECORD' ? 'Update Table' :
-                          type === 'CREATE_RECORD' ? 'Create Record' :
-                          type === 'WHATSAPP' ? 'WhatsApp Alert' :
-                          type === 'MQTT_PUBLISH' ? 'Publish MQTT' : 'Log Message';
-                        setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, type, label } } : n));
-                      }}
-                      style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
-                    >
-                      <option value="LOG_MESSAGE">Log Message</option>
-                      <option value="UPDATE_RECORD">Update Table Record</option>
-                      <option value="CREATE_RECORD">Create Table Record</option>
-                      <option value="HTTP_REQUEST">HTTP Connector (API)</option>
-                      <option value="WHATSAPP">WhatsApp Business API Alert</option>
-                      <option value="MQTT_PUBLISH">MQTT Publish Command</option>
-                      <option value="SEND_NOTIFICATION">Send Notification</option>
-                      <option value="TELEGRAM">Telegram Message</option>
-                      <option value="GMAIL">Gmail Email</option>
-                      <option value="SPREADSHEET">Google Sheets / Excel</option>
-                      <option value="ERP_CRM">Odoo / SAP ERP</option>
-                    </select>
-                  </div>
-                )}
-
-                {selectedNode.type === 'event' && (
-                  <button
-                    onClick={() => setShowEventPicker(true)}
-                    style={{ padding: '10px', backgroundColor: '#714B67', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.8rem' }}
-                  >Change Event Type</button>
-                )}
+                <button
+                  onClick={() => setInspectorSubTab('CREDENTIALS')}
+                  style={{
+                    flex: 1, padding: '7px 4px', border: 'none', borderRadius: '8px',
+                    backgroundColor: inspectorSubTab === 'CREDENTIALS' ? '#ffffff' : 'transparent',
+                    color: inspectorSubTab === 'CREDENTIALS' ? '#4F46E5' : '#64748b',
+                    fontWeight: 800, fontSize: '0.74rem', cursor: 'pointer',
+                    boxShadow: inspectorSubTab === 'CREDENTIALS' ? '0 2px 6px rgba(0,0,0,0.08)' : 'none',
+                    transition: 'all 0.2s'
+                  }}
+                >🔒 Credentials</button>
               </div>
+
+              {inspectorSubTab === 'PARAMETERS' && (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                  <div>
+                    <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Node Name / Label</label>
+                    <input
+                      value={selectedNode.data.label || ''}
+                      onChange={(e) => {
+                        const label = e.target.value;
+                        setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, label } } : n));
+                      }}
+                      style={{ width: '100%', padding: '9px', marginTop: '6px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                    />
+                  </div>
+
+                  {/* ─── 1. EVENT / TRIGGER NODE PARAMETERS ─── */}
+                  {selectedNode.type === 'event' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #00A09D' }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#00A09D', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Zap size={16} /> Trigger Configuration ({selectedNode.data.triggerType || 'MANUAL'})
+                      </div>
+
+                      {(selectedNode.data.triggerType === 'TIMER' || selectedNode.data.triggerType === 'SCHEDULE' || !selectedNode.data.triggerType) && (
+                        <>
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Trigger Interval (Mode Interval)</label>
+                          <select
+                            value={selectedNode.data.schedule?.intervalMode || 'EVERY_DAY'}
+                            onChange={(e) => {
+                              const intervalMode = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, schedule: { ...(n.data.schedule || {}), intervalMode } } } : n));
+                            }}
+                            style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                          >
+                            <option value="EVERY_SECOND">Every Second</option>
+                            <option value="EVERY_MINUTE">Every Minute</option>
+                            <option value="EVERY_HOUR">Every Hour</option>
+                            <option value="EVERY_DAY">Every Day</option>
+                            <option value="EVERY_WEEK">Every Week</option>
+                            <option value="EVERY_MONTH">Every Month</option>
+                            <option value="CUSTOM_CRON">Custom (Cron Expression)</option>
+                          </select>
+
+                          {/* EVERY SECOND */}
+                          {selectedNode.data.schedule?.intervalMode === 'EVERY_SECOND' && (
+                            <>
+                              <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Seconds Between Triggers</label>
+                              <input
+                                type="number"
+                                placeholder="5"
+                                value={selectedNode.data.schedule?.secondsBetween || 5}
+                                onChange={(e) => {
+                                  const secondsBetween = Number(e.target.value);
+                                  setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, schedule: { ...(n.data.schedule || {}), secondsBetween } } } : n));
+                                }}
+                                style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                              />
+                            </>
+                          )}
+
+                          {/* EVERY MINUTE */}
+                          {selectedNode.data.schedule?.intervalMode === 'EVERY_MINUTE' && (
+                            <>
+                              <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Minutes Between Triggers</label>
+                              <input
+                                type="number"
+                                placeholder="1"
+                                value={selectedNode.data.schedule?.minutesBetween || 1}
+                                onChange={(e) => {
+                                  const minutesBetween = Number(e.target.value);
+                                  setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, schedule: { ...(n.data.schedule || {}), minutesBetween } } } : n));
+                                }}
+                                style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                              />
+                            </>
+                          )}
+
+                          {/* EVERY HOUR */}
+                          {selectedNode.data.schedule?.intervalMode === 'EVERY_HOUR' && (
+                            <>
+                              <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Hours Between Triggers</label>
+                              <input
+                                type="number"
+                                placeholder="1"
+                                value={selectedNode.data.schedule?.hoursBetween || 1}
+                                onChange={(e) => {
+                                  const hoursBetween = Number(e.target.value);
+                                  setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, schedule: { ...(n.data.schedule || {}), hoursBetween } } } : n));
+                                }}
+                                style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                              />
+                              <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Minute Trigger Runs On (0-59)</label>
+                              <input
+                                type="number"
+                                min="0" max="59"
+                                placeholder="0"
+                                value={selectedNode.data.schedule?.minuteRunsOn || 0}
+                                onChange={(e) => {
+                                  const minuteRunsOn = Number(e.target.value);
+                                  setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, schedule: { ...(n.data.schedule || {}), minuteRunsOn } } } : n));
+                                }}
+                                style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                              />
+                            </>
+                          )}
+
+                          {/* EVERY DAY */}
+                          {selectedNode.data.schedule?.intervalMode === 'EVERY_DAY' && (
+                            <>
+                              <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Days Between Triggers</label>
+                              <input
+                                type="number"
+                                placeholder="1"
+                                value={selectedNode.data.schedule?.daysBetween || 1}
+                                onChange={(e) => {
+                                  const daysBetween = Number(e.target.value);
+                                  setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, schedule: { ...(n.data.schedule || {}), daysBetween } } } : n));
+                                }}
+                                style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                              />
+                              <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Time Trigger Runs (HH:MM)</label>
+                              <input
+                                type="time"
+                                value={selectedNode.data.schedule?.time || '09:00'}
+                                onChange={(e) => {
+                                  const time = e.target.value;
+                                  setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, schedule: { ...(n.data.schedule || {}), time } } } : n));
+                                }}
+                                style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                              />
+                            </>
+                          )}
+
+                          {/* EVERY WEEK */}
+                          {selectedNode.data.schedule?.intervalMode === 'EVERY_WEEK' && (
+                            <>
+                              <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Weeks Between Triggers</label>
+                              <input
+                                type="number"
+                                placeholder="1"
+                                value={selectedNode.data.schedule?.weeksBetween || 1}
+                                onChange={(e) => {
+                                  const weeksBetween = Number(e.target.value);
+                                  setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, schedule: { ...(n.data.schedule || {}), weeksBetween } } } : n));
+                                }}
+                                style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                              />
+                              <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Days of the Week</label>
+                              <select
+                                value={selectedNode.data.schedule?.daysOfWeek || 'Monday,Friday'}
+                                onChange={(e) => {
+                                  const daysOfWeek = e.target.value;
+                                  setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, schedule: { ...(n.data.schedule || {}), daysOfWeek } } } : n));
+                                }}
+                                style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                              >
+                                <option value="Monday,Friday">Monday & Friday</option>
+                                <option value="Monday,Wednesday,Friday">Monday, Wednesday, Friday</option>
+                                <option value="Monday-Friday">Workdays (Mon-Fri)</option>
+                                <option value="Saturday,Sunday">Weekends (Sat-Sun)</option>
+                                <option value="Monday">Every Monday</option>
+                              </select>
+                              <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Time Trigger Runs (HH:MM)</label>
+                              <input
+                                type="time"
+                                value={selectedNode.data.schedule?.time || '09:00'}
+                                onChange={(e) => {
+                                  const time = e.target.value;
+                                  setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, schedule: { ...(n.data.schedule || {}), time } } } : n));
+                                }}
+                                style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                              />
+                            </>
+                          )}
+
+                          {/* EVERY MONTH */}
+                          {selectedNode.data.schedule?.intervalMode === 'EVERY_MONTH' && (
+                            <>
+                              <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Months Between Triggers</label>
+                              <input
+                                type="number"
+                                placeholder="1"
+                                value={selectedNode.data.schedule?.monthsBetween || 1}
+                                onChange={(e) => {
+                                  const monthsBetween = Number(e.target.value);
+                                  setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, schedule: { ...(n.data.schedule || {}), monthsBetween } } } : n));
+                                }}
+                                style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                              />
+                              <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Day of the Month (1-31)</label>
+                              <input
+                                type="number"
+                                min="1" max="31"
+                                placeholder="1"
+                                value={selectedNode.data.schedule?.dayOfMonth || 1}
+                                onChange={(e) => {
+                                  const dayOfMonth = Number(e.target.value);
+                                  setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, schedule: { ...(n.data.schedule || {}), dayOfMonth } } } : n));
+                                }}
+                                style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                              />
+                              <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Time Trigger Runs (HH:MM)</label>
+                              <input
+                                type="time"
+                                value={selectedNode.data.schedule?.time || '09:00'}
+                                onChange={(e) => {
+                                  const time = e.target.value;
+                                  setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, schedule: { ...(n.data.schedule || {}), time } } } : n));
+                                }}
+                                style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                              />
+                            </>
+                          )}
+
+                          {/* CUSTOM CRON */}
+                          {selectedNode.data.schedule?.intervalMode === 'CUSTOM_CRON' && (
+                            <>
+                              <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Cron Expression (5-6 Fields)</label>
+                              <input
+                                placeholder="0 9 * * 1-5"
+                                value={selectedNode.data.schedule?.cron || '0 9 * * 1-5'}
+                                onChange={(e) => {
+                                  const cron = e.target.value;
+                                  setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, schedule: { ...(n.data.schedule || {}), cron } } } : n));
+                                }}
+                                style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#10B981', fontFamily: 'monospace', fontSize: '0.8rem' }}
+                              />
+                            </>
+                          )}
+
+                          {/* TIMEZONE OPTION */}
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Timezone</label>
+                          <select
+                            value={selectedNode.data.timezone || 'Asia/Jakarta'}
+                            onChange={(e) => {
+                              const timezone = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, timezone } } : n));
+                            }}
+                            style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                          >
+                            <option value="Asia/Jakarta">Asia/Jakarta (WIB GMT+7)</option>
+                            <option value="Asia/Makassar">Asia/Makassar (WITA GMT+8)</option>
+                            <option value="Asia/Jayapura">Asia/Jayapura (WIT GMT+9)</option>
+                            <option value="UTC">UTC (Coordinated Universal Time)</option>
+                            <option value="America/New_York">America/New_York (EST)</option>
+                            <option value="Europe/London">Europe/London (GMT)</option>
+                            <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+                            <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+                          </select>
+                        </>
+                      )}
+
+                      {selectedNode.data.triggerType === 'WEBHOOK' && (
+                        <>
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>HTTP Method</label>
+                          <select
+                            value={selectedNode.data.httpMethod || 'POST'}
+                            onChange={(e) => {
+                              const httpMethod = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, httpMethod } } : n));
+                            }}
+                            style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                          >
+                            <option value="POST">POST (Default JSON Body Payload)</option>
+                            <option value="GET">GET (Query Parameters)</option>
+                            <option value="PUT">PUT</option>
+                            <option value="PATCH">PATCH</option>
+                            <option value="DELETE">DELETE</option>
+                            <option value="HEAD">HEAD</option>
+                          </select>
+
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Webhook Endpoint Path</label>
+                          <input
+                            placeholder="my-webhook"
+                            value={selectedNode.data.webhookPath || 'my-webhook'}
+                            onChange={(e) => {
+                              const webhookPath = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, webhookPath } } : n));
+                            }}
+                            style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                          />
+
+                          <div style={{ fontSize: '0.68rem', backgroundColor: '#f1f5f9', padding: '8px 10px', borderRadius: '6px', color: '#475569', fontFamily: 'monospace' }}>
+                            📍 URL: {typeof window !== 'undefined' ? window.location.origin : 'https://app.mavi.io'}/webhook/{selectedNode.data.webhookPath || 'my-webhook'}
+                          </div>
+
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Respond Strategy (Response Mode)</label>
+                          <select
+                            value={selectedNode.data.respondMode || 'IMMEDIATELY'}
+                            onChange={(e) => {
+                              const respondMode = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, respondMode } } : n));
+                            }}
+                            style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                          >
+                            <option value="IMMEDIATELY">Immediately (Default 200 OK)</option>
+                            <option value="LAST_NODE">When Last Node Finishes</option>
+                            <option value="RESPOND_NODE">Using 'Respond to Webhook' Node</option>
+                          </select>
+
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Authentication Strategy</label>
+                          <select
+                            value={selectedNode.data.authMode || 'NONE'}
+                            onChange={(e) => {
+                              const authMode = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, authMode } } : n));
+                            }}
+                            style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                          >
+                            <option value="NONE">None (Public Endpoint)</option>
+                            <option value="BASIC_AUTH">Basic Auth (Username & Password)</option>
+                            <option value="HEADER_AUTH">Header Auth (X-API-Key Header)</option>
+                            <option value="JWT_AUTH">JWT Auth (Bearer Token)</option>
+                          </select>
+
+                          {/* OPTIONS SECTION */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid #cbd5e1', paddingTop: '10px' }}>
+                            <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748b' }}>Webhook Options</div>
+                            
+                            <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b' }}>Property Name for Body</label>
+                            <input
+                              placeholder="body"
+                              value={selectedNode.data.bodyProperty || 'body'}
+                              onChange={(e) => {
+                                const bodyProperty = e.target.value;
+                                setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, bodyProperty } } : n));
+                              }}
+                              style={{ padding: '7px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.78rem' }}
+                            />
+
+                            <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b' }}>Allowed Origins (CORS)</label>
+                            <input
+                              placeholder="*"
+                              value={selectedNode.data.allowedOrigins || '*'}
+                              onChange={(e) => {
+                                const allowedOrigins = e.target.value;
+                                setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, allowedOrigins } } : n));
+                              }}
+                              style={{ padding: '7px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.78rem' }}
+                            />
+
+                            <label style={{ fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#1e293b', fontWeight: 700 }}>
+                              <input
+                                type="checkbox"
+                                checked={!!selectedNode.data.rawBody}
+                                onChange={(e) => {
+                                  const rawBody = e.target.checked;
+                                  setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, rawBody } } : n));
+                                }}
+                              /> Raw Body (Save payload as raw Buffer/Binary)
+                            </label>
+
+                            <label style={{ fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#1e293b', fontWeight: 700 }}>
+                              <input
+                                type="checkbox"
+                                checked={!!selectedNode.data.binaryData}
+                                onChange={(e) => {
+                                  const binaryData = e.target.checked;
+                                  setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, binaryData } } : n));
+                                }}
+                              /> Binary Data (Accept file uploads via multipart/form-data)
+                            </label>
+                          </div>
+                        </>
+                      )}
+
+                      {/* ─── 4. FORM TRIGGER PARAMETERS ─── */}
+                      {selectedNode.data.triggerType === 'FORM' && (
+                        <>
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Form Title</label>
+                          <input
+                            placeholder="User Registration Form"
+                            value={selectedNode.data.formTitle || 'User Registration Form'}
+                            onChange={(e) => {
+                              const formTitle = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, formTitle } } : n));
+                            }}
+                            style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                          />
+
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Form Fields (JSON Schema)</label>
+                          <textarea
+                            placeholder='[{"name": "email", "type": "email", "label": "Email Address"}]'
+                            value={selectedNode.data.formFields || ''}
+                            onChange={(e) => {
+                              const formFields = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, formFields } } : n));
+                            }}
+                            style={{ minHeight: '60px', padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontSize: '0.75rem' }}
+                          />
+
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Completion Response Message</label>
+                          <input
+                            placeholder="Thank you for submitting!"
+                            value={selectedNode.data.responseMessage || 'Thank you for submitting!'}
+                            onChange={(e) => {
+                              const responseMessage = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, responseMessage } } : n));
+                            }}
+                            style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                          />
+                        </>
+                      )}
+
+                      {/* ─── 5. CHAT TRIGGER PARAMETERS ─── */}
+                      {selectedNode.data.triggerType === 'CHAT' && (
+                        <>
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Chatbot Mode</label>
+                          <select
+                            value={selectedNode.data.chatMode || 'CONVERSATIONAL'}
+                            onChange={(e) => {
+                              const chatMode = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, chatMode } } : n));
+                            }}
+                            style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                          >
+                            <option value="CONVERSATIONAL">Conversational Chatbot</option>
+                            <option value="AGENT_COMMAND">AI Agent Command Executor</option>
+                          </select>
+
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Initial Welcome Message</label>
+                          <input
+                            placeholder="Halo! Ada yang bisa saya bantu?"
+                            value={selectedNode.data.initialMessage || 'Halo! Ada yang bisa saya bantu?'}
+                            onChange={(e) => {
+                              const initialMessage = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, initialMessage } } : n));
+                            }}
+                            style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                          />
+                        </>
+                      )}
+
+                      {/* ─── 6. EMAIL TRIGGER (IMAP) PARAMETERS ─── */}
+                      {selectedNode.data.triggerType === 'EMAIL_IMAP' && (
+                        <>
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>IMAP Host & Port</label>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <input
+                              placeholder="imap.gmail.com"
+                              value={selectedNode.data.imapHost || 'imap.gmail.com'}
+                              onChange={(e) => {
+                                const imapHost = e.target.value;
+                                setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, imapHost } } : n));
+                              }}
+                              style={{ flex: 2, padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.78rem' }}
+                            />
+                            <input
+                              placeholder="993"
+                              value={selectedNode.data.imapPort || '993'}
+                              onChange={(e) => {
+                                const imapPort = e.target.value;
+                                setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, imapPort } } : n));
+                              }}
+                              style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.78rem' }}
+                            />
+                          </div>
+
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>IMAP Username / Folder</label>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <input
+                              placeholder="user@mavi.io"
+                              value={selectedNode.data.imapUser || ''}
+                              onChange={(e) => {
+                                const imapUser = e.target.value;
+                                setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, imapUser } } : n));
+                              }}
+                              style={{ flex: 2, padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.78rem' }}
+                            />
+                            <input
+                              placeholder="INBOX"
+                              value={selectedNode.data.imapFolder || 'INBOX'}
+                              onChange={(e) => {
+                                const imapFolder = e.target.value;
+                                setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, imapFolder } } : n));
+                              }}
+                              style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.78rem' }}
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {/* ─── 7. TELEGRAM TRIGGER PARAMETERS (N8N SPECIFICATION) ─── */}
+                      {selectedNode.data.triggerType === 'TELEGRAM' && (
+                        <>
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Credentials (Bot Token)</label>
+                          <input
+                            type="password"
+                            placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
+                            value={selectedNode.data.botToken || ''}
+                            onChange={(e) => {
+                              const botToken = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, botToken } } : n));
+                            }}
+                            style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontFamily: 'monospace', fontSize: '0.8rem' }}
+                          />
+
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Trigger On Event</label>
+                          <select
+                            value={selectedNode.data.telegramTriggerOn || 'MESSAGE'}
+                            onChange={(e) => {
+                              const telegramTriggerOn = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, telegramTriggerOn } } : n));
+                            }}
+                            style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                          >
+                            <option value="MESSAGE">Message (Incoming Text/Media)</option>
+                            <option value="EDITED_MESSAGE">Edited Message</option>
+                            <option value="CHANNEL_POST">Channel Post</option>
+                            <option value="EDITED_CHANNEL_POST">Edited Channel Post</option>
+                            <option value="CALLBACK">Callback Query (Inline Button Click)</option>
+                            <option value="INLINE_QUERY">Inline Query</option>
+                            <option value="POLL">Poll Change</option>
+                            <option value="SHIPPING_QUERY">Shipping Query (Payment)</option>
+                            <option value="PRE_CHECKOUT_QUERY">Pre-Checkout Query</option>
+                            <option value="CHAT_JOIN_REQUEST">Chat Join Request</option>
+                            <option value="CHAT_MEMBER">Chat Member Status Change</option>
+                            <option value="MY_CHAT_MEMBER">My Chat Member (Bot Status)</option>
+                            <option value="MESSAGE_REACTION">Message Reaction</option>
+                            <option value="MESSAGE_REACTION_COUNT">Message Reaction Count</option>
+                            <option value="BUSINESS_CONNECTION">Business Connection</option>
+                            <option value="BUSINESS_MESSAGE">Business Message</option>
+                            <option value="EDITED_BUSINESS_MESSAGE">Edited Business Message</option>
+                            <option value="DELETED_BUSINESS_MESSAGES">Deleted Business Messages</option>
+                            <option value="PURCHASED_PAID_MEDIA">Purchased Paid Media</option>
+                            <option value="ALL">* (All Updates)</option>
+                          </select>
+
+                          {/* DOWNLOAD IMAGES OPTIONS */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', backgroundColor: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                            <label style={{ fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#1e293b', fontWeight: 700 }}>
+                              <input
+                                type="checkbox"
+                                checked={!!selectedNode.data.downloadImages}
+                                onChange={(e) => {
+                                  const downloadImages = e.target.checked;
+                                  setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, downloadImages } } : n));
+                                }}
+                              /> Download Images (Save photo attachments as binary data)
+                            </label>
+
+                            {selectedNode.data.downloadImages && (
+                              <>
+                                <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Image Size</label>
+                                <select
+                                  value={selectedNode.data.imageSize || 'MEDIUM'}
+                                  onChange={(e) => {
+                                    const imageSize = e.target.value;
+                                    setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, imageSize } } : n));
+                                  }}
+                                  style={{ padding: '7px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.78rem' }}
+                                >
+                                  <option value="SMALL">Small</option>
+                                  <option value="MEDIUM">Medium</option>
+                                  <option value="LARGE">Large</option>
+                                  <option value="EXTRA_LARGE">Extra Large</option>
+                                </select>
+                              </>
+                            )}
+                          </div>
+
+                          {/* FILTERS */}
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Restrict to Chat IDs (Comma-Separated)</label>
+                          <input
+                            placeholder="123456789, 987654321"
+                            value={selectedNode.data.restrictChatIds || ''}
+                            onChange={(e) => {
+                              const restrictChatIds = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, restrictChatIds } } : n));
+                            }}
+                            style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.78rem' }}
+                          />
+
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Restrict to User IDs (Comma-Separated)</label>
+                          <input
+                            placeholder="123456789"
+                            value={selectedNode.data.restrictUserIds || ''}
+                            onChange={(e) => {
+                              const restrictUserIds = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, restrictUserIds } } : n));
+                            }}
+                            style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.78rem' }}
+                          />
+
+                          <div style={{ fontSize: '0.72rem', backgroundColor: '#e0f2fe', border: '1px solid #7dd3fc', padding: '10px', borderRadius: '8px', color: '#0369a1' }}>
+                            💡 <b>Downstream Data Expression Guide:</b><br />
+                            • Message Text: <code>{`{{ $json.message.text }}`}</code><br />
+                            • Chat ID: <code>{`{{ $json.message.chat.id }}`}</code><br />
+                            • Sender Name: <code>{`{{ $json.message.from.first_name }}`}</code><br />
+                            • Sender User ID: <code>{`{{ $json.message.from.id }}`}</code>
+                          </div>
+                        </>
+                      )}
+
+                      {/* ─── 8. GOOGLE DRIVE TRIGGER PARAMETERS ─── */}
+                      {selectedNode.data.triggerType === 'GDRIVE' && (
+                        <>
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Drive Event</label>
+                          <select
+                            value={selectedNode.data.driveEvent || 'FILE_ADDED'}
+                            onChange={(e) => {
+                              const driveEvent = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, driveEvent } } : n));
+                            }}
+                            style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                          >
+                            <option value="FILE_ADDED">File Added to Folder</option>
+                            <option value="FILE_UPDATED">File Updated</option>
+                            <option value="FILE_DELETED">File Deleted</option>
+                          </select>
+
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Target Drive Folder</label>
+                          <input
+                            placeholder="/MES_Reports"
+                            value={selectedNode.data.driveFolder || '/MES_Reports'}
+                            onChange={(e) => {
+                              const driveFolder = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, driveFolder } } : n));
+                            }}
+                            style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                          />
+                        </>
+                      )}
+
+                      {/* ─── 9. GOOGLE SHEETS TRIGGER PARAMETERS ─── */}
+                      {selectedNode.data.triggerType === 'GSHEETS' && (
+                        <>
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Spreadsheet & Sheet Name</label>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <input
+                              placeholder="Production_Logs_2026"
+                              value={selectedNode.data.sheetsName || 'Production_Logs_2026'}
+                              onChange={(e) => {
+                                const sheetsName = e.target.value;
+                                setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetsName } } : n));
+                              }}
+                              style={{ flex: 2, padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.78rem' }}
+                            />
+                            <input
+                              placeholder="Sheet1"
+                              value={selectedNode.data.sheetTab || 'Sheet1'}
+                              onChange={(e) => {
+                                const sheetTab = e.target.value;
+                                setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetTab } } : n));
+                              }}
+                              style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.78rem' }}
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {/* ─── 10. DATABASE TRIGGER PARAMETERS ─── */}
+                      {(selectedNode.data.triggerType === 'DATABASE' || selectedNode.data.triggerType === 'TABLE_ROW_ADDED' || selectedNode.data.triggerType === 'TABLE_ROW_UPDATED') && (
+                        <>
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Target Database Table</label>
+                          <select
+                            value={selectedNode.data.tableName || 'WorkOrders'}
+                            onChange={(e) => {
+                              const tableName = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, tableName } } : n));
+                            }}
+                            style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                          >
+                            <option value="WorkOrders">WorkOrders (Production Orders)</option>
+                            <option value="Machines">Machines (Telemetry & Status)</option>
+                            <option value="MaterialLogs">MaterialLogs (Inventory)</option>
+                            <option value="SystemLogs">SystemLogs (Audit Logs)</option>
+                          </select>
+
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Operation Event</label>
+                          <select
+                            value={selectedNode.data.dbOperation || 'INSERT'}
+                            onChange={(e) => {
+                              const dbOperation = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, dbOperation } } : n));
+                            }}
+                            style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                          >
+                            <option value="INSERT">On Row Added (INSERT)</option>
+                            <option value="UPDATE">On Row Updated (UPDATE)</option>
+                            <option value="DELETE">On Row Deleted (DELETE)</option>
+                          </select>
+                        </>
+                      )}
+
+                      <button
+                        onClick={() => setShowEventPicker(true)}
+                        style={{ padding: '9px', backgroundColor: '#00A09D', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '0.78rem', marginTop: '6px' }}
+                      >Change Event Trigger Type</button>
+                    </div>
+                  )}
+
+                  {/* ─── 2. ACTION NODE EXHAUSTIVE PARAMETERS ─── */}
+                  {selectedNode.type === 'action' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#f8fafc', padding: '14px', borderRadius: '14px', border: '1px solid #714B67' }}>
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Action Category</label>
+                      <select
+                        value={selectedNode.data.type || 'LOG_MESSAGE'}
+                        onChange={(e) => {
+                          const type = e.target.value;
+                          const label = type === 'UPDATE_RECORD' ? 'Update Table' :
+                            type === 'CREATE_RECORD' ? 'Create Record' :
+                            type === 'WHATSAPP' ? 'WhatsApp Alert' :
+                            type === 'MQTT_PUBLISH' ? 'Publish MQTT' :
+                            type === 'SPREADSHEET' ? 'Google Sheets' :
+                            type === 'ERP_CRM' ? 'Odoo ERP Sync' : 'Log Message';
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, type, label } } : n));
+                        }}
+                        style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                      >
+                        <option value="LOG_MESSAGE">Log Message (System Log)</option>
+                        <option value="UPDATE_RECORD">Update Table Record</option>
+                        <option value="CREATE_RECORD">Create Table Record</option>
+                        <option value="HTTP_REQUEST">HTTP Request (REST API)</option>
+                        <option value="WHATSAPP">WhatsApp Business API Alert</option>
+                        <option value="MQTT_PUBLISH">MQTT Publish Command</option>
+                        <option value="GMAIL">Gmail / Email Notification</option>
+                        <option value="TELEGRAM">Telegram Bot Message</option>
+                        <option value="SLACK">Slack / Discord Webhook</option>
+                        <option value="SPREADSHEET">Google Sheets / Excel</option>
+                        <option value="ERP_CRM">Odoo / SAP ERP Sync</option>
+                      </select>
+
+                      {/* HTTP REQUEST DETAILS */}
+                      {(selectedNode.data?.type === 'HTTP_REQUEST' || selectedNode.type === 'http') && (
+                        <>
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>HTTP Method</label>
+                          <select
+                            value={selectedNode.data.method || 'GET'}
+                            onChange={(e) => {
+                              const method = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, method } } : n));
+                            }}
+                            style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                          >
+                            <option value="GET">GET</option>
+                            <option value="POST">POST</option>
+                            <option value="PUT">PUT</option>
+                            <option value="DELETE">DELETE</option>
+                            <option value="PATCH">PATCH</option>
+                          </select>
+
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Request URL</label>
+                          <input
+                            placeholder="https://api.company.com/v1/orders"
+                            value={selectedNode.data.url || ''}
+                            onChange={(e) => {
+                              const url = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, url } } : n));
+                            }}
+                            style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                          />
+
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Request Headers (JSON)</label>
+                          <input
+                            placeholder='{"Authorization": "Bearer token"}'
+                            value={selectedNode.data.headers || ''}
+                            onChange={(e) => {
+                              const headers = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, headers } } : n));
+                            }}
+                            style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#10B981', fontFamily: 'monospace', fontSize: '0.78rem' }}
+                          />
+                        </>
+                      )}
+
+                      {/* WHATSAPP DETAILS */}
+                      {selectedNode.data?.type === 'WHATSAPP' && (
+                        <>
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Recipient Phone Number</label>
+                          <input
+                            placeholder="+628123456789"
+                            value={selectedNode.data.phone || ''}
+                            onChange={(e) => {
+                              const phone = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, phone } } : n));
+                            }}
+                            style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                          />
+
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Message Body (Supports $json.orderId)</label>
+                          <textarea
+                            placeholder="Halo $json.customer, Work Order $json.orderId telah selesai diproses."
+                            value={selectedNode.data.message || ''}
+                            onChange={(e) => {
+                              const message = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, message } } : n));
+                            }}
+                            style={{ minHeight: '70px', padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.78rem' }}
+                          />
+                        </>
+                      )}
+
+                      {/* MQTT DETAILS */}
+                      {selectedNode.data?.type === 'MQTT_PUBLISH' && (
+                        <>
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>MQTT Topic</label>
+                          <input
+                            placeholder="mavi/factory/line1/plc_command"
+                            value={selectedNode.data.topic || ''}
+                            onChange={(e) => {
+                              const topic = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, topic } } : n));
+                            }}
+                            style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                          />
+
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>QoS Level</label>
+                          <select
+                            value={selectedNode.data.qos || 0}
+                            onChange={(e) => {
+                              const qos = Number(e.target.value);
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, qos } } : n));
+                            }}
+                            style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                          >
+                            <option value={0}>QoS 0 (At most once)</option>
+                            <option value={1}>QoS 1 (At least once)</option>
+                            <option value={2}>QoS 2 (Exactly once)</option>
+                          </select>
+                        </>
+                      )}
+
+                      {/* SPREADSHEET DETAILS */}
+                      {selectedNode.data?.type === 'SPREADSHEET' && (
+                        <>
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Spreadsheet ID / Sheet Name</label>
+                          <input
+                            placeholder="Sheet1"
+                            value={selectedNode.data.sheetName || 'Sheet1'}
+                            onChange={(e) => {
+                              const sheetName = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetName } } : n));
+                            }}
+                            style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                          />
+                        </>
+                      )}
+
+                      {/* ERP / CRM DETAILS */}
+                      {selectedNode.data?.type === 'ERP_CRM' && (
+                        <>
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Odoo / SAP Model</label>
+                          <select
+                            value={selectedNode.data.erpModel || 'mrp.production'}
+                            onChange={(e) => {
+                              const erpModel = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, erpModel } } : n));
+                            }}
+                            style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                          >
+                            <option value="mrp.production">mrp.production (Manufacturing Order)</option>
+                            <option value="sale.order">sale.order (Sales Order)</option>
+                            <option value="stock.picking">stock.picking (Inventory Transfer)</option>
+                            <option value="account.move">account.move (Invoices & Accounting)</option>
+                          </select>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ─── 3. IF / DECISION NODE PARAMETERS ─── */}
+                  {selectedNode.type === 'decision' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: '#fff7ed', padding: '14px', borderRadius: '12px', border: '1px solid #F05A28' }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#F05A28' }}>IF Condition Rules</div>
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Field Path (e.g. status / qty)</label>
+                      <input
+                        placeholder="Field (e.g. Stock)"
+                        value={selectedNode.data.condition?.field || ''}
+                        onChange={(e) => {
+                          const field = e.target.value;
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, condition: { ...n.data.condition, field } } } : n));
+                        }}
+                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                      />
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Comparison Operator</label>
+                      <select
+                        value={selectedNode.data.condition?.operator || '=='}
+                        onChange={(e) => {
+                          const operator = e.target.value;
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, condition: { ...n.data.condition, operator } } } : n));
+                        }}
+                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                      >
+                        <option value="==">Equals (==)</option>
+                        <option value="!=">Not Equals (!=)</option>
+                        <option value="<">Less Than (&lt;)</option>
+                        <option value=">">Greater Than (&gt;)</option>
+                        <option value=">=">Greater Than or Equal (&gt;=)</option>
+                        <option value="contains">Contains Text</option>
+                      </select>
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Target Value</label>
+                      <input
+                        placeholder="Value (e.g. 10)"
+                        value={selectedNode.data.condition?.value || ''}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, condition: { ...n.data.condition, value } } } : n));
+                        }}
+                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                      />
+                    </div>
+                  )}
+
+                  {/* ─── 4. SWITCH NODE PARAMETERS ─── */}
+                  {selectedNode.type === 'switch' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: '#fef3c7', padding: '14px', borderRadius: '12px', border: '1px solid #E67E22' }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#E67E22' }}>Switch Multi-Branch Config</div>
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Target Property Field</label>
+                      <input
+                        placeholder="e.g. status or country"
+                        value={selectedNode.data.field || 'status'}
+                        onChange={(e) => {
+                          const field = e.target.value;
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, field } } : n));
+                        }}
+                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                      />
+
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Branch 1 Value</label>
+                      <input
+                        placeholder="Value for Branch 1"
+                        value={selectedNode.data.b1Value || ''}
+                        onChange={(e) => {
+                          const b1Value = e.target.value;
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, b1Value } } : n));
+                        }}
+                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                      />
+
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Branch 2 Value</label>
+                      <input
+                        placeholder="Value for Branch 2"
+                        value={selectedNode.data.b2Value || ''}
+                        onChange={(e) => {
+                          const b2Value = e.target.value;
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, b2Value } } : n));
+                        }}
+                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                      />
+                    </div>
+                  )}
+
+                  {/* ─── 5. SET NODE PARAMETERS ─── */}
+                  {selectedNode.type === 'set' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: '#ecfeff', padding: '14px', borderRadius: '12px', border: '1px solid #06B6D4' }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0891B2' }}>Set / Edit Fields Variable Mapper</div>
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Variable Name</label>
+                      <input
+                        placeholder="e.g. total_price"
+                        value={selectedNode.data.variable || ''}
+                        onChange={(e) => {
+                          const variable = e.target.value;
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, variable } } : n));
+                        }}
+                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                      />
+
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Assigned Value / Expression</label>
+                      <input
+                        placeholder="e.g. 1500 or $json.qty * 2"
+                        value={selectedNode.data.value || ''}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, value } } : n));
+                        }}
+                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#10B981', fontFamily: 'monospace', fontSize: '0.8rem' }}
+                      />
+                    </div>
+                  )}
+
+                  {/* ─── 6. LOOP NODE PARAMETERS ─── */}
+                  {selectedNode.type === 'loop' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: '#f3e8ff', padding: '14px', borderRadius: '12px', border: '1px solid #7C3AED' }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#7C3AED' }}>Loop Over Items Config</div>
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Target Array Path</label>
+                      <input
+                        placeholder="items or payload.orders"
+                        value={selectedNode.data.listPath || 'items'}
+                        onChange={(e) => {
+                          const listPath = e.target.value;
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, listPath } } : n));
+                        }}
+                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                      />
+                    </div>
+                  )}
+
+                  {/* ─── 7. WAIT NODE PARAMETERS ─── */}
+                  {selectedNode.type === 'wait' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Pause Duration (ms)</label>
+                      <input
+                        placeholder="e.g. 5000 (for 5s delay)"
+                        value={selectedNode.data.durationMs || ''}
+                        onChange={(e) => {
+                          const durationMs = e.target.value;
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, durationMs } } : n));
+                        }}
+                        style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                      />
+                    </div>
+                  )}
+
+                  {/* ─── 8. CODE NODE PARAMETERS ─── */}
+                  {selectedNode.type === 'code' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Code Snippet (JS / Python Sandbox)</label>
+                      <textarea
+                        placeholder="return items.map(item => { item.json.total = item.json.qty * item.json.price; return item; });"
+                        value={selectedNode.data.code || ''}
+                        onChange={(e) => {
+                          const code = e.target.value;
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, code } } : n));
+                        }}
+                        style={{ minHeight: '130px', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#1E1E2D', color: '#10B981', fontFamily: 'monospace', fontSize: '0.78rem' }}
+                      />
+                    </div>
+                  )}
+
+                  {/* ─── 9. DATABASE QUERY PARAMETERS ─── */}
+                  {selectedNode.type === 'database' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: '#ecfdf5', padding: '14px', borderRadius: '12px', border: '1px solid #059669' }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#059669' }}>Database Engine Settings</div>
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Operation</label>
+                      <select
+                        value={selectedNode.data.operation || 'SELECT'}
+                        onChange={(e) => {
+                          const operation = e.target.value;
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, operation } } : n));
+                        }}
+                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                      >
+                        <option value="SELECT">Select Rows (Query)</option>
+                        <option value="INSERT">Insert New Record</option>
+                        <option value="UPDATE">Update Existing Record</option>
+                        <option value="DELETE">Delete Record</option>
+                      </select>
+
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Target Table</label>
+                      <select
+                        value={selectedNode.data.table || 'WorkOrders'}
+                        onChange={(e) => {
+                          const table = e.target.value;
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, table } } : n));
+                        }}
+                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                      >
+                        <option value="WorkOrders">WorkOrders</option>
+                        <option value="Machines">Machines</option>
+                        <option value="MaterialLogs">MaterialLogs</option>
+                        <option value="SystemLogs">SystemLogs</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {/* ─── 10. AI AGENT CONTAINER PARAMETERS ─── */}
+                  {selectedNode.type === 'ai_agent' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: '#f8fafc', padding: '14px', borderRadius: '14px', border: '1px solid #714B67' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#714B67' }}>
+                          <Bot size={18} />
+                          <span style={{ fontSize: '0.82rem', fontWeight: 800 }}>AI Agent Core Settings</span>
+                        </div>
+                        <div style={{ fontSize: '0.62rem', color: '#00A09D', display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#e6f7f7', padding: '3px 8px', borderRadius: '6px', fontWeight: 800 }}>
+                          <ShieldCheck size={12} /> Synced with AI Settings
+                        </div>
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Agent Type</label>
+                        <select
+                          value={selectedNode.data.agentType || 'Tools Agent'}
+                          onChange={(e) => {
+                            const agentType = e.target.value;
+                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, agentType } } : n));
+                          }}
+                          style={{ width: '100%', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                        >
+                          <option value="Tools Agent">Tools Agent (ReAct Loop)</option>
+                          <option value="Conversational Agent">Conversational Chat Agent</option>
+                          <option value="Plan & Execute Agent">Plan and Execute Agent</option>
+                          <option value="OpenAI Functions Agent">OpenAI Functions Agent</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Default LLM Provider</label>
+                        <select
+                          value={selectedNode.data.provider || 'Gemini'}
+                          onChange={(e) => {
+                            const provider = e.target.value;
+                            const defaultModel = provider === 'Gemini' ? 'gemini-1.5-pro' : provider === 'OpenAI' ? 'gpt-4o' : provider === 'Claude' ? 'claude-3-5-sonnet' : 'llama3:8b';
+                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, provider, modelId: defaultModel } } : n));
+                          }}
+                          style={{ width: '100%', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                        >
+                          <option value="Gemini">Google Gemini (Gemini 1.5 Pro / Flash)</option>
+                          <option value="OpenAI">OpenAI (GPT-4o / GPT-4o-mini)</option>
+                          <option value="Claude">Anthropic Claude (Claude 3.5 Sonnet)</option>
+                          <option value="Ollama">Ollama (Local Llama 3 / Mistral)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>System Instructions / Prompt</label>
+                        <textarea
+                          placeholder="You are an expert MAVI MES AI Assistant. Help optimize production work orders..."
+                          value={selectedNode.data.systemPrompt || ''}
+                          onChange={(e) => {
+                            const systemPrompt = e.target.value;
+                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, systemPrompt } } : n));
+                          }}
+                          style={{ width: '100%', minHeight: '80px', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#714B67', fontSize: '0.78rem' }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ─── 11. SUB-WORKFLOW PARAMETERS ─── */}
+                  {selectedNode.type === 'sub_workflow' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Target Sub-Workflow Name / ID</label>
+                      <select
+                        value={selectedNode.data.workflowName || ''}
+                        onChange={(e) => {
+                          const workflowName = e.target.value;
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, workflowName, label: `Call: ${workflowName}` } } : n));
+                        }}
+                        style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                      >
+                        <option value="">Select Child Workflow...</option>
+                        {automations.map(a => (
+                          <option key={a.id} value={a.name}>{a.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* ─── 12. RESPOND WEBHOOK PARAMETERS ─── */}
+                  {selectedNode.type === 'respond_webhook' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Response HTTP Status Code</label>
+                      <select
+                        value={selectedNode.data.statusCode || 200}
+                        onChange={(e) => {
+                          const statusCode = Number(e.target.value);
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, statusCode } } : n));
+                        }}
+                        style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                      >
+                        <option value={200}>200 OK (Success)</option>
+                        <option value={201}>201 Created</option>
+                        <option value={400}>400 Bad Request</option>
+                        <option value={500}>500 Internal Server Error</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {/* ─── 13. ERROR TRIGGER PARAMETERS (N8N SPECIFICATION) ─── */}
+                  {selectedNode.type === 'error_trigger' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#fef2f2', padding: '14px', borderRadius: '12px', border: '1px solid #ef4444' }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        🛡️ Error Trigger Configuration (n8n Spec)
+                      </div>
+
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Error Catch Mode</label>
+                      <select
+                        value={selectedNode.data.catchMode || 'ALL'}
+                        onChange={(e) => {
+                          const catchMode = e.target.value;
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, catchMode } } : n));
+                        }}
+                        style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                      >
+                        <option value="ALL">Catch All Workflow Errors</option>
+                        <option value="SPECIFIC">Catch Specific Target Node Failure</option>
+                      </select>
+
+                      {selectedNode.data.catchMode === 'SPECIFIC' && (
+                        <>
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Target Node Name / ID</label>
+                          <input
+                            placeholder="HTTP Request"
+                            value={selectedNode.data.targetNode || 'HTTP Request'}
+                            onChange={(e) => {
+                              const targetNode = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, targetNode } } : n));
+                            }}
+                            style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                          />
+                        </>
+                      )}
+
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Max Auto Retries</label>
+                      <select
+                        value={selectedNode.data.maxRetries || 0}
+                        onChange={(e) => {
+                          const maxRetries = Number(e.target.value);
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, maxRetries } } : n));
+                        }}
+                        style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                      >
+                        <option value={0}>0 (No Retries - Trigger Fallback Immediately)</option>
+                        <option value={1}>1 Retry Attempt</option>
+                        <option value={3}>3 Retry Attempts</option>
+                        <option value={5}>5 Retry Attempts</option>
+                      </select>
+
+                      <div style={{ fontSize: '0.72rem', backgroundColor: '#ffffff', border: '1px solid #fca5a5', padding: '10px', borderRadius: '8px', color: '#991b1b' }}>
+                        💡 <b>Downstream Data Reference:</b><br />
+                        • Error Message: <code>{`{{ $json.execution.error.message }}`}</code><br />
+                        • Failed Node: <code>{`{{ $json.execution.lastNodeExecuted }}`}</code><br />
+                        • Workflow Name: <code>{`{{ $json.workflow.name }}`}</code>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ─── 14. SUB-MODEL NODE PARAMETERS ─── */}
+                  {selectedNode.type === 'sub_model' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: '#f8fafc', padding: '14px', borderRadius: '14px', border: '1px solid #00A09D' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#00A09D' }}>
+                        <Sparkles size={18} />
+                        <span style={{ fontSize: '0.82rem', fontWeight: 800 }}>LLM Sub-Node Parameters</span>
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>AI Provider</label>
+                        <select
+                          value={selectedNode.data.provider || 'Gemini'}
+                          onChange={(e) => {
+                            const provider = e.target.value;
+                            const label = `${provider} Model`;
+                            const defaultModel = provider === 'Gemini' ? 'gemini-1.5-pro' : provider === 'OpenAI' ? 'gpt-4o' : provider === 'Claude' ? 'claude-3-5-sonnet' : 'llama3:8b';
+                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, provider, label, modelId: defaultModel } } : n));
+                          }}
+                          style={{ width: '100%', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                        >
+                          <option value="Gemini">Google Gemini</option>
+                          <option value="OpenAI">OpenAI</option>
+                          <option value="Claude">Anthropic Claude</option>
+                          <option value="Ollama">Ollama (Local LLM)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Model Version / ID</label>
+                        <select
+                          value={selectedNode.data.modelId || 'gemini-1.5-pro'}
+                          onChange={(e) => {
+                            const modelId = e.target.value;
+                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, modelId } } : n));
+                          }}
+                          style={{ width: '100%', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                        >
+                          {selectedNode.data.provider === 'OpenAI' ? (
+                            <>
+                              <option value="gpt-4o">gpt-4o (Most Intelligent)</option>
+                              <option value="gpt-4o-mini">gpt-4o-mini (Fast & Affordable)</option>
+                              <option value="gpt-4-turbo">gpt-4-turbo</option>
+                              <option value="o1-preview">o1-preview (Reasoning)</option>
+                            </>
+                          ) : selectedNode.data.provider === 'Claude' ? (
+                            <>
+                              <option value="claude-3-5-sonnet">claude-3-5-sonnet (Smartest)</option>
+                              <option value="claude-3-haiku">claude-3-haiku (Lightning Fast)</option>
+                              <option value="claude-3-opus">claude-3-opus</option>
+                            </>
+                          ) : selectedNode.data.provider === 'Ollama' ? (
+                            <>
+                              <option value="llama3:8b">llama3:8b (Local Meta)</option>
+                              <option value="mistral:7b">mistral:7b (Local Mistral)</option>
+                              <option value="deepseek-r1">deepseek-r1 (Local Reasoning)</option>
+                            </>
+                          ) : (
+                            <>
+                              <option value="gemini-1.5-pro">gemini-1.5-pro (Long Context 2M)</option>
+                              <option value="gemini-1.5-flash">gemini-1.5-flash (Fast)</option>
+                              <option value="gemini-2.0-flash">gemini-2.0-flash (Latest Next Gen)</option>
+                            </>
+                          )}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Temperature ({selectedNode.data.temperature || 0.7})</label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.05"
+                          value={selectedNode.data.temperature || 0.7}
+                          onChange={(e) => {
+                            const temperature = parseFloat(e.target.value);
+                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, temperature } } : n));
+                          }}
+                          style={{ width: '100%', marginTop: '4px' }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ─── 15. SUB-MEMORY NODE PARAMETERS ─── */}
+                  {selectedNode.type === 'sub_memory' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: '#f3e8ff', padding: '14px', borderRadius: '14px', border: '1px solid #8E44AD' }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#8E44AD' }}>Chat Memory Settings</div>
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Context Window Size (Messages)</label>
+                      <input
+                        type="number"
+                        placeholder="10"
+                        value={selectedNode.data.windowSize || 10}
+                        onChange={(e) => {
+                          const windowSize = Number(e.target.value);
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, windowSize } } : n));
+                        }}
+                        style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                      />
+                    </div>
+                  )}
+
+                  {/* ─── 17. SEND EMAIL (SMTP) NODE PARAMETERS (N8N SPECIFICATION) ─── */}
+                  {selectedNode.type === 'send_email' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: '#fdf2f2', padding: '14px', borderRadius: '14px', border: '1px solid #EA4335' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#EA4335' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Mail size={18} />
+                          <span style={{ fontSize: '0.82rem', fontWeight: 800 }}>Send Email (SMTP) Parameters</span>
+                        </div>
+                        <span style={{ fontSize: '0.6rem', padding: '2px 6px', borderRadius: '4px', backgroundColor: '#fee2e2', fontWeight: 800 }}>n8n Ready</span>
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Credential to Connect with</label>
+                        <select
+                          value={selectedNode.data.credential || 'SMTP_DEFAULT'}
+                          onChange={(e) => {
+                            const credential = e.target.value;
+                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, credential } } : n));
+                          }}
+                          style={{ width: '100%', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                        >
+                          <option value="SMTP_DEFAULT">SMTP Account Credential (smtp.mavi.id:465)</option>
+                          <option value="GMAIL_OAUTH2">Gmail OAuth2 Account</option>
+                          <option value="CUSTOM_SMTP">Custom External SMTP Server</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Operation</label>
+                        <select
+                          value={selectedNode.data.operation || 'Send'}
+                          onChange={(e) => {
+                            const operation = e.target.value;
+                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, operation } } : n));
+                          }}
+                          style={{ width: '100%', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                        >
+                          <option value="Send">Send (Send email immediately)</option>
+                          <option value="Send and Wait for Response">Send and Wait for Response (Pause workflow for reply)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>From Email</label>
+                        <input
+                          placeholder="Nathan Doe <nate@mavi.io>"
+                          value={selectedNode.data.fromEmail || ''}
+                          onChange={(e) => {
+                            const fromEmail = e.target.value;
+                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, fromEmail } } : n));
+                          }}
+                          style={{ width: '100%', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>To Email (Comma Separated)</label>
+                        <input
+                          placeholder="first@sample.com, &quot;Second Name&quot; <second@sample.com>"
+                          value={selectedNode.data.toEmail || ''}
+                          onChange={(e) => {
+                            const toEmail = e.target.value;
+                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, toEmail } } : n));
+                          }}
+                          style={{ width: '100%', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Subject</label>
+                        <input
+                          placeholder="Work Order Status Update #$json.orderId"
+                          value={selectedNode.data.subject || ''}
+                          onChange={(e) => {
+                            const subject = e.target.value;
+                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, subject } } : n));
+                          }}
+                          style={{ width: '100%', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Email Format</label>
+                        <select
+                          value={selectedNode.data.format || 'HTML'}
+                          onChange={(e) => {
+                            const format = e.target.value;
+                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, format } } : n));
+                          }}
+                          style={{ width: '100%', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                        >
+                          <option value="HTML">HTML (Rich HTML Email Body)</option>
+                          <option value="Text">Text (Plain Text Only)</option>
+                          <option value="Both">Both (Multi-part MIME HTML & Text)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Email Message Body</label>
+                        <textarea
+                          placeholder="<p>Halo $json.customer,</p><p>Order <b>#$json.orderId</b> telah selesai diproses.</p>"
+                          value={selectedNode.data.body || ''}
+                          onChange={(e) => {
+                            const body = e.target.value;
+                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, body } } : n));
+                          }}
+                          style={{ width: '100%', minHeight: '90px', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.78rem' }}
+                        />
+                      </div>
+
+                      {/* ─── WAITING FOR RESPONSE PARAMETERS ─── */}
+                      {selectedNode.data.operation === 'Send and Wait for Response' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '12px', borderRadius: '10px', backgroundColor: '#fff7ed', border: '1px solid #fed7aa' }}>
+                          <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#c2410c' }}>⏳ Wait for Response Settings</div>
+                          
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Response Type</label>
+                          <select
+                            value={selectedNode.data.responseType || 'Approval'}
+                            onChange={(e) => {
+                              const responseType = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, responseType } } : n));
+                            }}
+                            style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', fontSize: '0.78rem' }}
+                          >
+                            <option value="Approval">Approval (Approve / Decline Buttons)</option>
+                            <option value="Free Text">Free Text (Submit Text Response)</option>
+                            <option value="Custom Form">Custom Form (Interactive Web Form)</option>
+                          </select>
+
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <div style={{ flex: 1 }}>
+                              <label style={{ fontSize: '0.6rem', fontWeight: 800, color: '#64748b' }}>Approve Label</label>
+                              <input
+                                placeholder="Approve"
+                                value={selectedNode.data.approveLabel || 'Approve'}
+                                onChange={(e) => {
+                                  const approveLabel = e.target.value;
+                                  setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, approveLabel } } : n));
+                                }}
+                                style={{ width: '100%', padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.75rem' }}
+                              />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <label style={{ fontSize: '0.6rem', fontWeight: 800, color: '#64748b' }}>Decline Label</label>
+                              <input
+                                placeholder="Decline"
+                                value={selectedNode.data.declineLabel || 'Decline'}
+                                onChange={(e) => {
+                                  const declineLabel = e.target.value;
+                                  setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, declineLabel } } : n));
+                                }}
+                                style={{ width: '100%', padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.75rem' }}
+                              />
+                            </div>
+                          </div>
+
+                          <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Limit Wait Time (Timeout)</label>
+                          <input
+                            placeholder="24 Hours"
+                            value={selectedNode.data.limitWaitTime || '24 Hours'}
+                            onChange={(e) => {
+                              const limitWaitTime = e.target.value;
+                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, limitWaitTime } } : n));
+                            }}
+                            style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', fontSize: '0.78rem' }}
+                          />
+                        </div>
+                      )}
+
+                      {/* ─── NODE OPTIONS (CC, BCC, ATTACHMENTS) ─── */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid #fee2e2', paddingTop: '10px' }}>
+                        <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748b' }}>Node Options</div>
+                        
+                        <input
+                          placeholder="CC Email (cc@sample.com)"
+                          value={selectedNode.data.ccEmail || ''}
+                          onChange={(e) => {
+                            const ccEmail = e.target.value;
+                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, ccEmail } } : n));
+                          }}
+                          style={{ padding: '7px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.75rem' }}
+                        />
+
+                        <input
+                          placeholder="BCC Email (bcc@sample.com)"
+                          value={selectedNode.data.bccEmail || ''}
+                          onChange={(e) => {
+                            const bccEmail = e.target.value;
+                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, bccEmail } } : n));
+                          }}
+                          style={{ padding: '7px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.75rem' }}
+                        />
+
+                        <input
+                          placeholder="Attachments (e.g. data_attachment, report.pdf)"
+                          value={selectedNode.data.attachments || ''}
+                          onChange={(e) => {
+                            const attachments = e.target.value;
+                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, attachments } } : n));
+                          }}
+                          style={{ padding: '7px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.75rem' }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ─── OUTPUT DATA TAB ─── */}
+              {inspectorSubTab === 'OUTPUT' && (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#00A09D', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Layers size={15} /> Execution Output Data Preview
+                  </div>
+                  {selectedNode.data?.lastOutput ? (
+                    <pre style={{
+                      backgroundColor: '#1E1E2D', color: '#10B981', padding: '12px',
+                      borderRadius: '10px', fontSize: '0.72rem', fontFamily: 'monospace',
+                      maxHeight: '350px', overflowY: 'auto', border: '1px solid #3B3B54'
+                    }}>
+                      {JSON.stringify(selectedNode.data.lastOutput, null, 2)}
+                    </pre>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '30px 15px', color: '#94a3b8', fontSize: '0.78rem', backgroundColor: '#f8fafc', borderRadius: '10px', border: '1px dashed #cbd5e1' }}>
+                      No output recorded yet. Click <b>RUN TEST</b> to execute workflow and view live JSON payload.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ─── CREDENTIALS TAB ─── */}
+              {inspectorSubTab === 'CREDENTIALS' && (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#4F46E5', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <ShieldCheck size={16} /> Credential & Security Context
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#475569' }}>
+                    Credentials and API Keys are securely managed via global <b>AI Settings</b> and <b>Webhook Integration Manager</b>.
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: '#10B981', fontWeight: 800, backgroundColor: '#ecfdf5', padding: '8px', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
+                    ✓ Primary AI Connector Active & Verified
+                  </div>
+                </div>
+              )}
 
               {selectedNode.id !== 'start-node' && (
                 <div style={{ marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid #e2e8f0' }}>

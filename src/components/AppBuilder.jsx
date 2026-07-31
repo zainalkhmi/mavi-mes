@@ -15259,7 +15259,6 @@ const AppBuilder = () => {
                                                     // Keep all step widgets above base layout, while preserving true stacking order.
                                                     zIndex: stepZIndex,
                                                     userSelect: 'none',
-                                                    transform: `rotate(${comp.props.rotation || 0}deg)`,
                                                     transition: dragState ? 'none' : 'all 0.1s'
                                                 }}
                                             >
