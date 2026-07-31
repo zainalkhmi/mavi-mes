@@ -42,155 +42,854 @@ import {
   Car,
   Sparkles,
   FolderOpen,
-  FilePlus
+  FilePlus,
+  Search,
+  Bot,
+  Wrench,
+  Sliders,
+  Activity,
+  Maximize2,
+  Globe,
+  Brain,
+  GitBranch,
+  GitMerge,
+  Code,
+  Filter,
+  Hourglass,
+  FileText,
+  Building,
+  MessageSquare,
+  Send,
+  Server,
+  FileSpreadsheet,
+  Table,
+  Key,
+  ShieldCheck,
+  Cpu as CpuIcon,
+  Power,
+  Pause,
+  Square
 } from 'lucide-react';
 
-// Custom Node for the Start Event (Trigger)
-const EventNode = ({ data }) => (
-  <div style={{
-    padding: '15px',
-    borderRadius: '12px',
-    backgroundColor: 'white',
-    border: '2px solid #3b82f6',
-    minWidth: '220px',
-    boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.1)'
-  }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-      <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6' }}>
-        <Zap size={18} />
-      </div>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase' }}>Event Trigger</div>
-        <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b' }}>{data.label || 'Select Event...'}</div>
-      </div>
-    </div>
-    <Handle type="source" position={Position.Bottom} style={{ background: '#3b82f6' }} />
-  </div>
-);
+// ─── ODOO STYLE COLORFUL COMPACT NODES ──────────────────────────────────────────
 
-// Custom Node for Actions
-const ActionNode = ({ data }) => {
-  const getActionIcon = () => {
-    switch (data.type) {
-      case 'UPDATE_RECORD': return <Database size={18} />;
-      case 'CREATE_RECORD': return <Plus size={18} />;
-      case 'AI_SUMMARIZE':
-      case 'AI_EXTRACT':
-      case 'AI_ANOMALY_DETECTION':
-      case 'AI_TRANSLATE': return <Sparkles size={18} />;
-      default: return <Play size={18} />;
-    }
-  };
-
-  const getActionLabel = () => {
-    switch (data.type) {
-      case 'UPDATE_RECORD': return 'Update Record';
-      case 'CREATE_RECORD': return 'Create Record';
-      case 'LOG_MESSAGE': return 'Log Message';
-      case 'HTTP_REQUEST': return 'HTTP Connector';
-      case 'CONNECTOR_FUNCTION': return 'Connector';
-      case 'SEND_NOTIFICATION': return 'Notification';
-      case 'AI_SUMMARIZE': return 'AI: Summarize';
-      case 'AI_EXTRACT': return 'AI: Extract Data';
-      case 'AI_ANOMALY_DETECTION': return 'AI: Detect Anomaly';
-      case 'AI_TRANSLATE': return 'AI: Translate';
-      default: return 'Action';
-    }
-  };
-
+// ─── PINBADGE (VISUAL DATA PINNING) ──────────────────────────────────────────
+const PinBadge = ({ output }) => {
+  if (!output) return null;
+  const str = typeof output === 'object' ? JSON.stringify(output) : String(output);
   return (
-    <div style={{
-      padding: '15px',
-      borderRadius: '12px',
-      backgroundColor: 'white',
-      border: '1px solid #e2e8f0',
-      minWidth: '220px',
-      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
-    }}>
-      <Handle type="target" position={Position.Top} style={{ background: '#64748b' }} />
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-        <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
-          {getActionIcon()}
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#10b981', textTransform: 'uppercase' }}>{getActionLabel()}</div>
-          <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b' }}>{data.label || 'Configure...'}</div>
-        </div>
-      </div>
-      {data.tableId && (
-        <div style={{ fontSize: '0.65rem', color: '#64748b', backgroundColor: '#f8fafc', padding: '4px 8px', borderRadius: '4px', border: '1px solid #f1f5f9' }}>
-          Table: {data.tableId}
-        </div>
-      )}
-      <Handle type="source" position={Position.Bottom} style={{ background: '#10b981' }} />
+    <div
+      title={`Output JSON:\n${JSON.stringify(output, null, 2)}`}
+      style={{
+        marginTop: '6px',
+        padding: '3px 8px',
+        borderRadius: '6px',
+        backgroundColor: '#00A09D',
+        color: '#ffffff',
+        fontSize: '0.6rem',
+        fontWeight: 800,
+        boxShadow: '0 2px 8px rgba(0, 160, 157, 0.4)',
+        maxWidth: '140px',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        border: '1px solid #ffffff'
+      }}
+    >
+      📌 {str}
     </div>
   );
 };
 
-// Custom Node for Decisions
-const DecisionNode = ({ data }) => (
-  <div style={{
-    padding: '15px',
-    borderRadius: '12px',
-    backgroundColor: 'white',
-    border: '1px solid #e2e8f0',
-    minWidth: '220px',
-    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
-  }}>
-    <Handle type="target" position={Position.Top} style={{ background: '#64748b' }} />
-    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-      <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f97316' }}>
-        <AlertCircle size={18} />
+// 1. Event / Trigger Node (Odoo Teal `#00A09D` Compact Logo Node)
+const EventNode = ({ data, selected }) => {
+  const getTriggerIcon = () => {
+    switch (data.triggerType) {
+      case 'TIMER':
+      case 'SCHEDULE': return <Clock size={28} />;
+      case 'TABLE_ROW_ADDED':
+      case 'TABLE_ROW_UPDATED': return <Database size={28} />;
+      case 'MACHINE_TRIGGER': return <Cpu size={28} />;
+      case 'WEBHOOK': return <Link2 size={28} />;
+      case 'OBD2_TRIGGER': return <Car size={28} />;
+      case 'GMAIL_TRIGGER': return <Mail size={28} />;
+      case 'TELEGRAM_TRIGGER': return <Send size={28} />;
+      default: return <Zap size={28} />;
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+      <div style={{
+        width: '62px',
+        height: '62px',
+        borderRadius: '18px',
+        backgroundColor: '#00A09D',
+        border: `3px solid ${selected ? '#ffffff' : '#017E84'}`,
+        boxShadow: selected ? '0 0 24px rgba(0, 160, 157, 0.8)' : '0 8px 18px rgba(0, 160, 157, 0.35)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#ffffff',
+        transition: 'all 0.2s ease',
+        position: 'relative'
+      }}>
+        {getTriggerIcon()}
+
+        <Handle
+          type="source"
+          position={Position.Right}
+          style={{
+            width: '12px',
+            height: '12px',
+            background: '#00A09D',
+            border: '2px solid #ffffff',
+            boxShadow: '0 0 10px #00A09D',
+            right: '-6px'
+          }}
+        />
       </div>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#f97316', textTransform: 'uppercase' }}>Decision</div>
-        <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b' }}>{data.label || 'IF Condition'}</div>
+
+      <div style={{ textAlign: 'center', marginTop: '8px', maxWidth: '140px' }}>
+        <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {data.label || 'Event Trigger'}
+        </div>
+        <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#00A09D', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+          Trigger
+        </div>
+        <PinBadge output={data.lastOutput} />
       </div>
     </div>
-    {data.condition && (
-      <div style={{ fontSize: '0.65rem', color: '#64748b', backgroundColor: '#fff7ed', padding: '4px 8px', borderRadius: '4px', marginBottom: '10px', textAlign: 'center' }}>
-        {data.condition.field} {data.condition.operator} {data.condition.value}
+  );
+};
+
+// 2. Action Node (Odoo Purple `#714B67` / Royal Blue Node)
+const ActionNode = ({ data, selected }) => {
+  const isAI = data.type?.startsWith('AI_');
+
+  const getActionIcon = () => {
+    switch (data.type) {
+      case 'UPDATE_RECORD': return <Database size={28} />;
+      case 'CREATE_RECORD': return <Plus size={28} />;
+      case 'HTTP_REQUEST': return <ExternalLink size={28} />;
+      case 'SEND_NOTIFICATION':
+      case 'TELEGRAM':
+      case 'SLACK': return <MessageSquare size={28} />;
+      case 'EMAIL':
+      case 'GMAIL': return <Mail size={28} />;
+      case 'SPREADSHEET':
+      case 'EXCEL': return <FileSpreadsheet size={28} />;
+      case 'ERP_CRM': return <Building size={28} />;
+      case 'AI_SUMMARIZE':
+      case 'AI_EXTRACT':
+      case 'AI_ANOMALY_DETECTION':
+      case 'AI_TRANSLATE': return <Sparkles size={28} />;
+      default: return <Play size={28} />;
+    }
+  };
+
+  const color = isAI ? '#a855f7' : '#714B67';
+  const bgColor = isAI ? '#581c87' : '#714B67';
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+      <div style={{
+        width: '62px',
+        height: '62px',
+        borderRadius: '18px',
+        backgroundColor: bgColor,
+        border: `3px solid ${selected ? '#ffffff' : '#5B3C53'}`,
+        boxShadow: selected ? `0 0 24px ${color}` : '0 8px 18px rgba(113, 75, 103, 0.4)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#ffffff',
+        transition: 'all 0.2s ease',
+        position: 'relative'
+      }}>
+        <Handle
+          type="target"
+          position={Position.Left}
+          style={{
+            width: '12px',
+            height: '12px',
+            background: color,
+            border: '2px solid #ffffff',
+            left: '-6px'
+          }}
+        />
+
+        {getActionIcon()}
+
+        <Handle
+          type="source"
+          position={Position.Right}
+          style={{
+            width: '12px',
+            height: '12px',
+            background: color,
+            border: '2px solid #ffffff',
+            boxShadow: `0 0 10px ${color}`,
+            right: '-6px'
+          }}
+        />
       </div>
-    )}
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 10px' }}>
-      <div style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 700 }}>YES</div>
-      <div style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: 700 }}>NO</div>
+
+      <div style={{ textAlign: 'center', marginTop: '8px', maxWidth: '140px' }}>
+        <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {data.label || 'Action'}
+        </div>
+        <div style={{ fontSize: '0.62rem', fontWeight: 800, color: color, textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+          {isAI ? 'AI Action' : 'Action'}
+        </div>
+      </div>
     </div>
-    <Handle type="source" id="yes" position={Position.Bottom} style={{ left: '25%', background: '#10b981' }} />
-    <Handle type="source" id="no" position={Position.Bottom} style={{ left: '75%', background: '#ef4444' }} />
+  );
+};
+
+// 3. Decision Node (Odoo Orange `#F05A28` IF Condition)
+const DecisionNode = ({ data, selected }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+    <div style={{
+      width: '62px',
+      height: '62px',
+      borderRadius: '18px',
+      backgroundColor: '#F05A28',
+      border: `3px solid ${selected ? '#ffffff' : '#D03B0B'}`,
+      boxShadow: selected ? '0 0 24px rgba(240, 90, 40, 0.8)' : '0 8px 18px rgba(240, 90, 40, 0.4)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#ffffff',
+      transition: 'all 0.2s ease',
+      position: 'relative'
+    }}>
+      <Handle
+        type="target"
+        position={Position.Left}
+        style={{
+          width: '12px',
+          height: '12px',
+          background: '#F05A28',
+          border: '2px solid #ffffff',
+          left: '-6px'
+        }}
+      />
+
+      <AlertCircle size={28} />
+
+      <Handle
+        type="source"
+        id="yes"
+        position={Position.Right}
+        style={{
+          top: '30%',
+          width: '12px',
+          height: '12px',
+          background: '#00A09D',
+          border: '2px solid #ffffff',
+          boxShadow: '0 0 8px #00A09D',
+          right: '-6px'
+        }}
+      />
+      <Handle
+        type="source"
+        id="no"
+        position={Position.Right}
+        style={{
+          top: '70%',
+          width: '12px',
+          height: '12px',
+          background: '#ef4444',
+          border: '2px solid #ffffff',
+          boxShadow: '0 0 8px #ef4444',
+          right: '-6px'
+        }}
+      />
+    </div>
+
+    <div style={{ textAlign: 'center', marginTop: '8px', maxWidth: '140px' }}>
+      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {data.label || 'IF Condition'}
+      </div>
+      <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#F05A28', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+        Decision (IF)
+      </div>
+    </div>
   </div>
 );
 
-const LoopNode = ({ data }) => (
+// 4. Switch Node (Odoo Coral / Amber Node)
+const SwitchNode = ({ data, selected }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+    <div style={{
+      width: '62px',
+      height: '62px',
+      borderRadius: '18px',
+      backgroundColor: '#E67E22',
+      border: `3px solid ${selected ? '#ffffff' : '#D35400'}`,
+      boxShadow: selected ? '0 0 24px rgba(230, 126, 34, 0.8)' : '0 8px 18px rgba(230, 126, 34, 0.4)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#ffffff',
+      transition: 'all 0.2s ease',
+      position: 'relative'
+    }}>
+      <Handle type="target" position={Position.Left} style={{ width: '12px', height: '12px', background: '#E67E22', border: '2px solid #ffffff', left: '-6px' }} />
+
+      <GitBranch size={28} />
+
+      <Handle type="source" id="b1" position={Position.Right} style={{ top: '20%', width: '10px', height: '10px', background: '#00A09D', border: '2px solid #ffffff', right: '-5px' }} />
+      <Handle type="source" id="b2" position={Position.Right} style={{ top: '40%', width: '10px', height: '10px', background: '#714B67', border: '2px solid #ffffff', right: '-5px' }} />
+      <Handle type="source" id="b3" position={Position.Right} style={{ top: '60%', width: '10px', height: '10px', background: '#3b82f6', border: '2px solid #ffffff', right: '-5px' }} />
+      <Handle type="source" id="fallback" position={Position.Right} style={{ top: '80%', width: '10px', height: '10px', background: '#64748b', border: '2px solid #ffffff', right: '-5px' }} />
+    </div>
+
+    <div style={{ textAlign: 'center', marginTop: '8px', maxWidth: '140px' }}>
+      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {data.label || 'Switch Route'}
+      </div>
+      <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#E67E22', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+        Switch
+      </div>
+    </div>
+  </div>
+);
+
+// 5. Merge Node (Purple Merge)
+const MergeNode = ({ data, selected }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+    <div style={{
+      width: '62px',
+      height: '62px',
+      borderRadius: '18px',
+      backgroundColor: '#8E44AD',
+      border: `3px solid ${selected ? '#ffffff' : '#6C3483'}`,
+      boxShadow: selected ? '0 0 24px rgba(142, 68, 173, 0.8)' : '0 8px 18px rgba(142, 68, 173, 0.4)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#ffffff',
+      transition: 'all 0.2s ease',
+      position: 'relative'
+    }}>
+      <Handle type="target" id="inputA" position={Position.Left} style={{ top: '30%', width: '10px', height: '10px', background: '#8E44AD', border: '2px solid #ffffff', left: '-5px' }} />
+      <Handle type="target" id="inputB" position={Position.Left} style={{ top: '70%', width: '10px', height: '10px', background: '#8E44AD', border: '2px solid #ffffff', left: '-5px' }} />
+
+      <GitMerge size={28} />
+
+      <Handle type="source" position={Position.Right} style={{ width: '12px', height: '12px', background: '#8E44AD', border: '2px solid #ffffff', right: '-6px' }} />
+    </div>
+
+    <div style={{ textAlign: 'center', marginTop: '8px', maxWidth: '140px' }}>
+      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {data.label || 'Merge Streams'}
+      </div>
+      <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#8E44AD', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+        Merge
+      </div>
+    </div>
+  </div>
+);
+
+// 6. Code Node (Emerald Code)
+const CodeNode = ({ data, selected }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+    <div style={{
+      width: '62px',
+      height: '62px',
+      borderRadius: '18px',
+      backgroundColor: '#10B981',
+      border: `3px solid ${selected ? '#ffffff' : '#059669'}`,
+      boxShadow: selected ? '0 0 24px rgba(16, 185, 129, 0.8)' : '0 8px 18px rgba(16, 185, 129, 0.4)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#ffffff',
+      transition: 'all 0.2s ease',
+      position: 'relative'
+    }}>
+      <Handle type="target" position={Position.Left} style={{ width: '12px', height: '12px', background: '#10B981', border: '2px solid #ffffff', left: '-6px' }} />
+
+      <Code size={28} />
+
+      <Handle type="source" position={Position.Right} style={{ width: '12px', height: '12px', background: '#10B981', border: '2px solid #ffffff', right: '-6px' }} />
+    </div>
+
+    <div style={{ textAlign: 'center', marginTop: '8px', maxWidth: '140px' }}>
+      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {data.label || 'Run Code'}
+      </div>
+      <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#10B981', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+        Code Node
+      </div>
+    </div>
+  </div>
+);
+
+// 7. Filter Node (Indigo Filter)
+const FilterNode = ({ data, selected }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+    <div style={{
+      width: '62px',
+      height: '62px',
+      borderRadius: '18px',
+      backgroundColor: '#4F46E5',
+      border: `3px solid ${selected ? '#ffffff' : '#3730A3'}`,
+      boxShadow: selected ? '0 0 24px rgba(79, 70, 229, 0.8)' : '0 8px 18px rgba(79, 70, 229, 0.4)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#ffffff',
+      transition: 'all 0.2s ease',
+      position: 'relative'
+    }}>
+      <Handle type="target" position={Position.Left} style={{ width: '12px', height: '12px', background: '#4F46E5', border: '2px solid #ffffff', left: '-6px' }} />
+
+      <Filter size={28} />
+
+      <Handle type="source" position={Position.Right} style={{ width: '12px', height: '12px', background: '#4F46E5', border: '2px solid #ffffff', right: '-6px' }} />
+    </div>
+
+    <div style={{ textAlign: 'center', marginTop: '8px', maxWidth: '140px' }}>
+      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {data.label || 'Filter Data'}
+      </div>
+      <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#4F46E5', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+        Filter
+      </div>
+    </div>
+  </div>
+);
+
+// 8. Loop Node (Violet Loop)
+const LoopNode = ({ data, selected }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+    <div style={{
+      width: '62px',
+      height: '62px',
+      borderRadius: '18px',
+      backgroundColor: '#7C3AED',
+      border: `3px solid ${selected ? '#ffffff' : '#5B21B6'}`,
+      boxShadow: selected ? '0 0 24px rgba(124, 58, 237, 0.8)' : '0 8px 18px rgba(124, 58, 237, 0.4)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#ffffff',
+      transition: 'all 0.2s ease',
+      position: 'relative'
+    }}>
+      <Handle type="target" position={Position.Left} style={{ width: '12px', height: '12px', background: '#7C3AED', border: '2px solid #ffffff', left: '-6px' }} />
+
+      <RefreshCw size={28} />
+
+      <Handle type="source" id="body" position={Position.Right} style={{ top: '30%', width: '12px', height: '12px', background: '#7C3AED', border: '2px solid #ffffff', right: '-6px' }} />
+      <Handle type="source" id="exit" position={Position.Right} style={{ top: '70%', width: '12px', height: '12px', background: '#64748b', border: '2px solid #ffffff', right: '-6px' }} />
+    </div>
+
+    <div style={{ textAlign: 'center', marginTop: '8px', maxWidth: '140px' }}>
+      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {data.label || 'Loop'}
+      </div>
+      <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#7C3AED', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+        Loop
+      </div>
+    </div>
+  </div>
+);
+
+// 9. Wait Node (Sky Blue Wait)
+const WaitNode = ({ data, selected }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+    <div style={{
+      width: '62px',
+      height: '62px',
+      borderRadius: '18px',
+      backgroundColor: '#0284C7',
+      border: `3px solid ${selected ? '#ffffff' : '#0369A1'}`,
+      boxShadow: selected ? '0 0 24px rgba(2, 132, 199, 0.8)' : '0 8px 18px rgba(2, 132, 199, 0.4)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#ffffff',
+      transition: 'all 0.2s ease',
+      position: 'relative'
+    }}>
+      <Handle type="target" position={Position.Left} style={{ width: '12px', height: '12px', background: '#0284C7', border: '2px solid #ffffff', left: '-6px' }} />
+
+      <Hourglass size={28} />
+
+      <Handle type="source" position={Position.Right} style={{ width: '12px', height: '12px', background: '#0284C7', border: '2px solid #ffffff', right: '-6px' }} />
+    </div>
+
+    <div style={{ textAlign: 'center', marginTop: '8px', maxWidth: '140px' }}>
+      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {data.label || 'Wait / Pause'}
+      </div>
+      <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#0284C7', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+        Wait
+      </div>
+    </div>
+  </div>
+);
+
+// 10. Set / Edit Fields Node
+const SetNode = ({ data, selected }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+    <div style={{
+      width: '62px',
+      height: '62px',
+      borderRadius: '18px',
+      backgroundColor: '#06B6D4',
+      border: `3px solid ${selected ? '#ffffff' : '#0891B2'}`,
+      boxShadow: selected ? '0 0 24px rgba(6, 182, 212, 0.8)' : '0 8px 18px rgba(6, 182, 212, 0.4)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#ffffff',
+      transition: 'all 0.2s ease',
+      position: 'relative'
+    }}>
+      <Handle type="target" position={Position.Left} style={{ width: '12px', height: '12px', background: '#06B6D4', border: '2px solid #ffffff', left: '-6px' }} />
+
+      <Sliders size={28} />
+
+      <Handle type="source" position={Position.Right} style={{ width: '12px', height: '12px', background: '#06B6D4', border: '2px solid #ffffff', right: '-6px' }} />
+    </div>
+
+    <div style={{ textAlign: 'center', marginTop: '8px', maxWidth: '140px' }}>
+      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {data.label || 'Edit Fields / Set'}
+      </div>
+      <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#06B6D4', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+        Set Node
+      </div>
+    </div>
+  </div>
+);
+
+// 11. Database Node
+const DatabaseNode = ({ data, selected }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+    <div style={{
+      width: '62px',
+      height: '62px',
+      borderRadius: '18px',
+      backgroundColor: '#059669',
+      border: `3px solid ${selected ? '#ffffff' : '#047857'}`,
+      boxShadow: selected ? '0 0 24px rgba(5, 150, 105, 0.8)' : '0 8px 18px rgba(5, 150, 105, 0.4)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#ffffff',
+      transition: 'all 0.2s ease',
+      position: 'relative'
+    }}>
+      <Handle type="target" position={Position.Left} style={{ width: '12px', height: '12px', background: '#059669', border: '2px solid #ffffff', left: '-6px' }} />
+
+      <Database size={28} />
+
+      <Handle type="source" position={Position.Right} style={{ width: '12px', height: '12px', background: '#059669', border: '2px solid #ffffff', right: '-6px' }} />
+    </div>
+
+    <div style={{ textAlign: 'center', marginTop: '8px', maxWidth: '140px' }}>
+      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {data.label || 'Database Query'}
+      </div>
+      <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+        Database
+      </div>
+    </div>
+  </div>
+);
+
+// 12. Odoo Style AI Agent Card Node
+const AIAgentCardNode = ({ data, selected }) => (
   <div style={{
-    padding: '15px',
-    borderRadius: '12px',
-    backgroundColor: 'white',
-    border: '1px solid #e2e8f0',
-    minWidth: '220px',
-    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
+    padding: '16px 20px',
+    borderRadius: '20px',
+    backgroundColor: '#714B67',
+    border: `3px solid ${selected ? '#ffffff' : '#5B3C53'}`,
+    boxShadow: selected ? '0 0 28px rgba(113, 75, 103, 0.9)' : '0 8px 24px rgba(113, 75, 103, 0.45)',
+    minWidth: '230px',
+    color: '#ffffff',
+    position: 'relative'
   }}>
-    <Handle type="target" position={Position.Top} style={{ background: '#64748b' }} />
-    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-      <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#faf5ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#a855f7' }}>
-        <RefreshCw size={18} />
+    <Handle
+      type="target"
+      position={Position.Left}
+      style={{ width: '12px', height: '12px', background: '#ffffff', border: '2px solid #714B67', left: '-6px' }}
+    />
+
+    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div style={{
+        width: '44px',
+        height: '44px',
+        borderRadius: '14px',
+        backgroundColor: '#5B3C53',
+        border: '2px solid #00A09D',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#00A09D',
+        boxShadow: '0 0 12px rgba(0, 160, 157, 0.5)'
+      }}>
+        <Bot size={26} />
       </div>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#a855f7', textTransform: 'uppercase' }}>Loop (For Each)</div>
-        <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b' }}>{data.label || 'Iterate List'}</div>
+      <div>
+        <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#ffffff' }}>
+          {data.label || 'AI Agent'}
+        </div>
+        <div style={{ fontSize: '0.7rem', color: '#e2e8f0', fontWeight: 700 }}>
+          {data.agentType || 'Tools Agent'} ({data.provider || 'Gemini'})
+        </div>
       </div>
     </div>
-    {data.listPath && (
-      <div style={{ fontSize: '0.65rem', color: '#64748b', backgroundColor: '#faf5ff', padding: '4px 8px', borderRadius: '4px', marginBottom: '10px', textAlign: 'center' }}>
-        List: {data.listPath}
+
+    <Handle
+      type="source"
+      position={Position.Right}
+      style={{ width: '12px', height: '12px', background: '#ffffff', border: '2px solid #714B67', right: '-6px' }}
+    />
+
+    <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: '14px', paddingTop: '10px', borderTop: '1px solid rgba(255, 255, 255, 0.2)' }}>
+      <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <span style={{ fontSize: '0.6rem', color: '#38bdf8', fontWeight: 800 }}>MODEL</span>
+        <Handle
+          type="source"
+          id="model"
+          position={Position.Bottom}
+          style={{ width: '10px', height: '10px', background: '#38bdf8', border: '2px solid #ffffff', bottom: '-14px' }}
+        />
       </div>
-    )}
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 10px' }}>
-      <div style={{ fontSize: '0.7rem', color: '#a855f7', fontWeight: 700 }}>BODY</div>
-      <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 700 }}>EXIT</div>
+      <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <span style={{ fontSize: '0.6rem', color: '#c084fc', fontWeight: 800 }}>MEMORY</span>
+        <Handle
+          type="source"
+          id="memory"
+          position={Position.Bottom}
+          style={{ width: '10px', height: '10px', background: '#c084fc', border: '2px solid #ffffff', bottom: '-14px' }}
+        />
+      </div>
+      <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <span style={{ fontSize: '0.6rem', color: '#34d399', fontWeight: 800 }}>TOOLS</span>
+        <Handle
+          type="source"
+          id="tools"
+          position={Position.Bottom}
+          style={{ width: '10px', height: '10px', background: '#34d399', border: '2px solid #ffffff', bottom: '-14px' }}
+        />
+      </div>
     </div>
-    <Handle type="source" id="body" position={Position.Bottom} style={{ left: '25%', background: '#a855f7' }} />
-    <Handle type="source" id="exit" position={Position.Bottom} style={{ left: '75%', background: '#64748b' }} />
+  </div>
+);
+
+// 13. Sub-Node: LLM Model
+const SubModelNode = ({ data, selected }) => {
+  const provider = data.provider || (data.label?.includes('OpenAI') ? 'OpenAI' : data.label?.includes('Gemini') ? 'Gemini' : data.label?.includes('Claude') ? 'Claude' : data.label?.includes('Ollama') ? 'Ollama' : 'OpenAI');
+
+  const getColor = () => {
+    switch (provider) {
+      case 'OpenAI': return '#10a37f';
+      case 'Gemini': return '#8e75ff';
+      case 'Claude': return '#d97706';
+      case 'Ollama': return '#00A09D';
+      default: return '#00A09D';
+    }
+  };
+
+  const color = getColor();
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+      <div style={{
+        width: '50px',
+        height: '50px',
+        borderRadius: '50%',
+        backgroundColor: '#ffffff',
+        border: `3px solid ${selected ? '#714B67' : color}`,
+        boxShadow: selected ? `0 0 20px ${color}` : '0 6px 14px rgba(0,0,0,0.2)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: color,
+        position: 'relative'
+      }}>
+        <Handle type="target" position={Position.Top} style={{ width: '10px', height: '10px', background: color, border: '2px solid #ffffff', top: '-5px' }} />
+        <Sparkles size={22} />
+      </div>
+      <div style={{ textAlign: 'center', marginTop: '6px', maxWidth: '120px' }}>
+        <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {data.label || `${provider} Model`}
+        </div>
+        <div style={{ fontSize: '0.6rem', color: color, fontWeight: 800, textTransform: 'uppercase' }}>
+          {provider} ({data.modelId || 'Default'})
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 14. Sub-Node: AI Memory
+const SubMemoryNode = ({ data, selected }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+    <div style={{
+      width: '48px',
+      height: '48px',
+      borderRadius: '50%',
+      backgroundColor: '#ffffff',
+      border: `3px solid ${selected ? '#714B67' : '#8E44AD'}`,
+      boxShadow: selected ? '0 0 20px #8E44AD' : '0 6px 14px rgba(0,0,0,0.2)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#8E44AD',
+      position: 'relative'
+    }}>
+      <Handle type="target" position={Position.Top} style={{ width: '10px', height: '10px', background: '#8E44AD', border: '2px solid #ffffff', top: '-5px' }} />
+      <Brain size={22} />
+    </div>
+    <div style={{ textAlign: 'center', marginTop: '6px', maxWidth: '110px' }}>
+      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {data.label || 'Window Buffer'}
+      </div>
+      <div style={{ fontSize: '0.6rem', color: '#8E44AD', fontWeight: 800 }}>MEMORY</div>
+    </div>
+  </div>
+);
+
+// 15. Sub-Node: AI Tool
+const SubToolNode = ({ data, selected }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+    <div style={{
+      width: '48px',
+      height: '48px',
+      borderRadius: '50%',
+      backgroundColor: '#ffffff',
+      border: `3px solid ${selected ? '#714B67' : '#00A09D'}`,
+      boxShadow: selected ? '0 0 20px #00A09D' : '0 6px 14px rgba(0,0,0,0.2)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#00A09D',
+      position: 'relative'
+    }}>
+      <Handle type="target" position={Position.Top} style={{ width: '10px', height: '10px', background: '#00A09D', border: '2px solid #ffffff', top: '-5px' }} />
+      {data.label?.includes('Wikipedia') ? <Globe size={22} /> : data.label?.includes('DB') ? <Database size={22} /> : <Wrench size={22} />}
+    </div>
+    <div style={{ textAlign: 'center', marginTop: '6px', maxWidth: '110px' }}>
+      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {data.label || 'Workflow Tool'}
+      </div>
+      <div style={{ fontSize: '0.6rem', color: '#00A09D', fontWeight: 800 }}>TOOL</div>
+    </div>
+  </div>
+);
+
+// 16. Sub-Workflow Node (Call Child Workflow)
+const SubWorkflowNode = ({ data, selected }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+    <div style={{
+      width: '62px',
+      height: '62px',
+      borderRadius: '18px',
+      backgroundColor: '#4F46E5',
+      border: `3px solid ${selected ? '#ffffff' : '#3730A3'}`,
+      boxShadow: selected ? '0 0 24px rgba(79, 70, 229, 0.8)' : '0 8px 18px rgba(79, 70, 229, 0.4)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#ffffff',
+      transition: 'all 0.2s ease',
+      position: 'relative'
+    }}>
+      <Handle type="target" position={Position.Left} style={{ width: '12px', height: '12px', background: '#4F46E5', border: '2px solid #ffffff', left: '-6px' }} />
+
+      <Layers size={28} />
+
+      <Handle type="source" position={Position.Right} style={{ width: '12px', height: '12px', background: '#4F46E5', border: '2px solid #ffffff', right: '-6px' }} />
+    </div>
+
+    <div style={{ textAlign: 'center', marginTop: '8px', maxWidth: '140px' }}>
+      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {data.label || 'Call Sub-Workflow'}
+      </div>
+      <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#4F46E5', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+        Sub-Workflow
+      </div>
+      <PinBadge output={data.lastOutput} />
+    </div>
+  </div>
+);
+
+// 17. Respond to Webhook Node
+const RespondWebhookNode = ({ data, selected }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+    <div style={{
+      width: '62px',
+      height: '62px',
+      borderRadius: '18px',
+      backgroundColor: '#E11D48',
+      border: `3px solid ${selected ? '#ffffff' : '#BE123C'}`,
+      boxShadow: selected ? '0 0 24px rgba(225, 29, 72, 0.8)' : '0 8px 18px rgba(225, 29, 72, 0.4)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#ffffff',
+      transition: 'all 0.2s ease',
+      position: 'relative'
+    }}>
+      <Handle type="target" position={Position.Left} style={{ width: '12px', height: '12px', background: '#E11D48', border: '2px solid #ffffff', left: '-6px' }} />
+
+      <Send size={28} />
+
+      <Handle type="source" position={Position.Right} style={{ width: '12px', height: '12px', background: '#E11D48', border: '2px solid #ffffff', right: '-6px' }} />
+    </div>
+
+    <div style={{ textAlign: 'center', marginTop: '8px', maxWidth: '140px' }}>
+      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {data.label || 'Respond Webhook'}
+      </div>
+      <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#E11D48', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+        Webhook Response
+      </div>
+      <PinBadge output={data.lastOutput} />
+    </div>
+  </div>
+);
+
+// 18. Error Trigger Node (Error Catch & Fallback Route)
+const ErrorTriggerNode = ({ data, selected }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+    <div style={{
+      width: '62px',
+      height: '62px',
+      borderRadius: '18px',
+      backgroundColor: '#EF4444',
+      border: `3px solid ${selected ? '#ffffff' : '#B91C1C'}`,
+      boxShadow: selected ? '0 0 24px rgba(239, 68, 68, 0.8)' : '0 8px 18px rgba(239, 68, 68, 0.4)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#ffffff',
+      transition: 'all 0.2s ease',
+      position: 'relative'
+    }}>
+      <AlertTriangle size={28} />
+
+      <Handle type="source" position={Position.Right} style={{ width: '12px', height: '12px', background: '#EF4444', border: '2px solid #ffffff', right: '-6px' }} />
+    </div>
+
+    <div style={{ textAlign: 'center', marginTop: '8px', maxWidth: '140px' }}>
+      <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {data.label || 'Error Fallback'}
+      </div>
+      <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#EF4444', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+        Error Trigger
+      </div>
+      <PinBadge output={data.lastOutput} />
+    </div>
   </div>
 );
 
@@ -198,7 +897,21 @@ const nodeTypes = {
   event: EventNode,
   action: ActionNode,
   decision: DecisionNode,
-  loop: LoopNode
+  switch: SwitchNode,
+  merge: MergeNode,
+  code: CodeNode,
+  filter: FilterNode,
+  loop: LoopNode,
+  wait: WaitNode,
+  set: SetNode,
+  database: DatabaseNode,
+  ai_agent: AIAgentCardNode,
+  sub_model: SubModelNode,
+  sub_memory: SubMemoryNode,
+  sub_tool: SubToolNode,
+  sub_workflow: SubWorkflowNode,
+  respond_webhook: RespondWebhookNode,
+  error_trigger: ErrorTriggerNode
 };
 
 const initialNodes = [
@@ -206,7 +919,7 @@ const initialNodes = [
     id: 'start-node',
     type: 'event',
     data: { label: 'Click to choose event' },
-    position: { x: 250, y: 50 },
+    position: { x: 80, y: 180 },
   }
 ];
 
@@ -214,58 +927,55 @@ const initialEdges = [];
 
 const AUTOMATION_TEMPLATES = [
   {
-    id: 'temp_oee_alert',
-    name: 'Notifikasi Downtime & OEE Rendah',
-    description: 'Otomatis mengirimkan notifikasi ke supervisor jika kecepatan/OEE mesin di bawah batas minimum (downtime terdeteksi).',
-    category: 'IoT & Sensors',
+    id: 'temp_mavi_erp_workflow',
+    name: 'MAVI MES Full ERP-Stock-Purchase Workflow',
+    description: 'Workflow lengkap MAVI MES: Schedule Trigger -> HTTP ERP Order API -> IF (Cek Stok) -> [Ya: Buat MES WO + Supabase + Telegram] | [Tidak: Purchase Request + Email Supplier].',
+    category: 'MAVI MES Core',
     nodes: [
-      { id: 'start-node', type: 'event', position: { x: 250, y: 50 }, data: { triggerType: 'MACHINE_TRIGGER', label: 'Ketika mesin mengirimkan data...' } },
-      { id: 'node_dec_1', type: 'decision', position: { x: 250, y: 180 }, data: { label: 'OEE < 70%?', condition: { field: 'oee', operator: '<', value: '70' } } },
-      { id: 'node_act_1', type: 'action', position: { x: 100, y: 320 }, data: { type: 'SEND_NOTIFICATION', label: 'Kirim Alert OEE Rendah' } },
-      { id: 'node_act_2', type: 'action', position: { x: 400, y: 320 }, data: { type: 'LOG_MESSAGE', label: 'Log Status Mesin Normal' } }
+      { id: 'start-node', type: 'event', position: { x: 60, y: 180 }, data: { triggerType: 'TIMER', label: 'Schedule Trigger (08:00)' } },
+      { id: 'node_http_erp', type: 'action', position: { x: 260, y: 180 }, data: { type: 'HTTP_REQUEST', label: 'HTTP Request (Ambil Order ERP)' } },
+      { id: 'node_dec_stock', type: 'decision', position: { x: 460, y: 180 }, data: { label: 'Stok Cukup?', condition: { field: 'stock', operator: '>=', value: 'order_qty' } } },
+      
+      { id: 'node_mes_wo', type: 'action', position: { x: 660, y: 100 }, data: { type: 'CREATE_RECORD', label: 'MES Create Work Order' } },
+      { id: 'node_supabase', type: 'database', position: { x: 860, y: 100 }, data: { label: 'Supabase DB Sync' } },
+      { id: 'node_telegram', type: 'action', position: { x: 1060, y: 100 }, data: { type: 'TELEGRAM', label: 'Telegram Alert Manager' } },
+
+      { id: 'node_pr', type: 'action', position: { x: 660, y: 260 }, data: { type: 'CREATE_RECORD', label: 'Buat Purchase Request' } },
+      { id: 'node_email_supplier', type: 'action', position: { x: 860, y: 260 }, data: { type: 'EMAIL', label: 'Email Supplier Auto' } }
     ],
     edges: [
-      { id: 'e1', source: 'start-node', target: 'node_dec_1' },
-      { id: 'e2', source: 'node_dec_1', sourceHandle: 'yes', target: 'node_act_1' },
-      { id: 'e3', source: 'node_dec_1', sourceHandle: 'no', target: 'node_act_2' }
+      { id: 'e1', source: 'start-node', target: 'node_http_erp' },
+      { id: 'e2', source: 'node_http_erp', target: 'node_dec_stock' },
+      { id: 'e3', source: 'node_dec_stock', sourceHandle: 'yes', target: 'node_mes_wo' },
+      { id: 'e4', source: 'node_mes_wo', target: 'node_supabase' },
+      { id: 'e5', source: 'node_supabase', target: 'node_telegram' },
+      { id: 'e6', source: 'node_dec_stock', sourceHandle: 'no', target: 'node_pr' },
+      { id: 'e7', source: 'node_pr', target: 'node_email_supplier' }
     ]
   },
   {
-    id: 'temp_defect_qa',
-    name: 'Eskalasi Cacat Produksi Otomatis',
-    description: 'Picu tindakan korektif saat hasil inspeksi QC berstatus REJECTED. Buat perintah kerja rework otomatis dan ringkas catatan cacat dengan AI.',
-    category: 'Quality Control',
+    id: 'temp_n8n_ai_agent',
+    name: 'Multi-LLM AI Agent Workflow (Gemini/OpenAI/Claude)',
+    description: 'Workflow AI Agent lengkap: AI Agent terhubung ke Google Gemini / OpenAI / Claude Model, Window Buffer Memory, Wikipedia Tool, & Postgres DB Tool.',
+    category: 'AI & Automation',
     nodes: [
-      { id: 'start-node', type: 'event', position: { x: 250, y: 50 }, data: { triggerType: 'TABLE_ROW_ADDED', label: 'Inspeksi QC Ditambahkan' } },
-      { id: 'node_dec_1', type: 'decision', position: { x: 250, y: 180 }, data: { label: 'Status Rejected?', condition: { field: 'status', operator: '==', value: 'REJECTED' } } },
-      { id: 'node_act_1', type: 'action', position: { x: 100, y: 320 }, data: { type: 'CREATE_RECORD', label: 'Buat Work Order Rework' } },
-      { id: 'node_act_2', type: 'action', position: { x: 100, y: 440 }, data: { type: 'AI_SUMMARIZE', label: 'Ringkas Detail Cacat (AI)' } },
-      { id: 'node_act_3', type: 'action', position: { x: 400, y: 320 }, data: { type: 'LOG_MESSAGE', label: 'Lulus Inspeksi' } }
+      { id: 'start-node', type: 'event', position: { x: 60, y: 160 }, data: { triggerType: 'TABLE_ROW_ADDED', label: 'Inspeksi QC Ditambahkan' } },
+      { id: 'node_ai_agent', type: 'ai_agent', position: { x: 260, y: 145 }, data: { label: 'AI Agent (MES Assistant)', agentType: 'Tools Agent', provider: 'Gemini', modelId: 'gemini-1.5-pro' } },
+      
+      { id: 'sub_model_gemini', type: 'sub_model', position: { x: 180, y: 310 }, data: { label: 'Google Gemini Model', provider: 'Gemini', modelId: 'gemini-1.5-pro' } },
+      { id: 'sub_memory_buffer', type: 'sub_memory', position: { x: 290, y: 310 }, data: { label: 'Window Buffer Memory' } },
+      { id: 'sub_tool_wiki', type: 'sub_tool', position: { x: 400, y: 310 }, data: { label: 'Wikipedia Tool' } },
+      { id: 'sub_tool_db', type: 'sub_tool', position: { x: 510, y: 310 }, data: { label: 'Postgres DB Tool' } },
+      
+      { id: 'node_act_1', type: 'action', position: { x: 640, y: 160 }, data: { type: 'CREATE_RECORD', label: 'Buat Work Order Rework' } }
     ],
     edges: [
-      { id: 'e1', source: 'start-node', target: 'node_dec_1' },
-      { id: 'e2', source: 'node_dec_1', sourceHandle: 'yes', target: 'node_act_1' },
-      { id: 'e3', source: 'node_act_1', target: 'node_act_2' },
-      { id: 'e4', source: 'node_dec_1', sourceHandle: 'no', target: 'node_act_3' }
-    ]
-  },
-  {
-    id: 'temp_stock_report',
-    name: 'Sinkronisasi & Alert Stok Harian',
-    description: 'Pengecekan terjadwal level stok setiap 24 jam. Kirim peringatan jika stok berada di bawah batas aman.',
-    category: 'Inventory',
-    nodes: [
-      { id: 'start-node', type: 'event', position: { x: 250, y: 50 }, data: { triggerType: 'TIMER', label: 'Pemicu Waktu Harian' } },
-      { id: 'node_act_1', type: 'action', position: { x: 250, y: 180 }, data: { type: 'HTTP_REQUEST', label: 'Tarik Level Stok (ERP API)' } },
-      { id: 'node_dec_1', type: 'decision', position: { x: 250, y: 300 }, data: { label: 'Stok < Batas Aman?', condition: { field: 'quantity', operator: '<', value: 'safety_limit' } } },
-      { id: 'node_act_2', type: 'action', position: { x: 100, y: 440 }, data: { type: 'SEND_NOTIFICATION', label: 'Kirim Alert Reorder Material' } },
-      { id: 'node_act_3', type: 'action', position: { x: 400, y: 440 }, data: { type: 'LOG_MESSAGE', label: 'Status Stok Aman' } }
-    ],
-    edges: [
-      { id: 'e1', source: 'start-node', target: 'node_act_1' },
-      { id: 'e2', source: 'node_act_1', target: 'node_dec_1' },
-      { id: 'e3', source: 'node_dec_1', sourceHandle: 'yes', target: 'node_act_2' },
-      { id: 'e4', source: 'node_dec_1', sourceHandle: 'no', target: 'node_act_3' }
+      { id: 'e1', source: 'start-node', target: 'node_ai_agent' },
+      { id: 'e2', source: 'node_ai_agent', sourceHandle: 'model', target: 'sub_model_gemini', style: { strokeDasharray: '5,5', stroke: '#8e75ff' } },
+      { id: 'e3', source: 'node_ai_agent', sourceHandle: 'memory', target: 'sub_memory_buffer', style: { strokeDasharray: '5,5', stroke: '#a78bfa' } },
+      { id: 'e4', source: 'node_ai_agent', sourceHandle: 'tools', target: 'sub_tool_wiki', style: { strokeDasharray: '5,5', stroke: '#34d399' } },
+      { id: 'e5', source: 'node_ai_agent', sourceHandle: 'tools', target: 'sub_tool_db', style: { strokeDasharray: '5,5', stroke: '#34d399' } },
+      { id: 'e6', source: 'node_ai_agent', target: 'node_act_1' }
     ]
   }
 ];
@@ -278,8 +988,8 @@ const ensureNodePositions = (nodesList) => {
       return {
         ...node,
         position: {
-          x: typeof node.position?.x === 'number' ? node.position.x : 250,
-          y: typeof node.position?.y === 'number' ? node.position.y : (index * 150 + 50)
+          x: typeof node.position?.x === 'number' ? node.position.x : (index * 200 + 80),
+          y: typeof node.position?.y === 'number' ? node.position.y : 180
         }
       };
     }
@@ -304,9 +1014,16 @@ const AutomationEditor = () => {
   const [currentAuto, setCurrentAuto] = useState(null);
   const [automations, setAutomations] = useState([]);
   const [isManagerOpen, setIsManagerOpen] = useState(false);
-  const [managerTab, setManagerTab] = useState('saved'); // 'saved' | 'templates'
+  const [managerTab, setManagerTab] = useState('saved');
   const [menu, setMenu] = useState(null);
   const [clipboard, setClipboard] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // Execution Control States
+  const [isActive, setIsActive] = useState(true);
+  const [isRunning, setIsRunning] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+
   const edgeUpdateSuccessful = useRef(true);
   const reactFlowWrapper = useRef(null);
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
@@ -334,7 +1051,6 @@ const AutomationEditor = () => {
       const rawData = event.dataTransfer.getData('application/reactflow-data');
       const data = rawData ? JSON.parse(rawData) : {};
 
-      // check if the dropped element is valid
       if (typeof type === 'undefined' || !type) {
         return;
       }
@@ -356,7 +1072,6 @@ const AutomationEditor = () => {
     [reactFlowInstance]
   );
 
-  // Load automations list when manager opens
   useEffect(() => {
     if (isManagerOpen) {
       const saved = localStorage.getItem('mes_automations');
@@ -376,6 +1091,7 @@ const AutomationEditor = () => {
       if (existing) {
         setCurrentAuto(existing);
         setAutomationName(existing.name);
+        setIsActive(existing.active !== false);
         const source = existing.development || existing.published || existing;
         setNodes(source.nodes || initialNodes);
         setEdges(source.edges || initialEdges);
@@ -434,7 +1150,7 @@ const AutomationEditor = () => {
     const newNode = {
       ...node,
       id: newId,
-      position: { x: node.position.x + 20, y: node.position.y + 20 },
+      position: { x: node.position.x + 40, y: node.position.y + 40 },
     };
 
     setNodes((nds) => nds.concat(newNode));
@@ -468,19 +1184,24 @@ const AutomationEditor = () => {
       setAutomationName('Untitled Automation');
       setCurrentAuto(null);
       setSelectedNode(null);
+      setIsActive(true);
+      setIsRunning(false);
+      setIsPaused(false);
     }
   };
 
   const loadAutomation = (auto) => {
     setCurrentAuto(auto);
     setAutomationName(auto.name);
+    setIsActive(auto.active !== false);
+    setIsRunning(false);
+    setIsPaused(false);
     const source = auto.development || auto.published || auto;
     setNodes(source.nodes || initialNodes);
     setEdges(source.edges || initialEdges);
     setIsManagerOpen(false);
     setSelectedNode(null);
-    
-    // Auto fit view
+
     setTimeout(() => {
       setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 800 });
     }, 100);
@@ -494,8 +1215,10 @@ const AutomationEditor = () => {
       setCurrentAuto(null);
       setSelectedNode(null);
       setIsManagerOpen(false);
-      
-      // Auto fit view
+      setIsActive(true);
+      setIsRunning(false);
+      setIsPaused(false);
+
       setTimeout(() => {
         setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 800 });
       }, 100);
@@ -516,15 +1239,10 @@ const AutomationEditor = () => {
     }
   };
 
-  // Keyboard listener for deletion
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        // Only if not typing in an input/textarea
         if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
-        
-        // Find selected nodes/edges from ReactFlow state if possible, 
-        // but here we can just use the selectedNode state for simplicity
         if (selectedNode && selectedNode.id !== 'start-node') {
           deleteNode(selectedNode.id);
           setSelectedNode(null);
@@ -534,6 +1252,54 @@ const AutomationEditor = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedNode, deleteNode]);
+
+  // ─── EXECUTION HANDLERS ──────────────────────────────────────────────────
+  const handleExecuteWorkflow = async () => {
+    setIsRunning(true);
+    setIsPaused(false);
+    try {
+      const currentWorkflow = {
+        id: currentAuto?.id || `temp_${Date.now()}`,
+        name: automationName,
+        active: true,
+        nodes,
+        edges
+      };
+
+      const mod = await import('../utils/automationEngine');
+      await mod.default.execute(currentWorkflow, {
+        source: 'MANUAL_TEST_RUN',
+        timestamp: new Date().toISOString()
+      });
+
+      setIsRunning(false);
+      alert(`Workflow "${automationName}" executed successfully! Output logged to System Logs.`);
+    } catch (err) {
+      setIsRunning(false);
+      alert(`Workflow execution error: ${err.message}`);
+    }
+  };
+
+  const handlePauseWorkflow = () => {
+    const nextPaused = !isPaused;
+    setIsPaused(nextPaused);
+    alert(nextPaused ? `Workflow "${automationName}" PAUSED.` : `Workflow "${automationName}" RESUMED.`);
+  };
+
+  const handleStopWorkflow = () => {
+    setIsRunning(false);
+    setIsPaused(false);
+    setIsActive(false);
+    alert(`Workflow "${automationName}" STOPPED and deactivated.`);
+  };
+
+  const toggleActiveState = () => {
+    const nextState = !isActive;
+    setIsActive(nextState);
+    if (currentAuto) {
+      currentAuto.active = nextState;
+    }
+  };
 
   const handleSave = () => {
     const saved = localStorage.getItem('mes_automations');
@@ -553,11 +1319,12 @@ const AutomationEditor = () => {
     const updatedAuto = currentAuto ? {
       ...currentAuto,
       name: automationName,
+      active: isActive,
       development: devVersion
     } : {
       id: `auto_${Date.now()}`,
       name: automationName,
-      active: true,
+      active: isActive,
       development: devVersion,
       published: null,
       history: []
@@ -570,7 +1337,20 @@ const AutomationEditor = () => {
     alert('Development Version Saved!');
   };
 
-  const onConnect = useCallback((params) => setEdges((eds) => addEdge(params, eds)), [setEdges]);
+  const onConnect = useCallback((params) => setEdges((eds) => addEdge({
+    ...params,
+    type: 'smoothstep',
+    animated: true,
+    style: {
+      stroke: params.sourceHandle === 'model' ? '#38bdf8' :
+        params.sourceHandle === 'memory' ? '#c084fc' :
+        params.sourceHandle === 'tools' ? '#34d399' :
+        params.sourceHandle === 'yes' ? '#00A09D' :
+        params.sourceHandle === 'no' ? '#ef4444' : '#714B67',
+      strokeWidth: 2.5,
+      strokeDasharray: params.sourceHandle === 'model' || params.sourceHandle === 'memory' || params.sourceHandle === 'tools' ? '5,5' : 'none'
+    }
+  }, eds)), [setEdges]);
 
   const onEdgeUpdateStart = useCallback(() => {
     edgeUpdateSuccessful.current = false;
@@ -616,12 +1396,13 @@ const AutomationEditor = () => {
     const updatedAuto = currentAuto ? {
       ...currentAuto,
       name: automationName,
+      active: isActive,
       published: snapshot,
-      history: [snapshot, ...(currentAuto.history || [])].slice(0, 10) // Keep last 10
+      history: [snapshot, ...(currentAuto.history || [])].slice(0, 10)
     } : {
       id: `auto_${Date.now()}`,
       name: automationName,
-      active: true,
+      active: isActive,
       development: snapshot,
       published: snapshot,
       history: [snapshot]
@@ -632,7 +1413,6 @@ const AutomationEditor = () => {
     localStorage.setItem('mes_automations', JSON.stringify(newAllAutos));
     setCurrentAuto(updatedAuto);
 
-    // Refresh engine with just the published versions
     import('../utils/automationEngine').then(module => {
       module.default.refresh();
     });
@@ -653,164 +1433,236 @@ const AutomationEditor = () => {
     const eventNode = nodes.find(n => n.type === 'event');
     if (eventNode?.data.triggerType !== 'TABLE_ROW_UPDATED') return false;
 
-    // Check if any action node updates the same table
     return nodes.some(n =>
       n.type === 'action' &&
       (n.data.type === 'UPDATE_RECORD' || n.data.type === 'CREATE_RECORD') &&
       n.data.tableId &&
-      // This is a simple check; in real Tulip it might be more complex
       n.data.tableId === eventNode.data.tableId
     );
   };
 
-  const SidebarPalette = () => {
-    const [draggedCategory, setDraggedCategory] = useState('triggers');
+  const getConnectedSubNodes = (agentNodeId) => {
+    const connected = { model: [], memory: [], tools: [] };
+    edges.forEach(e => {
+      if (e.source === agentNodeId) {
+        const targetNode = nodes.find(n => n.id === e.target);
+        if (targetNode) {
+          if (e.sourceHandle === 'model' || targetNode.type === 'sub_model') connected.model.push(targetNode);
+          else if (e.sourceHandle === 'memory' || targetNode.type === 'sub_memory') connected.memory.push(targetNode);
+          else if (e.sourceHandle === 'tools' || targetNode.type === 'sub_tool') connected.tools.push(targetNode);
+        }
+      }
+    });
+    return connected;
+  };
 
+  // ─── ODOO STYLE COLORFUL SIDEBAR PALETTE ─────────────────────────────────────
+  const SidebarPalette = () => {
     const categories = [
-      { id: 'triggers', label: 'Triggers', icon: Zap, color: '#3b82f6' },
-      { id: 'actions', label: 'Actions', icon: Play, color: '#10b981' },
-      { id: 'logic', label: 'Logic', icon: Layers, color: '#f59e0b' },
-      { id: 'ai', label: 'AI', icon: Sparkles, color: '#a855f7' },
-      { id: 'iot', label: 'IoT & Sensors', icon: Cpu, color: '#6366f1' },
+      { id: 'triggers', label: '1. Triggers (Workflow Start)', icon: Zap, color: '#00A09D' },
+      { id: 'logic', label: '2. Core Logic & Flow', icon: Layers, color: '#F05A28' },
+      { id: 'http', label: '3. HTTP & Connectors', icon: ExternalLink, color: '#2B6CB0' },
+      { id: 'ai', label: '4. AI Agents & LLM Models', icon: Bot, color: '#714B67' },
+      { id: 'data', label: '5. Databases & ERP/CRM', icon: Database, color: '#4F46E5' },
+      { id: 'actions', label: '6. Email & Notifications', icon: Mail, color: '#E11D48' },
+      { id: 'iot', label: '7. IoT & Hardware Sensors', icon: Cpu, color: '#10B981' },
     ];
 
     const nodesByCategory = {
       triggers: [
-        { type: 'event', label: 'Timer Event', icon: Clock, data: { triggerType: 'TIMER', label: 'When timer fires...' } },
-        { type: 'event', label: 'Table Event', icon: Database, data: { triggerType: 'TABLE_ROW_ADDED', label: 'When record is created...' } },
-        { type: 'event', label: 'Machine Event', icon: Cpu, data: { triggerType: 'MACHINE_TRIGGER', label: 'When machine outputs...' } },
-        { type: 'event', label: 'Webhook', icon: Link2, data: { triggerType: 'WEBHOOK', label: 'When webhook received...' } },
-      ],
-      actions: [
-        { type: 'action', label: 'Log Message', icon: Clipboard, data: { type: 'LOG_MESSAGE', label: 'Log Message' } },
-        { type: 'action', label: 'Update Table', icon: Database, data: { type: 'UPDATE_RECORD', label: 'Update Record' } },
-        { type: 'action', label: 'Create Record', icon: Plus, data: { type: 'CREATE_RECORD', label: 'Create Record' } },
-        { type: 'action', label: 'Notification', icon: Mail, data: { type: 'SEND_NOTIFICATION', label: 'Notification' } },
-        { type: 'action', label: 'HTTP Request', icon: ExternalLink, data: { type: 'HTTP_REQUEST', label: 'HTTP Connector' } },
+        { type: 'event', label: 'Manual Trigger', icon: Zap, data: { triggerType: 'MANUAL', label: 'Manual Trigger' } },
+        { type: 'event', label: 'Schedule Trigger', icon: Clock, data: { triggerType: 'TIMER', label: 'Schedule (Jam 08:00)' } },
+        { type: 'event', label: 'Webhook Trigger', icon: Link2, data: { triggerType: 'WEBHOOK', label: 'Webhook HTTP' } },
+        { type: 'error_trigger', label: 'Error Trigger Node', icon: AlertTriangle, data: { label: 'Error Fallback Catch' } },
+        { type: 'event', label: 'Gmail Trigger', icon: Mail, data: { triggerType: 'GMAIL_TRIGGER', label: 'Email Masuk' } },
+        { type: 'event', label: 'Telegram Trigger', icon: Send, data: { triggerType: 'TELEGRAM_TRIGGER', label: 'Chat Telegram' } },
+        { type: 'event', label: 'Table Row Event', icon: Table, data: { triggerType: 'TABLE_ROW_ADDED', label: 'Tabel Row Added' } },
       ],
       logic: [
-        { type: 'decision', label: 'Decision (IF)', icon: AlertCircle, data: { label: 'IF Condition' } },
-        { type: 'loop', label: 'Loop (For Each)', icon: RefreshCw, data: { label: 'Iterate List' } },
+        { type: 'decision', label: 'IF Node (Percabangan)', icon: AlertCircle, data: { label: 'IF Stock > 10' } },
+        { type: 'switch', label: 'Switch Node (Multi-Branch)', icon: GitBranch, data: { label: 'Switch Country' } },
+        { type: 'sub_workflow', label: 'Call Sub-Workflow', icon: Layers, data: { label: 'Call Child Workflow' } },
+        { type: 'merge', label: 'Merge Node (Gabung Stream)', icon: GitMerge, data: { label: 'Merge Data' } },
+        { type: 'set', label: 'Set / Edit Fields', icon: Sliders, data: { label: 'Set Variables' } },
+        { type: 'code', label: 'Code Node (JS/Python)', icon: Code, data: { label: 'Code JS/Python' } },
+        { type: 'filter', label: 'Filter Node', icon: Filter, data: { label: 'Filter Qty > 100' } },
+        { type: 'loop', label: 'Loop Node (For Each)', icon: RefreshCw, data: { label: 'Loop Items' } },
+        { type: 'wait', label: 'Wait / Pause Node', icon: Hourglass, data: { label: 'Wait 3 Days' } },
+      ],
+      http: [
+        { type: 'action', label: 'HTTP Request (API)', icon: ExternalLink, data: { type: 'HTTP_REQUEST', label: 'HTTP Order ERP API' } },
+        { type: 'respond_webhook', label: 'Respond to Webhook', icon: Send, data: { label: 'Respond 200 OK', statusCode: 200 } },
       ],
       ai: [
-        { type: 'action', label: 'Summarize', icon: Sparkles, data: { type: 'AI_SUMMARIZE', label: 'AI: Summarize' } },
-        { type: 'action', label: 'Extract Data', icon: Sparkles, data: { type: 'AI_EXTRACT', label: 'AI: Extract' } },
-        { type: 'action', label: 'Anomaly', icon: AlertTriangle, data: { type: 'AI_ANOMALY_DETECTION', label: 'AI: Detect Anomaly' } },
+        { type: 'ai_agent', label: 'AI Agent Container', icon: Bot, data: { label: 'AI Agent Assistant', agentType: 'Tools Agent', provider: 'Gemini', modelId: 'gemini-1.5-pro' } },
+        { type: 'sub_model', label: 'Google Gemini Model', icon: Sparkles, data: { label: 'Google Gemini Model', provider: 'Gemini', modelId: 'gemini-1.5-pro' } },
+        { type: 'sub_model', label: 'OpenAI Chat Model', icon: Sparkles, data: { label: 'OpenAI Chat Model', provider: 'OpenAI', modelId: 'gpt-4o' } },
+        { type: 'sub_model', label: 'Anthropic Claude Model', icon: Sparkles, data: { label: 'Anthropic Claude Model', provider: 'Claude', modelId: 'claude-3-5-sonnet' } },
+        { type: 'sub_model', label: 'Ollama Local LLM', icon: CpuIcon, data: { label: 'Ollama Local LLM', provider: 'Ollama', modelId: 'llama3:8b' } },
+        { type: 'sub_memory', label: 'Chat Memory Buffer', icon: Brain, data: { label: 'Window Buffer Memory' } },
+        { type: 'sub_tool', label: 'Vector Store / Tools', icon: Wrench, data: { label: 'Postgres Vector DB' } },
+      ],
+      data: [
+        { type: 'database', label: 'Supabase DB', icon: Database, data: { label: 'Supabase DB Sync' } },
+        { type: 'database', label: 'PostgreSQL / MySQL', icon: Server, data: { label: 'Query PostgreSQL' } },
+        { type: 'action', label: 'Google Sheets / Excel', icon: FileSpreadsheet, data: { type: 'SPREADSHEET', label: 'Google Sheets Row' } },
+        { type: 'action', label: 'ERP / CRM Node (Odoo/SAP)', icon: Building, data: { type: 'ERP_CRM', label: 'Odoo / SAP ERP' } },
+        { type: 'action', label: 'File PDF / CSV Node', icon: FileText, data: { type: 'FILE', label: 'Extract PDF / CSV' } },
+      ],
+      actions: [
+        { type: 'action', label: 'WhatsApp Business API', icon: MessageSquare, data: { type: 'WHATSAPP', label: 'WhatsApp Order Alert' } },
+        { type: 'action', label: 'Gmail / Email Node', icon: Mail, data: { type: 'GMAIL', label: 'Kirim Email' } },
+        { type: 'action', label: 'Telegram Notification', icon: Send, data: { type: 'TELEGRAM', label: 'Telegram Manager' } },
+        { type: 'action', label: 'Slack / Discord Alert', icon: MessageSquare, data: { type: 'SLACK', label: 'Slack Alert' } },
       ],
       iot: [
-        { type: 'event', label: 'OBD2 Trigger', icon: Car, data: { triggerType: 'OBD2_TRIGGER', label: 'When engine data...' } },
-        { type: 'action', label: 'Machine Cmd', icon: Cpu, data: { type: 'MACHINE_COMMAND', label: 'Machine Command' } },
+        { type: 'event', label: 'Machine / PLC Trigger', icon: Cpu, data: { triggerType: 'MACHINE_TRIGGER', label: 'PLC MQTT Trigger' } },
+        { type: 'event', label: 'OBD2 Vehicle Data', icon: Car, data: { triggerType: 'OBD2_TRIGGER', label: 'OBD2 Sensor Data' } },
+        { type: 'action', label: 'MQTT Publish Command', icon: Cpu, data: { type: 'MQTT_PUBLISH', label: 'Publish MQTT Topic' } },
+        { type: 'action', label: 'Machine Command', icon: Cpu, data: { type: 'MACHINE_COMMAND', label: 'Send Machine Command' } },
       ]
     };
 
     return (
-      <div style={{ width: '260px', backgroundColor: 'white', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '20px', borderBottom: '1px solid #f1f5f9' }}>
-          <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: '#1e293b' }}>Node Palette</h3>
-          <p style={{ margin: '4px 0 0 0', fontSize: '0.7rem', color: '#64748b' }}>Drag nodes to the canvas</p>
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
-          {categories.map(cat => (
-            <div key={cat.id} style={{ marginBottom: '15px' }}>
-              <div style={{
-                fontSize: '0.65rem',
-                fontWeight: 800,
-                color: cat.color,
-                textTransform: 'uppercase',
-                marginBottom: '8px',
-                padding: '0 10px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}>
-                <cat.icon size={12} /> {cat.label}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '6px' }}>
-                {nodesByCategory[cat.id].map((node, i) => (
-                  <div
-                    key={i}
-                    draggable
-                    onDragStart={(e) => onDragStart(e, node.type, node.data)}
-                    style={{
-                      padding: '10px 12px',
-                      backgroundColor: 'white',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '8px',
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      color: '#475569',
-                      cursor: 'grab',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.borderColor = cat.color;
-                      e.currentTarget.style.backgroundColor = `${cat.color}05`;
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.borderColor = '#e2e8f0';
-                      e.currentTarget.style.backgroundColor = 'white';
-                    }}
-                  >
-                    <div style={{ color: cat.color }}><node.icon size={14} /></div>
-                    {node.label}
-                  </div>
-                ))}
-              </div>
+      <div style={{ width: '280px', backgroundColor: '#ffffff', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', color: '#1e293b' }}>
+        <div style={{ padding: '16px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+            <div style={{ width: '26px', height: '26px', borderRadius: '8px', backgroundColor: '#714B67', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Zap size={15} color="white" />
             </div>
-          ))}
+            <h3 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800, color: '#714B67', letterSpacing: '0.3px' }}>Workflow Node Palette</h3>
+          </div>
+
+          <div style={{ position: 'relative' }}>
+            <Search size={14} style={{ position: 'absolute', left: '10px', top: '10px', color: '#94a3b8' }} />
+            <input
+              type="text"
+              placeholder="Search workflow nodes..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '7px 10px 7px 30px',
+                backgroundColor: '#ffffff',
+                border: '1px solid #cbd5e1',
+                borderRadius: '8px',
+                color: '#1e293b',
+                fontSize: '0.76rem',
+                outline: 'none'
+              }}
+            />
+          </div>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
+          {categories.map(cat => {
+            const filteredNodes = nodesByCategory[cat.id].filter(n => n.label.toLowerCase().includes(searchQuery.toLowerCase()));
+            if (searchQuery && filteredNodes.length === 0) return null;
+
+            return (
+              <div key={cat.id} style={{ marginBottom: '16px' }}>
+                <div style={{
+                  fontSize: '0.66rem',
+                  fontWeight: 800,
+                  color: cat.color,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.6px',
+                  marginBottom: '8px',
+                  padding: '0 6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  <cat.icon size={13} /> {cat.label}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '6px' }}>
+                  {filteredNodes.map((node, i) => (
+                    <div
+                      key={i}
+                      draggable
+                      onDragStart={(e) => onDragStart(e, node.type, node.data)}
+                      style={{
+                        padding: '9px 12px',
+                        backgroundColor: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '10px',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        color: '#334155',
+                        cursor: 'grab',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        transition: 'all 0.2s ease',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.borderColor = cat.color;
+                        e.currentTarget.style.backgroundColor = '#ffffff';
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                        e.currentTarget.style.boxShadow = `0 4px 12px ${cat.color}25`;
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.borderColor = '#e2e8f0';
+                        e.currentTarget.style.backgroundColor = '#f8fafc';
+                        e.currentTarget.style.transform = 'none';
+                        e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)';
+                      }}
+                    >
+                      <div style={{ color: cat.color }}><node.icon size={16} /></div>
+                      {node.label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     );
   };
 
   return (
-    <div style={{ display: 'flex', height: '100%', backgroundColor: '#f8fafc' }}>
-      {/* Left: Sidebar Palette */}
+    <div style={{ display: 'flex', height: '100%', backgroundColor: '#F8FAFC', color: '#1e293b' }}>
       <SidebarPalette />
 
-      {/* Center: Main Area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        {/* Header */}
         <header style={{
-          height: '70px',
-          backgroundColor: 'white',
-          borderBottom: '1px solid #e2e8f0',
+          height: '64px',
+          backgroundColor: '#1E1E2D',
+          borderBottom: '1px solid #2B2B40',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '0 24px',
+          padding: '0 20px',
           zIndex: 10
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
             <button
               onClick={() => setIsManagerOpen(true)}
               style={{
-                background: 'none',
+                background: '#714B67',
                 border: 'none',
-                color: '#64748b',
+                color: '#ffffff',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 padding: '8px',
-                borderRadius: '8px'
+                borderRadius: '8px',
+                boxShadow: '0 4px 10px rgba(113, 75, 103, 0.4)'
               }}
-              onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
-              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
-              title="Open Automations"
+              title="Open Automations Manager"
             >
-              <FolderOpen size={20} />
+              <FolderOpen size={18} />
             </button>
-            <div style={{ width: '1px', height: '24px', backgroundColor: '#e2e8f0' }}></div>
+            <div style={{ width: '1px', height: '24px', backgroundColor: '#3B3B54' }}></div>
             <div>
-              <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                Automations / {automationName}
+              <div style={{ fontSize: '0.68rem', color: '#00A09D', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                Workflow Automation Builder / {automationName}
                 {isRecursiveLoop() && (
-                  <span title="Potential Infinite Loop Detected" style={{ color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <AlertTriangle size={14} /> <span style={{ fontSize: '0.65rem', fontWeight: 800 }}>LOOPING WARNING</span>
+                  <span title="Potential Infinite Loop" style={{ color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <AlertTriangle size={14} /> <span style={{ fontSize: '0.65rem', fontWeight: 800 }}>LOOP WARNING</span>
                   </span>
                 )}
               </div>
@@ -818,68 +1670,137 @@ const AutomationEditor = () => {
                 value={automationName}
                 onChange={(e) => setAutomationName(e.target.value)}
                 style={{
-                  fontSize: '1.25rem',
+                  fontSize: '1.1rem',
                   fontWeight: 800,
                   border: 'none',
                   background: 'transparent',
                   outline: 'none',
-                  color: '#1e293b',
-                  width: '400px'
+                  color: '#ffffff',
+                  width: '320px'
                 }}
               />
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '12px' }}>
+
+          {/* ─── SLEEK ICON-ONLY WORKFLOW EXECUTION CONTROLS ─── */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#2B2B40', padding: '5px 10px', borderRadius: '12px' }}>
+            {/* ACTIVE / INACTIVE TOGGLE */}
+            <button
+              onClick={toggleActiveState}
+              style={{
+                width: '36px', height: '36px', borderRadius: '10px', border: 'none',
+                backgroundColor: isActive ? '#00A09D' : '#3B3B54',
+                color: '#ffffff', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: isActive ? '0 0 14px rgba(0, 160, 157, 0.7)' : 'none',
+                transition: 'all 0.2s'
+              }}
+              title={isActive ? 'Status: ACTIVE (Listening to Background Triggers)' : 'Status: INACTIVE (Deactivated)'}
+            >
+              <Power size={18} />
+            </button>
+
+            <div style={{ width: '1px', height: '20px', backgroundColor: '#3B3B54', margin: '0 2px' }}></div>
+
+            {/* RUN TEST */}
+            <button
+              onClick={handleExecuteWorkflow}
+              disabled={isRunning}
+              style={{
+                width: '36px', height: '36px', borderRadius: '10px', border: 'none',
+                backgroundColor: isRunning ? '#3b82f6' : '#10B981',
+                color: '#ffffff', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 0 14px rgba(16, 185, 129, 0.5)',
+                transition: 'all 0.2s'
+              }}
+              title={isRunning ? 'Running Workflow Test...' : 'Run Test Execution'}
+            >
+              <Play size={18} fill="#ffffff" />
+            </button>
+
+            {/* PAUSE */}
+            <button
+              onClick={handlePauseWorkflow}
+              style={{
+                width: '36px', height: '36px', borderRadius: '10px', border: 'none',
+                backgroundColor: isPaused ? '#F05A28' : '#3B3B54',
+                color: isPaused ? '#ffffff' : '#F05A28',
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'all 0.2s'
+              }}
+              title={isPaused ? 'Resume Workflow' : 'Pause Workflow'}
+            >
+              <Pause size={18} />
+            </button>
+
+            {/* STOP */}
+            <button
+              onClick={handleStopWorkflow}
+              style={{
+                width: '36px', height: '36px', borderRadius: '10px', border: 'none',
+                backgroundColor: '#3B3B54',
+                color: '#ef4444',
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'all 0.2s'
+              }}
+              title="Stop & Deactivate Workflow"
+            >
+              <Square size={18} fill="#ef4444" />
+            </button>
+
+            <div style={{ width: '1px', height: '20px', backgroundColor: '#3B3B54', margin: '0 2px' }}></div>
+
+            {/* NEW WORKFLOW */}
             <button
               onClick={handleNewAutomation}
               style={{
-                padding: '10px 15px',
-                backgroundColor: 'white',
-                color: '#64748b',
-                border: '1px solid #e2e8f0',
-                borderRadius: '8px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
+                width: '36px', height: '36px', borderRadius: '10px', border: '1px solid #3B3B54',
+                backgroundColor: '#3B3B54', color: '#ffffff', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'all 0.2s'
               }}
+              title="New Workflow"
             >
-              <FilePlus size={18} /> New
+              <FilePlus size={18} />
             </button>
-            <span style={{ fontSize: '0.75rem', color: '#94a3b8', alignSelf: 'center' }}>
-              {currentAuto?.development?.updatedAt ? `Saved ${new Date(currentAuto.development.updatedAt).toLocaleTimeString()}` : 'Not saved yet'}
-            </span>
+
+            {/* SAVE DRAFT */}
             <button
               onClick={handleSave}
               style={{
-                padding: '10px 20px',
-                backgroundColor: 'white',
-                color: '#1e293b',
-                border: '1px solid #e2e8f0',
-                borderRadius: '8px',
-                fontWeight: 700,
-                cursor: 'pointer'
+                width: '36px', height: '36px', borderRadius: '10px', border: '1px solid #3B3B54',
+                backgroundColor: '#3B3B54', color: '#ffffff', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'all 0.2s'
               }}
-            >Save Draft</button>
+              title="Save Draft"
+            >
+              <Save size={18} />
+            </button>
+
+            {/* PUBLISH VERSION */}
             <button
               onClick={handlePublish}
               style={{
-                padding: '10px 24px',
-                backgroundColor: '#3b82f6',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                height: '36px', padding: '0 14px', borderRadius: '10px', border: 'none',
+                backgroundColor: '#714B67', color: '#ffffff', fontWeight: 800, fontSize: '0.78rem',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+                boxShadow: '0 0 14px rgba(113, 75, 103, 0.6)',
+                transition: 'all 0.2s'
               }}
-            >Publish v{(currentAuto?.published?.version || 0) + 1}</button>
+              title="Publish Workflow Version"
+            >
+              <Send size={15} />
+              Publish v{(currentAuto?.published?.version || 0) + 1}
+            </button>
           </div>
         </header>
 
-        {/* Workspace */}
-        <div style={{ flex: 1, position: 'relative' }} ref={reactFlowWrapper}>
+        {/* ─── CANVAS (ODOO LIGHT GRID STYLE) ─── */}
+        <div style={{ flex: 1, position: 'relative', backgroundColor: '#F8FAFC' }} ref={reactFlowWrapper}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -898,51 +1819,55 @@ const AutomationEditor = () => {
             onDragOver={onDragOver}
             nodeTypes={nodeTypes}
             fitView
+            defaultEdgeOptions={{
+              type: 'smoothstep',
+              animated: true,
+              style: { stroke: '#714B67', strokeWidth: 2.5 }
+            }}
           >
-            <Background color="#cbd5e1" variant="dots" gap={20} />
-            <Controls />
-            <MiniMap />
+            <Background color="#CBD5E1" variant="dots" gap={24} size={1.5} />
+            <Controls style={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1', fill: '#1e293b', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }} />
+            <MiniMap nodeColor={() => '#714B67'} maskColor="rgba(248, 250, 252, 0.7)" style={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1' }} />
 
-            {/* View Navigation Overlay (Mockup style) */}
             <div style={{
               position: 'absolute',
               bottom: '20px',
               right: '20px',
-              backgroundColor: 'white',
-              padding: '5px',
-              borderRadius: '8px',
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+              backgroundColor: '#ffffff',
+              border: '1px solid #cbd5e1',
+              padding: '6px 14px',
+              borderRadius: '10px',
+              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
               display: 'flex',
-              gap: '5px',
+              gap: '10px',
               alignItems: 'center',
               zIndex: 5
             }}>
-              <button style={{ border: 'none', background: 'none', padding: '5px', borderRadius: '4px', cursor: 'pointer' }}><Settings2 size={16} /></button>
-              <div style={{ width: '1px', height: '16px', backgroundColor: '#e2e8f0' }}></div>
-              <button style={{ border: 'none', background: 'none', padding: '5px', borderRadius: '4px', cursor: 'pointer' }}><Plus size={16} /></button>
-              <button style={{ border: 'none', background: 'none', padding: '5px', borderRadius: '4px', cursor: 'pointer' }}><Minus size={16} /></button>
-              <div style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0 5px' }}>100%</div>
+              <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700 }}>MAVI AI Workflow Engine</span>
+              <div style={{ width: '1px', height: '14px', backgroundColor: '#cbd5e1' }}></div>
+              <span style={{ fontSize: '0.72rem', color: isActive ? '#00A09D' : '#ef4444', fontWeight: 800 }}>
+                {isActive ? 'LISTENING' : 'INACTIVE'}
+              </span>
             </div>
           </ReactFlow>
 
-          {/* Event Picker Overlay */}
           {showEventPicker && (
             <div style={{
               position: 'absolute',
               top: '50%',
               left: '50%',
               transform: 'translate(-50%, -50%)',
-              width: '400px',
-              backgroundColor: 'white',
-              borderRadius: '16px',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+              width: '420px',
+              backgroundColor: '#ffffff',
+              borderRadius: '20px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
               padding: '24px',
               zIndex: 100,
               border: '1px solid #e2e8f0'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
-                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800 }}>Choose an event</h3>
-                <button onClick={() => setShowEventPicker(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X size={20} /></button>
+                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#714B67' }}>Choose Trigger Event</h3>
+                <button onClick={() => setShowEventPicker(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}><X size={20} /></button>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -958,34 +1883,30 @@ const AutomationEditor = () => {
                     key={i}
                     onClick={() => {
                       if (!ev.comingSoon) {
-                        const triggerType = ev.triggerType ||
-                          (ev.label === 'When field changes...' ? 'TABLE_ROW_UPDATED' :
-                            ev.label === 'When timer fires...' ? 'TIMER' : 'MANUAL');
+                        const triggerType = ev.triggerType || 'MANUAL';
                         setNodes(nds => nds.map(n => n.id === 'start-node' ? { ...n, data: { ...n.data, label: ev.label, triggerType } } : n));
                         setShowEventPicker(false);
                       }
                     }}
                     style={{
-                      padding: '15px',
+                      padding: '12px 15px',
                       border: '1px solid #e2e8f0',
                       borderRadius: '12px',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '15px',
-                      cursor: ev.comingSoon ? 'not-allowed' : 'pointer',
-                      opacity: ev.comingSoon ? 0.6 : 1,
-                      backgroundColor: 'white'
+                      cursor: 'pointer',
+                      backgroundColor: '#f8fafc',
+                      color: '#1e293b',
+                      transition: 'all 0.2s ease'
                     }}
-                    onMouseEnter={e => !ev.comingSoon && (e.currentTarget.style.borderColor = '#3b82f6')}
-                    onMouseLeave={e => !ev.comingSoon && (e.currentTarget.style.borderColor = '#e2e8f0')}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = '#00A09D'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = '#e2e8f0'}
                   >
-                    <div style={{ color: '#3b82f6' }}><ev.icon size={20} /></div>
+                    <div style={{ color: '#00A09D' }}><ev.icon size={20} /></div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{ev.label}</span>
-                        {ev.comingSoon && <span style={{ fontSize: '0.6rem', fontWeight: 800, backgroundColor: '#f1f5f9', color: '#64748b', padding: '2px 6px', borderRadius: '4px' }}>COMING SOON</span>}
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{ev.sub}</div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b' }}>{ev.label}</div>
+                      <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{ev.sub}</div>
                     </div>
                   </div>
                 ))}
@@ -995,87 +1916,259 @@ const AutomationEditor = () => {
         </div>
       </div>
 
-      {/* Right: Logic Editor & History */}
-      <div style={{ width: '400px', backgroundColor: 'white', borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
-        {/* Tabs for Right Panel */}
-        <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0' }}>
+      <div style={{ width: '380px', backgroundColor: '#ffffff', borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
           <button
             onClick={() => setActiveTab('EDIT')}
             style={{
-              flex: 1, padding: '15px', border: 'none', background: 'none',
-              borderBottom: activeTab === 'EDIT' ? '2px solid #3b82f6' : 'none',
-              color: activeTab === 'EDIT' ? '#3b82f6' : '#64748b',
-              fontWeight: 700, cursor: 'pointer'
+              flex: 1, padding: '14px', border: 'none', background: 'none',
+              borderBottom: activeTab === 'EDIT' ? '3px solid #714B67' : 'none',
+              color: activeTab === 'EDIT' ? '#714B67' : '#64748b',
+              fontSize: '0.82rem', fontWeight: 800, cursor: 'pointer'
             }}
-          >Element Logic</button>
+          >Element Logic & AI</button>
           <button
             onClick={() => setActiveTab('HISTORY')}
             style={{
-              flex: 1, padding: '15px', border: 'none', background: 'none',
-              borderBottom: activeTab === 'HISTORY' ? '2px solid #3b82f6' : 'none',
-              color: activeTab === 'HISTORY' ? '#3b82f6' : '#64748b',
-              fontWeight: 700, cursor: 'pointer'
+              flex: 1, padding: '14px', border: 'none', background: 'none',
+              borderBottom: activeTab === 'HISTORY' ? '3px solid #714B67' : 'none',
+              color: activeTab === 'HISTORY' ? '#714B67' : '#64748b',
+              fontSize: '0.82rem', fontWeight: 800, cursor: 'pointer'
             }}
           >Version History</button>
         </div>
 
         {activeTab === 'EDIT' ? (
           selectedNode ? (
-            <div style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <div style={{ flex: 1, padding: '20px', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
-                    <Settings2 size={20} />
+                  <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#714B67' }}>
+                    <Sliders size={18} />
                   </div>
                   <div>
-                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#1e293b' }}>Logic Editor</h3>
+                    <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#1e293b' }}>Node Config</h3>
                     <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 600 }}>{selectedNode.type.toUpperCase()} / {selectedNode.id}</div>
                   </div>
                 </div>
-                <button onClick={() => setSelectedNode(null)} style={{ background: '#f1f5f9', border: 'none', color: '#94a3b8', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={18} /></button>
+                <button onClick={() => setSelectedNode(null)} style={{ background: '#f1f5f9', border: 'none', color: '#64748b', width: '30px', height: '30px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} /></button>
               </div>
 
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '18px' }}>
                 <div>
-                  <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Label</label>
+                  <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Label</label>
                   <input
-                    value={selectedNode.data.label}
+                    value={selectedNode.data.label || ''}
                     onChange={(e) => {
                       const label = e.target.value;
                       setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, label } } : n));
                     }}
-                    style={{ width: '100%', padding: '10px', marginTop: '5px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                    style={{ width: '100%', padding: '9px', marginTop: '6px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
                   />
                 </div>
 
-                {selectedNode.type === 'event' && (selectedNode.data.triggerType === 'TABLE_ROW_ADDED' || selectedNode.data.triggerType === 'TABLE_ROW_UPDATED') && (
-                  <div>
-                    <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Source Table</label>
-                    <select
-                      value={selectedNode.data.tableId || ''}
+                {/* ─── AI AGENT NODE CONFIGURATION ─── */}
+                {selectedNode.type === 'ai_agent' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: '#f8fafc', padding: '14px', borderRadius: '14px', border: '1px solid #714B67' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#714B67' }}>
+                        <Bot size={18} />
+                        <span style={{ fontSize: '0.82rem', fontWeight: 800 }}>AI Agent Core Settings</span>
+                      </div>
+                      <div style={{ fontSize: '0.62rem', color: '#00A09D', display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#e6f7f7', padding: '3px 8px', borderRadius: '6px', fontWeight: 800 }}>
+                        <ShieldCheck size={12} /> Synced with AI Settings
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Agent Type</label>
+                      <select
+                        value={selectedNode.data.agentType || 'Tools Agent'}
+                        onChange={(e) => {
+                          const agentType = e.target.value;
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, agentType } } : n));
+                        }}
+                        style={{ width: '100%', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                      >
+                        <option value="Tools Agent">Tools Agent (ReAct Loop)</option>
+                        <option value="Conversational Agent">Conversational Chat Agent</option>
+                        <option value="Plan & Execute Agent">Plan and Execute Agent</option>
+                        <option value="OpenAI Functions Agent">OpenAI Functions Agent</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Default LLM Provider</label>
+                      <select
+                        value={selectedNode.data.provider || 'Gemini'}
+                        onChange={(e) => {
+                          const provider = e.target.value;
+                          const defaultModel = provider === 'Gemini' ? 'gemini-1.5-pro' : provider === 'OpenAI' ? 'gpt-4o' : provider === 'Claude' ? 'claude-3-5-sonnet' : 'llama3:8b';
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, provider, modelId: defaultModel } } : n));
+                        }}
+                        style={{ width: '100%', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                      >
+                        <option value="Gemini">Google Gemini (Gemini 1.5 Pro / Flash)</option>
+                        <option value="OpenAI">OpenAI (GPT-4o / GPT-4o-mini)</option>
+                        <option value="Claude">Anthropic Claude (Claude 3.5 Sonnet)</option>
+                        <option value="Ollama">Ollama (Local Llama 3 / Mistral)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>System Instructions / Prompt</label>
+                      <textarea
+                        placeholder="You are an expert MAVI MES AI Assistant. Help optimize production work orders..."
+                        value={selectedNode.data.systemPrompt || ''}
+                        onChange={(e) => {
+                          const systemPrompt = e.target.value;
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, systemPrompt } } : n));
+                        }}
+                        style={{ width: '100%', minHeight: '80px', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#714B67', fontSize: '0.78rem' }}
+                      />
+                    </div>
+
+                    <div style={{ backgroundColor: '#ffffff', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#1e293b', marginBottom: '6px' }}>Docked Sub-Nodes Status:</div>
+                      {(() => {
+                        const sub = getConnectedSubNodes(selectedNode.id);
+                        return (
+                          <div style={{ fontSize: '0.72rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <div style={{ color: '#0284c7' }}>🔵 Model: {sub.model.length > 0 ? sub.model.map(m => m.data.label).join(', ') : 'Default LLM'}</div>
+                            <div style={{ color: '#8E44AD' }}>🟣 Memory: {sub.memory.length > 0 ? sub.memory.map(m => m.data.label).join(', ') : 'None'}</div>
+                            <div style={{ color: '#00A09D' }}>🟢 Tools: {sub.tools.length > 0 ? sub.tools.map(t => t.data.label).join(', ') : 'None'}</div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
+
+                {/* ─── SUB-MODEL NODE CONFIGURATION ─── */}
+                {selectedNode.type === 'sub_model' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: '#f8fafc', padding: '14px', borderRadius: '14px', border: '1px solid #00A09D' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#00A09D' }}>
+                      <Sparkles size={18} />
+                      <span style={{ fontSize: '0.82rem', fontWeight: 800 }}>LLM Model Sub-Node Settings</span>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>AI Provider</label>
+                      <select
+                        value={selectedNode.data.provider || 'Gemini'}
+                        onChange={(e) => {
+                          const provider = e.target.value;
+                          const label = `${provider} Model`;
+                          const defaultModel = provider === 'Gemini' ? 'gemini-1.5-pro' : provider === 'OpenAI' ? 'gpt-4o' : provider === 'Claude' ? 'claude-3-5-sonnet' : 'llama3:8b';
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, provider, label, modelId: defaultModel } } : n));
+                        }}
+                        style={{ width: '100%', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                      >
+                        <option value="Gemini">Google Gemini</option>
+                        <option value="OpenAI">OpenAI</option>
+                        <option value="Claude">Anthropic Claude</option>
+                        <option value="Ollama">Ollama (Local LLM)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Model Version / ID</label>
+                      <select
+                        value={selectedNode.data.modelId || 'gemini-1.5-pro'}
+                        onChange={(e) => {
+                          const modelId = e.target.value;
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, modelId } } : n));
+                        }}
+                        style={{ width: '100%', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                      >
+                        {selectedNode.data.provider === 'OpenAI' ? (
+                          <>
+                            <option value="gpt-4o">gpt-4o (Most Intelligent)</option>
+                            <option value="gpt-4o-mini">gpt-4o-mini (Fast & Affordable)</option>
+                            <option value="gpt-4-turbo">gpt-4-turbo</option>
+                            <option value="o1-preview">o1-preview (Reasoning)</option>
+                          </>
+                        ) : selectedNode.data.provider === 'Claude' ? (
+                          <>
+                            <option value="claude-3-5-sonnet">claude-3-5-sonnet (Smartest)</option>
+                            <option value="claude-3-haiku">claude-3-haiku (Lightning Fast)</option>
+                            <option value="claude-3-opus">claude-3-opus</option>
+                          </>
+                        ) : selectedNode.data.provider === 'Ollama' ? (
+                          <>
+                            <option value="llama3:8b">llama3:8b (Local Meta)</option>
+                            <option value="mistral:7b">mistral:7b (Local Mistral)</option>
+                            <option value="deepseek-r1">deepseek-r1 (Local Reasoning)</option>
+                          </>
+                        ) : (
+                          <>
+                            <option value="gemini-1.5-pro">gemini-1.5-pro (Long Context 2M)</option>
+                            <option value="gemini-1.5-flash">gemini-1.5-flash (Fast)</option>
+                            <option value="gemini-2.0-flash">gemini-2.0-flash (Latest Next Gen)</option>
+                          </>
+                        )}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Temperature ({selectedNode.data.temperature || 0.7})</label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={selectedNode.data.temperature || 0.7}
+                        onChange={(e) => {
+                          const temperature = parseFloat(e.target.value);
+                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, temperature } } : n));
+                        }}
+                        style={{ width: '100%', marginTop: '4px' }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {selectedNode.type === 'code' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Code Snippet (JS / Python)</label>
+                    <textarea
+                      placeholder="return items.map(item => { item.json.total = item.json.qty * item.json.price; return item; });"
+                      value={selectedNode.data.code || ''}
                       onChange={(e) => {
-                        const tableId = e.target.value;
-                        setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, tableId } } : n));
+                        const code = e.target.value;
+                        setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, code } } : n));
                       }}
-                      style={{ width: '100%', padding: '10px', marginTop: '5px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white' }}
-                    >
-                      <option value="">Select a Table...</option>
-                      {tables.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
+                      style={{ minHeight: '120px', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#10B981', fontFamily: 'monospace', fontSize: '0.78rem' }}
+                    />
+                  </div>
+                )}
+
+                {selectedNode.type === 'wait' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Pause Duration</label>
+                    <input
+                      placeholder="e.g. 3 Days, 5 Minutes, 1 Hour"
+                      value={selectedNode.data.duration || ''}
+                      onChange={(e) => {
+                        const duration = e.target.value;
+                        setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, duration } } : n));
+                      }}
+                      style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                    />
                   </div>
                 )}
 
                 {selectedNode.type === 'decision' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Condition (IF)</label>
+                    <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Condition (IF)</label>
                     <input
-                      placeholder="Field (e.g. record.quantity)"
+                      placeholder="Field (e.g. Stock)"
                       value={selectedNode.data.condition?.field || ''}
                       onChange={(e) => {
                         const field = e.target.value;
                         setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, condition: { ...n.data.condition, field } } } : n));
                       }}
-                      style={{ padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}
+                      style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
                     />
                     <select
                       value={selectedNode.data.condition?.operator || '=='}
@@ -1083,533 +2176,112 @@ const AutomationEditor = () => {
                         const operator = e.target.value;
                         setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, condition: { ...n.data.condition, operator } } } : n));
                       }}
-                      style={{ padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}
+                      style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
                     >
                       <option value="==">equals</option>
                       <option value="!=">not equals</option>
                       <option value="<">less than</option>
                       <option value=">">greater than</option>
+                      <option value=">=">greater than or equal (&gt;=)</option>
                       <option value="contains">contains</option>
                     </select>
                     <input
-                      placeholder="Value"
+                      placeholder="Value (e.g. 10)"
                       value={selectedNode.data.condition?.value || ''}
                       onChange={(e) => {
                         const value = e.target.value;
                         setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, condition: { ...n.data.condition, value } } } : n));
                       }}
-                      style={{ padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}
+                      style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
                     />
+                  </div>
+                )}
+
+                {selectedNode.type === 'sub_workflow' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Target Sub-Workflow Name / ID</label>
+                    <select
+                      value={selectedNode.data.workflowName || ''}
+                      onChange={(e) => {
+                        const workflowName = e.target.value;
+                        setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, workflowName, label: `Call: ${workflowName}` } } : n));
+                      }}
+                      style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                    >
+                      <option value="">Select Child Workflow...</option>
+                      {automations.map(a => (
+                        <option key={a.id} value={a.name}>{a.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {selectedNode.type === 'respond_webhook' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Response HTTP Status Code</label>
+                    <select
+                      value={selectedNode.data.statusCode || 200}
+                      onChange={(e) => {
+                        const statusCode = Number(e.target.value);
+                        setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, statusCode } } : n));
+                      }}
+                      style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
+                    >
+                      <option value={200}>200 OK (Success)</option>
+                      <option value={201}>201 Created</option>
+                      <option value={400}>400 Bad Request</option>
+                      <option value={500}>500 Internal Server Error</option>
+                    </select>
+                  </div>
+                )}
+
+                {selectedNode.type === 'error_trigger' && (
+                  <div style={{ padding: '12px', borderRadius: '10px', backgroundColor: '#fef2f2', border: '1px solid #fca5a5', color: '#ef4444', fontSize: '0.78rem' }}>
+                    <div style={{ fontWeight: 800, marginBottom: '4px' }}>🛡️ Error Fallback Route</div>
+                    Automatically catches exceptions from any node step and routes execution to connected fallback actions.
                   </div>
                 )}
 
                 {selectedNode.type === 'action' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Action Configuration</label>
+                    <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Action Type</label>
                     <select
                       value={selectedNode.data.type || 'LOG_MESSAGE'}
                       onChange={(e) => {
                         const type = e.target.value;
                         const label = type === 'UPDATE_RECORD' ? 'Update Table' :
-                          type === 'CREATE_RECORD' ? 'Create Record' : 'Log Message';
+                          type === 'CREATE_RECORD' ? 'Create Record' :
+                          type === 'WHATSAPP' ? 'WhatsApp Alert' :
+                          type === 'MQTT_PUBLISH' ? 'Publish MQTT' : 'Log Message';
                         setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, type, label } } : n));
                       }}
-                      style={{ padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}
+                      style={{ padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
                     >
                       <option value="LOG_MESSAGE">Log Message</option>
                       <option value="UPDATE_RECORD">Update Table Record</option>
                       <option value="CREATE_RECORD">Create Table Record</option>
                       <option value="HTTP_REQUEST">HTTP Connector (API)</option>
+                      <option value="WHATSAPP">WhatsApp Business API Alert</option>
+                      <option value="MQTT_PUBLISH">MQTT Publish Command</option>
                       <option value="SEND_NOTIFICATION">Send Notification</option>
-                      <option disabled>──────────</option>
-                      <option value="AI_SUMMARIZE">AI: Summarize Text</option>
-                      <option value="AI_EXTRACT">AI: Extract Data from Text</option>
-                      <option value="AI_ANOMALY_DETECTION">AI: Detect Anomaly</option>
-                      <option value="AI_TRANSLATE">AI: Translate Text</option>
+                      <option value="TELEGRAM">Telegram Message</option>
+                      <option value="GMAIL">Gmail Email</option>
+                      <option value="SPREADSHEET">Google Sheets / Excel</option>
+                      <option value="ERP_CRM">Odoo / SAP ERP</option>
                     </select>
-
-                    {selectedNode.data.type === 'UPDATE_RECORD' && (
-                      <>
-                        <div>
-                          <label style={{ fontSize: '0.65rem', color: '#64748b' }}>Target Table</label>
-                          <select
-                            value={selectedNode.data.tableId || ''}
-                            onChange={(e) => {
-                              const tableId = e.target.value;
-                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, tableId } } : n));
-                            }}
-                            style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', marginTop: '4px' }}
-                          >
-                            <option value="">Select a table...</option>
-                            {tables.map(t => <option key={t.id} value={t.id}>{t.name || t.id}</option>)}
-                          </select>
-                        </div>
-                        <input
-                          placeholder="Record ID Path (e.g. record.id)"
-                          value={selectedNode.data.recordIdPath || ''}
-                          onChange={(e) => {
-                            const recordIdPath = e.target.value;
-                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, recordIdPath } } : n));
-                          }}
-                          style={{ padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}
-                        />
-                        <textarea
-                          placeholder='JSON Data (e.g. {"status": "Replenish"})'
-                          value={typeof selectedNode.data.data === 'string' ? selectedNode.data.data : JSON.stringify(selectedNode.data.data || {})}
-                          onChange={(e) => {
-                            try {
-                              const val = JSON.parse(e.target.value);
-                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, data: val } } : n));
-                            } catch (err) {
-                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, data: e.target.value } } : n));
-                            }
-                          }}
-                          style={{ padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', minHeight: '80px', fontFamily: 'monospace', fontSize: '0.8rem' }}
-                        />
-                      </>
-                    )}
-                    {selectedNode.data.type === 'CREATE_RECORD' && (
-                      <>
-                        <div>
-                          <label style={{ fontSize: '0.65rem', color: '#64748b' }}>Target Table</label>
-                          <select
-                            value={selectedNode.data.tableId || ''}
-                            onChange={(e) => {
-                              const tableId = e.target.value;
-                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, tableId } } : n));
-                            }}
-                            style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', marginTop: '4px' }}
-                          >
-                            <option value="">Select a table...</option>
-                            {tables.map(t => <option key={t.id} value={t.id}>{t.name || t.id}</option>)}
-                          </select>
-                        </div>
-                        <textarea
-                          placeholder='JSON Data (e.g. {"item": "Bolts", "qty": 100})'
-                          value={typeof selectedNode.data.data === 'string' ? selectedNode.data.data : JSON.stringify(selectedNode.data.data || {})}
-                          onChange={(e) => {
-                            try {
-                              const val = JSON.parse(e.target.value);
-                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, data: val } } : n));
-                            } catch (err) {
-                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, data: e.target.value } } : n));
-                            }
-                          }}
-                          style={{ padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', minHeight: '80px', fontFamily: 'monospace', fontSize: '0.8rem' }}
-                        />
-                      </>
-                    )}
-                    {selectedNode.data.type === 'HTTP_REQUEST' && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        <div>
-                          <label style={{ fontSize: '0.65rem', color: '#64748b' }}>Endpoint URL</label>
-                          <input
-                            placeholder="https://api.example.com/data"
-                            value={selectedNode.data.url || ''}
-                            onChange={(e) => {
-                              const url = e.target.value;
-                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, url } } : n));
-                            }}
-                            style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', marginTop: '4px' }}
-                          />
-                        </div>
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                          <div style={{ flex: 1 }}>
-                            <label style={{ fontSize: '0.65rem', color: '#64748b' }}>Method</label>
-                            <select
-                              value={selectedNode.data.method || 'GET'}
-                              onChange={(e) => {
-                                const method = e.target.value;
-                                setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, method } } : n));
-                              }}
-                              style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', marginTop: '4px' }}
-                            >
-                              <option value="GET">GET</option>
-                              <option value="POST">POST</option>
-                              <option value="PUT">PUT</option>
-                            </select>
-                          </div>
-                        </div>
-                        <textarea
-                          placeholder='JSON Request Body'
-                          value={typeof selectedNode.data.data === 'string' ? selectedNode.data.data : JSON.stringify(selectedNode.data.data || {})}
-                          onChange={(e) => {
-                            try {
-                              const val = JSON.parse(e.target.value);
-                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, data: val } } : n));
-                            } catch (err) {
-                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, data: e.target.value } } : n));
-                            }
-                          }}
-                          style={{ padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', minHeight: '80px', fontFamily: 'monospace', fontSize: '0.8rem' }}
-                        />
-                      </div>
-                    )}
-                    {selectedNode.data.type === 'SEND_NOTIFICATION' && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        <input
-                          placeholder="Recipient (Email/UserID)"
-                          value={selectedNode.data.recipient || ''}
-                          onChange={(e) => {
-                            const recipient = e.target.value;
-                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, recipient } } : n));
-                          }}
-                          style={{ padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}
-                        />
-                        <textarea
-                          placeholder="Message"
-                          value={selectedNode.data.message || ''}
-                          onChange={(e) => {
-                            const message = e.target.value;
-                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, message } } : n));
-                          }}
-                          style={{ padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', minHeight: '80px' }}
-                        />
-                      </div>
-                    )}
-
-                    {(selectedNode.data.type === 'AI_SUMMARIZE' || selectedNode.data.type === 'AI_TRANSLATE' || selectedNode.data.type === 'AI_EXTRACT' || selectedNode.data.type === 'AI_ANOMALY_DETECTION') && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        <div>
-                          <label style={{ fontSize: '0.65rem', color: '#64748b' }}>Input Text (Variable/Path)</label>
-                          <input
-                            placeholder="e.g. record.notes"
-                            value={selectedNode.data.inputPath || ''}
-                            onChange={(e) => {
-                              const inputPath = e.target.value;
-                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, inputPath } } : n));
-                            }}
-                            style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', marginTop: '4px' }}
-                          />
-                        </div>
-                        
-                        {selectedNode.data.type === 'AI_TRANSLATE' && (
-                          <div>
-                            <label style={{ fontSize: '0.65rem', color: '#64748b' }}>Target Language</label>
-                            <input
-                              placeholder="e.g. Indonesian, Japanese"
-                              value={selectedNode.data.targetLanguage || ''}
-                              onChange={(e) => {
-                                const targetLanguage = e.target.value;
-                                setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, targetLanguage } } : n));
-                              }}
-                              style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', marginTop: '4px' }}
-                            />
-                          </div>
-                        )}
-
-                        {selectedNode.data.type === 'AI_EXTRACT' && (
-                          <div>
-                            <label style={{ fontSize: '0.65rem', color: '#64748b' }}>Extraction Schema (JSON)</label>
-                            <textarea
-                              placeholder='e.g. {"part_number": "text", "quantity": "number"}'
-                              value={selectedNode.data.extractionSchema || ''}
-                              onChange={(e) => {
-                                const extractionSchema = e.target.value;
-                                setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, extractionSchema } } : n));
-                              }}
-                              style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', marginTop: '4px', minHeight: '80px', fontFamily: 'monospace', fontSize: '0.8rem' }}
-                            />
-                          </div>
-                        )}
-
-                        <div>
-                          <label style={{ fontSize: '0.65rem', color: '#64748b' }}>Output Variable</label>
-                          <input
-                            placeholder="e.g. record.summary_ai"
-                            value={selectedNode.data.outputPath || ''}
-                            onChange={(e) => {
-                              const outputPath = e.target.value;
-                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, outputPath } } : n));
-                            }}
-                            style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', marginTop: '4px' }}
-                          />
-                        </div>
-                        <div style={{ fontSize: '0.7rem', color: '#64748b', backgroundColor: '#f0f9ff', padding: '10px', borderRadius: '8px', border: '1px solid #bae6fd' }}>
-                          <div style={{ fontWeight: 700, color: '#0369a1', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
-                            <Sparkles size={12} /> AI Note
-                          </div>
-                          This action will use the default AI Assistant connector configured in Integrations.
-                        </div>
-                      </div>
-                    )}
-                    {selectedNode.data.type === 'MACHINE_COMMAND' && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                        <div>
-                          <label style={{ fontSize: '0.65rem', color: '#64748b' }}>MQTT Topic</label>
-                          <input
-                            placeholder="factory/line1/actuator"
-                            value={selectedNode.data.topic || ''}
-                            onChange={(e) => {
-                              const topic = e.target.value;
-                              setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, topic } } : n));
-                            }}
-                            style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', marginTop: '4px' }}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: '0.65rem', color: '#64748b' }}>Payload (JSON or String)</label>
-                          <textarea
-                            placeholder='e.g. {"state": "ON"}'
-                            value={typeof selectedNode.data.data === 'string' ? selectedNode.data.data : JSON.stringify(selectedNode.data.data || {})}
-                            onChange={(e) => {
-                              try {
-                                const val = JSON.parse(e.target.value);
-                                setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, data: val } } : n));
-                              } catch (err) {
-                                setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, data: e.target.value } } : n));
-                              }
-                            }}
-                            style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', marginTop: '4px', minHeight: '80px', fontFamily: 'monospace', fontSize: '0.8rem' }}
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {selectedNode.type === 'loop' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Loop Configuration</label>
-                    <input
-                      placeholder="List Path (e.g. record.items)"
-                      value={selectedNode.data.listPath || ''}
-                      onChange={(e) => {
-                        const listPath = e.target.value;
-                        setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, listPath, label: `Loop: ${listPath}` } } : n));
-                      }}
-                      style={{ padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}
-                    />
-                    <div style={{ fontSize: '0.7rem', color: '#64748b', fontStyle: 'italic' }}>
-                      Injected variables: <code>element</code> and <code>position</code>.
-                    </div>
-                  </div>
-                )}
-
-                {selectedNode.type === 'event' && selectedNode.data.triggerType === 'TIMER' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                    <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Schedule Configuration</label>
-
-                    <div>
-                      <label style={{ fontSize: '0.65rem', color: '#64748b' }}>Frequency</label>
-                      <select
-                        value={selectedNode.data.schedule?.frequency || 'HOURLY'}
-                        onChange={(e) => {
-                          const frequency = e.target.value;
-                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, schedule: { ...n.data.schedule, frequency } } } : n));
-                        }}
-                        style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', marginTop: '4px' }}
-                      >
-                        <option value="HOURLY">Every Hour</option>
-                        <option value="DAILY">Once a Day</option>
-                        <option value="WEEKLY">Once a Week</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ fontSize: '0.65rem', color: '#64748b' }}>Time (HH:MM)</label>
-                      <input
-                        type="time"
-                        value={selectedNode.data.schedule?.time || '00:00'}
-                        onChange={(e) => {
-                          const time = e.target.value;
-                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, schedule: { ...n.data.schedule, time } } } : n));
-                        }}
-                        style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', marginTop: '4px' }}
-                      />
-                    </div>
-
-                    {selectedNode.data.schedule?.frequency === 'WEEKLY' && (
-                      <div>
-                        <label style={{ fontSize: '0.65rem', color: '#64748b' }}>Run on Days</label>
-                        <div style={{ display: 'flex', gap: '5px', marginTop: '5px' }}>
-                          {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, dIdx) => (
-                            <button
-                              key={dIdx}
-                              onClick={() => {
-                                const days = selectedNode.data.schedule?.days || [];
-                                const newDays = days.includes(dIdx) ? days.filter(d => d !== dIdx) : [...days, dIdx];
-                                setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, schedule: { ...n.data.schedule, days: newDays } } } : n));
-                              }}
-                              style={{
-                                width: '28px',
-                                height: '28px',
-                                borderRadius: '50%',
-                                border: '1px solid #e2e8f0',
-                                backgroundColor: (selectedNode.data.schedule?.days || []).includes(dIdx) ? '#3b82f6' : 'white',
-                                color: (selectedNode.data.schedule?.days || []).includes(dIdx) ? 'white' : '#64748b',
-                                fontSize: '0.7rem',
-                                fontWeight: 700,
-                                cursor: 'pointer'
-                              }}
-                            >{day}</button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {selectedNode.data.triggerType === 'MACHINE_TRIGGER' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                    <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Machine / IoT Config</label>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                      <label style={{ fontSize: '0.65rem', color: '#64748b' }}>MQTT Topic</label>
-                      <input
-                        placeholder="factory/line1/temp"
-                        value={selectedNode.data.topic || ''}
-                        onChange={(e) => {
-                          const topic = e.target.value;
-                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, topic } } : n));
-                        }}
-                        style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}
-                      />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <label style={{ fontSize: '0.65rem', color: '#64748b' }}>Filter Condition (Optional)</label>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <input
-                          placeholder="Key"
-                          value={selectedNode.data.condition?.field || ''}
-                          onChange={(e) => {
-                            const field = e.target.value;
-                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, condition: { ...n.data.condition, field } } } : n));
-                          }}
-                          style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}
-                        />
-                        <select
-                          value={selectedNode.data.condition?.operator || '=='}
-                          onChange={(e) => {
-                            const operator = e.target.value;
-                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, condition: { ...n.data.condition, operator } } } : n));
-                          }}
-                          style={{ width: '60px', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}
-                        >
-                          <option value="==">=</option>
-                          <option value=">">&gt;</option>
-                          <option value="<">&lt;</option>
-                        </select>
-                        <input
-                          placeholder="Value"
-                          value={selectedNode.data.condition?.value || ''}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, condition: { ...n.data.condition, value } } } : n));
-                          }}
-                          style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {selectedNode.data.triggerType === 'OBD2_TRIGGER' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                    <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>OBD2 Engine Config</label>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                      <label style={{ fontSize: '0.65rem', color: '#64748b' }}>OBD2 PID (e.g. 010C)</label>
-                      <input
-                        placeholder="010C"
-                        value={selectedNode.data.pid || ''}
-                        onChange={(e) => {
-                          const pid = e.target.value;
-                          setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, pid } } : n));
-                        }}
-                        style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontFamily: 'monospace' }}
-                      />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <label style={{ fontSize: '0.65rem', color: '#64748b' }}>Filter Condition (Optional)</label>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <select
-                          value={selectedNode.data.condition?.operator || '>'}
-                          onChange={(e) => {
-                            const operator = e.target.value;
-                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, condition: { ...n.data.condition, operator } } } : n));
-                          }}
-                          style={{ padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}
-                        >
-                          <option value=">">&gt;</option>
-                          <option value="<">&lt;</option>
-                          <option value="==">==</option>
-                          <option value="!=">!=</option>
-                        </select>
-                        <input
-                          type="number"
-                          placeholder="Value"
-                          value={selectedNode.data.condition?.value || ''}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, condition: { ...n.data.condition, value } } } : n));
-                          }}
-                          style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}
-                        />
-                      </div>
-                    </div>
                   </div>
                 )}
 
                 {selectedNode.type === 'event' && (
                   <button
                     onClick={() => setShowEventPicker(true)}
-                    style={{ padding: '10px', backgroundColor: '#eff6ff', color: '#3b82f6', border: '1px solid #bae6fd', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
+                    style={{ padding: '10px', backgroundColor: '#714B67', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.8rem' }}
                   >Change Event Type</button>
                 )}
               </div>
 
-              <div style={{ marginTop: 'auto', display: 'flex', gap: '10px' }}>
-                <button
-                  onClick={() => {
-                    const id = `node_${Date.now()}`;
-                    const newNode = {
-                      id,
-                      type: 'action',
-                      position: { x: selectedNode.position.x, y: selectedNode.position.y + 150 },
-                      data: { label: 'New Action' }
-                    };
-                    setNodes(nds => [...nds, newNode]);
-                    setEdges(eds => [...eds, { id: `e_${selectedNode.id}_${id}`, source: selectedNode.id, target: id }]);
-                  }}
-                  style={{ flex: 1, padding: '12px', backgroundColor: '#001e3c', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                >
-                  <Plus size={16} /> Action
-                </button>
-                <button
-                  onClick={() => {
-                    const id = `node_${Date.now()}`;
-                    const newNode = {
-                      id,
-                      type: 'decision',
-                      position: { x: selectedNode.position.x, y: selectedNode.position.y + 150 },
-                      data: { label: 'IF condition' }
-                    };
-                    setNodes(nds => [...nds, newNode]);
-                    setEdges(eds => [...eds, { id: `e_${selectedNode.id}_${id}`, source: selectedNode.id, target: id }]);
-                  }}
-                  style={{ flex: 1, padding: '12px', backgroundColor: 'white', border: '1px solid #e2e8f0', color: '#1e293b', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                >
-                  <AlertCircle size={16} /> Decision
-                </button>
-                <button
-                  onClick={() => {
-                    const id = `node_${Date.now()}`;
-                    const newNode = {
-                      id,
-                      type: 'loop',
-                      position: { x: selectedNode.position.x, y: selectedNode.position.y + 150 },
-                      data: { label: 'For Each loop' }
-                    };
-                    setNodes(nds => [...nds, newNode]);
-                    setEdges(eds => [...eds, { id: `e_${selectedNode.id}_${id}`, source: selectedNode.id, target: id }]);
-                  }}
-                  style={{ flex: 1, padding: '12px', backgroundColor: 'white', border: '1px solid #e2e8f0', color: '#1e293b', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                >
-                  <RefreshCw size={16} /> Loop
-                </button>
-              </div>
-
               {selectedNode.id !== 'start-node' && (
-                <div style={{ marginTop: '20px', borderTop: '1px solid #f1f5f9', paddingTop: '20px' }}>
+                <div style={{ marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid #e2e8f0' }}>
                   <button
                     onClick={() => {
                       deleteNode(selectedNode.id);
@@ -1618,9 +2290,9 @@ const AutomationEditor = () => {
                     style={{
                       width: '100%',
                       padding: '10px',
-                      backgroundColor: 'white',
+                      backgroundColor: '#fef2f2',
                       color: '#ef4444',
-                      border: '1px solid #fecaca',
+                      border: '1px solid #fca5a5',
                       borderRadius: '8px',
                       fontSize: '0.8rem',
                       fontWeight: 700,
@@ -1630,88 +2302,67 @@ const AutomationEditor = () => {
                       justifyContent: 'center',
                       gap: '8px'
                     }}
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#fef2f2'}
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'white'}
                   >
-                    <Trash2 size={16} /> Delete this Node
+                    <Trash2 size={16} /> Delete Node
                   </button>
                 </div>
               )}
             </div>
           ) : (
-            <div style={{ textAlign: 'center', padding: '24px', color: '#94a3b8', fontSize: '0.8rem' }}>
-              <Settings2 size={40} style={{ marginBottom: '10px', opacity: 0.2 }} />
-              <p>Select a node on the canvas to edit its logic properties.</p>
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8', fontSize: '0.8rem' }}>
+              <Settings2 size={40} style={{ marginBottom: '10px', opacity: 0.3 }} />
+              <p>Select a node on the canvas to edit its properties.</p>
             </div>
           )
         ) : (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-            <div style={{ flex: 1, overflowY: 'auto', padding: '15px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                {currentAuto?.history && currentAuto.history.length > 0 ? (
-                  currentAuto.history.map((version, idx) => (
-                    <div key={idx} style={{
-                      padding: '15px',
-                      backgroundColor: '#f8fafc',
-                      borderRadius: '12px',
-                      border: '1px solid #e2e8f0',
-                      borderLeft: version.version === currentAuto.published?.version ? '4px solid #10b981' : '1px solid #e2e8f0'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '0.9rem', fontWeight: 800 }}>v{version.version}</span>
-                          {version.version === currentAuto.published?.version && (
-                            <span style={{ fontSize: '0.6rem', fontWeight: 800, backgroundColor: '#dcfce7', color: '#15803d', padding: '2px 6px', borderRadius: '4px' }}>PUBLISHED</span>
-                          )}
-                        </div>
-                        <span style={{ fontSize: '0.7rem', color: '#64748b' }}>{new Date(version.publishedAt).toLocaleDateString()}</span>
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '12px' }}>
-                        Published by Supervisor
-                      </div>
-                      <button
-                        onClick={() => handleRestore(version)}
-                        style={{
-                          width: '100%',
-                          padding: '8px',
-                          backgroundColor: 'white',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: '6px',
-                          fontSize: '0.75rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px'
-                        }}
-                      >
-                        <History size={14} /> Restore this version
-                      </button>
-                    </div>
-                  ))
-                ) : (
-                  <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}>
-                    <History size={48} style={{ marginBottom: '16px', opacity: 0.2 }} />
-                    <p style={{ margin: 0, fontSize: '0.85rem' }}>No publication history yet.</p>
-                    <p style={{ fontSize: '0.75rem' }}>Publish your first version to see it here.</p>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '15px', overflowY: 'auto' }}>
+            {currentAuto?.history && currentAuto.history.length > 0 ? (
+              currentAuto.history.map((version, idx) => (
+                <div key={idx} style={{
+                  padding: '12px',
+                  backgroundColor: '#f8fafc',
+                  borderRadius: '10px',
+                  border: '1px solid #e2e8f0',
+                  marginBottom: '10px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#1e293b' }}>v{version.version}</span>
+                    <span style={{ fontSize: '0.7rem', color: '#64748b' }}>{new Date(version.publishedAt).toLocaleDateString()}</span>
                   </div>
-                )}
+                  <button
+                    onClick={() => handleRestore(version)}
+                    style={{
+                      width: '100%',
+                      padding: '6px',
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #cbd5e1',
+                      color: '#714B67',
+                      borderRadius: '6px',
+                      fontSize: '0.75rem',
+                      fontWeight: 800,
+                      cursor: 'pointer'
+                    }}
+                  >Restore</button>
+                </div>
+              ))
+            ) : (
+              <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}>
+                <History size={40} style={{ marginBottom: '12px', opacity: 0.3 }} />
+                <p style={{ margin: 0, fontSize: '0.8rem' }}>No publication history yet.</p>
               </div>
-            </div>
+            )}
           </div>
         )}
 
-        {/* Context Menu Component */}
         {menu && (
           <div style={{
             position: 'fixed',
             top: menu.top,
             left: menu.left,
-            backgroundColor: 'white',
-            borderRadius: '8px',
+            backgroundColor: '#ffffff',
+            borderRadius: '10px',
             border: '1px solid #e2e8f0',
-            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
             padding: '6px',
             zIndex: 1000,
             minWidth: '160px'
@@ -1720,41 +2371,30 @@ const AutomationEditor = () => {
               <>
                 <button
                   onClick={() => copyNode(menu.id)}
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', border: 'none', background: 'none', cursor: 'pointer', borderRadius: '4px', fontSize: '0.85rem', color: '#1e293b' }}
-                  onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
-                  onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', border: 'none', background: 'none', cursor: 'pointer', borderRadius: '4px', fontSize: '0.8rem', color: '#1e293b' }}
                 >
                   <Copy size={14} /> Copy
                 </button>
                 <button
                   onClick={() => duplicateNode(menu.id)}
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', border: 'none', background: 'none', cursor: 'pointer', borderRadius: '4px', fontSize: '0.85rem', color: '#1e293b' }}
-                  onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
-                  onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', border: 'none', background: 'none', cursor: 'pointer', borderRadius: '4px', fontSize: '0.8rem', color: '#1e293b' }}
                 >
                   <Layers size={14} /> Duplicate
                 </button>
                 {menu.id !== 'start-node' && (
-                  <>
-                    <div style={{ height: '1px', backgroundColor: '#e2e8f0', margin: '4px 0' }} />
-                    <button
-                      onClick={() => deleteNode(menu.id)}
-                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', border: 'none', background: 'none', cursor: 'pointer', borderRadius: '4px', fontSize: '0.85rem', color: '#ef4444' }}
-                      onMouseEnter={e => e.currentTarget.style.backgroundColor = '#fef2f2'}
-                      onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
-                    >
-                      <Trash2 size={14} /> Delete Node
-                    </button>
-                  </>
+                  <button
+                    onClick={() => deleteNode(menu.id)}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', border: 'none', background: 'none', cursor: 'pointer', borderRadius: '4px', fontSize: '0.8rem', color: '#ef4444' }}
+                  >
+                    <Trash2 size={14} /> Delete
+                  </button>
                 )}
               </>
             ) : (
               <button
                 onClick={pasteNode}
                 disabled={!clipboard}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', border: 'none', background: 'none', cursor: clipboard ? 'pointer' : 'not-allowed', borderRadius: '4px', fontSize: '0.85rem', color: clipboard ? '#1e293b' : '#94a3b8' }}
-                onMouseEnter={e => clipboard && (e.currentTarget.style.backgroundColor = '#f1f5f9')}
-                onMouseLeave={e => clipboard && (e.currentTarget.style.backgroundColor = 'transparent')}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', border: 'none', background: 'none', cursor: clipboard ? 'pointer' : 'not-allowed', borderRadius: '4px', fontSize: '0.8rem', color: clipboard ? '#1e293b' : '#94a3b8' }}
               >
                 <ClipboardPaste size={14} /> Paste Node
               </button>
@@ -1762,75 +2402,72 @@ const AutomationEditor = () => {
           </div>
         )}
 
-        {/* Automation Manager Modal */}
         {isManagerOpen && (
           <div style={{
             position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.5)',
-            backdropFilter: 'blur(4px)',
+            top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(6px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 9999
           }}>
             <div style={{
-              width: '800px',
+              width: '840px',
               maxWidth: '90vw',
-              height: '600px',
-              backgroundColor: 'white',
+              height: '620px',
+              backgroundColor: '#ffffff',
               borderRadius: '20px',
               display: 'flex',
               flexDirection: 'column',
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              border: '1px solid #e2e8f0'
             }}>
-              <div style={{ padding: '24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8fafc' }}>
                 <div>
-                  <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>Automation Manager</h2>
-                  <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#64748b' }}>Load, manage and organize your automation workflows</p>
+                  <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#714B67' }}>Automation Workflows</h2>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '0.78rem', color: '#64748b' }}>Load, manage and organize your automation pipelines</p>
                 </div>
                 <button
                   onClick={() => setIsManagerOpen(false)}
-                  style={{ background: '#f1f5f9', border: 'none', color: '#64748b', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                  style={{ background: '#e2e8f0', border: 'none', color: '#64748b', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
                 ><X size={18} /></button>
               </div>
 
-              <div style={{ display: 'flex', gap: '12px', borderBottom: '1px solid #f1f5f9', padding: '0 24px', backgroundColor: '#f8fafc' }}>
+              <div style={{ display: 'flex', gap: '12px', borderBottom: '1px solid #e2e8f0', padding: '0 24px', backgroundColor: '#ffffff' }}>
                 <button
                   onClick={() => setManagerTab('saved')}
                   style={{
                     padding: '12px 16px',
                     border: 'none',
                     background: 'none',
-                    borderBottom: managerTab === 'saved' ? '2px solid #3b82f6' : '2px solid transparent',
-                    color: managerTab === 'saved' ? '#3b82f6' : '#64748b',
+                    borderBottom: managerTab === 'saved' ? '3px solid #714B67' : '3px solid transparent',
+                    color: managerTab === 'saved' ? '#714B67' : '#64748b',
                     fontSize: '0.85rem',
-                    fontWeight: 700,
+                    fontWeight: 800,
                     cursor: 'pointer'
                   }}
-                >My Automations</button>
+                >My Workflows</button>
                 <button
                   onClick={() => setManagerTab('templates')}
                   style={{
                     padding: '12px 16px',
                     border: 'none',
                     background: 'none',
-                    borderBottom: managerTab === 'templates' ? '2px solid #3b82f6' : '2px solid transparent',
-                    color: managerTab === 'templates' ? '#3b82f6' : '#64748b',
+                    borderBottom: managerTab === 'templates' ? '3px solid #714B67' : '3px solid transparent',
+                    color: managerTab === 'templates' ? '#714B67' : '#64748b',
                     fontSize: '0.85rem',
-                    fontWeight: 700,
+                    fontWeight: 800,
                     cursor: 'pointer'
                   }}
-                >MES Automation Templates</button>
+                >Workflow Templates</button>
               </div>
 
               <div style={{ flex: 1, padding: '24px', overflowY: 'auto', backgroundColor: '#f8fafc' }}>
                 {managerTab === 'saved' ? (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: '16px' }}>
                     <div
                       onClick={handleNewAutomation}
                       style={{
@@ -1841,24 +2478,22 @@ const AutomationEditor = () => {
                         flexDirection: 'column',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '12px',
+                        gap: '10px',
                         cursor: 'pointer',
-                        backgroundColor: 'white',
+                        backgroundColor: '#ffffff',
                         transition: 'all 0.2s'
                       }}
                       onMouseEnter={e => {
-                        e.currentTarget.style.borderColor = '#3b82f6';
-                        e.currentTarget.style.backgroundColor = '#eff6ff';
+                        e.currentTarget.style.borderColor = '#714B67';
+                        e.currentTarget.style.backgroundColor = '#f8fafc';
                       }}
                       onMouseLeave={e => {
                         e.currentTarget.style.borderColor = '#cbd5e1';
-                        e.currentTarget.style.backgroundColor = 'white';
+                        e.currentTarget.style.backgroundColor = '#ffffff';
                       }}
                     >
-                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#eff6ff', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Plus size={24} />
-                      </div>
-                      <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#3b82f6' }}>Create New</span>
+                      <Plus size={24} color="#714B67" />
+                      <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#714B67' }}>Create Workflow</span>
                     </div>
 
                     {automations.map(auto => (
@@ -1866,7 +2501,7 @@ const AutomationEditor = () => {
                         key={auto.id}
                         style={{
                           height: '140px',
-                          backgroundColor: 'white',
+                          backgroundColor: '#ffffff',
                           border: '1px solid #e2e8f0',
                           borderRadius: '16px',
                           padding: '16px',
@@ -1875,34 +2510,26 @@ const AutomationEditor = () => {
                           justifyContent: 'space-between',
                           cursor: 'pointer',
                           transition: 'all 0.2s',
-                          position: 'relative'
+                          boxShadow: '0 4px 10px rgba(0,0,0,0.03)'
                         }}
-                        onMouseEnter={e => e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}
-                        onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
                         onClick={() => loadAutomation(auto)}
                       >
                         <div>
-                          <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1e293b', marginBottom: '4px' }}>{auto.name}</div>
+                          <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1e293b', marginBottom: '4px' }}>{auto.name}</div>
                           <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
-                            Last edited: {auto.development?.updatedAt ? new Date(auto.development.updatedAt).toLocaleDateString() : 'Never'}
+                            Edited: {auto.development?.updatedAt ? new Date(auto.development.updatedAt).toLocaleDateString() : 'Draft'}
                           </div>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ display: 'flex', gap: '4px' }}>
-                            {auto.published ? (
-                              <span style={{ fontSize: '0.6rem', fontWeight: 800, backgroundColor: '#dcfce7', color: '#15803d', padding: '2px 6px', borderRadius: '4px' }}>v{auto.published.version}</span>
-                            ) : (
-                              <span style={{ fontSize: '0.6rem', fontWeight: 800, backgroundColor: '#f1f5f9', color: '#64748b', padding: '2px 6px', borderRadius: '4px' }}>DRAFT</span>
-                            )}
-                          </div>
+                          <span style={{ fontSize: '0.65rem', fontWeight: 800, backgroundColor: '#e6f7f7', color: '#00A09D', padding: '2px 8px', borderRadius: '4px' }}>
+                            {auto.published ? `v${auto.published.version}` : 'DRAFT'}
+                          </span>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               deleteAutomation(auto.id);
                             }}
-                            style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
-                            onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-                            onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+                            style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
                           ><Trash2 size={14} /></button>
                         </div>
                       </div>
@@ -1914,50 +2541,46 @@ const AutomationEditor = () => {
                       <div
                         key={tmpl.id}
                         style={{
-                          backgroundColor: 'white',
+                          backgroundColor: '#ffffff',
                           border: '1px solid #e2e8f0',
                           borderRadius: '16px',
                           padding: '20px',
                           display: 'flex',
                           flexDirection: 'column',
                           justifyContent: 'space-between',
-                          transition: 'all 0.2s',
-                          minHeight: '180px'
+                          minHeight: '190px',
+                          boxShadow: '0 4px 10px rgba(0,0,0,0.03)'
                         }}
-                        onMouseEnter={e => e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}
-                        onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
                       >
                         <div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                            <span style={{
-                              fontSize: '0.65rem',
-                              fontWeight: 800,
-                              backgroundColor: tmpl.category === 'IoT & Sensors' ? '#e0e7ff' : tmpl.category === 'Quality Control' ? '#fee2e2' : '#fef3c7',
-                              color: tmpl.category === 'IoT & Sensors' ? '#4338ca' : tmpl.category === 'Quality Control' ? '#b91c1c' : '#b45309',
-                              padding: '4px 8px',
-                              borderRadius: '20px'
-                            }}>{tmpl.category}</span>
-                          </div>
-                          <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1e293b', marginBottom: '8px' }}>{tmpl.name}</div>
-                          <div style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.4, marginBottom: '16px' }}>{tmpl.description}</div>
+                          <span style={{
+                            fontSize: '0.65rem',
+                            fontWeight: 800,
+                            backgroundColor: '#f1f5f9',
+                            color: '#714B67',
+                            padding: '4px 8px',
+                            borderRadius: '12px',
+                            border: '1px solid #cbd5e1'
+                          }}>{tmpl.category}</span>
+                          <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1e293b', margin: '10px 0 6px 0' }}>{tmpl.name}</div>
+                          <div style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.4 }}>{tmpl.description}</div>
                         </div>
                         <button
                           onClick={() => handleCreateFromTemplate(tmpl)}
                           style={{
                             width: '100%',
                             padding: '10px',
-                            backgroundColor: '#3b82f6',
-                            color: 'white',
+                            backgroundColor: '#714B67',
+                            color: '#ffffff',
                             border: 'none',
                             borderRadius: '10px',
                             fontSize: '0.8rem',
-                            fontWeight: 700,
+                            fontWeight: 800,
                             cursor: 'pointer',
-                            transition: 'background-color 0.2s'
+                            marginTop: '12px',
+                            boxShadow: '0 4px 10px rgba(113, 75, 103, 0.3)'
                           }}
-                          onMouseEnter={e => e.currentTarget.style.backgroundColor = '#2563eb'}
-                          onMouseLeave={e => e.currentTarget.style.backgroundColor = '#3b82f6'}
-                        >Gunakan Template</button>
+                        >Use Template</button>
                       </div>
                     ))}
                   </div>

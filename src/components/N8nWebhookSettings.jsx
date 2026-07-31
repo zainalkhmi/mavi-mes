@@ -187,7 +187,7 @@ const N8nWebhookSettings = () => {
             BACK
           </button>
           <div style={{ width: '1px', height: '24px', backgroundColor: '#dee2e6', margin: '0 8px' }}></div>
-          <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#495057' }}>n8n / Webhook Integration</h1>
+          <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#495057' }}>Outgoing Webhook Integration</h1>
         </div>
         <button
           onClick={() => navigate(-1)}
@@ -210,11 +210,11 @@ const N8nWebhookSettings = () => {
             <div style={{ width: '32px', height: '32px', borderRadius: '4px', backgroundColor: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
               <Webhook size={18} />
             </div>
-            <span style={{ fontSize: '0.950rem', fontWeight: 600, color: '#495057' }}>n8n Webhook</span>
+            <span style={{ fontSize: '0.950rem', fontWeight: 600, color: '#495057' }}>Outgoing Webhook</span>
           </div>
           <div style={{ padding: '0 24px', fontSize: '0.8rem', color: '#64748b', lineHeight: 1.6 }}>
             <p style={{ margin: '0 0 12px 0' }}>
-              Connect Mavi MES to <strong>n8n</strong> workflow automation for real-time event notifications.
+              Connect Mavi MES to external workflow automation platforms for real-time event notifications.
             </p>
             <p style={{ margin: '0 0 12px 0', fontWeight: 600 }}>
               Events: {subscribedCount}/{N8N_EVENT_TYPES.length} active
