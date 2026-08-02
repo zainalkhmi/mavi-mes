@@ -69,7 +69,9 @@ import {
   Power,
   Pause,
   Square,
-  HardDrive
+  HardDrive,
+  Upload,
+  Download
 } from 'lucide-react';
 
 // ─── ODOO STYLE COLORFUL COMPACT NODES ──────────────────────────────────────────
@@ -1065,6 +1067,7 @@ const AutomationEditor = () => {
 
   const edgeUpdateSuccessful = useRef(true);
   const reactFlowWrapper = useRef(null);
+  const fileInputRef = useRef(null);
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
   const { project, setViewport } = useReactFlow();
 
@@ -1374,6 +1377,120 @@ const AutomationEditor = () => {
     localStorage.setItem('mes_automations', JSON.stringify(newAllAutos));
     setCurrentAuto(updatedAuto);
     alert('Development Version Saved!');
+  };
+
+  const handleExportWorkflow = (targetAuto = null) => {
+    try {
+      const exportData = targetAuto ? {
+        maviVersion: '1.0',
+        type: 'automation_workflow',
+        id: targetAuto.id || `auto_${Date.now()}`,
+        name: targetAuto.name || 'Exported Automation',
+        active: targetAuto.active !== false,
+        createdAt: targetAuto.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        development: targetAuto.development || {
+          nodes: targetAuto.nodes || [],
+          edges: targetAuto.edges || [],
+          trigger: targetAuto.trigger || { type: 'MANUAL' }
+        },
+        published: targetAuto.published || null,
+        nodes: targetAuto.nodes || targetAuto.development?.nodes || [],
+        edges: targetAuto.edges || targetAuto.development?.edges || []
+      } : {
+        maviVersion: '1.0',
+        type: 'automation_workflow',
+        id: currentAuto?.id || `auto_${Date.now()}`,
+        name: automationName || 'Untitled Automation',
+        active: isActive,
+        createdAt: currentAuto?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        development: {
+          nodes,
+          edges,
+          trigger: {
+            type: nodes.find(n => n.type === 'event')?.data?.triggerType || 'MANUAL',
+            schedule: nodes.find(n => n.type === 'event')?.data?.schedule || null
+          }
+        },
+        published: currentAuto?.published || null,
+        nodes,
+        edges
+      };
+
+      const fileName = `${(exportData.name || 'workflow').toLowerCase().replace(/[^a-z0-9]/gi, '_')}.mavi.json`;
+      const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(exportData, null, 2))}`;
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute('href', jsonString);
+      downloadAnchor.setAttribute('download', fileName);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    } catch (err) {
+      alert(`Export failed: ${err.message}`);
+    }
+  };
+
+  const handleImportWorkflow = (e) => {
+    const file = e.target?.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target.result);
+
+        const importedNodes = parsed.nodes || parsed.development?.nodes || parsed.published?.nodes || [];
+        const importedEdges = parsed.edges || parsed.development?.edges || parsed.published?.edges || [];
+        const name = parsed.name || file.name.replace(/\.(mavi\.)?json$/i, '') || 'Imported Workflow';
+
+        if (!Array.isArray(importedNodes) || importedNodes.length === 0) {
+          throw new Error('Invalid workflow JSON format. Could not find valid "nodes" array.');
+        }
+
+        const newAuto = {
+          id: `auto_imp_${Date.now()}`,
+          name: name,
+          active: parsed.active !== false,
+          development: {
+            nodes: importedNodes,
+            edges: importedEdges,
+            trigger: parsed.development?.trigger || { type: 'MANUAL' },
+            updatedAt: new Date().toISOString()
+          },
+          published: parsed.published || null,
+          history: parsed.history || []
+        };
+
+        setNodes(importedNodes);
+        setEdges(importedEdges);
+        setAutomationName(name);
+        setCurrentAuto(newAuto);
+        setIsActive(newAuto.active);
+        setIsRunning(false);
+        setIsPaused(false);
+        setSelectedNode(null);
+
+        const saved = localStorage.getItem('mes_automations');
+        const allAutos = saved ? JSON.parse(saved) : [];
+        const filtered = allAutos.filter(a => a.name !== name && a.id !== newAuto.id);
+        filtered.push(newAuto);
+        localStorage.setItem('mes_automations', JSON.stringify(filtered));
+        setAutomations(filtered);
+
+        setIsManagerOpen(false);
+
+        setTimeout(() => {
+          setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 800 });
+        }, 100);
+
+        alert(`Workflow "${name}" imported successfully!`);
+      } catch (err) {
+        alert(`Failed to import workflow JSON: ${err.message}`);
+      }
+      if (e.target) e.target.value = '';
+    };
+    reader.readAsText(file);
   };
 
   const onConnect = useCallback((params) => setEdges((eds) => addEdge({
@@ -1792,6 +1909,14 @@ const AutomationEditor = () => {
 
             <div style={{ width: '1px', height: '20px', backgroundColor: '#3B3B54', margin: '0 2px' }}></div>
 
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept=".json"
+              onChange={handleImportWorkflow}
+              style={{ display: 'none' }}
+            />
+
             {/* NEW WORKFLOW */}
             <button
               onClick={handleNewAutomation}
@@ -1818,6 +1943,34 @@ const AutomationEditor = () => {
               title="Save Draft"
             >
               <Save size={18} />
+            </button>
+
+            {/* EXPORT WORKFLOW JSON */}
+            <button
+              onClick={() => handleExportWorkflow()}
+              style={{
+                width: '36px', height: '36px', borderRadius: '10px', border: '1px solid #3B3B54',
+                backgroundColor: '#3B3B54', color: '#38bdf8', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'all 0.2s'
+              }}
+              title="Export Workflow JSON"
+            >
+              <Download size={18} />
+            </button>
+
+            {/* IMPORT WORKFLOW JSON */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                width: '36px', height: '36px', borderRadius: '10px', border: '1px solid #3B3B54',
+                backgroundColor: '#3B3B54', color: '#34d399', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'all 0.2s'
+              }}
+              title="Import Workflow JSON"
+            >
+              <Upload size={18} />
             </button>
 
             {/* PUBLISH VERSION */}
@@ -3815,6 +3968,34 @@ const AutomationEditor = () => {
                       <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#714B67' }}>Create Workflow</span>
                     </div>
 
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      style={{
+                        height: '140px',
+                        border: '2px dashed #00A09D',
+                        borderRadius: '16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '10px',
+                        cursor: 'pointer',
+                        backgroundColor: '#ffffff',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.borderColor = '#00A09D';
+                        e.currentTarget.style.backgroundColor = '#f0fdfa';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.borderColor = '#00A09D';
+                        e.currentTarget.style.backgroundColor = '#ffffff';
+                      }}
+                    >
+                      <Upload size={24} color="#00A09D" />
+                      <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#00A09D' }}>Import JSON</span>
+                    </div>
+
                     {automations.map(auto => (
                       <div
                         key={auto.id}
@@ -3843,13 +4024,24 @@ const AutomationEditor = () => {
                           <span style={{ fontSize: '0.65rem', fontWeight: 800, backgroundColor: '#e6f7f7', color: '#00A09D', padding: '2px 8px', borderRadius: '4px' }}>
                             {auto.published ? `v${auto.published.version}` : 'DRAFT'}
                           </span>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteAutomation(auto.id);
-                            }}
-                            style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
-                          ><Trash2 size={14} /></button>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleExportWorkflow(auto);
+                              }}
+                              title="Export Workflow JSON"
+                              style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}
+                            ><Download size={14} /></button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteAutomation(auto.id);
+                              }}
+                              title="Delete Workflow"
+                              style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+                            ><Trash2 size={14} /></button>
+                          </div>
                         </div>
                       </div>
                     ))}

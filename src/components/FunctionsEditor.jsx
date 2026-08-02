@@ -44,7 +44,9 @@ import {
   Car,
   Bell,
   Sparkles,
-  FolderOpen
+  FolderOpen,
+  Upload,
+  Download
 } from 'lucide-react';
 import engine from '../utils/automationEngine';
 
@@ -525,6 +527,7 @@ const FunctionsEditor = () => {
   const [executionHistory, setExecutionHistory] = useState([]);
   const [currentVersion, setCurrentVersion] = useState(0);
   const [versionHistory, setVersionHistory] = useState([]);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     const saved = localStorage.getItem('mes_functions');
@@ -832,6 +835,105 @@ const FunctionsEditor = () => {
     alert('Draft Saved!');
   };
 
+  const handleExportFunction = (targetFn = null) => {
+    try {
+      const exportData = targetFn ? {
+        maviVersion: '1.0',
+        type: 'function_logic',
+        id: targetFn.id || `fn_${Date.now()}`,
+        name: targetFn.name || 'Exported Function',
+        createdAt: targetFn.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        draft: targetFn.draft || { nodes: targetFn.nodes || [], edges: targetFn.edges || [] },
+        published: targetFn.published || null,
+        nodes: targetFn.nodes || targetFn.draft?.nodes || [],
+        edges: targetFn.edges || targetFn.draft?.edges || []
+      } : {
+        maviVersion: '1.0',
+        type: 'function_logic',
+        id: `fn_${Date.now()}`,
+        name: functionName || 'Untitled Function',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        draft: {
+          nodes,
+          edges,
+          inputs: functionInputs,
+          outputs: functionOutputs
+        },
+        nodes,
+        edges,
+        inputs: functionInputs,
+        outputs: functionOutputs
+      };
+
+      const fileName = `${(exportData.name || 'function').toLowerCase().replace(/[^a-z0-9]/gi, '_')}.mavi_fn.json`;
+      const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(exportData, null, 2))}`;
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute('href', jsonString);
+      downloadAnchor.setAttribute('download', fileName);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    } catch (err) {
+      alert(`Export failed: ${err.message}`);
+    }
+  };
+
+  const handleImportFunction = (e) => {
+    const file = e.target?.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target.result);
+
+        const importedNodes = parsed.nodes || parsed.draft?.nodes || parsed.published?.data?.nodes || [];
+        const importedEdges = parsed.edges || parsed.draft?.edges || parsed.published?.data?.edges || [];
+        const name = parsed.name || file.name.replace(/\.(mavi_fn\.)?json$/i, '') || 'Imported Function';
+
+        if (!Array.isArray(importedNodes) || importedNodes.length === 0) {
+          throw new Error('Invalid function JSON format. Could not find valid "nodes" array.');
+        }
+
+        setNodes(importedNodes);
+        setEdges(importedEdges);
+        setFunctionName(name);
+
+        const fnData = {
+          nodes: importedNodes,
+          edges: importedEdges,
+          inputs: parsed.inputs || parsed.draft?.inputs || functionInputs,
+          outputs: parsed.outputs || parsed.draft?.outputs || functionOutputs
+        };
+
+        const saved = localStorage.getItem('mes_functions');
+        const all = saved ? JSON.parse(saved) : [];
+        const filtered = all.filter(f => f.name !== name);
+        const newFn = {
+          id: `fn_imp_${Date.now()}`,
+          name: name,
+          draft: fnData,
+          published: parsed.published || null,
+          history: parsed.history || [],
+          createdAt: new Date().toISOString()
+        };
+        filtered.push(newFn);
+
+        localStorage.setItem('mes_functions', JSON.stringify(filtered));
+        setSavedFunctions(filtered);
+        setIsManagerOpen(false);
+
+        alert(`Function "${name}" imported successfully!`);
+      } catch (err) {
+        alert(`Failed to import function JSON: ${err.message}`);
+      }
+      if (e.target) e.target.value = '';
+    };
+    reader.readAsText(file);
+  };
+
   const handlePublish = () => {
     const saved = localStorage.getItem('mes_functions');
     const all = saved ? JSON.parse(saved) : [];
@@ -1020,23 +1122,57 @@ const FunctionsEditor = () => {
             <Link2 size={20} />
           </button>
           <div style={{ width: '1px', height: '24px', backgroundColor: '#e2e8f0' }}></div>
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept=".json"
+            onChange={handleImportFunction}
+            style={{ display: 'none' }}
+          />
           <button 
             onClick={() => setIsManagerOpen(true)}
             style={{
-              display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px',
-              backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '6px',
-              fontSize: '0.8rem', fontWeight: 600, color: '#64748b', cursor: 'pointer'
+              display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px',
+              backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '8px',
+              color: '#64748b', cursor: 'pointer'
             }}
+            title="Open Function Manager"
           >
-            <FolderOpen size={16} /> Open
+            <FolderOpen size={18} />
           </button>
           <button 
             onClick={handleSave}
             style={{
-              padding: '8px 16px', backgroundColor: 'white', color: '#64748b',
-              border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer'
+              display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px',
+              backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '8px',
+              color: '#64748b', cursor: 'pointer'
             }}
-          >Save Draft</button>
+            title="Save Draft"
+          >
+            <Save size={18} />
+          </button>
+          <button 
+            onClick={() => handleExportFunction()}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px',
+              backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '8px',
+              color: '#0284c7', cursor: 'pointer'
+            }}
+            title="Export Function JSON"
+          >
+            <Download size={18} />
+          </button>
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px',
+              backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '8px',
+              color: '#059669', cursor: 'pointer'
+            }}
+            title="Import Function JSON"
+          >
+            <Upload size={18} />
+          </button>
           <button 
             onClick={handlePublish}
             style={{
@@ -1121,9 +1257,15 @@ const FunctionsEditor = () => {
                           <span style={{ fontSize: '0.65rem', padding: '2px 6px', backgroundColor: '#f1f5f9', borderRadius: '4px', color: '#64748b' }}>{fn.inputs?.length || 0} inputs</span>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', gap: '8px' }}>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <button 
+                          onClick={() => handleExportFunction(fn)}
+                          title="Export Function JSON"
+                          style={{ padding: '8px', background: 'none', border: 'none', color: '#0284c7', cursor: 'pointer' }}
+                        ><Download size={18} /></button>
                         <button 
                           onClick={() => deleteSavedFunction(fn.id)}
+                          title="Delete Function"
                           style={{ padding: '8px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}
                         ><Trash2 size={18} /></button>
                         <button 
