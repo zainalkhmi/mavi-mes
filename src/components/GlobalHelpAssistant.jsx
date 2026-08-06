@@ -1377,210 +1377,66 @@ Step 4: Tambah widget/logika bertahap
     icon: Network,
     color: '#6366f1',
     content: `
-# 🔷 Node Canvas — Visual Logic Flow Builder
+# 🔷 Node Canvas — Enterprise Visual Logic Flow Builder
 
-Menu **Node Canvas** adalah fitur eksklusif di App Builder Mavi untuk **memvisualisasikan, membaca, dan mengkonfigurasi logika UI** aplikasi secara visual berbasis node-graph (seperti visual programming). Setiap widget, variabel, database, dan screen ditampilkan sebagai **node berwarna** yang bisa dihubungkan dengan **wire (panah)** untuk menggambarkan alur logika.
+Menu **Node Canvas** adalah lingkungan pemrograman visual (Visual Logic Flow Editor) tingkat enterprise di Mavi MES untuk **memvisualisasikan, membaca, dan merancang logika aplikasi industri** berbasis node-graph.
 
 ---
 
-## 🗺️ Layout Utama
+## 🚀 5 Fitur Utama Enterprise Node Canvas:
 
-Node Canvas terbagi menjadi **3 area utama**:
+1. **🔄 Auto-Wiring Engine (Drag-to-Connect Logic)**
+   - Cukup tarik garis (**wire**) dari Handle Widget ➔ Variable / Step / Table / Action Node.
+   - Sistem secara **otomatis** membuatkan pemicu logika dan menyimpan kode skripnya ke App Builder tanpa perlu isi form manual!
+
+2. **🔀 Multi-Condition & ELSE Branching (IF - AND/OR - ELSE)**
+   - Inspector tab **Logic** mendukung percabangan kondisi jamak (\`AND\` / \`OR\`).
+   - Mendukung **ELSE Branch** jika kondisi tidak terpenuhi (misal: pemicu alarm atau notifikasi fallback).
+
+3. **🌐 Live Telemetry Signal Pulse Visualizer**
+   - Saat menekan **Play / Test Run Flow**, garis penghubung (wire) dan node akan **menyala berdenyut hijau (Glow Pulse)** secara real-time saat sinyal sensor/event melintas.
+
+4. **↩️ Undo / Redo History Stack (Ctrl+Z / Ctrl+Y)**
+   - Dukungan pintasan keyboard \`Ctrl+Z\` (Undo) dan \`Ctrl+Y\` (Redo) serta tombol history pada toolbar untuk membatalkan pergeseran node atau penghapusan wire.
+
+5. **📦 Export & Import JSON Flow Blueprints**
+   - Tombol **Export JSON** dan **Import JSON** pada toolbar untuk menyimpan cetak biru (*blueprint*) alur logika aplikasi ke file lokal atau membagikannya ke stasiun kerja lain.
+
+---
+
+## 🗺️ Layout & Navigasi Utama
 
 | Area | Posisi | Fungsi |
 |------|--------|--------|
-| **Palette** | Kiri | Library semua widget, events, variabel, dan tabel |
-| **Canvas / Graph** | Tengah | Area visual node-graph utama |
-| **Inspector** | Kanan | Detail properti + logic node yang dipilih |
+| **Palette** | Kiri | Library 4 tab: Widgets, Events, Vars, dan Tables |
+| **Canvas** | Tengah | Kanvas visual tempat menggambar node & wire |
+| **Inspector** | Kanan | Panel konfigurasi Props, Logic Multi-IF, dan Info |
+| **Console** | Bawah | Output log eksekusi simulasi sinyal real-time |
 
 ---
 
-## 📦 PALETTE — Sumber Semua Komponen
-
-Palette memiliki **4 tab** yang membaca data real dari aplikasi Anda:
-
-### 🧩 Tab Widgets
-Menunjukkan **semua widget** yang ada di setiap screen (step) dan widget global (Base):
-- **Global (Base)** — Widget yang tersedia di semua screen
-- **[Nama Screen]** — Widget khusus per screen
-- Setiap widget tampil dengan **ikon & warna** sesuai tipenya (Button=ungu, Gauge=cyan, dll)
-- Klik widget di palette → otomatis **tambah sebagai node** di canvas
-
-> 💡 **Preset Andon**: Di bawah daftar widget ada preset **"Andon Preset Nodes"** berisi template node siap pakai untuk sistem Andon (Call Button, PLC Tower Light, Telegram Alert, DB Incidents).
-
-### ⚡ Tab Events
-Dua kelompok utama:
-- **WHEN — Event Triggers** (8 jenis): onClick, onChange, onStepEnter, timer, ON_APP_START, ON_VAR_CHANGE, onSubmit, onIoTSignal
-- **THEN — Action Steps** (11 jenis): Set Variable, Navigate Screen, Query Database, Run Automation, Show Toast, Call External API, Publish MQTT, Write PLC Tag, Send Email, Generate PDF Report, Play Sound/Alarm
-- **Logic / Conditions**: IF Branch, AI Vision Agent
-
-### 📦 Tab Vars
-Menunjukkan semua **App Variables** yang sudah didefinisikan:
-- Nama variabel, tipe data (string, number, boolean, dll)
-- Nilai default jika sudah dikonfigurasi
-- Klik → tambah sebagai **Variable Node** di canvas
-
-### 🗄 Tab Tables
-Menunjukkan semua **Database Tables** + daftar **Screen Navigation**:
-- Nama tabel, jumlah kolom
-- Klik → tambah sebagai **Table Node** di canvas untuk query/logging
-
----
-
-## 🎨 TIPE NODE & WARNANYA
-
-Setiap node memiliki **warna dan bentuk** yang berbeda sesuai fungsinya:
+## 🎨 Kode Warna Node & Wire
 
 | Warna | Tipe Node | Fungsi |
 |-------|-----------|--------|
-| 🟣 **Ungu (Indigo)** | Widget — BUTTON | Trigger click/aksi |
-| 🔵 **Biru** | Widget — TEXT_INPUT | Input data operator |
-| 🟢 **Hijau teal** | Widget — GAUGE | Sensor/nilai real-time |
-| 🔴 **Merah** | Trigger Node | Titik WHEN (event pemicu) |
-| 🟣 **Violet** | Action Node | Titik THEN (aksi yang dijalankan) |
-| 🟢 **Hijau** | Variable Node | State/variabel aplikasi |
-| 🩵 **Teal** | Table Node | Database query/logging |
-| 🟡 **Kuning** | Machine/PLC Node | Perangkat IoT/PLC |
-| 🟠 **Oranye** | Condition Node | IF/Condition branch |
-| 🔵 **Biru muda** | Screen Step Node | Navigasi antar screen |
-
-Setiap node punya **handle titik** di kiri (input) dan kanan (output) untuk disambungkan wire.
+| 🟣 **Indigo** | Widget BUTTON | Tombol pemicu aksi |
+| 🔵 **Biru** | Widget TEXT / Step | Step navigasi / Teks |
+| 🟢 **Hijau Teal** | Widget GAUGE | Indikator analog sensor |
+| 🔴 **Merah** | Trigger Node | Titik WHEN (Event pemicu) |
+| 🟣 **Violet** | Action Node | Titik THEN (Aksi utama) |
+| 🟢 **Hijau** | Variable Node | Variabel state aplikasi |
+| 🩵 **Teal** | Table Node | Database log / record |
+| 🟠 **Oranye** | Branch Condition | Multi-Condition (IF/ELSE) |
 
 ---
 
-## 🔍 INSPECTOR — Detail Node yang Dipilih
+## 💡 Cara Pintas & Tips Penggunaan
 
-Klik node di canvas → panel **Inspector** muncul di kanan dengan **3 tab**:
+1. **Tarik Wire untuk Auto-Connect**: Tarik dari handle kanan Widget ke Variable untuk otomatis membuat update state.
+2. **Auto-Arrange Layout**: Klik tombol **Auto-Arrange** untuk merapikan ribuan node dalam hitungan milidetik.
+3. **Pintasan Keyboard**: Gunakan \`Ctrl+Z\` untuk Undo dan \`Ctrl+Y\` untuk Redo saat mengedit kanvas.
+4. **Simpan Logic**: Setiap pengubahan kondisi di Inspector akan langsung memperbarui state di App Builder & database.
 
-### ⚙ Tab Props (Properti Widget)
-- **Nama / Label** widget (bisa diedit langsung)
-- **Tipe Widget** (badge berwarna)
-- **Daftar semua properti** yang dimiliki widget tersebut berdasarkan skema:
-  - Contoh GAUGE: \`min\`, \`max\`, \`value\`, \`label\`, \`unit\`, \`thresholdWarning\`, \`thresholdCritical\`
-  - Contoh BUTTON: \`label\`, \`text\`, \`color\`, \`backgroundColor\`, \`width\`, \`height\`, \`disabled\`, \`visible\`
-  - Properti yang sudah **diset** ditandai badge **"set"** biru
-- Tombol **Delete Node** (hapus dari canvas)
-
-### ⚡ Tab Logic (Konfigurasi WHEN-IF-THEN)
-Ini adalah inti dari visual logic flow:
-
-**1. WHEN — Event Trigger:**
-- Pilih event yang memicu logic dari dropdown
-- Dropdown disesuaikan dengan tipe widget (BUTTON → onClick, onLongPress; TOGGLE → onChange, onToggleOn, dll)
-- Jika event \`ON_VAR_CHANGE\`, muncul input untuk memilih variabel mana yang dipantau
-
-**2. IF — Condition (Opsional):**
-- Builder visual kondisi: \`[Variabel] [Operator] [Nilai]\`
-- Operator: \`===\`, \`!==\`, \`>\`, \`<\`, \`>=\`, \`<=\`, \`includes\`
-- Contoh: \`Andon_Status === CRITICAL\`
-
-**3. THEN — Action Step:**
-- Pilih aksi dari 11 pilihan:
-  - **Set Variable** → pilih variabel target + isi formula/nilai
-  - **Navigate Screen** → pilih screen tujuan dari dropdown (real screens)
-  - **Query Database** → pilih tabel dari dropdown (real tables)
-  - **Run Automation** → menjalankan workflow otomasi
-  - **Show Toast** → isi teks notifikasi
-  - **Call External API**, **Publish MQTT**, **Write PLC Tag**, dll
-
-- Klik **"Save Trigger Logic"** → logic tersimpan ke node & dikirim via callback \`onUpdateWidgetLogic\`
-
-### ℹ Tab Info
-- ID unik node
-- Widget Type code
-- **Daftar Events** yang tersedia untuk widget tersebut
-- **Props Schema** lengkap dengan nilai aktual jika sudah dikonfigurasi
-- **Blockly Logic Code** (jika widget sudah punya logic dari Blockly editor)
-
----
-
-## 🔧 TOOLBAR — Kontrol Canvas
-
-| Tombol | Fungsi |
-|--------|--------|
-| **▶ Play / Test Run Flow** | Simulasi eksekusi seluruh flow — widget dimuat, event diperiksa, aksi dijalankan, DB dicek |
-| **Screen Selector** | Ganti tampilan canvas ke screen (step) yang berbeda |
-| **Auto-Arrange** | Rapikan posisi semua node otomatis menggunakan algoritma Dagre (LR layout) |
-| **Load Andon Template** | Muat template Andon System siap pakai (Button → Trigger → PLC + DB + Telegram) |
-| **Palette Toggle** | Buka/tutup panel palette kiri |
-
----
-
-## ▶ PLAY / TEST RUN FLOW
-
-Klik tombol **"Play / Test Run Flow"** untuk menjalankan simulasi eksekusi:
-
-1. **Load widgets** — semua widget dari screen aktif dimuat
-2. **Check events** — setiap Trigger node disimulasikan sebagai event yang fired
-3. **Execute actions** — setiap Action node dieksekusi sesuai konfigurasi
-4. **Query database** — semua Table node disimulasikan query-nya
-5. **Hasil** — log tampil di **Console** bawah layar dengan warna sesuai tipe:
-   - 🟢 Hijau = sukses
-   - 🔴 Merah = event fired
-   - 🟣 Violet = action dijalankan
-   - 🩵 Teal = database query
-
----
-
-## 🔗 CARA MEMBUAT ALUR LOGIC BARU
-
-**Langkah 1:** Buka tab **Widgets** di Palette → klik widget target (misalnya: tombol "Submit") → node widget muncul di canvas
-
-**Langkah 2:** Buka tab **Events** di Palette → klik **"onClick Trigger"** → node trigger muncul
-
-**Langkah 3:** Hubungkan node dengan cara **drag dari handle kanan** node Widget ke **handle kiri** node Trigger
-
-**Langkah 4:** Tambahkan node **Action** (misalnya "Set Variable") → drag dari node Trigger ke node Action
-
-**Langkah 5:** Tambahkan node **Variable** → hubungkan dari node Action ke node Variable
-
-**Langkah 6:** Klik node Trigger → di Inspector tab **Logic**, konfigurasi WHEN (onClick), IF (opsional), dan THEN (Set Variable → pilih variabel target)
-
-**Langkah 7:** Klik **Save Trigger Logic** → klik **Play / Test Run Flow** untuk verifikasi
-
----
-
-## 📋 CONTOH ALUR: ANDON CALL SYSTEM
-
-\`\`\`
-[BUTTON: Call Maintenance]
-         ↓ WHEN: onClick
-[TRIGGER: Button.onClick]
-         ↓ THEN: Set Variable
-[ACTION: Set Andon_Status = CRITICAL]
-         ↓
-[VARIABLE: Andon_Status (CRITICAL)]
-         ↓ THEN: Run Automation
-[ACTION: Telegram Alert → RUN_WORKFLOW]
-         ↓
-[TABLE: andon_incidents DB → LOG]
-\`\`\`
-
-Template ini bisa dimuat otomatis dengan klik tombol **"Load Andon Template"** di toolbar.
-
----
-
-## 🔌 WIRE (EDGE) — Garis Penghubung Antar Node
-
-- **Cara membuat wire:** Drag dari titik **handle kanan** node sumber ke **handle kiri** node target
-- **Hapus wire:** Klik wire → panel Inspector tampilkan info wire → klik **Delete Wire**
-- **Animasi:** Wire dengan animasi dash = alur data aktif/real-time
-- **Warna wire** menunjukkan jenis alur:
-  - 🔴 Merah = WHEN (event trigger)
-  - 🟣 Violet = THEN (action)
-  - 🟢 Hijau = State update (variabel)
-  - 🩵 Teal = Database logging
-
----
-
-## 💡 Tips & Best Practices
-
-1. **Gunakan Auto-Arrange** setelah menambahkan banyak node agar canvas rapi
-2. **Cek tab Info** untuk melihat events apa yang didukung widget sebelum membuat trigger
-3. **Tab Widgets** membaca real-time — jika tambah widget baru di Design tab, buka ulang Node Canvas untuk mendapatkan widget terbaru
-4. **Simpan logic** selalu dengan klik "Save Trigger Logic" — perubahan tidak tersimpan otomatis
-5. **Gunakan Console** (bawah layar) untuk debug — jika ada node yang tidak terkoneksi dengan benar, akan terlihat di log
-6. **Screen Selector** di toolbar berguna untuk switch antar screen dan lihat graph masing-masing screen secara terpisah
     `
   }
 ];
