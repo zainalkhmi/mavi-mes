@@ -1,1368 +1,814 @@
-import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import ReactFlow, {
-  Background,
-  Controls,
-  MiniMap,
-  Handle,
-  Position,
-  useNodesState,
-  useEdgesState,
-  addEdge
+  Background, Controls, MiniMap, Handle, Position,
+  useNodesState, useEdgesState, addEdge
 } from 'reactflow';
 import dagre from 'dagre';
 import 'reactflow/dist/style.css';
 import {
-  Layout,
-  Database,
-  Cpu,
-  Zap,
-  Sparkles,
-  Search,
-  Plus,
-  Code,
-  RefreshCw,
-  Network,
-  X,
-  Variable,
-  Trash2,
-  SlidersHorizontal,
-  ArrowRight,
-  PlayCircle,
-  CheckCircle,
-  Bell,
-  Navigation,
-  Save,
-  AlertTriangle,
-  Radio,
-  Send,
-  Monitor,
-  Play,
-  Terminal,
-  Check
+  Layout, Database, Cpu, Zap, Sparkles, Search, Plus, Code,
+  RefreshCw, Network, X, Variable, Trash2, ArrowRight, PlayCircle,
+  CheckCircle, Navigation, Save, AlertTriangle, Radio, Send,
+  Monitor, Play, Terminal, Check, ChevronDown, Filter,
+  Settings, Layers, ToggleLeft, Sliders, Camera, Activity,
+  MousePointer2, BarChart2, Ruler, Factory, Box
 } from 'lucide-react';
 
-// ─── 1. NODE-RED STYLE BLOCK NODE COMPONENTS ─────────────────────────────────
+// ─── WIDGET TYPE META MAP ────────────────────────────────────────────────────
+const WIDGET_META = {
+  BUTTON:             { icon: <MousePointer2 size={13}/>, color: '#6366f1', bg: '#eef2ff', border: '#c7d2fe', label: 'Button' },
+  TEXT:               { icon: <Layout size={13}/>,        color: '#0369a1', bg: '#f0f9ff', border: '#bae6fd', label: 'Text' },
+  TEXT_INPUT:         { icon: <Layout size={13}/>,        color: '#0369a1', bg: '#f0f9ff', border: '#bae6fd', label: 'Text Input' },
+  NUMBER_INPUT:       { icon: <Layout size={13}/>,        color: '#0369a1', bg: '#f0f9ff', border: '#bae6fd', label: 'Number Input' },
+  BOOLEAN_TOGGLE:     { icon: <ToggleLeft size={13}/>,    color: '#059669', bg: '#ecfdf5', border: '#a7f3d0', label: 'Toggle' },
+  DROPDOWN:           { icon: <ChevronDown size={13}/>,   color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe', label: 'Dropdown' },
+  SLIDER:             { icon: <Sliders size={13}/>,       color: '#b45309', bg: '#fffbeb', border: '#fde68a', label: 'Slider' },
+  CHECKBOX:           { icon: <Check size={13}/>,         color: '#065f46', bg: '#ecfdf5', border: '#6ee7b7', label: 'Checkbox' },
+  CHECKLIST:          { icon: <Check size={13}/>,         color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe', label: 'Checklist' },
+  CAMERA_CAPTURE:     { icon: <Camera size={13}/>,        color: '#be123c', bg: '#fff1f2', border: '#fecdd3', label: 'Camera' },
+  OPENCV_CAMERA:      { icon: <Camera size={13}/>,        color: '#be123c', bg: '#fff1f2', border: '#fecdd3', label: 'Vision Cam' },
+  CHART:              { icon: <BarChart2 size={13}/>,     color: '#6d28d9', bg: '#faf5ff', border: '#e9d5ff', label: 'Chart' },
+  GAUGE:              { icon: <Activity size={13}/>,      color: '#0e7490', bg: '#ecfeff', border: '#a5f3fc', label: 'Gauge' },
+  DIAL_GAUGE:         { icon: <Activity size={13}/>,      color: '#0e7490', bg: '#ecfeff', border: '#a5f3fc', label: 'Dial Gauge' },
+  INTERACTIVE_TABLE:  { icon: <Database size={13}/>,      color: '#0d9488', bg: '#f0fdfa', border: '#99f6e4', label: 'Table' },
+  RECORD_DISPLAY:     { icon: <Database size={13}/>,      color: '#0d9488', bg: '#f0fdfa', border: '#99f6e4', label: 'Record' },
+  IMAGE:              { icon: <Camera size={13}/>,        color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe', label: 'Image' },
+  ARDUINO_BOARD:      { icon: <Cpu size={13}/>,           color: '#00787a', bg: '#f0fdfd', border: '#a5f3fc', label: 'Arduino' },
+  SCADA_VALVE:        { icon: <Settings size={13}/>,      color: '#0284c7', bg: '#f0f9ff', border: '#bae6fd', label: 'SCADA Valve' },
+  SCADA_PUMP:         { icon: <Activity size={13}/>,      color: '#0284c7', bg: '#f0f9ff', border: '#bae6fd', label: 'SCADA Pump' },
+  SCADA_OEE:          { icon: <Factory size={13}/>,       color: '#a855f7', bg: '#faf5ff', border: '#e9d5ff', label: 'OEE Widget' },
+  SCADA_ALARM_BANNER: { icon: <AlertTriangle size={13}/>, color: '#dc2626', bg: '#fef2f2', border: '#fecaca', label: 'Alarm Banner' },
+  SCADA_MACHINE_STATUS:{icon: <Activity size={13}/>,      color: '#0284c7', bg: '#f0f9ff', border: '#bae6fd', label: 'Machine Status'},
+  SCADA_PROD_COUNTER: { icon: <Factory size={13}/>,       color: '#7c3aed', bg: '#faf5ff', border: '#e9d5ff', label: 'Prod Counter' },
+  QUALITY_PASS_FAIL:  { icon: <CheckCircle size={13}/>,   color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0', label: 'Pass/Fail' },
+  QUALITY_TOLERANCE:  { icon: <Ruler size={13}/>,         color: '#b45309', bg: '#fffbeb', border: '#fde68a', label: 'Tolerance' },
+  MEASUREMENT_WIDGET: { icon: <Ruler size={13}/>,         color: '#0f766e', bg: '#f0fdfa', border: '#99f6e4', label: 'Measurement' },
+};
+const getWidgetMeta = (t) =>
+  WIDGET_META[t] || { icon: <Box size={13}/>, color:'#475569', bg:'#f8fafc', border:'#e2e8f0', label:(t||'Widget').replace(/_/g,' ') };
 
-const NodeRedStyleBlockBase = ({
-  icon,
-  label,
-  sublabel,
-  color,
-  bg,
-  selected,
-  targetId = "target",
-  sourceId = "source"
-}) => (
-  <div
-    style={{
-      position: 'relative',
-      userSelect: 'none',
-      cursor: 'pointer'
-    }}
-  >
-    {/* Target Input Handle (Left) */}
-    <Handle
-      type="target"
-      position={Position.Left}
-      id={targetId}
-      style={{
-        width: 10,
-        height: 10,
-        background: color,
-        border: '2px solid #ffffff',
-        borderRadius: '50%',
-        left: -5,
-        boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
-        zIndex: 10
-      }}
-    />
+// ─── EVENTS PER WIDGET TYPE ──────────────────────────────────────────────────
+const WIDGET_EVENTS = {
+  BUTTON:['onClick','onLongPress'], TEXT_INPUT:['onChange','onFocus','onBlur','onSubmit'],
+  NUMBER_INPUT:['onChange','onSubmit'], BOOLEAN_TOGGLE:['onChange','onToggleOn','onToggleOff'],
+  DROPDOWN:['onChange','onOpen'], SLIDER:['onChange','onSlideEnd'], CHECKBOX:['onChange'],
+  CHECKLIST:['onItemCheck','onAllComplete'], CAMERA_CAPTURE:['onCapture','onError'],
+  OPENCV_CAMERA:['onCapture','onDetect','onError'], CHART:['onDataUpdate','onClick'],
+  GAUGE:['onThresholdCross'], INTERACTIVE_TABLE:['onRowClick','onRowAdd','onRowDelete'],
+  SCADA_BTN_START:['onClick'], SCADA_BTN_STOP:['onClick'], SCADA_TOGGLE_SWITCH:['onChange'],
+  SCADA_ALARM_BANNER:['onAlarmAck','onAlarmClear'], SCADA_OEE:['onUpdate','onThresholdCross'],
+  QUALITY_PASS_FAIL:['onPass','onFail','onChange'], ARDUINO_BOARD:['onData','onConnect','onDisconnect'],
+};
+const getWidgetEvents = (t) => WIDGET_EVENTS[t] || ['onClick','onChange','onEvent'];
 
-    {/* Node-RED Style Capsule Block Container */}
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        minWidth: '175px',
-        maxWidth: '250px',
-        height: '38px',
-        padding: '0 10px 0 6px',
-        backgroundColor: bg,
-        color: '#ffffff',
-        borderRadius: '6px',
-        border: selected ? '2px solid #0284c7' : '1px solid rgba(0,0,0,0.25)',
-        boxShadow: selected
-          ? '0 0 0 3px rgba(2, 132, 199, 0.35), 0 6px 16px rgba(0,0,0,0.2)'
-          : '0 2px 8px rgba(0,0,0,0.12)',
-        transition: 'all 0.15s ease',
-        fontFamily: "'Inter', system-ui, sans-serif"
-      }}
-    >
-      {/* Icon Badge Box */}
-      <div
-        style={{
-          width: '26px',
-          height: '26px',
-          borderRadius: '4px',
-          backgroundColor: 'rgba(0, 0, 0, 0.18)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-          color: '#ffffff'
-        }}
-      >
-        {icon}
+// ─── PROPS SCHEMA ────────────────────────────────────────────────────────────
+const WIDGET_PROPS = {
+  BUTTON:['label','text','color','backgroundColor','width','height','disabled','visible'],
+  TEXT:['text','fontSize','fontWeight','color','width','height','visible'],
+  TEXT_INPUT:['placeholder','label','value','required','maxLength','width','height','visible'],
+  NUMBER_INPUT:['placeholder','label','value','min','max','step','width','height'],
+  DROPDOWN:['label','options','value','width','height','visible'],
+  SLIDER:['min','max','step','value','label','width','visible'],
+  CHECKBOX:['label','checked','visible'],
+  GAUGE:['min','max','value','label','unit','thresholdWarning','thresholdCritical'],
+  CHART:['title','chartType','dataSource','width','height'],
+  INTERACTIVE_TABLE:['tableId','columns','filterColumn','editable','width','height'],
+  SCADA_OEE:['targetOEE','machineId','refreshInterval'],
+  ARDUINO_BOARD:['port','baudRate','autoConnect'],
+  QUALITY_TOLERANCE:['label','nominalValue','upperTolerance','lowerTolerance','unit'],
+  MEASUREMENT_WIDGET:['label','deviceId','unit','precision'],
+};
+const getWidgetProps = (t) => WIDGET_PROPS[t] || ['label','value','visible','width','height'];
+
+// ─── NODE BASE ───────────────────────────────────────────────────────────────
+const NodeBlock = ({ icon, label, sublabel, color, selected, targetId='target', sourceId='source' }) => (
+  <div style={{ position:'relative', userSelect:'none', cursor:'pointer' }}>
+    <Handle type="target" position={Position.Left} id={targetId}
+      style={{ width:10,height:10,background:color,border:'2px solid #fff',borderRadius:'50%',left:-5,zIndex:10 }}/>
+    <div style={{
+      display:'flex',alignItems:'center',gap:'8px',minWidth:'175px',maxWidth:'260px',height:'38px',
+      padding:'0 10px 0 6px',backgroundColor:color,color:'#fff',borderRadius:'6px',
+      border:selected?`2px solid #fff`:'1px solid rgba(0,0,0,0.2)',
+      boxShadow:selected?`0 0 0 3px ${color}88,0 6px 16px rgba(0,0,0,0.15)`:'0 2px 8px rgba(0,0,0,0.1)',
+      transition:'all 0.15s',fontFamily:"'Inter',system-ui,sans-serif"
+    }}>
+      <div style={{width:26,height:26,borderRadius:'4px',backgroundColor:'rgba(0,0,0,0.18)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,color:'#fff'}}>{icon}</div>
+      <div style={{flex:1,overflow:'hidden'}}>
+        <div style={{fontSize:'0.78rem',fontWeight:800,color:'#fff',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',lineHeight:1.2}}>{label}</div>
+        {sublabel&&<div style={{fontSize:'0.58rem',fontWeight:700,color:'rgba(255,255,255,0.85)',textTransform:'uppercase',letterSpacing:'0.05em',marginTop:'1px'}}>{sublabel}</div>}
       </div>
-
-      {/* Label & Sublabel */}
-      <div style={{ flex: 1, overflow: 'hidden' }}>
-        <div
-          style={{
-            fontSize: '0.78rem',
-            fontWeight: 800,
-            color: '#ffffff',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            letterSpacing: '-0.01em',
-            lineHeight: 1.2
-          }}
-        >
-          {label}
-        </div>
-        {sublabel && (
-          <div
-            style={{
-              fontSize: '0.58rem',
-              fontWeight: 700,
-              color: 'rgba(255, 255, 255, 0.85)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              lineHeight: 1,
-              marginTop: '1px'
-            }}
-          >
-            {sublabel}
-          </div>
-        )}
-      </div>
-
-      {/* Node Status Dot */}
-      <div
-        style={{
-          width: '7px',
-          height: '7px',
-          borderRadius: '50%',
-          backgroundColor: '#ffffff',
-          opacity: 0.9,
-          flexShrink: 0,
-          boxShadow: '0 0 4px rgba(255,255,255,0.8)'
-        }}
-      />
+      <div style={{width:7,height:7,borderRadius:'50%',backgroundColor:'#fff',opacity:0.9,flexShrink:0}}/>
     </div>
-
-    {/* Source Output Handle (Right) */}
-    <Handle
-      type="source"
-      position={Position.Right}
-      id={sourceId}
-      style={{
-        width: 10,
-        height: 10,
-        background: color,
-        border: '2px solid #ffffff',
-        borderRadius: '50%',
-        right: -5,
-        boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
-        zIndex: 10
-      }}
-    />
+    <Handle type="source" position={Position.Right} id={sourceId}
+      style={{width:10,height:10,background:color,border:'2px solid #fff',borderRadius:'50%',right:-5,zIndex:10}}/>
   </div>
 );
 
-// Node Type Wrappers
-const WidgetNode = ({ data, selected }) => (
-  <NodeRedStyleBlockBase
-    icon={<Layout size={15} />}
-    label={data.label}
-    sublabel={data.type || 'Screen Widget'}
-    color="#4f46e5"
-    bg="#6366f1"
-    selected={selected}
-    targetId="prop_input"
-    sourceId="event_output"
-  />
-);
-
-const ScreenStepNode = ({ data, selected }) => (
-  <NodeRedStyleBlockBase
-    icon={<Navigation size={15} />}
-    label={data.label}
-    sublabel="Screen Step Target"
-    color="#0284c7"
-    bg="#0284c7"
-    selected={selected}
-    targetId="step_in"
-    sourceId="step_out"
-  />
-);
-
-const TriggerNode = ({ data, selected }) => (
-  <NodeRedStyleBlockBase
-    icon={<PlayCircle size={15} />}
-    label={data.label}
-    sublabel={data.event ? `WHEN: ${data.event}` : 'Event Trigger'}
-    color="#be123c"
-    bg="#e11d48"
-    selected={selected}
-    targetId="trig_in"
-    sourceId="trig_out"
-  />
-);
-
-const ActionNode = ({ data, selected }) => (
-  <NodeRedStyleBlockBase
-    icon={<ArrowRight size={15} />}
-    label={data.label}
-    sublabel={data.actionType ? `THEN: ${data.actionType}` : 'Action Step'}
-    color="#6d28d9"
-    bg="#8b5cf6"
-    selected={selected}
-    targetId="act_in"
-    sourceId="act_out"
-  />
-);
-
-const VariableNode = ({ data, selected }) => (
-  <NodeRedStyleBlockBase
-    icon={<Variable size={15} />}
-    label={data.label}
-    sublabel={data.varType ? `VAR (${data.varType})` : 'Variable'}
-    color="#059669"
-    bg="#10b981"
-    selected={selected}
-    targetId="var_input"
-    sourceId="var_output"
-  />
-);
-
-const TableNode = ({ data, selected }) => (
-  <NodeRedStyleBlockBase
-    icon={<Database size={15} />}
-    label={data.label}
-    sublabel="Database Table"
-    color="#0d9488"
-    bg="#00A09D"
-    selected={selected}
-    targetId="query_input"
-    sourceId="data_output"
-  />
-);
-
-const MachineNode = ({ data, selected }) => (
-  <NodeRedStyleBlockBase
-    icon={<Cpu size={15} />}
-    label={data.label}
-    sublabel="PLC Tag Sensor"
-    color="#d97706"
-    bg="#f59e0b"
-    selected={selected}
-    targetId="cmd_input"
-    sourceId="tag_output"
-  />
-);
-
-const AutomationNode = ({ data, selected }) => (
-  <NodeRedStyleBlockBase
-    icon={<Zap size={15} />}
-    label={data.label}
-    sublabel="Automation Pipeline"
-    color="#714B67"
-    bg="#714B67"
-    selected={selected}
-    targetId="exec_input"
-    sourceId="workflow_output"
-  />
-);
-
-const FunctionNode = ({ data, selected }) => (
-  <NodeRedStyleBlockBase
-    icon={<Code size={15} />}
-    label={data.label}
-    sublabel="Visual Function"
-    color="#2563eb"
-    bg="#3b82f6"
-    selected={selected}
-    targetId="fn_params"
-    sourceId="fn_result"
-  />
-);
-
-const AiVisionNode = ({ data, selected }) => (
-  <NodeRedStyleBlockBase
-    icon={<Sparkles size={15} />}
-    label={data.label}
-    sublabel="AI Vision Agent"
-    color="#db2777"
-    bg="#ec4899"
-    selected={selected}
-    targetId="ai_image_input"
-    sourceId="ai_result"
-  />
-);
+const WidgetNode    = ({data,selected}) => { const m=getWidgetMeta(data.widgetType||data.type); return <NodeBlock icon={m.icon} label={data.label} sublabel={data.widgetType||data.type||'Widget'} color={m.color} selected={selected} targetId="prop_input" sourceId="event_output"/>; };
+const ScreenStepNode= ({data,selected}) => <NodeBlock icon={<Monitor size={15}/>} label={data.label} sublabel="Screen Step" color="#0284c7" selected={selected} targetId="step_in" sourceId="step_out"/>;
+const TriggerNode   = ({data,selected}) => <NodeBlock icon={<PlayCircle size={15}/>} label={data.label} sublabel={`WHEN:${data.event||'event'}`} color="#e11d48" selected={selected} targetId="trig_in" sourceId="trig_out"/>;
+const ActionNode    = ({data,selected}) => <NodeBlock icon={<ArrowRight size={15}/>} label={data.label} sublabel={`THEN:${data.actionType||'action'}`} color="#8b5cf6" selected={selected} targetId="act_in" sourceId="act_out"/>;
+const VariableNode  = ({data,selected}) => <NodeBlock icon={<Variable size={15}/>} label={data.label} sublabel={`VAR(${data.varType||'str'})`} color="#10b981" selected={selected} targetId="var_input" sourceId="var_output"/>;
+const TableNode     = ({data,selected}) => <NodeBlock icon={<Database size={15}/>} label={data.label} sublabel="DB Table" color="#00A09D" selected={selected} targetId="query_input" sourceId="data_output"/>;
+const MachineNode   = ({data,selected}) => <NodeBlock icon={<Cpu size={15}/>} label={data.label} sublabel="PLC/Sensor" color="#f59e0b" selected={selected} targetId="cmd_input" sourceId="tag_output"/>;
+const AutomationNode= ({data,selected}) => <NodeBlock icon={<Zap size={15}/>} label={data.label} sublabel="Automation" color="#714B67" selected={selected} targetId="exec_input" sourceId="workflow_output"/>;
+const FunctionNode  = ({data,selected}) => <NodeBlock icon={<Code size={15}/>} label={data.label} sublabel="Function" color="#3b82f6" selected={selected} targetId="fn_params" sourceId="fn_result"/>;
+const AiVisionNode  = ({data,selected}) => <NodeBlock icon={<Sparkles size={15}/>} label={data.label} sublabel="AI Vision" color="#ec4899" selected={selected} targetId="ai_input" sourceId="ai_result"/>;
+const ConditionNode = ({data,selected}) => <NodeBlock icon={<Filter size={15}/>} label={data.label} sublabel={`IF:${data.condition||'...'}`} color="#f97316" selected={selected} targetId="cond_in" sourceId="cond_out"/>;
+const AppTriggerNode= ({data,selected}) => <NodeBlock icon={<Zap size={15}/>} label={data.label} sublabel={`APP:${data.event||'EVENT'}`} color="#b45309" selected={selected} targetId="app_trig_in" sourceId="app_trig_out"/>;
 
 const nodeTypes = {
-  widget: WidgetNode,
-  screen_step: ScreenStepNode,
-  trigger: TriggerNode,
-  action: ActionNode,
-  variable: VariableNode,
-  table: TableNode,
-  machine: MachineNode,
-  automation: AutomationNode,
-  function: FunctionNode,
-  aivision: AiVisionNode
+  widget:WidgetNode, screen_step:ScreenStepNode, trigger:TriggerNode,
+  action:ActionNode, variable:VariableNode, table:TableNode,
+  machine:MachineNode, automation:AutomationNode, function:FunctionNode,
+  aivision:AiVisionNode, condition:ConditionNode, app_trigger:AppTriggerNode
 };
 
-// ─── 2. MAIN APP NODE EDITOR COMPONENT ───────────────────────────────────────
+// ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
 const AppNodeEditor = ({
-  steps = [],
-  currentStepId,
-  baseComponents = [],
-  tables = [],
-  appVariables = [],
-  appTriggers = [],
-  onUpdateWidgetLogic
+  steps=[], currentStepId, baseComponents=[], tables=[], appVariables=[], appTriggers=[], onUpdateWidgetLogic
 }) => {
-  const [selectedElement, setSelectedElement] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isPaletteOpen, setIsPaletteOpen] = useState(true);
-
-  // Active Screen Step state (defaults to currentStepId or first step)
-  const [activeStepId, setActiveStepId] = useState(currentStepId || (steps[0] ? steps[0].id : 'step_1'));
-
-  // Execution Test states
-  const [isRunningTest, setIsRunningTest] = useState(false);
-  const [isConsoleOpen, setIsConsoleOpen] = useState(false);
-  const [executionLogs, setExecutionLogs] = useState([]);
-
-  // Storage map for per-screen node graphs: { [stepId]: { nodes, edges } }
-  const stepGraphStorage = useRef({});
-
-  // Inspector form states for configuring triggers & actions via node
-  const [triggerForm, setTriggerForm] = useState({
-    event: 'onClick',
-    actionType: 'SET_VARIABLE',
-    targetVar: '',
-    targetStep: '',
-    valueFormula: '',
-    toastMessage: ''
+  const [selectedEl, setSelectedEl]     = useState(null);
+  const [searchQ, setSearchQ]           = useState('');
+  const [paletteOpen, setPaletteOpen]   = useState(true);
+  const [activeStepId, setActiveStepId] = useState(currentStepId||steps[0]?.id||'screen_1');
+  const [running, setRunning]           = useState(false);
+  const [consoleOpen, setConsoleOpen]   = useState(false);
+  const [logs, setLogs]                 = useState([]);
+  const [palTab, setPalTab]             = useState('WIDGETS');
+  const [cats, setCats]                 = useState({});
+  const [inspTab, setInspTab]           = useState('PROPS');
+  const graphStore = useRef({});
+  const [form, setForm] = useState({
+    event:'onClick', actionType:'SET_VARIABLE',
+    targetVar:'', targetStep:'', valueFormula:'',
+    toastMessage:'', conditionVar:'', conditionOp:'===', conditionVal:''
   });
 
-  // Helper: Generate initial graph specifically for a target step ID
-  const generateGraphForStep = useCallback((stepId) => {
-    const stepComps = baseComponents.filter(c => !c.stepId || c.stepId === stepId);
+  // All widgets for active step
+  const activeStep = useMemo(()=>steps.find(s=>s.id===activeStepId)||steps[0],[steps,activeStepId]);
+  const allWidgetsActive = useMemo(()=>[
+    ...(baseComponents||[]).map(c=>({...c,_origin:'base',_stepId:null,_stepName:'Global (Base)'})),
+    ...(activeStep?.components||[]).map(c=>({...c,_origin:'step',_stepId:activeStepId,_stepName:activeStep?.name||activeStep?.title||activeStepId}))
+  ],[baseComponents,activeStep,activeStepId]);
 
-    const generatedNodes = [];
-    const generatedEdges = [];
+  // All widgets across ALL steps
+  const allWidgets = useMemo(()=>[
+    ...(baseComponents||[]).map(c=>({...c,_origin:'base',_stepId:null,_stepName:'Global (Base)'})),
+    ...steps.flatMap(step=>(step.components||[]).map(c=>({...c,_origin:'step',_stepId:step.id,_stepName:step.name||step.title||step.id})))
+  ],[baseComponents,steps]);
 
-    // 1. Render Screen Widgets for this specific step (Column 1)
-    stepComps.forEach((comp, idx) => {
-      generatedNodes.push({
-        id: `node_widget_${comp.id}`,
-        type: 'widget',
-        position: { x: 40, y: 60 + idx * 80 },
-        data: {
-          id: comp.id,
-          label: comp.name || comp.type || 'Widget',
-          type: comp.type,
-          stepId: stepId,
-          events: comp.type === 'BUTTON' ? ['onClick'] : comp.type === 'TEXTINPUT' ? ['onChange'] : ['onEvent']
-        }
-      });
+  const filteredWidgets = useMemo(()=>{
+    if(!searchQ) return allWidgets;
+    const q=searchQ.toLowerCase();
+    return allWidgets.filter(w=>(w.name||'').toLowerCase().includes(q)||(w.type||'').toLowerCase().includes(q)||(w.props?.label||'').toLowerCase().includes(q)||(w.props?.text||'').toLowerCase().includes(q));
+  },[allWidgets,searchQ]);
+
+  const widgetsByStep = useMemo(()=>{
+    const map={};
+    const base=filteredWidgets.filter(w=>w._origin==='base');
+    if(base.length>0) map['__base__']={label:'Global (Base)',color:'#7c3aed',widgets:base};
+    steps.forEach(step=>{
+      const comps=filteredWidgets.filter(w=>w._stepId===step.id);
+      if(comps.length>0) map[step.id]={label:step.name||step.title||step.id,color:'#0284c7',widgets:comps};
+    });
+    return map;
+  },[filteredWidgets,steps]);
+
+  // Graph generator (Full Auto-Parser for AppBuilder logic & triggers)
+  const genGraph = useCallback((stepId)=>{
+    const step=steps.find(s=>s.id===stepId);
+    const comps=[...(baseComponents||[]),...(step?.components||[])];
+    const nodes=[],edges=[];
+    let currentY = 60;
+
+    // Col 1: Widgets
+    comps.forEach((c,i)=>{
+      const m=getWidgetMeta(c.type);
+      nodes.push({id:`nw_${c.id}`,type:'widget',position:{x:40,y:currentY + i*85},data:{
+        id:c.id,label:c.name||c.props?.label||c.props?.text||c.type||'Widget',
+        widgetType:c.type,type:c.type,stepId,props:c.props||{},logic:c.logic||null,events:getWidgetEvents(c.type)
+      }});
     });
 
-    // 2. Render Event Trigger Nodes (Column 2 - WHEN)
-    const activeWidget = stepComps[0] || { id: `btn_${stepId}`, name: 'Submit Button' };
-    generatedNodes.push({
-      id: `node_trig_${activeWidget.id}`,
-      type: 'trigger',
-      position: { x: 270, y: 60 },
-      data: {
-        id: `trig_${activeWidget.id}`,
-        label: `${activeWidget.name || 'Button'}.onClick`,
-        event: 'onClick',
-        widgetId: activeWidget.id,
-        stepId: stepId
-      }
-    });
+    let trigY = 60;
+    let actY = 60;
+    let createdTriggersCount = 0;
 
-    // 3. Render Action Nodes (Column 3 - THEN)
-    generatedNodes.push({
-      id: `node_action_${stepId}`,
-      type: 'action',
-      position: { x: 500, y: 60 },
-      data: {
-        id: `act_${stepId}`,
-        label: 'Set Variable: Order_ID',
-        actionType: 'SET_VARIABLE',
-        targetVar: 'Selected_Order_ID'
-      }
-    });
+    // Parse AppBuilder Triggers & Logic for each widget
+    comps.forEach((c, cIdx)=>{
+      const widgetNodeId = `nw_${c.id}`;
+      const defaultEv = getWidgetEvents(c.type)[0] || 'onClick';
+      let hasCustomLogic = false;
 
-    // 4. Render App Variables (Column 4)
-    if (appVariables && appVariables.length > 0) {
-      appVariables.forEach((v, idx) => {
-        generatedNodes.push({
-          id: `node_var_${v.id || v.name}`,
-          type: 'variable',
-          position: { x: 740, y: 60 + idx * 80 },
-          data: {
-            id: v.id || v.name,
-            label: v.name || 'Variable',
-            varType: v.type || 'string',
-            value: v.defaultValue
+      // 1. Parse comp.props.triggers array from App Builder
+      if (Array.isArray(c.props?.triggers) && c.props.triggers.length > 0) {
+        c.props.triggers.forEach((trg, tIdx) => {
+          hasCustomLogic = true;
+          createdTriggersCount++;
+          const trigId = `nt_${c.id}_trg_${tIdx}`;
+          const evName = trg.event || defaultEv;
+          nodes.push({
+            id: trigId, type: 'trigger', position: { x: 310, y: trigY },
+            data: { id: trigId, label: `${c.name || c.type}.${evName}`, event: evName, widgetId: c.id, stepId }
+          });
+          edges.push({
+            id: `e_wt_${c.id}_${tIdx}`, source: widgetNodeId, sourceHandle: 'event_output',
+            target: trigId, targetHandle: 'trig_in', type: 'smoothstep', animated: true,
+            label: 'WHEN Event', labelStyle: { fontSize: '0.65rem', fill: '#e11d48', fontWeight: 800 },
+            style: { stroke: '#e11d48', strokeWidth: 2 }
+          });
+          trigY += 85;
+
+          // Extract actions from clauses or direct actions
+          const actionList = [];
+          if (Array.isArray(trg.clauses)) {
+            trg.clauses.forEach(clause => {
+              if (Array.isArray(clause.actions)) actionList.push(...clause.actions);
+            });
           }
-        });
-      });
-    } else {
-      generatedNodes.push({
-        id: 'node_var_count',
-        type: 'variable',
-        position: { x: 740, y: 60 },
-        data: { label: 'Selected_Order_ID', varType: 'string' }
-      });
-    }
+          if (Array.isArray(trg.actions)) actionList.push(...trg.actions);
 
-    // 5. Render Database Table Node (Column 4)
-    const activeTable = tables[0] || { id: 'work_orders', name: 'Work_Orders_Table' };
-    generatedNodes.push({
-      id: `node_table_${activeTable.id || 'main'}`,
-      type: 'table',
-      position: { x: 740, y: 160 },
-      data: { label: activeTable.name || activeTable.id }
-    });
+          if (actionList.length === 0) {
+            actionList.push({ type: 'SET_VARIABLE', payload: { targetVar: appVariables[0]?.name } });
+          }
 
-    // Connect initial pipeline for this screen
-    if (stepComps.length > 0) {
-      generatedEdges.push({
-        id: `edge_w1_trig_${stepId}`,
-        source: `node_widget_${activeWidget.id}`,
-        sourceHandle: 'event_output',
-        target: `node_trig_${activeWidget.id}`,
-        targetHandle: 'trig_in',
-        type: 'smoothstep',
-        animated: true,
-        label: 'WHEN Event',
-        labelStyle: { fontSize: '0.65rem', fill: '#e11d48', fontWeight: 800 },
-        style: { stroke: '#e11d48', strokeWidth: 2 }
-      });
+          actionList.forEach((act, aIdx) => {
+            const actId = `na_${c.id}_act_${tIdx}_${aIdx}`;
+            const actType = act.type || 'SET_VARIABLE';
+            const targetVar = act.payload?.variable || act.payload?.targetVar || act.payload?.varName || '';
+            const targetStep = act.payload?.stepId || act.payload?.targetStep || '';
+            const targetTable = act.payload?.tableId || act.payload?.targetTable || '';
 
-      generatedEdges.push({
-        id: `edge_trig_act_${stepId}`,
-        source: `node_trig_${activeWidget.id}`,
-        sourceHandle: 'trig_out',
-        target: `node_action_${stepId}`,
-        targetHandle: 'act_in',
-        type: 'smoothstep',
-        animated: true,
-        label: 'THEN Action',
-        labelStyle: { fontSize: '0.65rem', fill: '#8b5cf6', fontWeight: 800 },
-        style: { stroke: '#8b5cf6', strokeWidth: 2 }
-      });
+            nodes.push({
+              id: actId, type: 'action', position: { x: 560, y: actY },
+              data: { id: actId, label: `${actType}`, actionType: actType, targetVar, targetStep, targetTable }
+            });
+            edges.push({
+              id: `e_ta_${trigId}_${actId}`, source: trigId, sourceHandle: 'trig_out',
+              target: actId, targetHandle: 'act_in', type: 'smoothstep', animated: true,
+              label: 'THEN Action', labelStyle: { fontSize: '0.65rem', fill: '#8b5cf6', fontWeight: 800 },
+              style: { stroke: '#8b5cf6', strokeWidth: 2 }
+            });
+            actY += 85;
 
-      const targetVarNodeId = (appVariables[0]?.id || appVariables[0]?.name)
-        ? `node_var_${appVariables[0].id || appVariables[0].name}`
-        : 'node_var_count';
-
-      generatedEdges.push({
-        id: `edge_act_var_${stepId}`,
-        source: `node_action_${stepId}`,
-        sourceHandle: 'act_out',
-        target: targetVarNodeId,
-        targetHandle: 'var_input',
-        type: 'smoothstep',
-        animated: true,
-        label: 'Update State',
-        labelStyle: { fontSize: '0.65rem', fill: '#10b981', fontWeight: 800 },
-        style: { stroke: '#10b981', strokeWidth: 2 }
-      });
-    }
-
-    return { nodes: generatedNodes, edges: generatedEdges };
-  }, [baseComponents, tables, appVariables]);
-
-  // Initial setup for current active step
-  const initialData = useMemo(() => {
-    return generateGraphForStep(activeStepId);
-  }, [generateGraphForStep, activeStepId]);
-
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialData.nodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialData.edges);
-
-  // Switch Screen Step: Save previous graph state and load new step's graph
-  const handleSwitchStep = (targetStepId) => {
-    if (targetStepId === activeStepId) return;
-
-    // Save current graph to memory
-    stepGraphStorage.current[activeStepId] = { nodes, edges };
-
-    // Load or generate graph for new targetStepId
-    let nextGraph = stepGraphStorage.current[targetStepId];
-    if (!nextGraph) {
-      nextGraph = generateGraphForStep(targetStepId);
-      stepGraphStorage.current[targetStepId] = nextGraph;
-    }
-
-    setActiveStepId(targetStepId);
-    setNodes(nextGraph.nodes);
-    setEdges(nextGraph.edges);
-    setSelectedElement(null);
-  };
-
-  // Sync selected element to triggerForm when clicked
-  useEffect(() => {
-    if (selectedElement && selectedElement.data) {
-      setTriggerForm({
-        event: selectedElement.data.event || 'onClick',
-        actionType: selectedElement.data.actionType || 'SET_VARIABLE',
-        targetVar: selectedElement.data.targetVar || (appVariables[0]?.name || 'Selected_Order_ID'),
-        targetStep: selectedElement.data.targetStep || (steps[0]?.id || 'step_1'),
-        valueFormula: selectedElement.data.valueFormula || '1001',
-        toastMessage: selectedElement.data.toastMessage || 'Action completed successfully'
-      });
-    }
-  }, [selectedElement, appVariables, steps]);
-
-  // ─── PLAY / TEST RUN FLOW EXECUTION SIMULATOR ─────────────────────────────
-  const handleRunFlowExecutionTest = () => {
-    setIsRunningTest(true);
-    setIsConsoleOpen(true);
-
-    const nowTime = new Date().toLocaleTimeString();
-    const newLogs = [
-      { time: nowTime, type: 'start', text: `▶ Started Node Flow Execution Test for Active Screen (${activeStepId})` }
-    ];
-    setExecutionLogs(newLogs);
-
-    // Animate edges with green glowing strokes during test
-    setEdges((eds) =>
-      eds.map((e) => ({
-        ...e,
-        animated: true,
-        style: { stroke: '#22c55e', strokeWidth: 3, filter: 'drop-shadow(0 0 6px #22c55e)' }
-      }))
-    );
-
-    // Sequential step-by-step node execution simulation
-    setTimeout(() => {
-      const time1 = new Date().toLocaleTimeString();
-      setExecutionLogs((prev) => [
-        ...prev,
-        { time: time1, type: 'event', text: `⚡ [EVENT TRIGGER] Button.onClick fired successfully!` }
-      ]);
-    }, 400);
-
-    setTimeout(() => {
-      const time2 = new Date().toLocaleTimeString();
-      setExecutionLogs((prev) => [
-        ...prev,
-        { time: time2, type: 'action', text: `⚙️ [ACTION STEP] Set Variable Selected_Order_ID = '1001' committed!` }
-      ]);
-    }, 800);
-
-    setTimeout(() => {
-      const time3 = new Date().toLocaleTimeString();
-      setExecutionLogs((prev) => [
-        ...prev,
-        { time: time3, type: 'db', text: `🗄️ [DATABASE] Query Work_Orders Table executed (Status 200 OK)` }
-      ]);
-    }, 1200);
-
-    setTimeout(() => {
-      const time4 = new Date().toLocaleTimeString();
-      setExecutionLogs((prev) => [
-        ...prev,
-        { time: time4, type: 'success', text: `🎉 [FLOW PASSED] All connected nodes executed cleanly! (0 Errors)` }
-      ]);
-
-      // Revert edge styles back to original
-      setEdges((eds) =>
-        eds.map((e) => ({
-          ...e,
-          style: { stroke: e.labelStyle?.fill || '#6366f1', strokeWidth: 2 }
-        }))
-      );
-      setIsRunningTest(false);
-    }, 1600);
-  };
-
-  // Handle visual wiring connection drawn by user
-  const onConnect = useCallback(
-    (params) => {
-      const sourceNode = nodes.find((n) => n.id === params.source);
-      const targetNode = nodes.find((n) => n.id === params.target);
-
-      let edgeLabel = 'Connected';
-      let edgeColor = '#6366f1';
-
-      if (sourceNode?.type === 'widget' && targetNode?.type === 'trigger') {
-        edgeLabel = 'WHEN Event';
-        edgeColor = '#e11d48';
-      } else if (sourceNode?.type === 'trigger' && targetNode?.type === 'action') {
-        edgeLabel = 'THEN Action';
-        edgeColor = '#8b5cf6';
-      } else if (sourceNode?.type === 'action' && targetNode?.type === 'variable') {
-        edgeLabel = 'Set Variable';
-        edgeColor = '#10b981';
-      } else if (sourceNode?.type === 'action' && targetNode?.type === 'screen_step') {
-        edgeLabel = 'Navigate Screen';
-        edgeColor = '#0284c7';
-      } else if (sourceNode?.type === 'widget' && targetNode?.type === 'variable') {
-        edgeLabel = 'onClick ➔ Set Variable';
-        edgeColor = '#10b981';
-      } else if (sourceNode?.type === 'widget' && targetNode?.type === 'automation') {
-        edgeLabel = 'onClick ➔ Run Action';
-        edgeColor = '#8b5cf6';
-      } else if (sourceNode?.type === 'table' && targetNode?.type === 'widget') {
-        edgeLabel = 'Data Source ➔ Widget';
-        edgeColor = '#00A09D';
-      }
-
-      const newEdge = {
-        ...params,
-        type: 'smoothstep',
-        animated: true,
-        label: edgeLabel,
-        labelStyle: { fontSize: '0.65rem', fill: edgeColor, fontWeight: 800 },
-        style: { stroke: edgeColor, strokeWidth: 2 }
-      };
-
-      setEdges((eds) => addEdge(newEdge, eds));
-
-      if (onUpdateWidgetLogic && sourceNode && targetNode) {
-        onUpdateWidgetLogic({
-          stepId: activeStepId,
-          source: sourceNode.data,
-          target: targetNode.data,
-          connectionType: edgeLabel
-        });
-      }
-    },
-    [nodes, setEdges, onUpdateWidgetLogic, activeStepId]
-  );
-
-  // Auto layout using Dagre
-  const handleAutoArrange = () => {
-    const dagreGraph = new dagre.graphlib.Graph();
-    dagreGraph.setDefaultEdgeLabel(() => ({}));
-    dagreGraph.setGraph({ rankdir: 'LR', nodesep: 50, ranksep: 100 });
-
-    nodes.forEach((node) => {
-      dagreGraph.setNode(node.id, { width: 180, height: 40 });
-    });
-
-    edges.forEach((edge) => {
-      dagreGraph.setEdge(edge.source, edge.target);
-    });
-
-    dagre.layout(dagreGraph);
-
-    const layoutedNodes = nodes.map((node) => {
-      const nodeWithPosition = dagreGraph.node(node.id);
-      return {
-        ...node,
-        position: {
-          x: nodeWithPosition.x - 90,
-          y: nodeWithPosition.y - 20
-        }
-      };
-    });
-
-    setNodes(layoutedNodes);
-  };
-
-  // Load Andon Management Template specifically on current active screen step
-  const handleLoadAndonTemplate = () => {
-    const andonNodes = [
-      {
-        id: `node_andon_btn_${activeStepId}`,
-        type: 'widget',
-        position: { x: 40, y: 120 },
-        data: { label: 'Call Maintenance Button', type: 'BUTTON', stepId: activeStepId }
-      },
-      {
-        id: `node_andon_trig_${activeStepId}`,
-        type: 'trigger',
-        position: { x: 270, y: 120 },
-        data: { label: 'WHEN: onClick (Operator Call)', event: 'onClick', stepId: activeStepId }
-      },
-      {
-        id: `node_andon_var_${activeStepId}`,
-        type: 'variable',
-        position: { x: 500, y: 60 },
-        data: { label: 'Andon_Status', varType: 'CRITICAL_STOP' }
-      },
-      {
-        id: `node_andon_light_${activeStepId}`,
-        type: 'machine',
-        position: { x: 500, y: 180 },
-        data: { label: 'PLC Write: Red Tower Light' }
-      },
-      {
-        id: `node_andon_db_${activeStepId}`,
-        type: 'table',
-        position: { x: 760, y: 60 },
-        data: { label: 'andon_incidents DB' }
-      },
-      {
-        id: `node_andon_alert_${activeStepId}`,
-        type: 'action',
-        position: { x: 760, y: 180 },
-        data: { label: 'THEN: Dispatch Telegram Alert', actionType: 'RUN_WORKFLOW' }
-      }
-    ];
-
-    const andonEdges = [
-      {
-        id: `e_btn_trig_${activeStepId}`,
-        source: `node_andon_btn_${activeStepId}`,
-        sourceHandle: 'event_output',
-        target: `node_andon_trig_${activeStepId}`,
-        targetHandle: 'trig_in',
-        animated: true,
-        label: 'WHEN Press',
-        labelStyle: { fontSize: '0.65rem', fill: '#e11d48', fontWeight: 800 },
-        style: { stroke: '#e11d48', strokeWidth: 2 }
-      },
-      {
-        id: `e_trig_var_${activeStepId}`,
-        source: `node_andon_trig_${activeStepId}`,
-        sourceHandle: 'trig_out',
-        target: `node_andon_var_${activeStepId}`,
-        targetHandle: 'var_input',
-        animated: true,
-        label: 'Set Status',
-        labelStyle: { fontSize: '0.65rem', fill: '#10b981', fontWeight: 800 },
-        style: { stroke: '#10b981', strokeWidth: 2 }
-      },
-      {
-        id: `e_trig_light_${activeStepId}`,
-        source: `node_andon_trig_${activeStepId}`,
-        sourceHandle: 'trig_out',
-        target: `node_andon_light_${activeStepId}`,
-        targetHandle: 'cmd_input',
-        animated: true,
-        label: 'Signal Red Light',
-        labelStyle: { fontSize: '0.65rem', fill: '#f59e0b', fontWeight: 800 },
-        style: { stroke: '#f59e0b', strokeWidth: 2 }
-      },
-      {
-        id: `e_var_db_${activeStepId}`,
-        source: `node_andon_var_${activeStepId}`,
-        sourceHandle: 'var_output',
-        target: `node_andon_db_${activeStepId}`,
-        targetHandle: 'query_input',
-        animated: true,
-        label: 'Log Incident',
-        labelStyle: { fontSize: '0.65rem', fill: '#00A09D', fontWeight: 800 },
-        style: { stroke: '#00A09D', strokeWidth: 2 }
-      },
-      {
-        id: `e_light_alert_${activeStepId}`,
-        source: `node_andon_light_${activeStepId}`,
-        sourceHandle: 'tag_output',
-        target: `node_andon_alert_${activeStepId}`,
-        targetHandle: 'act_in',
-        animated: true,
-        label: 'Dispatch Alert',
-        labelStyle: { fontSize: '0.65rem', fill: '#8b5cf6', fontWeight: 800 },
-        style: { stroke: '#8b5cf6', strokeWidth: 2 }
-      }
-    ];
-
-    setNodes(andonNodes);
-    setEdges(andonEdges);
-  };
-
-  // Add custom node from palette
-  const handleAddNodeToGraph = (nodeType, label, extraData = {}) => {
-    const newNode = {
-      id: `node_${nodeType}_${Date.now()}`,
-      type: nodeType,
-      position: { x: 350 + Math.random() * 80, y: 100 + Math.random() * 80 },
-      data: { label: label || `${nodeType.toUpperCase()} Node`, stepId: activeStepId, ...extraData }
-    };
-    setNodes((nds) => nds.concat(newNode));
-  };
-
-  // Save & Apply Trigger logic configured in Node Inspector to App Builder
-  const handleSaveTriggerLogic = () => {
-    if (!selectedElement) return;
-
-    const updatedLabel =
-      selectedElement.type === 'trigger'
-        ? `WHEN ${triggerForm.event}`
-        : selectedElement.type === 'action'
-        ? `${triggerForm.actionType}: ${triggerForm.targetVar || triggerForm.targetStep || 'Value'}`
-        : selectedElement.data.label;
-
-    setNodes((nds) =>
-      nds.map((n) =>
-        n.id === selectedElement.id
-          ? {
-              ...n,
-              data: {
-                ...n.data,
-                label: updatedLabel,
-                event: triggerForm.event,
-                actionType: triggerForm.actionType,
-                targetVar: triggerForm.targetVar,
-                targetStep: triggerForm.targetStep,
-                valueFormula: triggerForm.valueFormula,
-                toastMessage: triggerForm.toastMessage,
-                stepId: activeStepId
+            // Connect Action -> Target Nodes (Variable, Table, Step)
+            if (targetVar) {
+              const vNode = nodes.find(n => n.type === 'variable' && (n.data.id === targetVar || n.data.label === targetVar));
+              if (vNode) {
+                edges.push({ id: `e_av_${actId}_${vNode.id}`, source: actId, sourceHandle: 'act_out', target: vNode.id, targetHandle: 'var_input', type: 'smoothstep', animated: true, label: 'Update Var', style: { stroke: '#10b981', strokeWidth: 2 } });
               }
             }
-          : n
-      )
-    );
-
-    setSelectedElement((prev) => ({
-      ...prev,
-      data: {
-        ...prev.data,
-        label: updatedLabel,
-        event: triggerForm.event,
-        actionType: triggerForm.actionType,
-        targetVar: triggerForm.targetVar,
-        targetStep: triggerForm.targetStep,
-        valueFormula: triggerForm.valueFormula,
-        toastMessage: triggerForm.toastMessage,
-        stepId: activeStepId
+            if (targetStep) {
+              const sNode = nodes.find(n => n.type === 'screen_step' && n.data.targetStepId === targetStep);
+              if (sNode) {
+                edges.push({ id: `e_as_${actId}_${sNode.id}`, source: actId, sourceHandle: 'act_out', target: sNode.id, targetHandle: 'step_in', type: 'smoothstep', animated: true, label: 'Goto Screen', style: { stroke: '#0284c7', strokeWidth: 2 } });
+              }
+            }
+          });
+        });
       }
-    }));
 
-    if (onUpdateWidgetLogic) {
-      onUpdateWidgetLogic({
-        stepId: activeStepId,
-        nodeId: selectedElement.id,
-        nodeType: selectedElement.type,
-        trigger: triggerForm
-      });
+      // 2. Parse comp.props.action (Quick Button Action)
+      if (c.props?.action) {
+        hasCustomLogic = true;
+        createdTriggersCount++;
+        const trigId = `nt_${c.id}_actprop`;
+        nodes.push({
+          id: trigId, type: 'trigger', position: { x: 310, y: trigY },
+          data: { id: trigId, label: `${c.name || c.type}.onClick`, event: 'onClick', widgetId: c.id, stepId }
+        });
+        edges.push({
+          id: `e_wt_${c.id}_ap`, source: widgetNodeId, sourceHandle: 'event_output',
+          target: trigId, targetHandle: 'trig_in', type: 'smoothstep', animated: true,
+          label: 'WHEN Click', labelStyle: { fontSize: '0.65rem', fill: '#e11d48', fontWeight: 800 },
+          style: { stroke: '#e11d48', strokeWidth: 2 }
+        });
+        trigY += 85;
+
+        const actId = `na_${c.id}_actprop`;
+        const actType = c.props.action;
+        const targetStep = c.props.targetStepId || '';
+        nodes.push({
+          id: actId, type: 'action', position: { x: 560, y: actY },
+          data: { id: actId, label: `${actType}`, actionType: actType, targetStep }
+        });
+        edges.push({
+          id: `e_ta_${trigId}_ap`, source: trigId, sourceHandle: 'trig_out',
+          target: actId, targetHandle: 'act_in', type: 'smoothstep', animated: true,
+          label: 'THEN Action', labelStyle: { fontSize: '0.65rem', fill: '#8b5cf6', fontWeight: 800 },
+          style: { stroke: '#8b5cf6', strokeWidth: 2 }
+        });
+        actY += 85;
+      }
+
+      // 3. Parse comp.logic (Blockly or Saved Node Canvas Logic)
+      if (c.logic?.code || c.logic?.xml || c.logic?.trigger) {
+        hasCustomLogic = true;
+        createdTriggersCount++;
+        const trigId = `nt_${c.id}_blockly`;
+        const evName = c.logic?.trigger?.event || defaultEv;
+        nodes.push({
+          id: trigId, type: 'trigger', position: { x: 310, y: trigY },
+          data: { id: trigId, label: `${c.name || c.type}.${evName}`, event: evName, widgetId: c.id, stepId }
+        });
+        edges.push({
+          id: `e_wt_${c.id}_b`, source: widgetNodeId, sourceHandle: 'event_output',
+          target: trigId, targetHandle: 'trig_in', type: 'smoothstep', animated: true,
+          label: 'WHEN Logic', labelStyle: { fontSize: '0.65rem', fill: '#e11d48', fontWeight: 800 },
+          style: { stroke: '#e11d48', strokeWidth: 2 }
+        });
+        trigY += 85;
+
+        const actId = `na_${c.id}_blockly`;
+        const actType = c.logic?.trigger?.actionType || 'EXECUTE_BLOCKLY';
+        const targetVar = c.logic?.trigger?.targetVar || '';
+        nodes.push({
+          id: actId, type: 'action', position: { x: 560, y: actY },
+          data: { id: actId, label: actType === 'EXECUTE_BLOCKLY' ? 'Blockly Logic Script' : actType, actionType: actType, targetVar }
+        });
+        edges.push({
+          id: `e_ta_${trigId}_b`, source: trigId, sourceHandle: 'trig_out',
+          target: actId, targetHandle: 'act_in', type: 'smoothstep', animated: true,
+          label: 'THEN Logic', labelStyle: { fontSize: '0.65rem', fill: '#8b5cf6', fontWeight: 800 },
+          style: { stroke: '#8b5cf6', strokeWidth: 2 }
+        });
+        actY += 85;
+      }
+    });
+
+    // Fallback: If no custom logic on any widget, create an initial flow for the 1st widget
+    if (createdTriggersCount === 0 && comps.length > 0) {
+      const firstW = comps[0];
+      const ev = getWidgetEvents(firstW.type)[0] || 'onClick';
+      const trigId = `nt_${firstW.id}_init`;
+      const actId = `na_${stepId}_init`;
+
+      nodes.push({ id: trigId, type: 'trigger', position: { x: 310, y: 60 }, data: { id: trigId, label: `${firstW.name || firstW.type}.${ev}`, event: ev, widgetId: firstW.id, stepId } });
+      edges.push({ id: `e_wt_${firstW.id}`, source: `nw_${firstW.id}`, sourceHandle: 'event_output', target: trigId, targetHandle: 'trig_in', type: 'smoothstep', animated: true, label: 'WHEN Event', labelStyle: { fontSize: '0.65rem', fill: '#e11d48', fontWeight: 800 }, style: { stroke: '#e11d48', strokeWidth: 2 } });
+
+      nodes.push({ id: actId, type: 'action', position: { x: 560, y: 60 }, data: { id: actId, label: 'Set Variable Action', actionType: 'SET_VARIABLE', targetVar: appVariables[0]?.name || 'MyVar' } });
+      edges.push({ id: `e_ta_${stepId}`, source: trigId, sourceHandle: 'trig_out', target: actId, targetHandle: 'act_in', type: 'smoothstep', animated: true, label: 'THEN Action', labelStyle: { fontSize: '0.65rem', fill: '#8b5cf6', fontWeight: 800 }, style: { stroke: '#8b5cf6', strokeWidth: 2 } });
     }
-  };
 
-  const deleteSelectedElement = () => {
-    if (!selectedElement) return;
-    if (selectedElement.source) {
-      setEdges((eds) => eds.filter((e) => e.id !== selectedElement.id));
-    } else {
-      setNodes((nds) => nds.filter((n) => n.id !== selectedElement.id));
-      setEdges((eds) => eds.filter((e) => e.source !== selectedElement.id && e.target !== selectedElement.id));
+    // Col 4: Variables
+    (appVariables||[]).forEach((v,i)=>{
+      const key=v.id||v.name;
+      nodes.push({id:`nv_${key}`,type:'variable',position:{x:800,y:60+i*85},data:{id:key,label:v.name||'Variable',varType:v.type||'string',value:v.defaultValue}});
+    });
+    if(appVariables?.length>0&&nodes.some(n=>n.type==='action')){
+      const firstAct = nodes.find(n=>n.type==='action');
+      const vk=appVariables[0].id||appVariables[0].name;
+      if (firstAct && !edges.some(e=>e.source===firstAct.id)) {
+        edges.push({id:`e_av_${stepId}`,source:firstAct.id,sourceHandle:'act_out',target:`nv_${vk}`,targetHandle:'var_input',type:'smoothstep',animated:true,label:'Update State',labelStyle:{fontSize:'0.65rem',fill:'#10b981',fontWeight:800},style:{stroke:'#10b981',strokeWidth:2}});
+      }
     }
-    setSelectedElement(null);
+
+    // Col 4: Tables
+    (tables||[]).slice(0,3).forEach((t,i)=>{
+      nodes.push({id:`ntbl_${t.id}`,type:'table',position:{x:800,y:60+((appVariables?.length||0)+i)*85},data:{id:t.id,label:t.name||t.id}});
+    });
+
+    // Col 4: Screen Steps (For navigation nodes)
+    (steps||[]).forEach((st, i)=>{
+      nodes.push({id:`ns_${st.id}`,type:'screen_step',position:{x:800,y:60+((appVariables?.length||0)+(tables?.length||0)+i)*85},data:{id:st.id,label:st.name||st.title||st.id,targetStepId:st.id}});
+    });
+
+    // App-level Triggers (Bottom)
+    (appTriggers||[]).forEach((trg,i)=>{
+      nodes.push({id:`nat_${trg.id}`,type:'app_trigger',position:{x:40,y:60+(comps.length+i)*85},data:{id:trg.id,label:trg.name||trg.event,event:trg.event,actions:trg.actions}});
+    });
+
+    return {nodes,edges};
+  },[steps,baseComponents,appVariables,tables,appTriggers]);
+
+  const init = useMemo(()=>genGraph(activeStepId),[genGraph,activeStepId]);
+  const [nodes,setNodes,onNodesChange]=useNodesState(init.nodes);
+  const [edges,setEdges,onEdgesChange]=useEdgesState(init.edges);
+  const onConnect=useCallback(p=>setEdges(eds=>addEdge({...p,type:'smoothstep',animated:true,style:{stroke:'#6366f1',strokeWidth:2}},eds)),[setEdges]);
+
+  const switchStep=useCallback((sid)=>{
+    graphStore.current[activeStepId]={nodes,edges};
+    setActiveStepId(sid);
+    const saved=graphStore.current[sid];
+    if(saved){setNodes(saved.nodes);setEdges(saved.edges);}
+    else{const f=genGraph(sid);setNodes(f.nodes);setEdges(f.edges);}
+    setSelectedEl(null);
+  },[activeStepId,nodes,edges,genGraph,setNodes,setEdges]);
+
+  const addWidgetNode=useCallback((widget)=>{
+    setNodes(nds=>[...nds,{
+      id:`nw_${widget.id}_${Date.now()}`,type:'widget',
+      position:{x:80+Math.random()*120,y:80+Math.random()*200},
+      data:{id:widget.id,label:widget.name||widget.props?.label||widget.props?.text||widget.type||'Widget',widgetType:widget.type,type:widget.type,props:widget.props||{},logic:widget.logic||null,events:getWidgetEvents(widget.type)}
+    }]);
+  },[setNodes]);
+
+  const addNode=useCallback((type,label,extra={})=>{
+    const pos={trigger:{x:310,y:60},action:{x:560,y:60},variable:{x:800,y:60},machine:{x:40,y:300}}[type]||{x:200+Math.random()*150,y:100+Math.random()*200};
+    setNodes(nds=>[...nds,{id:`n_${type}_${Date.now()}`,type,position:pos,data:{label,...extra}}]);
+  },[setNodes]);
+
+  const autoArrange=useCallback(()=>{
+    const g=new dagre.graphlib.Graph();
+    g.setDefaultEdgeLabel(()=>({}));
+    g.setGraph({rankdir:'LR',nodesep:55,ranksep:120});
+    nodes.forEach(n=>g.setNode(n.id,{width:220,height:50}));
+    edges.forEach(e=>g.setEdge(e.source,e.target));
+    dagre.layout(g);
+    setNodes(nds=>nds.map(n=>{const p=g.node(n.id);return p?{...n,position:{x:p.x-110,y:p.y-25}}:n;}));
+  },[nodes,edges,setNodes]);
+
+  const runTest=useCallback(()=>{
+    setRunning(true);setConsoleOpen(true);setLogs([]);
+    const ts=()=>new Date().toLocaleTimeString();
+    const delay=ms=>new Promise(r=>setTimeout(r,ms));
+    const wN=nodes.filter(n=>n.type==='widget');
+    const tN=nodes.filter(n=>n.type==='trigger');
+    const aN=nodes.filter(n=>n.type==='action');
+    const dN=nodes.filter(n=>n.type==='table');
+    (async()=>{
+      setLogs(l=>[...l,{time:ts(),text:`▶ Flow Test — Screen: ${activeStepId} (${nodes.length} nodes)`,type:'info'}]);
+      await delay(350);
+      setLogs(l=>[...l,{time:ts(),text:`📦 ${wN.length} widget(s) loaded`,type:'info'}]);
+      await delay(200);
+      for(const w of wN){setLogs(l=>[...l,{time:ts(),text:`  ✅ [${w.data.label}] (${w.data.widgetType||w.data.type}) ready`,type:'success'}]);await delay(100);}
+      for(const t of tN){setLogs(l=>[...l,{time:ts(),text:`🔴 [EVENT] ${t.data.label} fired!`,type:'event'}]);await delay(220);}
+      for(const a of aN){setLogs(l=>[...l,{time:ts(),text:`🟣 [ACTION] ${a.data.label} — ${a.data.actionType}`,type:'action'}]);await delay(250);}
+      for(const d of dN){setLogs(l=>[...l,{time:ts(),text:`🟦 [DB] Query ${d.data.label} — OK`,type:'db'}]);await delay(200);}
+      setLogs(l=>[...l,{time:ts(),text:`✅ [FLOW PASSED] All ${nodes.length} nodes OK (0 Errors)`,type:'success'}]);
+      setRunning(false);
+    })();
+  },[nodes,activeStepId]);
+
+  const saveLogic=useCallback(()=>{
+    if(!selectedEl) return;
+    const lbl=selectedEl.type==='trigger'?`WHEN ${form.event}`:selectedEl.type==='action'?`${form.actionType}:${form.targetVar||form.targetStep||'...'}`:selectedEl.data?.label;
+    setNodes(nds=>nds.map(n=>n.id===selectedEl.id?{...n,data:{...n.data,label:lbl,...form}}:n));
+    setSelectedEl(p=>({...p,data:{...p.data,label:lbl,...form}}));
+
+    if(onUpdateWidgetLogic && typeof onUpdateWidgetLogic === 'function') {
+      const widgetId = selectedEl.data?.widgetId || selectedEl.data?.id || (typeof selectedEl.id==='string' && selectedEl.id.startsWith('nw_') ? selectedEl.id.replace(/^nw_/, '').split('_')[0] : null);
+      if (widgetId) {
+        const cond = form.conditionVar ? `if (${form.conditionVar} ${form.conditionOp} "${form.conditionVal}") ` : '';
+        let codeStr = '';
+        if (form.actionType === 'SET_VARIABLE') codeStr = `${cond}setVariable("${form.targetVar}", "${form.valueFormula || 'true'}");`;
+        else if (form.actionType === 'NAVIGATE_STEP') codeStr = `${cond}navigateToStep("${form.targetStep}");`;
+        else if (form.actionType === 'SHOW_TOAST') codeStr = `${cond}showToast("${form.toastMessage || 'Notification'}");`;
+        else codeStr = `${cond}executeAction("${form.actionType}");`;
+
+        onUpdateWidgetLogic(widgetId, '', codeStr);
+      }
+    }
+  },[selectedEl,form,activeStepId,onUpdateWidgetLogic,setNodes]);
+
+  const delSelected=useCallback(()=>{
+    if(!selectedEl) return;
+    if(selectedEl.source) setEdges(eds=>eds.filter(e=>e.id!==selectedEl.id));
+    else{setNodes(nds=>nds.filter(n=>n.id!==selectedEl.id));setEdges(eds=>eds.filter(e=>e.source!==selectedEl.id&&e.target!==selectedEl.id));}
+    setSelectedEl(null);
+  },[selectedEl,setNodes,setEdges]);
+
+  const loadAndon=useCallback(()=>{
+    const t=Date.now();
+    setNodes([
+      {id:`an_btn_${t}`,type:'widget',position:{x:40,y:60},data:{label:'Andon Call Button',widgetType:'BUTTON',type:'BUTTON',events:['onClick']}},
+      {id:`an_trig_${t}`,type:'trigger',position:{x:280,y:60},data:{label:'Button.onClick',event:'onClick'}},
+      {id:`an_plc_${t}`,type:'machine',position:{x:40,y:160},data:{label:'PLC Red Tower Light',tag:'LIGHT_RED'}},
+      {id:`an_db_${t}`,type:'table',position:{x:520,y:160},data:{label:'andon_incidents DB'}},
+      {id:`an_var_${t}`,type:'variable',position:{x:520,y:60},data:{label:'Andon_Status',varType:'CRITICAL'}},
+      {id:`an_tg_${t}`,type:'action',position:{x:280,y:160},data:{label:'Telegram Alert',actionType:'RUN_WORKFLOW'}},
+    ]);
+    setEdges([
+      {id:`ae1_${t}`,source:`an_btn_${t}`,target:`an_trig_${t}`,type:'smoothstep',animated:true,label:'WHEN',style:{stroke:'#e11d48',strokeWidth:2}},
+      {id:`ae2_${t}`,source:`an_trig_${t}`,target:`an_var_${t}`,type:'smoothstep',animated:true,label:'Set State',style:{stroke:'#10b981',strokeWidth:2}},
+      {id:`ae3_${t}`,source:`an_trig_${t}`,target:`an_tg_${t}`,type:'smoothstep',animated:true,label:'THEN',style:{stroke:'#8b5cf6',strokeWidth:2}},
+      {id:`ae4_${t}`,source:`an_tg_${t}`,target:`an_db_${t}`,type:'smoothstep',animated:true,label:'Log DB',style:{stroke:'#00A09D',strokeWidth:2}},
+    ]);
+  },[setNodes,setEdges]);
+
+  // UI helpers
+  const toggleCat=key=>setCats(p=>({...p,[key]:p[key]===false}));
+  const PSection=({skey,title,color,icon,children})=>{
+    const open=cats[skey]!==false;
+    return(
+      <div style={{marginBottom:'8px'}}>
+        <div onClick={()=>toggleCat(skey)} style={{display:'flex',alignItems:'center',gap:'5px',fontSize:'0.67rem',fontWeight:800,color,textTransform:'uppercase',cursor:'pointer',userSelect:'none',padding:'4px 0',marginBottom:open?'5px':0}}>
+          {icon}<span style={{flex:1}}>{title}</span>
+          <ChevronDown size={11} style={{transform:open?'none':'rotate(-90deg)',transition:'transform 0.2s'}}/>
+        </div>
+        {open&&<div style={{display:'flex',flexDirection:'column',gap:'3px'}}>{children}</div>}
+      </div>
+    );
   };
+  const PItem=({label,sublabel,icon,color,bg,border,onClick})=>(
+    <div onClick={onClick} style={{padding:'7px 9px',border:`1px solid ${border||'#e2e8f0'}`,borderRadius:'7px',backgroundColor:bg||'#f8fafc',cursor:'pointer',display:'flex',alignItems:'center',gap:'7px',fontSize:'0.72rem',fontWeight:700,color:color||'#1e293b',transition:'box-shadow 0.15s'}}
+      onMouseEnter={e=>e.currentTarget.style.boxShadow=`0 2px 8px ${color}44`}
+      onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}>
+      <span style={{color,flexShrink:0}}>{icon}</span>
+      <span style={{flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{label}</span>
+      {sublabel&&<span style={{fontSize:'0.58rem',color:'#94a3b8',fontWeight:600,background:'#f1f5f9',padding:'1px 5px',borderRadius:'4px',flexShrink:0}}>{sublabel}</span>}
+      <Plus size={10} style={{opacity:0.35,flexShrink:0}}/>
+    </div>
+  );
 
-  // Filter components on active step for Palette
-  const activeStepComponents = useMemo(() => {
-    return baseComponents.filter(c => !c.stepId || c.stepId === activeStepId);
-  }, [baseComponents, activeStepId]);
-
-  return (
-    <div style={{ width: '100%', height: 'calc(100vh - 64px)', minHeight: '600px', display: 'flex', backgroundColor: '#f8fafc', position: 'relative', overflow: 'hidden' }}>
-      {/* ─── LEFT NODE PALETTE & CONTROLS ─── */}
-      <div style={{
-        width: isPaletteOpen ? '290px' : '0px',
-        backgroundColor: '#ffffff',
-        borderRight: '1px solid #e2e8f0',
-        display: 'flex',
-        flexDirection: 'column',
-        transition: 'all 0.3s ease',
-        zIndex: 10,
-        overflow: 'hidden'
-      }}>
-        {/* Header */}
-        <div style={{ padding: '16px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Network size={18} color="#6366f1" />
-            <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#1e293b' }}>Node Canvas Palette</span>
-          </div>
-          <button onClick={() => setIsPaletteOpen(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X size={16} /></button>
+  // Inspector
+  const renderInspector=()=>{
+    if(!selectedEl) return null;
+    const isEdge=!!selectedEl.source;
+    if(isEdge) return(
+      <div style={{padding:'14px',display:'flex',flexDirection:'column',gap:'10px',overflowY:'auto',flex:1}}>
+        <div style={{padding:'12px',background:'#f8fafc',borderRadius:'8px',border:'1px solid #e2e8f0',fontSize:'0.73rem'}}>
+          <div style={{fontWeight:700,color:'#64748b',fontSize:'0.62rem',textTransform:'uppercase',marginBottom:'8px'}}>Wire Connection</div>
+          <div><b>From:</b> {selectedEl.source}</div>
+          <div style={{marginTop:'4px'}}><b>To:</b> {selectedEl.target}</div>
+          {selectedEl.label&&<div style={{marginTop:'4px'}}><b>Label:</b> {selectedEl.label}</div>}
         </div>
-
-        {/* Search */}
-        <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>
-          <div style={{ position: 'relative' }}>
-            <Search size={14} style={{ position: 'absolute', left: '10px', top: '9px', color: '#94a3b8' }} />
-            <input
-              type="text"
-              placeholder="Filter screen components & triggers..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              style={{
-                width: '100%', padding: '6px 10px 6px 30px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.78rem', outline: 'none'
-              }}
-            />
-          </div>
+        <button onClick={delSelected} style={{padding:'8px',backgroundColor:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:'6px',fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:'5px'}}>
+          <Trash2 size={13}/> Delete Wire
+        </button>
+      </div>
+    );
+    const data=selectedEl.data||{};
+    const wType=data.widgetType||data.type;
+    const pSchema=getWidgetProps(wType);
+    const aProps=data.props||{};
+    const wEvents=data.events||getWidgetEvents(wType);
+    return(
+      <div style={{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}}>
+        <div style={{display:'flex',borderBottom:'1px solid #e2e8f0',backgroundColor:'#f8fafc',flexShrink:0}}>
+          {[['PROPS','⚙ Props'],['LOGIC','⚡ Logic'],['INFO','ℹ Info']].map(([id,lbl])=>(
+            <button key={id} onClick={()=>setInspTab(id)} style={{flex:1,padding:'8px 4px',fontSize:'0.63rem',fontWeight:800,border:'none',cursor:'pointer',textTransform:'uppercase',backgroundColor:inspTab===id?'#fff':'transparent',color:inspTab===id?'#6366f1':'#94a3b8',borderBottom:inspTab===id?'2px solid #6366f1':'2px solid transparent',transition:'all 0.15s'}}>{lbl}</button>
+          ))}
         </div>
+        <div style={{flex:1,padding:'12px',overflowY:'auto',display:'flex',flexDirection:'column',gap:'10px',fontSize:'0.75rem'}}>
 
-        {/* Palette Items */}
-        <div style={{ flex: 1, padding: '16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-          
-          {/* CATEGORY 1: ANDON MANAGEMENT NODES (SPECIALIZED PRESETS) */}
-          <div>
-            <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#dc2626', textTransform: 'uppercase', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <AlertTriangle size={13} /> Andon Management System
+          {inspTab==='PROPS'&&<>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div>
+                <div style={{fontSize:'0.6rem',fontWeight:700,color:'#94a3b8',textTransform:'uppercase'}}>Node Type</div>
+                <div style={{fontWeight:800,color:'#6366f1',textTransform:'uppercase'}}>{selectedEl.type}</div>
+              </div>
+              {wType&&<div style={{padding:'3px 8px',background:getWidgetMeta(wType).bg,border:`1px solid ${getWidgetMeta(wType).border}`,borderRadius:'5px',fontSize:'0.6rem',fontWeight:700,color:getWidgetMeta(wType).color}}>{wType}</div>}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <div
-                onClick={() => handleAddNodeToGraph('widget', 'Call Maintenance Button', { type: 'BUTTON' })}
-                style={{ padding: '8px 10px', border: '1px solid #fecaca', borderRadius: '8px', backgroundColor: '#fef2f2', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', fontWeight: 700, color: '#991b1b' }}
-              >
-                <Layout size={14} /> Add Andon Call Button Node
-                <Plus size={12} style={{ marginLeft: 'auto', opacity: 0.6 }} />
-              </div>
-              <div
-                onClick={() => handleAddNodeToGraph('machine', 'PLC Red Tower Light Stack', { tag: 'LIGHT_RED' })}
-                style={{ padding: '8px 10px', border: '1px solid #fef3c7', borderRadius: '8px', backgroundColor: '#fffbeb', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', fontWeight: 700, color: '#92400e' }}
-              >
-                <Radio size={14} /> Add Tower Light PLC Node
-                <Plus size={12} style={{ marginLeft: 'auto', opacity: 0.6 }} />
-              </div>
-              <div
-                onClick={() => handleAddNodeToGraph('table', 'andon_incidents DB')}
-                style={{ padding: '8px 10px', border: '1px solid #ccfbf1', borderRadius: '8px', backgroundColor: '#f0fdfa', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', fontWeight: 700, color: '#0f766e' }}
-              >
-                <Database size={14} /> Add Andon Incidents DB Node
-                <Plus size={12} style={{ marginLeft: 'auto', opacity: 0.6 }} />
-              </div>
-              <div
-                onClick={() => handleAddNodeToGraph('variable', 'Andon_Status', { varType: 'CRITICAL' })}
-                style={{ padding: '8px 10px', border: '1px solid #d1fae5', borderRadius: '8px', backgroundColor: '#ecfdf5', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', fontWeight: 700, color: '#065f46' }}
-              >
-                <Variable size={14} /> Add Andon Status Var Node
-                <Plus size={12} style={{ marginLeft: 'auto', opacity: 0.6 }} />
-              </div>
-              <div
-                onClick={() => handleAddNodeToGraph('action', 'Telegram Maintenance Alert', { actionType: 'RUN_WORKFLOW' })}
-                style={{ padding: '8px 10px', border: '1px solid #f3e8ff', borderRadius: '8px', backgroundColor: '#faf5ff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', fontWeight: 700, color: '#6b21a8' }}
-              >
-                <Send size={14} /> Add Telegram Alert Node
-                <Plus size={12} style={{ marginLeft: 'auto', opacity: 0.6 }} />
-              </div>
+            <div>
+              <label style={{display:'block',fontSize:'0.62rem',fontWeight:700,color:'#64748b',textTransform:'uppercase',marginBottom:'4px'}}>Name / Label</label>
+              <input type="text" value={data.label||''} onChange={e=>{const v=e.target.value;setNodes(nds=>nds.map(n=>n.id===selectedEl.id?{...n,data:{...n.data,label:v}}:n));setSelectedEl(p=>({...p,data:{...p.data,label:v}}));}} style={{width:'100%',padding:'6px 9px',border:'1px solid #cbd5e1',borderRadius:'6px',outline:'none',fontWeight:700,fontSize:'0.75rem',boxSizing:'border-box'}}/>
             </div>
-          </div>
-
-          {/* CATEGORY 2: SCREEN UI WIDGETS FOR ACTIVE SCREEN */}
-          <div>
-            <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#4f46e5', textTransform: 'uppercase', marginBottom: '8px' }}>
-              Screen Components (Active Screen)
-            </div>
-            {activeStepComponents && activeStepComponents.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {activeStepComponents.map((comp) => (
-                  <div
-                    key={comp.id}
-                    onClick={() => handleAddNodeToGraph('widget', comp.name || comp.type, { widgetId: comp.id, type: comp.type })}
-                    style={{ padding: '8px 10px', border: '1px solid #e0e7ff', borderRadius: '8px', backgroundColor: '#eef2ff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', fontWeight: 700, color: '#3730a3' }}
-                  >
-                    <Layout size={14} /> {comp.name || comp.type || 'Widget'}
-                    <Plus size={12} style={{ marginLeft: 'auto', opacity: 0.6 }} />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div
-                onClick={() => handleAddNodeToGraph('widget', 'Button Widget', { type: 'BUTTON' })}
-                style={{ padding: '8px 10px', border: '1px solid #e0e7ff', borderRadius: '8px', backgroundColor: '#eef2ff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', fontWeight: 700, color: '#3730a3' }}
-              >
-                <Layout size={14} /> Add Screen Button Widget
+            {selectedEl.type==='widget'&&(
+              <div style={{padding:'10px',background:'#f8fafc',borderRadius:'8px',border:'1px solid #e2e8f0'}}>
+                <div style={{fontSize:'0.62rem',fontWeight:800,color:'#475569',textTransform:'uppercase',marginBottom:'8px'}}>Widget Properties ({pSchema.length})</div>
+                {pSchema.map(pk=>{
+                  const v=aProps[pk];
+                  return(
+                    <div key={pk} style={{marginBottom:'6px'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',marginBottom:'2px'}}>
+                        <label style={{fontSize:'0.6rem',fontWeight:700,color:'#64748b',textTransform:'uppercase'}}>{pk}</label>
+                        {v!==undefined&&<span style={{fontSize:'0.57rem',background:'#e0e7ff',color:'#4338ca',padding:'1px 5px',borderRadius:'4px',fontWeight:700}}>set</span>}
+                      </div>
+                      <input type="text" defaultValue={typeof v==='object'?JSON.stringify(v):(v??'')} placeholder={`${pk}...`} style={{width:'100%',padding:'5px 8px',border:'1px solid #cbd5e1',borderRadius:'5px',fontSize:'0.7rem',outline:'none',boxSizing:'border-box',background:v!==undefined?'#f0f9ff':'#fff'}}/>
+                    </div>
+                  );
+                })}
               </div>
             )}
-          </div>
+            <button onClick={delSelected} style={{padding:'7px',backgroundColor:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:'6px',fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:'5px',fontSize:'0.73rem'}}>
+              <Trash2 size={13}/> Delete Node
+            </button>
+          </>}
 
-          {/* CATEGORY 3: SCREEN STEP TARGETS */}
-          <div>
-            <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#0284c7', textTransform: 'uppercase', marginBottom: '8px' }}>Screen Navigation Steps</div>
-            {steps && steps.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {steps.map((st) => (
-                  <div
-                    key={st.id}
-                    onClick={() => handleAddNodeToGraph('screen_step', st.name || st.id, { targetStepId: st.id })}
-                    style={{ padding: '8px 10px', border: '1px solid #bae6fd', borderRadius: '8px', backgroundColor: '#f0f9ff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', fontWeight: 700, color: '#0369a1' }}
-                  >
-                    <Navigation size={14} /> {st.name || st.id}
-                    <Plus size={12} style={{ marginLeft: 'auto', opacity: 0.6 }} />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div
-                onClick={() => handleAddNodeToGraph('screen_step', 'Target Screen Step')}
-                style={{ padding: '8px 10px', border: '1px solid #bae6fd', borderRadius: '8px', backgroundColor: '#f0f9ff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', fontWeight: 700, color: '#0369a1' }}
-              >
-                <Navigation size={14} /> Add Target Screen Step Node
-              </div>
-            )}
-          </div>
+          {inspTab==='LOGIC'&&<>
+            <div style={{padding:'11px',background:'#fff1f2',borderRadius:'8px',border:'1px solid #fecdd3'}}>
+              <div style={{fontSize:'0.67rem',fontWeight:800,color:'#be123c',marginBottom:'8px',display:'flex',alignItems:'center',gap:'5px'}}><PlayCircle size={13}/> WHEN (Event Trigger)</div>
+              <select value={form.event} onChange={e=>setForm(f=>({...f,event:e.target.value}))} style={{width:'100%',padding:'6px',fontSize:'0.72rem',border:'1px solid #fecdd3',borderRadius:'6px',outline:'none',background:'#fff',marginBottom:'4px'}}>
+                {(selectedEl.type==='widget'?wEvents:['onClick','onChange','onStepEnter','timer','ON_APP_START','ON_VAR_CHANGE','onSubmit','onIoTSignal']).map(ev=><option key={ev} value={ev}>{ev}</option>)}
+              </select>
+              {form.event==='ON_VAR_CHANGE'&&<input type="text" value={form.conditionVar} onChange={e=>setForm(f=>({...f,conditionVar:e.target.value}))} placeholder="Variable to watch..." style={{width:'100%',padding:'6px',border:'1px solid #fecdd3',borderRadius:'6px',fontSize:'0.72rem',outline:'none',boxSizing:'border-box'}}/>}
+            </div>
 
-          {/* CATEGORY 4: EVENT TRIGGERS (WHEN) */}
-          <div>
-            <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#e11d48', textTransform: 'uppercase', marginBottom: '8px' }}>1. WHEN Event Triggers</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <div
-                onClick={() => handleAddNodeToGraph('trigger', 'Button.onClick', { event: 'onClick' })}
-                style={{ padding: '8px 10px', border: '1px solid #ffe4e6', borderRadius: '8px', backgroundColor: '#fff1f2', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', fontWeight: 700, color: '#9f1239' }}
-              >
-                <PlayCircle size={14} /> Add onClick Event Trigger Node
-                <Plus size={12} style={{ marginLeft: 'auto', opacity: 0.6 }} />
-              </div>
-              <div
-                onClick={() => handleAddNodeToGraph('trigger', 'Input.onChange', { event: 'onChange' })}
-                style={{ padding: '8px 10px', border: '1px solid #ffe4e6', borderRadius: '8px', backgroundColor: '#fff1f2', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', fontWeight: 700, color: '#9f1239' }}
-              >
-                <PlayCircle size={14} /> Add onChange Event Trigger Node
-                <Plus size={12} style={{ marginLeft: 'auto', opacity: 0.6 }} />
+            <div style={{padding:'11px',background:'#fff7ed',borderRadius:'8px',border:'1px solid #fed7aa'}}>
+              <div style={{fontSize:'0.67rem',fontWeight:800,color:'#c2410c',marginBottom:'8px',display:'flex',alignItems:'center',gap:'5px'}}><Filter size={13}/> IF Condition (Optional)</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 68px 1fr',gap:'5px'}}>
+                <input type="text" value={form.conditionVar} onChange={e=>setForm(f=>({...f,conditionVar:e.target.value}))} placeholder="Variable" style={{padding:'5px 7px',border:'1px solid #fed7aa',borderRadius:'5px',fontSize:'0.68rem',outline:'none'}}/>
+                <select value={form.conditionOp} onChange={e=>setForm(f=>({...f,conditionOp:e.target.value}))} style={{padding:'5px',border:'1px solid #fed7aa',borderRadius:'5px',fontSize:'0.68rem',outline:'none'}}>
+                  {['===','!==','>','<','>=','<=','includes'].map(op=><option key={op}>{op}</option>)}
+                </select>
+                <input type="text" value={form.conditionVal} onChange={e=>setForm(f=>({...f,conditionVal:e.target.value}))} placeholder="Value" style={{padding:'5px 7px',border:'1px solid #fed7aa',borderRadius:'5px',fontSize:'0.68rem',outline:'none'}}/>
               </div>
             </div>
-          </div>
 
-          {/* CATEGORY 5: ACTION STEPS (THEN) */}
-          <div>
-            <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#8b5cf6', textTransform: 'uppercase', marginBottom: '8px' }}>2. THEN Action Steps</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <div
-                onClick={() => handleAddNodeToGraph('action', 'Set Variable Action', { actionType: 'SET_VARIABLE' })}
-                style={{ padding: '8px 10px', border: '1px solid #f3e8ff', borderRadius: '8px', backgroundColor: '#faf5ff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', fontWeight: 700, color: '#6b21a8' }}
-              >
-                <ArrowRight size={14} /> Add Set Variable Action Node
-                <Plus size={12} style={{ marginLeft: 'auto', opacity: 0.6 }} />
-              </div>
-              <div
-                onClick={() => handleAddNodeToGraph('action', 'Navigate Screen Action', { actionType: 'NAVIGATE_STEP' })}
-                style={{ padding: '8px 10px', border: '1px solid #f3e8ff', borderRadius: '8px', backgroundColor: '#faf5ff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', fontWeight: 700, color: '#6b21a8' }}
-              >
-                <Navigation size={14} /> Add Navigate Step Action Node
-                <Plus size={12} style={{ marginLeft: 'auto', opacity: 0.6 }} />
-              </div>
+            <div style={{padding:'11px',background:'#faf5ff',borderRadius:'8px',border:'1px solid #e9d5ff'}}>
+              <div style={{fontSize:'0.67rem',fontWeight:800,color:'#6d28d9',marginBottom:'8px',display:'flex',alignItems:'center',gap:'5px'}}><ArrowRight size={13}/> THEN (Action Step)</div>
+              <select value={form.actionType} onChange={e=>setForm(f=>({...f,actionType:e.target.value}))} style={{width:'100%',padding:'6px',fontSize:'0.72rem',border:'1px solid #e9d5ff',borderRadius:'6px',outline:'none',background:'#fff',marginBottom:'8px'}}>
+                {[['SET_VARIABLE','Set App Variable'],['NAVIGATE_STEP','Navigate Screen'],['QUERY_TABLE','Query Database'],['RUN_WORKFLOW','Run Automation'],['SHOW_TOAST','Show Toast Alert'],['CALL_API','Call External API'],['PUBLISH_MQTT','Publish MQTT IoT'],['WRITE_PLC','Write PLC Tag'],['SEND_EMAIL','Send Email'],['GENERATE_REPORT','Generate PDF Report'],['PLAY_ALARM','Play Sound/Alarm']].map(([v,l])=><option key={v} value={v}>{l}</option>)}
+              </select>
+              {form.actionType==='SET_VARIABLE'&&<>
+                <label style={{display:'block',fontSize:'0.6rem',fontWeight:700,color:'#64748b',textTransform:'uppercase',marginBottom:'4px'}}>Target Variable</label>
+                <select value={form.targetVar} onChange={e=>setForm(f=>({...f,targetVar:e.target.value}))} style={{width:'100%',padding:'6px',fontSize:'0.72rem',border:'1px solid #e9d5ff',borderRadius:'6px',outline:'none',background:'#fff',marginBottom:'6px'}}>
+                  <option value="">-- select --</option>
+                  {(appVariables||[]).map(v=><option key={v.id||v.name} value={v.name}>{v.name} ({v.type||'string'})</option>)}
+                </select>
+                <input type="text" value={form.valueFormula} onChange={e=>setForm(f=>({...f,valueFormula:e.target.value}))} placeholder="Value / Formula" style={{width:'100%',padding:'6px',fontSize:'0.72rem',border:'1px solid #e9d5ff',borderRadius:'6px',outline:'none',boxSizing:'border-box'}}/>
+              </>}
+              {form.actionType==='NAVIGATE_STEP'&&<>
+                <label style={{display:'block',fontSize:'0.6rem',fontWeight:700,color:'#64748b',textTransform:'uppercase',marginBottom:'4px'}}>Target Screen</label>
+                <select value={form.targetStep} onChange={e=>setForm(f=>({...f,targetStep:e.target.value}))} style={{width:'100%',padding:'6px',fontSize:'0.72rem',border:'1px solid #e9d5ff',borderRadius:'6px',outline:'none',background:'#fff'}}>
+                  <option value="">-- select screen --</option>
+                  {(steps||[]).map(s=><option key={s.id} value={s.id}>{s.name||s.title||s.id}</option>)}
+                </select>
+              </>}
+              {form.actionType==='QUERY_TABLE'&&<>
+                <label style={{display:'block',fontSize:'0.6rem',fontWeight:700,color:'#64748b',textTransform:'uppercase',marginBottom:'4px'}}>Target Table</label>
+                <select style={{width:'100%',padding:'6px',fontSize:'0.72rem',border:'1px solid #e9d5ff',borderRadius:'6px',outline:'none',background:'#fff'}}>
+                  <option value="">-- select table --</option>
+                  {(tables||[]).map(t=><option key={t.id} value={t.id}>{t.name||t.id}</option>)}
+                </select>
+              </>}
+              {form.actionType==='SHOW_TOAST'&&<input type="text" value={form.toastMessage} onChange={e=>setForm(f=>({...f,toastMessage:e.target.value}))} placeholder="Notification message..." style={{width:'100%',padding:'6px',fontSize:'0.72rem',border:'1px solid #e9d5ff',borderRadius:'6px',outline:'none',marginTop:'4px',boxSizing:'border-box'}}/>}
             </div>
-          </div>
+            <button onClick={saveLogic} style={{padding:'9px',backgroundColor:'#6366f1',color:'#fff',border:'none',borderRadius:'8px',fontWeight:800,fontSize:'0.75rem',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:'6px',boxShadow:'0 2px 8px rgba(99,102,241,0.35)'}}>
+              <Save size={14}/> Save Trigger Logic
+            </button>
+          </>}
 
+          {inspTab==='INFO'&&<>
+            <div style={{padding:'10px',background:'#f8fafc',borderRadius:'8px',border:'1px solid #e2e8f0',fontSize:'0.7rem',display:'flex',flexDirection:'column',gap:'5px'}}>
+              <div><span style={{color:'#94a3b8',fontWeight:700}}>ID: </span><code style={{background:'#e2e8f0',padding:'1px 5px',borderRadius:'4px',fontSize:'0.65rem'}}>{selectedEl.id}</code></div>
+              <div><span style={{color:'#94a3b8',fontWeight:700}}>Type: </span><code style={{background:'#e2e8f0',padding:'1px 5px',borderRadius:'4px',fontSize:'0.65rem'}}>{selectedEl.type}</code></div>
+              {wType&&<div><span style={{color:'#94a3b8',fontWeight:700}}>Widget: </span><code style={{background:'#e2e8f0',padding:'1px 5px',borderRadius:'4px',fontSize:'0.65rem'}}>{wType}</code></div>}
+            </div>
+            {selectedEl.type==='widget'&&<>
+              <div style={{padding:'10px',background:'#f0fdf4',borderRadius:'8px',border:'1px solid #bbf7d0',fontSize:'0.7rem'}}>
+                <div style={{fontWeight:800,color:'#15803d',marginBottom:'6px',fontSize:'0.63rem',textTransform:'uppercase'}}>Events ({wEvents.length})</div>
+                {wEvents.map(ev=><div key={ev} style={{display:'flex',alignItems:'center',gap:'5px',marginBottom:'3px'}}><div style={{width:6,height:6,borderRadius:'50%',background:'#22c55e',flexShrink:0}}/><code style={{fontSize:'0.67rem',color:'#166534'}}>{ev}</code></div>)}
+              </div>
+              <div style={{padding:'10px',background:'#f0f9ff',borderRadius:'8px',border:'1px solid #bae6fd',fontSize:'0.7rem'}}>
+                <div style={{fontWeight:800,color:'#0369a1',marginBottom:'6px',fontSize:'0.63rem',textTransform:'uppercase'}}>Props Schema</div>
+                {pSchema.map(pk=><div key={pk} style={{display:'flex',alignItems:'center',gap:'5px',marginBottom:'3px'}}><code style={{fontSize:'0.67rem',color:'#0369a1',background:'#e0f2fe',padding:'1px 5px',borderRadius:'4px'}}>{pk}</code>{aProps[pk]!==undefined&&<span style={{fontSize:'0.6rem',color:'#0284c7',fontWeight:700}}>= {String(aProps[pk]).substring(0,16)}</span>}</div>)}
+              </div>
+              {data.logic?.code&&<div style={{padding:'10px',background:'#0f172a',borderRadius:'8px',border:'1px solid #1e293b'}}>
+                <div style={{fontWeight:800,color:'#22c55e',marginBottom:'6px',fontSize:'0.62rem',textTransform:'uppercase'}}>Blockly Code</div>
+                <code style={{color:'#94a3b8',fontSize:'0.63rem',fontFamily:'monospace',whiteSpace:'pre-wrap',wordBreak:'break-all'}}>{data.logic.code.substring(0,300)}{data.logic.code.length>300?'...':''}</code>
+              </div>}
+            </>}
+          </>}
         </div>
       </div>
+    );
+  };
 
-      {/* ─── MAIN REACTFLOW CANVAS ─── */}
-      <div style={{ flex: 1, position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-        
-        {/* TOP FLOATING TOOLBAR WITH PLAY TEST BUTTON & SCREEN SWITCHER */}
-        <div style={{
-          position: 'absolute', top: '16px', left: '16px', zIndex: 5, display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap'
-        }}>
-          {!isPaletteOpen && (
-            <button
-              onClick={() => setIsPaletteOpen(true)}
-              style={{ padding: '8px 14px', backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '10px', fontSize: '0.78rem', fontWeight: 700, color: '#1e293b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}
-            >
-              <Plus size={16} color="#6366f1" /> Node Palette
+  // ─── RENDER ──────────────────────────────────────────────────────────────────
+  return (
+    <div style={{width:'100%',height:'calc(100vh - 64px)',minHeight:'600px',display:'flex',backgroundColor:'#f8fafc',position:'relative',overflow:'hidden',fontFamily:"'Inter',system-ui,sans-serif"}}>
+
+      {/* LEFT PALETTE */}
+      <div style={{width:paletteOpen?'298px':'0px',backgroundColor:'#fff',borderRight:'1px solid #e2e8f0',display:'flex',flexDirection:'column',transition:'width 0.3s ease',zIndex:10,overflow:'hidden',flexShrink:0}}>
+        <div style={{padding:'11px 13px',borderBottom:'1px solid #e2e8f0',backgroundColor:'#f8fafc',display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
+          <div style={{display:'flex',alignItems:'center',gap:'7px'}}><Network size={16} color="#6366f1"/><span style={{fontWeight:800,fontSize:'0.84rem',color:'#1e293b'}}>Node Canvas Palette</span></div>
+          <button onClick={()=>setPaletteOpen(false)} style={{background:'none',border:'none',color:'#94a3b8',cursor:'pointer'}}><X size={15}/></button>
+        </div>
+        <div style={{display:'flex',borderBottom:'1px solid #e2e8f0',flexShrink:0}}>
+          {[{id:'WIDGETS',lbl:'🧩 Widgets',cnt:allWidgets.length},{id:'TRIGGERS',lbl:'⚡ Events'},{id:'VARS',lbl:'📦 Vars',cnt:appVariables?.length},{id:'TABLES',lbl:'🗄 Tables',cnt:tables?.length}].map(tab=>(
+            <button key={tab.id} onClick={()=>setPalTab(tab.id)} style={{flex:1,padding:'6px 2px',fontSize:'0.6rem',fontWeight:800,border:'none',cursor:'pointer',backgroundColor:palTab===tab.id?'#fff':'transparent',color:palTab===tab.id?'#6366f1':'#94a3b8',borderBottom:palTab===tab.id?'2px solid #6366f1':'2px solid transparent',transition:'all 0.15s',textTransform:'uppercase',display:'flex',alignItems:'center',justifyContent:'center',gap:'2px',flexDirection:'column'}}>
+              {tab.lbl}
+              {tab.cnt!==undefined&&<span style={{fontSize:'0.53rem',background:palTab===tab.id?'#e0e7ff':'#f1f5f9',color:palTab===tab.id?'#4338ca':'#64748b',padding:'1px 5px',borderRadius:'10px'}}>{tab.cnt}</span>}
             </button>
+          ))}
+        </div>
+        <div style={{padding:'9px 11px',borderBottom:'1px solid #e2e8f0',flexShrink:0}}>
+          <div style={{position:'relative'}}>
+            <Search size={13} style={{position:'absolute',left:'9px',top:'7px',color:'#94a3b8'}}/>
+            <input type="text" placeholder="Search widgets, events, variables..." value={searchQ} onChange={e=>setSearchQ(e.target.value)} style={{width:'100%',padding:'5px 9px 5px 28px',border:'1px solid #e2e8f0',borderRadius:'7px',fontSize:'0.71rem',outline:'none',boxSizing:'border-box'}}/>
+          </div>
+        </div>
+        <div style={{flex:1,overflowY:'auto',padding:'10px'}}>
+
+          {palTab==='WIDGETS'&&(
+            Object.keys(widgetsByStep).length===0
+              ?<div style={{textAlign:'center',padding:'24px 12px',color:'#94a3b8',fontSize:'0.72rem'}}>
+                  <Layers size={26} style={{marginBottom:'8px',opacity:0.35,display:'block',margin:'0 auto 8px'}}/>
+                  <div style={{fontWeight:700}}>No widgets in this app yet</div>
+                  <div style={{marginTop:'4px',fontSize:'0.65rem'}}>Add widgets in Design tab to see them here</div>
+                </div>
+              :<>
+                {Object.entries(widgetsByStep).map(([key,{label:slbl,color,widgets}])=>(
+                  <PSection key={key} skey={key} title={`${slbl} (${widgets.length})`} color={color} icon={key==='__base__'?<Layers size={11}/>:<Monitor size={11}/>}>
+                    {widgets.map(w=>{
+                      const m=getWidgetMeta(w.type);
+                      return<PItem key={`${w.id}_${key}`} label={w.name||w.props?.label||w.props?.text||w.type||'Widget'} sublabel={m.label} icon={m.icon} color={m.color} bg={m.bg} border={m.border} onClick={()=>addWidgetNode(w)}/>;
+                    })}
+                  </PSection>
+                ))}
+                <div style={{marginTop:'10px',paddingTop:'10px',borderTop:'1px dashed #e2e8f0'}}>
+                  <PSection skey="andon_p" title="Andon Preset Nodes" color="#dc2626" icon={<AlertTriangle size={11}/>}>
+                    <PItem label="Andon Call Button" sublabel="BUTTON" icon={<MousePointer2 size={13}/>} color="#991b1b" bg="#fef2f2" border="#fecaca" onClick={()=>addNode('widget','Call Maintenance Button',{widgetType:'BUTTON',type:'BUTTON'})}/>
+                    <PItem label="Tower Light PLC" sublabel="PLC" icon={<Radio size={13}/>} color="#92400e" bg="#fffbeb" border="#fef3c7" onClick={()=>addNode('machine','PLC Red Tower Light',{tag:'LIGHT_RED'})}/>
+                    <PItem label="Andon Incidents DB" sublabel="TABLE" icon={<Database size={13}/>} color="#0f766e" bg="#f0fdfa" border="#ccfbf1" onClick={()=>addNode('table','andon_incidents DB')}/>
+                    <PItem label="Andon Status Var" sublabel="VAR" icon={<Variable size={13}/>} color="#065f46" bg="#ecfdf5" border="#d1fae5" onClick={()=>addNode('variable','Andon_Status',{varType:'CRITICAL'})}/>
+                    <PItem label="Telegram Alert" sublabel="ACTION" icon={<Send size={13}/>} color="#6b21a8" bg="#faf5ff" border="#f3e8ff" onClick={()=>addNode('action','Telegram Alert',{actionType:'RUN_WORKFLOW'})}/>
+                  </PSection>
+                </div>
+              </>
           )}
 
-          {/* PLAY / TEST RUN FLOW BUTTON */}
-          <button
-            onClick={handleRunFlowExecutionTest}
-            disabled={isRunningTest}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: isRunningTest ? '#16a34a' : '#22c55e',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '10px',
-              fontSize: '0.78rem',
-              fontWeight: 800,
-              cursor: isRunningTest ? 'wait' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              boxShadow: '0 4px 14px rgba(34,197,94,0.4)',
-              transition: 'all 0.2s ease'
-            }}
-          >
-            <Play size={15} fill="currentColor" /> {isRunningTest ? 'Testing Flow Execution...' : 'Play / Test Run Flow'}
-          </button>
+          {palTab==='TRIGGERS'&&<>
+            <PSection skey="when" title="WHEN — Event Triggers" color="#be123c" icon={<PlayCircle size={11}/>}>
+              {[{lbl:'onClick Trigger',ev:'onClick',sub:'Button'},{lbl:'onChange Trigger',ev:'onChange',sub:'Input'},{lbl:'onStepEnter Trigger',ev:'onStepEnter',sub:'Screen'},{lbl:'Timer Interval Trigger',ev:'timer',sub:'Scheduler'},{lbl:'onVariableChange',ev:'ON_VAR_CHANGE',sub:'State'},{lbl:'On App Start',ev:'ON_APP_START',sub:'Init'},{lbl:'onFormSubmit',ev:'onSubmit',sub:'Form'},{lbl:'IoT Signal Trigger',ev:'onIoTSignal',sub:'PLC/Sensor'}].map(t=>(
+                <PItem key={t.ev} label={t.lbl} sublabel={t.sub} icon={<PlayCircle size={13}/>} color="#9f1239" bg="#fff1f2" border="#ffe4e6" onClick={()=>addNode('trigger',t.lbl,{event:t.ev})}/>
+              ))}
+            </PSection>
+            <PSection skey="then" title="THEN — Action Steps" color="#6d28d9" icon={<ArrowRight size={11}/>}>
+              {[{lbl:'Set Variable',t:'SET_VARIABLE'},{lbl:'Navigate Screen',t:'NAVIGATE_STEP'},{lbl:'Query Database',t:'QUERY_TABLE'},{lbl:'Run Automation',t:'RUN_WORKFLOW'},{lbl:'Show Toast',t:'SHOW_TOAST'},{lbl:'Call External API',t:'CALL_API'},{lbl:'Publish MQTT',t:'PUBLISH_MQTT'},{lbl:'Write PLC Tag',t:'WRITE_PLC'},{lbl:'Send Email',t:'SEND_EMAIL'},{lbl:'Generate PDF Report',t:'GENERATE_REPORT'},{lbl:'Play Sound/Alarm',t:'PLAY_ALARM'}].map(a=>(
+                <PItem key={a.t} label={a.lbl} sublabel={a.t} icon={<ArrowRight size={13}/>} color="#6b21a8" bg="#faf5ff" border="#f3e8ff" onClick={()=>addNode('action',a.lbl,{actionType:a.t})}/>
+              ))}
+            </PSection>
+            <PSection skey="logic" title="Logic / Conditions" color="#ea580c" icon={<Filter size={11}/>}>
+              <PItem label="IF / Condition Branch" sublabel="CONDITION" icon={<Filter size={13}/>} color="#c2410c" bg="#fff7ed" border="#fed7aa" onClick={()=>addNode('condition','IF Condition',{condition:'var===value'})}/>
+              <PItem label="AI Vision Agent" sublabel="AI" icon={<Sparkles size={13}/>} color="#be185d" bg="#fdf4ff" border="#f5d0fe" onClick={()=>addNode('aivision','AI Vision Agent',{})}/>
+            </PSection>
+            {(appTriggers||[]).length>0&&<PSection skey="apptrig" title={`App Triggers (${appTriggers.length})`} color="#d97706" icon={<Zap size={11}/>}>
+              {(appTriggers||[]).map(trg=><PItem key={trg.id} label={trg.name||trg.event} sublabel={trg.event} icon={<Zap size={13}/>} color="#92400e" bg="#fffbeb" border="#fde68a" onClick={()=>addNode('app_trigger',trg.name||trg.event,{event:trg.event,actions:trg.actions})}/>)}
+            </PSection>}
+          </>}
 
-          {/* PER-SCREEN STEP SELECTOR SWITCHER */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#ffffff', padding: '4px', borderRadius: '10px', border: '1px solid #cbd5e1', boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', fontSize: '0.75rem', fontWeight: 800, color: '#6366f1' }}>
-              <Monitor size={15} /> Active Screen:
-            </div>
-            {steps && steps.length > 0 ? (
-              steps.map((st) => (
-                <button
-                  key={st.id}
-                  onClick={() => handleSwitchStep(st.id)}
-                  style={{
-                    padding: '5px 12px',
-                    borderRadius: '6px',
-                    fontSize: '0.75rem',
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    border: 'none',
-                    backgroundColor: activeStepId === st.id ? '#4f46e5' : 'transparent',
-                    color: activeStepId === st.id ? '#ffffff' : '#475569',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  {st.name || st.id}
-                </button>
-              ))
-            ) : (
-              <button style={{ padding: '5px 12px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 800, backgroundColor: '#4f46e5', color: '#ffffff', border: 'none' }}>
-                Main Screen
-              </button>
-            )}
-          </div>
+          {palTab==='VARS'&&<PSection skey="vars" title={`App Variables (${(appVariables||[]).length})`} color="#059669" icon={<Variable size={11}/>}>
+            {(appVariables||[]).length===0?<div style={{textAlign:'center',padding:'16px 0',color:'#94a3b8',fontSize:'0.7rem'}}>No variables defined</div>:(appVariables||[]).filter(v=>(v.name||'').toLowerCase().includes(searchQ.toLowerCase())).map(v=>(
+              <PItem key={v.id||v.name} label={v.name||'Variable'} sublabel={v.type||'string'} icon={<Variable size={13}/>} color="#065f46" bg="#ecfdf5" border="#d1fae5" onClick={()=>addNode('variable',v.name,{varType:v.type||'string',value:v.defaultValue})}/>
+            ))}
+          </PSection>}
 
-          <button
-            onClick={handleAutoArrange}
-            style={{ padding: '8px 14px', backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '10px', fontSize: '0.78rem', fontWeight: 700, color: '#4f46e5', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}
-          >
-            <RefreshCw size={14} /> Auto-Arrange
-          </button>
-
-          <button
-            onClick={handleLoadAndonTemplate}
-            style={{ padding: '8px 14px', backgroundColor: '#dc2626', color: '#ffffff', border: 'none', borderRadius: '10px', fontSize: '0.78rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 14px rgba(220,38,38,0.35)' }}
-          >
-            <AlertTriangle size={15} /> Load Andon Template
-          </button>
+          {palTab==='TABLES'&&<>
+            <PSection skey="tables" title={`Database Tables (${(tables||[]).length})`} color="#0d9488" icon={<Database size={11}/>}>
+              {(tables||[]).length===0?<div style={{textAlign:'center',padding:'16px 0',color:'#94a3b8',fontSize:'0.7rem'}}>No tables defined</div>:(tables||[]).filter(t=>(t.name||t.id||'').toLowerCase().includes(searchQ.toLowerCase())).map(t=>(
+                <PItem key={t.id} label={t.name||t.id} sublabel={`${t.columns?.length||0} cols`} icon={<Database size={13}/>} color="#0d9488" bg="#f0fdfa" border="#99f6e4" onClick={()=>addNode('table',t.name||t.id,{tableId:t.id,columns:t.columns})}/>
+              ))}
+            </PSection>
+            <PSection skey="screens" title="Screen Navigation" color="#0284c7" icon={<Monitor size={11}/>}>
+              {(steps||[]).map(s=><PItem key={s.id} label={s.name||s.title||s.id} sublabel="SCREEN" icon={<Navigation size={13}/>} color="#0369a1" bg="#f0f9ff" border="#bae6fd" onClick={()=>addNode('screen_step',s.name||s.title||s.id,{targetStepId:s.id})}/>)}
+            </PSection>
+          </>}
         </div>
-
-        {/* REACTFLOW CANVAS */}
-        <div style={{ flex: 1, position: 'relative' }}>
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            nodeTypes={nodeTypes}
-            onNodeClick={(_, node) => setSelectedElement(node)}
-            onEdgeClick={(_, edge) => setSelectedElement(edge)}
-            fitView
-          >
-            <Background color="#cbd5e1" variant="dots" gap={20} size={1.5} />
-            <Controls style={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px' }} />
-            <MiniMap style={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px' }} />
-          </ReactFlow>
-        </div>
-
-        {/* BOTTOM LIVE FLOW EXECUTION CONSOLE DRAWER */}
-        {isConsoleOpen && (
-          <div style={{
-            height: '170px',
-            backgroundColor: '#0f172a',
-            color: '#f8fafc',
-            borderTop: '2px solid #22c55e',
-            display: 'flex',
-            flexDirection: 'column',
-            zIndex: 100,
-            fontFamily: 'monospace'
-          }}>
-            {/* Console Header */}
-            <div style={{ padding: '8px 16px', backgroundColor: '#1e293b', borderBottom: '1px solid #334155', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', fontWeight: 800, color: '#22c55e' }}>
-                <Terminal size={15} /> Flow Test Execution Output Console
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <button onClick={() => setExecutionLogs([])} style={{ fontSize: '0.68rem', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}>Clear Logs</button>
-                <button onClick={() => setIsConsoleOpen(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X size={14} /></button>
-              </div>
-            </div>
-
-            {/* Console Output List */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '10px 16px', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.75rem' }}>
-              {executionLogs.length === 0 ? (
-                <div style={{ color: '#64748b' }}>Console ready. Click "Play / Test Run Flow" to simulate execution.</div>
-              ) : (
-                executionLogs.map((log, i) => (
-                  <div key={i} style={{ display: 'flex', gap: '10px' }}>
-                    <span style={{ color: '#64748b', fontSize: '0.68rem' }}>[{log.time}]</span>
-                    <span style={{ color: log.type === 'success' ? '#22c55e' : log.type === 'event' ? '#f43f5e' : log.type === 'action' ? '#a855f7' : log.type === 'db' ? '#00A09D' : '#38bdf8', fontWeight: 700 }}>
-                      {log.text}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* ─── RIGHT NODE PROPERTY & TRIGGER INSPECTOR DRAWER ─── */}
-      {selectedElement && (
-        <div style={{
-          width: '320px',
-          backgroundColor: '#ffffff',
-          borderLeft: '1px solid #e2e8f0',
-          display: 'flex',
-          flexDirection: 'column',
-          zIndex: 10
-        }}>
-          {/* Inspector Header */}
-          <div style={{ padding: '16px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#1e293b' }}>
-              {selectedElement.source ? 'Wire Connection' : 'Trigger & Node Inspector'}
-            </div>
-            <button onClick={() => setSelectedElement(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X size={16} /></button>
+      {/* MAIN CANVAS */}
+      <div style={{flex:1,position:'relative',width:'100%',height:'100%',display:'flex',flexDirection:'column',minWidth:0}}>
+        <div style={{position:'absolute',top:'14px',left:'14px',zIndex:5,display:'flex',gap:'7px',alignItems:'center',flexWrap:'wrap'}}>
+          {!paletteOpen&&<button onClick={()=>setPaletteOpen(true)} style={{padding:'7px 12px',backgroundColor:'#fff',border:'1px solid #e2e8f0',borderRadius:'10px',fontSize:'0.73rem',fontWeight:700,color:'#1e293b',cursor:'pointer',display:'flex',alignItems:'center',gap:'5px',boxShadow:'0 4px 12px rgba(0,0,0,0.06)'}}><Plus size={14} color="#6366f1"/> Palette</button>}
+          <button onClick={runTest} disabled={running} style={{padding:'7px 14px',backgroundColor:running?'#16a34a':'#22c55e',color:'#fff',border:'none',borderRadius:'10px',fontSize:'0.73rem',fontWeight:800,cursor:running?'wait':'pointer',display:'flex',alignItems:'center',gap:'5px',boxShadow:'0 4px 14px rgba(34,197,94,0.4)',transition:'all 0.2s'}}>
+            <Play size={13} fill="currentColor"/> {running?'Testing...':'Play / Test Run Flow'}
+          </button>
+          <div style={{display:'flex',alignItems:'center',gap:'3px',backgroundColor:'#fff',padding:'3px',borderRadius:'10px',border:'1px solid #e2e8f0',boxShadow:'0 4px 12px rgba(0,0,0,0.05)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'4px',padding:'3px 7px',fontSize:'0.68rem',fontWeight:800,color:'#6366f1'}}><Monitor size={12}/> Screen:</div>
+            {(steps||[]).map(st=><button key={st.id} onClick={()=>switchStep(st.id)} style={{padding:'4px 10px',borderRadius:'6px',fontSize:'0.68rem',fontWeight:800,cursor:'pointer',border:'none',backgroundColor:activeStepId===st.id?'#4f46e5':'transparent',color:activeStepId===st.id?'#fff':'#475569',transition:'all 0.15s'}}>{st.name||st.title||st.id}</button>)}
           </div>
-
-          <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '0.78rem', overflowY: 'auto', flex: 1 }}>
-            {selectedElement.source ? (
-              // Edge Connection Inspector
-              <div>
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ color: '#64748b', fontWeight: 700, fontSize: '0.68rem', textTransform: 'uppercase' }}>Connection Pipeline Type</label>
-                  <div style={{ fontWeight: 800, color: '#0284c7', marginTop: '2px', fontSize: '0.85rem' }}>
-                    {selectedElement.label || 'Wire Connection'}
-                  </div>
-                </div>
-
-                <div style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.72rem' }}>
-                  <div><strong>From Source Node:</strong> {selectedElement.source}</div>
-                  <div style={{ marginTop: '4px' }}><strong>To Target Node:</strong> {selectedElement.target}</div>
-                </div>
-
-                <button
-                  onClick={deleteSelectedElement}
-                  style={{ marginTop: '16px', width: '100%', padding: '8px', backgroundColor: '#ef4444', color: '#ffffff', border: 'none', borderRadius: '6px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                >
-                  <Trash2 size={14} /> Delete Connection Wire
-                </button>
-              </div>
-            ) : (
-              // Node Inspector
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                  <div>
-                    <label style={{ color: '#64748b', fontWeight: 700, fontSize: '0.68rem', textTransform: 'uppercase' }}>NODE TYPE</label>
-                    <div style={{ fontWeight: 800, color: '#6366f1', textTransform: 'uppercase' }}>{selectedElement.type}</div>
-                  </div>
-                  <button
-                    onClick={deleteSelectedElement}
-                    style={{ padding: '4px 8px', backgroundColor: '#ef4444', color: '#ffffff', border: 'none', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                  >
-                    <Trash2 size={12} /> Delete Node
-                  </button>
-                </div>
-
-                <div style={{ marginBottom: '14px' }}>
-                  <label style={{ color: '#64748b', fontWeight: 700, fontSize: '0.68rem' }}>NODE LABEL / NAME</label>
-                  <input
-                    type="text"
-                    value={selectedElement.data?.label || ''}
-                    onChange={e => {
-                      const val = e.target.value;
-                      setNodes(nds => nds.map(n => n.id === selectedElement.id ? { ...n, data: { ...n.data, label: val } } : n));
-                      setSelectedElement(prev => ({ ...prev, data: { ...prev.data, label: val } }));
-                    }}
-                    style={{ width: '100%', padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', outline: 'none', marginTop: '4px', fontWeight: 700 }}
-                  />
-                </div>
-
-                {/* APP BUILDER TRIGGER CONFIGURATION FOR TRIGGER & ACTION NODES */}
-                {(selectedElement.type === 'trigger' || selectedElement.type === 'action' || selectedElement.type === 'widget') && (
-                  <div style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1', marginTop: '8px' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#1e293b', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Zap size={14} color="#e11d48" /> App Builder Trigger Settings
-                    </div>
-
-                    {/* EVENT SELECTION (WHEN) */}
-                    <div style={{ marginBottom: '10px' }}>
-                      <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, color: '#64748b', marginBottom: '4px' }}>WHEN (EVENT TRIGGER)</label>
-                      <select
-                        value={triggerForm.event}
-                        onChange={e => setTriggerForm(f => ({ ...f, event: e.target.value }))}
-                        style={{ width: '100%', padding: '6px', fontSize: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '6px', backgroundColor: '#ffffff', outline: 'none' }}
-                      >
-                        <option value="onClick">onClick (Operator Call Button)</option>
-                        <option value="onChange">onChange (Sensor State Change)</option>
-                        <option value="onStepEnter">onStepEnter (Screen Enter)</option>
-                        <option value="timer">Timer Interval (Downtime Counter)</option>
-                      </select>
-                    </div>
-
-                    {/* ACTION SELECTION (THEN) */}
-                    <div style={{ marginBottom: '10px' }}>
-                      <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, color: '#64748b', marginBottom: '4px' }}>THEN (ACTION STEP)</label>
-                      <select
-                        value={triggerForm.actionType}
-                        onChange={e => setTriggerForm(f => ({ ...f, actionType: e.target.value }))}
-                        style={{ width: '100%', padding: '6px', fontSize: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '6px', backgroundColor: '#ffffff', outline: 'none' }}
-                      >
-                        <option value="SET_VARIABLE">Set App Variable Value</option>
-                        <option value="NAVIGATE_STEP">Navigate to Screen Step</option>
-                        <option value="QUERY_TABLE">Query / Log to Database Table</option>
-                        <option value="RUN_WORKFLOW">Run Automation (Telegram / Siren)</option>
-                        <option value="SHOW_TOAST">Show Notification Alert</option>
-                      </select>
-                    </div>
-
-                    {/* TARGET VARIABLE CONFIGURATION */}
-                    {triggerForm.actionType === 'SET_VARIABLE' && (
-                      <div style={{ marginBottom: '10px' }}>
-                        <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, color: '#64748b', marginBottom: '4px' }}>TARGET VARIABLE</label>
-                        <input
-                          type="text"
-                          value={triggerForm.targetVar}
-                          onChange={e => setTriggerForm(f => ({ ...f, targetVar: e.target.value }))}
-                          placeholder="e.g. Andon_Status"
-                          style={{ width: '100%', padding: '6px', fontSize: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '6px', outline: 'none' }}
-                        />
-
-                        <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, color: '#64748b', marginTop: '8px', marginBottom: '4px' }}>VALUE FORMULA</label>
-                        <input
-                          type="text"
-                          value={triggerForm.valueFormula}
-                          onChange={e => setTriggerForm(f => ({ ...f, valueFormula: e.target.value }))}
-                          placeholder="e.g. CRITICAL_STOP"
-                          style={{ width: '100%', padding: '6px', fontSize: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '6px', outline: 'none' }}
-                        />
-                      </div>
-                    )}
-
-                    {/* SAVE TRIGGER BUTTON */}
-                    <button
-                      onClick={handleSaveTriggerLogic}
-                      style={{
-                        marginTop: '6px',
-                        width: '100%',
-                        padding: '8px',
-                        backgroundColor: '#6366f1',
-                        color: '#ffffff',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontWeight: 700,
-                        fontSize: '0.75rem',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px',
-                        boxShadow: '0 2px 6px rgba(99,102,241,0.3)'
-                      }}
-                    >
-                      <Save size={14} /> Save Trigger to Active Screen
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+          <button onClick={autoArrange} style={{padding:'7px 12px',backgroundColor:'#fff',border:'1px solid #e2e8f0',borderRadius:'10px',fontSize:'0.7rem',fontWeight:700,color:'#4f46e5',cursor:'pointer',display:'flex',alignItems:'center',gap:'5px',boxShadow:'0 4px 12px rgba(0,0,0,0.05)'}}><RefreshCw size={12}/> Auto-Arrange</button>
+          <button onClick={loadAndon} style={{padding:'7px 12px',backgroundColor:'#dc2626',color:'#fff',border:'none',borderRadius:'10px',fontSize:'0.7rem',fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:'5px',boxShadow:'0 4px 14px rgba(220,38,38,0.35)'}}><AlertTriangle size={12}/> Load Andon Template</button>
+        </div>
+        <div style={{position:'absolute',top:'14px',right:selectedEl?'324px':'14px',zIndex:5,transition:'right 0.3s'}}>
+          <div style={{padding:'6px 11px',background:'#fff',border:'1px solid #e2e8f0',borderRadius:'10px',fontSize:'0.65rem',fontWeight:800,color:'#475569',display:'flex',alignItems:'center',gap:'6px',boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
+            <Layers size={12} color="#6366f1"/>
+            <span>{allWidgets.length} widgets</span><span style={{width:1,height:12,background:'#e2e8f0'}}/>
+            <span>{appVariables?.length||0} vars</span><span style={{width:1,height:12,background:'#e2e8f0'}}/>
+            <span>{tables?.length||0} tables</span><span style={{width:1,height:12,background:'#e2e8f0'}}/>
+            <span>{steps?.length||0} screens</span>
           </div>
         </div>
-      )}
+        <div style={{flex:1,position:'relative'}}>
+          <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} nodeTypes={nodeTypes}
+            onNodeClick={(_,node)=>{setSelectedEl(node);setInspTab('PROPS');setForm(f=>({...f,event:node.data.events?.[0]||'onClick',actionType:node.data.actionType||'SET_VARIABLE',targetVar:node.data.targetVar||'',targetStep:node.data.targetStep||''}));}}
+            onEdgeClick={(_,edge)=>setSelectedEl(edge)} onPaneClick={()=>setSelectedEl(null)} fitView>
+            <Background color="#cbd5e1" variant="dots" gap={20} size={1.5}/>
+            <Controls style={{backgroundColor:'#fff',border:'1px solid #e2e8f0',borderRadius:'8px'}}/>
+            <MiniMap style={{backgroundColor:'#fff',border:'1px solid #e2e8f0',borderRadius:'8px'}} nodeColor={n=>getWidgetMeta(n.data?.widgetType||n.data?.type)?.color||'#6366f1'}/>
+          </ReactFlow>
+        </div>
+        {consoleOpen&&<div style={{height:'172px',backgroundColor:'#0f172a',color:'#f8fafc',borderTop:'2px solid #22c55e',display:'flex',flexDirection:'column',zIndex:100,fontFamily:'monospace'}}>
+          <div style={{padding:'7px 13px',backgroundColor:'#1e293b',borderBottom:'1px solid #334155',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'7px',fontSize:'0.7rem',fontWeight:800,color:'#22c55e'}}><Terminal size={13}/> Flow Test Execution Output Console</div>
+            <div style={{display:'flex',gap:'10px'}}>
+              <button onClick={()=>setLogs([])} style={{fontSize:'0.63rem',color:'#ef4444',background:'none',border:'none',cursor:'pointer'}}>Clear</button>
+              <button onClick={()=>setConsoleOpen(false)} style={{background:'none',border:'none',color:'#94a3b8',cursor:'pointer'}}><X size={13}/></button>
+            </div>
+          </div>
+          <div style={{flex:1,overflowY:'auto',padding:'8px 13px',display:'flex',flexDirection:'column',gap:'3px',fontSize:'0.7rem'}}>
+            {logs.length===0?<div style={{color:'#64748b'}}>Console ready. Click "Play / Test Run Flow" to simulate.</div>:logs.map((log,i)=>(
+              <div key={i} style={{display:'flex',gap:'8px'}}>
+                <span style={{color:'#475569',fontSize:'0.63rem'}}>[{log.time}]</span>
+                <span style={{color:log.type==='success'?'#22c55e':log.type==='event'?'#f43f5e':log.type==='action'?'#a855f7':log.type==='db'?'#00A09D':'#38bdf8',fontWeight:700}}>{log.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>}
+      </div>
+
+      {/* RIGHT INSPECTOR */}
+      {selectedEl&&<div style={{width:'310px',backgroundColor:'#fff',borderLeft:'1px solid #e2e8f0',display:'flex',flexDirection:'column',zIndex:10,flexShrink:0}}>
+        <div style={{padding:'11px 13px',borderBottom:'1px solid #e2e8f0',backgroundColor:'#f8fafc',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div style={{display:'flex',alignItems:'center',gap:'6px'}}><Settings size={14} color="#6366f1"/><span style={{fontSize:'0.8rem',fontWeight:800,color:'#1e293b'}}>{selectedEl.source?'Wire Connection':'Widget & Node Inspector'}</span></div>
+          <button onClick={()=>setSelectedEl(null)} style={{background:'none',border:'none',color:'#94a3b8',cursor:'pointer'}}><X size={15}/></button>
+        </div>
+        {renderInspector()}
+      </div>}
     </div>
   );
 };
