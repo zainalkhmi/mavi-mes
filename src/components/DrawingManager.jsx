@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import {
     Ruler,
     Scale,
@@ -65,7 +65,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getAllDrawings, saveDrawing, deleteDrawing, safeSaveDrawingsToLocalStorage } from '../utils/supabaseUtilityDB';
-import { CADViewer3DEditor } from './CADViewer3D';
+const CADViewer3DEditor = lazy(() => import('./CADViewer3D').then(m => ({ default: m.CADViewer3DEditor })));
 
 // ─────────────────────────────────────────
 // GD&T PARAMETER CATEGORY DEFINITIONS
@@ -7405,13 +7405,15 @@ export default function DrawingManager() {
                                      </div>
                                     
                                     {selectedDwg && ['STL', 'OBJ', 'GLTF', 'GLB'].includes(selectedDwg.fileType) ? (
-                                        <CADViewer3DEditor
-                                            drawing={selectedDwg}
-                                            dimensions={selectedDwg.dimensions || []}
-                                            activeDimId={activeDimId}
-                                            onAddDimension={handleAdd3DDimension}
-                                            onSelectDimension={(id) => setActiveDimId(id)}
-                                        />
+                                        <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8', fontSize: '0.8rem' }}>Memuat 3D CAD Editor...</div>}>
+                                            <CADViewer3DEditor
+                                                drawing={selectedDwg}
+                                                dimensions={selectedDwg.dimensions || []}
+                                                activeDimId={activeDimId}
+                                                onAddDimension={handleAdd3DDimension}
+                                                onSelectDimension={(id) => setActiveDimId(id)}
+                                            />
+                                        </Suspense>
                                     ) : (
                                         <svg
                                             ref={svgRef}

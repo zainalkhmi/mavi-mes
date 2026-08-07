@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import QRCode from 'react-qr-code';
 import ReactMarkdown from 'react-markdown';
 import { Wallet } from 'lucide-react';
-import { CADViewer3D } from './CADViewer3D';
+const CADViewer3D = lazy(() => import('./CADViewer3D').then(m => ({ default: m.CADViewer3D })));
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -11515,11 +11515,13 @@ const LiveTerminal = () => {
 
         if (is3D) {
           return (
-            <CADViewer3D 
-              fileUrl={fileUrl}
-              appVariables={appVariables} 
-              setAppVariables={setAppVariables} 
-            />
+            <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8', fontSize: '0.8rem' }}>Memuat 3D CAD Twin...</div>}>
+              <CADViewer3D 
+                fileUrl={fileUrl}
+                appVariables={appVariables} 
+                setAppVariables={setAppVariables} 
+              />
+            </Suspense>
           );
         }
 

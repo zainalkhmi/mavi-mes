@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import toast from 'react-hot-toast';
 import QRCode from 'react-qr-code';
 import { Wallet, Keyboard } from 'lucide-react';
@@ -259,10 +259,10 @@ import {
     createTable as createLocalTable,
     getTables as getLocalTables
 } from '../utils/database';
-import AppDiagram from './AppDiagram';
-import BlocklyEditor from './BlocklyEditor';
-import AppNodeEditor from './AppNodeEditor';
-import BuilderCopilot from './BuilderCopilot';
+const AppDiagram = lazy(() => import('./AppDiagram'));
+const BlocklyEditor = lazy(() => import('./BlocklyEditor'));
+const AppNodeEditor = lazy(() => import('./AppNodeEditor'));
+const BuilderCopilot = lazy(() => import('./BuilderCopilot'));
 import { uploadManualImage, isSupabaseReady } from '../utils/supabaseManualDB';
 import iotConnector from '../utils/iotConnector';
 import { logEvent, AUDIT_EVENTS } from '../utils/auditLog';
@@ -274,10 +274,10 @@ import automationEngine from '../utils/automationEngine';
 import hardwareService from '../utils/hardwareService';
 import obd2Service from '../utils/obd2Service';
 import { translations } from '../i18n/translations';
-import ProjectManager from './ProjectManager';
+const ProjectManager = lazy(() => import('./ProjectManager'));
 import * as projectMgmt from '../utils/projectManagement';
 
-import ConditionalFormattingPanel from './ConditionalFormattingPanel';
+const ConditionalFormattingPanel = lazy(() => import('./ConditionalFormattingPanel'));
 
 import { useAppBuilderState } from '../hooks/useAppBuilderState';
 

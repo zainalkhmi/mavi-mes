@@ -293,6 +293,8 @@ const TableManager = () => {
     const [recordSearchTerm, setRecordSearchTerm] = useState('');
     const [recordSortField, setRecordSortField] = useState('recordId');
     const [recordSortDirection, setRecordSortDirection] = useState('asc');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(20);
     const [selectedRecordInternalId, setSelectedRecordInternalId] = useState(null);
     const [newTableName, setNewTableName] = useState('');
     const [newTableDescription, setNewTableDescription] = useState('');
@@ -484,6 +486,13 @@ const TableManager = () => {
 
         return sortedRows;
     }, [records, recordSearchTerm, activeFields, activeQueryId, selectedTable?.queries, recordSortField, recordSortDirection, quickFilterField, quickFilterValue]);
+
+    const totalPages = Math.max(1, Math.ceil(filteredAndSortedRecords.length / pageSize));
+    const safePage = Math.min(currentPage, totalPages);
+    const virtualRecords = useMemo(() => {
+        const start = (safePage - 1) * pageSize;
+        return filteredAndSortedRecords.slice(start, start + pageSize);
+    }, [filteredAndSortedRecords, safePage, pageSize]);
 
     const quickFilterOptions = useMemo(() => {
         const candidates = ['status', 'priority', 'line', 'station'];
@@ -1937,7 +1946,7 @@ const TableManager = () => {
                                                         </tr>
                                                     </thead>
                                                     <tbody>
-                                                        {filteredAndSortedRecords.map((record, idx) => (
+                                                        {virtualRecords.map((record, idx) => (
                                                             <tr
                                                                 key={record.id}
                                                                 onClick={() => setSelectedRecordInternalId(record.id)}
@@ -1956,7 +1965,7 @@ const TableManager = () => {
                                                                         style={{ cursor: 'pointer', width: '16px', height: '16px' }}
                                                                     />
                                                                 </td>
-                                                                <td style={{ padding: tableDensity === 'compact' ? '10px' : '16px', color: TOKENS.textMuted, fontSize: '0.85rem' }}>{idx + 1}</td>
+                                                                <td style={{ padding: tableDensity === 'compact' ? '10px' : '16px', color: TOKENS.textMuted, fontSize: '0.85rem' }}>{(safePage - 1) * pageSize + idx + 1}</td>
                                                                 <td style={{ padding: tableDensity === 'compact' ? '10px' : '16px', fontWeight: 700, color: TOKENS.text, fontSize: '0.9rem' }}>{record.recordId}</td>
                                                                 {activeFields.filter(f => !hiddenFields.includes(f.name)).map(field => (
                                                                     <td key={field.name} style={{ padding: tableDensity === 'compact' ? '10px' : '16px', fontSize: '0.85rem', color: TOKENS.text }}>
@@ -1996,15 +2005,42 @@ const TableManager = () => {
                                                 </table>
                                             </div>
 
-                                            {/* Pagination */}
-                                            <div style={{ padding: '16px 32px', borderTop: `1px solid ${TOKENS.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fafafa' }}>
-                                                <div style={{ fontSize: '0.85rem', color: TOKENS.textMuted }}>
-                                                    {filteredAndSortedRecords.length} records found
+                                            {/* Pagination Virtual Windowing Controls */}
+                                            <div style={{ padding: '12px 24px', borderTop: `1px solid ${TOKENS.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fafafa' }}>
+                                                <div style={{ fontSize: '0.82rem', color: TOKENS.textMuted }}>
+                                                    Displaying {virtualRecords.length > 0 ? (safePage - 1) * pageSize + 1 : 0} - {Math.min(safePage * pageSize, filteredAndSortedRecords.length)} of {filteredAndSortedRecords.length} records
                                                 </div>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    <button style={{ padding: '6px', borderRadius: '6px', border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', color: TOKENS.textMuted }}><ChevronLeft size={16} /></button>
-                                                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: TOKENS.text }}>Page 1 of 1</span>
-                                                    <button style={{ padding: '6px', borderRadius: '6px', border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', color: TOKENS.textMuted }}><ChevronRight size={16} /></button>
+                                                    <button
+                                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                        disabled={safePage <= 1}
+                                                        style={{ padding: '6px 12px', borderRadius: '6px', border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', color: safePage <= 1 ? '#cbd5e1' : TOKENS.text, cursor: safePage <= 1 ? 'not-allowed' : 'pointer' }}
+                                                    >
+                                                        <ChevronLeft size={16} />
+                                                    </button>
+                                                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: TOKENS.text }}>
+                                                        Page {safePage} of {totalPages}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                                        disabled={safePage >= totalPages}
+                                                        style={{ padding: '6px 12px', borderRadius: '6px', border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', color: safePage >= totalPages ? '#cbd5e1' : TOKENS.text, cursor: safePage >= totalPages ? 'not-allowed' : 'pointer' }}
+                                                    >
+                                                        <ChevronRight size={16} />
+                                                    </button>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: TOKENS.textMuted }}>
+                                                    <span>Rows per page:</span>
+                                                    <select
+                                                        value={pageSize}
+                                                        onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+                                                        style={{ padding: '4px 8px', borderRadius: '6px', border: `1px solid ${TOKENS.border}`, backgroundColor: 'white', outline: 'none', cursor: 'pointer' }}
+                                                    >
+                                                        <option value={10}>10</option>
+                                                        <option value={20}>20</option>
+                                                        <option value={50}>50</option>
+                                                        <option value={100}>100</option>
+                                                    </select>
                                                 </div>
                                             </div>
                                         </div>

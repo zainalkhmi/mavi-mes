@@ -57,7 +57,7 @@ const DashboardEditor = lazy(() => import('./components/DashboardEditor'));
 const AppStore = lazy(() => import('./components/AppStore'));
 const GlobalHelpAssistant = lazy(() => import('./components/GlobalHelpAssistant'));
 const DrawingManager = lazy(() => import('./components/DrawingManager'));
-import LandingPage from './components/LandingPage';
+const LandingPage = lazy(() => import('./components/LandingPage'));
 const Home = lazy(() => import('./components/Home'));
 const WorkOrderDashboard = lazy(() => import('./components/WorkOrderDashboard'));
 const FunctionsEditor = lazy(() => import('./components/FunctionsEditor'));

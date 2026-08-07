@@ -251,7 +251,7 @@ export function CADViewer3DEditor({ drawing, dimensions, activeDimId, onAddDimen
                 </div>
             )}
 
-            <Canvas camera={{ position: [4, 4, 4], fov: 45 }}>
+            <Canvas frameloop="demand" performance={{ min: 0.5 }} camera={{ position: [4, 4, 4], fov: 45 }}>
                 <ambientLight intensity={0.8} />
                 <pointLight position={[10, 10, 10]} intensity={1.5} />
                 <directionalLight position={[-5, 5, -5]} intensity={0.6} />
@@ -449,7 +449,7 @@ export function CADViewer3D({ fileUrl, appVariables, setAppVariables }) {
                 </div>
             )}
 
-            <Canvas camera={{ position: [3.5, 3.5, 3.5], fov: 45 }}>
+            <Canvas frameloop="demand" performance={{ min: 0.5 }} camera={{ position: [3.5, 3.5, 3.5], fov: 45 }}>
                 <ambientLight intensity={0.7} />
                 <pointLight position={[8, 8, 8]} intensity={1.5} />
                 <directionalLight position={[-8, 5, -8]} intensity={0.5} />

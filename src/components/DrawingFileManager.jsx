@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     FileCode,
@@ -147,6 +147,26 @@ export default function DrawingFileManager() {
     }, []);
 
     const [searchTerm, setSearchTerm] = useState('');
+    const [dwgPage, setDwgPage] = useState(1);
+    const [dwgPageSize, setDwgPageSize] = useState(12);
+
+    const filteredDrawings = useMemo(() => {
+        return drawings.filter(dwg => {
+            if (!searchTerm) return true;
+            const term = searchTerm.toLowerCase();
+            return (dwg.name || '').toLowerCase().includes(term) ||
+                   (dwg.fileName || '').toLowerCase().includes(term) ||
+                   (dwg.fileType || '').toLowerCase().includes(term);
+        });
+    }, [drawings, searchTerm]);
+
+    const totalDwgPages = Math.max(1, Math.ceil(filteredDrawings.length / dwgPageSize));
+    const safeDwgPage = Math.min(dwgPage, totalDwgPages);
+    const visibleDrawings = useMemo(() => {
+        const start = (safeDwgPage - 1) * dwgPageSize;
+        return filteredDrawings.slice(start, start + dwgPageSize);
+    }, [filteredDrawings, safeDwgPage, dwgPageSize]);
+
     const [isDragOver, setIsDragOver] = useState(false);
     const [isParsing, setIsParsing] = useState(false);
     const [parseProgress, setParseProgress] = useState(0);
@@ -397,12 +417,7 @@ export default function DrawingFileManager() {
         return () => document.removeEventListener('mousedown', handleOutsideClick);
     }, []);
 
-    // Filtered Drawings
-    const filteredDrawings = drawings.filter(d => 
-        d.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        d.fileName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        d.fileType.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+
 
     // Statistics Calculation
     const stats = React.useMemo(() => {
@@ -985,7 +1000,7 @@ export default function DrawingFileManager() {
 
             {/* Library Grid View */}
             <div className="dfm-cards-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))', gap: '20px' }}>
-                {filteredDrawings.map((dwg) => {
+                {visibleDrawings.map((dwg) => {
                     // Count dimension categories
                     const counts = {};
                     (dwg.dimensions || []).forEach(d => {
@@ -1133,6 +1148,34 @@ export default function DrawingFileManager() {
                     </div>
                 )}
             </div>
+
+            {/* Virtual Window Pagination Controls */}
+            {filteredDrawings.length > dwgPageSize && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', padding: '12px 16px', backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+                    <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                        Menampilkan <b>{(safeDwgPage - 1) * dwgPageSize + 1} - {Math.min(safeDwgPage * dwgPageSize, filteredDrawings.length)}</b> dari {filteredDrawings.length} blueprint
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <button
+                            onClick={() => setDwgPage(p => Math.max(1, p - 1))}
+                            disabled={safeDwgPage <= 1}
+                            style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: 'white', color: safeDwgPage <= 1 ? '#cbd5e1' : '#334155', cursor: safeDwgPage <= 1 ? 'not-allowed' : 'pointer' }}
+                        >
+                            <ChevronLeft size={16} />
+                        </button>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b' }}>
+                            Halaman {safeDwgPage} dari {totalDwgPages}
+                        </span>
+                        <button
+                            onClick={() => setDwgPage(p => Math.min(totalDwgPages, p + 1))}
+                            disabled={safeDwgPage >= totalDwgPages}
+                            style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: 'white', color: safeDwgPage >= totalDwgPages ? '#cbd5e1' : '#334155', cursor: safeDwgPage >= totalDwgPages ? 'not-allowed' : 'pointer' }}
+                        >
+                            <ChevronRight size={16} />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Bottom info section */}
             <div className="dfm-info-banner">
