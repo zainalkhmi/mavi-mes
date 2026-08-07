@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as Blockly from 'blockly';
 import 'blockly/blocks';
 import { registerFieldColour } from '@blockly/field-colour';
@@ -376,7 +376,173 @@ const BlocklyEditor = ({
         }
     }, [workspace.current]);
 
-    // 2. Handle Scope or Step changes (Loading/Saving logic)
+    // 2. Default Auto Blocks Generator & Handler (Accurate AppBuilder Component & Logic Synthesizer)
+    const buildDefaultAutoBlocksXml = useCallback((step, baseComponents = [], activeScope = 'STEP', variables = []) => {
+        const allComponents = [
+            ...(baseComponents || []),
+            ...(step?.components || [])
+        ];
+
+        const blocks = [];
+        let yPos = 40;
+
+        // 1. Screen Start Event Block
+        if (activeScope === 'STEP' || activeScope === 'GLOBAL') {
+            const screenName = step?.title || step?.name || 'Screen 1';
+            blocks.push(`
+            <block type="event_app_start" x="40" y="${yPos}">
+              <statement name="STACK">
+                <block type="tulip_log">
+                  <value name="MSG">
+                    <block type="text">
+                      <field name="TEXT">Screen Opened: ${screenName}</field>
+                    </block>
+                  </value>
+                </block>
+              </statement>
+            </block>`);
+            yPos += 150;
+        }
+
+        // 2. Component Triggers & Events
+        allComponents.forEach((comp) => {
+            if (!comp || !comp.id) return;
+            const compLabel = comp.name || comp.props?.label || comp.props?.text || comp.type;
+
+            // If a specific widget scope is active, generate only for that widget
+            if (activeScope !== 'STEP' && activeScope !== 'GLOBAL' && activeScope !== comp.id) {
+                return;
+            }
+
+            const eventTypes = getEventTypesForComponent(comp.type) || [];
+            
+            // Check triggers configured in AppBuilder
+            const triggers = Array.isArray(comp.triggers) && comp.triggers.length > 0
+                ? comp.triggers
+                : eventTypes.map(evt => ({ event: evt.id, label: evt.label, actions: [] }));
+
+            triggers.forEach((trg) => {
+                const evtId = trg.event || 'Click';
+                const blockType = `event_widget_${comp.id}_${evtId}`;
+
+                if (Blockly.Blocks[blockType]) {
+                    let statementContent = '';
+
+                    const actions = Array.isArray(trg.actions) ? trg.actions : [];
+                    
+                    // Support comp.props legacy action configurations (SET_VARIABLE, NAVIGATE_STEP, SHOW_TOAST, etc.)
+                    if (actions.length === 0 && comp.props?.actionType) {
+                        actions.push({
+                            type: comp.props.actionType,
+                            payload: {
+                                varPath: comp.props.targetVar,
+                                value: comp.props.valueFormula || comp.props.value || 'true',
+                                stepId: comp.props.targetStep,
+                                message: comp.props.toastMessage || comp.props.message
+                            }
+                        });
+                    }
+
+                    if (actions.length > 0) {
+                        let innerXml = '';
+                        actions.forEach((act) => {
+                            const actType = act.type || act.actionType;
+                            const payload = act.payload || {};
+
+                            if (actType === 'SET_VARIABLE' || actType === 'SET_VAR') {
+                                const varId = payload.varPath || (variables[0]?.id || 'var1');
+                                const valStr = payload.value || 'true';
+                                innerXml += `
+                                <block type="set_app_variable">
+                                  <field name="VAR">${varId}</field>
+                                  <value name="VALUE">
+                                    <block type="text">
+                                      <field name="TEXT">${valStr}</field>
+                                    </block>
+                                  </value>
+                                </block>`;
+                            } else if (actType === 'NAVIGATE_STEP' || actType === 'GO_TO_STEP' || actType === 'CHANGE_STEP') {
+                                const stepTarget = payload.stepId || (steps[0]?.id || 'step1');
+                                innerXml += `
+                                <block type="go_to_step">
+                                  <field name="STEP">${stepTarget}</field>
+                                </block>`;
+                            } else if (actType === 'SHOW_TOAST' || actType === 'SHOW_MESSAGE') {
+                                const msg = payload.message || payload.value || 'Notification';
+                                innerXml += `
+                                <block type="tulip_log">
+                                  <value name="MSG">
+                                    <block type="text">
+                                      <field name="TEXT">${msg}</field>
+                                    </block>
+                                  </value>
+                                </block>`;
+                            } else {
+                                innerXml += `
+                                <block type="tulip_log">
+                                  <value name="MSG">
+                                    <block type="text">
+                                      <field name="TEXT">${compLabel} executed ${actType}</field>
+                                    </block>
+                                  </value>
+                                </block>`;
+                            }
+                        });
+                        statementContent = `<statement name="STACK">${innerXml}</statement>`;
+                    } else {
+                        const defaultPropSetter = Blockly.Blocks[`setter_widget_${comp.id}`] ? `
+                        <block type="setter_widget_${comp.id}">
+                          <field name="PROP">${comp.type === 'BUTTON' ? 'label' : 'text'}</field>
+                          <value name="VALUE">
+                            <block type="text">
+                              <field name="TEXT">${compLabel} Active</field>
+                            </block>
+                          </value>
+                        </block>` : `
+                        <block type="tulip_log">
+                          <value name="MSG">
+                            <block type="text">
+                              <field name="TEXT">${compLabel} (${evtId}) Triggered</field>
+                            </block>
+                          </value>
+                        </block>`;
+
+                        statementContent = `<statement name="STACK">${defaultPropSetter}</statement>`;
+                    }
+
+                    blocks.push(`
+                    <block type="${blockType}" x="40" y="${yPos}">
+                      ${statementContent}
+                    </block>`);
+                    yPos += 180;
+                }
+            });
+        });
+
+        if (blocks.length === 0) return '';
+        return `<xml xmlns="https://developers.google.com/blockly/xml">${blocks.join('')}</xml>`;
+    }, [steps, getEventTypesForComponent]);
+
+    const handleAutoGenerateBlocks = useCallback(() => {
+        if (!workspace.current) return;
+        const xmlText = buildDefaultAutoBlocksXml(currentStep, baseComponents, activeScope, appVariables);
+        if (!xmlText) {
+            alert("Tidak ada komponen pada screen ini untuk di-generate secara otomatis.");
+            return;
+        }
+        try {
+            Blockly.Events.disable();
+            const xml = Blockly.utils.xml.textToDom(xmlText);
+            Blockly.Xml.domToWorkspace(xml, workspace.current);
+            Blockly.Events.enable();
+            updateWorkspaceDiagnostics();
+            alert("Logic & UI blocks berhasil di-generate secara otomatis ke canvas!");
+        } catch (e) {
+            console.error("Failed to auto generate blocks:", e);
+        }
+    }, [currentStep, baseComponents, activeScope, appVariables, buildDefaultAutoBlocksXml]);
+
+    // 3. Handle Scope or Step changes (Loading/Saving logic)
     useEffect(() => {
         if (workspace.current) {
             try {
@@ -415,12 +581,16 @@ const BlocklyEditor = ({
                 logicToLoad = widget?.logic;
             }
 
+            let xmlTextToLoad = logicToLoad && logicToLoad.xml ? logicToLoad.xml : null;
+            if (!xmlTextToLoad) {
+                xmlTextToLoad = buildDefaultAutoBlocksXml(currentStep, baseComponents, activeScope, appVariables);
+            }
+
             Blockly.Events.disable();
             workspace.current.clear();
-            if (logicToLoad && logicToLoad.xml) {
+            if (xmlTextToLoad) {
                 try {
-                    const xmlText = logicToLoad.xml;
-                    const xml = Blockly.utils.xml.textToDom(xmlText);
+                    const xml = Blockly.utils.xml.textToDom(xmlTextToLoad);
                     Blockly.Xml.domToWorkspace(xml, workspace.current);
                 } catch (e) {
                     console.error("Failed to load blockly logic:", e);
@@ -429,7 +599,7 @@ const BlocklyEditor = ({
             Blockly.Events.enable();
             updateWorkspaceDiagnostics();
         }
-    }, [currentStepId, activeScope, steps, appVariables, baseComponents, globalLogic]);
+    }, [currentStepId, activeScope, steps, appVariables, baseComponents, globalLogic, buildDefaultAutoBlocksXml]);
 
     useEffect(() => {
         try {
@@ -493,6 +663,25 @@ const BlocklyEditor = ({
 
         // Inject statement prefix for Visual Error Tracing
         javascriptGenerator.STATEMENT_PREFIX = 'context._currentBlockId = %1;\n';
+
+        // Log Telemetry Block
+        if (!Blockly.Blocks['tulip_log']) {
+            Blockly.Blocks['tulip_log'] = {
+                init: function () {
+                    this.appendValueInput("MSG")
+                        .setCheck(null)
+                        .appendField("Log Telemetry");
+                    this.setPreviousStatement(true, null);
+                    this.setNextStatement(true, null);
+                    this.setColour('#3b82f6');
+                    this.setTooltip("Log telemetry signal");
+                }
+            };
+            javascriptGenerator.forBlock['tulip_log'] = function (block) {
+                const msg = javascriptGenerator.valueToCode(block, 'MSG', javascriptGenerator.ORDER_ATOMIC) || '""';
+                return `console.log("TELEMETRY:", ${msg});\n`;
+            };
+        }
 
         // Go To Screen Block
         if (!Blockly.Blocks['go_to_step']) {
@@ -2387,7 +2576,7 @@ const BlocklyEditor = ({
         });
     };
 
-    const getEventTypesForComponent = (type) => {
+    function getEventTypesForComponent(type) {
         if (type === 'BUTTON') {
             return [
                 { id: 'Click', label: 'Click' },
@@ -4984,6 +5173,26 @@ const BlocklyEditor = ({
                         }}
                     >
                         Backpack ({backpackItems.length})
+                    </button>
+                    <button
+                        onClick={handleAutoGenerateBlocks}
+                        style={{
+                            padding: '8px 14px',
+                            backgroundColor: '#ecfdf5',
+                            color: '#059669',
+                            border: '1px solid #10b981',
+                            borderRadius: '6px',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            transition: 'all 0.2s'
+                        }}
+                        title="Auto-generate UI & Logic blocks for components on this screen"
+                    >
+                        <Zap size={14} color="#059669" /> Auto-Generate Blocks
                     </button>
                     <button
                         onClick={() => setIsAiAdvisorOpen(!isAiAdvisorOpen)}
