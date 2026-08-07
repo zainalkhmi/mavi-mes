@@ -4,7 +4,7 @@ import {
     Search, Filter, Star, Zap, Info, Rocket, Database, ShieldCheck,
     ChevronRight, ShoppingBag, Plus, Award, Boxes, ShieldAlert, BookOpen, X, Trash2,
     List, Cpu, Settings, FileText, PlayCircle, Activity, HeartPulse, Truck,
-    Image as ImageIcon, BarChart3, Sliders
+    Image as ImageIcon, BarChart3, Sliders, Tag
 } from 'lucide-react';
 
 import { useNavigate } from 'react-router-dom';
@@ -49,6 +49,7 @@ import { createHydraulicCylinderInspectionTemplate } from '../utils/hydraulicCyl
 import { createMobileScanInspectionTemplate } from '../utils/mobileScanInspectionTemplate';
 import { createQuickStartHelloWorldTemplate } from '../utils/quickStartHelloWorldTemplate';
 import { createQualityGateTemplate } from '../utils/qualityGateTemplate';
+import { createLotGeneratorTemplate } from '../utils/lotGeneratorTemplate';
 
 import { saveFrontlineApp, deleteFrontlineApp, getAllFrontlineApps } from '../utils/supabaseFrontlineDB';
 import {
@@ -1681,6 +1682,38 @@ const AppStore = () => {
                 mechanism: 'Binds UI components to interactive variables simulating PLC inputs and outputs.',
                 steps: [
                     { name: 'HMI Dashboard', description: 'Consolidated dashboard for monitoring and managing active PLC components.' }
+                ]
+            }
+        },
+        {
+            id: 'lot-generator',
+            name: 'MES Lot Number Generator',
+            category: 'Quality',
+            description: 'Penataan & pembuatan nomor Lot produksi standar manufaktur dengan penomoran sequence otomatis per Part & Bulan.',
+            longDescription: 'Aplikasi MES Lot Generator siap pakai untuk penomoran lot produksi manufaktur. Menyimpan master part, counter running number per bulan, dan history pembuatan lot secara persisten menggunakan Database Tables MAVI MES. Dilengkapi format tahun/bulan, sequence ganjil/genap/normal, copy lot, export CSV, serta preview & pencetakan label barcode thermal 50x30mm.',
+            icon: <Tag size={28} color="#2563eb" />,
+            bg: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+            accent: '#2563eb',
+            rating: 5.0,
+            installs: 'New',
+            features: ['Full DB Table Integration', 'Sequence Normal/Odd/Even', 'Running Number Reset Monthly', 'Export CSV & Thermal Print'],
+            guide: {
+                operation: '1. Pilih Part No dari MasterPart.\n2. Masukkan Prefix Mark dan nama Operator.\n3. Klik Generate Lot untuk menghasilkan Lot Number baru & otomatis tersimpan ke tabel database lot_history.\n4. Gunakan tombol Copy Lot atau Print Label Thermal.\n5. Filter dan Export log history ke format CSV.',
+                widgets: ['Part No Dropdown', 'Mark Input', 'Generate Action Button', 'Thermal Label SVG Preview'],
+                components: ['Generate Lot Form', 'Thermal Barcode Label', 'Lot History Log Table', 'Master Part Manager Modal'],
+                tables: [
+                    { name: 'lot_master_parts', description: 'Menyimpan daftar Master Part, Customer, Mark, dan Sequence Type.' },
+                    { name: 'lot_counters', description: 'Menyimpan posisi running number terakhir per Part & Bulan.' },
+                    { name: 'lot_history', description: 'Menyimpan log history pembuatan lot number lengkap dengan timestamp.' }
+                ],
+                triggers: [
+                    { event: 'GENERATE_LOT', function: 'Menghitung sequence berikutnya dan menyimpan record ke tabel lot_history.' }
+                ],
+                mechanism: 'Membaca dan menyimpan data secara langsung ke tabel database system lot_master_parts, lot_counters, dan lot_history.',
+                steps: [
+                    { name: '1. Inisialisasi Database', description: 'Menginisialisasi tabel database lot_master_parts, lot_counters, dan lot_history.' },
+                    { name: '2. Select Part & Generate', description: 'Memilih Part No dan menekan tombol Generate Lot.' },
+                    { name: '3. Copy & Thermal Print', description: 'Copy text lot number atau cetak label barcode thermal.' }
                 ]
             }
         }
@@ -4154,6 +4187,53 @@ const AppStore = () => {
                 templateApp = createSmartHomeTemplate();
             } else if (templateId === 'plc-hmi-terminal') {
                 templateApp = createPlcHmiTerminalTemplate();
+            } else if (templateId === 'lot-generator') {
+                templateApp = createLotGeneratorTemplate();
+                try {
+                    const partsTable = await getOrCreateTableAndSeed(allTables, {
+                        name: 'lot_master_parts',
+                        fields: [
+                            { name: 'customer', type: 'text' },
+                            { name: 'part_no', type: 'text' },
+                            { name: 'part_name', type: 'text' },
+                            { name: 'mark', type: 'text' },
+                            { name: 'sequence_type', type: 'text' }
+                        ]
+                    });
+                    const countersTable = await getOrCreateTableAndSeed(allTables, {
+                        name: 'lot_counters',
+                        fields: [
+                            { name: 'part_no', type: 'text' },
+                            { name: 'year', type: 'number' },
+                            { name: 'month', type: 'number' },
+                            { name: 'last_number', type: 'number' }
+                        ]
+                    });
+                    const historyTable = await getOrCreateTableAndSeed(allTables, {
+                        name: 'lot_history',
+                        fields: [
+                            { name: 'date_time', type: 'text' },
+                            { name: 'lot_number', type: 'text' },
+                            { name: 'part_no', type: 'text' },
+                            { name: 'part_name', type: 'text' },
+                            { name: 'mark', type: 'text' },
+                            { name: 'customer', type: 'text' },
+                            { name: 'user', type: 'text' },
+                            { name: 'format_lot', type: 'text' }
+                        ]
+                    });
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (partsTable?.id) { appStr = appStr.replace(/tbl_lot_master_parts/g, partsTable.id); tIds.push(partsTable.id); }
+                    if (countersTable?.id) { appStr = appStr.replace(/tbl_lot_counters/g, countersTable.id); tIds.push(countersTable.id); }
+                    if (historyTable?.id) { appStr = appStr.replace(/tbl_lot_history/g, historyTable.id); tIds.push(historyTable.id); }
+
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (lotErr) {
+                    console.warn('Could not create lot generator tables:', lotErr);
+                }
             } else {
                 toast.error('Template not found', { id: loadingToast });
                 return;

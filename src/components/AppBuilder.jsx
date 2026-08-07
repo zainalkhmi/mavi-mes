@@ -9274,7 +9274,7 @@ const AppBuilder = () => {
                         </svg>
 
                         {/* Sprites rendered inside canvas */}
-                        {sprites.map(sprite => renderComponent(sprite))}
+                        {sprites.map(sprite => <React.Fragment key={sprite.id}>{renderComponent(sprite)}</React.Fragment>)}
 
                         {/* Design mode placeholder if empty */}
                         {viewMode === 'DESIGN' && sprites.length === 0 && (
