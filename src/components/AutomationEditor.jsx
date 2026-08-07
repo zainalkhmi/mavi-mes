@@ -10,7 +10,8 @@ import ReactFlow, {
   Position,
   useReactFlow,
   ReactFlowProvider,
-  updateEdge
+  updateEdge,
+  getBezierPath
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import {
@@ -954,6 +955,60 @@ const nodeTypes = {
   send_email: SendEmailNode
 };
 
+const PulseDataEdge = ({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  style = {},
+  selected
+}) => {
+  const [edgePath] = getBezierPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+  });
+
+  const baseColor = selected ? '#a855f7' : '#6366f1';
+
+  return (
+    <g className="react-flow__edge-pulse">
+      <path
+        d={edgePath}
+        fill="none"
+        stroke={baseColor}
+        strokeWidth={selected ? 5 : 3.5}
+        strokeOpacity={0.25}
+      />
+      <path
+        d={edgePath}
+        fill="none"
+        stroke={baseColor}
+        strokeWidth={2}
+        strokeDasharray="6,4"
+        style={{ ...style }}
+      />
+      <circle r="4.5" fill="#38bdf8" style={{ filter: 'drop-shadow(0 0 6px #0284c7)' }}>
+        <animateMotion dur="1.8s" repeatCount="indefinite" path={edgePath} />
+      </circle>
+      <circle r="2.5" fill="#ffffff">
+        <animateMotion dur="1.8s" repeatCount="indefinite" path={edgePath} />
+      </circle>
+    </g>
+  );
+};
+
+const edgeTypes = {
+  animatedPulse: PulseDataEdge,
+  smoothstep: PulseDataEdge,
+  default: PulseDataEdge
+};
+
 const initialNodes = [
   {
     id: 'start-node',
@@ -1495,15 +1550,15 @@ const AutomationEditor = () => {
 
   const onConnect = useCallback((params) => setEdges((eds) => addEdge({
     ...params,
-    type: 'smoothstep',
+    type: 'animatedPulse',
     animated: true,
     style: {
       stroke: params.sourceHandle === 'model' ? '#38bdf8' :
         params.sourceHandle === 'memory' ? '#c084fc' :
         params.sourceHandle === 'tools' ? '#34d399' :
         params.sourceHandle === 'yes' ? '#00A09D' :
-        params.sourceHandle === 'no' ? '#ef4444' : '#714B67',
-      strokeWidth: 2.5,
+        params.sourceHandle === 'no' ? '#ef4444' : '#6366f1',
+      strokeWidth: 3,
       strokeDasharray: params.sourceHandle === 'model' || params.sourceHandle === 'memory' || params.sourceHandle === 'tools' ? '5,5' : 'none'
     }
   }, eds)), [setEdges]);
@@ -1680,17 +1735,17 @@ const AutomationEditor = () => {
     };
 
     return (
-      <div style={{ width: '280px', backgroundColor: '#ffffff', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', color: '#1e293b' }}>
-        <div style={{ padding: '16px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+      <div style={{ width: '280px', backgroundColor: '#0f172a', borderRight: '1px solid #1e293b', display: 'flex', flexDirection: 'column', color: '#f8fafc' }}>
+        <div style={{ padding: '16px', borderBottom: '1px solid #1e293b', backgroundColor: '#0b0f19' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-            <div style={{ width: '26px', height: '26px', borderRadius: '8px', backgroundColor: '#714B67', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: '26px', height: '26px', borderRadius: '8px', backgroundColor: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 12px rgba(99, 102, 241, 0.5)' }}>
               <Zap size={15} color="white" />
             </div>
-            <h3 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800, color: '#714B67', letterSpacing: '0.3px' }}>Workflow Node Palette</h3>
+            <h3 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800, color: '#f8fafc', letterSpacing: '0.3px' }}>Node-RED Palette</h3>
           </div>
 
           <div style={{ position: 'relative' }}>
-            <Search size={14} style={{ position: 'absolute', left: '10px', top: '10px', color: '#94a3b8' }} />
+            <Search size={14} style={{ position: 'absolute', left: '10px', top: '10px', color: '#64748b' }} />
             <input
               type="text"
               placeholder="Search workflow nodes..."
@@ -1699,10 +1754,10 @@ const AutomationEditor = () => {
               style={{
                 width: '100%',
                 padding: '7px 10px 7px 30px',
-                backgroundColor: '#ffffff',
-                border: '1px solid #cbd5e1',
+                backgroundColor: '#1e293b',
+                border: '1px solid #334155',
                 borderRadius: '8px',
-                color: '#1e293b',
+                color: '#f8fafc',
                 fontSize: '0.76rem',
                 outline: 'none'
               }}
@@ -1739,30 +1794,32 @@ const AutomationEditor = () => {
                       onDragStart={(e) => onDragStart(e, node.type, node.data)}
                       style={{
                         padding: '9px 12px',
-                        backgroundColor: '#f8fafc',
-                        border: '1px solid #e2e8f0',
+                        backgroundColor: '#1e293b',
+                        border: '1px solid #334155',
                         borderRadius: '10px',
                         fontSize: '0.78rem',
                         fontWeight: 700,
-                        color: '#334155',
+                        color: '#cbd5e1',
                         cursor: 'grab',
                         display: 'flex',
                         alignItems: 'center',
                         gap: '10px',
                         transition: 'all 0.2s ease',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
                       }}
                       onMouseEnter={e => {
                         e.currentTarget.style.borderColor = cat.color;
-                        e.currentTarget.style.backgroundColor = '#ffffff';
+                        e.currentTarget.style.backgroundColor = '#334155';
+                        e.currentTarget.style.color = '#ffffff';
                         e.currentTarget.style.transform = 'translateY(-1px)';
-                        e.currentTarget.style.boxShadow = `0 4px 12px ${cat.color}25`;
+                        e.currentTarget.style.boxShadow = `0 4px 14px ${cat.color}40`;
                       }}
                       onMouseLeave={e => {
-                        e.currentTarget.style.borderColor = '#e2e8f0';
-                        e.currentTarget.style.backgroundColor = '#f8fafc';
+                        e.currentTarget.style.borderColor = '#334155';
+                        e.currentTarget.style.backgroundColor = '#1e293b';
+                        e.currentTarget.style.color = '#cbd5e1';
                         e.currentTarget.style.transform = 'none';
-                        e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)';
+                        e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
                       }}
                     >
                       <div style={{ color: cat.color }}><node.icon size={16} /></div>
@@ -1814,8 +1871,12 @@ const AutomationEditor = () => {
             </button>
             <div style={{ width: '1px', height: '24px', backgroundColor: '#3B3B54' }}></div>
             <div>
-              <div style={{ fontSize: '0.68rem', color: '#00A09D', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                Workflow Automation Builder / {automationName}
+              <div style={{ fontSize: '0.68rem', color: '#38bdf8', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                Node-RED Industrial Engine / {automationName}
+                <span style={{ fontSize: '0.62rem', padding: '2px 8px', borderRadius: '999px', backgroundColor: '#064e3b', color: '#34d399', fontWeight: 800, border: '1px solid #059669', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#34d399', boxShadow: '0 0 8px #34d399' }} />
+                  ENGINE LIVE (2ms)
+                </span>
                 {isRecursiveLoop() && (
                   <span title="Potential Infinite Loop" style={{ color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <AlertTriangle size={14} /> <span style={{ fontSize: '0.65rem', fontWeight: 800 }}>LOOP WARNING</span>
@@ -1992,7 +2053,7 @@ const AutomationEditor = () => {
         </header>
 
         {/* ─── CANVAS (ODOO LIGHT GRID STYLE) ─── */}
-        <div style={{ flex: 1, position: 'relative', backgroundColor: '#F8FAFC' }} ref={reactFlowWrapper}>
+        <div style={{ flex: 1, position: 'relative', backgroundColor: '#0b0f19' }} ref={reactFlowWrapper}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -2010,16 +2071,17 @@ const AutomationEditor = () => {
             onDrop={onDrop}
             onDragOver={onDragOver}
             nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
             fitView
             defaultEdgeOptions={{
-              type: 'smoothstep',
+              type: 'animatedPulse',
               animated: true,
-              style: { stroke: '#714B67', strokeWidth: 2.5 }
+              style: { stroke: '#6366f1', strokeWidth: 3 }
             }}
           >
-            <Background color="#CBD5E1" variant="dots" gap={24} size={1.5} />
-            <Controls style={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1', fill: '#1e293b', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }} />
-            <MiniMap nodeColor={() => '#714B67'} maskColor="rgba(248, 250, 252, 0.7)" style={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1' }} />
+            <Background color="#334155" variant="dots" gap={20} size={1} />
+            <Controls style={{ backgroundColor: '#1e293b', border: '1px solid #334155', fill: '#94a3b8', boxShadow: '0 8px 24px rgba(0,0,0,0.4)', borderRadius: '10px' }} />
+            <MiniMap nodeColor={() => '#6366f1'} maskColor="rgba(15, 23, 42, 0.75)" style={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '10px' }} />
 
             <div style={{
               position: 'absolute',
@@ -2112,14 +2174,14 @@ const AutomationEditor = () => {
         </div>
       </div>
 
-      <div style={{ width: '380px', backgroundColor: '#ffffff', borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
+      <div style={{ width: '380px', backgroundColor: '#0f172a', borderLeft: '1px solid #1e293b', display: 'flex', flexDirection: 'column', color: '#f8fafc' }}>
+        <div style={{ display: 'flex', borderBottom: '1px solid #1e293b', backgroundColor: '#0b0f19' }}>
           <button
             onClick={() => setActiveTab('EDIT')}
             style={{
               flex: 1, padding: '14px', border: 'none', background: 'none',
-              borderBottom: activeTab === 'EDIT' ? '3px solid #714B67' : 'none',
-              color: activeTab === 'EDIT' ? '#714B67' : '#64748b',
+              borderBottom: activeTab === 'EDIT' ? '3px solid #6366f1' : 'none',
+              color: activeTab === 'EDIT' ? '#818cf8' : '#64748b',
               fontSize: '0.82rem', fontWeight: 800, cursor: 'pointer'
             }}
           >Element Logic & AI</button>
@@ -2127,8 +2189,8 @@ const AutomationEditor = () => {
             onClick={() => setActiveTab('HISTORY')}
             style={{
               flex: 1, padding: '14px', border: 'none', background: 'none',
-              borderBottom: activeTab === 'HISTORY' ? '3px solid #714B67' : 'none',
-              color: activeTab === 'HISTORY' ? '#714B67' : '#64748b',
+              borderBottom: activeTab === 'HISTORY' ? '3px solid #6366f1' : 'none',
+              color: activeTab === 'HISTORY' ? '#818cf8' : '#64748b',
               fontSize: '0.82rem', fontWeight: 800, cursor: 'pointer'
             }}
           >Version History</button>
@@ -2139,54 +2201,54 @@ const AutomationEditor = () => {
             <div style={{ flex: 1, padding: '20px', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#714B67' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#1e293b', border: '1px solid #334155', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#818cf8' }}>
                     <Sliders size={18} />
                   </div>
                   <div>
-                    <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#1e293b' }}>Node Config</h3>
-                    <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 600 }}>{selectedNode.type.toUpperCase()} / {selectedNode.id}</div>
+                    <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#f8fafc' }}>Node Inspector</h3>
+                    <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600 }}>{selectedNode.type.toUpperCase()} / {selectedNode.id}</div>
                   </div>
                 </div>
-                <button onClick={() => setSelectedNode(null)} style={{ background: '#f1f5f9', border: 'none', color: '#64748b', width: '30px', height: '30px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} /></button>
+                <button onClick={() => setSelectedNode(null)} style={{ background: '#1e293b', border: 'none', color: '#94a3b8', width: '30px', height: '30px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} /></button>
               </div>
 
               {/* ─── N8N COMPLIANT INSPECTOR SUB-TABS ─── */}
-              <div style={{ display: 'flex', borderBottom: '1px solid #cbd5e1', marginBottom: '16px', backgroundColor: '#f1f5f9', borderRadius: '10px', padding: '3px' }}>
+              <div style={{ display: 'flex', borderBottom: '1px solid #334155', marginBottom: '16px', backgroundColor: '#0f172a', borderRadius: '10px', padding: '3px' }}>
                 <button
                   onClick={() => setInspectorSubTab('PARAMETERS')}
                   style={{
                     flex: 1, padding: '7px 4px', border: 'none', borderRadius: '8px',
-                    backgroundColor: inspectorSubTab === 'PARAMETERS' ? '#ffffff' : 'transparent',
-                    color: inspectorSubTab === 'PARAMETERS' ? '#714B67' : '#64748b',
+                    backgroundColor: inspectorSubTab === 'PARAMETERS' ? '#334155' : 'transparent',
+                    color: inspectorSubTab === 'PARAMETERS' ? '#38bdf8' : '#94a3b8',
                     fontWeight: 800, fontSize: '0.74rem', cursor: 'pointer',
-                    boxShadow: inspectorSubTab === 'PARAMETERS' ? '0 2px 6px rgba(0,0,0,0.08)' : 'none',
+                    boxShadow: inspectorSubTab === 'PARAMETERS' ? '0 2px 6px rgba(0,0,0,0.3)' : 'none',
                     transition: 'all 0.2s'
                   }}
-                >⚙️ Parameters</button>
+                >⚙️ Params</button>
 
                 <button
                   onClick={() => setInspectorSubTab('OUTPUT')}
                   style={{
                     flex: 1, padding: '7px 4px', border: 'none', borderRadius: '8px',
-                    backgroundColor: inspectorSubTab === 'OUTPUT' ? '#ffffff' : 'transparent',
-                    color: inspectorSubTab === 'OUTPUT' ? '#00A09D' : '#64748b',
+                    backgroundColor: inspectorSubTab === 'OUTPUT' ? '#334155' : 'transparent',
+                    color: inspectorSubTab === 'OUTPUT' ? '#34d399' : '#94a3b8',
                     fontWeight: 800, fontSize: '0.74rem', cursor: 'pointer',
-                    boxShadow: inspectorSubTab === 'OUTPUT' ? '0 2px 6px rgba(0,0,0,0.08)' : 'none',
+                    boxShadow: inspectorSubTab === 'OUTPUT' ? '0 2px 6px rgba(0,0,0,0.3)' : 'none',
                     transition: 'all 0.2s'
                   }}
-                >📌 Output Data</button>
+                >📌 Telemetry</button>
 
                 <button
                   onClick={() => setInspectorSubTab('CREDENTIALS')}
                   style={{
                     flex: 1, padding: '7px 4px', border: 'none', borderRadius: '8px',
-                    backgroundColor: inspectorSubTab === 'CREDENTIALS' ? '#ffffff' : 'transparent',
-                    color: inspectorSubTab === 'CREDENTIALS' ? '#4F46E5' : '#64748b',
+                    backgroundColor: inspectorSubTab === 'CREDENTIALS' ? '#334155' : 'transparent',
+                    color: inspectorSubTab === 'CREDENTIALS' ? '#a78bfa' : '#94a3b8',
                     fontWeight: 800, fontSize: '0.74rem', cursor: 'pointer',
-                    boxShadow: inspectorSubTab === 'CREDENTIALS' ? '0 2px 6px rgba(0,0,0,0.08)' : 'none',
+                    boxShadow: inspectorSubTab === 'CREDENTIALS' ? '0 2px 6px rgba(0,0,0,0.3)' : 'none',
                     transition: 'all 0.2s'
                   }}
-                >🔒 Credentials</button>
+                >🔒 Security</button>
               </div>
 
               {inspectorSubTab === 'PARAMETERS' && (

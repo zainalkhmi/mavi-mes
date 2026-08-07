@@ -12,7 +12,7 @@ import {
   Monitor, Play, Terminal, Check, ChevronDown, Filter,
   Settings, Layers, ToggleLeft, Sliders, Camera, Activity,
   MousePointer2, BarChart2, Ruler, Factory, Box, Download, Upload,
-  Undo2, Redo2, GitBranch, ShieldCheck
+  Undo2, Redo2, GitBranch, ShieldCheck, Copy, Clipboard, ClipboardPaste
 } from 'lucide-react';
 
 // ─── WIDGET TYPE META MAP ────────────────────────────────────────────────────
@@ -356,18 +356,115 @@ const AppNodeEditor = ({
     }
   }, [historyPointer, historyStack, setNodes, setEdges]);
 
-  // Keyboard shortcut Ctrl+Z & Ctrl+Y
+  const [contextMenu, setContextMenu] = useState(null);
+  const [clipboardNode, setClipboardNode] = useState(null);
+
+  // Context Menu Handlers
+  const onNodeContextMenu = useCallback((event, node) => {
+    event.preventDefault();
+    setSelectedEl(node);
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      type: 'node',
+      targetNode: node
+    });
+  }, []);
+
+  const onPaneContextMenu = useCallback((event) => {
+    event.preventDefault();
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      type: 'pane'
+    });
+  }, []);
+
+  const onEdgeContextMenu = useCallback((event, edge) => {
+    event.preventDefault();
+    setSelectedEl(edge);
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      type: 'edge',
+      targetEdge: edge
+    });
+  }, []);
+
+  const copySelectedNode = useCallback((nodeToCopy) => {
+    const target = nodeToCopy || (selectedEl && !selectedEl.source ? selectedEl : null);
+    if (target) {
+      setClipboardNode(target);
+    }
+    setContextMenu(null);
+  }, [selectedEl]);
+
+  const duplicateSelectedNode = useCallback((nodeToDup) => {
+    const target = nodeToDup || (selectedEl && !selectedEl.source ? selectedEl : null);
+    if (!target) return;
+    const newId = `node_${Date.now()}`;
+    const newNode = {
+      ...target,
+      id: newId,
+      position: { x: (target.position?.x || 100) + 40, y: (target.position?.y || 100) + 40 },
+    };
+    setNodes((nds) => nds.concat(newNode));
+    setSelectedEl(newNode);
+    setContextMenu(null);
+  }, [selectedEl, setNodes]);
+
+  const pasteNode = useCallback(() => {
+    if (!clipboardNode) return;
+    const newId = `node_${Date.now()}`;
+    const mouseX = contextMenu?.x || 300;
+    const mouseY = contextMenu?.y || 200;
+    const newNode = {
+      ...clipboardNode,
+      id: newId,
+      position: { x: mouseX - 200, y: mouseY - 100 },
+    };
+    setNodes((nds) => nds.concat(newNode));
+    setSelectedEl(newNode);
+    setContextMenu(null);
+  }, [clipboardNode, contextMenu, setNodes]);
+
+  const disconnectWires = useCallback((nodeId) => {
+    if (!nodeId) return;
+    setEdges(eds => eds.filter(e => e.source !== nodeId && e.target !== nodeId));
+    setContextMenu(null);
+  }, [setEdges]);
+
+  const delSelected = useCallback(() => {
+    if (!selectedEl) return;
+    if (selectedEl.source) setEdges(eds => eds.filter(e => e.id !== selectedEl.id));
+    else { setNodes(nds => nds.filter(n => n.id !== selectedEl.id)); setEdges(eds => eds.filter(e => e.source !== selectedEl.id && e.target !== selectedEl.id)); }
+    setSelectedEl(null);
+  }, [selectedEl, setNodes, setEdges]);
+
+  // Keyboard shortcuts Ctrl+Z, Ctrl+Y, Ctrl+C, Ctrl+V, Ctrl+D, Del, Esc
   useEffect(() => {
     const handleKeyDown = (e) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         if (e.shiftKey) handleRedo(); else handleUndo();
       } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
         handleRedo();
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+        if (selectedEl && !selectedEl.source) copySelectedNode(selectedEl);
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+        pasteNode();
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+        e.preventDefault();
+        if (selectedEl && !selectedEl.source) duplicateSelectedNode(selectedEl);
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedEl) delSelected();
+      } else if (e.key === 'Escape') {
+        setContextMenu(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleUndo, handleRedo]);
+  }, [handleUndo, handleRedo, selectedEl, copySelectedNode, pasteNode, duplicateSelectedNode, delSelected]);
 
   // ─── LIVE WIRE DRAG-TO-CONNECT LOGIC CREATION (AUTO-WIRING ENGINE) ────────
   const onConnect = useCallback((params) => {
@@ -555,12 +652,7 @@ const AppNodeEditor = ({
     }
   }, [selectedEl, form, activeStepId, onUpdateWidgetLogic, setNodes]);
 
-  const delSelected = useCallback(() => {
-    if (!selectedEl) return;
-    if (selectedEl.source) setEdges(eds => eds.filter(e => e.id !== selectedEl.id));
-    else { setNodes(nds => nds.filter(n => n.id !== selectedEl.id)); setEdges(eds => eds.filter(e => e.source !== selectedEl.id && e.target !== selectedEl.id)); }
-    setSelectedEl(null);
-  }, [selectedEl, setNodes, setEdges]);
+
 
   const loadAndon = useCallback(() => {
     const t = Date.now();
@@ -752,148 +844,416 @@ const AppNodeEditor = ({
 
   // ─── RENDER MAIN UI ──────────────────────────────────────────────────────────
   return (
-    <div style={{ width: '100%', height: 'calc(100vh - 64px)', minHeight: '600px', display: 'flex', backgroundColor: '#f8fafc', position: 'relative', overflow: 'hidden', fontFamily: "'Inter',system-ui,sans-serif" }}>
+    <div style={{ width: '100%', height: 'calc(100vh - 64px)', minHeight: '600px', display: 'flex', flexDirection: 'column', backgroundColor: '#0f172a', overflow: 'hidden', fontFamily: "'Inter',system-ui,sans-serif" }}>
 
-      {/* LEFT PALETTE */}
-      <div style={{ width: paletteOpen ? '298px' : '0px', backgroundColor: '#fff', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', transition: 'width 0.3s ease', zIndex: 10, overflow: 'hidden', flexShrink: 0 }}>
-        <div style={{ padding: '11px 13px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}><Network size={16} color="#6366f1" /><span style={{ fontWeight: 800, fontSize: '0.84rem', color: '#1e293b' }}>Node Canvas Palette</span></div>
-          <button onClick={() => setPaletteOpen(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X size={15} /></button>
-        </div>
-        <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
-          {[{ id: 'WIDGETS', lbl: '🧩 Widgets', cnt: allWidgets.length }, { id: 'TRIGGERS', lbl: '⚡ Events' }, { id: 'VARS', lbl: '📦 Vars', cnt: appVariables?.length }, { id: 'TABLES', lbl: '🗄 Tables', cnt: tables?.length }].map(tab => (
-            <button key={tab.id} onClick={() => setPalTab(tab.id)} style={{ flex: 1, padding: '6px 2px', fontSize: '0.6rem', fontWeight: 800, border: 'none', cursor: 'pointer', backgroundColor: palTab === tab.id ? '#fff' : 'transparent', color: palTab === tab.id ? '#6366f1' : '#94a3b8', borderBottom: palTab === tab.id ? '2px solid #6366f1' : '2px solid transparent', transition: 'all 0.15s', textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px', flexDirection: 'column' }}>
-              {tab.lbl}
-              {tab.cnt !== undefined && <span style={{ fontSize: '0.53rem', background: palTab === tab.id ? '#e0e7ff' : '#f1f5f9', color: palTab === tab.id ? '#4338ca' : '#64748b', padding: '1px 5px', borderRadius: '10px' }}>{tab.cnt}</span>}
+      {/* ─── ENTERPRISE TOP TOOLBAR ─── */}
+      <header style={{
+        height: '52px',
+        backgroundColor: '#0f172a',
+        borderBottom: '1px solid #1e293b',
+        padding: '0 16px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '12px',
+        zIndex: 20,
+        flexShrink: 0
+      }}>
+        {/* Left Section */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {!paletteOpen && (
+            <button
+              onClick={() => setPaletteOpen(true)}
+              style={{
+                padding: '6px 12px',
+                backgroundColor: '#1e293b',
+                border: '1px solid #334155',
+                borderRadius: '8px',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                color: '#f8fafc',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.2s'
+              }}
+            >
+              <Plus size={14} color="#6366f1" /> Palette
             </button>
-          ))}
-        </div>
-        <div style={{ padding: '9px 11px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
-          <div style={{ position: 'relative' }}>
-            <Search size={13} style={{ position: 'absolute', left: '9px', top: '7px', color: '#94a3b8' }} />
-            <input type="text" placeholder="Search widgets, events, variables..." value={searchQ} onChange={e => setSearchQ(e.target.value)} style={{ width: '100%', padding: '5px 9px 5px 28px', border: '1px solid #e2e8f0', borderRadius: '7px', fontSize: '0.71rem', outline: 'none', boxSizing: 'border-box' }} />
-          </div>
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
-
-          {palTab === 'WIDGETS' && (
-            Object.keys(widgetsByStep).length === 0
-              ? <div style={{ textAlign: 'center', padding: '24px 12px', color: '#94a3b8', fontSize: '0.72rem' }}>
-                <Layers size={26} style={{ marginBottom: '8px', opacity: 0.35, display: 'block', margin: '0 auto 8px' }} />
-                <div style={{ fontWeight: 700 }}>No widgets in this app yet</div>
-                <div style={{ marginTop: '4px', fontSize: '0.65rem' }}>Add widgets in Design tab to see them here</div>
-              </div>
-              : <>
-                {Object.entries(widgetsByStep).map(([key, { label: slbl, color, widgets }]) => (
-                  <PSection key={key} skey={key} title={`${slbl} (${widgets.length})`} color={color} icon={key === '__base__' ? <Layers size={11} /> : <Monitor size={11} />}>
-                    {widgets.map(w => {
-                      const m = getWidgetMeta(w.type);
-                      return <PItem key={`${w.id}_${key}`} label={w.name || w.props?.label || w.props?.text || w.type || 'Widget'} sublabel={m.label} icon={m.icon} color={m.color} bg={m.bg} border={m.border} onClick={() => addWidgetNode(w)} />;
-                    })}
-                  </PSection>
-                ))}
-                <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed #e2e8f0' }}>
-                  <PSection skey="andon_p" title="Andon Preset Nodes" color="#dc2626" icon={<AlertTriangle size={11} />}>
-                    <PItem label="Andon Call Button" sublabel="BUTTON" icon={<MousePointer2 size={13} />} color="#991b1b" bg="#fef2f2" border="#fecaca" onClick={() => addNode('widget', 'Call Maintenance Button', { widgetType: 'BUTTON', type: 'BUTTON' })} />
-                    <PItem label="Tower Light PLC" sublabel="PLC" icon={<Radio size={13} />} color="#92400e" bg="#fffbeb" border="#fef3c7" onClick={() => addNode('machine', 'PLC Red Tower Light', { tag: 'LIGHT_RED' })} />
-                    <PItem label="Andon Incidents DB" sublabel="TABLE" icon={<Database size={13} />} color="#0f766e" bg="#f0fdfa" border="#ccfbf1" onClick={() => addNode('table', 'andon_incidents DB')} />
-                    <PItem label="Andon Status Var" sublabel="VAR" icon={<Variable size={13} />} color="#065f46" bg="#ecfdf5" border="#d1fae5" onClick={() => addNode('variable', 'Andon_Status', { varType: 'CRITICAL' })} />
-                    <PItem label="Telegram Alert" sublabel="ACTION" icon={<Send size={13} />} color="#6b21a8" bg="#faf5ff" border="#f3e8ff" onClick={() => addNode('action', 'Telegram Alert', { actionType: 'RUN_WORKFLOW' })} />
-                  </PSection>
-                </div>
-              </>
           )}
 
-          {palTab === 'TRIGGERS' && <>
-            <PSection skey="when" title="WHEN — Event Triggers" color="#be123c" icon={<PlayCircle size={11} />}>
-              {[{ lbl: 'onClick Trigger', ev: 'onClick', sub: 'Button' }, { lbl: 'onChange Trigger', ev: 'onChange', sub: 'Input' }, { lbl: 'onStepEnter Trigger', ev: 'onStepEnter', sub: 'Screen' }, { lbl: 'Timer Interval Trigger', ev: 'timer', sub: 'Scheduler' }, { lbl: 'onVariableChange', ev: 'ON_VAR_CHANGE', sub: 'State' }, { lbl: 'On App Start', ev: 'ON_APP_START', sub: 'Init' }, { lbl: 'onFormSubmit', ev: 'onSubmit', sub: 'Form' }, { lbl: 'IoT Signal Trigger', ev: 'onIoTSignal', sub: 'PLC/Sensor' }].map(t => (
-                <PItem key={t.ev} label={t.lbl} sublabel={t.sub} icon={<PlayCircle size={13} />} color="#9f1239" bg="#fff1f2" border="#ffe4e6" onClick={() => addNode('trigger', t.lbl, { event: t.ev })} />
-              ))}
-            </PSection>
-            <PSection skey="then" title="THEN — Action Steps" color="#6d28d9" icon={<ArrowRight size={11} />}>
-              {[{ lbl: 'Set Variable', t: 'SET_VARIABLE' }, { lbl: 'Navigate Screen', t: 'NAVIGATE_STEP' }, { lbl: 'Query Database', t: 'QUERY_TABLE' }, { lbl: 'Run Automation', t: 'RUN_WORKFLOW' }, { lbl: 'Show Toast', t: 'SHOW_TOAST' }, { lbl: 'Call External API', t: 'CALL_API' }, { lbl: 'Publish MQTT', t: 'PUBLISH_MQTT' }, { lbl: 'Write PLC Tag', t: 'WRITE_PLC' }, { lbl: 'Send Email', t: 'SEND_EMAIL' }, { lbl: 'Generate PDF Report', t: 'GENERATE_REPORT' }, { lbl: 'Play Sound/Alarm', t: 'PLAY_ALARM' }].map(a => (
-                <PItem key={a.t} label={a.lbl} sublabel={a.t} icon={<ArrowRight size={13} />} color="#6b21a8" bg="#faf5ff" border="#f3e8ff" onClick={() => addNode('action', a.lbl, { actionType: a.t })} />
-              ))}
-            </PSection>
-            <PSection skey="logic" title="Logic / Branching" color="#ea580c" icon={<Filter size={11} />}>
-              <PItem label="IF/ELSE Branch" sublabel="CONDITION" icon={<GitBranch size={13} />} color="#c2410c" bg="#fff7ed" border="#fed7aa" onClick={() => addNode('condition', 'IF/ELSE Branch', { condition: 'var===value' })} />
-              <PItem label="AI Vision Agent" sublabel="AI" icon={<Sparkles size={13} />} color="#be185d" bg="#fdf4ff" border="#f5d0fe" onClick={() => addNode('aivision', 'AI Vision Agent', {})} />
-            </PSection>
-          </>}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Network size={18} color="#6366f1" />
+            <span style={{ fontWeight: 800, fontSize: '0.88rem', color: '#f8fafc', letterSpacing: '0.2px' }}>
+              Node Canvas Palette
+            </span>
+          </div>
 
-          {palTab === 'VARS' && <PSection skey="vars" title={`App Variables (${(appVariables || []).length})`} color="#059669" icon={<Variable size={11} />}>
-            {(appVariables || []).length === 0 ? <div style={{ textAlign: 'center', padding: '16px 0', color: '#94a3b8', fontSize: '0.7rem' }}>No variables defined</div> : (appVariables || []).filter(v => (v.name || '').toLowerCase().includes(searchQ.toLowerCase())).map(v => (
-              <PItem key={v.id || v.name} label={v.name || 'Variable'} sublabel={v.type || 'string'} icon={<Variable size={13} />} color="#065f46" bg="#ecfdf5" border="#d1fae5" onClick={() => addNode('variable', v.name, { varType: v.type || 'string', value: v.defaultValue })} />
-            ))}
-          </PSection>}
+          <div style={{ width: '1px', height: '18px', backgroundColor: '#334155', margin: '0 4px' }} />
 
-          {palTab === 'TABLES' && <>
-            <PSection skey="tables" title={`Database Tables (${(tables || []).length})`} color="#0d9488" icon={<Database size={11} />}>
-              {(tables || []).length === 0 ? <div style={{ textAlign: 'center', padding: '16px 0', color: '#94a3b8', fontSize: '0.7rem' }}>No tables defined</div> : (tables || []).filter(t => (t.name || t.id || '').toLowerCase().includes(searchQ.toLowerCase())).map(t => (
-                <PItem key={t.id} label={t.name || t.id} sublabel={`${t.columns?.length || 0} cols`} icon={<Database size={13} />} color="#0d9488" bg="#f0fdfa" border="#99f6e4" onClick={() => addNode('table', t.name || t.id, { tableId: t.id, columns: t.columns })} />
-              ))}
-            </PSection>
-            <PSection skey="screens" title="Screen Navigation" color="#0284c7" icon={<Monitor size={11} />}>
-              {(steps || []).map(s => <PItem key={s.id} label={s.name || s.title || s.id} sublabel="SCREEN" icon={<Navigation size={13} />} color="#0369a1" bg="#f0f9ff" border="#bae6fd" onClick={() => addNode('screen_step', s.name || s.title || s.id, { targetStepId: s.id })} />)}
-            </PSection>
-          </>}
-        </div>
-      </div>
-
-      {/* MAIN CANVAS */}
-      <div style={{ flex: 1, position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-
-        {/* ENTERPRISE TOOLBAR */}
-        <div style={{ position: 'absolute', top: '14px', left: '14px', zIndex: 5, display: 'flex', gap: '7px', alignItems: 'center', flexWrap: 'wrap' }}>
-          {!paletteOpen && <button onClick={() => setPaletteOpen(true)} style={{ padding: '7px 12px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', fontSize: '0.73rem', fontWeight: 700, color: '#1e293b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}><Plus size={14} color="#6366f1" /> Palette</button>}
-
-          <button onClick={runTest} disabled={running} style={{ padding: '7px 14px', backgroundColor: running ? '#16a34a' : '#22c55e', color: '#fff', border: 'none', borderRadius: '10px', fontSize: '0.73rem', fontWeight: 800, cursor: running ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '0 4px 14px rgba(34,197,94,0.4)', transition: 'all 0.2s' }}>
-            <Play size={13} fill="currentColor" /> {running ? 'Pulsing Live Signal...' : 'Play / Test Run Flow'}
+          <button
+            onClick={runTest}
+            disabled={running}
+            style={{
+              padding: '6px 14px',
+              backgroundColor: running ? '#15803d' : '#22c55e',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '0.75rem',
+              fontWeight: 800,
+              cursor: running ? 'wait' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 0 14px rgba(34, 197, 94, 0.4)',
+              transition: 'all 0.2s'
+            }}
+          >
+            <Play size={14} fill="currentColor" /> {running ? 'Pulsing Live Signal...' : 'Play / Test Run Flow'}
           </button>
 
-          {/* UNDO / REDO BUTTONS */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', backgroundColor: '#fff', padding: '3px', borderRadius: '10px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-            <button onClick={handleUndo} disabled={historyPointer <= 0} style={{ padding: '5px 8px', border: 'none', background: 'none', cursor: historyPointer > 0 ? 'pointer' : 'default', color: historyPointer > 0 ? '#475569' : '#cbd5e1' }} title="Undo (Ctrl+Z)"><Undo2 size={13} /></button>
-            <button onClick={handleRedo} disabled={historyPointer >= historyStack.length - 1} style={{ padding: '5px 8px', border: 'none', background: 'none', cursor: historyPointer < historyStack.length - 1 ? 'pointer' : 'default', color: historyPointer < historyStack.length - 1 ? '#475569' : '#cbd5e1' }} title="Redo (Ctrl+Y)"><Redo2 size={13} /></button>
+          <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#1e293b', padding: '2px', borderRadius: '8px', border: '1px solid #334155' }}>
+            <button
+              onClick={handleUndo}
+              disabled={historyPointer <= 0}
+              style={{ padding: '5px 8px', border: 'none', background: 'none', cursor: historyPointer > 0 ? 'pointer' : 'default', color: historyPointer > 0 ? '#cbd5e1' : '#475569' }}
+              title="Undo (Ctrl+Z)"
+            >
+              <Undo2 size={14} />
+            </button>
+            <button
+              onClick={handleRedo}
+              disabled={historyPointer >= historyStack.length - 1}
+              style={{ padding: '5px 8px', border: 'none', background: 'none', cursor: historyPointer < historyStack.length - 1 ? 'pointer' : 'default', color: historyPointer < historyStack.length - 1 ? '#cbd5e1' : '#475569' }}
+              title="Redo (Ctrl+Y)"
+            >
+              <Redo2 size={14} />
+            </button>
           </div>
+        </div>
 
-          {/* SCREEN SWITCHER */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '3px', backgroundColor: '#fff', padding: '3px', borderRadius: '10px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 7px', fontSize: '0.68rem', fontWeight: 800, color: '#6366f1' }}><Monitor size={12} /> Screen:</div>
-            {(steps || []).map(st => <button key={st.id} onClick={() => switchStep(st.id)} style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '0.68rem', fontWeight: 800, cursor: 'pointer', border: 'none', backgroundColor: activeStepId === st.id ? '#4f46e5' : 'transparent', color: activeStepId === st.id ? '#fff' : '#475569', transition: 'all 0.15s' }}>{st.name || st.title || st.id}</button>)}
-          </div>
+        {/* Center Section: SCREEN SWITCHER DROPDOWN */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#1e293b', padding: '4px 10px', borderRadius: '8px', border: '1px solid #334155' }}>
+          <Monitor size={14} color="#818cf8" />
+          <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#94a3b8' }}>Screen:</span>
+          <select
+            value={activeStepId}
+            onChange={(e) => switchStep(e.target.value)}
+            style={{
+              backgroundColor: '#0f172a',
+              color: '#f8fafc',
+              border: '1px solid #334155',
+              borderRadius: '6px',
+              padding: '4px 8px',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              outline: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            {(steps || []).map(st => (
+              <option key={st.id} value={st.id}>
+                {st.name || st.title || st.id}
+              </option>
+            ))}
+          </select>
+        </div>
 
-          <button onClick={autoArrange} style={{ padding: '7px 12px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 700, color: '#4f46e5', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}><RefreshCw size={12} /> Auto-Arrange</button>
+        {/* Right Section */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            onClick={autoArrange}
+            style={{
+              padding: '6px 12px',
+              backgroundColor: '#1e293b',
+              border: '1px solid #334155',
+              borderRadius: '8px',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              color: '#818cf8',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <RefreshCw size={13} /> Auto-Arrange
+          </button>
 
-          {/* EXPORT / IMPORT BLUEPRINT */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '3px', backgroundColor: '#fff', padding: '3px', borderRadius: '10px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-            <button onClick={handleExportBlueprint} style={{ padding: '5px 9px', fontSize: '0.68rem', fontWeight: 800, color: '#0369a1', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }} title="Export JSON Blueprint"><Download size={12} /> Export JSON</button>
-            <button onClick={() => fileInputRef.current?.click()} style={{ padding: '5px 9px', fontSize: '0.68rem', fontWeight: 800, color: '#7c3aed', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }} title="Import JSON Blueprint"><Upload size={12} /> Import JSON</button>
+          <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#1e293b', padding: '2px', borderRadius: '8px', border: '1px solid #334155' }}>
+            <button onClick={handleExportBlueprint} style={{ padding: '5px 9px', fontSize: '0.72rem', fontWeight: 800, color: '#38bdf8', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }} title="Export JSON Blueprint"><Download size={13} /> Export</button>
+            <button onClick={() => fileInputRef.current?.click()} style={{ padding: '5px 9px', fontSize: '0.72rem', fontWeight: 800, color: '#c084fc', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }} title="Import JSON Blueprint"><Upload size={13} /> Import</button>
             <input type="file" ref={fileInputRef} onChange={handleImportBlueprint} accept=".json" style={{ display: 'none' }} />
           </div>
 
-          <button onClick={loadAndon} style={{ padding: '7px 12px', backgroundColor: '#dc2626', color: '#fff', border: 'none', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '0 4px 14px rgba(220,38,38,0.35)' }}><AlertTriangle size={12} /> Load Andon Template</button>
-        </div>
+          <button
+            onClick={loadAndon}
+            style={{
+              padding: '6px 12px',
+              backgroundColor: '#991b1b',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '0.72rem',
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              boxShadow: '0 0 12px rgba(220,38,38,0.35)'
+            }}
+          >
+            <AlertTriangle size={13} /> Andon Template
+          </button>
 
-        <div style={{ position: 'absolute', top: '14px', right: selectedEl ? '324px' : '14px', zIndex: 5, transition: 'right 0.3s' }}>
-          <div style={{ padding: '6px 11px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 800, color: '#475569', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-            <Layers size={12} color="#6366f1" />
-            <span>{allWidgets.length} widgets</span><span style={{ width: 1, height: 12, background: '#e2e8f0' }} />
-            <span>{appVariables?.length || 0} vars</span><span style={{ width: 1, height: 12, background: '#e2e8f0' }} />
-            <span>{tables?.length || 0} tables</span><span style={{ width: 1, height: 12, background: '#e2e8f0' }} />
-            <span>{steps?.length || 0} screens</span>
+          <div style={{ padding: '5px 10px', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', fontSize: '0.68rem', fontWeight: 800, color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Layers size={13} color="#818cf8" />
+            <span>{allWidgets.length} w</span>
+            <span style={{ color: '#475569' }}>•</span>
+            <span>{appVariables?.length || 0} v</span>
+            <span style={{ color: '#475569' }}>•</span>
+            <span>{tables?.length || 0} t</span>
+            <span style={{ color: '#475569' }}>•</span>
+            <span>{steps?.length || 0} s</span>
+          </div>
+        </div>
+      </header>
+
+      {/* ─── WORKSPACE (LEFT PALETTE + CANVAS + RIGHT INSPECTOR) ─── */}
+      <div style={{ flex: 1, display: 'flex', position: 'relative', overflow: 'hidden' }}>
+
+        {/* LEFT PALETTE */}
+        <div style={{ width: paletteOpen ? '298px' : '0px', backgroundColor: '#fff', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', transition: 'width 0.3s ease', zIndex: 10, overflow: 'hidden', flexShrink: 0 }}>
+          <div style={{ padding: '11px 13px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}><Network size={16} color="#6366f1" /><span style={{ fontWeight: 800, fontSize: '0.84rem', color: '#1e293b' }}>Node Canvas Palette</span></div>
+            <button onClick={() => setPaletteOpen(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X size={15} /></button>
+          </div>
+          <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
+            {[{ id: 'WIDGETS', lbl: '🧩 Widgets', cnt: allWidgets.length }, { id: 'TRIGGERS', lbl: '⚡ Events' }, { id: 'VARS', lbl: '📦 Vars', cnt: appVariables?.length }, { id: 'TABLES', lbl: '🗄 Tables', cnt: tables?.length }].map(tab => (
+              <button key={tab.id} onClick={() => setPalTab(tab.id)} style={{ flex: 1, padding: '6px 2px', fontSize: '0.6rem', fontWeight: 800, border: 'none', cursor: 'pointer', backgroundColor: palTab === tab.id ? '#fff' : 'transparent', color: palTab === tab.id ? '#6366f1' : '#94a3b8', borderBottom: palTab === tab.id ? '2px solid #6366f1' : '2px solid transparent', transition: 'all 0.15s', textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px', flexDirection: 'column' }}>
+                {tab.lbl}
+                {tab.cnt !== undefined && <span style={{ fontSize: '0.53rem', background: palTab === tab.id ? '#e0e7ff' : '#f1f5f9', color: palTab === tab.id ? '#4338ca' : '#64748b', padding: '1px 5px', borderRadius: '10px' }}>{tab.cnt}</span>}
+              </button>
+            ))}
+          </div>
+          <div style={{ padding: '9px 11px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
+            <div style={{ position: 'relative' }}>
+              <Search size={13} style={{ position: 'absolute', left: '9px', top: '7px', color: '#94a3b8' }} />
+              <input type="text" placeholder="Search widgets, events, variables..." value={searchQ} onChange={e => setSearchQ(e.target.value)} style={{ width: '100%', padding: '5px 9px 5px 28px', border: '1px solid #e2e8f0', borderRadius: '7px', fontSize: '0.71rem', outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
+
+            {palTab === 'WIDGETS' && (
+              Object.keys(widgetsByStep).length === 0
+                ? <div style={{ textAlign: 'center', padding: '24px 12px', color: '#94a3b8', fontSize: '0.72rem' }}>
+                  <Layers size={26} style={{ marginBottom: '8px', opacity: 0.35, display: 'block', margin: '0 auto 8px' }} />
+                  <div style={{ fontWeight: 700 }}>No widgets in this app yet</div>
+                  <div style={{ marginTop: '4px', fontSize: '0.65rem' }}>Add widgets in Design tab to see them here</div>
+                </div>
+                : <>
+                  {Object.entries(widgetsByStep).map(([key, { label: slbl, color, widgets }]) => (
+                    <PSection key={key} skey={key} title={`${slbl} (${widgets.length})`} color={color} icon={key === '__base__' ? <Layers size={11} /> : <Monitor size={11} />}>
+                      {widgets.map(w => {
+                        const m = getWidgetMeta(w.type);
+                        return <PItem key={`${w.id}_${key}`} label={w.name || w.props?.label || w.props?.text || w.type || 'Widget'} sublabel={m.label} icon={m.icon} color={m.color} bg={m.bg} border={m.border} onClick={() => addWidgetNode(w)} />;
+                      })}
+                    </PSection>
+                  ))}
+                  <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed #e2e8f0' }}>
+                    <PSection skey="andon_p" title="Andon Preset Nodes" color="#dc2626" icon={<AlertTriangle size={11} />}>
+                      <PItem label="Andon Call Button" sublabel="BUTTON" icon={<MousePointer2 size={13} />} color="#991b1b" bg="#fef2f2" border="#fecaca" onClick={() => addNode('widget', 'Call Maintenance Button', { widgetType: 'BUTTON', type: 'BUTTON' })} />
+                      <PItem label="Tower Light PLC" sublabel="PLC" icon={<Radio size={13} />} color="#92400e" bg="#fffbeb" border="#fef3c7" onClick={() => addNode('machine', 'PLC Red Tower Light', { tag: 'LIGHT_RED' })} />
+                      <PItem label="Andon Incidents DB" sublabel="TABLE" icon={<Database size={13} />} color="#0f766e" bg="#f0fdfa" border="#ccfbf1" onClick={() => addNode('table', 'andon_incidents DB')} />
+                      <PItem label="Andon Status Var" sublabel="VAR" icon={<Variable size={13} />} color="#065f46" bg="#ecfdf5" border="#d1fae5" onClick={() => addNode('variable', 'Andon_Status', { varType: 'CRITICAL' })} />
+                      <PItem label="Telegram Alert" sublabel="ACTION" icon={<Send size={13} />} color="#6b21a8" bg="#faf5ff" border="#f3e8ff" onClick={() => addNode('action', 'Telegram Alert', { actionType: 'RUN_WORKFLOW' })} />
+                    </PSection>
+                  </div>
+                </>
+            )}
+
+            {palTab === 'TRIGGERS' && <>
+              <PSection skey="when" title="WHEN — Event Triggers" color="#be123c" icon={<PlayCircle size={11} />}>
+                {[{ lbl: 'onClick Trigger', ev: 'onClick', sub: 'Button' }, { lbl: 'onChange Trigger', ev: 'onChange', sub: 'Input' }, { lbl: 'onStepEnter Trigger', ev: 'onStepEnter', sub: 'Screen' }, { lbl: 'Timer Interval Trigger', ev: 'timer', sub: 'Scheduler' }, { lbl: 'onVariableChange', ev: 'ON_VAR_CHANGE', sub: 'State' }, { lbl: 'On App Start', ev: 'ON_APP_START', sub: 'Init' }, { lbl: 'onFormSubmit', ev: 'onSubmit', sub: 'Form' }, { lbl: 'IoT Signal Trigger', ev: 'onIoTSignal', sub: 'PLC/Sensor' }].map(t => (
+                  <PItem key={t.ev} label={t.lbl} sublabel={t.sub} icon={<PlayCircle size={13} />} color="#9f1239" bg="#fff1f2" border="#ffe4e6" onClick={() => addNode('trigger', t.lbl, { event: t.ev })} />
+                ))}
+              </PSection>
+              <PSection skey="then" title="THEN — Action Steps" color="#6d28d9" icon={<ArrowRight size={11} />}>
+                {[{ lbl: 'Set Variable', t: 'SET_VARIABLE' }, { lbl: 'Navigate Screen', t: 'NAVIGATE_STEP' }, { lbl: 'Query Database', t: 'QUERY_TABLE' }, { lbl: 'Run Automation', t: 'RUN_WORKFLOW' }, { lbl: 'Show Toast', t: 'SHOW_TOAST' }, { lbl: 'Call External API', t: 'CALL_API' }, { lbl: 'Publish MQTT', t: 'PUBLISH_MQTT' }, { lbl: 'Write PLC Tag', t: 'WRITE_PLC' }, { lbl: 'Send Email', t: 'SEND_EMAIL' }, { lbl: 'Generate PDF Report', t: 'GENERATE_REPORT' }, { lbl: 'Play Sound/Alarm', t: 'PLAY_ALARM' }].map(a => (
+                  <PItem key={a.t} label={a.lbl} sublabel={a.t} icon={<ArrowRight size={13} />} color="#6b21a8" bg="#faf5ff" border="#f3e8ff" onClick={() => addNode('action', a.lbl, { actionType: a.t })} />
+                ))}
+              </PSection>
+              <PSection skey="logic" title="Logic / Branching" color="#ea580c" icon={<Filter size={11} />}>
+                <PItem label="IF/ELSE Branch" sublabel="CONDITION" icon={<GitBranch size={13} />} color="#c2410c" bg="#fff7ed" border="#fed7aa" onClick={() => addNode('condition', 'IF/ELSE Branch', { condition: 'var===value' })} />
+                <PItem label="AI Vision Agent" sublabel="AI" icon={<Sparkles size={13} />} color="#be185d" bg="#fdf4ff" border="#f5d0fe" onClick={() => addNode('aivision', 'AI Vision Agent', {})} />
+              </PSection>
+            </>}
+
+            {palTab === 'VARS' && <PSection skey="vars" title={`App Variables (${(appVariables || []).length})`} color="#059669" icon={<Variable size={11} />}>
+              {(appVariables || []).length === 0 ? <div style={{ textAlign: 'center', padding: '16px 0', color: '#94a3b8', fontSize: '0.7rem' }}>No variables defined</div> : (appVariables || []).filter(v => (v.name || '').toLowerCase().includes(searchQ.toLowerCase())).map(v => (
+                <PItem key={v.id || v.name} label={v.name || 'Variable'} sublabel={v.type || 'string'} icon={<Variable size={13} />} color="#065f46" bg="#ecfdf5" border="#d1fae5" onClick={() => addNode('variable', v.name, { varType: v.type || 'string', value: v.defaultValue })} />
+              ))}
+            </PSection>}
+
+            {palTab === 'TABLES' && <>
+              <PSection skey="tables" title={`Database Tables (${(tables || []).length})`} color="#0d9488" icon={<Database size={11} />}>
+                {(tables || []).length === 0 ? <div style={{ textAlign: 'center', padding: '16px 0', color: '#94a3b8', fontSize: '0.7rem' }}>No tables defined</div> : (tables || []).filter(t => (t.name || t.id || '').toLowerCase().includes(searchQ.toLowerCase())).map(t => (
+                  <PItem key={t.id} label={t.name || t.id} sublabel={`${t.columns?.length || 0} cols`} icon={<Database size={13} />} color="#0d9488" bg="#f0fdfa" border="#99f6e4" onClick={() => addNode('table', t.name || t.id, { tableId: t.id, columns: t.columns })} />
+                ))}
+              </PSection>
+              <PSection skey="screens" title="Screen Navigation" color="#0284c7" icon={<Monitor size={11} />}>
+                {(steps || []).map(s => <PItem key={s.id} label={s.name || s.title || s.id} sublabel="SCREEN" icon={<Navigation size={13} />} color="#0369a1" bg="#f0f9ff" border="#bae6fd" onClick={() => addNode('screen_step', s.name || s.title || s.id, { targetStepId: s.id })} />)}
+              </PSection>
+            </>}
           </div>
         </div>
 
+        {/* MAIN CANVAS CONTAINER */}
+        <div style={{ flex: 1, position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+
         {/* REACT FLOW CANVAS */}
         <div style={{ flex: 1, position: 'relative' }}>
-          <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} nodeTypes={nodeTypes}
-            onNodeClick={(_, node) => { setSelectedEl(node); setInspTab('PROPS'); setForm(f => ({ ...f, event: node.data.events?.[0] || 'onClick', actionType: node.data.actionType || 'SET_VARIABLE', targetVar: node.data.targetVar || '', targetStep: node.data.targetStep || '' })); }}
-            onEdgeClick={(_, edge) => setSelectedEl(edge)} onPaneClick={() => setSelectedEl(null)} fitView>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onNodeContextMenu={onNodeContextMenu}
+            onPaneContextMenu={onPaneContextMenu}
+            onEdgeContextMenu={onEdgeContextMenu}
+            nodeTypes={nodeTypes}
+            onNodeClick={(_, node) => { setSelectedEl(node); setContextMenu(null); setInspTab('PROPS'); setForm(f => ({ ...f, event: node.data.events?.[0] || 'onClick', actionType: node.data.actionType || 'SET_VARIABLE', targetVar: node.data.targetVar || '', targetStep: node.data.targetStep || '' })); }}
+            onEdgeClick={(_, edge) => { setSelectedEl(edge); setContextMenu(null); }}
+            onPaneClick={() => { setSelectedEl(null); setContextMenu(null); }}
+            fitView
+          >
             <Background color="#cbd5e1" variant="dots" gap={20} size={1.5} />
             <Controls style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }} />
             <MiniMap style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }} nodeColor={n => getWidgetMeta(n.data?.widgetType || n.data?.type)?.color || '#6366f1'} />
           </ReactFlow>
+
+          {/* PRO CONTEXT MENU OVERLAY */}
+          {contextMenu && (
+            <div
+              style={{
+                position: 'fixed',
+                top: contextMenu.y,
+                left: contextMenu.x,
+                backgroundColor: '#0f172a',
+                border: '1px solid #334155',
+                borderRadius: '12px',
+                boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5)',
+                padding: '6px',
+                zIndex: 99999,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px',
+                minWidth: '210px',
+                color: '#f8fafc',
+                fontFamily: "'Inter', system-ui, sans-serif"
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {contextMenu.type === 'node' && (
+                <>
+                  <div style={{ padding: '6px 10px', fontSize: '0.68rem', fontWeight: 800, color: '#818cf8', borderBottom: '1px solid #1e293b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Node: {contextMenu.targetNode?.data?.label || contextMenu.targetNode?.id}
+                  </div>
+                  <button
+                    onClick={() => duplicateSelectedNode(contextMenu.targetNode)}
+                    style={{ padding: '8px 12px', background: 'none', border: 'none', color: '#f8fafc', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', borderRadius: '6px' }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1e293b'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <Copy size={14} color="#38bdf8" /> Duplicate Node <span style={{ marginLeft: 'auto', fontSize: '0.65rem', color: '#64748b' }}>Ctrl+D</span>
+                  </button>
+                  <button
+                    onClick={() => copySelectedNode(contextMenu.targetNode)}
+                    style={{ padding: '8px 12px', background: 'none', border: 'none', color: '#f8fafc', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', borderRadius: '6px' }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1e293b'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <Clipboard size={14} color="#a78bfa" /> Copy Node <span style={{ marginLeft: 'auto', fontSize: '0.65rem', color: '#64748b' }}>Ctrl+C</span>
+                  </button>
+                  <button
+                    onClick={() => disconnectWires(contextMenu.targetNode?.id)}
+                    style={{ padding: '8px 12px', background: 'none', border: 'none', color: '#f8fafc', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', borderRadius: '6px' }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1e293b'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <Zap size={14} color="#f59e0b" /> Disconnect All Wires
+                  </button>
+                  <div style={{ height: '1px', backgroundColor: '#1e293b', margin: '2px 0' }} />
+                  <button
+                    onClick={() => { delSelected(); setContextMenu(null); }}
+                    style={{ padding: '8px 12px', background: 'none', border: 'none', color: '#ef4444', fontSize: '0.78rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', borderRadius: '6px' }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#450a0a'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <Trash2 size={14} color="#ef4444" /> Delete Node <span style={{ marginLeft: 'auto', fontSize: '0.65rem', color: '#ef4444' }}>Del</span>
+                  </button>
+                </>
+              )}
+
+              {contextMenu.type === 'edge' && (
+                <>
+                  <div style={{ padding: '6px 10px', fontSize: '0.68rem', fontWeight: 800, color: '#38bdf8', borderBottom: '1px solid #1e293b', textTransform: 'uppercase' }}>
+                    Wire Connection
+                  </div>
+                  <button
+                    onClick={() => { delSelected(); setContextMenu(null); }}
+                    style={{ padding: '8px 12px', background: 'none', border: 'none', color: '#ef4444', fontSize: '0.78rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', borderRadius: '6px' }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#450a0a'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <Trash2 size={14} color="#ef4444" /> Remove Wire <span style={{ marginLeft: 'auto', fontSize: '0.65rem', color: '#ef4444' }}>Del</span>
+                  </button>
+                </>
+              )}
+
+              {contextMenu.type === 'pane' && (
+                <>
+                  <button
+                    onClick={pasteNode}
+                    disabled={!clipboardNode}
+                    style={{ padding: '8px 12px', background: 'none', border: 'none', color: clipboardNode ? '#f8fafc' : '#475569', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', cursor: clipboardNode ? 'pointer' : 'not-allowed', borderRadius: '6px' }}
+                    onMouseEnter={(e) => clipboardNode && (e.currentTarget.style.backgroundColor = '#1e293b')}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <ClipboardPaste size={14} color={clipboardNode ? '#34d399' : '#475569'} /> Paste Node <span style={{ marginLeft: 'auto', fontSize: '0.65rem', color: '#64748b' }}>Ctrl+V</span>
+                  </button>
+                  <button
+                    onClick={() => { autoArrange(); setContextMenu(null); }}
+                    style={{ padding: '8px 12px', background: 'none', border: 'none', color: '#f8fafc', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', borderRadius: '6px' }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1e293b'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <RefreshCw size={14} color="#818cf8" /> Auto-Arrange Flow
+                  </button>
+                  <div style={{ height: '1px', backgroundColor: '#1e293b', margin: '2px 0' }} />
+                  <button
+                    onClick={() => { addNode('trigger', 'onClick Event', { event: 'onClick' }); setContextMenu(null); }}
+                    style={{ padding: '8px 12px', background: 'none', border: 'none', color: '#f8fafc', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', borderRadius: '6px' }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1e293b'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <PlayCircle size={14} color="#f43f5e" /> Add Event Trigger
+                  </button>
+                  <button
+                    onClick={() => { addNode('action', 'Set Variable', { actionType: 'SET_VARIABLE' }); setContextMenu(null); }}
+                    style={{ padding: '8px 12px', background: 'none', border: 'none', color: '#f8fafc', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', borderRadius: '6px' }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1e293b'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <ArrowRight size={14} color="#a855f7" /> Add Action Step
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* LOG CONSOLE */}
@@ -924,6 +1284,7 @@ const AppNodeEditor = ({
         </div>
         {renderInspector()}
       </div>}
+      </div>
     </div>
   );
 };
