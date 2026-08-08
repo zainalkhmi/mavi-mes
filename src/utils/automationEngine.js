@@ -276,9 +276,9 @@ class AutomationEngine {
 
     if (eventType === 'MACHINE_TRIGGER') {
       const now = Date.now();
-      const lastTrigger = this.lastTriggerTimes?.[eventData.topic] || 0;
-      if (now - lastTrigger < 100) return;
       if (!this.lastTriggerTimes) this.lastTriggerTimes = {};
+      const lastTrigger = this.lastTriggerTimes[eventData.topic] || 0;
+      if (now - lastTrigger < 100) return;
       this.lastTriggerTimes[eventData.topic] = now;
 
       if (eventData && typeof eventData.payload === 'object' && eventData.payload !== null) {

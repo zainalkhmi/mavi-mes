@@ -4045,18 +4045,31 @@ const LiveTerminal = () => {
     // Connect to broker
     iotConnector.connect(brokerUrl);
 
-    // Subscribe to all configured topics
+    const pendingMachineDataRef = {};
+    let flushTimer = null;
+
+    const scheduleMachineDataFlush = () => {
+      if (flushTimer) return;
+      flushTimer = setTimeout(() => {
+        flushTimer = null;
+        if (Object.keys(pendingMachineDataRef).length === 0) return;
+        const updates = { ...pendingMachineDataRef };
+        Object.keys(pendingMachineDataRef).forEach(k => delete pendingMachineDataRef[k]);
+        setMachineData(prev => ({ ...prev, ...updates }));
+      }, 50);
+    };
+
+    // Subscribe to all configured topics with batched state flushing
     topics.forEach(t => {
       iotConnector.subscribe(t.topic, (payload) => {
-        setMachineData(prev => ({
-          ...prev,
-          [t.id]: payload, // Store by topic ID for direct binding
-          [t.topic]: payload // Also store by topic path for legacy MACHINE_STATUS
-        }));
+        pendingMachineDataRef[t.id] = payload;
+        pendingMachineDataRef[t.topic] = payload;
+        scheduleMachineDataFlush();
       });
     });
 
     return () => {
+      if (flushTimer) clearTimeout(flushTimer);
       // Unsubscribe on cleanup
       topics.forEach(t => iotConnector.unsubscribe(t.topic));
     };

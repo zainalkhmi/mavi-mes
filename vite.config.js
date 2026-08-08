@@ -73,6 +73,7 @@ export default defineConfig({
     },
   },
   build: {
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -86,7 +87,31 @@ export default defineConfig({
             if (id.includes('tesseract')) {
               return 'vendor-tesseract';
             }
-            return 'vendor';
+            if (id.includes('react-router') || id.includes('react-dom') || id.includes('/react/') || id.includes('scheduler')) {
+              return 'vendor-react';
+            }
+            if (id.includes('lucide-react')) {
+              return 'vendor-icons';
+            }
+            if (id.includes('recharts') || id.includes('chart.js') || id.includes('react-chartjs-2') || id.includes('d3-')) {
+              return 'vendor-charts';
+            }
+            if (id.includes('reactflow') || id.includes('@reactflow')) {
+              return 'vendor-flow';
+            }
+            if (id.includes('@supabase')) {
+              return 'vendor-supabase';
+            }
+            if (id.includes('jspdf') || id.includes('xlsx') || id.includes('html2canvas')) {
+              return 'vendor-pdf-excel';
+            }
+            if (id.includes('html5-qrcode') || id.includes('react-qr-code') || id.includes('jsqr')) {
+              return 'vendor-media';
+            }
+            if (id.includes('i18next') || id.includes('react-i18next') || id.includes('mqtt') || id.includes('dexie')) {
+              return 'vendor-services';
+            }
+            return 'vendor-utils';
           }
         }
       }

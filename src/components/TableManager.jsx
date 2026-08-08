@@ -513,7 +513,7 @@ const TableManager = () => {
     );
 
     const relationDiagramData = useMemo(() => {
-        if (!selectedTable) return { nodes: [], edges: [] };
+        if (!selectedTable || activePanel !== 'relations') return { nodes: [], edges: [] };
 
         const linkedFields = (selectedTable.fields || []).filter((f) => f.type === 'linked_record');
         if (linkedFields.length === 0) return { nodes: [], edges: [] };
@@ -549,7 +549,7 @@ const TableManager = () => {
         });
 
         return { nodes: Array.from(nodeMap.values()), edges };
-    }, [selectedTable, records, tables]);
+    }, [selectedTable, records, tables, activePanel]);
     const updateRecordSort = (fieldName) => {
         if (recordSortField === fieldName) {
             setRecordSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));

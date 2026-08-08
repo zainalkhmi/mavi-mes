@@ -223,9 +223,9 @@ import {
     formatTimeLabel,
     getFriendlyTriggerName
 } from './appbuilder/utils';
-import { ArduinoWidget, getFirmwareCode } from './appbuilder/ArduinoWidget';
-import { MeasurementWidget } from './appbuilder/MeasurementWidget';
-import { ListPickerWidget } from './appbuilder/ListPickerWidget';
+const ArduinoWidget = lazy(() => import('./appbuilder/ArduinoWidget').then(m => ({ default: m.ArduinoWidget })));
+const MeasurementWidget = lazy(() => import('./appbuilder/MeasurementWidget').then(m => ({ default: m.MeasurementWidget })));
+const ListPickerWidget = lazy(() => import('./appbuilder/ListPickerWidget').then(m => ({ default: m.ListPickerWidget })));
 
 // Re-export for backward compatibility (used by AdminSettings.jsx etc.)
 export { COMPONENT_TYPES } from './appbuilder/componentTypes';
@@ -233,7 +233,7 @@ export { CATEGORIZED_COMPONENTS } from './appbuilder/categorizedComponents';
 import { normalizeType, sanitizeComponentCoords } from './appbuilder/aiHelpers';
 
 import { processDocument } from '../utils/aiService';
-import VisionCamera from './VisionCamera';
+const VisionCamera = lazy(() => import('./VisionCamera'));
 import { getAllCameras } from '../utils/supabaseUtilityDB';
 
 import { saveFrontlineApp, getAllFrontlineApps, deleteFrontlineApp, publishApp, requestApproval, approveApp, getAllVariables, saveVariable, getAllSavedAnalyses } from '../utils/supabaseFrontlineDB';
@@ -248,7 +248,7 @@ import {
     resolveTableIdReference
 } from '../utils/supabaseTablesDB';
 import { getCompletionsByApp, getCompletionDetail } from '../utils/supabaseCompletionsDB';
-import ReactMarkdown from 'react-markdown';
+const ReactMarkdown = lazy(() => import('react-markdown'));
 import {
     logCompletion,
     getIntegrationConnectors,
@@ -268,9 +268,9 @@ const BuilderCopilot = lazy(() => import('./BuilderCopilot'));
 import { uploadManualImage, isSupabaseReady } from '../utils/supabaseManualDB';
 import iotConnector from '../utils/iotConnector';
 import { logEvent, AUDIT_EVENTS } from '../utils/auditLog';
-import ColorPicker from './ColorPicker';
-import ShapePicker from './ShapePicker';
-import ScadaWidgetRenderer from './ScadaWidgets';
+const ColorPicker = lazy(() => import('./ColorPicker'));
+const ShapePicker = lazy(() => import('./ShapePicker'));
+const ScadaWidgetRenderer = lazy(() => import('./ScadaWidgets'));
 import { createIncomingInspectionTemplate } from '../utils/incomingInspectionTemplate';
 import automationEngine from '../utils/automationEngine';
 import hardwareService from '../utils/hardwareService';
@@ -3495,12 +3495,6 @@ const AppBuilder = () => {
         const oldSize = getCanvasSizeForDevice(previewDevice, previewOrientation);
         const newSize = getCanvasSizeForDevice(newDeviceKey, previewOrientation);
         scaleAllComponents(oldSize.width, oldSize.height, newSize.width, newSize.height);
-    const {
-        handleCreateTemplateApp, handleCreateTuneUpTemplate, handleSave, handleDeleteApp, handlePublish, handleRequestApproval, handleApproveApp, handleImportProject, handleDuplicateProject, handleAutoSave, handleRecoverDraft, getCurrentApp, handleCopyUrl, loadApp
-    } = useAppBuilderProject({
-        state: { setIsSaving, createTable, getTables, setTables, loadApps, setIsCreateDrawerOpen, setProUiDialog, currentAppId, appName, appCategory, appMeta, steps, baseComponents, appTriggers, appVariables, appFunctions, appTables, recordPlaceholders, globalLogic, helpGuide, materialId, productImage, iotConfig, integrationConnectors, appBackgroundColor, appThemeMode, leftSidebarEnabled, rightSidebarEnabled, copilotEnabled, stepListEnabled, isCanvasLocked, previewDevice, previewOrientation, scalingMode, setAppMeta, setCurrentAppId, resetBuilder, setPublishModal, setProPrompt, setAppName, setAppCategory, setSteps, setBaseComponents, setAppTriggers, setAppVariables, setAppFunctions, setAppTables, setRecordPlaceholders, setMaterialId, setProductImage, setIotConfig, setIntegrationConnectors, setAppBackgroundColor, setAppThemeMode, setScalingMode, setLeftSidebarEnabled, setRightSidebarEnabled, setCopilotEnabled, setStepListEnabled, setGlobalLogic, setHelpGuide, setRecordPlaceholderData, setCurrentStepId, setSelectedCompIds, setViewMode, setIsCanvasLocked },
-        utils: { projectMgmt, clampNonNegativeInt, normalizeFormSubmitConfig, uploadManualImage, isSupabaseReady, updateComponentProps, setIsUploadingImage, setIsUploadingPdf }
-    });
         setPreviewDevice(newDeviceKey);
     };
 
@@ -6918,6 +6912,13 @@ const AppBuilder = () => {
         }
     };
 
+    const {
+        handleCreateTemplateApp, handleCreateTuneUpTemplate, handleSave, handleDeleteApp, handlePublish, handleRequestApproval, handleApproveApp, handleImportProject, handleDuplicateProject, handleAutoSave, handleRecoverDraft, getCurrentApp, handleCopyUrl, loadApp
+    } = useAppBuilderProject({
+        state: { setIsSaving, createTable, getTables, setTables, loadApps, setIsCreateDrawerOpen, setProUiDialog, currentAppId, appName, appCategory, appMeta, steps, baseComponents, appTriggers, appVariables, appFunctions, appTables, recordPlaceholders, globalLogic, helpGuide, materialId, productImage, iotConfig, integrationConnectors, appBackgroundColor, appThemeMode, leftSidebarEnabled, rightSidebarEnabled, copilotEnabled, stepListEnabled, isCanvasLocked, previewDevice, previewOrientation, scalingMode, setAppMeta, setCurrentAppId, resetBuilder, setPublishModal, setProPrompt, setAppName, setAppCategory, setSteps, setBaseComponents, setAppTriggers, setAppVariables, setAppFunctions, setAppTables, setRecordPlaceholders, setMaterialId, setProductImage, setIotConfig, setIntegrationConnectors, setAppBackgroundColor, setAppThemeMode, setScalingMode, setLeftSidebarEnabled, setRightSidebarEnabled, setCopilotEnabled, setStepListEnabled, setGlobalLogic, setHelpGuide, setRecordPlaceholderData, setCurrentStepId, setSelectedCompIds, setViewMode, setIsCanvasLocked },
+        utils: { projectMgmt, clampNonNegativeInt, normalizeFormSubmitConfig, uploadManualImage, isSupabaseReady, updateComponentProps, setIsUploadingImage, setIsUploadingPdf }
+    });
+
     useEffect(() => {
         // Since we are using HashRouter, query params are part of the hash (e.g. #/builder?copilot=true)
         const hashStr = window.location.hash;
@@ -8376,16 +8377,18 @@ const AppBuilder = () => {
             case 'SCADA_ENERGY_MONITOR':
             case 'SCADA_BATCH_TRACKER':
                 return (
-                    <ScadaWidgetRenderer
-                        comp={comp}
-                        viewMode={viewMode}
-                        previewFormValues={previewFormValues}
-                        setPreviewFormValues={setPreviewFormValues}
-                        resolveComponentDatasourceValue={resolveComponentDatasourceValue}
-                        syncInputDatasourceValue={syncInputDatasourceValue}
-                        onWidgetInteraction={onWidgetInteraction}
-                        safeRender={safeRender}
-                    />
+                    <Suspense fallback={<div style={{ padding: '10px', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Loading SCADA Widget...</div>}>
+                        <ScadaWidgetRenderer
+                            comp={comp}
+                            viewMode={viewMode}
+                            previewFormValues={previewFormValues}
+                            setPreviewFormValues={setPreviewFormValues}
+                            resolveComponentDatasourceValue={resolveComponentDatasourceValue}
+                            syncInputDatasourceValue={syncInputDatasourceValue}
+                            onWidgetInteraction={onWidgetInteraction}
+                            safeRender={safeRender}
+                        />
+                    </Suspense>
                 );
             case 'MARKDOWN': {
                 const isMdVisible = comp.props.visible !== false;
@@ -8954,13 +8957,15 @@ const AppBuilder = () => {
                 );
             case 'LIST_PICKER':
                 return (
-                    <ListPickerWidget
-                        comp={comp}
-                        viewMode={viewMode}
-                        onWidgetInteraction={onWidgetInteraction}
-                        setActiveListPicker={setActiveListPicker}
-                        dpShapeStyles={dpShapeStyles}
-                    />
+                    <Suspense fallback={<div style={{ padding: '10px', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Loading List Picker...</div>}>
+                        <ListPickerWidget
+                            comp={comp}
+                            viewMode={viewMode}
+                            onWidgetInteraction={onWidgetInteraction}
+                            setActiveListPicker={setActiveListPicker}
+                            dpShapeStyles={dpShapeStyles}
+                        />
+                    </Suspense>
                 );
             case 'LIST_VIEW': {
                 const items = comp.props.listData?.length > 0 ? comp.props.listData :
@@ -10961,14 +10966,16 @@ const AppBuilder = () => {
             case 'TORQUE_WRENCH':
             case 'WEIGHING_SCALE':
                 return (
-                    <MeasurementWidget
-                        comp={comp}
-                        viewMode={viewMode}
-                        onWidgetInteraction={onWidgetInteraction}
-                        setPreviewFormValues={setPreviewFormValues}
-                        updateComponentProps={updateComponentProps}
-                        language={typeof language !== 'undefined' ? language : 'en'}
-                    />
+                    <Suspense fallback={<div style={{ padding: '10px', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Loading Measurement Widget...</div>}>
+                        <MeasurementWidget
+                            comp={comp}
+                            viewMode={viewMode}
+                            onWidgetInteraction={onWidgetInteraction}
+                            setPreviewFormValues={setPreviewFormValues}
+                            updateComponentProps={updateComponentProps}
+                            language={typeof language !== 'undefined' ? language : 'en'}
+                        />
+                    </Suspense>
                 );
             case 'ARDUINO_BOARD':
             case 'ARDUINO_PIN_MONITOR':
@@ -10998,15 +11005,17 @@ const AppBuilder = () => {
             case 'ARDUINO_SCADA_ALARM_BANNER':
             case 'ARDUINO_SCADA_PID':
                 return (
-                    <ArduinoWidget
-                        comp={comp}
-                        viewMode={viewMode}
-                        onWidgetInteraction={onWidgetInteraction}
-                        setPreviewFormValues={setPreviewFormValues}
-                        updateComponentProps={updateComponentProps}
-                        language={typeof language !== 'undefined' ? language : 'en'}
-                        isDark={false}
-                    />
+                    <Suspense fallback={<div style={{ padding: '10px', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Loading Arduino Controller...</div>}>
+                        <ArduinoWidget
+                            comp={comp}
+                            viewMode={viewMode}
+                            onWidgetInteraction={onWidgetInteraction}
+                            setPreviewFormValues={setPreviewFormValues}
+                            updateComponentProps={updateComponentProps}
+                            language={typeof language !== 'undefined' ? language : 'en'}
+                            isDark={false}
+                        />
+                    </Suspense>
                 );
             case 'IOT_DEVICE':
                 return (
@@ -12353,12 +12362,14 @@ const AppBuilder = () => {
             case 'CAMERA_CAPTURE':
                 if (viewMode === 'PREVIEW') {
                     return (
-                        <VisionCamera 
-                            comp={comp} 
-                            syncInputDatasourceValue={syncInputDatasourceValue} 
-                            onWidgetInteraction={onWidgetInteraction} 
-                            viewMode={viewMode} 
-                        />
+                        <Suspense fallback={<div style={{ padding: '10px', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Loading Camera...</div>}>
+                            <VisionCamera 
+                                comp={comp} 
+                                syncInputDatasourceValue={syncInputDatasourceValue} 
+                                onWidgetInteraction={onWidgetInteraction} 
+                                viewMode={viewMode} 
+                            />
+                        </Suspense>
                     );
                 }
                 return (
@@ -12373,12 +12384,14 @@ const AppBuilder = () => {
             case 'OPENCV_CAMERA':
                 if (viewMode === 'PREVIEW') {
                     return (
-                        <VisionCamera 
-                            comp={comp} 
-                            syncInputDatasourceValue={syncInputDatasourceValue} 
-                            onWidgetInteraction={onWidgetInteraction} 
-                            viewMode={viewMode} 
-                        />
+                        <Suspense fallback={<div style={{ padding: '10px', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Loading Camera...</div>}>
+                            <VisionCamera 
+                                comp={comp} 
+                                syncInputDatasourceValue={syncInputDatasourceValue} 
+                                onWidgetInteraction={onWidgetInteraction} 
+                                viewMode={viewMode} 
+                            />
+                        </Suspense>
                     );
                 }
                 return (
@@ -28292,7 +28305,9 @@ D3:0
                             </button>
                         </div>
                         <div style={{ padding: '24px', overflowY: 'auto', flex: 1, color: '#334155', lineHeight: '1.6' }} className="markdown-plan">
-                            <ReactMarkdown>{helpGuide}</ReactMarkdown>
+                            <Suspense fallback={<div>Memuat panduan...</div>}>
+                                <ReactMarkdown>{helpGuide}</ReactMarkdown>
+                            </Suspense>
                         </div>
                         <div style={{ padding: '16px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
                             <button onClick={() => setIsHelpGuideOpen(false)} style={{ padding: '8px 24px', backgroundColor: '#6366f1', color: 'white', borderRadius: '6px', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Tutup</button>

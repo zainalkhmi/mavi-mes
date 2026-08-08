@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
     ClipboardList, 
     Plus, 
@@ -11,15 +11,78 @@ import {
     Package,
     Calendar,
     Tag,
-    X
+    X,
+    ChevronLeft,
+    ChevronRight
 } from 'lucide-react';
 import { getAllFrontlineApps, getProductionQueue, createProductionJob, updateJobStatus } from '../utils/supabaseFrontlineDB';
+import { useVirtualList } from '../hooks/useVirtualList';
+
+// Memoized table row component for maximum rendering performance
+const OrderRow = React.memo(({ job, app, onUpdateStatus }) => {
+    return (
+        <tr style={{ borderBottom: '1px solid #f8fafc', transition: 'background 0.1s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#fcfdff'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+            <td style={{ padding: '20px 30px' }}>
+                <div style={{ fontWeight: 800, color: '#0f172a' }}>{job.work_order}</div>
+                <div style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: '4px' }}>Created {job.created_at ? new Date(job.created_at).toLocaleDateString() : 'N/A'}</div>
+            </td>
+            <td style={{ padding: '20px 30px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ padding: '6px', backgroundColor: '#f1f5f9', borderRadius: '4px' }}>
+                        <Tag size={14} color="#64748b" />
+                    </div>
+                    <span style={{ fontWeight: 600, color: '#475569' }}>{app ? app.name : 'Unknown Application'}</span>
+                </div>
+            </td>
+            <td style={{ padding: '20px 30px' }}>
+                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>{job.target_qty}</div>
+                <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Units Planned</div>
+            </td>
+            <td style={{ padding: '20px 30px' }}>
+                <span style={{ 
+                    padding: '4px 10px', 
+                    borderRadius: '6px', 
+                    fontSize: '0.65rem', 
+                    fontWeight: 800,
+                    backgroundColor: job.priority === 'P1' ? '#fef2f2' : '#f0fdf4',
+                    color: job.priority === 'P1' ? '#dc2626' : '#16a34a',
+                    border: `1px solid ${job.priority === 'P1' ? '#fecaca' : '#bbf7d0'}`
+                }}>
+                    {job.priority === 'P1' ? 'HIGH PRIORITY' : 'NORMAL'}
+                </span>
+            </td>
+            <td style={{ padding: '20px 30px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#2563eb', fontWeight: 700, fontSize: '0.85rem' }}>
+                    <div style={{ width: '8px', height: '8px', backgroundColor: '#2563eb', borderRadius: '50%' }} />
+                    {job.status}
+                </div>
+            </td>
+            <td style={{ padding: '20px 30px', textAlign: 'right' }}>
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                    <button 
+                        onClick={() => onUpdateStatus(job.id, 'COMPLETED')}
+                        style={{ border: 'none', backgroundColor: '#f0fdf4', color: '#16a34a', padding: '8px 12px', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+                    >
+                        <CheckCircle2 size={14} /> Done
+                    </button>
+                    <button 
+                        onClick={() => onUpdateStatus(job.id, 'CANCELLED')}
+                        style={{ border: 'none', backgroundColor: '#fef2f2', color: '#dc2626', padding: '8px 12px', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer' }}
+                    >
+                        <X size={14} />
+                    </button>
+                </div>
+            </td>
+        </tr>
+    );
+});
 
 const WorkOrderDashboard = () => {
     const [jobs, setJobs] = useState([]);
     const [apps, setApps] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showNewModal, setShowNewModal] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
     
     // Form State
     const [form, setForm] = useState({
@@ -40,14 +103,42 @@ const WorkOrderDashboard = () => {
                 getProductionQueue(),
                 getAllFrontlineApps()
             ]);
-            setJobs(jobData);
-            setApps(appData);
+            setJobs(jobData || []);
+            setApps(appData || []);
         } catch (err) {
             console.error('Failed to load dashboard data:', err);
         } finally {
             setLoading(false);
         }
     };
+
+    // Memoize Dashboard Stats to prevent recalculating on every search/type event
+    const activeOrdersCount = useMemo(() => jobs.length, [jobs]);
+    const highPriorityCount = useMemo(() => jobs.filter(j => j.priority === 'P1').length, [jobs]);
+    const availableAppsCount = useMemo(() => apps.length, [apps]);
+
+    // Fast App lookup map by ID
+    const appMap = useMemo(() => {
+        const map = new Map();
+        apps.forEach(app => map.set(app.id, app));
+        return map;
+    }, [apps]);
+
+    // Virtualized order list handling search filtering and page windowing
+    const {
+        virtualItems: windowedJobs,
+        totalItems,
+        totalPages,
+        currentPage,
+        nextPage,
+        prevPage,
+        hasNextPage,
+        hasPrevPage
+    } = useVirtualList(jobs, {
+        pageSize: 15,
+        searchKeyword: searchQuery,
+        searchFields: ['work_order', 'status', 'priority']
+    });
 
     const handleCreateJob = async (e) => {
         e.preventDefault();
@@ -61,7 +152,7 @@ const WorkOrderDashboard = () => {
         }
     };
 
-    const handleUpdateStatus = async (id, status) => {
+    const handleUpdateStatus = useCallback(async (id, status) => {
         if (!confirm(`Mark job as ${status}?`)) return;
         try {
             await updateJobStatus(id, status);
@@ -69,7 +160,7 @@ const WorkOrderDashboard = () => {
         } catch (err) {
             alert('Error updating status: ' + err.message);
         }
-    };
+    }, []);
 
     return (
         <div style={{ height: '100%', backgroundColor: '#f8fafc', padding: '40px', overflowY: 'auto' }}>
@@ -96,30 +187,40 @@ const WorkOrderDashboard = () => {
                     </button>
                 </div>
 
-                {/* Dashboard Stats */}
+                {/* Dashboard Stats (Memoized) */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '40px' }}>
                     <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
                         <div style={{ color: '#64748b', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Active Orders</div>
-                        <div style={{ fontSize: '2rem', fontWeight: 900, color: '#0f172a' }}>{jobs.length}</div>
+                        <div style={{ fontSize: '2rem', fontWeight: 900, color: '#0f172a' }}>{activeOrdersCount}</div>
                     </div>
                     <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
                         <div style={{ color: '#64748b', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>High Priority</div>
-                        <div style={{ fontSize: '2rem', fontWeight: 900, color: '#dc2626' }}>{jobs.filter(j => j.priority === 'P1').length}</div>
+                        <div style={{ fontSize: '2rem', fontWeight: 900, color: '#dc2626' }}>{highPriorityCount}</div>
                     </div>
                     <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
                         <div style={{ color: '#64748b', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>Available Apps</div>
-                        <div style={{ fontSize: '2rem', fontWeight: 900, color: '#007bff' }}>{apps.length}</div>
+                        <div style={{ fontSize: '2rem', fontWeight: 900, color: '#007bff' }}>{availableAppsCount}</div>
                     </div>
                 </div>
 
                 {/* Job List */}
                 <div style={{ backgroundColor: 'white', borderRadius: '20px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
                     <div style={{ padding: '20px 30px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fcfcfd' }}>
-                        <h3 style={{ margin: 0, fontWeight: 800, color: '#1e293b' }}>Order Queue</h3>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <h3 style={{ margin: 0, fontWeight: 800, color: '#1e293b' }}>Order Queue</h3>
+                            <span style={{ backgroundColor: '#eef2ff', color: '#6366f1', fontSize: '0.75rem', fontWeight: 800, padding: '3px 10px', borderRadius: '20px' }}>
+                                {totalItems} total
+                            </span>
+                        </div>
                         <div style={{ display: 'flex', gap: '10px' }}>
                             <div style={{ position: 'relative' }}>
                                 <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-                                <input placeholder="Search orders..." style={{ padding: '8px 12px 8px 35px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem' }} />
+                                <input 
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search orders..." 
+                                    style={{ padding: '8px 12px 8px 35px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem', outline: 'none' }} 
+                                />
                             </div>
                         </div>
                     </div>
@@ -137,79 +238,82 @@ const WorkOrderDashboard = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {jobs.length === 0 ? (
+                                {windowedJobs.length === 0 ? (
                                     <tr>
                                         <td colSpan="6" style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
                                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                                                 <Package size={48} color="#e2e8f0" />
-                                                <div style={{ fontSize: '1rem', fontWeight: 600 }}>No pending orders</div>
-                                                <div style={{ fontSize: '0.8rem' }}>Click "Create New Order" to assign production jobs.</div>
+                                                <div style={{ fontSize: '1rem', fontWeight: 600 }}>
+                                                    {searchQuery ? 'No matching orders found' : 'No pending orders'}
+                                                </div>
+                                                <div style={{ fontSize: '0.8rem' }}>
+                                                    {searchQuery ? 'Try adjusting your search query.' : 'Click "Create New Order" to assign production jobs.'}
+                                                </div>
                                             </div>
                                         </td>
                                     </tr>
                                 ) : (
-                                    jobs.map(job => {
-                                        const app = apps.find(a => a.id === job.app_id);
-                                        return (
-                                            <tr key={job.id} style={{ borderBottom: '1px solid #f8fafc', transition: 'background 0.1s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#fcfdff'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
-                                                <td style={{ padding: '20px 30px' }}>
-                                                    <div style={{ fontWeight: 800, color: '#0f172a' }}>{job.work_order}</div>
-                                                    <div style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: '4px' }}>Created {new Date(job.created_at).toLocaleDateString()}</div>
-                                                </td>
-                                                <td style={{ padding: '20px 30px' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                        <div style={{ padding: '6px', backgroundColor: '#f1f5f9', borderRadius: '4px' }}>
-                                                            <Tag size={14} color="#64748b" />
-                                                        </div>
-                                                        <span style={{ fontWeight: 600, color: '#475569' }}>{app ? app.name : 'Unknown Application'}</span>
-                                                    </div>
-                                                </td>
-                                                <td style={{ padding: '20px 30px' }}>
-                                                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>{job.target_qty}</div>
-                                                    <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Units Planned</div>
-                                                </td>
-                                                <td style={{ padding: '20px 30px' }}>
-                                                    <span style={{ 
-                                                        padding: '4px 10px', 
-                                                        borderRadius: '6px', 
-                                                        fontSize: '0.65rem', 
-                                                        fontWeight: 800,
-                                                        backgroundColor: job.priority === 'P1' ? '#fef2f2' : '#f0fdf4',
-                                                        color: job.priority === 'P1' ? '#dc2626' : '#16a34a',
-                                                        border: `1px solid ${job.priority === 'P1' ? '#fecaca' : '#bbf7d0'}`
-                                                    }}>
-                                                        {job.priority === 'P1' ? 'HIGH PRIORITY' : 'NORMAL'}
-                                                    </span>
-                                                </td>
-                                                <td style={{ padding: '20px 30px' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#2563eb', fontWeight: 700, fontSize: '0.85rem' }}>
-                                                        <div style={{ width: '8px', height: '8px', backgroundColor: '#2563eb', borderRadius: '50%' }} />
-                                                        {job.status}
-                                                    </div>
-                                                </td>
-                                                <td style={{ padding: '20px 30px', textAlign: 'right' }}>
-                                                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                                                        <button 
-                                                            onClick={() => handleUpdateStatus(job.id, 'COMPLETED')}
-                                                            style={{ border: 'none', backgroundColor: '#f0fdf4', color: '#16a34a', padding: '8px 12px', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
-                                                        >
-                                                            <CheckCircle2 size={14} /> Done
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => handleUpdateStatus(job.id, 'CANCELLED')}
-                                                            style={{ border: 'none', backgroundColor: '#fef2f2', color: '#dc2626', padding: '8px 12px', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer' }}
-                                                        >
-                                                            <X size={14} />
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })
+                                    windowedJobs.map(job => (
+                                        <OrderRow 
+                                            key={job.id}
+                                            job={job}
+                                            app={appMap.get(job.app_id)}
+                                            onUpdateStatus={handleUpdateStatus}
+                                        />
+                                    ))
                                 )}
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Pagination Bar */}
+                    {totalPages > 1 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 30px', borderTop: '1px solid #f1f5f9', backgroundColor: '#fcfcfd' }}>
+                            <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>
+                                Page {currentPage} of {totalPages}
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <button
+                                    onClick={prevPage}
+                                    disabled={!hasPrevPage}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        padding: '6px 14px',
+                                        borderRadius: '8px',
+                                        border: '1px solid #e2e8f0',
+                                        backgroundColor: hasPrevPage ? 'white' : '#f1f5f9',
+                                        color: hasPrevPage ? '#334155' : '#94a3b8',
+                                        cursor: hasPrevPage ? 'pointer' : 'not-allowed',
+                                        fontSize: '0.8rem',
+                                        fontWeight: 600
+                                    }}
+                                >
+                                    <ChevronLeft size={16} /> Prev
+                                </button>
+                                <button
+                                    onClick={nextPage}
+                                    disabled={!hasNextPage}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        padding: '6px 14px',
+                                        borderRadius: '8px',
+                                        border: '1px solid #e2e8f0',
+                                        backgroundColor: hasNextPage ? 'white' : '#f1f5f9',
+                                        color: hasNextPage ? '#334155' : '#94a3b8',
+                                        cursor: hasNextPage ? 'pointer' : 'not-allowed',
+                                        fontSize: '0.8rem',
+                                        fontWeight: 600
+                                    }}
+                                >
+                                    Next <ChevronRight size={16} />
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -286,3 +390,4 @@ const WorkOrderDashboard = () => {
 };
 
 export default WorkOrderDashboard;
+

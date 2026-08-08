@@ -4,6 +4,7 @@ import automationEngine from './automationEngine';
 /**
  * IoT Connector Utility
  * Handles MQTT connections and simulates Industrial Protocols (OPC-UA, Modbus).
+ * Optimized with high-frequency telemetry throttling & animation-frame batching.
  */
 class IOTConnector {
     constructor() {
@@ -16,6 +17,15 @@ class IOTConnector {
         // Simulation Data
         this.simulatedValues = new Map();
         this.simInterval = null;
+
+        // Telemetry Throttling & Batching Buffers
+        this.latestValues = new Map();
+        this.topicMessageCounts = new Map();
+        this.lastTopicLogTimes = new Map();
+        this.pendingBatchFlush = false;
+        this.batchFlushIntervalMs = 50; // 20 FPS UI update ceiling for data streams
+        this.lastFlushTime = 0;
+
         this.startSimulation();
     }
 
@@ -33,36 +43,94 @@ class IOTConnector {
             // Modbus Simulation (Registers)
             this.setSimValue('40001', 50 + Math.sin(now / 2000) * 10); // Holding Register
             this.setSimValue('10001', Math.random() > 0.5); // Discrete Input
-            
-            // Trigger value change listeners if any (placeholder for more advanced reactive logic)
         }, 2000);
     }
 
     setSimValue(tag, value) {
         this.simulatedValues.set(tag, value);
-        // We could also emit a message to simulate a "live" event
-        this.messageListeners.forEach(fn => fn({ 
-            topic: tag, 
-            payload: String(value), 
-            parsedPayload: value, 
-            protocol: tag.includes('=') ? 'OPC_UA' : 'MODBUS',
-            ts: new Date().toISOString() 
-        }));
-        
-        // Also trigger automation engine for these simulated tags
-        automationEngine.trigger('MACHINE_TRIGGER', { topic: tag, payload: value });
+        this.handleIncomingMessage(tag, String(value), value, tag.includes('=') ? 'OPC_UA' : 'MODBUS');
     }
 
-    getLiveValue(tag, connectorType) {
-        // In this browser-only version, we always fallback to simulation
+    getLiveValue(tag) {
         if (this.simulatedValues.has(tag)) {
             return this.simulatedValues.get(tag);
         }
-        
-        // MQTT fallback (return last known if subscribed)
-        // ... (existing MQTT logic could be expanded here)
-        
+        if (this.latestValues.has(tag)) {
+            return this.latestValues.get(tag).parsedPayload;
+        }
         return "N/A";
+    }
+
+    handleIncomingMessage(topic, payload, parsedPayload, protocol = 'MQTT') {
+        const now = Date.now();
+        const msgObj = { topic, payload, parsedPayload, protocol, ts: new Date(now).toISOString() };
+
+        // Save latest state snapshot
+        this.latestValues.set(topic, msgObj);
+
+        // Throttle verbose console logging (at most 1 log per topic per second)
+        const lastLog = this.lastTopicLogTimes.get(topic) || 0;
+        const count = (this.topicMessageCounts.get(topic) || 0) + 1;
+        this.topicMessageCounts.set(topic, count);
+
+        if (now - lastLog > 1000) {
+            if (count > 5) {
+                console.log(`[IoT] High-throughput [${topic}]: ${count} msgs/sec. Latest:`, payload);
+            } else {
+                console.log(`[IoT] Received [${topic}]:`, payload);
+            }
+            this.lastTopicLogTimes.set(topic, now);
+            this.topicMessageCounts.set(topic, 0);
+        }
+
+        // Trigger Automation Engine with tag sliding window debounce
+        automationEngine.trigger('MACHINE_TRIGGER', { topic, payload: parsedPayload });
+
+        // Batch dispatch to UI subscribers on animation frame / 50ms window
+        this.scheduleBatchFlush();
+    }
+
+    scheduleBatchFlush() {
+        if (this.pendingBatchFlush) return;
+        this.pendingBatchFlush = true;
+
+        const now = Date.now();
+        const timeSinceLastFlush = now - this.lastFlushTime;
+        const delay = Math.max(0, this.batchFlushIntervalMs - timeSinceLastFlush);
+
+        setTimeout(() => {
+            this.flushBatch();
+        }, delay);
+    }
+
+    flushBatch() {
+        this.pendingBatchFlush = false;
+        this.lastFlushTime = Date.now();
+
+        // Dispatch batched updates to direct topic subscribers
+        this.subscriptions.forEach((callback, topic) => {
+            if (this.latestValues.has(topic)) {
+                const latest = this.latestValues.get(topic);
+                try {
+                    callback(latest.payload, latest.parsedPayload, latest);
+                } catch (err) {
+                    console.error(`[IoT] Error in subscriber for topic "${topic}":`, err);
+                }
+            }
+        });
+
+        // Dispatch batched updates to global message listeners
+        if (this.messageListeners.size > 0) {
+            this.latestValues.forEach((msgObj) => {
+                this.messageListeners.forEach(fn => {
+                    try {
+                        fn(msgObj);
+                    } catch (err) {
+                        console.error('[IoT] Error in global message listener:', err);
+                    }
+                });
+            });
+        }
     }
 
     connect(brokerUrl = 'wss://broker.emqx.io:8084/mqtt') {
@@ -97,19 +165,12 @@ class IOTConnector {
 
         this.client.on('message', (topic, message) => {
             const payload = message.toString();
-            console.log(`MQTT Received [${topic}]: ${payload}`);
-
-            if (this.subscriptions.has(topic)) {
-                this.subscriptions.get(topic)(payload);
-            }
-
             let parsedPayload = payload;
             try {
                 parsedPayload = JSON.parse(payload);
             } catch (e) {}
 
-            this.messageListeners.forEach(fn => fn({ topic, payload, parsedPayload, protocol: 'MQTT', ts: new Date().toISOString() }));
-            automationEngine.trigger('MACHINE_TRIGGER', { topic, payload: parsedPayload });
+            this.handleIncomingMessage(topic, payload, parsedPayload, 'MQTT');
         });
 
         this.client.on('error', (err) => {

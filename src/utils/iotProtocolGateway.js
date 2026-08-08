@@ -276,12 +276,19 @@ class IoTProtocolGateway {
         const deviceId = parts.slice(1).join('/');
         this._emit(this.telemetryListeners, { deviceId, topic, data });
 
-        // Update paired device telemetry if matched
+        // Update paired device telemetry if matched (throttled to 100ms window)
+        const now = Date.now();
         for (const [id, device] of this.pairedDevices) {
           if (device.mqttTopic === topic || device.friendlyName === deviceId) {
             device.telemetry = { ...device.telemetry, ...data };
-            device.lastSeen = new Date().toISOString();
-            this._emit(this.deviceListeners, { event: 'TELEMETRY_UPDATE', device });
+            device.lastSeen = new Date(now).toISOString();
+            
+            if (!this._lastTelemetryEmits) this._lastTelemetryEmits = new Map();
+            const lastEmit = this._lastTelemetryEmits.get(id) || 0;
+            if (now - lastEmit >= 100) {
+              this._lastTelemetryEmits.set(id, now);
+              this._emit(this.deviceListeners, { event: 'TELEMETRY_UPDATE', device });
+            }
             break;
           }
         }
