@@ -55,7 +55,6 @@ export default function AppBuilderRightPane({
     renderTargetVariableOptions,
     widgetImageInputRef,
     handleLocalImageUpload,
-    click,
     isUploadingImage,
     widgetPdfInputRef,
     handleLocalPdfUpload,

@@ -30,7 +30,7 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        globPatterns: ['index.html', 'assets/*.css'],
         maximumFileSizeToCacheInBytes: 15000000,
         runtimeCaching: [
           {
@@ -58,22 +58,10 @@ export default defineConfig({
       'react-router-dom',
       'lucide-react',
       '@supabase/supabase-js',
-      'recharts',
-      'three',
-      '@react-three/fiber',
-      '@react-three/drei',
-      'blockly',
-      'blockly/javascript',
-      '@blockly/field-colour',
-      'tesseract.js',
-      'mqtt',
       'dexie',
       'i18next',
       'react-i18next',
-      'html5-qrcode',
-      'react-qr-code',
-      'react-webcam',
-      'reactflow'
+      'zustand'
     ]
   },
   server: {

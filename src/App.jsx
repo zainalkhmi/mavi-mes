@@ -23,8 +23,9 @@ export default function App() {
 
   const { zoomLevel, setZoomLevel, isZoomCollapsed, setIsZoomCollapsed } = useZoom();
 
-  // Load PLC Settings from Supabase globally on startup
+  // Load PLC Settings from Supabase globally after login
   useEffect(() => {
+    if (!user) return;
     const fetchGlobalPlcSettings = async () => {
       try {
         const { loadPlcSettingsFromSupabase } = await import('./utils/supabaseFrontlineDB');
@@ -40,7 +41,7 @@ export default function App() {
       }
     };
     fetchGlobalPlcSettings();
-  }, []);
+  }, [user]);
 
   const handleLoginSuccess = (loggedInUser) => {
     setUser(loggedInUser);

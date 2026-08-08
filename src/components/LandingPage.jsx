@@ -26,18 +26,6 @@ import {
   Terminal,
   Grid
 } from 'lucide-react';
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  BarChart,
-  Bar,
-  LineChart,
-  Line
-} from 'recharts';
 
 // Analytics chart data — replace with real-time data from Supabase when connected
 const oeeData = [];
@@ -706,29 +694,39 @@ const LandingPage = () => {
                 </div>
               </div>
 
-              {/* Chart Render */}
-              <div style={{ height: '220px', width: '100%' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={oeeData}>
-                    <defs>
-                      <linearGradient id="colorMetric" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={getMetricColor()} stopOpacity={0.4}/>
-                        <stop offset="95%" stopColor={getMetricColor()} stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <XAxis dataKey="time" stroke="#475569" fontSize={11} tickLine={false} />
-                    <YAxis stroke="#475569" fontSize={11} tickLine={false} domain={[0, 100]} />
-                    <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: 'white', fontSize: '12px' }} />
-                    <Area
-                      type="monotone"
-                      dataKey={activeMetric}
-                      stroke={getMetricColor()}
-                      strokeWidth={3}
-                      fillOpacity={1}
-                      fill="url(#colorMetric)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+              {/* Chart Render - Lightweight SVG Area Chart */}
+              <div style={{ height: '220px', width: '100%', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="100%" height="100%" viewBox="0 0 500 200" preserveAspectRatio="none" style={{ overflow: 'visible' }}>
+                  <defs>
+                    <linearGradient id="landingChartGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={getMetricColor()} stopOpacity={0.35}/>
+                      <stop offset="100%" stopColor={getMetricColor()} stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  {/* Grid lines */}
+                  <line x1="0" y1="40" x2="500" y2="40" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
+                  <line x1="0" y1="90" x2="500" y2="90" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
+                  <line x1="0" y1="140" x2="500" y2="140" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
+                  {/* Area fill */}
+                  <path
+                    d="M 0 160 Q 70 110 140 130 T 280 70 T 420 85 T 500 45 L 500 200 L 0 200 Z"
+                    fill="url(#landingChartGrad)"
+                  />
+                  {/* Smooth curve line */}
+                  <path
+                    d="M 0 160 Q 70 110 140 130 T 280 70 T 420 85 T 500 45"
+                    fill="none"
+                    stroke={getMetricColor()}
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                  />
+                  {/* Animated data points */}
+                  <circle cx="280" cy="70" r="5" fill={getMetricColor()} stroke="#0f172a" strokeWidth="2" />
+                  <circle cx="500" cy="45" r="5" fill={getMetricColor()} stroke="#0f172a" strokeWidth="2" />
+                </svg>
+                <div style={{ position: 'absolute', top: '15px', right: '20px', backgroundColor: 'rgba(15,23,42,0.85)', padding: '6px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', fontSize: '0.75rem', fontWeight: 600, color: '#e2e8f0', backdropFilter: 'blur(8px)' }}>
+                  Live Signal: <span style={{ color: getMetricColor(), fontWeight: 800 }}>88.4%</span>
+                </div>
               </div>
 
               {/* Performance Indicator bar */}
