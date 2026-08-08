@@ -12,29 +12,39 @@ import {
   Monitor, Play, Terminal, Check, ChevronDown, Filter,
   Settings, Layers, ToggleLeft, Sliders, Camera, Activity,
   MousePointer2, BarChart2, Ruler, Factory, Box, Download, Upload,
-  Undo2, Redo2, GitBranch, ShieldCheck, Copy, Clipboard, ClipboardPaste
+  Undo2, Redo2, GitBranch, ShieldCheck, Copy, Clipboard, ClipboardPaste,
+  Calendar, List, ClipboardList
 } from 'lucide-react';
+
+import { COMPONENT_TYPES } from './appbuilder/componentTypes';
 
 // ─── WIDGET TYPE META MAP ────────────────────────────────────────────────────
 const WIDGET_META = {
   BUTTON:             { icon: <MousePointer2 size={13}/>, color: '#6366f1', bg: '#eef2ff', border: '#c7d2fe', label: 'Button' },
-  TEXT:               { icon: <Layout size={13}/>,        color: '#0369a1', bg: '#f0f9ff', border: '#bae6fd', label: 'Text' },
-  TEXT_INPUT:         { icon: <Layout size={13}/>,        color: '#0369a1', bg: '#f0f9ff', border: '#bae6fd', label: 'Text Input' },
-  NUMBER_INPUT:       { icon: <Layout size={13}/>,        color: '#0369a1', bg: '#f0f9ff', border: '#bae6fd', label: 'Number Input' },
-  BOOLEAN_TOGGLE:     { icon: <ToggleLeft size={13}/>,    color: '#059669', bg: '#ecfdf5', border: '#a7f3d0', label: 'Toggle' },
-  DROPDOWN:           { icon: <ChevronDown size={13}/>,   color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe', label: 'Dropdown' },
+  TEXT:               { icon: <Layout size={13}/>,        color: '#0369a1', bg: '#f0f9ff', border: '#bae6fd', label: 'Label' },
+  LABEL:              { icon: <Layout size={13}/>,        color: '#0369a1', bg: '#f0f9ff', border: '#bae6fd', label: 'Label' },
+  HEADING:            { icon: <Layout size={13}/>,        color: '#0369a1', bg: '#f0f9ff', border: '#bae6fd', label: 'Heading' },
+  PARAGRAPH:          { icon: <Layout size={13}/>,        color: '#0369a1', bg: '#f0f9ff', border: '#bae6fd', label: 'Paragraph' },
+  TEXT_INPUT:         { icon: <Layout size={13}/>,        color: '#0369a1', bg: '#f0f9ff', border: '#bae6fd', label: 'TextBox' },
+  NUMBER_INPUT:       { icon: <Layout size={13}/>,        color: '#0369a1', bg: '#f0f9ff', border: '#bae6fd', label: 'NumberTextBox' },
+  PASSWORD_TEXT:      { icon: <Lock size={13}/>,          color: '#0369a1', bg: '#f0f9ff', border: '#bae6fd', label: 'PasswordTextBox' },
+  BOOLEAN_TOGGLE:     { icon: <ToggleLeft size={13}/>,    color: '#059669', bg: '#ecfdf5', border: '#a7f3d0', label: 'Switch' },
+  DROPDOWN:           { icon: <ChevronDown size={13}/>,   color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe', label: 'Spinner' },
   SLIDER:             { icon: <Sliders size={13}/>,       color: '#b45309', bg: '#fffbeb', border: '#fde68a', label: 'Slider' },
   CHECKBOX:           { icon: <Check size={13}/>,         color: '#065f46', bg: '#ecfdf5', border: '#6ee7b7', label: 'Checkbox' },
   CHECKLIST:          { icon: <Check size={13}/>,         color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe', label: 'Checklist' },
-  CAMERA_CAPTURE:     { icon: <Camera size={13}/>,        color: '#be123c', bg: '#fff1f2', border: '#fecdd3', label: 'Camera' },
-  OPENCV_CAMERA:      { icon: <Camera size={13}/>,        color: '#be123c', bg: '#fff1f2', border: '#fecdd3', label: 'Vision Cam' },
+  DATE_PICKER:        { icon: <Calendar size={13}/>,      color: '#0284c7', bg: '#f0f9ff', border: '#bae6fd', label: 'DatePicker' },
+  LIST_PICKER:        { icon: <List size={13}/>,          color: '#3b82f6', bg: '#eff6ff', border: '#bfdbfe', label: 'ListPicker' },
+  LIST_VIEW:          { icon: <ClipboardList size={13}/>, color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe', label: 'ListView' },
+  CAMERA_CAPTURE:     { icon: <Camera size={13}/>,        color: '#be123c', bg: '#fff1f2', border: '#fecdd3', label: 'Camera Capture' },
+  OPENCV_CAMERA:      { icon: <Camera size={13}/>,        color: '#be123c', bg: '#fff1f2', border: '#fecdd3', label: 'OpenCV Vision' },
   CHART:              { icon: <BarChart2 size={13}/>,     color: '#6d28d9', bg: '#faf5ff', border: '#e9d5ff', label: 'Chart' },
   GAUGE:              { icon: <Activity size={13}/>,      color: '#0e7490', bg: '#ecfeff', border: '#a5f3fc', label: 'Gauge' },
   DIAL_GAUGE:         { icon: <Activity size={13}/>,      color: '#0e7490', bg: '#ecfeff', border: '#a5f3fc', label: 'Dial Gauge' },
   INTERACTIVE_TABLE:  { icon: <Database size={13}/>,      color: '#0d9488', bg: '#f0fdfa', border: '#99f6e4', label: 'Table' },
   RECORD_DISPLAY:     { icon: <Database size={13}/>,      color: '#0d9488', bg: '#f0fdfa', border: '#99f6e4', label: 'Record' },
   IMAGE:              { icon: <Camera size={13}/>,        color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe', label: 'Image' },
-  ARDUINO_BOARD:      { icon: <Cpu size={13}/>,           color: '#00787a', bg: '#f0fdfd', border: '#a5f3fc', label: 'Arduino' },
+  ARDUINO_BOARD:      { icon: <Cpu size={13}/>,           color: '#00787a', bg: '#f0fdfd', border: '#a5f3fc', label: 'Arduino Board' },
   SCADA_VALVE:        { icon: <Settings size={13}/>,      color: '#0284c7', bg: '#f0f9ff', border: '#bae6fd', label: 'SCADA Valve' },
   SCADA_PUMP:         { icon: <Activity size={13}/>,      color: '#0284c7', bg: '#f0f9ff', border: '#bae6fd', label: 'SCADA Pump' },
   SCADA_OEE:          { icon: <Factory size={13}/>,       color: '#a855f7', bg: '#faf5ff', border: '#e9d5ff', label: 'OEE Widget' },
@@ -42,11 +52,32 @@ const WIDGET_META = {
   SCADA_MACHINE_STATUS:{icon: <Activity size={13}/>,      color: '#0284c7', bg: '#f0f9ff', border: '#bae6fd', label: 'Machine Status'},
   SCADA_PROD_COUNTER: { icon: <Factory size={13}/>,       color: '#7c3aed', bg: '#faf5ff', border: '#e9d5ff', label: 'Prod Counter' },
   QUALITY_PASS_FAIL:  { icon: <CheckCircle size={13}/>,   color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0', label: 'Pass/Fail' },
-  QUALITY_TOLERANCE:  { icon: <Ruler size={13}/>,         color: '#b45309', bg: '#fffbeb', border: '#fde68a', label: 'Tolerance' },
+  QUALITY_TOLERANCE:  { icon: <Ruler size={13}/>,         color: '#b45309', bg: '#fffbeb', border: '#fde68a', label: 'Tolerance Check' },
   MEASUREMENT_WIDGET: { icon: <Ruler size={13}/>,         color: '#0f766e', bg: '#f0fdfa', border: '#99f6e4', label: 'Measurement' },
 };
-const getWidgetMeta = (t) =>
-  WIDGET_META[t] || { icon: <Box size={13}/>, color:'#475569', bg:'#f8fafc', border:'#e2e8f0', label:(t||'Widget').replace(/_/g,' ') };
+const getWidgetMeta = (t) => {
+  const meta = WIDGET_META[t];
+  const appBuilderLabel = COMPONENT_TYPES[t]?.label;
+  if (meta) {
+    return { ...meta, label: appBuilderLabel || meta.label };
+  }
+  return {
+    icon: <Box size={13}/>,
+    color: '#475569',
+    bg: '#f8fafc',
+    border: '#e2e8f0',
+    label: appBuilderLabel || (t || 'Widget').replace(/_/g, ' ')
+  };
+};
+
+const getWidgetDisplayName = (c) => {
+  if (!c) return 'Widget';
+  const customLabel = c.props?.text || c.props?.label || c.props?.title || c.props?.heading;
+  if (customLabel && typeof customLabel === 'string' && customLabel.trim() !== '') {
+    return customLabel.trim();
+  }
+  return c.name || c.type || 'Widget';
+};
 
 // ─── EVENTS PER WIDGET TYPE ──────────────────────────────────────────────────
 const WIDGET_EVENTS = {
@@ -82,52 +113,135 @@ const WIDGET_PROPS = {
 const getWidgetProps = (t) => WIDGET_PROPS[t] || ['label','value','visible','width','height'];
 
 // ─── NODE BASE COMPONENT ──────────────────────────────────────────────────────
-const NodeBlock = ({ icon, label, sublabel, color, selected, targetId='target', sourceId='source', isGlowing=false }) => (
+// ─── NODE BASE COMPONENT (ICON-ONLY & CARD MODES) ───────────────────────────
+const NodeBlock = ({ icon, label, sublabel, color, selected, targetId='target', sourceId='source', isGlowing=false, isCompact=true }) => (
   <div style={{ position:'relative', userSelect:'none', cursor:'pointer' }}>
     <Handle type="target" position={Position.Left} id={targetId}
-      style={{ width:10,height:10,background:color,border:'2px solid #fff',borderRadius:'50%',left:-5,zIndex:10 }}/>
-    <div style={{
-      display:'flex',alignItems:'center',gap:'8px',minWidth:'175px',maxWidth:'260px',height:'38px',
-      padding:'0 10px 0 6px',backgroundColor:color,color:'#fff',borderRadius:'6px',
-      border:selected?`2px solid #fff`:isGlowing?'2px solid #22c55e':'1px solid rgba(0,0,0,0.2)',
-      boxShadow:isGlowing?'0 0 16px #22c55e, 0 0 24px rgba(34,197,94,0.6)':selected?`0 0 0 3px ${color}88,0 6px 16px rgba(0,0,0,0.15)`:'0 2px 8px rgba(0,0,0,0.1)',
-      transition:'all 0.2s ease',fontFamily:"'Inter',system-ui,sans-serif"
-    }}>
-      <div style={{width:26,height:26,borderRadius:'4px',backgroundColor:'rgba(0,0,0,0.18)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,color:'#fff'}}>{icon}</div>
-      <div style={{flex:1,overflow:'hidden'}}>
-        <div style={{fontSize:'0.78rem',fontWeight:800,color:'#fff',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',lineHeight:1.2}}>{label}</div>
-        {sublabel&&<div style={{fontSize:'0.58rem',fontWeight:700,color:'rgba(255,255,255,0.85)',textTransform:'uppercase',letterSpacing:'0.05em',marginTop:'1px'}}>{sublabel}</div>}
+      style={{ width:8,height:8,background:color,border:'1.5px solid #fff',borderRadius:'50%',left: isCompact ? -4 : -4,zIndex:10 }}/>
+    
+    {isCompact ? (
+      /* ── COMPACT MICRO ICON NODE MODEL (36x36px) ── */
+      <div style={{
+        width: '36px', height: '36px', borderRadius: '10px',
+        backgroundColor: color, color: '#fff',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        border: selected ? '2px solid #ffffff' : isGlowing ? '2px solid #22c55e' : '1.5px solid rgba(255,255,255,0.25)',
+        boxShadow: isGlowing
+          ? '0 0 16px #22c55e, 0 0 24px rgba(34,197,94,0.6)'
+          : selected
+          ? `0 0 0 3px ${color}77, 0 6px 14px rgba(0,0,0,0.3)`
+          : `0 3px 8px ${color}44`,
+        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+        position: 'relative'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {icon}
+        </div>
+        
+        {/* Floating Enterprise Tooltip Label */}
+        <div style={{
+          position: 'absolute', top: '100%', marginTop: '4px', left: '50%', transform: 'translateX(-50%)',
+          backgroundColor: 'rgba(15, 23, 42, 0.95)', color: '#f8fafc', padding: '2px 6px', borderRadius: '5px',
+          fontSize: '0.62rem', fontWeight: 700, whiteSpace: 'nowrap', pointerEvents: 'none',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.12)',
+          maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', zIndex: 15
+        }}>
+          {label}
+        </div>
       </div>
-      <div style={{width:7,height:7,borderRadius:'50%',backgroundColor:isGlowing?'#22c55e':'#fff',opacity:0.9,flexShrink:0,boxShadow:isGlowing?'0 0 8px #22c55e':'none'}}/>
-    </div>
+    ) : (
+      /* ── DETAILED CARD MODE ── */
+      <div style={{
+        display:'flex',alignItems:'center',gap:'8px',minWidth:'175px',maxWidth:'260px',height:'38px',
+        padding:'0 10px 0 6px',backgroundColor:color,color:'#fff',borderRadius:'6px',
+        border:selected?`2px solid #fff`:isGlowing?'2px solid #22c55e':'1px solid rgba(0,0,0,0.2)',
+        boxShadow:isGlowing?'0 0 16px #22c55e, 0 0 24px rgba(34,197,94,0.6)':selected?`0 0 0 3px ${color}88,0 6px 16px rgba(0,0,0,0.15)`:'0 2px 8px rgba(0,0,0,0.1)',
+        transition:'all 0.2s ease',fontFamily:"'Inter',system-ui,sans-serif"
+      }}>
+        <div style={{width:26,height:26,borderRadius:'4px',backgroundColor:'rgba(0,0,0,0.18)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,color:'#fff'}}>{icon}</div>
+        <div style={{flex:1,overflow:'hidden'}}>
+          <div style={{fontSize:'0.78rem',fontWeight:800,color:'#fff',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',lineHeight:1.2}}>{label}</div>
+          {sublabel&&<div style={{fontSize:'0.58rem',fontWeight:700,color:'rgba(255,255,255,0.85)',textTransform:'uppercase',letterSpacing:'0.05em',marginTop:'1px'}}>{sublabel}</div>}
+        </div>
+        <div style={{width:7,height:7,borderRadius:'50%',backgroundColor:isGlowing?'#22c55e':'#fff',opacity:0.9,flexShrink:0,boxShadow:isGlowing?'0 0 8px #22c55e':'none'}}/>
+      </div>
+    )}
+
     <Handle type="source" position={Position.Right} id={sourceId}
-      style={{width:10,height:10,background:color,border:'2px solid #fff',borderRadius:'50%',right:-5,zIndex:10}}/>
+      style={{ width:8,height:8,background:color,border:'1.5px solid #fff',borderRadius:'50%',right: isCompact ? -4 : -4,zIndex:10 }}/>
   </div>
 );
 
-const WidgetNode    = ({data,selected}) => { const m=getWidgetMeta(data.widgetType||data.type); return <NodeBlock icon={m.icon} label={data.label} sublabel={data.widgetType||data.type||'Widget'} color={m.color} selected={selected} isGlowing={data.isGlowing} targetId="prop_input" sourceId="event_output"/>; };
-const ScreenStepNode= ({data,selected}) => <NodeBlock icon={<Monitor size={15}/>} label={data.label} sublabel="Screen Step" color="#0284c7" selected={selected} isGlowing={data.isGlowing} targetId="step_in" sourceId="step_out"/>;
-const TriggerNode   = ({data,selected}) => <NodeBlock icon={<PlayCircle size={15}/>} label={data.label} sublabel={`WHEN:${data.event||'event'}`} color="#e11d48" selected={selected} isGlowing={data.isGlowing} targetId="trig_in" sourceId="trig_out"/>;
-const ActionNode    = ({data,selected}) => <NodeBlock icon={<ArrowRight size={15}/>} label={data.label} sublabel={`THEN:${data.actionType||'action'}`} color="#8b5cf6" selected={selected} isGlowing={data.isGlowing} targetId="act_in" sourceId="act_out"/>;
-const VariableNode  = ({data,selected}) => <NodeBlock icon={<Variable size={15}/>} label={data.label} sublabel={`VAR(${data.varType||'str'})`} color="#10b981" selected={selected} isGlowing={data.isGlowing} targetId="var_input" sourceId="var_output"/>;
-const TableNode     = ({data,selected}) => <NodeBlock icon={<Database size={15}/>} label={data.label} sublabel="DB Table" color="#00A09D" selected={selected} isGlowing={data.isGlowing} targetId="query_input" sourceId="data_output"/>;
-const MachineNode   = ({data,selected}) => <NodeBlock icon={<Cpu size={15}/>} label={data.label} sublabel="PLC/Sensor" color="#f59e0b" selected={selected} isGlowing={data.isGlowing} targetId="cmd_input" sourceId="tag_output"/>;
-const AutomationNode= ({data,selected}) => <NodeBlock icon={<Zap size={15}/>} label={data.label} sublabel="Automation" color="#714B67" selected={selected} isGlowing={data.isGlowing} targetId="exec_input" sourceId="workflow_output"/>;
-const FunctionNode  = ({data,selected}) => <NodeBlock icon={<Code size={15}/>} label={data.label} sublabel="Function" color="#3b82f6" selected={selected} isGlowing={data.isGlowing} targetId="fn_params" sourceId="fn_result"/>;
-const AiVisionNode  = ({data,selected}) => <NodeBlock icon={<Sparkles size={15}/>} label={data.label} sublabel="AI Vision" color="#ec4899" selected={selected} isGlowing={data.isGlowing} targetId="ai_input" sourceId="ai_result"/>;
-const ConditionNode = ({data,selected}) => <NodeBlock icon={<GitBranch size={15}/>} label={data.label} sublabel={`IF/ELSE Branch (${data.conditions?.length||1})`} color="#f97316" selected={selected} isGlowing={data.isGlowing} targetId="cond_in" sourceId="cond_out"/>;
-const AppTriggerNode= ({data,selected}) => <NodeBlock icon={<Zap size={15}/>} label={data.label} sublabel={`APP:${data.event||'EVENT'}`} color="#b45309" selected={selected} isGlowing={data.isGlowing} targetId="app_trig_in" sourceId="app_trig_out"/>;
+const WidgetNode    = ({data,selected}) => {
+  const m=getWidgetMeta(data.widgetType||data.type);
+  const sublabel = data.name && data.name !== data.label ? `${m.label} (${data.name})` : (data.widgetType||data.type||'Widget');
+  return <NodeBlock icon={m.icon} label={data.label} sublabel={sublabel} color={m.color} selected={selected} isGlowing={data.isGlowing} targetId="prop_input" sourceId="event_output" isCompact={data.isCompact !== false}/>;
+};
+const ScreenStepNode= ({data,selected}) => <NodeBlock icon={<Monitor size={15}/>} label={data.label} sublabel="Screen Step" color="#0284c7" selected={selected} isGlowing={data.isGlowing} targetId="step_in" sourceId="step_out" isCompact={data.isCompact !== false}/>;
+const TriggerNode   = ({data,selected}) => <NodeBlock icon={<PlayCircle size={15}/>} label={data.label} sublabel={`WHEN:${data.event||'event'}`} color="#e11d48" selected={selected} isGlowing={data.isGlowing} targetId="trig_in" sourceId="trig_out" isCompact={data.isCompact !== false}/>;
+const ActionNode    = ({data,selected}) => <NodeBlock icon={<ArrowRight size={15}/>} label={data.label} sublabel={`THEN:${data.actionType||'action'}`} color="#8b5cf6" selected={selected} isGlowing={data.isGlowing} targetId="act_in" sourceId="act_out" isCompact={data.isCompact !== false}/>;
+const VariableNode  = ({data,selected}) => <NodeBlock icon={<Variable size={15}/>} label={data.label} sublabel={`VAR(${data.varType||'str'})`} color="#10b981" selected={selected} isGlowing={data.isGlowing} targetId="var_input" sourceId="var_output" isCompact={data.isCompact !== false}/>;
+const TableNode     = ({data,selected}) => <NodeBlock icon={<Database size={15}/>} label={data.label} sublabel="DB Table" color="#00A09D" selected={selected} isGlowing={data.isGlowing} targetId="query_input" sourceId="data_output" isCompact={data.isCompact !== false}/>;
+const MachineNode   = ({data,selected}) => <NodeBlock icon={<Cpu size={15}/>} label={data.label} sublabel="PLC/Sensor" color="#f59e0b" selected={selected} isGlowing={data.isGlowing} targetId="cmd_input" sourceId="tag_output" isCompact={data.isCompact !== false}/>;
+const AutomationNode= ({data,selected}) => <NodeBlock icon={<Zap size={15}/>} label={data.label} sublabel="Automation" color="#714B67" selected={selected} isGlowing={data.isGlowing} targetId="exec_input" sourceId="workflow_output" isCompact={data.isCompact !== false}/>;
+const FunctionNode  = ({data,selected}) => <NodeBlock icon={<Code size={15}/>} label={data.label} sublabel="Function" color="#3b82f6" selected={selected} isGlowing={data.isGlowing} targetId="fn_params" sourceId="fn_result" isCompact={data.isCompact !== false}/>;
+const AiVisionNode  = ({data,selected}) => <NodeBlock icon={<Sparkles size={15}/>} label={data.label} sublabel="AI Vision" color="#ec4899" selected={selected} isGlowing={data.isGlowing} targetId="ai_input" sourceId="ai_result" isCompact={data.isCompact !== false}/>;
+const ConditionNode = ({data,selected}) => <NodeBlock icon={<GitBranch size={15}/>} label={data.label} sublabel={`IF/ELSE Branch (${data.conditions?.length||1})`} color="#f97316" selected={selected} isGlowing={data.isGlowing} targetId="cond_in" sourceId="cond_out" isCompact={data.isCompact !== false}/>;
+const AppTriggerNode= ({data,selected}) => <NodeBlock icon={<Zap size={15}/>} label={data.label} sublabel={`APP:${data.event||'EVENT'}`} color="#b45309" selected={selected} isGlowing={data.isGlowing} targetId="app_trig_in" sourceId="app_trig_out" isCompact={data.isCompact !== false}/>;
+
+const QueryNode            = ({data,selected}) => <NodeBlock icon={<Search size={15}/>} label={data.label} sublabel={`QUERY (${data.tableId||'Table'})`} color="#0284c7" selected={selected} isGlowing={data.isGlowing} targetId="query_in" sourceId="query_out" isCompact={data.isCompact !== false}/>;
+const AggregationNode        = ({data,selected}) => <NodeBlock icon={<BarChart2 size={15}/>} label={data.label} sublabel={`AGG (${data.aggType||'CALC'})`} color="#a855f7" selected={selected} isGlowing={data.isGlowing} targetId="agg_in" sourceId="agg_out" isCompact={data.isCompact !== false}/>;
+const RecordPlaceholderNode  = ({data,selected}) => <NodeBlock icon={<Layers size={15}/>} label={data.label} sublabel={`REC PLACEHOLDER (${data.tableName||'Record'})`} color="#059669" selected={selected} isGlowing={data.isGlowing} targetId="ph_in" sourceId="ph_out" isCompact={data.isCompact !== false}/>;
+
+const GroupContainerNode = ({ data, selected }) => (
+  <div style={{
+    width: data.width || 320,
+    height: data.height || 220,
+    border: selected ? '2px solid #818cf8' : '1.5px dashed rgba(99, 102, 241, 0.5)',
+    backgroundColor: 'rgba(99, 102, 241, 0.04)',
+    borderRadius: '12px',
+    padding: '12px',
+    position: 'relative',
+    backdropFilter: 'blur(4px)',
+    boxShadow: selected ? '0 0 24px rgba(99, 102, 241, 0.35)' : 'none',
+    transition: 'all 0.2s ease',
+    pointerEvents: 'auto'
+  }}>
+    <div style={{
+      position: 'absolute',
+      top: '-12px',
+      left: '16px',
+      backgroundColor: '#0f172a',
+      border: '1px solid rgba(99, 102, 241, 0.6)',
+      color: '#c7d2fe',
+      fontSize: '0.65rem',
+      fontWeight: 800,
+      padding: '2px 9px',
+      borderRadius: '5px',
+      letterSpacing: '0.05em',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.4)'
+    }}>
+      <Box size={11} color="#818cf8" />
+      {data.label || 'SUBSYSTEM BOUNDARY'}
+    </div>
+  </div>
+);
 
 const nodeTypes = {
   widget:WidgetNode, screen_step:ScreenStepNode, trigger:TriggerNode,
   action:ActionNode, variable:VariableNode, table:TableNode,
+  query:QueryNode, aggregation:AggregationNode, record_placeholder:RecordPlaceholderNode,
   machine:MachineNode, automation:AutomationNode, function:FunctionNode,
-  aivision:AiVisionNode, condition:ConditionNode, app_trigger:AppTriggerNode
+  aivision:AiVisionNode, condition:ConditionNode, app_trigger:AppTriggerNode,
+  group_container:GroupContainerNode
 };
 
 // ─── MAIN ENTERPRISE COMPONENT ───────────────────────────────────────────────
 const AppNodeEditor = ({
-  steps=[], currentStepId, baseComponents=[], tables=[], appVariables=[], appTriggers=[], onUpdateWidgetLogic
+  steps=[], currentStepId, baseComponents=[], tables=[], recordPlaceholders=[], appVariables=[], appTriggers=[], onUpdateWidgetLogic
 }) => {
   const [selectedEl, setSelectedEl]     = useState(null);
   const [searchQ, setSearchQ]           = useState('');
@@ -137,6 +251,8 @@ const AppNodeEditor = ({
   const [consoleOpen, setConsoleOpen]   = useState(false);
   const [logs, setLogs]                 = useState([]);
   const [palTab, setPalTab]             = useState('WIDGETS');
+  const [legendOpen, setLegendOpen]     = useState(true);
+  const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
   const [cats, setCats]                 = useState({});
   const [inspTab, setInspTab]           = useState('PROPS');
   const graphStore                      = useRef({});
@@ -193,8 +309,9 @@ const AppNodeEditor = ({
 
     comps.forEach((c,i)=>{
       const m=getWidgetMeta(c.type);
+      const displayName = getWidgetDisplayName(c);
       nodes.push({id:`nw_${c.id}`,type:'widget',position:{x:40,y:60+i*85},data:{
-        id:c.id,label:c.name||c.props?.label||c.props?.text||c.type||'Widget',
+        id:c.id,label:displayName,name:c.name,
         widgetType:c.type,type:c.type,stepId,props:c.props||{},logic:c.logic||null,events:getWidgetEvents(c.type)
       }});
     });
@@ -212,7 +329,7 @@ const AppNodeEditor = ({
           const evName = trg.event || defaultEv;
           nodes.push({
             id: trigId, type: 'trigger', position: { x: 310, y: trigY },
-            data: { id: trigId, label: `${c.name || c.type}.${evName}`, event: evName, widgetId: c.id, stepId }
+            data: { id: trigId, label: `${getWidgetDisplayName(c)}.${evName}`, event: evName, widgetId: c.id, stepId }
           });
           edges.push({
             id: `e_wt_${c.id}_${tIdx}`, source: widgetNodeId, sourceHandle: 'event_output',
@@ -234,10 +351,13 @@ const AppNodeEditor = ({
             const actType = act.type || 'SET_VARIABLE';
             const targetVar = act.payload?.variable || act.payload?.targetVar || '';
             const targetStep = act.payload?.stepId || act.payload?.targetStep || '';
+            const targetTable = act.payload?.tableId || act.payload?.tableName || act.payload?.table || '';
+            const targetPlaceholder = act.payload?.placeholderId || act.payload?.placeholderName || act.payload?.placeholder || act.payload?.recordPlaceholder || '';
+            const targetQuery = act.payload?.queryId || act.payload?.queryName || act.payload?.query || '';
 
             nodes.push({
               id: actId, type: 'action', position: { x: 560, y: actY },
-              data: { id: actId, label: `${actType}`, actionType: actType, targetVar, targetStep }
+              data: { id: actId, label: `${actType}`, actionType: actType, targetVar, targetStep, targetTable, targetPlaceholder, targetQuery }
             });
             edges.push({
               id: `e_ta_${trigId}_${actId}`, source: trigId, sourceHandle: 'trig_out',
@@ -247,9 +367,46 @@ const AppNodeEditor = ({
             });
             actY += 85;
 
+            // Connect Data Source (Table/Query ➔ Action)
+            if (targetQuery) {
+              const qNode = nodes.find(n => n.type === 'query' && (n.data.id === targetQuery || n.data.label === targetQuery));
+              if (qNode) {
+                edges.push({
+                  id: `e_qa_${qNode.id}_${actId}`, source: qNode.id, sourceHandle: 'query_out',
+                  target: actId, targetHandle: 'act_in', type: 'smoothstep', animated: true,
+                  label: 'Read Query', labelStyle: { fontSize: '0.62rem', fill: '#0284c7', fontWeight: 800 },
+                  style: { stroke: '#0284c7', strokeWidth: 2, strokeDasharray: '4 4' }
+                });
+              }
+            } else if (targetTable) {
+              const tNode = nodes.find(n => n.type === 'table' && (n.data.id === targetTable || n.data.label === targetTable));
+              if (tNode) {
+                edges.push({
+                  id: `e_ta_${tNode.id}_${actId}`, source: tNode.id, sourceHandle: 'data_output',
+                  target: actId, targetHandle: 'act_in', type: 'smoothstep', animated: true,
+                  label: 'Fetch Table', labelStyle: { fontSize: '0.62rem', fill: '#0d9488', fontWeight: 800 },
+                  style: { stroke: '#0d9488', strokeWidth: 2, strokeDasharray: '4 4' }
+                });
+              }
+            }
+
+            // Connect Record Placeholder (Action ➔ Record Placeholder)
+            if (targetPlaceholder) {
+              const rpNode = nodes.find(n => n.type === 'record_placeholder' && (n.data.id === targetPlaceholder || n.data.label === targetPlaceholder));
+              if (rpNode) {
+                edges.push({
+                  id: `e_arp_${actId}_${rpNode.id}`, source: actId, sourceHandle: 'act_out',
+                  target: rpNode.id, targetHandle: 'ph_in', type: 'smoothstep', animated: true,
+                  label: actType === 'CLEAR_RECORD' ? 'Clear Record' : 'Load into Record',
+                  labelStyle: { fontSize: '0.62rem', fill: '#059669', fontWeight: 800 },
+                  style: { stroke: '#059669', strokeWidth: 2 }
+                });
+              }
+            }
+
             if (targetVar) {
               const vNode = nodes.find(n => n.type === 'variable' && (n.data.id === targetVar || n.data.label === targetVar));
-              if (vNode) edges.push({ id: `e_av_${actId}_${vNode.id}`, source: actId, sourceHandle: 'act_out', target: vNode.id, targetHandle: 'var_input', type: 'smoothstep', animated: true, label: 'Update Var', style: { stroke: '#10b981', strokeWidth: 2 } });
+              if (vNode) edges.push({ id: `e_av_${actId}_${vNode.id}`, source: actId, sourceHandle: 'act_out', target: vNode.id, targetHandle: 'var_input', type: 'smoothstep', animated: true, label: 'Update Var', labelStyle: { fontSize: '0.62rem', fill: '#10b981', fontWeight: 800 }, style: { stroke: '#10b981', strokeWidth: 2 } });
             }
           });
         });
@@ -310,8 +467,20 @@ const AppNodeEditor = ({
       }
     }
 
-    (tables||[]).slice(0,3).forEach((t,i)=>{
+    (tables||[]).slice(0,5).forEach((t,i)=>{
       nodes.push({id:`ntbl_${t.id}`,type:'table',position:{x:800,y:60+((appVariables?.length||0)+i)*85},data:{id:t.id,label:t.name||t.id}});
+      
+      (t.queries||[]).forEach((q, qIdx) => {
+        nodes.push({id:`nq_${t.id}_${q.id||qIdx}`,type:'query',position:{x:1020,y:60+qIdx*85},data:{id:q.id,label:q.name||'Query',tableId:t.name||t.id}});
+      });
+      (t.aggregations||[]).forEach((a, aIdx) => {
+        nodes.push({id:`nagg_${t.id}_${a.id||aIdx}`,type:'aggregation',position:{x:1020,y:140+aIdx*85},data:{id:a.id,label:a.name||'Aggregation',tableId:t.name||t.id,aggType:a.type||'SUM'}});
+      });
+    });
+
+    (recordPlaceholders||[]).forEach((rp, i) => {
+      const tableName = tables.find(t => t.id === rp.tableId)?.name || 'Table';
+      nodes.push({id:`nrp_${rp.id}`,type:'record_placeholder',position:{x:1020,y:220+i*85},data:{id:rp.id,label:rp.name||'Placeholder',tableName}});
     });
 
     (steps||[]).forEach((st, i)=>{
@@ -458,8 +627,12 @@ const AppNodeEditor = ({
         if (selectedEl && !selectedEl.source) duplicateSelectedNode(selectedEl);
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedEl) delSelected();
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        setCmdPaletteOpen(open => !open);
       } else if (e.key === 'Escape') {
         setContextMenu(null);
+        setCmdPaletteOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -470,11 +643,33 @@ const AppNodeEditor = ({
   const onConnect = useCallback((params) => {
     const sourceNode = nodes.find(n => n.id === params.source);
     const targetNode = nodes.find(n => n.id === params.target);
-    const edgeColor = sourceNode?.type === 'widget' ? '#e11d48' : sourceNode?.type === 'trigger' ? '#8b5cf6' : '#10b981';
+    
+    let edgeColor = '#10b981';
+    let edgeLabel = 'Data Wire';
+
+    if (sourceNode?.type === 'widget') {
+      edgeColor = '#e11d48';
+      edgeLabel = 'WHEN Event';
+    } else if (sourceNode?.type === 'trigger') {
+      edgeColor = '#8b5cf6';
+      edgeLabel = 'THEN Action';
+    } else if (sourceNode?.type === 'query' || sourceNode?.type === 'table') {
+      edgeColor = '#0284c7';
+      edgeLabel = 'Read Query / Fetch Table';
+    } else if (targetNode?.type === 'record_placeholder') {
+      edgeColor = '#059669';
+      edgeLabel = 'Load into Record';
+    } else if (targetNode?.type === 'variable') {
+      edgeColor = '#10b981';
+      edgeLabel = 'Update State Var';
+    } else if (targetNode?.type === 'screen_step') {
+      edgeColor = '#0284c7';
+      edgeLabel = 'Navigate Screen';
+    }
 
     const newEdge = {
       ...params, type: 'smoothstep', animated: true,
-      label: sourceNode?.type === 'widget' ? 'WHEN Event' : sourceNode?.type === 'trigger' ? 'THEN Action' : 'Data Wire',
+      label: edgeLabel,
       labelStyle: { fontSize: '0.65rem', fill: edgeColor, fontWeight: 800 },
       style: { stroke: edgeColor, strokeWidth: 3, filter: `drop-shadow(0 0 6px ${edgeColor})` }
     };
@@ -669,6 +864,42 @@ const AppNodeEditor = ({
       { id: `ae2_${t}`, source: `an_trig_${t}`, target: `an_var_${t}`, type: 'smoothstep', animated: true, label: 'Set State', style: { stroke: '#10b981', strokeWidth: 2 } },
       { id: `ae3_${t}`, source: `an_trig_${t}`, target: `an_tg_${t}`, type: 'smoothstep', animated: true, label: 'THEN', style: { stroke: '#8b5cf6', strokeWidth: 2 } },
       { id: `ae4_${t}`, source: `an_tg_${t}`, target: `an_db_${t}`, type: 'smoothstep', animated: true, label: 'Log DB', style: { stroke: '#00A09D', strokeWidth: 2 } },
+    ]);
+  }, [setNodes, setEdges]);
+
+  const loadQualityGate = useCallback(() => {
+    const t = Date.now();
+    setNodes([
+      { id: `qg_chk_${t}`, type: 'widget', position: { x: 40, y: 60 }, data: { label: 'Caliper QC Check', widgetType: 'QUALITY_PASS_FAIL', type: 'QUALITY_PASS_FAIL', events: ['onPass', 'onFail'] } },
+      { id: `qg_trig1_${t}`, type: 'trigger', position: { x: 280, y: 60 }, data: { label: 'QC.onPass', event: 'onPass' } },
+      { id: `qg_trig2_${t}`, type: 'trigger', position: { x: 280, y: 160 }, data: { label: 'QC.onFail', event: 'onFail' } },
+      { id: `qg_act1_${t}`, type: 'action', position: { x: 520, y: 60 }, data: { label: 'Save QC Log', actionType: 'SAVE_TABLE_RECORD', targetVar: 'qc_records' } },
+      { id: `qg_act2_${t}`, type: 'action', position: { x: 520, y: 160 }, data: { label: 'Andon Escalation', actionType: 'SHOW_TOAST', toastMessage: '❌ Quality Failure Detected!' } },
+      { id: `qg_var_${t}`, type: 'variable', position: { x: 760, y: 60 }, data: { label: 'Pass_Rate', varType: 'PERCENT' } },
+    ]);
+    setEdges([
+      { id: `qe1_${t}`, source: `qg_chk_${t}`, target: `qg_trig1_${t}`, type: 'smoothstep', animated: true, label: 'PASS', style: { stroke: '#22c55e', strokeWidth: 2 } },
+      { id: `qe2_${t}`, source: `qg_chk_${t}`, target: `qg_trig2_${t}`, type: 'smoothstep', animated: true, label: 'FAIL', style: { stroke: '#ef4444', strokeWidth: 2 } },
+      { id: `qe3_${t}`, source: `qg_trig1_${t}`, target: `qg_act1_${t}`, type: 'smoothstep', animated: true, label: 'THEN', style: { stroke: '#8b5cf6', strokeWidth: 2 } },
+      { id: `qe4_${t}`, source: `qg_trig2_${t}`, target: `qg_act2_${t}`, type: 'smoothstep', animated: true, label: 'ALERT', style: { stroke: '#f59e0b', strokeWidth: 2 } },
+      { id: `qe5_${t}`, source: `qg_act1_${t}`, target: `qg_var_${t}`, type: 'smoothstep', animated: true, label: 'Update State', style: { stroke: '#10b981', strokeWidth: 2 } },
+    ]);
+  }, [setNodes, setEdges]);
+
+  const loadPlcTrigger = useCallback(() => {
+    const t = Date.now();
+    setNodes([
+      { id: `plc_sensor_${t}`, type: 'machine', position: { x: 40, y: 60 }, data: { label: 'Spindle Temperature PLC', tag: 'TEMP_SENSOR_1' } },
+      { id: `plc_trig_${t}`, type: 'trigger', position: { x: 280, y: 60 }, data: { label: 'Temp > 85°C', event: 'onThresholdCross' } },
+      { id: `plc_cond_${t}`, type: 'condition', position: { x: 520, y: 60 }, data: { label: 'IF Temp > 85', conditions: [{ var: 'TEMP_SENSOR_1', op: '>', val: '85' }] } },
+      { id: `plc_act1_${t}`, type: 'action', position: { x: 760, y: 60 }, data: { label: 'E-Stop Motor', actionType: 'MQTT_PUBLISH', toastMessage: '🛑 PLC Motor E-Stop Initiated' } },
+      { id: `plc_var_${t}`, type: 'variable', position: { x: 760, y: 160 }, data: { label: 'Machine_Status', varType: 'STOPPED' } },
+    ]);
+    setEdges([
+      { id: `pe1_${t}`, source: `plc_sensor_${t}`, target: `plc_trig_${t}`, type: 'smoothstep', animated: true, label: 'TAG HIGH', style: { stroke: '#f59e0b', strokeWidth: 2 } },
+      { id: `pe2_${t}`, source: `plc_trig_${t}`, target: `plc_cond_${t}`, type: 'smoothstep', animated: true, label: 'CHECK', style: { stroke: '#f97316', strokeWidth: 2 } },
+      { id: `pe3_${t}`, source: `plc_cond_${t}`, target: `plc_act1_${t}`, type: 'smoothstep', animated: true, label: 'IF TRUE', style: { stroke: '#ef4444', strokeWidth: 2 } },
+      { id: `pe4_${t}`, source: `plc_act1_${t}`, target: `plc_var_${t}`, type: 'smoothstep', animated: true, label: 'Set State', style: { stroke: '#10b981', strokeWidth: 2 } },
     ]);
   }, [setNodes, setEdges]);
 
@@ -890,6 +1121,25 @@ const AppNodeEditor = ({
             </span>
           </div>
 
+          <button
+            onClick={() => setCmdPaletteOpen(true)}
+            style={{
+              padding: '4px 10px',
+              backgroundColor: '#1e293b',
+              border: '1px solid #334155',
+              borderRadius: '7px',
+              color: '#94a3b8',
+              fontSize: '0.7rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <Search size={12} color="#818cf8" /> Command Palette <span style={{ backgroundColor: '#0f172a', padding: '1px 5px', borderRadius: '4px', border: '1px solid #334155', color: '#cbd5e1' }}>Ctrl+K</span>
+          </button>
+
           <div style={{ width: '1px', height: '18px', backgroundColor: '#334155', margin: '0 4px' }} />
 
           <button
@@ -988,11 +1238,18 @@ const AppNodeEditor = ({
             <input type="file" ref={fileInputRef} onChange={handleImportBlueprint} accept=".json" style={{ display: 'none' }} />
           </div>
 
+
+
           <button
-            onClick={loadAndon}
+            onClick={() => {
+              setNodes(nds => nds.map(n => ({
+                ...n,
+                data: { ...n.data, isCompact: n.data.isCompact === false ? true : false }
+              })));
+            }}
             style={{
-              padding: '6px 12px',
-              backgroundColor: '#991b1b',
+              padding: '6px 10px',
+              backgroundColor: '#6366f1',
               color: '#ffffff',
               border: 'none',
               borderRadius: '8px',
@@ -1001,11 +1258,12 @@ const AppNodeEditor = ({
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '5px',
-              boxShadow: '0 0 12px rgba(220,38,38,0.35)'
+              gap: '4px',
+              boxShadow: '0 0 10px rgba(99,102,241,0.35)'
             }}
+            title="Toggle Icon-Only Mode vs Detailed Card View"
           >
-            <AlertTriangle size={13} /> Andon Template
+            <Box size={12} /> Icon / Card Mode
           </button>
 
           <div style={{ padding: '5px 10px', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', fontSize: '0.68rem', fontWeight: 800, color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1058,7 +1316,9 @@ const AppNodeEditor = ({
                     <PSection key={key} skey={key} title={`${slbl} (${widgets.length})`} color={color} icon={key === '__base__' ? <Layers size={11} /> : <Monitor size={11} />}>
                       {widgets.map(w => {
                         const m = getWidgetMeta(w.type);
-                        return <PItem key={`${w.id}_${key}`} label={w.name || w.props?.label || w.props?.text || w.type || 'Widget'} sublabel={m.label} icon={m.icon} color={m.color} bg={m.bg} border={m.border} onClick={() => addWidgetNode(w)} />;
+                        const displayName = getWidgetDisplayName(w);
+                        const sub = w.name ? `${m.label} (${w.name})` : m.label;
+                        return <PItem key={`${w.id}_${key}`} label={displayName} sublabel={sub} icon={m.icon} color={m.color} bg={m.bg} border={m.border} onClick={() => addWidgetNode(w)} />;
                       })}
                     </PSection>
                   ))}
@@ -1088,6 +1348,7 @@ const AppNodeEditor = ({
               <PSection skey="logic" title="Logic / Branching" color="#ea580c" icon={<Filter size={11} />}>
                 <PItem label="IF/ELSE Branch" sublabel="CONDITION" icon={<GitBranch size={13} />} color="#c2410c" bg="#fff7ed" border="#fed7aa" onClick={() => addNode('condition', 'IF/ELSE Branch', { condition: 'var===value' })} />
                 <PItem label="AI Vision Agent" sublabel="AI" icon={<Sparkles size={13} />} color="#be185d" bg="#fdf4ff" border="#f5d0fe" onClick={() => addNode('aivision', 'AI Vision Agent', {})} />
+                <PItem label="Subsystem Boundary" sublabel="GROUP" icon={<Box size={13} />} color="#6366f1" bg="#eef2ff" border="#c7d2fe" onClick={() => addNode('group_container', 'Subsystem Zone', { width: 340, height: 240 })} />
               </PSection>
             </>}
 
@@ -1099,10 +1360,36 @@ const AppNodeEditor = ({
 
             {palTab === 'TABLES' && <>
               <PSection skey="tables" title={`Database Tables (${(tables || []).length})`} color="#0d9488" icon={<Database size={11} />}>
-                {(tables || []).length === 0 ? <div style={{ textAlign: 'center', padding: '16px 0', color: '#94a3b8', fontSize: '0.7rem' }}>No tables defined</div> : (tables || []).filter(t => (t.name || t.id || '').toLowerCase().includes(searchQ.toLowerCase())).map(t => (
+                {(tables || []).length === 0 ? <div style={{ textAlign: 'center', padding: '12px 0', color: '#94a3b8', fontSize: '0.7rem' }}>No tables defined</div> : (tables || []).filter(t => (t.name || t.id || '').toLowerCase().includes(searchQ.toLowerCase())).map(t => (
                   <PItem key={t.id} label={t.name || t.id} sublabel={`${t.columns?.length || 0} cols`} icon={<Database size={13} />} color="#0d9488" bg="#f0fdfa" border="#99f6e4" onClick={() => addNode('table', t.name || t.id, { tableId: t.id, columns: t.columns })} />
                 ))}
               </PSection>
+
+              <PSection skey="queries" title="Table Queries" color="#0284c7" icon={<Search size={11} />}>
+                {(tables || []).flatMap(t => (t.queries || []).map(q => ({ ...q, tableName: t.name || t.id }))).length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '8px 0', color: '#94a3b8', fontSize: '0.68rem', fontStyle: 'italic' }}>No queries defined in tables</div>
+                ) : (tables || []).flatMap(t => (t.queries || []).map(q => ({ ...q, tableName: t.name || t.id }))).filter(q => (q.name || '').toLowerCase().includes(searchQ.toLowerCase())).map(q => (
+                  <PItem key={q.id || q.name} label={q.name || 'Query'} sublabel={q.tableName} icon={<Search size={13} />} color="#0284c7" bg="#f0f9ff" border="#bae6fd" onClick={() => addNode('query', q.name || 'Query', { tableId: q.tableName })} />
+                ))}
+              </PSection>
+
+              <PSection skey="aggregations" title="Table Aggregations" color="#a855f7" icon={<BarChart2 size={11} />}>
+                {(tables || []).flatMap(t => (t.aggregations || []).map(a => ({ ...a, tableName: t.name || t.id }))).length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '8px 0', color: '#94a3b8', fontSize: '0.68rem', fontStyle: 'italic' }}>No aggregations defined</div>
+                ) : (tables || []).flatMap(t => (t.aggregations || []).map(a => ({ ...a, tableName: t.name || t.id }))).filter(a => (a.name || '').toLowerCase().includes(searchQ.toLowerCase())).map(a => (
+                  <PItem key={a.id || a.name} label={a.name || 'Aggregation'} sublabel={a.tableName} icon={<BarChart2 size={13} />} color="#a855f7" bg="#faf5ff" border="#f3e8ff" onClick={() => addNode('aggregation', a.name || 'Aggregation', { aggType: a.type || 'SUM' })} />
+                ))}
+              </PSection>
+
+              <PSection skey="placeholders" title={`Record Placeholders (${(recordPlaceholders || []).length})`} color="#059669" icon={<Layers size={11} />}>
+                {(recordPlaceholders || []).length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '8px 0', color: '#94a3b8', fontSize: '0.68rem', fontStyle: 'italic' }}>No record placeholders defined</div>
+                ) : (recordPlaceholders || []).filter(rp => (rp.name || '').toLowerCase().includes(searchQ.toLowerCase())).map(rp => {
+                  const tName = tables.find(t => t.id === rp.tableId)?.name || 'Table';
+                  return <PItem key={rp.id} label={rp.name || 'Placeholder'} sublabel={tName} icon={<Layers size={13} />} color="#059669" bg="#ecfdf5" border="#d1fae5" onClick={() => addNode('record_placeholder', rp.name || 'Placeholder', { tableName: tName })} />;
+                })}
+              </PSection>
+
               <PSection skey="screens" title="Screen Navigation" color="#0284c7" icon={<Monitor size={11} />}>
                 {(steps || []).map(s => <PItem key={s.id} label={s.name || s.title || s.id} sublabel="SCREEN" icon={<Navigation size={13} />} color="#0369a1" bg="#f0f9ff" border="#bae6fd" onClick={() => addNode('screen_step', s.name || s.title || s.id, { targetStepId: s.id })} />)}
               </PSection>
@@ -1134,6 +1421,103 @@ const AppNodeEditor = ({
             <Controls style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }} />
             <MiniMap style={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }} nodeColor={n => getWidgetMeta(n.data?.widgetType || n.data?.type)?.color || '#6366f1'} />
           </ReactFlow>
+
+          {/* PRO ENTERPRISE DATA FLOW LEGEND OVERLAY */}
+          <div style={{
+            position: 'absolute',
+            bottom: '24px',
+            right: '24px',
+            backgroundColor: 'rgba(15, 23, 42, 0.94)',
+            backdropFilter: 'blur(16px)',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            borderRadius: '14px',
+            padding: legendOpen ? '14px 18px' : '8px 14px',
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(99, 102, 241, 0.2)',
+            zIndex: 25,
+            fontSize: '0.74rem',
+            color: '#f8fafc',
+            fontFamily: "'Inter', system-ui, sans-serif",
+            transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+            minWidth: legendOpen ? '320px' : 'auto'
+          }}>
+            <div
+              onClick={() => setLegendOpen(!legendOpen)}
+              style={{
+                fontWeight: 800,
+                fontSize: '0.78rem',
+                color: '#818cf8',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                cursor: 'pointer',
+                userSelect: 'none',
+                gap: '12px'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                <Network size={15} color="#818cf8" />
+                <span>Data Flow Wire Legend</span>
+              </div>
+              <button
+                style={{
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: '6px',
+                  color: '#94a3b8',
+                  fontSize: '0.65rem',
+                  fontWeight: 800,
+                  padding: '2px 8px',
+                  cursor: 'pointer'
+                }}
+              >
+                {legendOpen ? 'Minimize' : 'Show Legend'}
+              </button>
+            </div>
+
+            {legendOpen && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px', paddingTop: '10px', borderTop: '1px dashed rgba(255, 255, 255, 0.1)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ width: '32px', height: '0', borderTop: '2.5px dashed #f43f5e', boxShadow: '0 0 8px #f43f5e' }} />
+                    <span style={{ color: '#fda4af', fontWeight: 700 }}>Control Flow</span>
+                  </div>
+                  <span style={{ fontSize: '0.64rem', color: '#94a3b8', fontWeight: 700, backgroundColor: 'rgba(244, 63, 94, 0.15)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(244, 63, 94, 0.3)' }}>WHEN Event</span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ width: '32px', height: '0', borderTop: '2.5px solid #a855f7', boxShadow: '0 0 8px #a855f7' }} />
+                    <span style={{ color: '#c084fc', fontWeight: 700 }}>Execution Action</span>
+                  </div>
+                  <span style={{ fontSize: '0.64rem', color: '#94a3b8', fontWeight: 700, backgroundColor: 'rgba(168, 85, 247, 0.15)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(168, 85, 247, 0.3)' }}>THEN Action</span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ width: '32px', height: '0', borderTop: '2.5px dotted #38bdf8', boxShadow: '0 0 8px #38bdf8' }} />
+                    <span style={{ color: '#38bdf8', fontWeight: 700 }}>Data Fetch / Read</span>
+                  </div>
+                  <span style={{ fontSize: '0.64rem', color: '#94a3b8', fontWeight: 700, backgroundColor: 'rgba(56, 189, 248, 0.15)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(56, 189, 248, 0.3)' }}>Read Query / Table</span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ width: '32px', height: '0', borderTop: '2.5px dashed #34d399', boxShadow: '0 0 8px #34d399' }} />
+                    <span style={{ color: '#34d399', fontWeight: 700 }}>Record Output / Load</span>
+                  </div>
+                  <span style={{ fontSize: '0.64rem', color: '#94a3b8', fontWeight: 700, backgroundColor: 'rgba(52, 211, 153, 0.15)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(52, 211, 153, 0.3)' }}>Record Placeholder</span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ width: '32px', height: '0', borderTop: '2.5px solid #22c55e', boxShadow: '0 0 8px #22c55e' }} />
+                    <span style={{ color: '#6ee7b7', fontWeight: 700 }}>Variable State Update</span>
+                  </div>
+                  <span style={{ fontSize: '0.64rem', color: '#94a3b8', fontWeight: 700, backgroundColor: 'rgba(34, 197, 94, 0.15)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(34, 197, 94, 0.3)' }}>Update Var</span>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* PRO CONTEXT MENU OVERLAY */}
           {contextMenu && (
@@ -1283,6 +1667,71 @@ const AppNodeEditor = ({
           <button onClick={() => setSelectedEl(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X size={15} /></button>
         </div>
         {renderInspector()}
+          {/* CYBER COMMAND PALETTE MODAL (Ctrl+K) */}
+          {cmdPaletteOpen && (
+            <div
+              onClick={() => setCmdPaletteOpen(false)}
+              style={{
+                position: 'fixed', inset: 0,
+                backgroundColor: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(8px)',
+                zIndex: 99999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '15vh'
+              }}
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  width: '100%', maxWidth: '540px', backgroundColor: '#0f172a',
+                  border: '1px solid #334155', borderRadius: '14px',
+                  boxShadow: '0 25px 50px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(99, 102, 241, 0.25)',
+                  overflow: 'hidden', color: '#f8fafc', fontFamily: "'Inter', system-ui, sans-serif"
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 18px', borderBottom: '1px solid #1e293b' }}>
+                  <Search size={18} color="#818cf8" />
+                  <input
+                    autoFocus
+                    placeholder="Type to search nodes, actions, variables, or subsystem frames..."
+                    value={searchQ}
+                    onChange={(e) => setSearchQ(e.target.value)}
+                    style={{ flex: 1, background: 'none', border: 'none', color: '#f8fafc', fontSize: '0.9rem', outline: 'none', fontWeight: 600 }}
+                  />
+                  <span style={{ fontSize: '0.68rem', color: '#64748b', backgroundColor: '#1e293b', padding: '2px 6px', borderRadius: '4px' }}>ESC</span>
+                </div>
+
+                <div style={{ maxHeight: '340px', overflowY: 'auto', padding: '8px' }}>
+                  <div style={{ padding: '6px 10px', fontSize: '0.68rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Nodes & Presets</div>
+                  {[
+                    { label: 'Set Variable Action', type: 'action', extra: { actionType: 'SET_VARIABLE' }, icon: <ArrowRight size={14} color="#a855f7" /> },
+                    { label: 'Navigate Screen Action', type: 'action', extra: { actionType: 'NAVIGATE_STEP' }, icon: <Navigation size={14} color="#38bdf8" /> },
+                    { label: 'Subsystem Boundary Frame', type: 'group_container', extra: { width: 340, height: 240 }, icon: <Box size={14} color="#6366f1" /> },
+                    { label: 'AI Vision Inspection Node', type: 'aivision', extra: {}, icon: <Sparkles size={14} color="#ec4899" /> },
+                    { label: 'IF/ELSE Branch Condition', type: 'condition', extra: { condition: 'var===value' }, icon: <GitBranch size={14} color="#f97316" /> },
+                    ...(appVariables || []).map(v => ({ label: `Variable: ${v.name}`, type: 'variable', extra: { varType: v.type, value: v.defaultValue }, icon: <Variable size={14} color="#10b981" /> })),
+                    ...(tables || []).map(t => ({ label: `Table: ${t.name || t.id}`, type: 'table', extra: { tableId: t.id, columns: t.columns }, icon: <Database size={14} color="#0d9488" /> }))
+                  ]
+                  .filter(item => (item.label || '').toLowerCase().includes(searchQ.toLowerCase()))
+                  .map((item, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => { addNode(item.type, item.label, item.extra); setCmdPaletteOpen(false); }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '8px',
+                        cursor: 'pointer', transition: 'all 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1e293b'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      <div style={{ padding: '6px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {item.icon}
+                      </div>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#f1f5f9' }}>{item.label}</span>
+                      <span style={{ marginLeft: 'auto', fontSize: '0.68rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>{item.type}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
       </div>}
       </div>
     </div>

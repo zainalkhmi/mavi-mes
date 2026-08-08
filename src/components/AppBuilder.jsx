@@ -13559,6 +13559,7 @@ const AppBuilder = () => {
                             currentStepId={currentStepId}
                             baseComponents={baseComponents}
                             tables={tables}
+                            recordPlaceholders={recordPlaceholders}
                             appVariables={appVariables}
                             appTriggers={appTriggers}
                             onUpdateWidgetLogic={handleUpdateWidgetLogic}
