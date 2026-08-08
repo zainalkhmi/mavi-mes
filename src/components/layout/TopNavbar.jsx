@@ -1,0 +1,155 @@
+import { Link, useLocation } from 'react-router-dom';
+import {
+  Settings, Zap, Camera, Cpu, Database, Link2, Variable,
+  BarChart3, Monitor, MapPin, Radio, Tv, Activity, Eye, BrainCircuit,
+  SlidersHorizontal, Users, ShoppingBag, AppWindow, Folder, Volume2,
+  FileCode, Webhook, Play, Layout
+} from 'lucide-react';
+import { Toaster } from 'react-hot-toast';
+
+import { useGlobalStore } from '../../store/useGlobalStore.js';
+import { hasAccess as checkRoleAccess } from '../../utils/roleAccess.js';
+import { logout } from '../../utils/auth.js';
+
+import NavDropdown from './NavDropdown.jsx';
+import SystemStatusDropdown from './SystemStatusDropdown.jsx';
+
+export default function TopNavbar() {
+  const location = useLocation();
+  const user = useGlobalStore((state) => state.user);
+  const setUser = useGlobalStore((state) => state.setUser);
+  const isOperator = useGlobalStore((state) => state.getIsOperator());
+  
+  const isOperatorRoute = location.pathname.startsWith('/player') || location.pathname.startsWith('/terminal');
+
+  const hasAccess = (path) => checkRoleAccess(user, path);
+
+  if (isOperatorRoute || isOperator) return null;
+
+  const appItems = [
+    hasAccess('/builder') && { path: '/builder', icon: <Layout size={16} />, label: 'App Builder' },
+    hasAccess('/file-explorer') && { path: '/file-explorer', icon: <Folder size={16} />, label: 'File Explorer' },
+    hasAccess('/store') && { path: '/store', icon: <ShoppingBag size={16} />, label: 'App Store' },
+    hasAccess('/app-management') && { path: '/app-management', icon: <AppWindow size={16} />, label: 'App Management' },
+    hasAccess('/tables') && { path: '/tables', icon: <Database size={16} />, label: 'Tables' },
+    hasAccess('/connectors') && { path: '/connectors', icon: <Link2 size={16} />, label: 'Connectors' },
+    hasAccess('/mcp-server') && { path: '/mcp-server', icon: <BrainCircuit size={16} />, label: 'Mavi MCP Server' },
+    hasAccess('/variables') && { path: '/variables', icon: <Variable size={16} />, label: 'Variables' }
+  ].filter(Boolean);
+
+  const drawingItems = [
+    hasAccess('/drawings') && { path: '/drawings', icon: <Layout size={16} />, label: 'Inspector Designer' },
+    hasAccess('/drawings/files') && { path: '/drawings/files', icon: <FileCode size={16} />, label: 'Drawing File Management' }
+  ].filter(Boolean);
+
+  const shopFloorItems = [
+    hasAccess('/stations') && { path: '/stations', icon: <MapPin size={16} />, label: 'Stations' },
+    hasAccess('/display-devices') && { path: '/display-devices', icon: <Tv size={16} />, label: 'Interfaces' },
+    hasAccess('/machines') && { path: '/machines', icon: <Cpu size={16} />, label: 'Machines' },
+    hasAccess('/edge-devices') && { path: '/edge-devices', icon: <Activity size={16} />, label: 'Edge Devices' },
+    hasAccess('/voice-inspection') && { path: '/voice-inspection', icon: <Volume2 size={16} />, label: 'Voice Inspection' },
+    { type: 'divider' },
+    hasAccess('/iot-hub') && { path: '/iot-hub', icon: <Radio size={16} className="text-violet-500" />, label: 'IoT Hub' },
+    hasAccess('/plc-settings') && { path: '/plc-settings', icon: <SlidersHorizontal size={16} />, label: 'PLC Settings' }
+  ].filter(Boolean);
+
+  const visionItems = [
+    hasAccess('/vision') && { path: '/vision', icon: <Eye size={16} />, label: 'Vision' },
+    hasAccess('/vision/quickbuild') && { path: '/vision/quickbuild', icon: <Zap size={16} className="text-orange-400" />, label: 'Vision Builder' },
+    hasAccess('/vision/calibration') && { path: '/vision/calibration', icon: <Camera size={16} />, label: 'Camera Calibration' }
+  ].filter(Boolean);
+
+  const analyticsItems = [
+    hasAccess('/analytics') && { path: '/analytics', icon: <BarChart3 size={16} />, label: 'Analysis Manager' },
+    hasAccess('/dashboards') && { path: '/dashboards', icon: <Layout size={16} />, label: 'Dashboards' }
+  ].filter(Boolean);
+
+  const logicItems = [
+    hasAccess('/automations') && { path: '/automations', icon: <Zap size={16} />, label: 'Automations' },
+    hasAccess('/functions') && { path: '/functions', icon: <Cpu size={16} />, label: 'Functions' }
+  ].filter(Boolean);
+
+  const consoleItems = [
+    hasAccess('/player') && { path: '/player', icon: <Play size={16} />, label: 'App Player' },
+    hasAccess('/terminal') && { path: '/terminal', icon: <Monitor size={16} />, label: 'Live Terminal' },
+    hasAccess('/scada') && { path: '/scada', icon: <Zap size={16} />, label: 'SCADA Dashboard' }
+  ].filter(Boolean);
+
+  const systemItems = [
+    hasAccess('/users') && { path: '/users', icon: <Users size={16} />, label: 'User Access Role' },
+    { type: 'divider' },
+    hasAccess('/ai-settings') && { path: '/ai-settings', icon: <BrainCircuit size={16} />, label: 'AI Settings' },
+    { type: 'divider' },
+    hasAccess('/supabase-settings') && { path: '/supabase-settings', icon: <Database size={16} />, label: 'Database Settings' },
+    { type: 'divider' },
+    hasAccess('/n8n-settings') && { path: '/n8n-settings', icon: <Webhook size={16} />, label: 'Outgoing Webhooks' },
+    { type: 'divider' },
+    hasAccess('/admin-settings') && { path: '/admin-settings', icon: <SlidersHorizontal size={16} />, label: 'Admin Settings' },
+    { type: 'divider' },
+    hasAccess('/build-center') && { path: '/build-center', icon: <Cpu size={16} />, label: 'App Compiler' }
+  ].filter(Boolean);
+
+  return (
+    <nav className="flex items-center justify-between px-6 h-14 bg-white border-b border-slate-200 z-[1000]">
+      {/* LEFT SECTION */}
+      <div className="flex items-center gap-8">
+        <Link to="/" className="flex items-center gap-2.5 no-underline">
+          <div className="bg-blue-600 p-1.5 rounded-md flex items-center">
+            <Settings size={18} className="text-white" />
+          </div>
+          <span className="font-extrabold tracking-wide text-[1.1rem] text-slate-900">MES CORE</span>
+        </Link>
+
+        {/* MAIN NAVIGATION */}
+        <div className="flex items-center gap-1">
+          <Link
+            to="/help"
+            className={`px-3 py-1.5 text-[0.9rem] font-semibold rounded transition-colors ${
+              location.pathname === '/help' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+            }`}
+          >
+            Help
+          </Link>
+
+          {appItems.length > 0 && <NavDropdown title="Apps" pathMatches={['/builder', '/file-explorer', '/store', '/app-management', '/tables', '/connectors', '/variables', '/mcp-server']} items={appItems} />}
+          {drawingItems.length > 0 && <NavDropdown title="Drawings" pathMatches={['/drawings', '/drawings/files']} items={drawingItems} />}
+          {shopFloorItems.length > 0 && <NavDropdown title="Shop Floor" pathMatches={['/stations', '/display-devices', '/machines', '/edge-devices', '/iot-hub', '/plc-settings', '/voice-inspection']} items={shopFloorItems} />}
+          {visionItems.length > 0 && <NavDropdown title="Vision" pathMatches={['/vision', '/vision/calibration', '/vision/quickbuild']} items={visionItems} />}
+          {analyticsItems.length > 0 && <NavDropdown title="Analytics" pathMatches={['/analytics', '/dashboards']} items={analyticsItems} />}
+          {logicItems.length > 0 && <NavDropdown title="Logic" pathMatches={['/automations', '/functions']} items={logicItems} />}
+        </div>
+      </div>
+
+      {/* RIGHT SECTION */}
+      <div className="flex items-center gap-2">
+        {consoleItems.length > 0 && <NavDropdown title="Console" pathMatches={['/player', '/terminal', '/scada']} items={consoleItems} />}
+        {systemItems.length > 0 && <NavDropdown title="System" pathMatches={['/users', '/ai-settings', '/supabase-settings', '/n8n-settings', '/build-center', '/admin-settings']} items={systemItems} />}
+
+        <Toaster position="top-right" />
+
+        <SystemStatusDropdown />
+
+        <div className="w-px h-6 bg-slate-200 mx-2" />
+
+        {/* USER MENU */}
+        <div className="flex items-center gap-4 pl-1">
+          <div className="flex items-center gap-2 text-slate-900 text-[0.85rem] font-semibold">
+            <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">
+              {user?.name?.charAt(0) || 'U'}
+            </div>
+            <span>{user?.name || 'User'}</span>
+          </div>
+          <button
+            onClick={() => {
+              logout();
+              setUser(null);
+            }}
+            className="bg-transparent border border-slate-300 text-slate-500 px-3 py-1.5 rounded-md text-[0.8rem] font-semibold hover:bg-red-50 hover:border-red-500 hover:text-red-500 transition-colors"
+          >
+            Logout
+          </button>
+        </div>
+      </div>
+    </nav>
+  );
+}

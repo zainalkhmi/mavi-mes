@@ -1,3 +1,4 @@
+@import "tailwindcss";
 :root {
   --bg-primary: #edf1f5; /* Cool gray for workspace background */
   --bg-secondary: #ffffff; /* White for cards/panels */
