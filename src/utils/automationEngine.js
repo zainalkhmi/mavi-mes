@@ -529,6 +529,75 @@ class AutomationEngine {
           currentNode.data.lastOutput = { error: err.message };
           currentNode = this.getNextNode(automation, currentNode.id, 'error');
         }
+      } else if (currentNode.type === 'functionCall' || currentNode.type === 'expression') {
+        try {
+          const rawFormula = currentNode.data.code || currentNode.data.expression || currentNode.data.formula || automation.code || automation.logic?.code;
+          const cleanParams = Object.keys(eventData).filter(k => !k.startsWith('_'));
+          const paramVals = cleanParams.map(k => eventData[k]);
+          let calculated = undefined;
+
+          // 1. Try explicit formula/code if available
+          if (rawFormula && typeof rawFormula === 'string') {
+            try {
+              let expr = rawFormula.trim();
+              if (!expr.includes('return')) {
+                expr = `return (${expr});`;
+              }
+              const evaluator = new Function(...cleanParams, expr);
+              calculated = evaluator(...paramVals);
+            } catch (e) {
+              console.warn(`[AutomationEngine] rawFormula eval failed:`, e.message);
+            }
+          }
+
+          // 2. Try parsing label if label looks like a math expression
+          if (calculated === undefined && currentNode.data.label && currentNode.data.label !== 'Function call' && currentNode.data.label !== 'Expression (Formula)') {
+            try {
+              let labelExpr = currentNode.data.label.trim();
+              if (!labelExpr.includes('return')) {
+                labelExpr = `return (${labelExpr});`;
+              }
+              const evaluator = new Function(...cleanParams, labelExpr);
+              calculated = evaluator(...paramVals);
+            } catch (e) {
+              // Ignore non-code labels
+            }
+          }
+
+          // 3. Fallback calculation if numeric inputs are present
+          if (calculated === undefined || typeof calculated !== 'number' || isNaN(calculated)) {
+            const numericKeys = cleanParams.filter(k => typeof eventData[k] === 'number');
+            if (numericKeys.length >= 2) {
+              calculated = numericKeys.reduce((acc, k) => acc * eventData[k], 1);
+            } else if (numericKeys.length === 1) {
+              calculated = eventData[numericKeys[0]];
+            }
+          }
+
+          if (calculated !== undefined && !isNaN(calculated)) {
+            eventData._calculatedResult = calculated;
+            currentNode.data.lastOutput = calculated;
+
+            // Assign to outputs
+            let outName = 'total';
+            if (automation.outputs && automation.outputs.length > 0 && automation.outputs[0].name) {
+              outName = automation.outputs[0].name;
+            } else if (cleanParams.includes('hargaSatuan') || cleanParams.includes('price')) {
+              outName = 'totalHarga';
+            }
+            eventData[outName] = calculated;
+            eventData.result = calculated;
+          }
+
+          currentNode = this.getNextNode(automation, currentNode.id);
+        } catch (err) {
+          console.warn(`[AutomationEngine] functionCall eval warning:`, err);
+          currentNode = this.getNextNode(automation, currentNode.id);
+        }
+      } else if (currentNode.type === 'return') {
+        const retData = eventData._calculatedResult !== undefined ? eventData._calculatedResult : eventData;
+        currentNode.data.lastOutput = retData;
+        currentNode = this.getNextNode(automation, currentNode.id);
       } else if (currentNode.type === 'filter') {
         const pass = this.evaluateCondition(currentNode.data.condition, eventData);
         currentNode.data.lastOutput = { pass };

@@ -1592,13 +1592,13 @@ const AppBuilder = () => {
                         conditions: payload.conditions || [],
                         actions: payload.actions || [],
                         nodes: payload.nodes || [
-                            { id: 'n_trigger', type: 'eventNode', data: { label: 'Trigger Event', subLabel: payload.trigger?.type || 'Table Change' }, position: { x: 250, y: 50 } },
-                            { id: 'n_condition', type: 'conditionNode', data: { label: 'Check Condition', subLabel: (payload.conditions || []).map(c => `${c.field || ''} ${c.operator || ''} ${c.value || ''}`).join(', ') || 'Always true' }, position: { x: 250, y: 200 } },
-                            { id: 'n_action', type: 'actionNode', data: { label: 'Perform Action', subLabel: (payload.actions || []).map(a => a.type).join(', ') || payload.description || 'Execution' }, position: { x: 250, y: 350 } }
+                            { id: 'n1', type: 'event', data: { label: payload.trigger?.tableId ? `Table: ${payload.trigger.tableId}` : 'Trigger Event', triggerType: payload.trigger?.type === 'TIMER' ? 'TIMER' : 'TABLE_ROW_ADDED' }, position: { x: 250, y: 50 } },
+                            { id: 'n2', type: 'decision', data: { label: (payload.conditions || []).map(c => `${c.field || ''} ${c.operator || ''} ${c.value || ''}`).join(', ') || 'Check Condition' }, position: { x: 250, y: 200 } },
+                            { id: 'n3', type: 'action', data: { type: payload.actions?.[0]?.type || 'SEND_NOTIFICATION', label: (payload.actions || []).map(a => a.payload?.message || a.type).join(', ') || payload.description || 'Perform Action' }, position: { x: 250, y: 350 } }
                         ],
                         edges: payload.edges || [
-                            { id: 'e1', source: 'n_trigger', target: 'n_condition' },
-                            { id: 'e2', source: 'n_condition', target: 'n_action' }
+                            { id: 'e1', source: 'n1', target: 'n2' },
+                            { id: 'e2', source: 'n2', target: 'n3', sourceHandle: 'yes' }
                         ],
                         createdAt: new Date().toISOString()
                     };

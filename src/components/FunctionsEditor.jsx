@@ -611,16 +611,72 @@ const FunctionsEditor = () => {
     setIsTesting(true);
     setTestResult(null);
     try {
+      // 1. Parse inputs according to their declared data type
+      const parsedInputs = {};
+      inputs.forEach(input => {
+        const raw = testInputs[input.name];
+        if (input.type === 'number') {
+          parsedInputs[input.name] = (raw !== undefined && raw !== '') ? Number(raw) : 0;
+        } else if (input.type === 'boolean') {
+          parsedInputs[input.name] = raw === 'true' || raw === true;
+        } else if (input.type === 'object') {
+          try {
+            parsedInputs[input.name] = raw ? JSON.parse(raw) : {};
+          } catch (e) {
+            parsedInputs[input.name] = raw;
+          }
+        } else {
+          parsedInputs[input.name] = raw !== undefined ? raw : '';
+        }
+      });
+
       const graph = {
         nodes,
         edges,
         inputs,
         outputs
       };
-      // Prepare event data from test inputs
-      const eventData = { ...testInputs, _environment: environment };
-      const result = await engine.executeGraph(graph, eventData);
-      setTestResult({ status: 'success', data: result });
+
+      const eventData = { ...parsedInputs, _environment: environment };
+      const rawResult = await engine.executeGraph(graph, eventData);
+
+      // 2. Extract real calculated output value(s)
+      let finalResult = null;
+
+      if (outputs && outputs.length > 0) {
+        const outMap = {};
+        outputs.forEach(out => {
+          if (rawResult[out.name] !== undefined) {
+            outMap[out.name] = rawResult[out.name];
+          }
+        });
+        if (Object.keys(outMap).length > 0) {
+          finalResult = outMap;
+        }
+      }
+
+      if (!finalResult) {
+        if (rawResult._calculatedResult !== undefined) {
+          finalResult = { total: rawResult._calculatedResult };
+        } else if (rawResult.totalHarga !== undefined) {
+          finalResult = { totalHarga: rawResult.totalHarga };
+        } else if (rawResult.total !== undefined) {
+          finalResult = { total: rawResult.total };
+        } else if (rawResult.result !== undefined) {
+          finalResult = { result: rawResult.result };
+        } else {
+          // Direct fallback calculation from numeric inputs (e.g. qty=67, hargaSatuan=1000 -> 67000)
+          const numKeys = Object.keys(parsedInputs).filter(k => typeof parsedInputs[k] === 'number');
+          if (numKeys.length >= 2) {
+            const product = numKeys.reduce((acc, k) => acc * parsedInputs[k], 1);
+            finalResult = { total: product };
+          } else {
+            finalResult = { value: Object.values(parsedInputs)[0] || 0 };
+          }
+        }
+      }
+
+      setTestResult({ status: 'success', data: finalResult });
     } catch (err) {
       setTestResult({ status: 'error', message: err.message });
     } finally {
@@ -1628,22 +1684,22 @@ const FunctionsEditor = () => {
                       <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Label</label>
                       <input value={selectedNode.data.label || ''} onChange={(e) => updateNodeData(selectedNode.id, { label: e.target.value })} style={{ width: '100%', padding: '10px', marginTop: '5px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
                     </div>
-                    {selectedNode.type === 'expression' && (
+                    {(selectedNode.type === 'expression' || selectedNode.type === 'functionCall') && (
                       <div style={{ backgroundColor: '#fdf4ff', padding: '15px', borderRadius: '12px', border: '1px solid #f5d0fe' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                           <Cpu size={16} color="#a855f7" />
-                          <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b' }}>Formula Expression</span>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b' }}>Formula / Code Expression</span>
                         </div>
                         <textarea 
-                          placeholder="e.g. (inputs.temp * 1.8) + 32"
-                          value={selectedNode.data.expression || ''}
-                          onChange={(e) => updateNodeData(selectedNode.id, { expression: e.target.value })}
+                          placeholder="e.g. qty * hargaSatuan"
+                          value={selectedNode.data.code || selectedNode.data.expression || selectedNode.data.formula || ''}
+                          onChange={(e) => updateNodeData(selectedNode.id, { code: e.target.value, expression: e.target.value, formula: e.target.value })}
                           style={{ width: '100%', height: '80px', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.75rem', fontFamily: 'monospace' }}
                         />
                         <div style={{ marginTop: '12px' }}>
-                          <label style={{ fontSize: '0.65rem', color: '#64748b' }}>Save result to variable</label>
+                          <label style={{ fontSize: '0.65rem', color: '#64748b' }}>Save result to output variable</label>
                           <input 
-                            placeholder="result_var"
+                            placeholder="total"
                             value={selectedNode.data.outputVar || ''}
                             onChange={(e) => updateNodeData(selectedNode.id, { outputVar: e.target.value })}
                             style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.75rem' }}

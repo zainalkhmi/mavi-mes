@@ -1194,10 +1194,28 @@ export const generateAiAutomation = async (userPrompt, connector) => {
     const systemPrompt = `You are an Industrial MES & Smart Automation Engineer.
 Generate a structured Automation Rule & Visual Flow definition based on the user's prompt.
 
+CRITICAL REQUIREMENT — NODE TYPES:
+You MUST use ONLY the following valid Node-RED Palette node types for the "nodes" array:
+- "event": Trigger Node. Requires data: { label: "Descriptive Name", triggerType: "TABLE_ROW_ADDED"|"TIMER"|"WEBHOOK"|"GMAIL_TRIGGER"|"TELEGRAM_TRIGGER"|"MACHINE_TRIGGER" }
+- "decision": IF Condition Branch Node. Requires data: { label: "IF condition text" }. Connect outgoing edge from "yes" handle for true, "no" handle for false.
+- "switch": Multi-Branch Route Node. Requires data: { label: "Switch Rule" }. Connect outgoing edge from "b1", "b2", "b3", or "fallback" handle.
+- "action": Executable Action Node. Requires data: { type: "SEND_NOTIFICATION"|"HTTP_REQUEST"|"UPDATE_RECORD"|"CREATE_RECORD"|"GMAIL"|"TELEGRAM"|"SLACK"|"WHATSAPP"|"SPREADSHEET"|"ERP_CRM"|"MQTT_PUBLISH", label: "Action Name" }
+- "code": Custom JS/Python Code Node. Requires data: { label: "Script Name" }
+- "set": Set Variables / Edit Fields Node. Requires data: { label: "Set Fields" }
+- "filter": Filter Data Stream Node. Requires data: { label: "Filter Condition" }
+- "loop": Loop Iteration Node. Requires data: { label: "Loop Items" }. Outgoing handles: "body", "exit".
+- "wait": Pause Delay Node. Requires data: { label: "Wait duration" }
+- "database": Query DB Node. Requires data: { label: "Query DB" }
+- "send_email": Send Email SMTP Node. Requires data: { label: "Send Email" }
+- "sub_workflow": Call Child Workflow Node. Requires data: { label: "Call Sub-Workflow" }
+- "error_trigger": Catch Error Fallback Node. Requires data: { label: "Catch Error" }
+
+DO NOT use "eventNode", "conditionNode", "actionNode", or generic custom types. ONLY use the exact types above.
+
 Output MUST be a valid JSON object matching this schema:
 {
   "name": "Automation Name",
-  "description": "Short explanation of the trigger condition and actions",
+  "description": "Short explanation of trigger and actions",
   "active": true,
   "trigger": {
     "type": "TABLE_CHANGE|VARIABLE_CHANGE|TIMER|MQTT_MESSAGE|REST_WEBHOOK",
@@ -1206,19 +1224,19 @@ Output MUST be a valid JSON object matching this schema:
     "variableName": "varName"
   },
   "conditions": [
-    { "field": "field_name", "operator": "equals|greater_than|less_than|contains", "value": "value" }
+    { "field": "status", "operator": "equals", "value": "FAIL" }
   ],
   "actions": [
-    { "type": "SHOW_NOTIFICATION", "payload": { "message": "Notification message", "msgType": "success|warning|error" } }
+    { "type": "SHOW_NOTIFICATION", "payload": { "message": "Notification message", "msgType": "warning" } }
   ],
   "nodes": [
-    { "id": "n_trigger", "type": "eventNode", "data": { "label": "Trigger Event", "subLabel": "Trigger desc" }, "position": { "x": 250, "y": 50 } },
-    { "id": "n_condition", "type": "conditionNode", "data": { "label": "Check Condition", "subLabel": "Condition desc" }, "position": { "x": 250, "y": 200 } },
-    { "id": "n_action", "type": "actionNode", "data": { "label": "Perform Action", "subLabel": "Action desc" }, "position": { "x": 250, "y": 350 } }
+    { "id": "n1", "type": "event", "data": { "label": "QC Table Insert", "triggerType": "TABLE_ROW_ADDED" }, "position": { "x": 250, "y": 50 } },
+    { "id": "n2", "type": "decision", "data": { "label": "Check Status == FAIL" }, "position": { "x": 250, "y": 200 } },
+    { "id": "n3", "type": "action", "data": { "type": "SEND_NOTIFICATION", "label": "Show Alert Notif" }, "position": { "x": 250, "y": 350 } }
   ],
   "edges": [
-    { "id": "e1", "source": "n_trigger", "target": "n_condition" },
-    { "id": "e2", "source": "n_condition", "target": "n_action" }
+    { "id": "e1", "source": "n1", "target": "n2" },
+    { "id": "e2", "source": "n2", "target": "n3", "sourceHandle": "yes" }
   ]
 }
 

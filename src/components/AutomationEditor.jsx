@@ -1081,16 +1081,35 @@ const ensureNodePositions = (nodesList) => {
   if (!Array.isArray(nodesList)) return nodesList;
   return nodesList.map((node, index) => {
     if (!node) return node;
-    if (!node.position || typeof node.position.x !== 'number' || typeof node.position.y !== 'number') {
-      return {
-        ...node,
-        position: {
-          x: typeof node.position?.x === 'number' ? node.position.x : (index * 200 + 80),
-          y: typeof node.position?.y === 'number' ? node.position.y : 180
-        }
-      };
+
+    let type = node.type || 'action';
+    const data = { ...(node.data || {}) };
+
+    // ─── NORMALIZE PALETTE NODE TYPES ──────────────────────────────────────────
+    if (type === 'eventNode' || type === 'trigger') {
+      type = 'event';
+      if (!data.triggerType) data.triggerType = 'TABLE_ROW_ADDED';
+    } else if (type === 'conditionNode' || type === 'condition' || type === 'if') {
+      type = 'decision';
+    } else if (type === 'actionNode') {
+      type = 'action';
     }
-    return node;
+
+    if (!data.label) {
+      data.label = type === 'event' ? 'Event Trigger' : type === 'decision' ? 'IF Condition' : type === 'action' ? 'Action' : 'Node';
+    }
+
+    const pos = {
+      x: typeof node.position?.x === 'number' ? node.position.x : (index * 200 + 80),
+      y: typeof node.position?.y === 'number' ? node.position.y : 180
+    };
+
+    return {
+      ...node,
+      type,
+      data,
+      position: pos
+    };
   });
 };
 
