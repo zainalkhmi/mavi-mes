@@ -169,61 +169,62 @@ const WidgetContextPanel = ({ widget, onPrompt, onSendToChat, context }) => {
 
   return (
     <div style={{
-      margin: '0 0 0 0',
-      padding: '14px 16px',
+      margin: '0',
+      padding: '8px 12px',
       background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)',
       borderBottom: '1px solid rgba(255,255,255,0.08)',
       flexShrink: 0,
     }}>
       {/* Header row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-        <div style={{
-          width: '34px', height: '34px', borderRadius: '10px',
-          backgroundColor: meta.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          border: `1px solid ${meta.color}30`, flexShrink: 0
-        }}>
-          <IconComponent size={16} color={meta.color} />
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
           <div style={{
-            fontSize: '0.8rem', fontWeight: 700, color: '#f1f5f9',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+            width: '26px', height: '26px', borderRadius: '7px',
+            backgroundColor: meta.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: `1px solid ${meta.color}30`, flexShrink: 0
           }}>
-            {widgetName}
+            <IconComponent size={14} color={meta.color} />
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase', color: meta.color, background: meta.bg, padding: '1px 6px', borderRadius: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, overflow: 'hidden' }}>
+            <span style={{
+              fontSize: '0.78rem', fontWeight: 700, color: '#f1f5f9',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+            }}>
+              {widgetName}
+            </span>
+            <span style={{ fontSize: '0.58rem', fontWeight: 800, textTransform: 'uppercase', color: meta.color, background: meta.bg, padding: '1px 5px', borderRadius: '4px', flexShrink: 0 }}>
               {widget.type}
             </span>
-            {triggerCount > 0 && <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#fbbf24' }}>⚡ {triggerCount}t</span>}
-            {hasBinding && <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#34d399' }}>🔗 bound</span>}
-            {hasTableId && <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#60a5fa' }}>🗄️ table</span>}
-            {!triggerCount && !hasBinding && <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#f87171' }}>⚠️ orphan</span>}
+            {triggerCount > 0 && <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#fbbf24', flexShrink: 0 }}>⚡ {triggerCount}t</span>}
+            {hasBinding && <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#34d399', flexShrink: 0 }}>🔗 bound</span>}
+            {hasTableId && <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#60a5fa', flexShrink: 0 }}>🗄️ table</span>}
+            {!triggerCount && !hasBinding && <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#f87171', flexShrink: 0 }}>⚠️ orphan</span>}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '5px' }}>
+
+        <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
           <button
             onClick={() => setShowProps(v => !v)}
             title="Toggle property inspector"
-            style={{ padding: '5px 7px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '7px', color: '#94a3b8', fontSize: '0.65rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+            style={{ padding: '4px 6px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#94a3b8', fontSize: '0.62rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
           >
-            {showProps ? <EyeOff size={10} /> : <Eye size={10} />}
+            {showProps ? <EyeOff size={11} /> : <Eye size={11} />}
           </button>
           <button
             onClick={onSendToChat}
             title="Send widget context to chat"
-            style={{ padding: '5px 8px', background: 'rgba(59,130,246,0.2)', border: '1px solid rgba(59,130,246,0.4)', borderRadius: '7px', color: '#93c5fd', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.15s' }}
+            style={{ padding: '4px 8px', background: 'rgba(59,130,246,0.2)', border: '1px solid rgba(59,130,246,0.4)', borderRadius: '6px', color: '#93c5fd', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.15s' }}
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(59,130,246,0.35)'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'rgba(59,130,246,0.2)'; }}
           >
-            <MousePointer2 size={10} /> Chat
+            <MousePointer2 size={11} /> Chat
           </button>
         </div>
       </div>
 
-      {/* UPGRADE 5: Mini Property Inspector */}
+      {/* Mini Property Inspector */}
       {showProps && (
-        <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '8px 10px', marginBottom: '10px', fontSize: '0.65rem', color: '#94a3b8', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+        <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '6px 8px', marginTop: '6px', fontSize: '0.65rem', color: '#94a3b8', display: 'flex', flexDirection: 'column', gap: '3px' }}>
           <div>📍 Pos: ({widget.x}, {widget.y}) &nbsp;|&nbsp; Size: {widget.w}×{widget.h}</div>
           {widget.props?.targetVariable && <div style={{ color: '#34d399' }}>🔗 Bound: {widget.props.targetVariable}</div>}
           {widget.props?.tableId && <div style={{ color: '#60a5fa' }}>🗄️ Table: {widget.props.tableId}</div>}
@@ -236,25 +237,25 @@ const WidgetContextPanel = ({ widget, onPrompt, onSendToChat, context }) => {
         </div>
       )}
 
-      {/* Smart Quick action buttons */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px' }}>
-        {smartActions.slice(0,6).map((action, i) => (
+      {/* Smart Quick action buttons - Compact horizontal flex pills */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+        {smartActions.slice(0, 6).map((action, i) => (
           <button
             key={i}
             onClick={() => onPrompt(action.prompt)}
-            title={action.prompt.slice(0,100)}
+            title={action.prompt.slice(0, 100)}
             style={{
-              padding: '7px 9px', borderRadius: '8px',
-              background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-              color: '#cbd5e1', fontSize: '0.68rem', fontWeight: 600, cursor: 'pointer',
-              textAlign: 'left', display: 'flex', alignItems: 'center', gap: '5px',
-              transition: 'all 0.15s',
+              padding: '3px 8px', borderRadius: '6px',
+              background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)',
+              color: '#e2e8f0', fontSize: '0.66rem', fontWeight: 600, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: '4px',
+              transition: 'all 0.15s', whiteSpace: 'nowrap',
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.13)'; e.currentTarget.style.color = '#f1f5f9'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = '#cbd5e1'; }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.25)'; e.currentTarget.style.borderColor = 'rgba(99,102,241,0.4)'; e.currentTarget.style.color = '#ffffff'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; e.currentTarget.style.color = '#e2e8f0'; }}
           >
-            <span style={{ fontSize: '0.8rem', flexShrink: 0 }}>{action.icon}</span>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{action.label}</span>
+            <span style={{ fontSize: '0.72rem', flexShrink: 0 }}>{action.icon}</span>
+            <span>{action.label}</span>
           </button>
         ))}
       </div>
@@ -1130,27 +1131,27 @@ Apa yang bisa kamu bantu untuk widget ini?`;
       }}>
         {/* Row 1: Title and Window Controls */}
         <div style={{
-          padding: '10px 14px',
+          padding: '7px 12px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{
-              width: '30px', height: '30px',
+              width: '26px', height: '26px',
               background: 'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(59,130,246,0.3))',
-              borderRadius: '8px',
+              borderRadius: '7px',
               border: '1px solid rgba(99,102,241,0.4)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 0 15px rgba(99,102,241,0.2)',
+              boxShadow: '0 0 10px rgba(99,102,241,0.2)',
             }}>
-              <Wand2 size={15} color="#a5b4fc" />
+              <Wand2 size={13} color="#a5b4fc" />
             </div>
             <div>
-              <div style={{ fontSize: '0.85rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#f8fafc' }}>
+              <div style={{ fontSize: '0.8rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#f8fafc' }}>
                 Builder Copilot
               </div>
-              <div style={{ fontSize: '0.6rem', color: '#6366f1', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+              <div style={{ fontSize: '0.58rem', color: '#6366f1', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
                 <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 6px #22c55e' }} />
                 <span>Active</span>
                 <span style={{ color: 'rgba(255,255,255,0.2)' }}>•</span>
@@ -1161,7 +1162,7 @@ Apa yang bisa kamu bantu untuk widget ini?`;
                     background: 'transparent',
                     border: 'none',
                     color: '#a5b4fc',
-                    fontSize: '0.6rem',
+                    fontSize: '0.58rem',
                     fontWeight: 700,
                     outline: 'none',
                     cursor: 'pointer',
@@ -1181,7 +1182,7 @@ Apa yang bisa kamu bantu untuk widget ini?`;
             </div>
           </div>
  
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             {/* Fullscreen toggle */}
             <button
               onClick={() => setIsFullScreen(v => !v)}
@@ -1191,8 +1192,8 @@ Apa yang bisa kamu bantu untuk widget ini?`;
                 border: '1px solid rgba(255,255,255,0.1)',
                 color: '#cbd5e1',
                 cursor: 'pointer',
-                padding: '6px',
-                borderRadius: '8px',
+                padding: '4px 6px',
+                borderRadius: '6px',
                 display: 'flex',
                 alignItems: 'center',
                 transition: 'all 0.15s'
@@ -1200,7 +1201,7 @@ Apa yang bisa kamu bantu untuk widget ini?`;
               onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = '#e2e8f0'; }}
               onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#cbd5e1'; }}
             >
-              {isFullScreen ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+              {isFullScreen ? <Minimize2 size={11} /> : <Maximize2 size={11} />}
             </button>
  
             {/* Close */}
@@ -1212,8 +1213,8 @@ Apa yang bisa kamu bantu untuk widget ini?`;
                 border: '1px solid rgba(255,255,255,0.1)',
                 color: 'white',
                 cursor: 'pointer',
-                padding: '6px',
-                borderRadius: '8px',
+                padding: '4px 6px',
+                borderRadius: '6px',
                 display: 'flex',
                 alignItems: 'center',
                 transition: 'all 0.15s'
@@ -1221,14 +1222,14 @@ Apa yang bisa kamu bantu untuk widget ini?`;
               onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; }}
               onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
             >
-              <X size={12} />
+              <X size={11} />
             </button>
           </div>
         </div>
  
         {/* Row 2: Toolbar Actions */}
         <div style={{
-          padding: '6px 14px',
+          padding: '4px 12px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -2303,20 +2304,25 @@ Apa yang bisa kamu bantu untuk widget ini?`;
           </div>
         )}
 
-        {/* Textarea + send */}
+        {/* Textarea + send - Compact Pro Bar */}
         <div style={{
-          display: 'flex', gap: '8px', alignItems: 'flex-end',
-          background: '#f8fafc', borderRadius: '16px',
-          border: '1.5px solid #e2e8f0', padding: '8px 10px 8px 14px',
-          transition: 'border-color 0.2s, box-shadow 0.2s',
+          display: 'flex', flexDirection: 'column',
+          backgroundColor: '#ffffff', borderRadius: '14px',
+          border: '1.5px solid #e2e8f0', padding: '8px 10px 6px 12px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+          transition: 'all 0.2s ease',
         }}
-          onFocusCapture={e => { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.12)'; e.currentTarget.style.background = '#fff'; }}
-          onBlurCapture={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.background = '#f8fafc'; }}
+          onFocusCapture={e => { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.12)'; }}
+          onBlurCapture={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.03)'; }}
         >
           <textarea
             ref={textareaRef}
             value={input}
-            onChange={e => setInput(e.target.value)}
+            onChange={e => {
+              setInput(e.target.value);
+              e.target.style.height = 'auto';
+              e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+            }}
             onPaste={e => {
               const items = e.clipboardData?.items;
               if (items) {
@@ -2324,7 +2330,6 @@ Apa yang bisa kamu bantu untuk widget ini?`;
                   if (items[i].type.indexOf('image') !== -1) {
                     const file = items[i].getAsFile();
                     if (file) {
-                      // Create a new File object with a custom name if browser doesn't provide one
                       const namedFile = new File([file], file.name || `Pasted_Image_${new Date().getTime()}.png`, { type: file.type });
                       setSelectedFile(namedFile);
                       e.preventDefault();
@@ -2336,94 +2341,101 @@ Apa yang bisa kamu bantu untuk widget ini?`;
             }}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
             placeholder={selectedWidget
-              ? `Tanya sesuatu tentang "${selectedWidget.displayName || selectedWidget.type}"...`
-              : 'Deskripsikan apa yang ingin Anda buat... (Shift+Enter baris baru)'}
-            rows={2}
+              ? `Tanya tentang "${selectedWidget.displayName || selectedWidget.type}"...`
+              : 'Deskripsikan apa yang ingin Anda buat...'}
+            rows={1}
             style={{
-              flex: 1, border: 'none', background: 'transparent',
-              fontSize: '0.875rem', outline: 'none', resize: 'none',
-              lineHeight: 1.55, fontFamily: 'inherit', color: '#1e293b',
+              width: '100%', border: 'none', background: 'transparent',
+              fontSize: '0.84rem', outline: 'none', resize: 'none',
+              minHeight: '26px', maxHeight: '120px', lineHeight: 1.45,
+              fontFamily: 'inherit', color: '#1e293b', padding: '2px 0'
             }}
           />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', flexShrink: 0 }}>
-            <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept="image/*" />
-            
-            {/* Speech to Text button */}
-            {isSpeechSupported && (
+
+          {/* Horizontal Action Bar */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px', paddingTop: '4px', borderTop: '1px solid #f1f5f9' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+              <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept="image/*" />
+              
+              {/* Speech to Text button */}
+              {isSpeechSupported && (
+                <button
+                  onClick={toggleListening}
+                  title={isListening ? "Mendengarkan..." : "Voice Control"}
+                  style={{
+                    backgroundColor: isListening ? '#ef4444' : 'transparent',
+                    color: isListening ? '#fff' : '#94a3b8',
+                    border: 'none', width: '28px', height: '28px', borderRadius: '8px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', transition: 'all 0.15s', position: 'relative'
+                  }}
+                  onMouseEnter={e => { if (!isListening) { e.currentTarget.style.backgroundColor = '#f1f5f9'; e.currentTarget.style.color = '#475569'; }}}
+                  onMouseLeave={e => { if (!isListening) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#94a3b8'; }}}
+                >
+                  <Mic size={14} />
+                  {isListening && (
+                    <span style={{
+                      position: 'absolute', top: '2px', right: '2px',
+                      width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ef4444',
+                      border: '1px solid #fff'
+                    }} />
+                  )}
+                </button>
+              )}
+
+              {/* Upload image button */}
               <button
-                onClick={toggleListening}
-                title={isListening ? "Mendengarkan... Klik untuk berhenti" : "Voice Control (Speech-to-Text)"}
+                onClick={() => fileInputRef.current.click()}
+                title="Upload gambar/mockup"
                 style={{
-                  backgroundColor: isListening ? '#ef4444' : 'transparent',
-                  color: isListening ? '#fff' : '#94a3b8',
-                  border: 'none', width: '36px', height: '36px', borderRadius: '10px',
+                  backgroundColor: selectedFile ? '#e0e7ff' : 'transparent',
+                  color: selectedFile ? '#4f46e5' : '#94a3b8',
+                  border: 'none', width: '28px', height: '28px', borderRadius: '8px',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   cursor: 'pointer', transition: 'all 0.15s',
-                  position: 'relative',
-                  animation: isListening ? 'pulse-red 1.5s infinite' : 'none'
                 }}
-                onMouseEnter={e => { if (!isListening) { e.currentTarget.style.backgroundColor = '#f1f5f9'; e.currentTarget.style.color = '#475569'; }}}
-                onMouseLeave={e => { if (!isListening) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#94a3b8'; }}}
+                onMouseEnter={e => { if (!selectedFile) { e.currentTarget.style.backgroundColor = '#f1f5f9'; e.currentTarget.style.color = '#475569'; }}}
+                onMouseLeave={e => { if (!selectedFile) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#94a3b8'; }}}
               >
-                <Mic size={16} />
-                {isListening && (
-                  <span style={{
-                    position: 'absolute', top: '2px', right: '2px',
-                    width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ef4444',
-                    border: '1.5px solid #fff'
-                  }} />
-                )}
+                <ImageIcon size={14} />
               </button>
-            )}
 
-            <button
-              onClick={() => fileInputRef.current.click()}
-              title="Upload gambar/mockup"
-              style={{
-                backgroundColor: selectedFile ? '#6366f1' : 'transparent', color: selectedFile ? '#fff' : '#94a3b8',
-                border: 'none', width: '36px', height: '36px', borderRadius: '10px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', transition: 'all 0.15s',
-              }}
-              onMouseEnter={e => { if (!selectedFile) { e.currentTarget.style.backgroundColor = '#f1f5f9'; e.currentTarget.style.color = '#475569'; }}}
-              onMouseLeave={e => { if (!selectedFile) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#94a3b8'; }}}
-            >
-              <ImageIcon size={16} />
-            </button>
-            
-            <button
-              onClick={handleSendDirectToAntigravity}
-              disabled={!input.trim() || isLoading}
-              title="Kirim perintah teks ini langsung ke Antigravity IDE"
-              style={{
-                backgroundColor: 'transparent',
-                color: input.trim() && !isLoading ? '#8b5cf6' : '#94a3b8',
-                border: 'none', width: '36px', height: '36px', borderRadius: '10px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: input.trim() && !isLoading ? 'pointer' : 'default', transition: 'all 0.15s',
-              }}
-              onMouseEnter={e => { if (input.trim() && !isLoading) { e.currentTarget.style.backgroundColor = '#f3e8ff'; e.currentTarget.style.color = '#7c3aed'; }}}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = input.trim() && !isLoading ? '#8b5cf6' : '#94a3b8'; }}
-            >
-              <BrainCircuit size={16} />
-            </button>
+              {/* Direct to Antigravity IDE button */}
+              <button
+                onClick={handleSendDirectToAntigravity}
+                disabled={!input.trim() || isLoading}
+                title="Kirim langsung ke Antigravity IDE"
+                style={{
+                  backgroundColor: 'transparent',
+                  color: input.trim() && !isLoading ? '#8b5cf6' : '#cbd5e1',
+                  border: 'none', width: '28px', height: '28px', borderRadius: '8px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: input.trim() && !isLoading ? 'pointer' : 'default', transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => { if (input.trim() && !isLoading) { e.currentTarget.style.backgroundColor = '#f3e8ff'; e.currentTarget.style.color = '#7c3aed'; }}}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = input.trim() && !isLoading ? '#8b5cf6' : '#cbd5e1'; }}
+              >
+                <BrainCircuit size={14} />
+              </button>
+            </div>
 
+            {/* Send Button */}
             <button
               onClick={() => handleSend()}
               disabled={(!input.trim() && !selectedFile) || isLoading}
               style={{
                 background: (input.trim() || selectedFile) && !isLoading
                   ? 'linear-gradient(135deg, #6366f1, #3b82f6)'
-                  : '#e2e8f0',
+                  : '#f1f5f9',
                 color: (input.trim() || selectedFile) && !isLoading ? 'white' : '#94a3b8',
-                border: 'none', width: '36px', height: '36px', borderRadius: '10px',
+                border: 'none', width: '30px', height: '30px', borderRadius: '9px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 cursor: (input.trim() || selectedFile) && !isLoading ? 'pointer' : 'default',
-                boxShadow: (input.trim() || selectedFile) && !isLoading ? '0 4px 12px rgba(99,102,241,0.4)' : 'none',
+                boxShadow: (input.trim() || selectedFile) && !isLoading ? '0 2px 8px rgba(99,102,241,0.35)' : 'none',
                 transition: 'all 0.2s',
               }}
             >
-              {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+              {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
             </button>
           </div>
         </div>
