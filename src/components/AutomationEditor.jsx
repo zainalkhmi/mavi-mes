@@ -74,6 +74,8 @@ import {
   Upload,
   Download
 } from 'lucide-react';
+import { generateAiAutomation } from '../utils/aiService';
+import { getPrimaryAiConnector } from '../utils/database';
 
 // ─── ODOO STYLE COLORFUL COMPACT NODES ──────────────────────────────────────────
 
@@ -1120,6 +1122,32 @@ const AutomationEditor = () => {
   const [isPaused, setIsPaused] = useState(false);
   const [inspectorSubTab, setInspectorSubTab] = useState('PARAMETERS');
 
+  // AI Copilot States
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
+
+  const handleGenerateAiAutomation = async () => {
+    if (!aiPrompt.trim()) return;
+    setIsAiGenerating(true);
+    try {
+      const connector = await getPrimaryAiConnector();
+      if (!connector) throw new Error('AI Connector belum dikonfigurasi di AI Settings.');
+
+      const res = await generateAiAutomation(aiPrompt, connector);
+      if (res.name) setAutomationName(res.name);
+      if (res.nodes && Array.isArray(res.nodes)) setNodes(res.nodes);
+      if (res.edges && Array.isArray(res.edges)) setEdges(res.edges);
+
+      setIsAiModalOpen(false);
+      setAiPrompt('');
+    } catch (err) {
+      alert(`Gagal membuat otomasi AI: ${err.message}`);
+    } finally {
+      setIsAiGenerating(false);
+    }
+  };
+
   const edgeUpdateSuccessful = useRef(true);
   const reactFlowWrapper = useRef(null);
   const fileInputRef = useRef(null);
@@ -1977,6 +2005,22 @@ const AutomationEditor = () => {
               onChange={handleImportWorkflow}
               style={{ display: 'none' }}
             />
+
+            {/* AI COPILOT */}
+            <button
+              onClick={() => setIsAiModalOpen(true)}
+              style={{
+                height: '36px', padding: '0 14px', borderRadius: '10px', border: 'none',
+                background: 'linear-gradient(135deg, #a855f7, #6366f1)', color: '#ffffff', fontWeight: 800, fontSize: '0.78rem',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+                boxShadow: '0 0 14px rgba(168, 85, 247, 0.4)',
+                transition: 'all 0.2s'
+              }}
+              title="AI Automation Copilot"
+            >
+              <Sparkles size={16} />
+              AI Copilot
+            </button>
 
             {/* NEW WORKFLOW */}
             <button
@@ -4158,6 +4202,71 @@ const AutomationEditor = () => {
                     ))}
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* AI Copilot Modal */}
+        {isAiModalOpen && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+            <div style={{ width: '560px', backgroundColor: '#1E1E2D', borderRadius: '20px', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', overflow: 'hidden', border: '1px solid #3B3B54' }}>
+              <div style={{ padding: '20px 24px', background: 'linear-gradient(135deg, #a855f7, #6366f1)', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Sparkles size={22} />
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>AI Automation Flow Generator</h3>
+                    <div style={{ fontSize: '0.75rem', opacity: 0.9 }}>Tulis aturan / alur otomasi dalam bahasa alami</div>
+                  </div>
+                </div>
+                <button onClick={() => setIsAiModalOpen(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <X size={18} />
+                </button>
+              </div>
+              <div style={{ padding: '24px' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#A2A0B8', textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>
+                  Prompt / Deskripsi Otomasi
+                </label>
+                <textarea
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  placeholder="Contoh: Buatkan otomasi jika stok barang < 10 pada tabel inventory, kirim notifikasi warning ke operator..."
+                  rows={4}
+                  style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #3B3B54', backgroundColor: '#151521', color: '#ffffff', fontSize: '0.85rem', marginBottom: '16px', outline: 'none', resize: 'vertical' }}
+                />
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '20px' }}>
+                  <button
+                    onClick={() => setAiPrompt('Buatkan otomasi jika suhu mesin > 80°C, kirim notifikasi bahaya dan matikan status mesin')}
+                    style={{ padding: '6px 12px', fontSize: '0.75rem', backgroundColor: '#2B2B40', border: '1px solid #3B3B54', borderRadius: '20px', color: '#A2A0B8', cursor: 'pointer' }}
+                  >
+                    💡 Alert Suhu Tinggi
+                  </button>
+                  <button
+                    onClick={() => setAiPrompt('Buatkan otomasi saat ada record baru di tabel QC dengan status FAIL, kirim alert notifikasi')}
+                    style={{ padding: '6px 12px', fontSize: '0.75rem', backgroundColor: '#2B2B40', border: '1px solid #3B3B54', borderRadius: '20px', color: '#A2A0B8', cursor: 'pointer' }}
+                  >
+                    💡 QC Defect Alert
+                  </button>
+                  <button
+                    onClick={() => setAiPrompt('Buatkan otomasi timer setiap 60 menit untuk cek jumlah total barang terproduksi')}
+                    style={{ padding: '6px 12px', fontSize: '0.75rem', backgroundColor: '#2B2B40', border: '1px solid #3B3B54', borderRadius: '20px', color: '#A2A0B8', cursor: 'pointer' }}
+                  >
+                    💡 Timer Audit Berkala
+                  </button>
+                </div>
+                <button
+                  onClick={handleGenerateAiAutomation}
+                  disabled={isAiGenerating || !aiPrompt.trim()}
+                  style={{
+                    width: '100%', padding: '14px', background: 'linear-gradient(135deg, #a855f7, #6366f1)', color: 'white',
+                    border: 'none', borderRadius: '12px', fontWeight: 800, cursor: isAiGenerating ? 'wait' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                    opacity: (!aiPrompt.trim() || isAiGenerating) ? 0.6 : 1
+                  }}
+                >
+                  {isAiGenerating ? <RefreshCw size={18} className="animate-spin" /> : <Sparkles size={18} />}
+                  {isAiGenerating ? 'Generasi Otomasi AI...' : 'Buat Otomasi dengan AI'}
+                </button>
               </div>
             </div>
           </div>

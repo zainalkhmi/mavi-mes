@@ -1312,14 +1312,38 @@ const AppBuilder = () => {
                         id: `fn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                         name: payload.name,
                         description: payload.description || '',
-                        logic: payload.logic || { xml: null, code: '' }
+                        category: payload.category || 'Kustom',
+                        inputs: payload.inputs || [],
+                        outputs: payload.outputs || [],
+                        logic: payload.logic || { xml: null, code: payload.code || '' },
+                        nodes: payload.nodes || [
+                            { id: 'start', type: 'default', data: { label: 'Start' }, position: { x: 250, y: 0 }, style: { borderRadius: '24px', width: '80px', textAlign: 'center', fontSize: '0.85rem', fontWeight: 800, color: '#475569', border: '2px solid #475569', padding: '4px 0' } },
+                            { id: 'fx-call', type: 'functionCall', data: { label: payload.description || payload.name }, position: { x: 240, y: 120 } },
+                            { id: 'return', type: 'return', data: { label: 'Return' }, position: { x: 230, y: 280 } },
+                            { id: 'end', type: 'default', data: { label: 'End' }, position: { x: 250, y: 420 }, style: { borderRadius: '24px', width: '80px', textAlign: 'center', fontSize: '0.85rem', fontWeight: 800, color: '#475569', border: '2px solid #475569', padding: '4px 0' } }
+                        ],
+                        edges: payload.edges || [
+                            { id: 'e1', source: 'start', target: 'fx-call', type: 'addNode' },
+                            { id: 'e2', source: 'fx-call', target: 'return', type: 'addNode' },
+                            { id: 'e3', source: 'return', target: 'end', type: 'addNode' }
+                        ],
+                        createdAt: new Date().toISOString()
                     };
 
                     const nextAppFunctions = [...appFunctionsRef.current, newFunc];
                     appFunctionsRef.current = nextAppFunctions;
                     setAppFunctions(nextAppFunctions);
 
-                    toast.success(`⚡ Function: ${newFunc.name}`, { position: 'bottom-right' });
+                    try {
+                        const savedStr = localStorage.getItem('mes_functions') || '[]';
+                        const savedList = JSON.parse(savedStr);
+                        const updatedList = [newFunc, ...savedList.filter(f => f.id !== newFunc.id && f.name !== newFunc.name)];
+                        localStorage.setItem('mes_functions', JSON.stringify(updatedList));
+                    } catch (err) {
+                        console.warn('[Copilot] Could not persist function to localStorage:', err);
+                    }
+
+                    toast.success(`⚡ Function: "${newFunc.name}" dibuat & tersimpan`, { position: 'bottom-right' });
                     break;
                 }
 
@@ -1563,16 +1587,36 @@ const AppBuilder = () => {
                         name: payload.name || 'New Automation',
                         description: payload.description || '',
                         enabled: true,
+                        active: true,
                         trigger: payload.trigger || { type: 'TABLE_CHANGE' },
                         conditions: payload.conditions || [],
-                        actions: payload.actions || []
+                        actions: payload.actions || [],
+                        nodes: payload.nodes || [
+                            { id: 'n_trigger', type: 'eventNode', data: { label: 'Trigger Event', subLabel: payload.trigger?.type || 'Table Change' }, position: { x: 250, y: 50 } },
+                            { id: 'n_condition', type: 'conditionNode', data: { label: 'Check Condition', subLabel: (payload.conditions || []).map(c => `${c.field || ''} ${c.operator || ''} ${c.value || ''}`).join(', ') || 'Always true' }, position: { x: 250, y: 200 } },
+                            { id: 'n_action', type: 'actionNode', data: { label: 'Perform Action', subLabel: (payload.actions || []).map(a => a.type).join(', ') || payload.description || 'Execution' }, position: { x: 250, y: 350 } }
+                        ],
+                        edges: payload.edges || [
+                            { id: 'e1', source: 'n_trigger', target: 'n_condition' },
+                            { id: 'e2', source: 'n_condition', target: 'n_action' }
+                        ],
+                        createdAt: new Date().toISOString()
                     };
                     // Store automation in appTriggers with special marker (automations use same storage)
                     const nextAppTriggers = [...appTriggersRef.current, { ...newAutomation, _isAutomation: true }];
                     appTriggersRef.current = nextAppTriggers;
                     setAppTriggers(nextAppTriggers);
 
-                    toast.success(`🤖 Automation "${newAutomation.name}" dibuat`, { position: 'bottom-right' });
+                    try {
+                        const savedStr = localStorage.getItem('mes_automations') || '[]';
+                        const savedList = JSON.parse(savedStr);
+                        const updatedList = [newAutomation, ...savedList.filter(a => a.id !== newAutomation.id && a.name !== newAutomation.name)];
+                        localStorage.setItem('mes_automations', JSON.stringify(updatedList));
+                    } catch (err) {
+                        console.warn('[Copilot] Could not persist automation to localStorage:', err);
+                    }
+
+                    toast.success(`🤖 Automation "${newAutomation.name}" dibuat & tersimpan`, { position: 'bottom-right' });
                     break;
                 }
 

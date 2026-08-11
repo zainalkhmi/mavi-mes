@@ -48,6 +48,8 @@ import {
   Upload,
   Download
 } from 'lucide-react';
+import { generateAiFunction } from '../utils/aiService';
+import { getPrimaryAiConnector } from '../utils/database';
 import engine from '../utils/automationEngine';
 
 // Custom Node for Function Call
@@ -528,6 +530,35 @@ const FunctionsEditor = () => {
   const [currentVersion, setCurrentVersion] = useState(0);
   const [versionHistory, setVersionHistory] = useState([]);
   const fileInputRef = useRef(null);
+
+  // AI Copilot States
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
+
+  const handleGenerateAiFunction = async () => {
+    if (!aiPrompt.trim()) return;
+    setIsAiGenerating(true);
+    try {
+      const connector = await getPrimaryAiConnector();
+      if (!connector) throw new Error('AI Connector belum dikonfigurasi di AI Settings.');
+
+      const res = await generateAiFunction(aiPrompt, connector);
+      if (res.name) setFunctionName(res.name);
+      if (res.description) setDescription(res.description);
+      if (res.inputs && Array.isArray(res.inputs)) setInputs(res.inputs);
+      if (res.outputs && Array.isArray(res.outputs)) setOutputs(res.outputs);
+      if (res.nodes && Array.isArray(res.nodes)) setNodes(res.nodes);
+      if (res.edges && Array.isArray(res.edges)) setEdges(res.edges);
+
+      setIsAiModalOpen(false);
+      setAiPrompt('');
+    } catch (err) {
+      alert(`Gagal membuat function AI: ${err.message}`);
+    } finally {
+      setIsAiGenerating(false);
+    }
+  };
 
   useEffect(() => {
     const saved = localStorage.getItem('mes_functions');
@@ -1093,6 +1124,18 @@ const FunctionsEditor = () => {
               style={{ padding: '6px 12px', border: 'none', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 800, cursor: 'pointer', backgroundColor: environment === 'PROD' ? '#1e293b' : 'transparent', color: environment === 'PROD' ? 'white' : '#64748b', boxShadow: environment === 'PROD' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}
             >PROD</button>
           </div>
+          <button 
+            onClick={() => setIsAiModalOpen(true)}
+            style={{
+              padding: '10px 20px', background: 'linear-gradient(135deg, #8b5cf6, #6366f1)', color: 'white',
+              border: 'none', borderRadius: '8px', fontWeight: 700,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+              boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)'
+            }}
+          >
+            <Sparkles size={16} /> AI Copilot
+          </button>
+          <div style={{ width: '1px', height: '24px', backgroundColor: '#e2e8f0' }}></div>
           <button 
             onClick={() => {
               setTestInputs({});
@@ -1894,6 +1937,70 @@ const FunctionsEditor = () => {
               <button onClick={handleRunTest} disabled={isTesting} style={{ width: '100%', padding: '15px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: isTesting ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
                 {isTesting ? <RotateCw size={18} className="animate-spin" /> : <PlayCircle size={18} />}
                 {isTesting ? 'Running...' : 'Run Test'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* AI Copilot Modal */}
+      {isAiModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+          <div style={{ width: '560px', backgroundColor: 'white', borderRadius: '20px', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', overflow: 'hidden' }}>
+            <div style={{ padding: '20px 24px', background: 'linear-gradient(135deg, #8b5cf6, #6366f1)', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Sparkles size={22} />
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>AI Function Generator</h3>
+                  <div style={{ fontSize: '0.75rem', opacity: 0.9 }}>Tulis deskripsi fungsi dalam bahasa alami</div>
+                </div>
+              </div>
+              <button onClick={() => setIsAiModalOpen(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <X size={18} />
+              </button>
+            </div>
+            <div style={{ padding: '24px' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>
+                Prompt / Deskripsi Fungsi
+              </label>
+              <textarea
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                placeholder="Contoh: Buatkan fungsi hitung OEE berdasarkan input availability, performance, dan quality..."
+                rows={4}
+                style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1', fontSize: '0.85rem', marginBottom: '16px', outline: 'none', resize: 'vertical' }}
+              />
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '20px' }}>
+                <button
+                  onClick={() => setAiPrompt('Buatkan fungsi kalkulasi total biaya produksi (Qty * Harga + PPN 11%)')}
+                  style={{ padding: '6px 12px', fontSize: '0.75rem', backgroundColor: '#f1f5f9', border: 'none', borderRadius: '20px', color: '#475569', cursor: 'pointer' }}
+                >
+                  💡 Hitung Biaya Produksi
+                </button>
+                <button
+                  onClick={() => setAiPrompt('Buatkan fungsi validasi toleransi QC min 10.0 dan max 10.5 mm')}
+                  style={{ padding: '6px 12px', fontSize: '0.75rem', backgroundColor: '#f1f5f9', border: 'none', borderRadius: '20px', color: '#475569', cursor: 'pointer' }}
+                >
+                  💡 Validasi Toleransi QC
+                </button>
+                <button
+                  onClick={() => setAiPrompt('Buatkan fungsi konversi suhu Celcius ke Fahrenheit')}
+                  style={{ padding: '6px 12px', fontSize: '0.75rem', backgroundColor: '#f1f5f9', border: 'none', borderRadius: '20px', color: '#475569', cursor: 'pointer' }}
+                >
+                  💡 Konversi Suhu
+                </button>
+              </div>
+              <button
+                onClick={handleGenerateAiFunction}
+                disabled={isAiGenerating || !aiPrompt.trim()}
+                style={{
+                  width: '100%', padding: '14px', background: 'linear-gradient(135deg, #8b5cf6, #6366f1)', color: 'white',
+                  border: 'none', borderRadius: '12px', fontWeight: 800, cursor: isAiGenerating ? 'wait' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                  opacity: (!aiPrompt.trim() || isAiGenerating) ? 0.6 : 1
+                }}
+              >
+                {isAiGenerating ? <RotateCw size={18} className="animate-spin" /> : <Sparkles size={18} />}
+                {isAiGenerating ? 'Generasi Fungsi AI...' : 'Buat Function dengan AI'}
               </button>
             </div>
           </div>

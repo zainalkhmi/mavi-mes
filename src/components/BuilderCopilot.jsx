@@ -48,7 +48,12 @@ const getCommandPreview = (cmd) => {
     case 'UPDATE_WIDGET': return `Update props ${Object.keys(p.props || {}).join(', ')} pada "${p.widgetName || p.widgetId}"`.slice(0,80);
     case 'DELETE_WIDGET': return `⚠️ HAPUS widget "${p.widgetName}" — permanen!`;
     case 'CREATE_TRIGGER': return `Trigger ${p.event} → "${p.widgetId || 'global'}" (${(p.actions||[]).length} aksi)`;
-    case 'CREATE_FUNCTION': return `Function baru: "${p.name}" — ${p.description || 'tanpa deskripsi'}`;
+    case 'CREATE_FUNCTION': return `⚡ Function baru: "${p.name}" — ${p.description || 'tanpa deskripsi'}`;
+    case 'UPDATE_FUNCTION': return `✏️ Update function "${p.functionName || p.name}"`;
+    case 'DELETE_FUNCTION': return `⚠️ Hapus function "${p.functionName || p.name}"`;
+    case 'CREATE_AUTOMATION': return `🤖 Automation baru: "${p.name}" — ${p.description || 'tanpa deskripsi'}`;
+    case 'UPDATE_AUTOMATION': return `✏️ Update automation "${p.automationName || p.name}"`;
+    case 'DELETE_AUTOMATION': return `⚠️ Hapus automation "${p.automationName || p.name}"`;
     case 'CREATE_TABLE': return `Tabel "${p.name}" (${(p.columns||[]).length} kolom)`;
     case 'CREATE_VARIABLE': return `Variable "${p.name}" tipe ${p.type} = ${p.defaultValue}`;
     case 'GO_TO_STEP': return `Navigasi ke screen "${p.stepId}"`;
