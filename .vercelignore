@@ -1,0 +1,11 @@
+# Ignore Python virtualenv and cache
+.venv
+__pycache__
+*.py
+requirements.txt
+
+# Ignore Tauri native desktop backend files
+src-tauri
+binaries
+*.spec
+*.bat
