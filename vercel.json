@@ -1,7 +1,7 @@
 {
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/((?!assets/|pwa-.*|manifest.webmanifest|sw.js|workbox-.*|favicon.ico|.*\\.(?:js|css|json|png|jpg|jpeg|gif|svg|ico|wasm|woff2?)).*)",
       "destination": "/index.html"
     }
   ]
