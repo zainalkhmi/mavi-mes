@@ -11,6 +11,8 @@ import { useGlobalStore } from './store/useGlobalStore';
 
 import LandingPage from './components/LandingPage';
 
+import { EnterpriseDialogContainer } from './components/common/EnterpriseDialog';
+
 export default function App() {
   const user = useGlobalStore((state) => state.user);
   const setUser = useGlobalStore((state) => state.setUser);
@@ -54,18 +56,22 @@ export default function App() {
 
   if (!user) {
     return (
-      <Suspense fallback={null}>
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-      </Suspense>
+      <>
+        <EnterpriseDialogContainer />
+        <Suspense fallback={null}>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+        </Suspense>
+      </>
     );
   }
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#f1f5f9', fontFamily: "'Inter', sans-serif" }}>
+      <EnterpriseDialogContainer />
       <TopNavbar
         user={user}
         setUser={setUser}

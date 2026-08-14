@@ -84,9 +84,6 @@ export default defineConfig({
             if (id.includes('blockly')) {
               return 'vendor-blockly';
             }
-            if (id.includes('tesseract')) {
-              return 'vendor-tesseract';
-            }
             if (id.includes('react-router') || id.includes('react-dom') || id.includes('/react/') || id.includes('scheduler')) {
               return 'vendor-react';
             }
