@@ -219,120 +219,6 @@ fn open_device_pairing_wizard() -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
-fn start_python_server() -> Result<String, String> {
-    // First, check if server is already running on port 8000
-    if std::net::TcpStream::connect_timeout(
-        &"127.0.0.1:8000".parse().unwrap(),
-        std::time::Duration::from_millis(500),
-    ).is_ok() {
-        return Ok("Server already running on port 8000".to_string());
-    }
-
-    let mut work_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-    if !work_dir.join("yolo_server.py").exists() && work_dir.join("..").join("yolo_server.py").exists() {
-        work_dir = work_dir.join("..");
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        let child = std::process::Command::new(".venv\\Scripts\\python.exe")
-            .arg("yolo_server.py")
-            .current_dir(&work_dir)
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn();
-            
-        match child {
-            Ok(_) => Ok("Server starting...".to_string()),
-            Err(e) => {
-                let child_fallback = std::process::Command::new("python")
-                    .arg("yolo_server.py")
-                    .current_dir(&work_dir)
-                    .stdin(std::process::Stdio::null())
-                    .stdout(std::process::Stdio::null())
-                    .stderr(std::process::Stdio::null())
-                    .spawn();
-                match child_fallback {
-                    Ok(_) => Ok("Server starting using global python...".to_string()),
-                    Err(fe) => Err(format!("Failed to start python server: {} (fallback: {})", e, fe))
-                }
-            }
-        }
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        let child = std::process::Command::new(".venv/bin/python")
-            .arg("yolo_server.py")
-            .current_dir(&work_dir)
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn();
-            
-        match child {
-            Ok(_) => Ok("Server starting...".to_string()),
-            Err(e) => {
-                let child_fallback = std::process::Command::new("python3")
-                    .arg("yolo_server.py")
-                    .current_dir(&work_dir)
-                    .stdin(std::process::Stdio::null())
-                    .stdout(std::process::Stdio::null())
-                    .stderr(std::process::Stdio::null())
-                    .spawn();
-                match child_fallback {
-                    Ok(_) => Ok("Server starting using global python3...".to_string()),
-                    Err(fe) => Err(format!("Failed to start python server: {} (fallback: {})", e, fe))
-                }
-            }
-        }
-    }
-}
-
-#[tauri::command]
-fn stop_python_server() -> Result<String, String> {
-    #[cfg(target_os = "windows")]
-    {
-        let cmd = "for /f \"tokens=5\" %a in ('netstat -aon ^| findstr :8000 ^| findstr LISTENING') do taskkill /F /PID %a";
-        let output = std::process::Command::new("cmd")
-            .args(&["/C", cmd])
-            .output();
-            
-        match output {
-            Ok(out) => {
-                let stdout = String::from_utf8_lossy(&out.stdout).to_string();
-                if out.status.success() || stdout.contains("SUCCESS") {
-                    Ok("Python server stopped successfully".to_string())
-                } else {
-                    let err = String::from_utf8_lossy(&out.stderr).to_string();
-                    Err(format!("Could not stop server. Output: {}, Err: {}", stdout, err))
-                }
-            }
-            Err(e) => Err(format!("Failed to run stop command: {}", e))
-        }
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        let output = std::process::Command::new("sh")
-            .args(&["-c", "kill -9 $(lsof -t -i:8000)"])
-            .output();
-            
-        match output {
-            Ok(out) => {
-                if out.status.success() {
-                    Ok("Python server stopped successfully".to_string())
-                } else {
-                    Err("No active python server found on port 8000".to_string())
-                }
-            }
-            Err(e) => Err(format!("Failed to run stop command: {}", e))
-        }
-    }
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -351,25 +237,9 @@ pub fn run() {
             modbus_disconnect,
             modbus_read,
             modbus_write,
-            open_device_pairing_wizard,
-            start_python_server,
-            stop_python_server
+            open_device_pairing_wizard
         ])
         .setup(|app| {
-            // Spawn Python YOLO Sidecar if on desktop
-            #[cfg(desktop)]
-            {
-                match app.shell().sidecar("yolo_server") {
-                    Ok(sidecar) => {
-                        match sidecar.spawn() {
-                            Ok(_) => println!("Successfully spawned yolo_server sidecar"),
-                            Err(e) => eprintln!("Failed to spawn yolo_server sidecar: {:?}", e),
-                        }
-                    }
-                    Err(e) => eprintln!("Failed to initialize yolo_server sidecar: {:?}", e),
-                }
-            }
-
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()

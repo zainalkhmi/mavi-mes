@@ -25,13 +25,16 @@ const Home = () => {
     if (!silent) setLoading(true);
     setError('');
     try {
-      const snap = await getShopFloorRealtimeSnapshot();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Snapshot fetch timeout')), 3000)
+      );
+      const snap = await Promise.race([getShopFloorRealtimeSnapshot(), timeoutPromise]);
       setWorkstations(snap.workstations || []);
       setActiveAndons(snap.activeAndons || []);
       setOeeToday(typeof snap.oee === 'number' ? snap.oee : 0);
     } catch (err) {
-      console.error('[Home] Failed to fetch realtime snapshot', err);
-      setError('Gagal load data realtime. Pastikan koneksi Supabase aktif.');
+      console.warn('[Home] Failed or timed out fetching realtime snapshot', err);
+      // Fallback gracefully without blocking UI
     } finally {
       if (!silent) setLoading(false);
     }

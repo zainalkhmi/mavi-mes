@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Activity, Database, BrainCircuit, Play, StopCircle } from 'lucide-react';
+import { Activity, Database, BrainCircuit } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useSystemStatus } from '../../hooks/useSystemStatus.jsx';
 import { useGlobalStore } from '../../store/useGlobalStore.js';
@@ -14,12 +14,10 @@ export default function SystemStatusDropdown() {
   // Determine if it's an operator route could be tricky here without location, 
   // but if the component is hidden on operator routes (in TopNavbar), we can pass false or just use hook defaults
   const {
-    pythonActive,
     supabaseActive,
     aiActive,
     statusLoading,
-    updateAllStatuses,
-    handleTogglePythonServer
+    updateAllStatuses
   } = useSystemStatus({ user, isOperatorRoute: false, isOperator });
 
   const hasAccess = (path) => checkRoleAccess(user, path);
@@ -47,7 +45,6 @@ export default function SystemStatusDropdown() {
         <span className="text-[0.75rem] font-bold text-slate-600">System</span>
         
         <div className="flex gap-1 items-center">
-          <span className={`w-1.5 h-1.5 rounded-full ${pythonActive ? 'bg-emerald-500 shadow-[0_0_4px_#10b981]' : 'bg-red-500 shadow-[0_0_4px_#ef4444]'}`} title="Python API" />
           <span className={`w-1.5 h-1.5 rounded-full ${supabaseActive ? 'bg-emerald-500 shadow-[0_0_4px_#10b981]' : 'bg-red-500 shadow-[0_0_4px_#ef4444]'}`} title="Supabase DB" />
           <span className={`w-1.5 h-1.5 rounded-full ${aiActive.active ? 'bg-emerald-500 shadow-[0_0_4px_#10b981]' : 'bg-red-500 shadow-[0_0_4px_#ef4444]'}`} title="AI Assistant" />
         </div>
@@ -64,33 +61,6 @@ export default function SystemStatusDropdown() {
             >
               {statusLoading ? 'Checking...' : 'Refresh Status'}
             </button>
-          </div>
-
-          {/* Python Sidecar */}
-          <div className="flex gap-2.5 items-start">
-            <div className={`p-1.5 rounded-lg flex items-center ${pythonActive ? 'bg-emerald-50 text-emerald-500' : 'bg-red-50 text-red-500'}`}>
-              <Activity size={16} />
-            </div>
-            <div className="flex-1 flex flex-col">
-              <div className="flex justify-between items-center">
-                <span className="text-[0.75rem] font-bold text-slate-700">Python Sidecar API</span>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={handleTogglePythonServer}
-                    title={pythonActive ? "Stop Python Server" : "Start Python Server"}
-                    className={`w-5 h-5 flex items-center justify-center rounded transition-colors ${pythonActive ? 'bg-red-100 text-red-600 hover:bg-red-200' : 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200'}`}
-                  >
-                    {pythonActive ? <StopCircle size={12} /> : <Play size={12} className="fill-emerald-600" />}
-                  </button>
-                  <span className={`text-[0.62rem] font-extrabold px-1.5 py-[1px] rounded-full ${pythonActive ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
-                    {pythonActive ? 'ONLINE' : 'OFFLINE'}
-                  </span>
-                </div>
-              </div>
-              <span className="text-[0.65rem] text-slate-500 mt-[2px]">
-                {pythonActive ? 'FastAPI & YOLOv8 service active on port 8000.' : 'FastAPI offline. Click Play to start or view guide.'}
-              </span>
-            </div>
           </div>
 
           {/* Supabase */}

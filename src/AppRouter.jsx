@@ -2,7 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Route, Routes, Navigate } from 'react-router-dom';
 import { hasAccess as checkRoleAccess } from './utils/roleAccess';
 
-const Home = lazy(() => import('./components/Home'));
+import Home from './components/Home';
 
 const TableManager = lazy(() => import('./components/TableManager'));
 const ConnectorManager = lazy(() => import('./components/ConnectorManager'));

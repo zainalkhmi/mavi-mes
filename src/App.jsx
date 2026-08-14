@@ -9,7 +9,7 @@ import Login from './components/Login';
 import LoadingScreen from './components/layout/LoadingScreen';
 import { useGlobalStore } from './store/useGlobalStore';
 
-const LandingPage = lazy(() => import('./components/LandingPage'));
+import LandingPage from './components/LandingPage';
 
 export default function App() {
   const user = useGlobalStore((state) => state.user);

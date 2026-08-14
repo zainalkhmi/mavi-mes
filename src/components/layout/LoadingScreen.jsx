@@ -58,7 +58,7 @@ const LoadingScreen = () => (
       letterSpacing: '0.05em',
       textTransform: 'uppercase',
       animation: 'fadeBlink 1.5s ease-in-out infinite'
-    }}>Memuat Sistem & Modul CAD 3D...</div>
+    }}>Memuat Halaman...</div>
     <style>{`
       @keyframes spin {
         0% { transform: rotate(0deg); }

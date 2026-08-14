@@ -18,7 +18,6 @@ export async function getTauriApi() {
 }
 
 export function useSystemStatus({ user, isOperatorRoute, isOperator }) {
-  const [pythonActive, setPythonActive] = useState(false);
   const [supabaseActive, setSupabaseActive] = useState(false);
   const [aiActive, setAiActive] = useState({ active: false, provider: '', model: '' });
   const [statusLoading, setStatusLoading] = useState(false);
@@ -26,20 +25,7 @@ export function useSystemStatus({ user, isOperatorRoute, isOperator }) {
   const updateAllStatuses = async () => {
     setStatusLoading(true);
     try {
-      // 1. Python sidecar
-      let py = false;
-      try {
-        const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), 2500);
-        const response = await fetch('http://localhost:8000/', { signal: controller.signal });
-        clearTimeout(id);
-        py = response.ok;
-      } catch (e) {
-        py = false;
-      }
-      setPythonActive(py);
-
-      // 2. Supabase DB
+      // 1. Supabase DB
       let sb = false;
       try {
         const { testSupabaseConnection } = await import('../utils/supabaseClient');
@@ -50,7 +36,7 @@ export function useSystemStatus({ user, isOperatorRoute, isOperator }) {
       }
       setSupabaseActive(sb);
 
-      // 3. AI assistant
+      // 2. AI assistant
       let ai = { active: false, provider: '', model: '' };
       try {
         const { getIntegrationConnectors } = await import('../utils/database');
@@ -85,52 +71,11 @@ export function useSystemStatus({ user, isOperatorRoute, isOperator }) {
   }, [user, isOperatorRoute, isOperator]);
 
   const handleTogglePythonServer = async () => {
-    const api = await getTauriApi();
-    if (api.invoke) {
-      const toastId = toast.loading(pythonActive ? 'Stopping Python server...' : 'Starting Python server...');
-      try {
-        if (pythonActive) {
-          const res = await api.invoke('stop_python_server');
-          toast.success(res || 'Python server stopped successfully', { id: toastId });
-          setTimeout(updateAllStatuses, 1500);
-        } else {
-          const res = await api.invoke('start_python_server');
-          toast.success(res || 'Python server starting...', { id: toastId });
-          const checkWithRetry = async (attempt = 0) => {
-            await updateAllStatuses();
-            if (!pythonActive && attempt < 3) {
-              setTimeout(() => checkWithRetry(attempt + 1), 2000);
-            }
-          };
-          setTimeout(() => checkWithRetry(), 3000);
-        }
-      } catch (err) {
-        toast.error(`Gagal mengontrol server: ${err}`, { id: toastId });
-      }
-    } else {
-      if (pythonActive) {
-        toast.error((t) => (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <span style={{ fontWeight: 700 }}>Tauri tidak terdeteksi di browser</span>
-            <span style={{ fontSize: '0.75rem' }}>Silakan matikan server secara manual di terminal Anda (tekan <b>Ctrl+C</b> pada terminal yolo_server).</span>
-          </div>
-        ), { duration: 6000 });
-      } else {
-        toast.success((t) => (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <span style={{ fontWeight: 700 }}>Tauri tidak terdeteksi di browser</span>
-            <span style={{ fontSize: '0.75rem' }}>Silakan jalankan perintah ini di terminal Anda untuk menyalakan server:</span>
-            <code style={{ backgroundColor: '#f1f5f9', padding: '4px 6px', borderRadius: '4px', fontSize: '0.7rem', border: '1px solid #cbd5e1' }}>
-              .venv\Scripts\python yolo_server.py
-            </code>
-          </div>
-        ), { duration: 8000 });
-      }
-    }
+    toast.error("Server Python Sidecar telah dinonaktifkan dari sistem.");
   };
 
   return {
-    pythonActive,
+    pythonActive: false,
     supabaseActive,
     aiActive,
     statusLoading,
