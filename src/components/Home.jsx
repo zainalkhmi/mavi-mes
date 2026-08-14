@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, AlertCircle, CheckCircle2, Clock, Map, TrendingUp, Users, Zap, MessageSquare } from 'lucide-react';
+import { Activity, AlertCircle, CheckCircle2, Clock, Map, TrendingUp, Users, Zap, MessageSquare, Shield, Radio, RefreshCw, Cpu, Server } from 'lucide-react';
 import { getSupabaseClient, isSupabaseReady } from '../utils/supabaseManualDB.js';
 import { acknowledgeAndon, getShopFloorRealtimeSnapshot } from '../utils/supabaseFrontlineDB.js';
 import ChatWidget from './ChatWidget';
@@ -34,7 +34,6 @@ const Home = () => {
       setOeeToday(typeof snap.oee === 'number' ? snap.oee : 0);
     } catch (err) {
       console.warn('[Home] Failed or timed out fetching realtime snapshot', err);
-      // Fallback gracefully without blocking UI
     } finally {
       if (!silent) setLoading(false);
     }
@@ -80,7 +79,6 @@ const Home = () => {
           }
         });
 
-      // Safety polling for environments where realtime may be blocked.
       pollingInterval = setInterval(() => refreshSnapshot({ silent: true }), 10000);
     } catch (e) {
       console.warn('[Home] Realtime subscription unavailable, fallback polling only.', e);
@@ -96,10 +94,8 @@ const Home = () => {
         table: 'chat_messages' 
       }, (payload) => {
         const msg = payload.new;
-        // If chat is closed, increment unread count
         if (!showChatRef.current) {
           setUnreadCount(prev => prev + 1);
-          // Play a subtle notification sound
           try {
             const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
             audio.play();
@@ -139,10 +135,22 @@ const Home = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'RUNNING': return { bg: '#eff6ff', text: '#2563eb', border: '#bfdbfe', accent: '#2563eb', icon: <Activity size={14} /> };
-      case 'READY': return { bg: '#f8fafc', text: '#475569', border: '#e2e8f0', accent: '#94a3b8', icon: <CheckCircle2 size={14} /> };
-      case 'DOWN': return { bg: '#fef2f2', text: '#dc2626', border: '#fecaca', accent: '#ef4444', icon: <AlertCircle size={14} /> };
-      default: return { bg: '#f8fafc', text: '#475569', border: '#e2e8f0', accent: '#94a3b8', icon: <Clock size={14} /> };
+      case 'RUNNING': return { 
+        bg: '#e6f7f7', text: '#00A09D', border: '#b2e5e4', accent: '#00A09D', 
+        shadow: 'rgba(0, 160, 157, 0.15)', icon: <Activity size={14} className="animate-spin-slow" /> 
+      };
+      case 'READY': return { 
+        bg: '#f8f9fa', text: '#6c757d', border: '#e9ecef', accent: '#875A7B', 
+        shadow: 'rgba(135, 90, 123, 0.1)', icon: <CheckCircle2 size={14} /> 
+      };
+      case 'DOWN': return { 
+        bg: '#fdf2f2', text: '#d9534f', border: '#f7c6c5', accent: '#d9534f', 
+        shadow: 'rgba(217, 83, 79, 0.2)', icon: <AlertCircle size={14} /> 
+      };
+      default: return { 
+        bg: '#f8f9fa', text: '#6c757d', border: '#e9ecef', accent: '#875A7B', 
+        shadow: 'rgba(135, 90, 123, 0.1)', icon: <Clock size={14} /> 
+      };
     }
   };
 
@@ -151,66 +159,184 @@ const Home = () => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
   };
 
+  const onlineCount = workstations.filter(w => w.isOnline).length;
+  const runningCount = workstations.filter(w => w.status === 'RUNNING').length;
+
   return (
     <div style={{ 
-      padding: '30px', 
-      backgroundColor: '#f8fafc', 
+      padding: '30px 36px', 
+      backgroundColor: '#f8f9fa', 
       minHeight: '100%', 
-      fontFamily: "'Inter', sans-serif",
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
       width: '100%',
-      boxSizing: 'border-box'
+      boxSizing: 'border-box',
+      color: '#212529'
     }}>
 
-      {/* HEADER */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+      {/* ODOO STYLE HEADER BAR */}
+      <div style={{ 
+        display: 'flex', 
+        justify: 'space-between', 
+        alignItems: 'center', 
+        marginBottom: '28px',
+        flexWrap: 'wrap',
+        gap: '20px'
+      }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 900, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Map size={28} color="#3b82f6" /> Shop Floor Overview
-          </h1>
-          <p style={{ margin: '5px 0 0 0', color: '#64748b' }}>Real-time monitoring and Andon response dashboard</p>
-        </div>
-        <div style={{ display: 'flex', gap: '15px' }}>
-          <div style={{ backgroundColor: 'white', padding: '12px 20px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>OEE Today</span>
-            <span style={{ fontSize: '1.5rem', fontWeight: 900, color: '#0f172a' }}>{oeeToday}%</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+            <span style={{ 
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              padding: '3px 10px', borderRadius: '16px', backgroundColor: 'rgba(113, 75, 103, 0.1)',
+              border: '1px solid rgba(113, 75, 103, 0.2)', color: '#714B67', fontSize: '0.72rem', fontWeight: 700,
+              letterSpacing: '0.03em', textTransform: 'uppercase'
+            }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#00A09D' }} />
+              Odoo Manufacturing MES Live
+            </span>
           </div>
-          <div style={{ backgroundColor: 'white', padding: '12px 20px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Active Andons</span>
-            <span style={{ fontSize: '1.5rem', fontWeight: 900, color: activeAndons.length > 0 ? '#ef4444' : '#22c55e' }}>{activeAndons.length}</span>
+          <h1 style={{ margin: 0, fontSize: '1.85rem', fontWeight: 800, color: '#212529', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Map size={28} color="#714B67" /> Shop Floor Overview
+          </h1>
+          <p style={{ margin: '4px 0 0 0', color: '#6c757d', fontSize: '0.88rem' }}>
+            Real-time work center telemetry, operator status, and Andon response dashboard
+          </p>
+        </div>
+
+        {/* METRIC BADGES HEADER */}
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          {/* OEE METRIC */}
+          <div style={{ 
+            backgroundColor: '#ffffff', 
+            padding: '12px 20px', borderRadius: '12px', 
+            border: '1px solid #e9ecef', 
+            display: 'flex', alignItems: 'center', gap: '14px',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
+          }}>
+            <div style={{ 
+              width: '40px', height: '40px', borderRadius: '10px', 
+              backgroundColor: 'rgba(0, 160, 157, 0.1)', border: '1px solid rgba(0, 160, 157, 0.25)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#00A09D' 
+            }}>
+              <TrendingUp size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#6c757d', textTransform: 'uppercase', letterSpacing: '0.05em' }}>OEE Today</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#212529', lineHeight: 1.1 }}>{oeeToday}%</div>
+            </div>
+          </div>
+
+          {/* ACTIVE ANDONS METRIC */}
+          <div style={{ 
+            backgroundColor: '#ffffff', 
+            padding: '12px 20px', borderRadius: '12px', 
+            border: activeAndons.length > 0 ? '1px solid #f7c6c5' : '1px solid #e9ecef', 
+            display: 'flex', alignItems: 'center', gap: '14px',
+            boxShadow: activeAndons.length > 0 ? '0 4px 12px rgba(217, 83, 79, 0.15)' : '0 2px 8px rgba(0, 0, 0, 0.04)'
+          }}>
+            <div style={{ 
+              width: '40px', height: '40px', borderRadius: '10px', 
+              backgroundColor: activeAndons.length > 0 ? 'rgba(217, 83, 79, 0.15)' : 'rgba(40, 167, 69, 0.1)', 
+              border: activeAndons.length > 0 ? '1px solid rgba(217, 83, 79, 0.3)' : '1px solid rgba(40, 167, 69, 0.25)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', 
+              color: activeAndons.length > 0 ? '#d9534f' : '#28a745' 
+            }}>
+              <AlertCircle size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#6c757d', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Active Andons</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 800, color: activeAndons.length > 0 ? '#d9534f' : '#28a745', lineHeight: 1.1 }}>{activeAndons.length}</div>
+            </div>
+          </div>
+
+          {/* STATIONS STATS */}
+          <div style={{ 
+            backgroundColor: '#ffffff', 
+            padding: '12px 20px', borderRadius: '12px', 
+            border: '1px solid #e9ecef', 
+            display: 'flex', alignItems: 'center', gap: '14px',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
+          }}>
+            <div style={{ 
+              width: '40px', height: '40px', borderRadius: '10px', 
+              backgroundColor: 'rgba(113, 75, 103, 0.1)', border: '1px solid rgba(113, 75, 103, 0.25)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#714B67' 
+            }}>
+              <Cpu size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#6c757d', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Work Centers Online</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#212529', lineHeight: 1.1 }}>{onlineCount} <span style={{ fontSize: '0.85rem', color: '#6c757d', fontWeight: 500 }}>/ {workstations.length}</span></div>
+            </div>
           </div>
         </div>
       </div>
 
       {loading && (
-        <div style={{ marginBottom: '20px', color: '#475569', fontWeight: 600 }}>Loading realtime dashboard...</div>
+        <div style={{ 
+          display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', 
+          backgroundColor: 'rgba(0, 160, 157, 0.08)', border: '1px solid rgba(0, 160, 157, 0.2)',
+          padding: '10px 16px', borderRadius: '8px', color: '#00A09D', fontSize: '0.82rem', fontWeight: 700 
+        }}>
+          <RefreshCw size={15} className="animate-spin" /> Synchronizing live Odoo work center data...
+        </div>
       )}
       {error && (
-        <div style={{ marginBottom: '20px', color: '#b91c1c', fontWeight: 700 }}>{error}</div>
+        <div style={{ 
+          marginBottom: '20px', backgroundColor: '#fdf2f2', border: '1px solid #f7c6c5',
+          padding: '10px 16px', borderRadius: '8px', color: '#d9534f', fontSize: '0.82rem', fontWeight: 700 
+        }}>{error}</div>
       )}
 
       {/* ACTIVE ALERTS SECTION */}
       {activeAndons.length > 0 && (
-        <div style={{ marginBottom: '35px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
-            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#ef4444', animation: 'pulse 2s infinite' }} />
-            <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '1px' }}>Action Required: Active Andon Alerts</h2>
+        <div style={{ marginBottom: '32px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+            <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#d9534f', animation: 'pulse 1.5s infinite' }} />
+            <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#d9534f', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Action Required: Active Andon Alerts ({activeAndons.length})
+            </h2>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
             {activeAndons.map(andon => (
-              <div key={andon.id} style={{ backgroundColor: '#fee2e2', border: '2px solid #ef4444', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 10px 15px -3px rgba(239, 68, 68, 0.2)' }}>
-                <div style={{ backgroundColor: '#ef4444', padding: '12px 20px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontWeight: 800, fontSize: '1.1rem' }}>{andon.workstation}</div>
-                  <div style={{ fontSize: '1.25rem', fontWeight: 900, fontFamily: 'monospace' }}>{formatElapsed(andon.startTime)}</div>
+              <div key={andon.id} style={{ 
+                backgroundColor: '#ffffff', 
+                border: '2px solid #d9534f', borderRadius: '12px', 
+                overflow: 'hidden', boxShadow: '0 8px 24px rgba(217, 83, 79, 0.15)',
+                position: 'relative'
+              }}>
+                <div style={{ 
+                  backgroundColor: '#714B67', padding: '12px 18px', color: 'white', 
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                }}>
+                  <div style={{ fontWeight: 800, fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <AlertCircle size={18} /> {andon.workstation}
+                  </div>
+                  <div style={{ 
+                    fontSize: '1.05rem', fontWeight: 800, fontFamily: 'monospace',
+                    backgroundColor: 'rgba(0, 0, 0, 0.2)', padding: '3px 8px', borderRadius: '6px'
+                  }}>
+                    ⏱ {formatElapsed(andon.startTime)}
+                  </div>
                 </div>
-                <div style={{ padding: '20px' }}>
-                  <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#991b1b', marginBottom: '8px' }}>{andon.category}</div>
-                  {andon.detail && <p style={{ fontSize: '0.9rem', color: '#7f1d1d', margin: 0 }}>"{andon.detail}"</p>}
+                <div style={{ padding: '18px' }}>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#d9534f', marginBottom: '6px' }}>{andon.category}</div>
+                  {andon.detail && (
+                    <p style={{ fontSize: '0.88rem', color: '#495057', margin: 0, backgroundColor: '#f8f9fa', padding: '8px 12px', borderRadius: '6px', border: '1px solid #e9ecef' }}>
+                      "{andon.detail}"
+                    </p>
+                  )}
 
                   <button
-                    style={{ marginTop: '20px', width: '100%', padding: '12px', backgroundColor: 'white', color: '#ef4444', border: '1px solid #ef4444', borderRadius: '6px', fontWeight: 800, cursor: 'pointer', transition: 'background-color 0.2s' }}
-                    onMouseEnter={(e) => e.target.style.backgroundColor = '#fef2f2'}
-                    onMouseLeave={(e) => e.target.style.backgroundColor = 'white'}
+                    style={{ 
+                      marginTop: '16px', width: '100%', padding: '10px', 
+                      backgroundColor: '#714B67', color: 'white', border: 'none', 
+                      borderRadius: '8px', fontWeight: 800, cursor: 'pointer', 
+                      fontSize: '0.85rem', letterSpacing: '0.05em', textTransform: 'uppercase',
+                      boxShadow: '0 3px 10px rgba(113, 75, 103, 0.3)', transition: 'all 0.15s' 
+                    }}
+                    onMouseEnter={(e) => { e.target.style.backgroundColor = '#5B3D53'; }}
+                    onMouseLeave={(e) => { e.target.style.backgroundColor = '#714B67'; }}
                     onClick={async () => {
                       try {
                         await acknowledgeAndon({
@@ -226,7 +352,7 @@ const Home = () => {
                       }
                     }}
                   >
-                    ACKNOWLEDGE
+                    ACKNOWLEDGE ALERT
                   </button>
                 </div>
               </div>
@@ -235,17 +361,43 @@ const Home = () => {
         </div>
       )}
 
-      {/* WORKSTATION GRID */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>Live Stations</h2>
-        <div style={{ display: 'flex', gap: '20px', fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#2563eb' }} /> Running</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#94a3b8' }} /> Idle</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ef4444' }} /> Down</div>
+      {/* WORKSTATION GRID TITLE & LEGEND */}
+      <div style={{ 
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+        marginBottom: '20px', flexWrap: 'wrap', gap: '12px' 
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#212529' }}>
+            Work Centers Status
+          </h2>
+          <span style={{ 
+            fontSize: '0.72rem', fontWeight: 700, color: '#714B67', 
+            backgroundColor: 'rgba(113, 75, 103, 0.1)', padding: '2px 8px', borderRadius: '10px',
+            border: '1px solid rgba(113, 75, 103, 0.2)'
+          }}>
+            {workstations.length} Configured
+          </span>
+        </div>
+
+        <div style={{ 
+          display: 'flex', gap: '16px', fontSize: '0.78rem', color: '#6c757d', fontWeight: 700,
+          backgroundColor: '#ffffff', padding: '6px 14px', borderRadius: '8px',
+          border: '1px solid #e9ecef'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#00A09D' }} /> Running ({runningCount})
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#6c757d' }} /> Idle
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#d9534f' }} /> Down
+          </div>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
+      {/* ODOO STYLE WORKSTATION CARDS */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '22px' }}>
         {workstations.map(ws => {
           const conf = getStatusColor(ws.status);
           const progress = ws.expectedOutput > 0 ? Math.round((ws.actualOutput / ws.expectedOutput) * 100) : 0;
@@ -256,103 +408,152 @@ const Home = () => {
             <div
               key={ws.id}
               style={{
-                backgroundColor: 'white',
-                borderRadius: '16px',
-                border: `1px solid ${conf.border}`,
-                boxShadow: isDown ? '0 10px 25px -5px rgba(239, 68, 68, 0.2)' : '0 4px 6px -1px rgba(0,0,0,0.05)',
+                backgroundColor: '#ffffff',
+                borderRadius: '12px',
+                border: isDown ? '2px solid #d9534f' : isRunning ? '1px solid #00A09D' : '1px solid #e9ecef',
+                boxShadow: isDown ? '0 8px 20px rgba(217, 83, 79, 0.15)' : '0 2px 8px rgba(0,0,0,0.04)',
                 overflow: 'hidden',
-                transition: 'all 0.2s',
+                transition: 'all 0.2s ease',
                 position: 'relative',
                 display: 'flex',
                 flexDirection: 'column'
               }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-3px)';
+                e.currentTarget.style.boxShadow = isDown ? '0 12px 28px rgba(217, 83, 79, 0.25)' : '0 8px 20px rgba(0,0,0,0.08)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'none';
+                e.currentTarget.style.boxShadow = isDown ? '0 8px 20px rgba(217, 83, 79, 0.15)' : '0 2px 8px rgba(0,0,0,0.04)';
+              }}
             >
-              {/* Status Header Bar */}
-              <div style={{ height: '6px', backgroundColor: conf.accent }} />
+              {/* Odoo Top Ribbon Accent */}
+              <div style={{ height: '4px', backgroundColor: conf.accent }} />
 
-              <div style={{ padding: '20px' }}>
-                {/* Station Info Header */}
+              <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                {/* Station Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                       <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: ws.isOnline ? '#22c55e' : '#cbd5e1', border: '2px solid white', boxShadow: '0 0 0 1px #e2e8f0' }} />
-                       <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{ws.id}</span>
+                  <div style={{ minWidth: 0, flex: 1, paddingRight: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                       <div style={{ 
+                         width: '7px', height: '7px', borderRadius: '50%', 
+                         backgroundColor: ws.isOnline ? '#00A09D' : '#6c757d' 
+                       }} />
+                       <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#6c757d', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                         {ws.id}
+                       </span>
                     </div>
-                    <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ws.name}</h3>
+                    <h3 style={{ 
+                      margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#212529', 
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                    }}>
+                      {ws.name}
+                    </h3>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 12px', borderRadius: '30px', backgroundColor: conf.bg, color: conf.text, fontSize: '0.7rem', fontWeight: 800, border: `1px solid ${conf.border}` }}>
+
+                  <div style={{ 
+                    display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', 
+                    borderRadius: '16px', backgroundColor: conf.bg, color: conf.text, 
+                    fontSize: '0.7rem', fontWeight: 800, border: `1px solid ${conf.border}`,
+                    flexShrink: 0
+                  }}>
                     {conf.icon} {ws.status}
                   </div>
                 </div>
 
-                {/* Operator Info */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '12px', marginBottom: '20px' }}>
-                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#3b82f6', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: 900 }}>
+                {/* Operator Card */}
+                <div style={{ 
+                  display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', 
+                  backgroundColor: '#f8f9fa', border: '1px solid #e9ecef',
+                  borderRadius: '10px', marginBottom: '16px' 
+                }}>
+                  <div style={{ 
+                    width: '34px', height: '34px', borderRadius: '8px', 
+                    backgroundColor: ws.operator && ws.operator !== 'N/A' ? '#714B67' : '#6c757d', 
+                    color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                    fontSize: '0.82rem', fontWeight: 800,
+                    flexShrink: 0
+                  }}>
                     {getInitials(ws.operator)}
                   </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Operator</div>
-                    <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#334155', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ws.operator}</div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: '0.63rem', fontWeight: 700, color: '#6c757d', textTransform: 'uppercase' }}>Operator</div>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#212529', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {ws.operator || 'Unassigned'}
+                    </div>
                   </div>
                 </div>
 
                 {/* App Status Section */}
                 <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     <div>
-                      <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '4px' }}>Active Application</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: isRunning ? '#2563eb' : '#64748b', fontWeight: 700, fontSize: '0.95rem' }}>
-                        <Zap size={16} /> {ws.activeApp}
+                      <div style={{ fontSize: '0.63rem', fontWeight: 700, color: '#6c757d', textTransform: 'uppercase', marginBottom: '4px' }}>
+                        Active Work Order App
+                      </div>
+                      <div style={{ 
+                        display: 'flex', alignItems: 'center', gap: '7px', 
+                        color: isRunning ? '#714B67' : '#495057', fontWeight: 700, fontSize: '0.9rem',
+                        backgroundColor: isRunning ? 'rgba(113, 75, 103, 0.08)' : 'transparent',
+                        padding: isRunning ? '5px 8px' : '0', borderRadius: '6px'
+                      }}>
+                        <Zap size={15} color={isRunning ? '#714B67' : '#6c757d'} /> {ws.activeApp || 'None'}
                       </div>
                     </div>
-                    {isRunning && (
+
+                    {isRunning && ws.activeStep && (
                        <div>
-                         <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '4px' }}>Current Step</div>
-                         <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#0f172a' }}>{ws.activeStep}</div>
+                         <div style={{ fontSize: '0.63rem', fontWeight: 700, color: '#6c757d', textTransform: 'uppercase', marginBottom: '2px' }}>Current Operation</div>
+                         <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#212529' }}>{ws.activeStep}</div>
                        </div>
                     )}
                   </div>
                 </div>
 
                 {/* Progress / Job Section */}
-                <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #f1f5f9' }}>
+                <div style={{ marginTop: '18px', paddingTop: '14px', borderTop: '1px solid #e9ecef' }}>
                    {ws.currentJob ? (
                      <>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                           <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>Job: <span style={{ color: '#0f172a' }}>{ws.currentJob}</span></span>
-                           <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>{ws.actualOutput} <span style={{ color: '#94a3b8', fontWeight: 400 }}>/ {ws.expectedOutput}</span></span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                           <span style={{ fontSize: '0.73rem', fontWeight: 700, color: '#6c757d' }}>WO: <span style={{ color: '#212529', fontWeight: 800 }}>{ws.currentJob}</span></span>
+                           <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#212529' }}>{ws.actualOutput} <span style={{ color: '#6c757d', fontWeight: 400 }}>/ {ws.expectedOutput}</span></span>
                         </div>
-                        <div style={{ height: '8px', backgroundColor: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                           <div style={{ height: '100%', width: `${progress}%`, backgroundColor: conf.accent, transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)' }} />
+                        <div style={{ height: '7px', backgroundColor: '#e9ecef', borderRadius: '4px', overflow: 'hidden' }}>
+                           <div style={{ 
+                             height: '100%', width: `${progress}%`, 
+                             backgroundColor: conf.accent, 
+                             transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)' 
+                           }} />
                         </div>
                      </>
                    ) : (
-                     <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Clock size={14} /> Ready for next assignment
+                     <div style={{ fontSize: '0.78rem', color: '#6c757d', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Clock size={13} color="#6c757d" /> Ready for work order assignment
                      </div>
                    )}
                 </div>
               </div>
 
-              {/* Down Indicator Overlay */}
+              {/* Down Indicator Border Overlay */}
               {isDown && (
-                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, border: '3px solid #ef4444', borderRadius: '16px', pointerEvents: 'none', animation: 'pulse-border 2s infinite' }} />
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, border: '2px solid #d9534f', borderRadius: '12px', pointerEvents: 'none', animation: 'pulse-border 2s infinite' }} />
               )}
             </div>
           );
         })}
       </div>
 
-      {/* CHAT WIDGET */}
+      {/* CHAT WIDGET BUTTON (ODOO PURPLE BRAND) */}
       {!showChat ? (
         <div style={{ position: 'fixed', bottom: '30px', right: '30px', zIndex: 1000 }}>
           {unreadCount > 0 && (
             <div style={{ 
               position: 'absolute', top: '-5px', right: '-5px', 
-              backgroundColor: '#ef4444', color: 'white', 
+              backgroundColor: '#d9534f', color: 'white', 
               borderRadius: '50%', width: '22px', height: '22px', 
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '0.7rem', fontWeight: 900, border: '2px solid white',
+              fontSize: '0.7rem', fontWeight: 800, border: '2px solid white',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
               zIndex: 1001
             }}>
               {unreadCount}
@@ -364,14 +565,16 @@ const Home = () => {
               setUnreadCount(0);
             }}
             style={{ 
-              width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#001e3c', color: 'white',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none',
-              boxShadow: '0 10px 25px -5px rgba(0,0,0,0.3)', cursor: 'pointer', transition: 'transform 0.2s'
+              width: '56px', height: '56px', borderRadius: '50%', 
+              backgroundColor: '#714B67', 
+              color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+              border: 'none',
+              boxShadow: '0 6px 20px rgba(113, 75, 103, 0.4)', cursor: 'pointer', transition: 'all 0.2s'
             }}
-            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
-            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+            onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#5B3D53'; e.currentTarget.style.transform = 'scale(1.06)'; }}
+            onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#714B67'; e.currentTarget.style.transform = 'scale(1)'; }}
           >
-            <MessageSquare size={24} />
+            <MessageSquare size={22} />
           </button>
         </div>
       ) : (
@@ -386,7 +589,6 @@ const Home = () => {
   );
 };
 
-// Global style for the pulse animation if it doesn't exist
 if (typeof document !== 'undefined') {
   const style = document.createElement('style');
   style.innerHTML = `
@@ -399,6 +601,13 @@ if (typeof document !== 'undefined') {
       0% { border-color: rgba(239, 68, 68, 0.2); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
       50% { border-color: rgba(239, 68, 68, 1); box-shadow: 0 0 20px 2px rgba(239, 68, 68, 0.6); }
       100% { border-color: rgba(239, 68, 68, 0.2); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+    }
+    .animate-spin-slow {
+      animation: spin 3s linear infinite;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
     }
   `;
   document.head.appendChild(style);
