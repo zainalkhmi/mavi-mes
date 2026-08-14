@@ -54,7 +54,7 @@ export default function App() {
 
   if (!user) {
     return (
-      <Suspense fallback={<LoadingScreen />}>
+      <Suspense fallback={null}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />

@@ -47,13 +47,7 @@ export default function AppRouter({ user, isOperator }) {
 
   return (
     <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      <Suspense fallback={
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0b1329' }}>
-          <div style={{ border: '4px solid rgba(59, 130, 246, 0.1)', borderTop: '4px solid #3b82f6', borderRadius: '50%', width: '36px', height: '36px', animation: 'mavi-spin 1s linear infinite' }} />
-          <p style={{ marginTop: '16px', color: '#94a3b8', fontSize: '0.85rem', fontWeight: 600, letterSpacing: '0.05em' }}>MEMUAT HALAMAN...</p>
-          <style>{`@keyframes mavi-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
-        </div>
-      }>
+      <Suspense fallback={null}>
         <Routes>
           {isOperator ? (
             // OPERATOR ROUTES ONLY
