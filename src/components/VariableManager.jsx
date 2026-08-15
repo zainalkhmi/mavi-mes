@@ -1,5 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Search, Variable, X, Trash2, Pencil, RefreshCw } from 'lucide-react';
+import { 
+    Plus, Search, Variable, X, Trash2, Pencil, RefreshCw, 
+    ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, 
+    Filter, ArrowUpDown, Layers, Database, Check, Eye
+} from 'lucide-react';
 import { getAllVariables, saveVariable, deleteVariable, getAllFrontlineApps } from '../utils/supabaseFrontlineDB';
 
 const VARIABLE_TYPES = [
@@ -18,6 +22,23 @@ const VARIABLE_TYPES = [
     { value: 'STATION', label: 'Station', description: 'Any station on shop floor' },
     { value: 'ARRAY', label: 'Array', description: 'Array of any supported variable type' }
 ];
+
+const TYPE_COLORS = {
+    TEXT: { bg: '#f1f5f9', color: '#334155', border: '#cbd5e1' },
+    INTEGER: { bg: '#fef3c7', color: '#92400e', border: '#fde68a' },
+    NUMBER: { bg: '#fff7ed', color: '#c2410c', border: '#fed7aa' },
+    BOOLEAN: { bg: '#ecfdf5', color: '#047857', border: '#a7f3d0' },
+    DATETIME: { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
+    INTERVAL: { bg: '#e0e7ff', color: '#4338ca', border: '#c7d2fe' },
+    COLOR: { bg: '#f3e8ff', color: '#6b21a8', border: '#e9d5ff' },
+    IMAGE: { bg: '#e0f2fe', color: '#0369a1', border: '#bae6fd' },
+    VIDEO: { bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0' },
+    USER: { bg: '#fae8ff', color: '#86198f', border: '#f5d0fe' },
+    MACHINE: { bg: '#f5f3ff', color: '#5b21b6', border: '#ddd6fe' },
+    OBJECT: { bg: '#ffe4e6', color: '#be123c', border: '#fecdd3' },
+    STATION: { bg: '#f0fdfa', color: '#0f766e', border: '#99f6e4' },
+    ARRAY: { bg: '#fff1f2', color: '#9f1239', border: '#fecdd3' }
+};
 
 const emptyVariable = {
     name: '',
@@ -46,7 +67,7 @@ function dbRowToVariable(row) {
     return {
         id: row.id,
         name: row.name,
-        type: row.type,
+        type: row.type || 'TEXT',
         defaultValue,
         clearOnCompletion: row.clear_on_completion ?? true,
         saveForAnalysis: row.save_for_analysis ?? true,
@@ -144,6 +165,10 @@ function computeWhereUsed(variableName, apps) {
 const VariableManager = () => {
     const [variables, setVariables] = useState([]);
     const [search, setSearch] = useState('');
+    const [selectedType, setSelectedType] = useState('ALL');
+    const [sortBy, setSortBy] = useState('NAME_ASC');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
     const [editor, setEditor] = useState({ isOpen: false, isEdit: false, variable: emptyVariable });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -165,15 +190,69 @@ const VariableManager = () => {
         return () => window.removeEventListener('mavi_variables_updated', loadAllVars);
     }, []);
 
-    const filtered = useMemo(() => {
+    // Filter and Sort
+    const filteredAndSorted = useMemo(() => {
+        let list = [...variables];
+        
+        // Search filter
         const q = search.trim().toLowerCase();
-        if (!q) return variables;
-        return variables.filter(v =>
-            v.name.toLowerCase().includes(q) ||
-            v.type.toLowerCase().includes(q) ||
-            String(v.defaultValue ?? '').toLowerCase().includes(q)
-        );
-    }, [variables, search]);
+        if (q) {
+            list = list.filter(v =>
+                v.name.toLowerCase().includes(q) ||
+                v.type.toLowerCase().includes(q) ||
+                String(v.defaultValue ?? '').toLowerCase().includes(q) ||
+                String(v.whereUsed ?? '').toLowerCase().includes(q)
+            );
+        }
+
+        // Type filter
+        if (selectedType !== 'ALL') {
+            list = list.filter(v => (v.type || 'TEXT').toUpperCase() === selectedType);
+        }
+
+        // Sorting
+        list.sort((a, b) => {
+            if (sortBy === 'NAME_ASC') return a.name.localeCompare(b.name);
+            if (sortBy === 'NAME_DESC') return b.name.localeCompare(a.name);
+            if (sortBy === 'TYPE_ASC') return (a.type || '').localeCompare(b.type || '');
+            if (sortBy === 'WHERE_USED') return (b.whereUsed || '').localeCompare(a.whereUsed || '');
+            return 0;
+        });
+
+        return list;
+    }, [variables, search, selectedType, sortBy]);
+
+    // Reset pagination when filter/search changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search, selectedType, sortBy, pageSize]);
+
+    // Pagination calculations
+    const totalItems = filteredAndSorted.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+    const paginatedVariables = useMemo(() => {
+        const start = (currentPage - 1) * pageSize;
+        return filteredAndSorted.slice(start, start + pageSize);
+    }, [filteredAndSorted, currentPage, pageSize]);
+
+    const startItem = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+    const endItem = Math.min(currentPage * pageSize, totalItems);
+
+    const getPageNumbers = () => {
+        const pages = [];
+        const maxPagesToShow = 5;
+        let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+        let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+
+        if (endPage - startPage + 1 < maxPagesToShow) {
+            startPage = Math.max(1, endPage - maxPagesToShow + 1);
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            pages.push(i);
+        }
+        return pages;
+    };
 
     const normalizeValidationRules = (variableType, rules = {}) => {
         const required = Boolean(rules.required);
@@ -375,108 +454,377 @@ const VariableManager = () => {
     };
 
     return (
-        <div style={{ padding: '24px', backgroundColor: '#f8fafc', minHeight: '100%', color: '#0f172a' }}>
-            <div style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
-                <div style={{ padding: '14px 16px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 800 }}>Variables</div>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <div style={{ position: 'relative' }}>
-                            <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                            <input
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                placeholder="Search variables..."
-                                style={{ padding: '8px 10px 8px 30px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '0.82rem' }}
-                            />
+        <div style={{ padding: '24px', backgroundColor: '#f8fafc', minHeight: '100%', color: '#0f172a', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* ── Top Header / Toolbar ── */}
+            <div style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px 20px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb' }}>
+                        <Database size={20} />
+                    </div>
+                    <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a' }}>Variables</span>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, backgroundColor: '#f1f5f9', color: '#475569', padding: '2px 8px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                {totalItems} {totalItems === 1 ? 'variable' : 'variables'}
+                            </span>
                         </div>
-                        <button
-                            onClick={openCreateEditor}
-                            style={{ padding: '8px 12px', border: 'none', borderRadius: '6px', backgroundColor: '#2563eb', color: 'white', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-                        >
-                            <Plus size={14} /> Create Variable
-                        </button>
-                        <button
-                            onClick={() => refreshWhereUsed()}
-                            disabled={syncingUsage || loading}
-                            style={{ padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: '6px', backgroundColor: 'white', color: '#334155', fontWeight: 700, cursor: syncingUsage ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-                            title="Refresh where-used dari semua app"
-                        >
-                            <RefreshCw size={14} className={syncingUsage ? 'animate-spin' : ''} /> {syncingUsage ? 'Sync...' : 'Refresh Usage'}
-                        </button>
+                        <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '2px' }}>
+                            Centralized variables registry shared across App Builder, Triggers & Connectors
+                        </div>
                     </div>
                 </div>
 
-                <div style={{ padding: '10px 16px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
-                    <div style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 700, marginBottom: '6px' }}>Data type</div>
-                    <div style={{ fontSize: '0.72rem', color: '#64748b', lineHeight: 1.5 }}>
-                        Number, Boolean, Text, Integer, Interval, Image, User, Datetime, Station, Machine, Array, Object, Color, Video
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+                    {/* Search */}
+                    <div style={{ position: 'relative', minWidth: '220px' }}>
+                        <Search size={15} style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                        <input
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search variable, type, value..."
+                            style={{ width: '100%', padding: '8px 12px 8px 34px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.84rem', outline: 'none', backgroundColor: '#f8fafc', transition: 'all 0.2s' }}
+                        />
+                        {search && (
+                            <button 
+                                onClick={() => setSearch('')}
+                                style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', padding: 0 }}
+                            >
+                                <X size={14} />
+                            </button>
+                        )}
                     </div>
-                </div>
 
+                    {/* Type Filter */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <select
+                            value={selectedType}
+                            onChange={(e) => setSelectedType(e.target.value)}
+                            style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.84rem', backgroundColor: '#f8fafc', color: '#334155', fontWeight: 600, outline: 'none', cursor: 'pointer' }}
+                        >
+                            <option value="ALL">All Types</option>
+                            {VARIABLE_TYPES.map(t => (
+                                <option key={t.value} value={t.value}>{t.label}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Sort By */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <select
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value)}
+                            style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.84rem', backgroundColor: '#f8fafc', color: '#334155', fontWeight: 600, outline: 'none', cursor: 'pointer' }}
+                        >
+                            <option value="NAME_ASC">Name (A-Z)</option>
+                            <option value="NAME_DESC">Name (Z-A)</option>
+                            <option value="TYPE_ASC">Type</option>
+                            <option value="WHERE_USED">Where Used</option>
+                        </select>
+                    </div>
+
+                    {/* Sync Usage */}
+                    <button
+                        onClick={() => refreshWhereUsed()}
+                        disabled={syncingUsage || loading}
+                        style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', backgroundColor: 'white', color: '#334155', fontWeight: 600, fontSize: '0.84rem', cursor: syncingUsage ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'background-color 0.2s' }}
+                        title="Scan all apps to update Where-Used references"
+                    >
+                        <RefreshCw size={14} className={syncingUsage ? 'animate-spin' : ''} />
+                        {syncingUsage ? 'Syncing...' : 'Refresh Usage'}
+                    </button>
+
+                    {/* Create Button */}
+                    <button
+                        onClick={openCreateEditor}
+                        style={{ padding: '8px 16px', border: 'none', borderRadius: '8px', backgroundColor: '#2563eb', color: 'white', fontWeight: 700, fontSize: '0.84rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 4px rgba(37,99,235,0.2)', transition: 'background-color 0.2s' }}
+                    >
+                        <Plus size={16} /> Create Variable
+                    </button>
+                </div>
+            </div>
+
+            {/* ── Main Table Card ── */}
+            <div style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column' }}>
                 {error && (
                     <div style={{ padding: '12px 16px', backgroundColor: '#fef2f2', color: '#b91c1c', fontSize: '0.85rem', borderBottom: '1px solid #fecaca' }}>
                         ⚠ Error: {error}
                     </div>
                 )}
 
-                <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead style={{ backgroundColor: '#f8fafc' }}>
+                {/* ── Scrollable Table Viewport ── */}
+                <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 290px)', minHeight: '380px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                        <thead style={{ position: 'sticky', top: 0, zIndex: 10, backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
                             <tr>
-                                {['TYPE', 'NAME', 'DEFAULT VALUE', 'WHERE USED', ''].map(h => (
-                                    <th key={h} style={{ textAlign: 'left', padding: '12px 14px', fontSize: '0.72rem', color: '#64748b', fontWeight: 800 }}>{h}</th>
-                                ))}
+                                <th style={{ padding: '12px 16px', fontSize: '0.72rem', color: '#475569', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', width: '120px' }}>TYPE</th>
+                                <th style={{ padding: '12px 16px', fontSize: '0.72rem', color: '#475569', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', minWidth: '180px' }}>NAME</th>
+                                <th style={{ padding: '12px 16px', fontSize: '0.72rem', color: '#475569', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', minWidth: '140px' }}>DEFAULT VALUE</th>
+                                <th style={{ padding: '12px 16px', fontSize: '0.72rem', color: '#475569', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>WHERE USED</th>
+                                <th style={{ padding: '12px 16px', fontSize: '0.72rem', color: '#475569', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right', width: '90px' }}>ACTIONS</th>
                             </tr>
                         </thead>
                         <tbody>
                             {loading ? (
                                 <tr>
-                                    <td colSpan={5} style={{ textAlign: 'center', padding: '46px 12px', color: '#64748b', fontSize: '0.9rem' }}>
-                                        Memuat variabel...
+                                    <td colSpan={5} style={{ textAlign: 'center', padding: '60px 16px', color: '#64748b' }}>
+                                        <RefreshCw size={28} className="animate-spin" style={{ margin: '0 auto 12px', color: '#3b82f6' }} />
+                                        <div style={{ fontSize: '0.92rem', fontWeight: 600, color: '#334155' }}>Loading variables...</div>
+                                        <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>Syncing with app registry & Supabase</div>
                                     </td>
                                 </tr>
-                            ) : filtered.length === 0 ? (
+                            ) : paginatedVariables.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} style={{ textAlign: 'center', padding: '46px 12px', color: '#64748b' }}>
-                                        <Variable size={38} color="#cbd5e1" style={{ marginBottom: '10px' }} />
-                                        <div style={{ fontWeight: 700, fontSize: '1.1rem', color: '#334155' }}>No variables found</div>
-                                        <div style={{ fontSize: '0.86rem', marginTop: '6px' }}>Try create one now.</div>
-                                        <button
-                                            onClick={openCreateEditor}
-                                            style={{ marginTop: '14px', padding: '8px 12px', border: 'none', borderRadius: '6px', backgroundColor: '#3b82f6', color: 'white', fontWeight: 700, cursor: 'pointer' }}
-                                        >
-                                            + Create Variable
-                                        </button>
+                                    <td colSpan={5} style={{ textAlign: 'center', padding: '60px 16px', color: '#64748b' }}>
+                                        <Variable size={42} color="#cbd5e1" style={{ margin: '0 auto 12px' }} />
+                                        <div style={{ fontWeight: 700, fontSize: '1.05rem', color: '#334155' }}>
+                                            {search || selectedType !== 'ALL' ? 'No matching variables found' : 'No variables found'}
+                                        </div>
+                                        <div style={{ fontSize: '0.84rem', marginTop: '6px', color: '#64748b' }}>
+                                            {search || selectedType !== 'ALL' ? 'Try adjusting your search query or filter.' : 'Create your first variable or generate them via Copilot.'}
+                                        </div>
+                                        {(search || selectedType !== 'ALL') ? (
+                                            <button
+                                                onClick={() => { setSearch(''); setSelectedType('ALL'); }}
+                                                style={{ marginTop: '14px', padding: '7px 14px', border: '1px solid #cbd5e1', borderRadius: '6px', backgroundColor: 'white', color: '#334155', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}
+                                            >
+                                                Clear Filters
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={openCreateEditor}
+                                                style={{ marginTop: '14px', padding: '8px 16px', border: 'none', borderRadius: '6px', backgroundColor: '#2563eb', color: 'white', fontWeight: 700, fontSize: '0.84rem', cursor: 'pointer' }}
+                                            >
+                                                + Create Variable
+                                            </button>
+                                        )}
                                     </td>
                                 </tr>
                             ) : (
-                                filtered.map((v) => (
-                                    <tr key={v.id || v.name} style={{ borderTop: '1px solid #f1f5f9' }}>
-                                        <td style={{ padding: '10px 14px', fontSize: '0.85rem', color: '#475569' }}>{VARIABLE_TYPES.find(t => t.value === v.type)?.label || v.type}</td>
-                                        <td style={{ padding: '10px 14px', fontWeight: 700, fontSize: '0.85rem' }}>{v.name}</td>
-                                        <td style={{ padding: '10px 14px', fontSize: '0.85rem', color: '#475569' }}>{String(v.defaultValue ?? '')}</td>
-                                        <td style={{ padding: '10px 14px', fontSize: '0.85rem', color: '#475569' }}>{v.whereUsed || '-'}</td>
-                                        <td style={{ padding: '10px 14px', textAlign: 'right' }}>
-                                            <button
-                                                onClick={() => openEditEditor(v)}
-                                                style={{ border: 'none', background: 'none', color: '#2563eb', cursor: 'pointer', marginRight: '8px' }}
-                                                title="Edit variable"
-                                            >
-                                                <Pencil size={14} />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDelete(v)}
-                                                style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer' }}
-                                                title="Delete variable"
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))
+                                paginatedVariables.map((v) => {
+                                    const typeMeta = TYPE_COLORS[v.type] || TYPE_COLORS.TEXT;
+                                    const typeLabel = VARIABLE_TYPES.find(t => t.value === v.type)?.label || v.type || 'Text';
+                                    const rawWhereUsed = String(v.whereUsed || '-');
+                                    const whereUsedParts = rawWhereUsed !== '-' ? rawWhereUsed.split(' | ') : [];
+
+                                    return (
+                                        <tr 
+                                            key={v.id || v.name} 
+                                            style={{ borderTop: '1px solid #f1f5f9', transition: 'background-color 0.15s' }}
+                                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                        >
+                                            {/* Type Badge */}
+                                            <td style={{ padding: '12px 16px', verticalAlign: 'middle' }}>
+                                                <span style={{ 
+                                                    display: 'inline-flex', 
+                                                    alignItems: 'center', 
+                                                    padding: '3px 8px', 
+                                                    borderRadius: '6px', 
+                                                    fontSize: '0.74rem', 
+                                                    fontWeight: 700, 
+                                                    backgroundColor: typeMeta.bg, 
+                                                    color: typeMeta.color, 
+                                                    border: `1px solid ${typeMeta.border}` 
+                                                }}>
+                                                    {typeLabel}
+                                                </span>
+                                            </td>
+
+                                            {/* Name */}
+                                            <td style={{ padding: '12px 16px', verticalAlign: 'middle' }}>
+                                                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#0f172a', fontFamily: 'monospace' }}>
+                                                    {v.name}
+                                                </div>
+                                                {v.validationRules?.required && (
+                                                    <span style={{ fontSize: '0.68rem', color: '#dc2626', fontWeight: 600, display: 'inline-block', marginTop: '2px' }}>
+                                                        *Required
+                                                    </span>
+                                                )}
+                                            </td>
+
+                                            {/* Default Value */}
+                                            <td style={{ padding: '12px 16px', fontSize: '0.84rem', color: '#334155', verticalAlign: 'middle' }}>
+                                                {v.type === 'BOOLEAN' ? (
+                                                    <span style={{ 
+                                                        padding: '2px 8px', 
+                                                        borderRadius: '4px', 
+                                                        fontSize: '0.74rem', 
+                                                        fontWeight: 700, 
+                                                        backgroundColor: String(v.defaultValue) === 'true' ? '#dcfce7' : '#f1f5f9', 
+                                                        color: String(v.defaultValue) === 'true' ? '#15803d' : '#64748b' 
+                                                    }}>
+                                                        {String(v.defaultValue) === 'true' ? 'TRUE' : 'FALSE'}
+                                                    </span>
+                                                ) : v.type === 'COLOR' && v.defaultValue ? (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <div style={{ width: '14px', height: '14px', borderRadius: '4px', backgroundColor: String(v.defaultValue), border: '1px solid #cbd5e1' }} />
+                                                        <span style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{String(v.defaultValue)}</span>
+                                                    </div>
+                                                ) : String(v.defaultValue ?? '') === '' ? (
+                                                    <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.78rem' }}>(empty)</span>
+                                                ) : (
+                                                    <span style={{ fontFamily: ['NUMBER', 'INTEGER', 'INTERVAL'].includes(v.type) ? 'monospace' : 'inherit' }}>
+                                                        {String(v.defaultValue)}
+                                                    </span>
+                                                )}
+                                            </td>
+
+                                            {/* Where Used */}
+                                            <td style={{ padding: '12px 16px', fontSize: '0.82rem', color: '#475569', verticalAlign: 'middle' }}>
+                                                {whereUsedParts.length === 0 ? (
+                                                    <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Not used</span>
+                                                ) : (
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
+                                                        {whereUsedParts.map((part, idx) => (
+                                                            <span 
+                                                                key={idx}
+                                                                style={{ 
+                                                                    backgroundColor: '#f1f5f9', 
+                                                                    border: '1px solid #e2e8f0', 
+                                                                    borderRadius: '4px', 
+                                                                    padding: '2px 7px', 
+                                                                    fontSize: '0.74rem', 
+                                                                    color: '#334155' 
+                                                                }}
+                                                            >
+                                                                {part}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </td>
+
+                                            {/* Actions */}
+                                            <td style={{ padding: '12px 16px', textAlign: 'right', verticalAlign: 'middle' }}>
+                                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                    <button
+                                                        onClick={() => openEditEditor(v)}
+                                                        style={{ border: 'none', background: 'none', color: '#2563eb', padding: '6px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background-color 0.15s' }}
+                                                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#eff6ff'}
+                                                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                                        title="Edit variable"
+                                                    >
+                                                        <Pencil size={15} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete(v)}
+                                                        style={{ border: 'none', background: 'none', color: '#ef4444', padding: '6px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background-color 0.15s' }}
+                                                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fef2f2'}
+                                                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                                        title="Delete variable"
+                                                    >
+                                                        <Trash2 size={15} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>
+                </div>
+
+                {/* ── Pro Pagination Footer ── */}
+                <div style={{ padding: '12px 20px', borderTop: '1px solid #e2e8f0', backgroundColor: '#ffffff', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                    {/* Rows per page */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: '#64748b' }}>
+                        <span>Rows per page:</span>
+                        <select
+                            value={pageSize}
+                            onChange={(e) => setPageSize(Number(e.target.value))}
+                            style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.82rem', backgroundColor: '#f8fafc', color: '#334155', fontWeight: 600, outline: 'none', cursor: 'pointer' }}
+                        >
+                            <option value={10}>10</option>
+                            <option value={20}>20</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                        </select>
+                    </div>
+
+                    {/* Counter */}
+                    <div style={{ fontSize: '0.82rem', color: '#64748b', fontWeight: 500 }}>
+                        Showing <strong style={{ color: '#0f172a' }}>{startItem}</strong> to <strong style={{ color: '#0f172a' }}>{endItem}</strong> of <strong style={{ color: '#0f172a' }}>{totalItems}</strong> variables
+                    </div>
+
+                    {/* Page Controls */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        {/* First Page */}
+                        <button
+                            onClick={() => setCurrentPage(1)}
+                            disabled={currentPage === 1}
+                            style={{ 
+                                width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                                border: '1px solid #cbd5e1', borderRadius: '6px', backgroundColor: currentPage === 1 ? '#f8fafc' : 'white', 
+                                color: currentPage === 1 ? '#cbd5e1' : '#475569', cursor: currentPage === 1 ? 'not-allowed' : 'pointer' 
+                            }}
+                            title="First Page"
+                        >
+                            <ChevronsLeft size={16} />
+                        </button>
+
+                        {/* Prev Page */}
+                        <button
+                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                            disabled={currentPage === 1}
+                            style={{ 
+                                width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                                border: '1px solid #cbd5e1', borderRadius: '6px', backgroundColor: currentPage === 1 ? '#f8fafc' : 'white', 
+                                color: currentPage === 1 ? '#cbd5e1' : '#475569', cursor: currentPage === 1 ? 'not-allowed' : 'pointer' 
+                            }}
+                            title="Previous Page"
+                        >
+                            <ChevronLeft size={16} />
+                        </button>
+
+                        {/* Page Numbers */}
+                        {getPageNumbers().map(p => (
+                            <button
+                                key={p}
+                                onClick={() => setCurrentPage(p)}
+                                style={{ 
+                                    minWidth: '32px', height: '32px', padding: '0 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                                    border: p === currentPage ? '1px solid #2563eb' : '1px solid #cbd5e1', 
+                                    borderRadius: '6px', 
+                                    backgroundColor: p === currentPage ? '#2563eb' : 'white', 
+                                    color: p === currentPage ? 'white' : '#334155', 
+                                    fontWeight: p === currentPage ? 700 : 500, 
+                                    fontSize: '0.82rem', 
+                                    cursor: 'pointer' 
+                                }}
+                            >
+                                {p}
+                            </button>
+                        ))}
+
+                        {/* Next Page */}
+                        <button
+                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                            disabled={currentPage === totalPages || totalPages === 0}
+                            style={{ 
+                                width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                                border: '1px solid #cbd5e1', borderRadius: '6px', backgroundColor: (currentPage === totalPages || totalPages === 0) ? '#f8fafc' : 'white', 
+                                color: (currentPage === totalPages || totalPages === 0) ? '#cbd5e1' : '#475569', cursor: (currentPage === totalPages || totalPages === 0) ? 'not-allowed' : 'pointer' 
+                            }}
+                            title="Next Page"
+                        >
+                            <ChevronRight size={16} />
+                        </button>
+
+                        {/* Last Page */}
+                        <button
+                            onClick={() => setCurrentPage(totalPages)}
+                            disabled={currentPage === totalPages || totalPages === 0}
+                            style={{ 
+                                width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                                border: '1px solid #cbd5e1', borderRadius: '6px', backgroundColor: (currentPage === totalPages || totalPages === 0) ? '#f8fafc' : 'white', 
+                                color: (currentPage === totalPages || totalPages === 0) ? '#cbd5e1' : '#475569', cursor: (currentPage === totalPages || totalPages === 0) ? 'not-allowed' : 'pointer' 
+                            }}
+                            title="Last Page"
+                        >
+                            <ChevronsRight size={16} />
+                        </button>
+                    </div>
                 </div>
             </div>
 
