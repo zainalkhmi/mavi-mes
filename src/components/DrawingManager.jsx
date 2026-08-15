@@ -9025,22 +9025,62 @@ export default function DrawingManager() {
                                                                 label = dimDrawState === 'waiting_end' ? 'END POINT' : 'START POINT';
                                                             } else if (drawingShape || polylineDraftPoints.length > 0 || (scaleDrawState && scaleDrawState === 'drawing')) {
                                                                 label = 'END POINT';
+                                                            } else if (cadTool === 'line' || cadTool === 'rect' || cadTool === 'polyline') {
+                                                                label = 'START POINT';
                                                             }
 
                                                             return (
-                                                                <text
-                                                                    x={snappedPoint.x + 8}
-                                                                    y={snappedPoint.y + 4}
-                                                                    fill="#22c55e"
-                                                                    fontSize="6.5"
-                                                                    fontWeight="bold"
-                                                                    fontFamily="monospace"
-                                                                    style={{ pointerEvents: 'none', filter: 'drop-shadow(0px 1px 1px rgba(0,0,0,0.6))' }}
-                                                                >
-                                                                    {label}
-                                                                </text>
+                                                                <g transform={`translate(${snappedPoint.x + 8}, ${snappedPoint.y - 4})`}>
+                                                                    <rect
+                                                                        x="-2"
+                                                                        y="-8"
+                                                                        width={label.length * 6.2 + 8}
+                                                                        height="14"
+                                                                        rx="3"
+                                                                        fill="rgba(15, 23, 42, 0.9)"
+                                                                        stroke="#22c55e"
+                                                                        strokeWidth="1"
+                                                                    />
+                                                                    <text
+                                                                        x="2"
+                                                                        y="2.5"
+                                                                        fill="#22c55e"
+                                                                        fontSize="7"
+                                                                        fontWeight="bold"
+                                                                        fontFamily="monospace"
+                                                                    >
+                                                                        {label}
+                                                                    </text>
+                                                                </g>
                                                             );
                                                         })()}
+                                                    </g>
+                                                )}
+
+                                                {/* Interactive Cursor Tooltip for QC Parameter & Drawing Steps */}
+                                                {cadTool === 'dimension' && (
+                                                    <g style={{ pointerEvents: 'none' }}>
+                                                        {dimDrawState === 'idle' && (
+                                                            <g transform={`translate(${crosshairPos.x + 14}, ${crosshairPos.y - 14})`}>
+                                                                <rect x="-4" y="-12" width="126" height="22" rx="4" fill="rgba(15, 23, 42, 0.92)" stroke="#10b981" strokeWidth="1.5" />
+                                                                <circle cx="6" cy="-1" r="3.5" fill="#10b981" />
+                                                                <text x="16" y="2.5" fill="#10b981" fontSize="8.5" fontWeight="bold" fontFamily="sans-serif">📍 KLIK START POINT</text>
+                                                            </g>
+                                                        )}
+                                                        {dimDrawState === 'waiting_end' && !snappedPoint && (
+                                                            <g transform={`translate(${crosshairPos.x + 14}, ${crosshairPos.y + 14})`}>
+                                                                <rect x="-4" y="-12" width="118" height="22" rx="4" fill="rgba(15, 23, 42, 0.92)" stroke="#3b82f6" strokeWidth="1.5" />
+                                                                <circle cx="6" cy="-1" r="3.5" fill="#3b82f6" />
+                                                                <text x="16" y="2.5" fill="#38bdf8" fontSize="8.5" fontWeight="bold" fontFamily="sans-serif">🏁 KLIK END POINT</text>
+                                                            </g>
+                                                        )}
+                                                    </g>
+                                                )}
+                                                {cadTool === 'line' && !drawingShape && (
+                                                    <g transform={`translate(${crosshairPos.x + 14}, ${crosshairPos.y - 14})`} style={{ pointerEvents: 'none' }}>
+                                                        <rect x="-4" y="-12" width="126" height="22" rx="4" fill="rgba(15, 23, 42, 0.92)" stroke="#10b981" strokeWidth="1.5" />
+                                                        <circle cx="6" cy="-1" r="3.5" fill="#10b981" />
+                                                        <text x="16" y="2.5" fill="#10b981" fontSize="8.5" fontWeight="bold" fontFamily="sans-serif">📍 KLIK START POINT</text>
                                                     </g>
                                                 )}
                                             </g>
