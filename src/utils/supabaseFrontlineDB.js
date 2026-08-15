@@ -563,71 +563,186 @@ export async function acknowledgeAndon({ workstation, category, detail, user = '
 // ─── App Variables ────────────────────────────────────────────────────────────
 
 export async function getAllVariables() {
+    let supabaseRows = [];
     try {
-        const supabase = getSupabaseClient();
-        const { data, error } = await supabase
-            .from('app_variables')
-            .select('*')
-            .order('created_at', { ascending: true });
-        if (error) throw error;
-        return data || [];
+        if (isSupabaseReady()) {
+            const supabase = getSupabaseClient();
+            const { data, error } = await supabase
+                .from('app_variables')
+                .select('*')
+                .order('created_at', { ascending: true });
+            if (!error && data) supabaseRows = data;
+        }
     } catch (err) {
-        console.warn('[Offline Mode] getAllVariables fallback to empty');
-        return [];
+        console.warn('[getAllVariables] Supabase query fallback:', err);
     }
+
+    // 1. Read local global variables
+    let localVars = [];
+    try {
+        const raw = localStorage.getItem('mavi_global_variables');
+        if (raw) localVars = JSON.parse(raw);
+    } catch (e) {
+        console.warn('[getAllVariables] Failed to parse local variables:', e);
+    }
+
+    // 2. Harvest variables across all existing apps in storage or DB
+    let appVarsHarvested = [];
+    try {
+        const apps = await getAllFrontlineApps();
+        (apps || []).forEach(app => {
+            const cfgVars = app?.config?.appVariables || [];
+            const appLabel = app?.name || 'App';
+            cfgVars.forEach(v => {
+                if (v && v.name) {
+                    const normDef = v.defaultValue !== undefined ? v.defaultValue : (v.value ?? '');
+                    appVarsHarvested.push({
+                        id: v.id || `var_${v.name}`,
+                        name: v.name,
+                        type: (v.type || 'TEXT').toUpperCase(),
+                        defaultValue: normDef,
+                        default_value: typeof normDef === 'object' ? JSON.stringify(normDef) : String(normDef),
+                        clear_on_completion: v.clearOnCompletion ?? true,
+                        save_for_analysis: v.saveForAnalysis ?? true,
+                        where_used: `${appLabel} › App Variable`
+                    });
+                }
+            });
+        });
+    } catch (e) {
+        console.warn('[getAllVariables] Failed to harvest app variables:', e);
+    }
+
+    // 3. Merge all sources by variable name (case-insensitive)
+    const varMap = new Map();
+
+    // Harvested app vars first
+    appVarsHarvested.forEach(v => {
+        const key = String(v.name || '').trim().toUpperCase();
+        if (key) varMap.set(key, v);
+    });
+
+    // Local global vars
+    localVars.forEach(v => {
+        const key = String(v.name || '').trim().toUpperCase();
+        if (key) {
+            const existing = varMap.get(key) || {};
+            varMap.set(key, { ...existing, ...v });
+        }
+    });
+
+    // Supabase DB rows
+    supabaseRows.forEach(row => {
+        const key = String(row.name || '').trim().toUpperCase();
+        if (key) {
+            const existing = varMap.get(key) || {};
+            varMap.set(key, { ...existing, ...row });
+        }
+    });
+
+    const merged = Array.from(varMap.values());
+    try {
+        localStorage.setItem('mavi_global_variables', JSON.stringify(merged));
+    } catch (e) {}
+
+    return merged;
 }
 
 export async function saveVariable(variable) {
-    const supabase = getSupabaseClient();
-    const basePayload = {
-        name: variable.name,
-        type: variable.type,
-        default_value: variable.defaultValue !== undefined ? JSON.stringify(variable.defaultValue) : null,
+    if (!variable || !variable.name) return null;
+    const normName = String(variable.name).trim();
+
+    const normalizedVar = {
+        id: variable.id || `v_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+        name: normName,
+        type: (variable.type || 'TEXT').toUpperCase(),
+        default_value: variable.defaultValue !== undefined ? (typeof variable.defaultValue === 'object' ? JSON.stringify(variable.defaultValue) : String(variable.defaultValue)) : (variable.default_value ?? null),
+        defaultValue: variable.defaultValue !== undefined ? variable.defaultValue : '',
         clear_on_completion: variable.clearOnCompletion ?? true,
         save_for_analysis: variable.saveForAnalysis ?? true,
-        where_used: variable.whereUsed || '-',
+        where_used: variable.whereUsed || variable.where_used || '-',
+        validation_rules: variable.validationRules || variable.validation_rules || {},
         updated_at: new Date().toISOString()
     };
 
-    const payloadWithValidation = {
-        ...basePayload,
-        validation_rules: variable.validationRules || {}
-    };
-
-    const saveWithPayload = async (payload) => {
-        if (variable.id) {
-            return await supabase
-                .from('app_variables')
-                .update(payload)
-                .eq('id', variable.id)
-                .select()
-                .single();
+    // 1. Save to local storage
+    try {
+        const raw = localStorage.getItem('mavi_global_variables') || '[]';
+        const list = JSON.parse(raw);
+        const existingIdx = list.findIndex(v => String(v.name || '').trim().toUpperCase() === normName.toUpperCase() || (variable.id && v.id === variable.id));
+        if (existingIdx !== -1) {
+            list[existingIdx] = { ...list[existingIdx], ...normalizedVar };
+        } else {
+            list.push(normalizedVar);
         }
-        return await supabase
-            .from('app_variables')
-            .insert({ ...payload, created_at: new Date().toISOString() })
-            .select()
-            .single();
-    };
-
-    let result = await saveWithPayload(payloadWithValidation);
-
-    // Backward compatibility if old DB schema doesn't have validation_rules yet.
-    if (result.error && String(result.error.message || '').includes('validation_rules')) {
-        result = await saveWithPayload(basePayload);
+        localStorage.setItem('mavi_global_variables', JSON.stringify(list));
+    } catch (e) {
+        console.warn('[saveVariable] localStorage save failed:', e);
     }
 
-    if (result.error) throw result.error;
-    return result.data;
+    // 2. Broadcast update event so AppBuilder & other tabs stay in sync
+    try {
+        window.dispatchEvent(new CustomEvent('mavi_variables_updated', { detail: normalizedVar }));
+    } catch (e) {}
+
+    // 3. Save to Supabase if ready
+    try {
+        if (isSupabaseReady()) {
+            const supabase = getSupabaseClient();
+            const payload = {
+                name: normalizedVar.name,
+                type: normalizedVar.type,
+                default_value: normalizedVar.default_value,
+                clear_on_completion: normalizedVar.clear_on_completion,
+                save_for_analysis: normalizedVar.save_for_analysis,
+                where_used: normalizedVar.where_used,
+                validation_rules: normalizedVar.validation_rules,
+                updated_at: normalizedVar.updated_at
+            };
+
+            let res;
+            if (variable.id && !String(variable.id).startsWith('v_')) {
+                res = await supabase
+                    .from('app_variables')
+                    .update(payload)
+                    .eq('id', variable.id)
+                    .select()
+                    .single();
+            } else {
+                res = await supabase
+                    .from('app_variables')
+                    .insert({ ...payload, created_at: new Date().toISOString() })
+                    .select()
+                    .single();
+            }
+            if (res && res.data) {
+                return res.data;
+            }
+        }
+    } catch (err) {
+        console.warn('[saveVariable] Supabase save failed, stored locally:', err);
+    }
+
+    return normalizedVar;
 }
 
-export async function deleteVariable(id) {
-    const supabase = getSupabaseClient();
-    const { error } = await supabase
-        .from('app_variables')
-        .delete()
-        .eq('id', id);
-    if (error) throw error;
+export async function deleteVariable(idOrName) {
+    try {
+        const raw = localStorage.getItem('mavi_global_variables') || '[]';
+        const list = JSON.parse(raw);
+        const filtered = list.filter(v => v.id !== idOrName && String(v.name || '').toUpperCase() !== String(idOrName).toUpperCase());
+        localStorage.setItem('mavi_global_variables', JSON.stringify(filtered));
+        window.dispatchEvent(new CustomEvent('mavi_variables_updated'));
+    } catch (e) {}
+
+    try {
+        if (isSupabaseReady()) {
+            const supabase = getSupabaseClient();
+            await supabase.from('app_variables').delete().eq('id', idOrName);
+        }
+    } catch (err) {
+        console.warn('[deleteVariable] Supabase delete failed:', err);
+    }
     return true;
 }
 

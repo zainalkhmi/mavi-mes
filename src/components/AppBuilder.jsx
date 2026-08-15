@@ -3463,34 +3463,40 @@ const AppBuilder = () => {
         getTables().then(setTables).catch(err => console.error("Failed to fetch tables:", err));
         getAllSavedAnalyses().then(setSavedAnalyses).catch(err => console.error("Failed to fetch analyses:", err));
 
-        // Auto-fetch Global Variables on mount
-        getAllVariables().then(rows => {
-            const globals = rows.map(row => {
-                let defaultValue = '';
-                try { defaultValue = row.default_value !== null ? JSON.parse(row.default_value) : ''; } 
-                catch { defaultValue = row.default_value ?? ''; }
-                return {
-                    id: row.id,
-                    name: row.name,
-                    type: row.type,
-                    defaultValue,
-                    value: defaultValue,
-                    clearOnCompletion: row.clear_on_completion ?? true,
-                    saveForAnalysis: row.save_for_analysis ?? true,
-                    isPersistent: row.clear_on_completion === false
-                };
-            });
-            
-            setAppVariables(prev => {
-                const next = [...prev];
-                globals.forEach(g => {
-                    if (!next.find(v => String(v.name).toLowerCase() === String(g.name).toLowerCase())) {
-                        next.push(g);
-                    }
+        // Auto-fetch Global Variables on mount and on update events
+        const syncGlobalVars = () => {
+            getAllVariables().then(rows => {
+                const globals = rows.map(row => {
+                    let defaultValue = '';
+                    try { defaultValue = row.default_value !== null ? JSON.parse(row.default_value) : ''; } 
+                    catch { defaultValue = row.default_value ?? ''; }
+                    return {
+                        id: row.id,
+                        name: row.name,
+                        type: row.type || 'TEXT',
+                        defaultValue,
+                        value: defaultValue,
+                        clearOnCompletion: row.clear_on_completion ?? true,
+                        saveForAnalysis: row.save_for_analysis ?? true,
+                        isPersistent: row.clear_on_completion === false
+                    };
                 });
-                return next;
-            });
-        }).catch(err => console.error("Failed to fetch global variables:", err));
+                
+                setAppVariables(prev => {
+                    const next = [...prev];
+                    globals.forEach(g => {
+                        if (!next.find(v => String(v.name).toLowerCase() === String(g.name).toLowerCase())) {
+                            next.push(g);
+                        }
+                    });
+                    return next;
+                });
+            }).catch(err => console.error("Failed to fetch global variables:", err));
+        };
+
+        syncGlobalVars();
+        window.addEventListener('mavi_variables_updated', syncGlobalVars);
+        return () => window.removeEventListener('mavi_variables_updated', syncGlobalVars);
     }, []);
 
     useEffect(() => {
