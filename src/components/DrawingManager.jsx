@@ -65,6 +65,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getAllDrawings, saveDrawing, deleteDrawing, safeSaveDrawingsToLocalStorage } from '../utils/supabaseUtilityDB';
+import { convertPdfToImageDataUrl } from '../utils/pdfRenderService';
 const CADViewer3DEditor = lazy(() => import('./CADViewer3D').then(m => ({ default: m.CADViewer3DEditor })));
 
 // ─────────────────────────────────────────
@@ -892,35 +893,46 @@ export default function DrawingManager() {
         setActiveLayer('All Layers');
     }, [selectedDwgId]);
 
-    // PDF backdrop rendering state and effect
+    // PDF backdrop rendering state and effect (100% Client-side JS / Node Engine)
     const [pdfBackdropUrl, setPdfBackdropUrl] = useState(null);
+    const [isRenderingPdf, setIsRenderingPdf] = useState(false);
+
     useEffect(() => {
+        let isMounted = true;
         const dataUrlVal = selectedDwg?.dataUrl || selectedDwg?.data_url;
-        if (selectedDwg && (selectedDwg.fileType === 'PDF' || selectedDwg.fileType === 'DWG') && dataUrlVal) {
+        
+        if (selectedDwg && (selectedDwg.fileType === 'PDF' || selectedDwg.fileType === 'DWG' || selectedDwg.fileName?.toLowerCase().endsWith('.pdf')) && dataUrlVal) {
             if (dataUrlVal.startsWith('data:image/')) {
                 setPdfBackdropUrl(dataUrlVal);
-            } else {
-                setPdfBackdropUrl(null);
-                fetch('http://localhost:8000/blueprint/pdf_to_image', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ pdf_data_url: dataUrlVal })
-                })
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.success && data.image_url) {
-                            setPdfBackdropUrl(data.image_url);
-                        } else {
-                            console.error("Failed to render PDF backdrop:", data.error);
+            } else if (dataUrlVal.startsWith('data:application/pdf') || dataUrlVal.startsWith('blob:') || selectedDwg.fileType === 'PDF' || selectedDwg.fileName?.toLowerCase().endsWith('.pdf')) {
+                setIsRenderingPdf(true);
+                convertPdfToImageDataUrl(dataUrlVal, 2.5)
+                    .then(imgUrl => {
+                        if (isMounted) {
+                            setPdfBackdropUrl(imgUrl);
                         }
                     })
                     .catch(err => {
-                        console.error("Error fetching PDF backdrop image:", err);
+                        console.error("[DrawingManager] Error rendering PDF via pdfjs-dist:", err);
+                        if (isMounted) {
+                            setPdfBackdropUrl(null);
+                        }
+                    })
+                    .finally(() => {
+                        if (isMounted) {
+                            setIsRenderingPdf(false);
+                        }
                     });
+            } else {
+                setPdfBackdropUrl(null);
             }
         } else {
             setPdfBackdropUrl(null);
         }
+
+        return () => {
+            isMounted = false;
+        };
     }, [selectedDwg]);
 
     // QC Simulation Actions & Calculations
@@ -7521,6 +7533,40 @@ export default function DrawingManager() {
 
                                             <g transform={`translate(${canvasSize.width / 2 + panOffset.x}, ${canvasSize.height / 2 + panOffset.y}) scale(${zoom}) translate(${-canvasSize.width / 2}, ${-canvasSize.height / 2})`}>
                                                 {/* Blueprint backdrop */}
+                                                {isRenderingPdf && (
+                                                    <foreignObject x="50" y="80" width={canvasSize.width - 100} height={canvasSize.height - 160}>
+                                                        <div style={{
+                                                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                                            height: '100%', padding: '20px', textAlign: 'center', backgroundColor: 'rgba(15, 23, 42, 0.85)',
+                                                            border: '1px solid #00A09D', borderRadius: '8px', color: '#f8fafc',
+                                                            fontFamily: 'sans-serif', fontSize: '0.85rem'
+                                                        }}>
+                                                            <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                                                            <span style={{ fontWeight: 'bold', color: '#5eead4', marginBottom: '4px' }}>Merender PDF Vector Blueprint...</span>
+                                                            <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                                                                Engine JavaScript sedang mengonversi halaman PDF menjadi resolusi tinggi.
+                                                            </span>
+                                                        </div>
+                                                    </foreignObject>
+                                                )}
+
+                                                {selectedDwg && selectedDwg.fileType === 'PDF' && (selectedDwg.dataUrl || selectedDwg.data_url) && !pdfBackdropUrl && !isRenderingPdf && (
+                                                    <foreignObject x="50" y="80" width={canvasSize.width - 100} height={canvasSize.height - 160}>
+                                                        <div style={{
+                                                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                                            height: '100%', padding: '20px', textAlign: 'center', backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                                                            border: '1px dashed #ef4444', borderRadius: '8px', color: '#f8fafc',
+                                                            fontFamily: 'sans-serif', fontSize: '0.8rem'
+                                                        }}>
+                                                            <span style={{ fontSize: '1.2rem', marginBottom: '8px' }}>⚠️</span>
+                                                            <span style={{ fontWeight: 'bold', color: '#fca5a5', marginBottom: '4px' }}>Gagal memuat visual PDF Blueprint</span>
+                                                            <span style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>
+                                                                Berkas PDF tidak dapat dirender. Pastikan berkas PDF tidak terenkripsi atau rusak.
+                                                            </span>
+                                                        </div>
+                                                    </foreignObject>
+                                                )}
+
                                                 {selectedDwg && (selectedDwg.fileType === 'PDF' || selectedDwg.fileType === 'DWG') && (pdfBackdropUrl || selectedDwg.dataUrl || selectedDwg.data_url) && !(pdfBackdropUrl === null && (selectedDwg.dataUrl || selectedDwg.data_url)?.startsWith('data:application/pdf')) && (
                                                     <image
                                                         href={pdfBackdropUrl || selectedDwg.dataUrl || selectedDwg.data_url}
@@ -7532,23 +7578,6 @@ export default function DrawingManager() {
                                                         opacity="0.85"
                                                         style={{ pointerEvents: 'none' }}
                                                     />
-                                                )}
-
-                                                {selectedDwg && selectedDwg.fileType === 'PDF' && (selectedDwg.dataUrl || selectedDwg.data_url) && !pdfBackdropUrl && (selectedDwg.dataUrl || selectedDwg.data_url).startsWith('data:application/pdf') && (
-                                                    <foreignObject x="50" y="80" width={canvasSize.width - 100} height={canvasSize.height - 160}>
-                                                        <div style={{
-                                                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                                                            height: '100%', padding: '20px', textAlign: 'center', backgroundColor: 'rgba(15, 23, 42, 0.75)',
-                                                            border: '1px dashed #ef4444', borderRadius: '8px', color: '#f8fafc',
-                                                            fontFamily: 'sans-serif', fontSize: '0.8rem'
-                                                        }}>
-                                                            <span style={{ fontSize: '1.2rem', marginBottom: '8px' }}>⚠️</span>
-                                                            <span style={{ fontWeight: 'bold', color: '#fca5a5', marginBottom: '4px' }}>Visual PDF Blueprint tidak aktif</span>
-                                                            <span style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>
-                                                                Untuk merender gambar PDF secara visual, pastikan server Python lokal (yolo_server.py) berjalan di port 8000.
-                                                            </span>
-                                                        </div>
-                                                    </foreignObject>
                                                 )}
 
                                                 {selectedDwg && selectedDwg.fileType === 'DWG' && !selectedDwg.dataUrl && !pdfBackdropUrl && (
