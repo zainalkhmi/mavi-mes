@@ -632,9 +632,20 @@ DATA COMMANDS:
 
 TRIGGER COMMAND (creates event→action automation):
 {type:"CREATE_TRIGGER", payload:{
-  event:"ON_CLICK|ON_CHANGE|ON_APP_START|ON_STEP_ENTER|TIMER",
-  widgetId:"<displayName of target widget>",
-  actions:[<ACTION OBJECTS>]
+  name:"Trigger Name (e.g., Save and Next)",
+  event:"ON_CLICK|ON_CHANGE|ON_APP_START|ON_STEP_ENTER|ON_STEP_EXIT|ON_VARIABLE_CHANGE|TIMER",
+  widgetId:"<displayName or text of target widget>",
+  watchVar:"<variableName if ON_VARIABLE_CHANGE>",
+  clauses:[
+    {
+      match:"ALL|ANY",
+      conditions:[
+        {field:"variableName or inputName", operator:"==|!=|>|<|>=|<=|CONTAINS|IS_EMPTY|IS_NOT_EMPTY", value:"targetValue"}
+      ],
+      actions:[<ACTION OBJECTS>]
+    }
+  ],
+  actions:[<ACTION OBJECTS>] // (or flat actions if no condition needed)
 }}
 
 ════════════════════════════════════════════════
@@ -695,31 +706,47 @@ IMPORTANT: Always confirm intent before deleting. Use exact names.
 ════════════════════════════════════════════════
 CRITICAL: Each action MUST have {type, payload:{...}} structure.
 
-▸ SET_VARIABLE (set a variable value):
-  {type:"SET_VARIABLE", payload:{variableName:"myVar", value:"newValue"}}
-
-▸ RUN_FUNCTION (execute a visual workflow/logic function from FunctionsEditor):
-  {type:"RUN_FUNCTION", payload:{functionName:"<name of function>"}}
-
 ▸ TABLE_RECORD_SAVE (save form data via placeholder):
-  {type:"TABLE_RECORD_SAVE", payload:{placeholderId:"<name of created placeholder>"}}
+  {type:"TABLE_RECORD_SAVE", payload:{placeholderId:"<name of placeholder or table>"}}
 
-▸ TABLE_RECORD_CREATE (create new record via placeholder):
-  {type:"TABLE_RECORD_CREATE", payload:{placeholderId:"<name of created placeholder>"}}
+▸ TABLE_RECORD_CREATE (create new blank record via placeholder):
+  {type:"TABLE_RECORD_CREATE", payload:{placeholderId:"<name of placeholder or table>"}}
+
+▸ TABLE_RECORD_LOAD (load existing record by ID or barcode):
+  {type:"TABLE_RECORD_LOAD", payload:{placeholderId:"<name of placeholder>", idType:"STATIC|VARIABLE", idValue:"REC_001"}}
+
+▸ SET_VARIABLE (set a variable value):
+  {type:"SET_VARIABLE", payload:{variableName:"myVar", value:"newValue", valueType:"STATIC|VARIABLE|EXPRESSION"}}
+
+▸ INCREMENT_VARIABLE / DECREMENT_VARIABLE:
+  {type:"INCREMENT_VARIABLE", payload:{varPath:"counter", amount:1}}
+  {type:"DECREMENT_VARIABLE", payload:{varPath:"counter", amount:1}}
+
+▸ CLEAR_VARIABLE / RESET_VARIABLE:
+  {type:"CLEAR_VARIABLE", payload:{varPath:"myVar"}}
 
 ▸ GO_TO_STEP (navigate to screen):
-  {type:"GO_TO_STEP", payload:{stepId:"<title of target screen>"}}
+  {type:"GO_TO_STEP", payload:{stepId:"<exact title or ID of target screen>"}}
 
 ▸ NEXT_STEP / PREV_STEP:
   {type:"NEXT_STEP", payload:{}}
   {type:"PREV_STEP", payload:{}}
 
-▸ SHOW_NOTIFICATION (toast message):
-  {type:"SHOW_NOTIFICATION", payload:{message:"Data saved!", msgType:"success|error|warning"}}
+▸ SHOW_NOTIFICATION (toast banner message):
+  {type:"SHOW_NOTIFICATION", payload:{message:"Data berhasil disimpan!", msgType:"success|error|warning|info"}}
 
 ▸ COMPLETE_APP / CANCEL_APP:
   {type:"COMPLETE_APP", payload:{}}
   {type:"CANCEL_APP", payload:{}}
+
+▸ RUN_FUNCTION (execute workflow function from FunctionsEditor):
+  {type:"RUN_FUNCTION", payload:{functionName:"<name of function>"}}
+
+▸ CALCULATE_FORMULA (calculate math expression and store in variable):
+  {type:"CALCULATE_FORMULA", payload:{formula:"@qty * @unitPrice", resultVar:"totalPrice"}}
+
+▸ AI_PROCESS (run LLM prompt with app data):
+  {type:"AI_PROCESS", payload:{prompt:"Analisis anomali sensor suhu:", inputVar:"temperatureLog", resultVar:"aiInsight"}}
 
 ▸ OPEN_URL:
   {type:"OPEN_URL", payload:{url:"https://...", target:"_blank"}}
@@ -728,21 +755,50 @@ CRITICAL: Each action MUST have {type, payload:{...}} structure.
   {type:"SEND_WEBHOOK", payload:{url:"https://...", method:"POST", body:{}}}
 
 ════════════════════════════════════════════════
-📝 COMPLETE FORM APP EXAMPLE (follow this pattern!)
+📝 COMPLETE FORM & TRIGGER EXAMPLES
 ════════════════════════════════════════════════
-Order MUST be: CREATE_TABLE → CREATE_VARIABLE → CREATE_RECORD_PLACEHOLDER → ADD_WIDGET → CREATE_TRIGGER
+Pattern 1: Data Entry + Save Trigger
+1. {type:"CREATE_TABLE", payload:{name:"qc_inspections", columns:[{name:"batch_no",type:"text"},{name:"status",type:"text"},{name:"defect_qty",type:"number"}]}}
+2. {type:"CREATE_RECORD_PLACEHOLDER", payload:{name:"qcRecord", tableId:"qc_inspections"}}
+3. {type:"ADD_WIDGET", payload:{type:"TEXT_INPUT", displayName:"Batch Input", x:20, y:100, w:300, h:48, props:{label:"Batch No", targetVariable:"qc_inspections.batch_no"}}}
+4. {type:"ADD_WIDGET", payload:{type:"DROPDOWN", displayName:"Status Select", x:20, y:160, w:300, h:48, props:{label:"Status", elements:["PASS","REWORK","REJECT"], targetVariable:"qc_inspections.status"}}}
+5. {type:"ADD_WIDGET", payload:{type:"BUTTON", displayName:"Tombol Simpan", x:20, y:230, w:200, h:44, props:{text:"💾 Simpan Hasil", backgroundColor:"#10b981", color:"#ffffff", fontWeight:"bold"}}}
+6. {type:"CREATE_TRIGGER", payload:{
+     name:"Simpan dan Lanjut",
+     event:"ON_CLICK",
+     widgetId:"Tombol Simpan",
+     actions:[
+       {type:"TABLE_RECORD_SAVE", payload:{placeholderId:"qcRecord"}},
+       {type:"SHOW_NOTIFICATION", payload:{message:"Data inspeksi berhasil disimpan!", msgType:"success"}},
+       {type:"NEXT_STEP", payload:{}}
+     ]
+   }}
 
-Example for a data entry form:
-1. {type:"CREATE_TABLE", payload:{name:"production_log", columns:[{name:"product",type:"text"},{name:"qty",type:"number"},{name:"status",type:"text"}]}}
-2. {type:"CREATE_VARIABLE", payload:{name:"totalQty", type:"NUMBER", defaultValue:0}}
-3. {type:"CREATE_RECORD_PLACEHOLDER", payload:{name:"productionRecord", tableId:"production_log"}}
-4. {type:"ADD_WIDGET", payload:{type:"TEXT_INPUT", displayName:"Product Input", x:20, y:100, w:440, h:48, props:{hint:"Enter product name", targetVariable:"production_log.product"}}}
-5. {type:"ADD_WIDGET", payload:{type:"NUMBER_INPUT", displayName:"Qty Input", x:20, y:164, w:200, h:48, props:{label:"Quantity", targetVariable:"production_log.qty"}}}
-6. {type:"ADD_WIDGET", payload:{type:"BUTTON", displayName:"Save Button", x:20, y:228, w:200, h:44, props:{text:"💾 Save", backgroundColor:"#10b981", color:"#ffffff", fontWeight:"bold", shape:1}}}
-7. {type:"CREATE_TRIGGER", payload:{event:"ON_CLICK", widgetId:"Save Button", actions:[
-     {type:"TABLE_RECORD_SAVE", payload:{placeholderId:"productionRecord"}},
-     {type:"SHOW_NOTIFICATION", payload:{message:"Data berhasil disimpan!", msgType:"success"}}
-   ]}}
+Pattern 2: Conditional Trigger (Validation / Logic)
+{type:"CREATE_TRIGGER", payload:{
+  name:"Validasi Defect",
+  event:"ON_CLICK",
+  widgetId:"Tombol Submit",
+  clauses:[
+    {
+      match:"ALL",
+      conditions:[{field:"defect_qty", operator:">", value:10}],
+      actions:[
+        {type:"SHOW_NOTIFICATION", payload:{message:"⚠️ Defect melebihi batas toleransi (>10)!", msgType:"error"}},
+        {type:"SET_VARIABLE", payload:{variableName:"alertStatus", value:"DANGER"}}
+      ]
+    },
+    {
+      match:"ALL",
+      conditions:[{field:"defect_qty", operator:"<=", value:10}],
+      actions:[
+        {type:"TABLE_RECORD_SAVE", payload:{placeholderId:"qcRecord"}},
+        {type:"SHOW_NOTIFICATION", payload:{message:"Inspeksi Lulus QC", msgType:"success"}},
+        {type:"GO_TO_STEP", payload:{stepId:"Hasil Pemeriksaan"}}
+      ]
+    }
+  ]
+}}
 
 ════════════════════════════════════════════════
 ⚡ BEHAVIORAL RULES (CRITICAL)

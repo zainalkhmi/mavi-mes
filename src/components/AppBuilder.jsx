@@ -1033,23 +1033,23 @@ const AppBuilder = () => {
                 case 'CREATE_TRIGGER': {
                     let resolvedEvent = payload.event;
                     if (typeof resolvedEvent === 'object') {
-                        resolvedEvent = resolvedEvent.type || resolvedEvent.eventName || resolvedEvent.name || 'ON_APP_START';
+                        resolvedEvent = resolvedEvent.type || resolvedEvent.eventName || resolvedEvent.name || 'ON_CLICK';
                     }
 
-                    const eventStr = String(resolvedEvent || '').toUpperCase();
+                    const eventStr = String(resolvedEvent || '').toUpperCase().trim();
                     let normalizedEvent = eventStr;
 
-                    if (eventStr.includes('VARIABLE') || (eventStr.includes('ON_CHANGE') && !payload.widgetId && !widgetId)) {
+                    if (eventStr.includes('VARIABLE') || (eventStr.includes('ON_CHANGE') && !payload.widgetId && !widgetId && !payload.target)) {
                         normalizedEvent = 'ON_VARIABLE_CHANGE';
                     } else if (eventStr.includes('START') || eventStr.includes('INIT') || eventStr.includes('MOUNT')) {
                         normalizedEvent = 'ON_APP_START';
-                    } else if (eventStr.includes('COMPLETE') || eventStr.includes('SUBMIT')) {
+                    } else if (eventStr.includes('COMPLETE')) {
                         normalizedEvent = 'ON_APP_COMPLETE';
                     } else if (eventStr.includes('CANCEL')) {
                         normalizedEvent = 'ON_APP_CANCEL';
                     } else if (eventStr.includes('TIMER') || eventStr.includes('INTERVAL')) {
                         normalizedEvent = 'TIMER';
-                    } else if (eventStr.includes('CLICK') || eventStr.includes('PRESS') || eventStr.includes('TAP')) {
+                    } else if (eventStr.includes('CLICK') || eventStr.includes('PRESS') || eventStr.includes('TAP') || eventStr.includes('SUBMIT')) {
                         normalizedEvent = 'ON_CLICK';
                     } else if (eventStr.includes('CHANGE')) {
                         normalizedEvent = 'ON_CHANGE';
@@ -1057,6 +1057,8 @@ const AppBuilder = () => {
                         normalizedEvent = 'ON_STEP_ENTER';
                     } else if (eventStr.includes('STEP_EXIT') || eventStr.includes('SCREEN_EXIT')) {
                         normalizedEvent = 'ON_STEP_EXIT';
+                    } else if (!normalizedEvent) {
+                        normalizedEvent = 'ON_CLICK';
                     }
 
                     let watchVar = payload.watchVar || payload.variableName || payload.variable || '';
@@ -1068,7 +1070,7 @@ const AppBuilder = () => {
                     if (!clauses && payload.actions) {
                         clauses = [{
                             id: `c_${Date.now()}`,
-                            match: 'ALL',
+                            match: payload.match || payload.conditionMatch || 'ALL',
                             conditions: payload.conditions || [],
                             actions: payload.actions || []
                         }];
@@ -1124,18 +1126,82 @@ const AppBuilder = () => {
                                     if (Object.keys(p).length > 0) normalized.payload = p;
                                 }
 
-                                // 3. Resolve placeholder name→ID inside action payload
-                                if (normalized.payload?.placeholderId && !String(normalized.payload.placeholderId).startsWith('ph_')) {
-                                    const matchPh = recordPlaceholdersRef.current.find(rp => 
-                                        String(rp.name || '').toLowerCase() === String(normalized.payload.placeholderId).toLowerCase()
-                                    );
-                                    if (matchPh) {
-                                        console.log(`[Copilot] Placeholder resolved: "${normalized.payload.placeholderId}" → ${matchPh.id}`);
-                                        normalized.payload.placeholderId = matchPh.id;
+                                if (!normalized.payload) normalized.payload = {};
+
+                                // 3. Auto-resolve GO_TO_STEP target screen title to step ID
+                                if (normalized.type === 'GO_TO_STEP') {
+                                    let stepTarget = normalized.payload.stepId || normalized.payload.targetId || normalized.payload.screen || normalized.stepId || '';
+                                    if (stepTarget) {
+                                        const matchStep = stepsRef.current.find(s => 
+                                            s.id === stepTarget || 
+                                            String(s.title || '').toLowerCase() === String(stepTarget).toLowerCase() ||
+                                            String(s.id || '').toLowerCase() === String(stepTarget).toLowerCase()
+                                        );
+                                        if (matchStep) {
+                                            normalized.payload.stepId = matchStep.id;
+                                        } else {
+                                            normalized.payload.stepId = stepTarget;
+                                        }
                                     }
                                 }
 
-                                // 4. Resolve table name→ID inside action payload
+                                // 4. Auto-resolve placeholder name→ID inside action payload (and auto-create placeholder if needed)
+                                if (normalized.type.startsWith('TABLE_RECORD_')) {
+                                    const phRaw = normalized.payload.placeholderId || normalized.placeholderId || '';
+                                    if (phRaw) {
+                                        const matchPh = recordPlaceholdersRef.current.find(rp => 
+                                            rp.id === phRaw || String(rp.name || '').toLowerCase() === String(phRaw).toLowerCase()
+                                        );
+                                        if (matchPh) {
+                                            normalized.payload.placeholderId = matchPh.id;
+                                        } else {
+                                            const allTables = [...(tablesRef.current || []), ...(appTables || [])];
+                                            const matchTbl = allTables.find(tbl => 
+                                                String(tbl.name || '').toLowerCase() === String(phRaw).toLowerCase() || tbl.id === phRaw
+                                            ) || allTables[0];
+                                            if (matchTbl) {
+                                                const autoPh = {
+                                                    id: `ph_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`,
+                                                    name: phRaw.startsWith('ph_') ? phRaw : `ph_${matchTbl.name}`,
+                                                    tableId: matchTbl.id
+                                                };
+                                                const nextPh = [...recordPlaceholdersRef.current, autoPh];
+                                                recordPlaceholdersRef.current = nextPh;
+                                                setRecordPlaceholders(nextPh);
+                                                normalized.payload.placeholderId = autoPh.id;
+                                                console.log(`[Copilot] Auto-created placeholder "${autoPh.name}" for table "${matchTbl.name}"`);
+                                            }
+                                        }
+                                    } else if (recordPlaceholdersRef.current.length > 0) {
+                                        // Fallback to first placeholder if none specified
+                                        normalized.payload.placeholderId = recordPlaceholdersRef.current[0].id;
+                                    }
+                                }
+
+                                // 5. Auto-create variable if SET_VARIABLE targets a new variable name
+                                if (normalized.type === 'SET_VARIABLE') {
+                                    const vName = normalized.payload.variableName || normalized.variableName;
+                                    if (vName && !['APP_INFO.USER', 'APP_INFO.STATION', 'APP_INFO.APP_NAME'].includes(vName)) {
+                                        const exists = appVariablesRef.current.some(v => v.name === vName);
+                                        if (!exists) {
+                                            const autoVar = {
+                                                id: `v_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                                                name: vName,
+                                                type: normalized.payload.valueType || (typeof normalized.payload.value === 'number' ? 'NUMBER' : typeof normalized.payload.value === 'boolean' ? 'BOOLEAN' : 'TEXT'),
+                                                defaultValue: normalized.payload.value ?? '',
+                                                value: normalized.payload.value ?? '',
+                                                persisted: false
+                                            };
+                                            const nextVars = [...appVariablesRef.current, autoVar];
+                                            appVariablesRef.current = nextVars;
+                                            setAppVariables(nextVars);
+                                            saveVariable(autoVar).catch(console.error);
+                                            console.log(`[Copilot] Auto-created variable "${vName}"`);
+                                        }
+                                    }
+                                }
+
+                                // 6. Resolve table name→ID inside action payload
                                 const actionTableId = normalized.payload?.tableId || normalized.tableId;
                                 if (actionTableId && !String(actionTableId).includes('-')) {
                                     const matchingTable = tablesRef.current.find(tbl => String(tbl.name || '').toLowerCase() === String(actionTableId).toLowerCase());
@@ -1145,7 +1211,7 @@ const AppBuilder = () => {
                                     }
                                 }
 
-                                // 5. Clean up flat fields that are now in payload
+                                // 7. Clean up flat fields that are now in payload
                                 ['variableName', 'variable', 'varPath', 'value', 'expression', 'placeholderId', 'recordPlaceholderId',
                                  'tableId', 'fields', 'stepId', 'targetId', 'screen', 'message', 'text', 'msgType'
                                 ].forEach(key => { if (normalized.payload && key in normalized) delete normalized[key]; });
@@ -1164,23 +1230,42 @@ const AppBuilder = () => {
                         clauses
                     };
 
-                    const targetIdRaw = widgetId || payload.widgetId || payload.componentId || payload.target;
+                    const targetIdRaw = widgetId || payload.widgetId || payload.componentId || payload.target || payload.widgetName;
                     
-                    // Robust target resolution (search by ID, then Name, then Label, then Text)
+                    // Intelligent target resolution (search by ID, displayName, label, text, clean string)
                     let resolvedTargetId = null;
                     if (targetIdRaw) {
+                        const cleanStr = (s) => String(s || '').toLowerCase().replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').replace(/[^a-z0-9]/g, '').trim();
+                        const rawClean = cleanStr(targetIdRaw);
+
                         const findInList = (list) => {
-                            const raw = String(targetIdRaw).toLowerCase();
+                            const raw = String(targetIdRaw).toLowerCase().trim();
+                            // 1. Exact ID
                             const matchById = list.find(c => c.id === targetIdRaw);
                             if (matchById) return matchById.id;
-                            const matchByDisplay = list.find(c => String(c.displayName || '').toLowerCase() === raw);
+                            // 2. Exact displayName
+                            const matchByDisplay = list.find(c => String(c.displayName || '').toLowerCase().trim() === raw);
                             if (matchByDisplay) return matchByDisplay.id;
-                            const matchByLabel = list.find(c => String(c.props?.label || '').toLowerCase() === raw);
+                            // 3. Exact props.label or props.text
+                            const matchByLabel = list.find(c => String(c.props?.label || '').toLowerCase().trim() === raw);
                             if (matchByLabel) return matchByLabel.id;
-                            const matchByText = list.find(c => String(c.props?.text || '').toLowerCase() === raw);
+                            const matchByText = list.find(c => String(c.props?.text || '').toLowerCase().trim() === raw);
                             if (matchByText) return matchByText.id;
-                            // Fuzzy: partial match on displayName
-                            const fuzzy = list.find(c => String(c.displayName || '').toLowerCase().includes(raw) || raw.includes(String(c.displayName || '').toLowerCase()));
+                            // 4. Cleaned alphanumeric match (handles emojis like "💾 Simpan" -> "simpan")
+                            const matchClean = list.find(c => {
+                                const dClean = cleanStr(c.displayName);
+                                const lClean = cleanStr(c.props?.label);
+                                const tClean = cleanStr(c.props?.text);
+                                return (dClean && dClean === rawClean) || (lClean && lClean === rawClean) || (tClean && tClean === rawClean);
+                            });
+                            if (matchClean) return matchClean.id;
+                            // 5. Fuzzy contains match
+                            const fuzzy = list.find(c => {
+                                const d = String(c.displayName || '').toLowerCase();
+                                const t = String(c.props?.text || '').toLowerCase();
+                                const l = String(c.props?.label || '').toLowerCase();
+                                return (d && (d.includes(raw) || raw.includes(d))) || (t && (t.includes(raw) || raw.includes(t))) || (l && (l.includes(raw) || raw.includes(l)));
+                            });
                             if (fuzzy) return fuzzy.id;
                             return null;
                         };
@@ -1192,6 +1277,9 @@ const AppBuilder = () => {
                                 resolvedTargetId = findInList(s.components);
                                 if (resolvedTargetId) break;
                             }
+                        }
+                        if (!resolvedTargetId && currentStepIdRef.current !== 'BASE') {
+                            resolvedTargetId = findInList(baseComponentsRef.current);
                         }
                     }
 
@@ -1222,7 +1310,7 @@ const AppBuilder = () => {
                         // Get widget name for toast
                         const targetWidget = (currentStepIdRef.current === 'BASE' ? baseComponentsRef.current : (stepsRef.current.find(s => s.id === currentStepIdRef.current)?.components || []))
                             .find(c => c.id === resolvedTargetId);
-                        const widgetName = targetWidget?.displayName || targetWidget?.props?.label || resolvedTargetId;
+                        const widgetName = targetWidget?.displayName || targetWidget?.props?.label || targetWidget?.props?.text || resolvedTargetId;
                         const actionCount = clauses.reduce((sum, cl) => sum + (cl.actions?.length || 0), 0);
                         toast.success(`✅ Trigger ${normalizedEvent} → ${widgetName} (${actionCount} actions)`, { position: 'bottom-right' });
                         console.log(`[Copilot] Trigger added to widget: ${resolvedTargetId} with ${actionCount} actions`);
@@ -3603,30 +3691,41 @@ const AppBuilder = () => {
 
         // Support new source-based structure
         const resolveSide = (source, value) => {
-            if (source === 'VARIABLE') {
-                const v = appVariables.find(av => av.name === value);
-                return v ? v.value : '';
+            if (!value && value !== 0 && value !== false) return '';
+            const strVal = String(value);
+
+            if (source === 'VARIABLE' || !source) {
+                const v = appVariables.find(av => av.name === strVal || av.id === strVal);
+                if (v) return v.value;
+
+                // Also check if it's a form input component by displayName or id
+                if (previewFormValues[strVal] !== undefined) return previewFormValues[strVal];
+                const allComps = [...baseComponents, ...(steps.find(s => s.id === currentStepId)?.components || [])];
+                const matchedComp = allComps.find(c => c.id === strVal || String(c.displayName || '').toLowerCase() === strVal.toLowerCase() || c.props?.targetVariable === strVal);
+                if (matchedComp && previewFormValues[matchedComp.id] !== undefined) {
+                    return previewFormValues[matchedComp.id];
+                }
             }
-            if (source === 'APP_INFO') {
-                if (value === 'APP_INFO.USER') return appContext.user;
-                if (value === 'APP_INFO.STATION') return appContext.station;
-                if (value === 'APP_INFO.STEP_NAME') return steps.find(s => s.id === currentStepId)?.title || '';
-                if (value === 'APP_INFO.APP_NAME') return appName || '';
+            if (source === 'APP_INFO' || strVal.startsWith('APP_INFO.')) {
+                if (strVal === 'APP_INFO.USER') return appContext.user;
+                if (strVal === 'APP_INFO.STATION') return appContext.station;
+                if (strVal === 'APP_INFO.STEP_NAME') return steps.find(s => s.id === currentStepId)?.title || '';
+                if (strVal === 'APP_INFO.APP_NAME') return appName || '';
             }
-            if (source === 'RECORD_FIELD') {
-                const parts = value.split('.');
+            if (source === 'RECORD_FIELD' || strVal.includes('.')) {
+                const parts = strVal.split('.');
                 if (parts.length >= 2) {
                     const pName = parts[0];
                     const fName = parts.slice(1).join('.');
-                    const placeholder = recordPlaceholders.find(rp => rp.name === pName);
+                    const placeholder = recordPlaceholders.find(rp => rp.name === pName || rp.id === pName);
                     if (placeholder) {
                         const data = recordPlaceholderData[placeholder.id];
-                        return data ? data[fName] : '';
+                        if (data && data[fName] !== undefined) return data[fName];
                     }
                 }
             }
             if (source === 'TABLE_AGGREGATION') {
-                const [tableId, aggId] = value.split(':');
+                const [tableId, aggId] = strVal.split(':');
                 if (tableId && aggId) {
                     const table = tables.find(t => t.id === tableId);
                     const agg = table?.aggregations?.find(a => a.id === aggId);
@@ -3636,20 +3735,37 @@ const AppBuilder = () => {
             return resolveValue(value, source === 'EXPRESSION' ? 'EXPRESSION' : 'STATIC');
         };
 
-        const leftVal = cond.leftSource ? resolveSide(cond.leftSource, cond.leftValue) : resolveSide('VARIABLE', cond.variable);
-        const rightVal = cond.rightSource ? resolveSide(cond.rightSource, cond.rightValue) : resolveSide('STATIC', cond.value);
-        const operator = cond.operator || '==';
+        const leftRaw = cond.field || cond.variable || cond.variableName || cond.leftValue || cond.target;
+        const leftSource = cond.leftSource || (cond.variable || cond.variableName || cond.field ? 'VARIABLE' : 'STATIC');
+        const leftVal = resolveSide(leftSource, leftRaw);
+
+        const rightRaw = cond.value !== undefined ? cond.value : (cond.rightValue !== undefined ? cond.rightValue : cond.expectedValue);
+        const rightSource = cond.rightSource || 'STATIC';
+        const rightVal = resolveSide(rightSource, rightRaw);
+
+        const rawOp = String(cond.operator || cond.op || '==').toUpperCase().trim();
+        let operator = '==';
+
+        if (['=', '==', '===', 'EQUALS', 'EQUAL', 'EQ'].includes(rawOp)) operator = '==';
+        else if (['!=', '!==', '<>', 'NOT_EQUALS', 'NOT_EQUAL', 'NEQ'].includes(rawOp)) operator = '!=';
+        else if (['>', 'GT', 'GREATER_THAN'].includes(rawOp)) operator = '>';
+        else if (['<', 'LT', 'LESS_THAN'].includes(rawOp)) operator = '<';
+        else if (['>=', 'GTE', 'GREATER_THAN_OR_EQUAL'].includes(rawOp)) operator = '>=';
+        else if (['<=', 'LTE', 'LESS_THAN_OR_EQUAL'].includes(rawOp)) operator = '<=';
+        else if (['CONTAINS', 'INCLUDES', 'CONTAIN', 'INCLUDE'].includes(rawOp)) operator = 'CONTAINS';
+        else if (['IS_EMPTY', 'EMPTY', 'NULL', 'IS_NULL'].includes(rawOp)) operator = 'IS_EMPTY';
+        else if (['IS_NOT_EMPTY', 'NOT_EMPTY', 'NOT_NULL', 'IS_NOT_NULL'].includes(rawOp)) operator = 'IS_NOT_EMPTY';
 
         switch (operator) {
-            case '==': return String(leftVal) === String(rightVal);
-            case '!=': return String(leftVal) !== String(rightVal);
+            case '==': return String(leftVal ?? '').toLowerCase() === String(rightVal ?? '').toLowerCase();
+            case '!=': return String(leftVal ?? '').toLowerCase() !== String(rightVal ?? '').toLowerCase();
             case '>': return Number(leftVal) > Number(rightVal);
             case '<': return Number(leftVal) < Number(rightVal);
             case '>=': return Number(leftVal) >= Number(rightVal);
             case '<=': return Number(leftVal) <= Number(rightVal);
-            case 'CONTAINS': return String(leftVal).includes(String(rightVal));
-            case 'IS_EMPTY': return !leftVal || String(leftVal).trim() === '';
-            case 'IS_NOT_EMPTY': return leftVal && String(leftVal).trim() !== '';
+            case 'CONTAINS': return String(leftVal ?? '').toLowerCase().includes(String(rightVal ?? '').toLowerCase());
+            case 'IS_EMPTY': return leftVal === undefined || leftVal === null || String(leftVal).trim() === '';
+            case 'IS_NOT_EMPTY': return leftVal !== undefined && leftVal !== null && String(leftVal).trim() !== '';
             default: return true;
         }
     };
@@ -4387,8 +4503,11 @@ const AppBuilder = () => {
                     }
                     break;
                 }
-                case 'SHOW_MESSAGE': {
-                    const { message, value, valueType, msgType, showIf } = action.payload;
+                case 'SHOW_NOTIFICATION':
+                case 'SHOW_MESSAGE':
+                case 'DISPLAY_MESSAGE':
+                case 'ALERT': {
+                    const { message, text, value, valueType, msgType, showIf } = action.payload || {};
                     if (showIf) {
                       try {
                         let expr = String(showIf);
@@ -4400,12 +4519,16 @@ const AppBuilder = () => {
                         if (!shouldShow) { console.log(`[Show Message] showIf=false, skipping`); break; }
                       } catch (e) { console.warn('[Show Message] showIf error:', e); }
                     }
-                    const textToResolve = message !== undefined ? message : value;
+                    const textToResolve = message !== undefined ? message : (text !== undefined ? text : value);
                     const resolved = resolveValue(textToResolve, (valueType || 'STATIC'));
+                    const formattedType = String(msgType || 'success').toLowerCase();
+                    if (formattedType === 'error') toast.error(resolved);
+                    else if (formattedType === 'warning') toast.error(resolved, { icon: '⚠️' });
+                    else if (formattedType === 'info') toast.info(resolved);
+                    else toast.success(resolved);
+
                     if (viewMode === 'PREVIEW' || runtimeCtx?.isTest) {
-                        setProUiDialog({ message: resolved, type: msgType || 'info' });
-                    } else {
-                        console.log(`[Show Message] ${resolved}`);
+                        setProUiDialog({ message: resolved, type: formattedType === 'error' ? 'error' : (formattedType === 'warning' ? 'warning' : 'info') });
                     }
                     break;
                 }
@@ -4481,10 +4604,19 @@ const AppBuilder = () => {
                     await obd2Service.clearDTC();
                     break;
                 }
-                case 'GO_TO_STEP':
-                    setCurrentStepId(action.payload.stepId || action.payload.targetId);
-                    if (runtimeCtx) runtimeCtx.transitionExecuted = true;
+                case 'GO_TO_STEP': {
+                    const target = action.payload?.stepId || action.payload?.targetId || action.payload?.screen;
+                    if (target) {
+                        const matchStep = steps.find(s => s.id === target || String(s.title || '').toLowerCase() === String(target).toLowerCase());
+                        if (matchStep) {
+                            setCurrentStepId(matchStep.id);
+                        } else {
+                            setCurrentStepId(target);
+                        }
+                        if (runtimeCtx) runtimeCtx.transitionExecuted = true;
+                    }
                     break;
+                }
                 case 'NEXT_STEP': {
                     const idx = steps.findIndex(s => s.id === currentStepId);
                     const proceedToNext = () => {

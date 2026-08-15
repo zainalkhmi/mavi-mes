@@ -75,7 +75,7 @@ const REQUIRED_FIELDS_BY_TYPE = {
     DELETE_VARIABLE: [],        // accepts variableName OR payload.name
 
     // Trigger
-    CREATE_TRIGGER: ['payload.event'],
+    CREATE_TRIGGER: [],
     UPDATE_TRIGGER: [],         // accepts triggerId OR payload.triggerName
     DELETE_TRIGGER: [],         // accepts triggerId OR payload.triggerName
 
@@ -147,18 +147,47 @@ const normalizeCommandType = (type) => {
 
 const normalizePayloadShape = (cmd) => {
     const next = { ...cmd };
-    const payload = { ...(next.payload || {}) };
+    let payload = (next.payload && typeof next.payload === 'object') ? { ...next.payload } : {};
 
-    if (!next.payload && next.detail && typeof next.detail === 'object') next.payload = { ...next.detail };
-    if (!next.payload && next.data && typeof next.data === 'object') next.payload = { ...next.data };
+    if (!next.payload && next.detail && typeof next.detail === 'object') payload = { ...next.detail };
+    if (!next.payload && next.data && typeof next.data === 'object') payload = { ...next.data };
 
-    const p = { ...(next.payload || payload) };
+    // Pull root-level fields if payload is empty or missing key properties
+    const rootKeys = ['event', 'on', 'trigger', 'widgetId', 'widgetName', 'target', 'componentId', 'actions', 'clauses', 'conditions', 'elseActions', 'name', 'stepId', 'stepTitle', 'tableId', 'tableName', 'variableName', 'variable', 'defaultValue', 'columns', 'fields', 'markdown', 'content', 'code', 'logic', 'description'];
+    rootKeys.forEach(k => {
+        if (next[k] !== undefined && payload[k] === undefined) {
+            payload[k] = next[k];
+        }
+    });
 
-    // trigger field normalization
-    if (p.on && !p.event) p.event = p.on;
-    if (p.detail && !p.payload && typeof p.detail === 'object') p.payload = p.detail;
+    // Trigger normalization
+    if (next.type === 'CREATE_TRIGGER' || next.type === 'TRIGGER' || payload.event || payload.on || payload.actions || payload.clauses) {
+        let rawEvt = payload.event || payload.on || payload.trigger || payload.eventName || next.event || '';
+        if (typeof rawEvt === 'object') rawEvt = rawEvt.type || rawEvt.name || rawEvt.eventName || '';
+        const evtStr = String(rawEvt || '').toUpperCase().trim();
 
-    next.payload = p;
+        if (evtStr.includes('START') || evtStr.includes('INIT') || evtStr.includes('MOUNT')) {
+            payload.event = 'ON_APP_START';
+        } else if (evtStr.includes('VARIABLE') || (evtStr.includes('CHANGE') && !payload.widgetId && !payload.target)) {
+            payload.event = 'ON_VARIABLE_CHANGE';
+        } else if (evtStr.includes('STEP_ENTER') || evtStr.includes('SCREEN_ENTER')) {
+            payload.event = 'ON_STEP_ENTER';
+        } else if (evtStr.includes('STEP_EXIT') || evtStr.includes('SCREEN_EXIT')) {
+            payload.event = 'ON_STEP_EXIT';
+        } else if (evtStr.includes('CHANGE')) {
+            payload.event = 'ON_CHANGE';
+        } else if (evtStr.includes('TIMER') || evtStr.includes('INTERVAL')) {
+            payload.event = 'TIMER';
+        } else if (evtStr.includes('CLICK') || evtStr.includes('PRESS') || evtStr.includes('TAP') || evtStr.includes('SUBMIT')) {
+            payload.event = 'ON_CLICK';
+        } else if (!payload.event) {
+            payload.event = 'ON_CLICK';
+        }
+    }
+
+    if (payload.detail && !payload.payload && typeof payload.detail === 'object') payload.payload = payload.detail;
+
+    next.payload = payload;
     return next;
 };
 
