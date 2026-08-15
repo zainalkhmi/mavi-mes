@@ -2329,20 +2329,20 @@ export default function DrawingManager() {
         // endpoint
         if (osnapModes.endpoint) {
             segments.forEach(s => {
-                addCandidate(s.p1.x, s.p1.y, 'endpoint');
-                addCandidate(s.p2.x, s.p2.y, 'endpoint');
+                addCandidate(s.p1.x, s.p1.y, 'start_point');
+                addCandidate(s.p2.x, s.p2.y, 'end_point');
             });
             rects.forEach(r => {
-                addCandidate(r.x, r.y, 'endpoint');
+                addCandidate(r.x, r.y, 'start_point');
                 addCandidate(r.x + r.w, r.y, 'endpoint');
-                addCandidate(r.x + r.w, r.y + r.h, 'endpoint');
+                addCandidate(r.x + r.w, r.y + r.h, 'end_point');
                 addCandidate(r.x, r.y + r.h, 'endpoint');
             });
             arcs.forEach(a => {
                 const radStart = (a.startAngle * Math.PI) / 180;
                 const radEnd = (a.endAngle * Math.PI) / 180;
-                addCandidate(a.cx + a.r * Math.cos(radStart), a.cy - a.r * Math.sin(radStart), 'endpoint');
-                addCandidate(a.cx + a.r * Math.cos(radEnd), a.cy - a.r * Math.sin(radEnd), 'endpoint');
+                addCandidate(a.cx + a.r * Math.cos(radStart), a.cy - a.r * Math.sin(radStart), 'start_point');
+                addCandidate(a.cx + a.r * Math.cos(radEnd), a.cy - a.r * Math.sin(radEnd), 'end_point');
             });
         }
 
@@ -5409,87 +5409,107 @@ export default function DrawingManager() {
         
         const handles = [];
         
-        // Handle 1: End point 1 (x1, y1)
+        // Handle 1: Start point P1 (x1, y1)
         if (dim.x1 !== undefined && dim.y1 !== undefined) {
             handles.push(
-                <circle
-                    key="p1"
-                    cx={dim.x1}
-                    cy={dim.y1}
-                    r="5"
-                    fill="white"
-                    stroke="#2563eb"
-                    strokeWidth="1.5"
-                    style={{ cursor: 'move' }}
-                    onMouseDown={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        handleAnchorDragStart(dim.id, 'p1');
-                    }}
-                />
+                <g key="p1">
+                    <circle
+                        cx={dim.x1}
+                        cy={dim.y1}
+                        r="6"
+                        fill="#10b981"
+                        stroke="white"
+                        strokeWidth="2"
+                        style={{ cursor: 'move', filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.5))' }}
+                        onMouseDown={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            handleAnchorDragStart(dim.id, 'p1');
+                        }}
+                    />
+                    <g transform={`translate(${dim.x1}, ${dim.y1 - 12})`} style={{ pointerEvents: 'none' }}>
+                        <rect x="-34" y="-8" width="68" height="15" rx="3" fill="#0f172a" stroke="#10b981" strokeWidth="1" />
+                        <text x="0" y="3" fill="#10b981" fontSize="7.5" fontWeight="bold" textAnchor="middle">📍 START (P1)</text>
+                    </g>
+                </g>
             );
         }
         
-        // Handle 2: End point 2 (x2, y2)
+        // Handle 2: End point P2 (x2, y2)
         if (dim.x2 !== undefined && dim.y2 !== undefined) {
             handles.push(
-                <circle
-                    key="p2"
-                    cx={dim.x2}
-                    cy={dim.y2}
-                    r="5"
-                    fill="white"
-                    stroke="#2563eb"
-                    strokeWidth="1.5"
-                    style={{ cursor: 'move' }}
-                    onMouseDown={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        handleAnchorDragStart(dim.id, 'p2');
-                    }}
-                />
+                <g key="p2">
+                    <circle
+                        cx={dim.x2}
+                        cy={dim.y2}
+                        r="6"
+                        fill="#3b82f6"
+                        stroke="white"
+                        strokeWidth="2"
+                        style={{ cursor: 'move', filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.5))' }}
+                        onMouseDown={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            handleAnchorDragStart(dim.id, 'p2');
+                        }}
+                    />
+                    <g transform={`translate(${dim.x2}, ${dim.y2 + 18})`} style={{ pointerEvents: 'none' }}>
+                        <rect x="-30" y="-8" width="60" height="15" rx="3" fill="#0f172a" stroke="#3b82f6" strokeWidth="1" />
+                        <text x="0" y="3" fill="#3b82f6" fontSize="7.5" fontWeight="bold" textAnchor="middle">🏁 END (P2)</text>
+                    </g>
+                </g>
             );
         }
 
         // Handle 3: Center vertex (cx, cy) - only for angle/arc
         if (dim.category === 'angle' && dim.cx !== undefined && dim.cy !== undefined) {
             handles.push(
-                <circle
-                    key="center"
-                    cx={dim.cx}
-                    cy={dim.cy}
-                    r="5"
-                    fill="white"
-                    stroke="#f59e0b"
-                    strokeWidth="1.5"
-                    style={{ cursor: 'move' }}
-                    onMouseDown={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        handleAnchorDragStart(dim.id, 'center');
-                    }}
-                />
+                <g key="center">
+                    <circle
+                        cx={dim.cx}
+                        cy={dim.cy}
+                        r="6"
+                        fill="#f59e0b"
+                        stroke="white"
+                        strokeWidth="2"
+                        style={{ cursor: 'move', filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.5))' }}
+                        onMouseDown={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            handleAnchorDragStart(dim.id, 'center');
+                        }}
+                    />
+                    <g transform={`translate(${dim.cx}, ${dim.cy - 12})`} style={{ pointerEvents: 'none' }}>
+                        <rect x="-28" y="-8" width="56" height="15" rx="3" fill="#0f172a" stroke="#f59e0b" strokeWidth="1" />
+                        <text x="0" y="3" fill="#f59e0b" fontSize="7.5" fontWeight="bold" textAnchor="middle">🎯 VERTEX</text>
+                    </g>
+                </g>
             );
         }
 
         // Handle 4: Label position (lx, ly)
         if (dim.lx !== undefined && dim.ly !== undefined) {
             handles.push(
-                <circle
-                    key="label"
-                    cx={dim.lx}
-                    cy={dim.ly}
-                    r="4"
-                    fill="white"
-                    stroke="#10b981"
-                    strokeWidth="1.5"
-                    style={{ cursor: 'move' }}
-                    onMouseDown={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        handleAnchorDragStart(dim.id, 'label');
-                    }}
-                />
+                <g key="label">
+                    <circle
+                        cx={dim.lx}
+                        cy={dim.ly}
+                        r="5"
+                        fill="#a855f7"
+                        stroke="white"
+                        strokeWidth="1.5"
+                        style={{ cursor: 'move', filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.5))' }}
+                        onMouseDown={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            handleAnchorDragStart(dim.id, 'label');
+                        }}
+                    />
+                    <g transform={`translate(${dim.lx}, ${dim.ly - 12})`} style={{ pointerEvents: 'none' }}>
+                        <rect x="-24" y="-7" width="48" height="13" rx="3" fill="#0f172a" stroke="#a855f7" strokeWidth="1" />
+                        <text x="0" y="3" fill="#a855f7" fontSize="7" fontWeight="bold" textAnchor="middle">🎈 LABEL</text>
+                    </g>
+                </g>
             );
         }
 
@@ -8526,13 +8546,25 @@ export default function DrawingManager() {
 
                                                     if (drawingShape.type === 'line') {
                                                         return (
-                                                            <line
-                                                                {...tempProps}
-                                                                x1={drawingShape.x1}
-                                                                y1={drawingShape.y1}
-                                                                x2={drawingShape.x2}
-                                                                y2={drawingShape.y2}
-                                                            />
+                                                            <g style={{ pointerEvents: 'none' }}>
+                                                                <line
+                                                                    {...tempProps}
+                                                                    x1={drawingShape.x1}
+                                                                    y1={drawingShape.y1}
+                                                                    x2={drawingShape.x2}
+                                                                    y2={drawingShape.y2}
+                                                                />
+                                                                <circle cx={drawingShape.x1} cy={drawingShape.y1} r="5" fill="#10b981" />
+                                                                <circle cx={drawingShape.x2} cy={drawingShape.y2} r="5" fill="#3b82f6" />
+                                                                <g transform={`translate(${drawingShape.x1}, ${drawingShape.y1 - 14})`}>
+                                                                    <rect x="-35" y="-8" width="70" height="16" rx="3" fill="#0f172a" stroke="#10b981" strokeWidth="1" />
+                                                                    <text x="0" y="3" fill="#10b981" fontSize="8" fontWeight="bold" textAnchor="middle">📍 START</text>
+                                                                </g>
+                                                                <g transform={`translate(${drawingShape.x2}, ${drawingShape.y2 + 14})`}>
+                                                                    <rect x="-30" y="-8" width="60" height="16" rx="3" fill="#0f172a" stroke="#3b82f6" strokeWidth="1" />
+                                                                    <text x="0" y="3" fill="#3b82f6" fontSize="8" fontWeight="bold" textAnchor="middle">🏁 END</text>
+                                                                </g>
+                                                            </g>
                                                         );
                                                     } else if (drawingShape.type === 'circle') {
                                                         return (
@@ -8686,17 +8718,39 @@ export default function DrawingManager() {
                                                             drawingCategory === 'angle' ? (
                                                                 <>
                                                                     {/* Center Vertex */}
-                                                                    <circle cx={dimDraftCoords.cx} cy={dimDraftCoords.cy} r="5" fill="#f59e0b" />
-                                                                    <text x={dimDraftCoords.cx} y={dimDraftCoords.cy - 8} fill="#f59e0b" fontSize="8" fontWeight="bold" textAnchor="middle">SUDUT VERTEX</text>
+                                                                    <circle cx={dimDraftCoords.cx} cy={dimDraftCoords.cy} r="6" fill="#f59e0b" stroke="white" strokeWidth="1.5" />
+                                                                    <g transform={`translate(${dimDraftCoords.cx}, ${dimDraftCoords.cy - 12})`}>
+                                                                        <rect x="-36" y="-8" width="72" height="16" rx="3" fill="#0f172a" stroke="#f59e0b" strokeWidth="1" />
+                                                                        <text x="0" y="3" fill="#f59e0b" fontSize="8" fontWeight="bold" textAnchor="middle">🎯 VERTEX</text>
+                                                                    </g>
                                                                     {/* Line from center to current cursor */}
                                                                     <line x1={dimDraftCoords.cx} y1={dimDraftCoords.cy} x2={dimDraftCoords.x2} y2={dimDraftCoords.y2} stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="3,3" />
-                                                                    <circle cx={dimDraftCoords.x2} cy={dimDraftCoords.y2} r="4" fill="#f59e0b" />
+                                                                    <circle cx={dimDraftCoords.x2} cy={dimDraftCoords.y2} r="5" fill="#10b981" />
+                                                                    <g transform={`translate(${dimDraftCoords.x2}, ${dimDraftCoords.y2 + 14})`}>
+                                                                        <rect x="-35" y="-8" width="70" height="16" rx="3" fill="#0f172a" stroke="#10b981" strokeWidth="1" />
+                                                                        <text x="0" y="3" fill="#10b981" fontSize="8" fontWeight="bold" textAnchor="middle">📍 LENGAN 1</text>
+                                                                    </g>
                                                                 </>
                                                             ) : (
                                                                 <>
                                                                     <line x1={dimDraftCoords.x1} y1={dimDraftCoords.y1} x2={dimDraftCoords.x2} y2={dimDraftCoords.y2} stroke="#3b82f6" strokeWidth="1.5" strokeDasharray="3,3" />
-                                                                    <circle cx={dimDraftCoords.x1} cy={dimDraftCoords.y1} r="4" fill="#3b82f6" />
-                                                                    <circle cx={dimDraftCoords.x2} cy={dimDraftCoords.y2} r="4" fill="#3b82f6" />
+                                                                    
+                                                                    {/* Start Point Marker (P1) */}
+                                                                    <circle cx={dimDraftCoords.x1} cy={dimDraftCoords.y1} r="9" fill="rgba(16, 185, 129, 0.2)" stroke="#10b981" strokeWidth="1" strokeDasharray="2,2" />
+                                                                    <circle cx={dimDraftCoords.x1} cy={dimDraftCoords.y1} r="5" fill="#10b981" stroke="white" strokeWidth="1.5" />
+                                                                    <g transform={`translate(${dimDraftCoords.x1}, ${dimDraftCoords.y1 - 16})`}>
+                                                                        <rect x="-42" y="-9" width="84" height="18" rx="4" fill="#0f172a" stroke="#10b981" strokeWidth="1.5" />
+                                                                        <text x="0" y="3" fill="#10b981" fontSize="9" fontWeight="bold" textAnchor="middle">📍 START POINT</text>
+                                                                    </g>
+
+                                                                    {/* End Point Marker (P2 - Moving Cursor) */}
+                                                                    <circle cx={dimDraftCoords.x2} cy={dimDraftCoords.y2} r="9" fill="rgba(59, 130, 246, 0.2)" stroke="#3b82f6" strokeWidth="1" strokeDasharray="2,2" />
+                                                                    <circle cx={dimDraftCoords.x2} cy={dimDraftCoords.y2} r="5" fill="#3b82f6" stroke="white" strokeWidth="1.5" />
+                                                                    <g transform={`translate(${dimDraftCoords.x2}, ${dimDraftCoords.y2 + 16})`}>
+                                                                        <rect x="-40" y="-9" width="80" height="18" rx="4" fill="#0f172a" stroke="#3b82f6" strokeWidth="1.5" />
+                                                                        <text x="0" y="3" fill="#3b82f6" fontSize="9" fontWeight="bold" textAnchor="middle">🏁 END POINT</text>
+                                                                    </g>
+
                                                                     {(() => {
                                                                         const px = Math.sqrt((dimDraftCoords.x2 - dimDraftCoords.x1) ** 2 + (dimDraftCoords.y2 - dimDraftCoords.y1) ** 2);
                                                                         const factor = selectedDwg?.scaleFactor || 1.0;
@@ -8895,7 +8949,7 @@ export default function DrawingManager() {
                                                             strokeWidth={1}
                                                             strokeDasharray="2,2"
                                                         />
-                                                        {snappedPoint.type === 'endpoint' && (
+                                                        {(snappedPoint.type === 'endpoint' || snappedPoint.type === 'start_point' || snappedPoint.type === 'end_point') && (
                                                             <rect
                                                                 x={snappedPoint.x - 5}
                                                                 y={snappedPoint.y - 5}
@@ -8954,18 +9008,39 @@ export default function DrawingManager() {
                                                                 style={{ pointerEvents: 'none' }}
                                                             />
                                                         )}
-                                                        {/* Small text tag */}
-                                                        <text
-                                                            x={snappedPoint.x + 8}
-                                                            y={snappedPoint.y + 4}
-                                                            fill="#22c55e"
-                                                            fontSize="6.5"
-                                                            fontWeight="bold"
-                                                            fontFamily="monospace"
-                                                            style={{ pointerEvents: 'none', filter: 'drop-shadow(0px 1px 1px rgba(0,0,0,0.6))' }}
-                                                        >
-                                                            {snappedPoint.type.toUpperCase()}
-                                                        </text>
+                                                        {/* Small text tag with contextual START POINT vs END POINT */}
+                                                        {(() => {
+                                                            let label = snappedPoint.type.toUpperCase();
+
+                                                            if (snappedPoint.type === 'start_point') {
+                                                                label = 'START POINT';
+                                                            } else if (snappedPoint.type === 'end_point') {
+                                                                label = 'END POINT';
+                                                            } else if (snappedPoint.type === 'endpoint') {
+                                                                label = 'START POINT';
+                                                            }
+
+                                                            // Context-aware overriding when actively picking QC parameters or drawing:
+                                                            if (cadTool === 'dimension') {
+                                                                label = dimDrawState === 'waiting_end' ? 'END POINT' : 'START POINT';
+                                                            } else if (drawingShape || polylineDraftPoints.length > 0 || (scaleDrawState && scaleDrawState === 'drawing')) {
+                                                                label = 'END POINT';
+                                                            }
+
+                                                            return (
+                                                                <text
+                                                                    x={snappedPoint.x + 8}
+                                                                    y={snappedPoint.y + 4}
+                                                                    fill="#22c55e"
+                                                                    fontSize="6.5"
+                                                                    fontWeight="bold"
+                                                                    fontFamily="monospace"
+                                                                    style={{ pointerEvents: 'none', filter: 'drop-shadow(0px 1px 1px rgba(0,0,0,0.6))' }}
+                                                                >
+                                                                    {label}
+                                                                </text>
+                                                            );
+                                                        })()}
                                                     </g>
                                                 )}
                                             </g>
@@ -9554,32 +9629,32 @@ export default function DrawingManager() {
 
                                                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '4px' }}>
                                                                     <div>
-                                                                        <label style={{ display: 'block', fontSize: '0.55rem', color: '#cbd5e1' }}>Awal X (P1): {dim.x1 ?? 150}</label>
+                                                                        <label style={{ display: 'block', fontSize: '0.55rem', color: '#10b981', fontWeight: 'bold' }}>📍 Start Point X (P1): {dim.x1 ?? 150}</label>
                                                                         <input
                                                                             type="range"
                                                                             min="10"
                                                                             max="490"
                                                                             value={dim.x1 ?? 150}
                                                                             onChange={(e) => handleSliderCoordinateChange(dim, 'x1', e.target.value)}
-                                                                            style={{ width: '100%', accentColor: '#3b82f6', height: '3px', cursor: 'pointer' }}
+                                                                            style={{ width: '100%', accentColor: '#10b981', height: '3px', cursor: 'pointer' }}
                                                                         />
                                                                     </div>
                                                                     <div>
-                                                                        <label style={{ display: 'block', fontSize: '0.55rem', color: '#cbd5e1' }}>Awal Y (P1): {dim.y1 ?? 180}</label>
+                                                                        <label style={{ display: 'block', fontSize: '0.55rem', color: '#10b981', fontWeight: 'bold' }}>📍 Start Point Y (P1): {dim.y1 ?? 180}</label>
                                                                         <input
                                                                             type="range"
                                                                             min="10"
                                                                             max="350"
                                                                             value={dim.y1 ?? 180}
                                                                             onChange={(e) => handleSliderCoordinateChange(dim, 'y1', e.target.value)}
-                                                                            style={{ width: '100%', accentColor: '#3b82f6', height: '3px', cursor: 'pointer' }}
+                                                                            style={{ width: '100%', accentColor: '#10b981', height: '3px', cursor: 'pointer' }}
                                                                         />
                                                                     </div>
                                                                 </div>
 
                                                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
                                                                     <div>
-                                                                        <label style={{ display: 'block', fontSize: '0.55rem', color: '#cbd5e1' }}>Akhir X (P2): {dim.x2 ?? 350}</label>
+                                                                        <label style={{ display: 'block', fontSize: '0.55rem', color: '#3b82f6', fontWeight: 'bold' }}>🏁 End Point X (P2): {dim.x2 ?? 350}</label>
                                                                         <input
                                                                             type="range"
                                                                             min="10"
@@ -9590,7 +9665,7 @@ export default function DrawingManager() {
                                                                         />
                                                                     </div>
                                                                     <div>
-                                                                        <label style={{ display: 'block', fontSize: '0.55rem', color: '#cbd5e1' }}>Akhir Y (P2): {dim.y2 ?? 180}</label>
+                                                                        <label style={{ display: 'block', fontSize: '0.55rem', color: '#3b82f6', fontWeight: 'bold' }}>🏁 End Point Y (P2): {dim.y2 ?? 180}</label>
                                                                         <input
                                                                             type="range"
                                                                             min="10"
@@ -11088,21 +11163,21 @@ export default function DrawingManager() {
                                                         </div>
                                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
                                                             <div>
-                                                                <label style={{ display: 'block', fontSize: '0.58rem', color: '#64748b', fontWeight: 600 }}>Awal X: {editX1}</label>
-                                                                <input type="range" min="10" max="490" value={editX1} onChange={(e) => updateActiveDimProp('x1', e.target.value)} style={{ width: '100%', accentColor: '#3b82f6' }} />
+                                                                <label style={{ display: 'block', fontSize: '0.58rem', color: '#10b981', fontWeight: 600 }}>Awal X (P1): {editX1}</label>
+                                                                <input type="range" min="10" max="490" value={editX1} onChange={(e) => updateActiveDimProp('x1', e.target.value)} style={{ width: '100%', accentColor: '#10b981' }} />
                                                             </div>
                                                             <div>
-                                                                <label style={{ display: 'block', fontSize: '0.58rem', color: '#64748b', fontWeight: 600 }}>Awal Y: {editY1}</label>
-                                                                <input type="range" min="10" max="350" value={editY1} onChange={(e) => updateActiveDimProp('y1', e.target.value)} style={{ width: '100%', accentColor: '#3b82f6' }} />
+                                                                <label style={{ display: 'block', fontSize: '0.58rem', color: '#10b981', fontWeight: 600 }}>Awal Y (P1): {editY1}</label>
+                                                                <input type="range" min="10" max="350" value={editY1} onChange={(e) => updateActiveDimProp('y1', e.target.value)} style={{ width: '100%', accentColor: '#10b981' }} />
                                                             </div>
                                                         </div>
                                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
                                                             <div>
-                                                                <label style={{ display: 'block', fontSize: '0.58rem', color: '#64748b', fontWeight: 600 }}>Akhir X: {editX2}</label>
+                                                                <label style={{ display: 'block', fontSize: '0.58rem', color: '#3b82f6', fontWeight: 600 }}>Akhir X (P2): {editX2}</label>
                                                                 <input type="range" min="10" max="490" value={editX2} onChange={(e) => updateActiveDimProp('x2', e.target.value)} style={{ width: '100%', accentColor: '#3b82f6' }} />
                                                             </div>
                                                             <div>
-                                                                <label style={{ display: 'block', fontSize: '0.58rem', color: '#64748b', fontWeight: 600 }}>Akhir Y: {editY2}</label>
+                                                                <label style={{ display: 'block', fontSize: '0.58rem', color: '#3b82f6', fontWeight: 600 }}>Akhir Y (P2): {editY2}</label>
                                                                 <input type="range" min="10" max="350" value={editY2} onChange={(e) => updateActiveDimProp('y2', e.target.value)} style={{ width: '100%', accentColor: '#3b82f6' }} />
                                                             </div>
                                                         </div>
@@ -11953,6 +12028,28 @@ export default function DrawingManager() {
                                 </select>
                             </div>
                         </div>
+
+                        {/* Coordinate Points Card (Start Point & End Point) */}
+                        {dimModalData && (
+                            <div style={{ backgroundColor: '#0f172a', padding: '10px 12px', borderRadius: '8px', border: '1px solid #334155', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                <div>
+                                    <span style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: 800, display: 'block', marginBottom: '2px' }}>
+                                        📍 START POINT (P1)
+                                    </span>
+                                    <span style={{ fontFamily: 'monospace', fontSize: '0.72rem', color: '#f8fafc', fontWeight: 600 }}>
+                                        X: {dimModalData.x1 ?? 0}, Y: {dimModalData.y1 ?? 0}
+                                    </span>
+                                </div>
+                                <div>
+                                    <span style={{ fontSize: '0.65rem', color: '#3b82f6', fontWeight: 800, display: 'block', marginBottom: '2px' }}>
+                                        🏁 END POINT (P2)
+                                    </span>
+                                    <span style={{ fontFamily: 'monospace', fontSize: '0.72rem', color: '#f8fafc', fontWeight: 600 }}>
+                                        X: {dimModalData.x2 ?? 0}, Y: {dimModalData.y2 ?? 0}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
 
                         <div>
                             <label style={labelStyle}>Nama / Label Parameter</label>

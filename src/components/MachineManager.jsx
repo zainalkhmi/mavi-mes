@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     Cpu,
     Plus,
@@ -11,7 +12,8 @@ import {
     AlertTriangle,
     CheckCircle2,
     XCircle,
-    Activity
+    Activity,
+    Sparkles
 } from 'lucide-react';
 import {
     getMachines, saveMachine, deleteMachine, getStations,
@@ -20,14 +22,16 @@ import {
 } from '../utils/database';
 import CreateConnectorModal from './CreateConnectorModal';
 import MachineTagMapper from './MachineTagMapper';
+import PredictiveMaintenanceManager from './PredictiveMaintenanceManager';
 
 const MachineManager = () => {
+    const navigate = useNavigate();
     const [machines, setMachines] = useState([]);
     const [stations, setStations] = useState([]);
     const [connectors, setConnectors] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedMachine, setSelectedMachine] = useState(null);
-    const [view, setView] = useState('machines'); // 'machines' | 'data-sources' | 'connector-hosts'
+    const [view, setView] = useState('machines'); // 'machines' | 'predictive-rul' | 'data-sources' | 'connector-hosts'
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isCreateDataSourceModalOpen, setIsCreateDataSourceModalOpen] = useState(false);
     const [isTagMapperOpen, setIsTagMapperOpen] = useState(false);
@@ -66,21 +70,26 @@ const MachineManager = () => {
             const allMachines = await getMachines();
             if (!allMachines.length) return;
 
+            const livePlcTags = window.mavi_plc_tags || [];
             const now = new Date().toISOString();
+            
             await Promise.all(allMachines.map(async (machine) => {
-                if (!machine.connectionConfig?.endpoint) return;
+                if (!machine.connectionConfig?.endpoint && (!machine.tagMappings || machine.tagMappings.length === 0)) return;
 
-                const currentlyOnline = machine.connectionStatus !== 'OFFLINE';
-                const shouldFlip = Math.random() < 0.08;
-                const nextOnline = shouldFlip ? !currentlyOnline : currentlyOnline;
+                // Check if any mapped tag has live stream
+                const hasLiveTagStream = (machine.tagMappings || []).some(m => 
+                    livePlcTags.some(t => t.name === m.tag || t.address === m.tag)
+                );
 
-                const updated = {
-                    ...machine,
-                    connectionStatus: nextOnline ? 'ONLINE' : 'OFFLINE',
-                    lastHeartbeat: nextOnline ? now : machine.lastHeartbeat,
-                    lastError: nextOnline ? '' : 'Heartbeat timeout (simulated polling)'
-                };
-                await saveMachine(updated);
+                const isOnline = Boolean(hasLiveTagStream || machine.connectionConfig?.endpoint);
+                if (machine.connectionStatus !== (isOnline ? 'ONLINE' : 'OFFLINE')) {
+                    const updated = {
+                        ...machine,
+                        connectionStatus: isOnline ? 'ONLINE' : 'OFFLINE',
+                        lastHeartbeat: isOnline ? now : machine.lastHeartbeat
+                    };
+                    await saveMachine(updated);
+                }
             }));
 
             loadData();
@@ -154,10 +163,8 @@ const MachineManager = () => {
             connectionStatus: testConnectionState.success ? 'ONLINE' : 'UNKNOWN',
             lastHeartbeat: testConnectionState.success ? new Date().toISOString() : null,
             lastError: testConnectionState.success ? '' : (testConnectionState.message || 'Connection has not been verified'),
-            attributes: [
-                { name: 'Spindle Speed', value: '12000 RPM', status: 'OK' },
-                { name: 'Temperature', value: '45°C', status: 'WARNING' }
-            ]
+            attributes: [],
+            tagMappings: []
         };
 
         await saveMachine(machine);
@@ -309,16 +316,35 @@ const MachineManager = () => {
                     <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 900, color: '#0f172a' }}>Machines</h2>
                     <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '0.9rem' }}>Connect and monitor physical equipment</p>
                 </div>
-                <button
-                    onClick={openCreateModal}
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: '8px',
-                        padding: '10px 20px', backgroundColor: '#3b82f6', color: 'white',
-                        border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer'
-                    }}
-                >
-                    <Plus size={18} /> Connect Machine
-                </button>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                        type="button"
+                        onClick={() => setView(view === 'predictive-rul' ? 'machines' : 'predictive-rul')}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '8px',
+                            padding: '10px 18px',
+                            backgroundColor: view === 'predictive-rul' ? '#d97706' : '#fef3c7',
+                            color: view === 'predictive-rul' ? 'white' : '#92400e',
+                            border: '1px solid #fde68a', borderRadius: '8px', fontWeight: 800, cursor: 'pointer',
+                            fontSize: '0.85rem',
+                            boxShadow: view === 'predictive-rul' ? '0 4px 12px rgba(217, 119, 6, 0.35)' : 'none',
+                            transition: 'all 0.15s'
+                        }}
+                    >
+                        <Sparkles size={16} className={view === 'predictive-rul' ? 'text-white' : 'text-amber-600'} /> AI Predictive RUL Cockpit
+                    </button>
+                    <button
+                        onClick={openCreateModal}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '8px',
+                            padding: '10px 20px', backgroundColor: '#3b82f6', color: 'white',
+                            border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer',
+                            fontSize: '0.85rem'
+                        }}
+                    >
+                        <Plus size={18} /> Connect Machine
+                    </button>
+                </div>
             </div>
 
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
@@ -333,6 +359,17 @@ const MachineManager = () => {
                             backgroundColor: view === 'machines' ? '#eff6ff' : 'transparent', borderLeft: view === 'machines' ? '4px solid #3b82f6' : '4px solid transparent'
                         }}
                     >Machines</button>
+                    <button
+                        onClick={() => setView('predictive-rul')}
+                        style={{
+                            padding: '12px 24px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer',
+                            fontSize: '0.85rem', fontWeight: 600, color: view === 'predictive-rul' ? '#d97706' : '#64748b',
+                            backgroundColor: view === 'predictive-rul' ? '#fef3c7' : 'transparent', borderLeft: view === 'predictive-rul' ? '4px solid #f59e0b' : '4px solid transparent',
+                            display: 'flex', alignItems: 'center', gap: '8px'
+                        }}
+                    >
+                        <Sparkles size={14} color="#d97706" /> Predictive RUL (AI)
+                    </button>
                     <div style={{ padding: '16px 24px 8px 24px', fontSize: '0.75rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Library</div>
                     <button style={{ padding: '10px 24px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: '#64748b' }}>Types</button>
                     <button style={{ padding: '10px 44px', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 500, color: '#64748b' }}>Attributes</button>
@@ -358,8 +395,10 @@ const MachineManager = () => {
                 </div>
 
                 {/* Main Workspace */}
-                <div style={{ flex: 1, padding: '24px', overflowY: 'auto' }}>
-                    {view === 'machines' ? (
+                <div style={{ flex: 1, padding: view === 'predictive-rul' ? '0' : '24px', overflowY: 'auto', backgroundColor: view === 'predictive-rul' ? '#0b0f19' : '#f8fafc' }}>
+                    {view === 'predictive-rul' ? (
+                        <PredictiveMaintenanceManager />
+                    ) : view === 'machines' ? (
                         <>
                             <div style={{ position: 'relative', maxWidth: '400px', marginBottom: '32px' }}>
                                 <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} size={16} />

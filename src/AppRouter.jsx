@@ -41,6 +41,7 @@ const FileExplorer = lazy(() => import('./components/FileExplorer'));
 const BuildManager = lazy(() => import('./components/BuildManager'));
 const VoiceControlledCaliperInspection = lazy(() => import('./components/VoiceControlledCaliperInspection'));
 const DrawingFileManager = lazy(() => import('./components/DrawingFileManager'));
+const PredictiveMaintenanceManager = lazy(() => import('./components/PredictiveMaintenanceManager'));
 
 export default function AppRouter({ user, isOperator }) {
   const hasAccess = (path) => checkRoleAccess(user, path);
@@ -64,6 +65,7 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/stations" element={hasAccess('/stations') ? <StationManager /> : <Navigate to="/" replace />} />
               <Route path="/display-devices" element={hasAccess('/display-devices') ? <InterfaceManager /> : <Navigate to="/" replace />} />
               <Route path="/machines" element={hasAccess('/machines') ? <MachineManager /> : <Navigate to="/" replace />} />
+              <Route path="/predictive-maintenance" element={hasAccess('/predictive-maintenance') ? <PredictiveMaintenanceManager /> : <Navigate to="/" replace />} />
               <Route path="/edge-devices" element={hasAccess('/edge-devices') ? <EdgeDeviceManager /> : <Navigate to="/" replace />} />
               <Route path="/vision" element={hasAccess('/vision') ? <VisionManager initialTab="cameras" /> : <Navigate to="/" replace />} />
               <Route path="/vision/quickbuild" element={hasAccess('/vision') ? <VisionManager initialTab="pipeline_builder" /> : <Navigate to="/" replace />} />

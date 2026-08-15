@@ -13050,6 +13050,43 @@ const AppBuilder = () => {
                             <Play size={18} fill="#10b981" />
                         </button>
                         <button
+                            type="button"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (!currentAppId) {
+                                    toast.error('Please save the app first.');
+                                    return;
+                                }
+                                const url = `${window.location.origin}/#/terminal/${currentAppId}`;
+                                window.open(url, '_blank');
+                            }}
+                            title="Buka Live Terminal"
+                            style={{
+                                width: '36px',
+                                height: '36px',
+                                borderRadius: '6px',
+                                backgroundColor: 'transparent',
+                                border: 'none',
+                                color: '#06b6d4',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'rgba(6, 182, 212, 0.2)';
+                                e.currentTarget.style.transform = 'scale(1.08)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                                e.currentTarget.style.transform = 'none';
+                            }}
+                        >
+                            <Monitor size={18} />
+                        </button>
+                        <button
                             onClick={() => { setActiveLogicScopeId('STEP'); setViewMode('DIAGRAM'); }}
                             style={{
                                 width: '36px',

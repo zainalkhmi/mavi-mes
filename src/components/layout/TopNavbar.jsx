@@ -46,6 +46,7 @@ export default function TopNavbar() {
     hasAccess('/stations') && { path: '/stations', icon: <MapPin size={16} />, label: 'Stations' },
     hasAccess('/display-devices') && { path: '/display-devices', icon: <Tv size={16} />, label: 'Interfaces' },
     hasAccess('/machines') && { path: '/machines', icon: <Cpu size={16} />, label: 'Machines' },
+    hasAccess('/predictive-maintenance') && { path: '/predictive-maintenance', icon: <Activity size={16} className="text-amber-500" />, label: 'Predictive Maintenance (RUL)' },
     hasAccess('/edge-devices') && { path: '/edge-devices', icon: <Activity size={16} />, label: 'Edge Devices' },
     hasAccess('/voice-inspection') && { path: '/voice-inspection', icon: <Volume2 size={16} />, label: 'Voice Inspection' },
     { type: 'divider' },
@@ -71,8 +72,7 @@ export default function TopNavbar() {
 
   const consoleItems = [
     hasAccess('/player') && { path: '/player', icon: <Play size={16} />, label: 'App Player' },
-    hasAccess('/terminal') && { path: '/terminal', icon: <Monitor size={16} />, label: 'Live Terminal' },
-    hasAccess('/scada') && { path: '/scada', icon: <Zap size={16} />, label: 'SCADA Dashboard' }
+    hasAccess('/terminal') && { path: '/terminal', icon: <Monitor size={16} />, label: 'Live Terminal' }
   ].filter(Boolean);
 
   const systemItems = [
@@ -122,7 +122,7 @@ export default function TopNavbar() {
 
       {/* RIGHT SECTION */}
       <div className="flex items-center gap-2">
-        {consoleItems.length > 0 && <NavDropdown title="Console" pathMatches={['/player', '/terminal', '/scada']} items={consoleItems} />}
+        {consoleItems.length > 0 && <NavDropdown title="Console" pathMatches={['/player', '/terminal']} items={consoleItems} />}
         {systemItems.length > 0 && <NavDropdown title="System" pathMatches={['/users', '/ai-settings', '/supabase-settings', '/n8n-settings', '/build-center', '/admin-settings']} items={systemItems} />}
 
         <Toaster position="top-right" />
