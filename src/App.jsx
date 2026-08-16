@@ -14,6 +14,7 @@ import LandingPage from './components/LandingPage';
 import { EnterpriseDialogContainer } from './components/common/EnterpriseDialog';
 
 const ProductionPlantDashboard = lazy(() => import('./components/ProductionPlantDashboard'));
+const MachineActivityYieldTracker = lazy(() => import('./components/MachineActivityYieldTracker'));
 
 export default function App() {
   const user = useGlobalStore((state) => state.user);
@@ -69,6 +70,8 @@ export default function App() {
             <Route path="/faq" element={<LandingPage initialTab="faq" />} />
             <Route path="/production-dashboard" element={<ProductionPlantDashboard />} />
             <Route path="/plant-dashboard" element={<ProductionPlantDashboard />} />
+            <Route path="/machine-activity-tracker" element={<MachineActivityYieldTracker />} />
+            <Route path="/yield-tracker" element={<MachineActivityYieldTracker />} />
             <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

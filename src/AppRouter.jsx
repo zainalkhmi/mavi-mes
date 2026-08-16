@@ -44,6 +44,7 @@ const DrawingFileManager = lazy(() => import('./components/DrawingFileManager'))
 const PredictiveMaintenanceManager = lazy(() => import('./components/PredictiveMaintenanceManager'));
 const SkillManager = lazy(() => import('./components/SkillManager'));
 const ProductionPlantDashboard = lazy(() => import('./components/ProductionPlantDashboard'));
+const MachineActivityYieldTracker = lazy(() => import('./components/MachineActivityYieldTracker'));
 
 export default function AppRouter({ user, isOperator }) {
   const hasAccess = (path) => checkRoleAccess(user, path);
@@ -109,6 +110,8 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/skill-manager" element={<SkillManager />} />
               <Route path="/production-dashboard" element={<ProductionPlantDashboard />} />
               <Route path="/plant-dashboard" element={<ProductionPlantDashboard />} />
+              <Route path="/machine-activity-tracker" element={<MachineActivityYieldTracker />} />
+              <Route path="/yield-tracker" element={<MachineActivityYieldTracker />} />
               <Route path="*" element={<Home />} />
             </>
           )}

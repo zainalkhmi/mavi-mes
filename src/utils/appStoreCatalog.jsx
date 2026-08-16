@@ -2,11 +2,12 @@ import React from 'react';
 import {
     Award, Sparkles, Activity, Search, ClipboardList, Package, Cpu,
     Boxes, Wrench, ArrowRight, FileText, Truck, PlayCircle, HeartPulse,
-    Settings, Layout, Zap, Sliders, BarChart3, ShieldCheck, ShieldAlert, Tag
+    Settings, Layout, Zap, Sliders, BarChart3, ShieldCheck, ShieldAlert, Tag, Smartphone
 } from 'lucide-react';
 
 export const categories = [
     'All',
+    'Mobile',
     'App Management',
     'Quality',
     'Manufacturing',
@@ -20,6 +21,51 @@ export const categories = [
 ];
 
 export const rawTemplates = [
+    {
+        id: 'machine-activity-yield-tracker',
+        name: 'Machine Activity & Yield Tracker (Mobile)',
+        category: 'Mobile',
+        description: 'Frontline mobile app for manually logging machine activity (Running, Down, Idle, Off, Setup), tracking good/bad parts, and calculating real-time Yield, Planned Takt Time, and Cycle Time.',
+        longDescription: 'The application provides a simple solution for manually logging machine activity and displaying real-time yield and takt time calculations. Users can easily switch between the machine statuses and log both good and bad parts during production with automated downtime reasons and stacked event analytics.',
+        icon: <Smartphone size={28} color="#2563eb" />,
+        bg: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+        accent: '#2563eb',
+        rating: 5.0,
+        installs: '2.4k',
+        targetRoute: '/machine-activity-tracker',
+        features: [
+            'Real-Time Yield & Cycle Time Computation',
+            'Dynamic Takt Time & Production Rate Calculator',
+            '5 Machine Status Modes (Running, Down, Idle, Off, Setup)',
+            'Automated Downtime Reason Selector & Pareto Tracking',
+            'Station Activity History Event Logging',
+            'Real-Time Production Analytics & Stacked Timeline Charts'
+        ],
+        guide: {
+            operation: '1. In Step 1, enter Order ID, Operation Time (hr), and Product Demand (pcs) to compute Planned Takt Time.\n2. Click "Start production" to initialize session in Station Activity History.\n3. In Main step, toggle machine statuses (RUNNING, DOWN, IDLE, OFF, SETUP) and log good/defective quantities.\n4. If DOWN is selected, choose the downtime reason (Machine error, Material shortages, Maintenance).\n5. Navigate to Analytics to view Uptime %, Downtime %, First Pass Yield %, and stacked event timeline.',
+            widgets: ['Product Summary Card', '4x Live Performance KPIs (Target, Yield, Takt, Cycle Time)', 'Output & Defect Logger', '5-Way Machine Status Switcher', 'Downtime Reason Picker', 'Event Timeline Chart'],
+            components: ['Mobile Device Interface', 'Takt Time Setup Wizard', 'Frontline Production Terminal', 'Machine Downtime Inspector', 'Analytics & OEE Dashboard'],
+            tables: [
+                {
+                    name: 'Station_Activity_History',
+                    description: 'Stores every machine status event, duration, good parts (actual), target, defects, downtime reason, and product/order ID.'
+                }
+            ],
+            triggers: [
+                { event: 'ON_START_PRODUCTION', function: 'Calculates Planned Takt Time & Planned Rate and creates the initial running event record.' },
+                { event: 'ON_LOG_OUTPUT', function: 'Increments good parts, recalculates Yield % and Cycle Time = Duration / Actual.' },
+                { event: 'ON_STATUS_DOWN', function: 'Navigates to Downtime Reason step and prompts operator for root cause selection.' },
+                { event: 'ON_NO_TARGET_STATUS', function: 'Suppresses target increments during OFF / BREAK periods.' }
+            ],
+            mechanism: 'Employs Tulip Common Data Model for discrete machine tracking and shop floor yield visibility.',
+            steps: [
+                { name: 'Select Product & Takt Calculator', description: 'Input Order ID, operation duration, and target demand.' },
+                { name: 'Main Production & Status Logging', description: 'Log good/defective parts and switch machine operating states.' },
+                { name: 'Select Downtime Reason', description: 'Select root cause categorization when machine is flagged DOWN.' },
+                { name: 'Analytics & Event History', description: 'View uptime percentages, downtime breakdown, and stacked event duration.' }
+            ]
+        }
+    },
     {
         id: 'production-plant-dashboard',
         name: 'Tulip Production Plant Dashboard & Cell Tracker',
