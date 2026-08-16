@@ -13,6 +13,8 @@ import LandingPage from './components/LandingPage';
 
 import { EnterpriseDialogContainer } from './components/common/EnterpriseDialog';
 
+const ProductionPlantDashboard = lazy(() => import('./components/ProductionPlantDashboard'));
+
 export default function App() {
   const user = useGlobalStore((state) => state.user);
   const setUser = useGlobalStore((state) => state.setUser);
@@ -65,6 +67,8 @@ export default function App() {
             <Route path="/builder" element={<LandingPage initialTab="builder" />} />
             <Route path="/pricing" element={<LandingPage initialTab="pricing" />} />
             <Route path="/faq" element={<LandingPage initialTab="faq" />} />
+            <Route path="/production-dashboard" element={<ProductionPlantDashboard />} />
+            <Route path="/plant-dashboard" element={<ProductionPlantDashboard />} />
             <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
