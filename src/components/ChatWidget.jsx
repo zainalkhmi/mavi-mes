@@ -18,11 +18,18 @@ import {
   Camera,
   Trash2,
   ShieldAlert,
-  HardHat
+  HardHat,
+  Settings,
+  ExternalLink,
+  MessageCircle,
+  Smartphone,
+  Share2,
+  CheckCircle2
 } from 'lucide-react';
 import { uploadManualImage, getSupabaseClient, isSupabaseReady, deleteChatMedia } from '../utils/supabaseManualDB';
 import { getStations } from '../utils/database';
 import { getCurrentUser } from '../utils/auth';
+import whatsappService, { WA_PROVIDERS } from '../utils/whatsappService';
 
 const ChatWidget = ({ currentStation, currentUser, onClose }) => {
   const [messages, setMessages] = useState([]);
@@ -36,9 +43,57 @@ const ChatWidget = ({ currentStation, currentUser, onClose }) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [showWaSettings, setShowWaSettings] = useState(false);
+  const [waConfig, setWaConfig] = useState(() => whatsappService.getConfig());
+  const [waStatusMsg, setWaStatusMsg] = useState(null);
+  const [isTestingWa, setIsTestingWa] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
+
+  const handleSaveWaConfig = (updates) => {
+    const next = whatsappService.saveConfig(updates);
+    setWaConfig(next);
+    setWaStatusMsg('✅ Pengaturan WhatsApp tersimpan!');
+    setTimeout(() => setWaStatusMsg(null), 3000);
+  };
+
+  const handleTestWhatsApp = async () => {
+    setIsTestingWa(true);
+    setWaStatusMsg(null);
+    try {
+      const res = await whatsappService.sendMessage({
+        sender: currentUser || 'Operator',
+        station: currentStation || 'Station-01',
+        targetName: selectedContact?.name || 'Supervisor',
+        message: '🔔 Test Notification from MAVI MES Chat Widget!'
+      });
+      if (res.success) {
+        setWaStatusMsg('✅ Pesan Test WhatsApp Berhasil Terkirim!');
+        if (res.url) {
+          window.open(res.url, '_blank');
+        }
+      } else {
+        setWaStatusMsg('⚠️ ' + (res.reason || res.error || 'Gagal mengirim'));
+      }
+    } catch (e) {
+      setWaStatusMsg('❌ Error: ' + e.message);
+    } finally {
+      setIsTestingWa(false);
+    }
+  };
+
+  const handleOpenDirectWhatsApp = (targetContact) => {
+    const contact = targetContact || selectedContact;
+    const targetName = contact?.name || contact?.id || 'Support';
+    const lastMsg = filteredMessages[filteredMessages.length - 1]?.content || 'Halo, ada kendala di station ' + currentStation;
+    whatsappService.openWhatsAppWeb({
+      sender: currentUser,
+      station: currentStation,
+      targetName,
+      message: lastMsg
+    });
+  };
 
   const handleFileAttach = async (e) => {
     const file = e.target.files?.[0];
@@ -59,6 +114,17 @@ const ChatWidget = ({ currentStation, currentUser, onClose }) => {
         type: isImage ? 'IMAGE' : 'FILE', metadata: JSON.stringify({ fileName: file.name, fileSize: file.size, fileType: file.type }),
         created_at: new Date().toISOString()
       }]);
+
+      // Auto-forward to WhatsApp if enabled
+      if (waConfig.enabled && waConfig.autoForwardOnSend) {
+        whatsappService.sendMessage({
+          sender: currentUser,
+          station: currentStation,
+          targetName: selectedContact?.name || targetId,
+          message: isImage ? '📷 [Foto Terkirim]' : '📁 [File Lampiran: ' + file.name + ']',
+          mediaUrl: urlData.publicUrl
+        }).catch(err => console.warn('WA Forward failed:', err));
+      }
     } catch (err) { alert('Upload gagal: ' + err.message); }
     setUploading(false);
     e.target.value = '';
@@ -81,6 +147,17 @@ const ChatWidget = ({ currentStation, currentUser, onClose }) => {
         metadata: JSON.stringify({ fileName: 'Camera Photo', fileSize: file.size }),
         created_at: new Date().toISOString()
       }]);
+
+      // Auto-forward photo to WhatsApp
+      if (waConfig.enabled && waConfig.autoForwardOnSend) {
+        whatsappService.sendMessage({
+          sender: currentUser,
+          station: currentStation,
+          targetName: selectedContact?.name || targetId,
+          message: '📷 [Foto Kamera Shopfloor]',
+          mediaUrl: urlData.publicUrl
+        }).catch(err => console.warn('WA Forward failed:', err));
+      }
     } catch (err) { alert('Camera upload gagal: ' + err.message); }
     setUploading(false);
     e.target.value = '';
@@ -212,6 +289,16 @@ const ChatWidget = ({ currentStation, currentUser, onClose }) => {
     } else {
       setMessages(prev => [...prev, { ...newMessage, id: 'temp-' + Date.now() }]);
       setInputText('');
+
+      // Auto-forward message to WhatsApp
+      if (waConfig.enabled && waConfig.autoForwardOnSend) {
+        whatsappService.sendMessage({
+          sender: currentUser,
+          station: currentStation,
+          targetName: selectedContact?.name || targetId,
+          message: inputText
+        }).catch(err => console.warn('WA Forward failed:', err));
+      }
     }
   };
 
@@ -254,6 +341,7 @@ const ChatWidget = ({ currentStation, currentUser, onClose }) => {
         <MessageSquare size={20} />
         {unreadCount > 0 && <div style={{ position: 'absolute', top: '-8px', right: '-8px', backgroundColor: '#ef4444', color: 'white', fontSize: '0.65rem', padding: '2px 6px', borderRadius: '10px', border: '2px solid #001e3c', fontWeight: 800 }}>{unreadCount}</div>}
         <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>MES Chat</span>
+        {waConfig.enabled && <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#25d366' }} title="WhatsApp Connected" />}
       </div>
     );
   }
@@ -276,22 +364,255 @@ const ChatWidget = ({ currentStation, currentUser, onClose }) => {
             <span style={{ fontSize: '0.65rem', opacity: 0.8 }}>online</span>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {/* WhatsApp Direct Share Button */}
+          {view === 'CHAT' && (
+            <button
+              onClick={handleOpenDirectWhatsApp}
+              style={{
+                background: 'rgba(37, 211, 102, 0.25)',
+                border: '1px solid rgba(37, 211, 102, 0.5)',
+                color: '#25d366',
+                borderRadius: '6px',
+                padding: '4px 6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '0.65rem',
+                fontWeight: 700
+              }}
+              title="Kirim / Buka di WhatsApp"
+            >
+              <MessageCircle size={14} />
+              <span>WA</span>
+            </button>
+          )}
+
+          {/* WhatsApp Settings Modal Toggle */}
+          <button
+            onClick={() => setShowWaSettings(prev => !prev)}
+            style={{
+              background: showWaSettings ? 'rgba(255,255,255,0.2)' : 'none',
+              border: 'none',
+              color: waConfig.enabled ? '#4ade80' : 'rgba(255,255,255,0.7)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center'
+            }}
+            title="WhatsApp Integration Settings"
+          >
+            <Settings size={18} />
+          </button>
+
           {view === 'CHAT' && (
             <>
-              <button onClick={() => alert('Video call coming soon!')} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', opacity: 0.9 }} title="Video Call"><Video size={20} /></button>
+              <button onClick={() => alert('Video call coming soon!')} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', opacity: 0.9 }} title="Video Call"><Video size={18} /></button>
               <button onClick={() => alert('Voice call coming soon!')} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', opacity: 0.9 }} title="Voice Call">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
               </button>
             </>
           )}
-          <button onClick={() => setIsMaximized(!isMaximized)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>{isMaximized ? <Minimize2 size={20} /> : <Maximize2 size={20} />}</button>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}><X size={20} /></button>
+          <button onClick={() => setIsMaximized(!isMaximized)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>{isMaximized ? <Minimize2 size={18} /> : <Maximize2 size={18} />}</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}><X size={18} /></button>
         </div>
       </div>
 
+      {/* WhatsApp Integration Settings Modal */}
+      {showWaSettings && (
+        <div style={{
+          position: 'absolute',
+          top: '56px',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: '#0f172a',
+          color: '#f8fafc',
+          zIndex: 50,
+          padding: '16px',
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #334155', paddingBottom: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#25d366', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <MessageCircle size={16} color="white" />
+              </div>
+              <span style={{ fontWeight: 800, fontSize: '0.95rem' }}>WhatsApp Integration</span>
+            </div>
+            <button onClick={() => setShowWaSettings(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X size={18} /></button>
+          </div>
+
+          {waStatusMsg && (
+            <div style={{ padding: '8px 12px', borderRadius: '6px', backgroundColor: 'rgba(34, 197, 94, 0.15)', border: '1px solid rgba(34, 197, 94, 0.3)', color: '#4ade80', fontSize: '0.78rem', fontWeight: 600 }}>
+              {waStatusMsg}
+            </div>
+          )}
+
+          {/* Enable Toggle */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#1e293b', padding: '10px 12px', borderRadius: '8px' }}>
+            <div>
+              <div style={{ fontSize: '0.82rem', fontWeight: 700 }}>Enable WhatsApp Gateway</div>
+              <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>Forward chat messages directly to WhatsApp</div>
+            </div>
+            <input
+              type="checkbox"
+              checked={waConfig.enabled}
+              onChange={e => handleSaveWaConfig({ enabled: e.target.checked })}
+              style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+            />
+          </div>
+
+          {/* Provider Selection */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8' }}>WhatsApp Provider</label>
+            <select
+              value={waConfig.provider}
+              onChange={e => {
+                const p = WA_PROVIDERS.find(x => x.id === e.target.value);
+                handleSaveWaConfig({ provider: e.target.value, apiUrl: p?.defaultUrl || waConfig.apiUrl });
+              }}
+              style={{ width: '100%', padding: '8px 10px', backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', fontSize: '0.82rem', outline: 'none' }}
+            >
+              {WA_PROVIDERS.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* API Key / Token (for Fonnte / Wablas / Custom) */}
+          {waConfig.provider !== 'DIRECT_LINK' && (
+            <>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8' }}>API Key / Token</label>
+                <input
+                  type="password"
+                  placeholder="Paste your Fonnte / Wablas API Token here"
+                  value={waConfig.apiKey || ''}
+                  onChange={e => setWaConfig(prev => ({ ...prev, apiKey: e.target.value }))}
+                  onBlur={() => handleSaveWaConfig({ apiKey: waConfig.apiKey })}
+                  style={{ width: '100%', padding: '8px 10px', backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', fontSize: '0.82rem', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8' }}>Gateway Endpoint URL</label>
+                <input
+                  type="text"
+                  placeholder="https://api.fonnte.com/send"
+                  value={waConfig.apiUrl || ''}
+                  onChange={e => setWaConfig(prev => ({ ...prev, apiUrl: e.target.value }))}
+                  onBlur={() => handleSaveWaConfig({ apiUrl: waConfig.apiUrl })}
+                  style={{ width: '100%', padding: '8px 10px', backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', fontSize: '0.82rem', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+            </>
+          )}
+
+          {/* Department WhatsApp Numbers */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid #334155', paddingTop: '10px' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase' }}>Target Phone Numbers (628...)</span>
+            
+            {['LOGISTIC', 'MAINTENANCE', 'QUALITY', 'SUPERVISOR'].map(dept => (
+              <div key={dept} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ width: '100px', fontSize: '0.72rem', fontWeight: 700, color: '#cbd5e1' }}>{dept}:</span>
+                <input
+                  type="text"
+                  placeholder="08123456789"
+                  value={waConfig.departmentPhones?.[dept] || ''}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setWaConfig(prev => ({
+                      ...prev,
+                      departmentPhones: { ...prev.departmentPhones, [dept]: val }
+                    }));
+                  }}
+                  onBlur={() => handleSaveWaConfig({ departmentPhones: waConfig.departmentPhones })}
+                  style={{ flex: 1, padding: '6px 10px', backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '6px', fontSize: '0.8rem', outline: 'none' }}
+                />
+              </div>
+            ))}
+          </div>
+
+          {/* Action Buttons */}
+          <div style={{ display: 'flex', gap: '8px', marginTop: 'auto', paddingTop: '12px' }}>
+            <button
+              onClick={handleTestWhatsApp}
+              disabled={isTestingWa}
+              style={{
+                flex: 1,
+                padding: '9px 12px',
+                backgroundColor: '#25d366',
+                color: '#0f172a',
+                border: 'none',
+                borderRadius: '6px',
+                fontWeight: 800,
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px'
+              }}
+            >
+              {isTestingWa ? <Loader2 size={14} className="spin" /> : <Send size={14} />}
+              Test Kirim WhatsApp
+            </button>
+            <button
+              onClick={() => setShowWaSettings(false)}
+              style={{
+                padding: '9px 16px',
+                backgroundColor: '#334155',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontWeight: 700,
+                fontSize: '0.8rem',
+                cursor: 'pointer'
+              }}
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      )}
+
       {view === 'CONTACTS' ? (
         <div style={{ flex: 1, backgroundColor: 'white', overflowY: 'auto' }}>
+          {/* Quick Access to Linked WhatsApp Web */}
+          <div style={{ padding: '8px 12px', backgroundColor: '#e7fce8', borderBottom: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: '24px', height: '24px', borderRadius: '50%', backgroundColor: '#25d366', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <MessageCircle size={14} color="white" />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#166534' }}>WhatsApp Web Terpaut</span>
+                <span style={{ fontSize: '0.62rem', color: '#15803d' }}>Session aktif di browser ini</span>
+              </div>
+            </div>
+            <button
+              onClick={() => whatsappService.openWhatsAppWeb()}
+              style={{
+                padding: '4px 8px',
+                backgroundColor: '#16a34a',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '0.68rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+              title="Buka WhatsApp Web di popup / tab aktif"
+            >
+              <ExternalLink size={11} /> Buka Web
+            </button>
+          </div>
+
           <div style={{ padding: '10px 15px', backgroundColor: '#f6f6f6' }}>
             <input placeholder="Cari station..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', outline: 'none', fontSize: '0.85rem' }} />
           </div>
@@ -300,6 +621,7 @@ const ChatWidget = ({ currentStation, currentUser, onClose }) => {
           <div style={{ padding: '8px 15px', fontSize: '0.65rem', fontWeight: 800, color: '#00a884', borderBottom: '1px solid #f0f2f5' }}>SUPPORT</div>
           <ContactItem contact={{ id: 'admin', name: 'System Admin' }} metadata={getContactMetadata('admin')} onClick={() => handleSelectContact({ id: 'admin', name: 'System Admin' })} isSupport icon={<ShieldAlert size={18}/>} />
           <ContactItem contact={{ id: 'engineer', name: 'Manufacturing Engineer' }} metadata={getContactMetadata('engineer')} onClick={() => handleSelectContact({ id: 'engineer', name: 'Manufacturing Engineer' })} isSupport icon={<HardHat size={18}/>} />
+          <ContactItem contact={{ id: 'logistic', name: 'Logistic Support' }} metadata={getContactMetadata('logistic')} onClick={() => handleSelectContact({ id: 'logistic', name: 'Logistic Support' })} isSupport icon={<Smartphone size={18}/>} />
 
           <div style={{ padding: '8px 15px', fontSize: '0.65rem', fontWeight: 800, color: '#00a884', borderBottom: '1px solid #f0f2f5' }}>STATIONS</div>
           {stations.filter(s => s.id !== currentStation && (s.name || s.id).toLowerCase().includes(searchQuery.toLowerCase())).map(s => (

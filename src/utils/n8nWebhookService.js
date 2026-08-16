@@ -40,6 +40,7 @@ export const N8N_EVENT_TYPES = [
     { key: 'machine.status_changed',  label: 'Machine Status Changed',   description: 'Triggered on machine status update',                     defaultEnabled: false },
     { key: 'inventory.low_stock',     label: 'Inventory Low Stock',      description: 'Triggered when stock falls below threshold',              defaultEnabled: false },
     { key: 'app.published',           label: 'App Published',            description: 'Triggered when a frontline app is published',             defaultEnabled: false },
+    { key: 'chat.message_sent',       label: 'Chat Message Sent (WhatsApp)', description: 'Triggered when a message is sent in the Chat Widget', defaultEnabled: true },
 ];
 
 // Build default subscription map
