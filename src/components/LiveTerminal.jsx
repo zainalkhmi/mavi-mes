@@ -531,7 +531,7 @@ const CADViewer2D = ({ fileUrl, appVariables, setAppVariables, compProps }) => {
   });
 
   return (
-    <div style={{ backgroundColor: '#071426', borderRadius: '8px', border: '1px solid #1e293b', display: 'flex', flexDirection: 'column', height: '100%', position: 'relative', overflow: 'hidden', fontFamily: "'Inter', sans-serif" }}>
+    <div style={{ backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', height: '100%', position: 'relative', overflow: 'hidden', fontFamily: "'Inter', sans-serif" }}>
       {/* ── Minimal Floating Zoom Bar ── */}
       <div style={{ position: 'absolute', top: 8, right: 12, zIndex: 20, display: 'flex', alignItems: 'center', backgroundColor: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(4px)', borderRadius: '20px', border: '1px solid rgba(59, 130, 246, 0.3)', padding: '2px 8px', gap: '6px' }}>
         <button onClick={() => setZoom(p => Math.max(0.4, p - 0.1))} style={{ background:'transparent', border:'none', color: '#94a3b8', fontSize:'0.9rem', cursor:'pointer', padding:'0 2px', fontWeight:'bold', lineHeight:1 }}>−</button>
@@ -543,7 +543,7 @@ const CADViewer2D = ({ fileUrl, appVariables, setAppVariables, compProps }) => {
 
       {/* ── Canvas (viewBox matching DrawingManager canvas) ── */}
       <div
-        style={{ flex:1, position:'relative', overflow:'hidden', cursor: isPanning?'grabbing':'grab', display:'flex', alignItems:'center', justifyContent:'center' }}
+        style={{ flex:1, position:'relative', overflow:'hidden', cursor: isPanning?'grabbing':'grab', display:'flex', alignItems:'center', justifyContent:'center', backgroundColor: '#ffffff', width: '100%', height: '100%' }}
         onWheel={handleWheel} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onContextMenu={e=>e.preventDefault()}
       >
@@ -551,7 +551,7 @@ const CADViewer2D = ({ fileUrl, appVariables, setAppVariables, compProps }) => {
           {/* Zoom + Pan Group */}
           <g transform={`translate(${canvasW/2+panOffset.x},${canvasH/2+panOffset.y}) scale(${zoom}) translate(${-canvasW/2},${-canvasH/2})`}>
             {/* White Paper Canvas Background */}
-            <rect width={canvasW} height={canvasH} fill="#ffffff" rx="2" />
+            <rect width={canvasW} height={canvasH} fill="#ffffff" />
 
             {/* Drawing Background Image / PDF */}
             {hasValidImage ? (

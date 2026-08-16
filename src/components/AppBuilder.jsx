@@ -11515,7 +11515,7 @@ const AppBuilder = () => {
                 return (
                     <div style={{
                         width: '100%', height: '100%', borderRadius: '8px', overflow: 'hidden',
-                        border: '1px solid #1f2937', backgroundColor: comp.props.backgroundColor || '#0f172a',
+                        border: '1px solid #cbd5e1', backgroundColor: selectedDwg ? '#ffffff' : (comp.props.backgroundColor || '#0f172a'),
                         display: 'flex', flexDirection: 'column', position: 'relative', userSelect: 'none'
                     }}>
                         {/* Top Widget Header Bar */}
@@ -11547,13 +11547,15 @@ const AppBuilder = () => {
                         </div>
 
                         {/* CAD Canvas Preview Area */}
-                        <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                        <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: selectedDwg ? '#ffffff' : 'transparent' }}>
                             {/* Blueprint background grid */}
-                            <div style={{
-                                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-                                backgroundImage: 'radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px)',
-                                backgroundSize: '16px 16px', pointerEvents: 'none'
-                            }} />
+                            {!selectedDwg && (
+                                <div style={{
+                                    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                                    backgroundImage: 'radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px)',
+                                    backgroundSize: '16px 16px', pointerEvents: 'none'
+                                }} />
+                            )}
 
                             {selectedDwg ? (
                                 (() => {
