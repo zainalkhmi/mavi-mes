@@ -63,9 +63,6 @@ export default function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/store" element={<LandingPage initialTab="store" />} />
             <Route path="/builder" element={<LandingPage initialTab="builder" />} />
-            <Route path="/analytics" element={<LandingPage initialTab="analytics" />} />
-            <Route path="/iot" element={<LandingPage initialTab="iot" />} />
-            <Route path="/features" element={<LandingPage initialTab="features" />} />
             <Route path="/pricing" element={<LandingPage initialTab="pricing" />} />
             <Route path="/faq" element={<LandingPage initialTab="faq" />} />
             <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />

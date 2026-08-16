@@ -153,8 +153,8 @@ const LandingPage = ({ initialTab = 'overview' }) => {
   useEffect(() => {
     const handleHash = () => {
       const hash = window.location.hash.replace('#', '').replace('/', '');
-      if (['overview', 'store', 'builder', 'analytics', 'iot', 'capabilities', 'features', 'pricing', 'faq'].includes(hash)) {
-        setActiveTab(hash === 'capabilities' ? 'features' : hash);
+      if (['overview', 'store', 'builder', 'pricing', 'faq'].includes(hash)) {
+        setActiveTab(hash);
       }
     };
     handleHash();
@@ -204,9 +204,6 @@ const LandingPage = ({ initialTab = 'overview' }) => {
     { key: 'overview', label: 'Overview', icon: <Sparkles size={15} /> },
     { key: 'store', label: 'Mavi Store', icon: <ShoppingBag size={15} />, highlight: true },
     { key: 'builder', label: 'App Builder', icon: <Layout size={15} /> },
-    { key: 'analytics', label: 'Analytics & OEE', icon: <BarChart3 size={15} /> },
-    { key: 'iot', label: 'IoT & Machines', icon: <Cpu size={15} /> },
-    { key: 'features', label: 'Features', icon: <Zap size={15} /> },
     { key: 'pricing', label: 'Pricing & Value', icon: <Flame size={15} /> },
     { key: 'faq', label: 'FAQ & Support', icon: <HelpCircle size={15} /> }
   ];
@@ -727,9 +724,8 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                   >
                     <Layout size={18} color="#38bdf8" /> Buka App Builder Studio
                   </button>
-
                   <button
-                    onClick={() => switchTab('analytics')}
+                    onClick={() => switchTab('pricing')}
                     style={{
                       background: 'rgba(16, 185, 129, 0.1)',
                       border: '1px solid rgba(16, 185, 129, 0.3)',
@@ -744,7 +740,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                       gap: '8px'
                     }}
                   >
-                    <BarChart3 size={18} /> Live OEE Analytics
+                    <Flame size={18} /> Lihat Harga & Pilot 30-Hari
                   </button>
                 </div>
 
@@ -890,7 +886,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                     </div>
                   </div>
                   <button
-                    onClick={() => switchTab('features')}
+                    onClick={() => switchTab('builder')}
                     style={{
                       marginTop: '24px',
                       background: 'rgba(168, 85, 247, 0.12)',
@@ -906,7 +902,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                       justifyContent: 'space-between'
                     }}
                   >
-                    <span>Lihat Solusi Vision & AI</span> <ChevronRight size={14} />
+                    <span>Pelajari Solusi di App Builder</span> <ChevronRight size={14} />
                   </button>
                 </div>
 
@@ -949,7 +945,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                     </div>
                   </div>
                   <button
-                    onClick={() => switchTab('iot')}
+                    onClick={() => switchTab('builder')}
                     style={{
                       marginTop: '24px',
                       background: 'rgba(245, 158, 11, 0.12)',
@@ -965,7 +961,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                       justifyContent: 'space-between'
                     }}
                   >
-                    <span>Eksplorasi Automasi & IoT</span> <ChevronRight size={14} />
+                    <span>Buat Trigger di App Builder</span> <ChevronRight size={14} />
                   </button>
                 </div>
 
@@ -1008,7 +1004,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                     </div>
                   </div>
                   <button
-                    onClick={() => switchTab('analytics')}
+                    onClick={() => switchTab('store')}
                     style={{
                       marginTop: '24px',
                       background: 'rgba(16, 185, 129, 0.12)',
@@ -1024,7 +1020,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                       justifyContent: 'space-between'
                     }}
                   >
-                    <span>Buka OEE Analytics</span> <ChevronRight size={14} />
+                    <span>Pasang Dashboard dari Store</span> <ChevronRight size={14} />
                   </button>
                 </div>
 
@@ -1065,7 +1061,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                   </div>
 
                   <button
-                    onClick={() => switchTab('iot')}
+                    onClick={() => switchTab('builder')}
                     style={{
                       background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
                       border: 'none',
@@ -1262,13 +1258,12 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                 </p>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
                 {[
                   { icon: <ShoppingBag size={22} color="#38bdf8" />, title: 'Mavi Store', desc: `${storeTemplates.length}+ Template industri siap pasang (Play Store style).`, tab: 'store', tag: 'Marketplace' },
-                  { icon: <Layout size={22} color="#3b82f6" />, title: 'App Builder', desc: 'No-Code drag-and-drop studio untuk SOP dan HMI operator.', tab: 'builder', tag: 'Visual Studio' },
-                  { icon: <BarChart3 size={22} color="#10b981" />, title: 'OEE Analytics', desc: 'Availability, Speed, Quality, dan analisis Pareto downtime.', tab: 'analytics', tag: 'Live Cockpit' },
-                  { icon: <Cpu size={22} color="#f59e0b" />, title: 'IoT & Machines', desc: 'Gateway OPC-UA, MQTT, Siemens/Mitsubishi PLCs & Modbus.', tab: 'iot', tag: 'Edge Connectivity' },
-                  { icon: <Flame size={22} color="#ec4899" />, title: 'Pricing & Value', desc: 'Harga transparan dan kalkulator ROI penghematan pabrik.', tab: 'pricing', tag: 'Investasi' }
+                  { icon: <Layout size={22} color="#3b82f6" />, title: 'App Builder', desc: 'No-Code visual drag-and-drop studio untuk SOP dan HMI operator.', tab: 'builder', tag: 'Visual Studio' },
+                  { icon: <Flame size={22} color="#ec4899" />, title: 'Pricing & Value', desc: 'Harga transparan dan kalkulator ROI penghematan pabrik.', tab: 'pricing', tag: 'Investasi' },
+                  { icon: <HelpCircle size={22} color="#c084fc" />, title: 'FAQ & Support', desc: 'Pertanyaan seputar migrasi cepat 2 minggu & dukungan teknis.', tab: 'faq', tag: 'Bantuan' }
                 ].map((item, i) => (
                   <div
                     key={i}
@@ -2720,399 +2715,8 @@ const LandingPage = ({ initialTab = 'overview' }) => {
         )}
 
         {/* ========================================================================= */}
-        {/* 3. TAB: ANALYTICS & OEE */}
-        {/* ========================================================================= */}
-        {activeTab === 'analytics' && (
-          <div style={{ animation: 'fadeIn 0.3s ease', maxWidth: '1280px', margin: '0 auto', padding: '40px 30px' }}>
-            {/* Header */}
-            <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(16, 185, 129, 0.1)', color: '#34d399', padding: '6px 16px', borderRadius: '100px', fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '14px' }}>
-                <BarChart3 size={14} /> SHOP-FLOOR TELEMETRY & OEE INTELLIGENCE
-              </div>
-              <h2 style={{ fontSize: '2.6rem', fontWeight: 900, color: 'white', margin: '0 0 12px 0' }}>
-                Live OEE Cockpits, Downtime Pareto & Shift Telemetry
-              </h2>
-              <p style={{ color: '#94a3b8', fontSize: '1.1rem', maxWidth: '750px', margin: '0 auto', lineHeight: '1.6' }}>
-                Eliminate paper tally sheets and whiteboard logs. Uncover why lines stop, monitor First Pass Yield (FPY), and track operator efficiency in real time.
-              </p>
-            </div>
+        {/* 4. TAB: PRICING & VALUE */}
 
-            {/* Interactive Live OEE Cockpit Simulation */}
-            <div style={{
-              background: 'rgba(15, 23, 42, 0.7)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '24px',
-              padding: '36px',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
-              marginBottom: '48px'
-            }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '36px', alignItems: 'center' }} className="grid-responsive-reverse">
-                {/* Visual Chart & Cockpit */}
-                <div style={{
-                  background: '#090d16',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  borderRadius: '18px',
-                  padding: '24px'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'white' }}>Line-01 Live Performance Cockpit</span>
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      {['oee', 'availability', 'performance', 'quality'].map(metric => (
-                        <button
-                          key={metric}
-                          onClick={() => setActiveMetric(metric)}
-                          style={{
-                            background: activeMetric === metric ? getMetricColor() : '#1e293b',
-                            color: 'white',
-                            border: 'none',
-                            padding: '4px 10px',
-                            borderRadius: '6px',
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            textTransform: 'uppercase'
-                          }}
-                        >
-                          {metric}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* 3 OEE Core Factors */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '24px' }}>
-                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '12px', borderRadius: '10px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
-                      <span style={{ fontSize: '0.7rem', color: '#f59e0b', fontWeight: 800 }}>AVAILABILITY</span>
-                      <div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'white', marginTop: '2px' }}>92.4%</div>
-                      <span style={{ fontSize: '0.65rem', color: '#64748b' }}>Target: 90%</span>
-                    </div>
-                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '12px', borderRadius: '10px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
-                      <span style={{ fontSize: '0.7rem', color: '#a855f7', fontWeight: 800 }}>PERFORMANCE</span>
-                      <div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'white', marginTop: '2px' }}>95.8%</div>
-                      <span style={{ fontSize: '0.65rem', color: '#64748b' }}>Target: 95%</span>
-                    </div>
-                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '12px', borderRadius: '10px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
-                      <span style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 800 }}>QUALITY (FPY)</span>
-                      <div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'white', marginTop: '2px' }}>98.6%</div>
-                      <span style={{ fontSize: '0.65rem', color: '#64748b' }}>Target: 98%</span>
-                    </div>
-                  </div>
-
-                  {/* Hourly Output Bar Graph */}
-                  <div style={{ height: '120px', display: 'flex', alignItems: 'flex-end', gap: '8px', paddingTop: '10px' }}>
-                    {[70, 82, 88, 85, 92, 90, 94, 88, 91, 95, 89, 93].map((val, idx) => (
-                      <div key={idx} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
-                        <div style={{ width: '100%', height: `${val}%`, backgroundColor: getMetricColor(), opacity: 0.85, borderRadius: '4px 4px 0 0', transition: 'all 0.3s' }}></div>
-                        <span style={{ fontSize: '0.58rem', color: '#64748b', marginTop: '4px' }}>H{idx+1}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Left Side Explanation */}
-                <div>
-                  <h3 style={{ fontSize: '1.6rem', fontWeight: 800, color: 'white', margin: '0 0 14px 0' }}>
-                    Full Traceability from Station to Factory Wallboard
-                  </h3>
-                  <p style={{ color: '#94a3b8', fontSize: '0.95rem', lineHeight: '1.6', marginBottom: '20px' }}>
-                    Stop guessing your productivity. Every part scanned, every cycle completed, and every stop event is recorded in a high-speed relational database.
-                  </p>
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '28px' }}>
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-                      <div style={{ color: '#10b981', marginTop: '2px' }}><CheckCircle2 size={16} /></div>
-                      <div style={{ fontSize: '0.9rem', color: '#cbd5e1' }}><strong style={{ color: 'white' }}>One-Tap Downtime Categorization:</strong> Operators tag micro-stoppages with cause codes directly on tablet.</div>
-                    </div>
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-                      <div style={{ color: '#10b981', marginTop: '2px' }}><CheckCircle2 size={16} /></div>
-                      <div style={{ fontSize: '0.9rem', color: '#cbd5e1' }}><strong style={{ color: 'white' }}>Automated Shift Handover Reports:</strong> Generate instant PDF & Excel summaries for supervisors.</div>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => navigate('/analytics')}
-                    style={{
-                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                      border: 'none',
-                      color: 'white',
-                      padding: '12px 24px',
-                      borderRadius: '8px',
-                      fontWeight: 800,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Open Live Analytics Workspace
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Downtime Pareto & Root-Cause Categories */}
-            <div style={{
-              background: 'rgba(15, 23, 42, 0.5)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              borderRadius: '20px',
-              padding: '30px',
-              marginBottom: '40px'
-            }}>
-              <h3 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'white', margin: '0 0 16px 0', textAlign: 'center' }}>
-                Automated Downtime Pareto Analysis
-              </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px' }}>
-                {[
-                  { reason: 'Tool & Die Wear', pct: '38%', color: '#ef4444' },
-                  { reason: 'Material Starvation', pct: '24%', color: '#f59e0b' },
-                  { reason: 'Product Changeover', pct: '18%', color: '#38bdf8' },
-                  { reason: 'Operator Absence', pct: '12%', color: '#a855f7' },
-                  { reason: 'Sensor Adjustment', pct: '8%', color: '#64748b' }
-                ].map((item, idx) => (
-                  <div key={idx} style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <span style={{ fontSize: '0.8rem', color: '#cbd5e1', fontWeight: 600 }}>{item.reason}</span>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 900, color: item.color, marginTop: '4px' }}>{item.pct}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* 4. TAB: IOT & MACHINES */}
-        {/* ========================================================================= */}
-        {activeTab === 'iot' && (
-          <div style={{ animation: 'fadeIn 0.3s ease', maxWidth: '1280px', margin: '0 auto', padding: '40px 30px' }}>
-            {/* Header */}
-            <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(245, 158, 11, 0.1)', color: '#fbbf24', padding: '6px 16px', borderRadius: '100px', fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '14px' }}>
-                <Cpu size={14} /> UNIVERSAL MACHINE & EDGE GATEWAY
-              </div>
-              <h2 style={{ fontSize: '2.6rem', fontWeight: 900, color: 'white', margin: '0 0 12px 0' }}>
-                Connect Every Machine, PLC, Sensor & Edge Device
-              </h2>
-              <p style={{ color: '#94a3b8', fontSize: '1.1rem', maxWidth: '750px', margin: '0 auto', lineHeight: '1.6' }}>
-                No expensive proprietary lock-in. MAVI-MES communicates natively with industrial PLCs, MQTT brokers, OPC-UA servers, and edge Node-RED instances.
-              </p>
-            </div>
-
-            {/* Interactive Live Edge Gateway Console */}
-            <div style={{
-              background: 'rgba(15, 23, 42, 0.7)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '24px',
-              padding: '36px',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
-              marginBottom: '48px'
-            }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '36px', alignItems: 'center' }} className="grid-responsive">
-                {/* Left Side: Capabilities */}
-                <div>
-                  <h3 style={{ fontSize: '1.6rem', fontWeight: 800, color: 'white', margin: '0 0 14px 0' }}>
-                    Industrial Protocols Supported Out of the Box
-                  </h3>
-                  <p style={{ color: '#94a3b8', fontSize: '0.95rem', lineHeight: '1.6', marginBottom: '20px' }}>
-                    Bridge legacy factory machines and modern IoT sensors without changing existing PLC ladder logic.
-                  </p>
-                  
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px' }}>
-                    {[
-                      { name: 'MQTT & Sparkplug B', desc: 'Publish/subscribe edge sensors' },
-                      { name: 'OPC-UA Client/Server', desc: 'Industrial tag browsing' },
-                      { name: 'Siemens & Mitsubishi', desc: 'S7 & MELSEC direct reads' },
-                      { name: 'Modbus TCP / RTU', desc: 'Inverters & digital meters' },
-                      { name: 'Node-RED Flows', desc: 'Custom edge automation' },
-                      { name: 'REST & Webhooks', desc: 'External cloud APIs' }
-                    ].map((proto, idx) => (
-                      <div key={idx} style={{ background: 'rgba(255,255,255,0.03)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                        <strong style={{ color: '#fbbf24', fontSize: '0.85rem', display: 'block' }}>{proto.name}</strong>
-                        <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{proto.desc}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                    <button
-                      onClick={() => navigate('/iot-hub')}
-                      style={{
-                        background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                        border: 'none',
-                        color: 'white',
-                        padding: '12px 20px',
-                        borderRadius: '8px',
-                        fontWeight: 800,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Open IoT & PLC Hub
-                    </button>
-                    <button
-                      onClick={() => navigate('/predictive-maintenance')}
-                      style={{
-                        background: 'rgba(245, 158, 11, 0.15)',
-                        border: '1px solid #f59e0b',
-                        color: '#fbbf24',
-                        padding: '12px 20px',
-                        borderRadius: '8px',
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}
-                    >
-                      <Sparkles size={16} /> AI Predictive RUL
-                    </button>
-                  </div>
-                </div>
-
-                {/* Right Side: Live Sensor Gauges & Real-time Terminal */}
-                <div style={{
-                  background: '#090d16',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  borderRadius: '18px',
-                  padding: '20px'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', boxShadow: '0 0 8px #10b981' }}></div>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'white' }}>Live Machine Telemetry Stream</span>
-                    </div>
-                    <span style={{ fontSize: '0.72rem', color: '#64748b', fontFamily: 'monospace' }}>BROKER ACTIVE</span>
-                  </div>
-
-                  {/* 4 Sensor Live Cards */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
-                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
-                      <span style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase' }}>Spindle Speed</span>
-                      <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#38bdf8' }}>{machineData.speed} RPM</div>
-                    </div>
-                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
-                      <span style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase' }}>Hydraulic Press</span>
-                      <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#34d399' }}>{machineData.pressure} bar</div>
-                    </div>
-                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
-                      <span style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase' }}>Temperature</span>
-                      <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#fbbf24' }}>{machineData.temp}°C</div>
-                    </div>
-                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
-                      <span style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase' }}>Total Part Count</span>
-                      <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#c084fc' }}>{machineData.count} pcs</div>
-                    </div>
-                  </div>
-
-                  {/* Terminal Log Console */}
-                  <div style={{
-                    background: '#040711',
-                    borderRadius: '8px',
-                    padding: '10px',
-                    fontFamily: 'monospace',
-                    fontSize: '0.72rem',
-                    color: '#94a3b8',
-                    height: '130px',
-                    overflowY: 'hidden',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '4px'
-                  }}>
-                    {terminalLogs.map((log, i) => (
-                      <div key={i} style={{ color: i === 0 ? '#38bdf8' : '#64748b' }}>{log.text}</div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* 5. TAB: FEATURES */}
-        {/* ========================================================================= */}
-        {activeTab === 'features' && (
-          <div style={{ animation: 'fadeIn 0.3s ease', maxWidth: '1280px', margin: '0 auto', padding: '40px 30px' }}>
-            {/* Header */}
-            <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(168, 85, 247, 0.1)', color: '#c084fc', padding: '6px 16px', borderRadius: '100px', fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '14px' }}>
-                <Zap size={14} /> COMPLETE FRONTLINE OPERATING SYSTEM
-              </div>
-              <h2 style={{ fontSize: '2.6rem', fontWeight: 900, color: 'white', margin: '0 0 12px 0' }}>
-                6 Core Engines Powering Your Digital Shop Floor
-              </h2>
-              <p style={{ color: '#94a3b8', fontSize: '1.1rem', maxWidth: '750px', margin: '0 auto', lineHeight: '1.6' }}>
-                Discover how each module integrates into a unified manufacturing platform to eliminate operational friction and boost shop floor throughput.
-              </p>
-            </div>
-
-            {/* 6 Core Engine Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', marginBottom: '40px' }}>
-              {[
-                {
-                  icon: <Layout size={24} />,
-                  color: '#3b82f6',
-                  title: '1. Frontline App Engine',
-                  bullets: ['Step-by-step operator SOP guides', 'Interactive forms, sign-offs, and checkboxes', 'Multi-device responsive (Tablet, Android, PC)']
-                },
-                {
-                  icon: <Database size={24} />,
-                  color: '#10b981',
-                  title: '2. Relational BOM & Tables',
-                  bullets: ['Multi-table relational schema with PostgreSQL', 'Bill of Materials & inventory tracking', 'Immutable production and audit history']
-                },
-                {
-                  icon: <Camera size={24} />,
-                  color: '#ec4899',
-                  title: '3. Vision AI Quality Checks',
-                  bullets: ['Camera defect and presence checks', 'OCR serial number & lot verification', 'QR/Barcode live decoding directly in apps']
-                },
-                {
-                  icon: <Workflow size={24} />,
-                  color: '#f59e0b',
-                  title: '4. Visual Logic & Blockly',
-                  bullets: ['No-code drag-and-drop logic triggers', 'Conditional routing (If Passed -> Next, Else -> Andon)', 'Automated WhatsApp & Email notifications']
-                },
-                {
-                  icon: <Link2 size={24} />,
-                  color: '#6366f1',
-                  title: '5. Enterprise ERP Connectors',
-                  bullets: ['Bi-directional sync with Mekari, Accurate, Odoo, SAP', 'Real-time work order and inventory import', 'Automated e-Faktur and shift export']
-                },
-                {
-                  icon: <ShieldCheck size={24} />,
-                  color: '#14b8a6',
-                  title: '6. Role-Based Governance',
-                  bullets: ['Strict Admin, Engineer, and Operator roles', '21 CFR Part 11 compliant digital signatures', 'Full immutable change and session logs']
-                }
-              ].map((feat, i) => (
-                <div
-                  key={i}
-                  style={{
-                    background: 'rgba(15, 23, 42, 0.65)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    borderRadius: '18px',
-                    padding: '28px',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = feat.color; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)'; e.currentTarget.style.transform = 'translateY(0)'; }}
-                >
-                  <div style={{ width: '46px', height: '46px', borderRadius: '12px', backgroundColor: `${feat.color}20`, color: feat.color, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
-                    {feat.icon}
-                  </div>
-                  <h3 style={{ color: 'white', margin: '0 0 14px 0', fontSize: '1.2rem', fontWeight: 800 }}>{feat.title}</h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {feat.bullets.map((b, idx) => (
-                      <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.85rem', color: '#cbd5e1' }}>
-                        <div style={{ color: feat.color, marginTop: '2px' }}><Check size={13} strokeWidth={3} /></div>
-                        <span>{b}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* 6. TAB: PRICING & VALUE */}
         {/* ========================================================================= */}
         {activeTab === 'pricing' && (
           <div style={{ animation: 'fadeIn 0.3s ease', maxWidth: '1280px', margin: '0 auto', padding: '40px 30px' }}>
