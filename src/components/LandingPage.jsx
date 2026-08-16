@@ -53,6 +53,7 @@ import {
   Calculator,
   HardDrive,
   RefreshCw,
+  RotateCw,
   CheckSquare,
   ShoppingBag,
   Award,
@@ -626,7 +627,9 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                     </div>
                     <span style={{ color: '#e2e8f0', fontWeight: 800, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <Play size={14} fill="#38bdf8" color="#38bdf8" />
-                      {selectedOverviewVideo === 'overview' ? 'mavi-core overview 1.mp4' : 'mavi-core check sheet.mp4'}
+                      {selectedOverviewVideo === 'overview' && 'mavi-core overview 1.mp4'}
+                      {selectedOverviewVideo === 'checksheet' && 'mavi-core check sheet.mp4'}
+                      {selectedOverviewVideo === 'wi' && 'wi.mp4'}
                     </span>
                   </div>
 
@@ -671,8 +674,45 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                       }}
                     >
                       <CheckCircle2 size={13} color={selectedOverviewVideo === 'checksheet' ? '#34d399' : '#94a3b8'} />
-                      Video 2: Digital Check Sheet
+                      Video 2: Check Sheet
                     </button>
+
+                    <button
+                      onClick={() => setSelectedOverviewVideo('wi')}
+                      style={{
+                        background: selectedOverviewVideo === 'wi' ? 'linear-gradient(135deg, #9333ea 0%, #7e22ce 100%)' : 'rgba(255, 255, 255, 0.06)',
+                        border: selectedOverviewVideo === 'wi' ? '1px solid rgba(168, 85, 247, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
+                        color: selectedOverviewVideo === 'wi' ? 'white' : '#94a3b8',
+                        padding: '6px 14px',
+                        borderRadius: '8px',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      <FileText size={13} color={selectedOverviewVideo === 'wi' ? '#c084fc' : '#94a3b8'} />
+                      Video 3: Work Instruction (WI)
+                    </button>
+
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      background: 'rgba(56, 189, 248, 0.12)',
+                      border: '1px solid rgba(56, 189, 248, 0.25)',
+                      color: '#38bdf8',
+                      padding: '4px 10px',
+                      borderRadius: '100px',
+                      fontSize: '0.72rem',
+                      fontWeight: 800,
+                      letterSpacing: '0.04em'
+                    }}>
+                      <RotateCw size={11} className="spin-slow" /> AUTO-LOOP
+                    </div>
                   </div>
                 </div>
 
@@ -689,9 +729,15 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                     controls
                     autoPlay
                     muted
-                    loop
                     playsInline
                     preload="metadata"
+                    onEnded={() => {
+                      setSelectedOverviewVideo(prev => {
+                        if (prev === 'overview') return 'checksheet';
+                        if (prev === 'checksheet') return 'wi';
+                        return 'overview';
+                      });
+                    }}
                     style={{
                       width: '100%',
                       height: 'auto',
@@ -700,7 +746,11 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                       objectFit: 'contain',
                       borderRadius: '16px'
                     }}
-                    src={selectedOverviewVideo === 'overview' ? '/assets/mavi-core-overview-1.mp4' : '/assets/mavi-core-check-sheet.mp4'}
+                    src={
+                      selectedOverviewVideo === 'overview' ? '/assets/mavi-core-overview-1.mp4' :
+                      selectedOverviewVideo === 'checksheet' ? '/assets/mavi-core-check-sheet.mp4' :
+                      '/assets/wi.mp4'
+                    }
                   >
                     Your browser does not support the video tag.
                   </video>
@@ -718,17 +768,21 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                   gap: '12px'
                 }}>
                   <div style={{ color: '#94a3b8', fontSize: '0.86rem' }}>
-                    {selectedOverviewVideo === 'overview' ? (
+                    {selectedOverviewVideo === 'overview' && (
                       <span><strong>Video 1:</strong> Saksikan bagaimana MAVI menghubungkan aplikasi frontline, otomasi mesin PLC, dan OEE telemetry secara terpadu.</span>
-                    ) : (
+                    )}
+                    {selectedOverviewVideo === 'checksheet' && (
                       <span><strong>Video 2:</strong> Demonstrasi pengisian <strong>Digital Check Sheet</strong> & inspeksi kualitas tanpa kertas di stasiun kerja operator.</span>
+                    )}
+                    {selectedOverviewVideo === 'wi' && (
+                      <span><strong>Video 3:</strong> Panduan perakitan interaktif <strong>Digital Work Instruction (WI)</strong> dengan instruksi visual langkah demi langkah.</span>
                     )}
                   </div>
                   <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', fontSize: '0.8rem', color: '#cbd5e1', fontWeight: 700 }}>
                     <span style={{ color: '#38bdf8' }}>✓ No-Code App Builder</span>
                     <span style={{ color: '#34d399' }}>✓ Paperless Inspection</span>
+                    <span style={{ color: '#c084fc' }}>✓ Guided Work Instruction</span>
                     <span style={{ color: '#fbbf24' }}>✓ Live OEE Cockpit</span>
-                    <span style={{ color: '#c084fc' }}>✓ Real-Time Validation</span>
                   </div>
                 </div>
               </div>
