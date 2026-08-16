@@ -11603,7 +11603,10 @@ const AppBuilder = () => {
                                         }
                                     }
 
-                                    const viewBoxStr = cropBox ? `${cropBox.rx} ${cropBox.ry} ${cropBox.rw} ${cropBox.rh}` : "0 0 500 360";
+                                    const hasImg = Boolean(selectedDwg.dataUrl || selectedDwg.data_url);
+                                    const defaultCrop = hasImg ? { rx: 50, ry: 40, rw: 400, rh: 280 } : null;
+                                    const activeCrop = cropBox || defaultCrop;
+                                    const viewBoxStr = activeCrop ? `${activeCrop.rx} ${activeCrop.ry} ${activeCrop.rw} ${activeCrop.rh}` : "0 0 500 360";
                                     const clipId = `cad_roi_clip_${comp.id || 'widget'}`;
 
                                     return (
@@ -11626,7 +11629,7 @@ const AppBuilder = () => {
                                                         return (
                                                             <image
                                                                 href={rawDUrl}
-                                                                x="0" y="0" width="500" height="360"
+                                                                x="50" y="40" width="400" height="280"
                                                                 preserveAspectRatio="xMidYMid meet"
                                                                 opacity="1"
                                                             />

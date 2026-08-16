@@ -530,6 +530,13 @@ const CADViewer2D = ({ fileUrl, appVariables, setAppVariables, compProps }) => {
     );
   });
 
+  const displayRegion = selectedDwg?.displayRegion;
+  const useRegion = displayRegion && displayRegion.enabled !== false && displayRegion.w > 0 && displayRegion.h > 0;
+  const frameX = useRegion ? displayRegion.x : (hasValidImage ? 50 : 0);
+  const frameY = useRegion ? displayRegion.y : (hasValidImage ? 40 : 0);
+  const frameW = useRegion ? displayRegion.w : (hasValidImage ? 400 : (selectedDwg?.canvasWidth || 500));
+  const frameH = useRegion ? displayRegion.h : (hasValidImage ? 280 : (selectedDwg?.canvasHeight || 360));
+
   return (
     <div style={{ backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', height: '100%', position: 'relative', overflow: 'hidden', fontFamily: "'Inter', sans-serif" }}>
       {/* ── Minimal Floating Zoom Bar ── */}
@@ -541,26 +548,26 @@ const CADViewer2D = ({ fileUrl, appVariables, setAppVariables, compProps }) => {
         <button onClick={() => { setZoom(1); setPanOffset({x:0,y:0}); }} title="Fit" style={{ background:'transparent', border:'none', color: '#94a3b8', cursor:'pointer', fontSize:'0.65rem', fontWeight:700, padding:'0 2px' }}>⊞</button>
       </div>
 
-      {/* ── Canvas (viewBox matching DrawingManager canvas) ── */}
+      {/* ── Canvas Frame ── */}
       <div
         style={{ flex:1, position:'relative', overflow:'hidden', cursor: isPanning?'grabbing':'grab', display:'flex', alignItems:'center', justifyContent:'center', backgroundColor: '#ffffff', width: '100%', height: '100%' }}
         onWheel={handleWheel} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onContextMenu={e=>e.preventDefault()}
       >
-        <svg viewBox={`0 0 ${canvasW} ${canvasH}`} style={{ width:'100%', height:'100%', display:'block', userSelect:'none' }} preserveAspectRatio="xMidYMid meet">
+        <svg viewBox={`${frameX} ${frameY} ${frameW} ${frameH}`} style={{ width:'100%', height:'100%', display:'block', userSelect:'none' }} preserveAspectRatio="xMidYMid meet">
           {/* Zoom + Pan Group */}
-          <g transform={`translate(${canvasW/2+panOffset.x},${canvasH/2+panOffset.y}) scale(${zoom}) translate(${-canvasW/2},${-canvasH/2})`}>
+          <g transform={`translate(${frameX + frameW/2 + panOffset.x}, ${frameY + frameH/2 + panOffset.y}) scale(${zoom}) translate(${-(frameX + frameW/2)}, ${-(frameY + frameH/2)})`}>
             {/* White Paper Canvas Background */}
-            <rect width={canvasW} height={canvasH} fill="#ffffff" />
+            <rect x={frameX} y={frameY} width={frameW} height={frameH} fill="#ffffff" />
 
             {/* Drawing Background Image / PDF */}
             {hasValidImage ? (
               <image
                 href={activeImageSrc}
-                x="0"
-                y="0"
-                width={canvasW}
-                height={canvasH}
+                x="50"
+                y="40"
+                width="400"
+                height="280"
                 preserveAspectRatio="xMidYMid meet"
                 style={{ pointerEvents: 'none' }}
               />
