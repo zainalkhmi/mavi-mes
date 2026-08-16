@@ -89,6 +89,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
   const [storeActiveStepIndex, setStoreActiveStepIndex] = useState(0);
 
   // Pricing, FAQ, Modals & Demo Credentials States
+  const [selectedOverviewVideo, setSelectedOverviewVideo] = useState('overview'); // 'overview' | 'checksheet'
   const [openFaqIndex, setOpenFaqIndex] = useState(0);
   const [copiedDemo, setCopiedDemo] = useState(false);
   const [isWalkthroughModalOpen, setIsWalkthroughModalOpen] = useState(false);
@@ -596,6 +597,143 @@ const LandingPage = ({ initialTab = 'overview' }) => {
         {activeTab === 'overview' && (
           <div style={{ animation: 'fadeIn 0.3s ease', maxWidth: '1360px', margin: '0 auto', padding: '20px 24px 60px 24px', boxSizing: 'border-box' }}>
             
+            {/* PLATFORM OVERVIEW & DEMO VIDEO SHOWCASE (DUAL-VIDEO SELECTOR) */}
+            <section style={{ marginBottom: '64px' }}>
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.7) 100%)',
+                border: '1px solid rgba(56, 189, 248, 0.35)',
+                borderRadius: '24px',
+                padding: '24px',
+                boxShadow: '0 25px 60px -12px rgba(56, 189, 248, 0.2), 0 0 0 1px rgba(255,255,255,0.05)',
+                overflow: 'hidden'
+              }}>
+                {/* Video Header Bar & Switcher Tabs */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  paddingBottom: '16px',
+                  marginBottom: '16px',
+                  borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                  flexWrap: 'wrap',
+                  gap: '12px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444' }} />
+                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#f59e0b' }} />
+                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#10b981' }} />
+                    </div>
+                    <span style={{ color: '#e2e8f0', fontWeight: 800, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Play size={14} fill="#38bdf8" color="#38bdf8" />
+                      {selectedOverviewVideo === 'overview' ? 'mavi-core overview 1.mp4' : 'mavi-core check sheet.mp4'}
+                    </span>
+                  </div>
+
+                  {/* Video Selector Buttons */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <button
+                      onClick={() => setSelectedOverviewVideo('overview')}
+                      style={{
+                        background: selectedOverviewVideo === 'overview' ? 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)' : 'rgba(255, 255, 255, 0.06)',
+                        border: selectedOverviewVideo === 'overview' ? '1px solid rgba(59, 130, 246, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
+                        color: selectedOverviewVideo === 'overview' ? 'white' : '#94a3b8',
+                        padding: '6px 14px',
+                        borderRadius: '8px',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      <Sparkles size={13} color={selectedOverviewVideo === 'overview' ? '#60a5fa' : '#94a3b8'} />
+                      Video 1: Platform Overview
+                    </button>
+
+                    <button
+                      onClick={() => setSelectedOverviewVideo('checksheet')}
+                      style={{
+                        background: selectedOverviewVideo === 'checksheet' ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : 'rgba(255, 255, 255, 0.06)',
+                        border: selectedOverviewVideo === 'checksheet' ? '1px solid rgba(52, 211, 153, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
+                        color: selectedOverviewVideo === 'checksheet' ? 'white' : '#94a3b8',
+                        padding: '6px 14px',
+                        borderRadius: '8px',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      <CheckCircle2 size={13} color={selectedOverviewVideo === 'checksheet' ? '#34d399' : '#94a3b8'} />
+                      Video 2: Digital Check Sheet
+                    </button>
+                  </div>
+                </div>
+
+                {/* HTML5 Video Player */}
+                <div style={{
+                  position: 'relative',
+                  borderRadius: '16px',
+                  overflow: 'hidden',
+                  background: '#000',
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.6)'
+                }}>
+                  <video
+                    key={selectedOverviewVideo}
+                    controls
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    preload="metadata"
+                    style={{
+                      width: '100%',
+                      height: 'auto',
+                      maxHeight: '680px',
+                      display: 'block',
+                      objectFit: 'contain',
+                      borderRadius: '16px'
+                    }}
+                    src={selectedOverviewVideo === 'overview' ? '/assets/mavi-core-overview-1.mp4' : '/assets/mavi-core-check-sheet.mp4'}
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                </div>
+
+                {/* Video Badges & Highlights */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginTop: '18px',
+                  paddingTop: '14px',
+                  borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+                  flexWrap: 'wrap',
+                  gap: '12px'
+                }}>
+                  <div style={{ color: '#94a3b8', fontSize: '0.86rem' }}>
+                    {selectedOverviewVideo === 'overview' ? (
+                      <span><strong>Video 1:</strong> Saksikan bagaimana MAVI menghubungkan aplikasi frontline, otomasi mesin PLC, dan OEE telemetry secara terpadu.</span>
+                    ) : (
+                      <span><strong>Video 2:</strong> Demonstrasi pengisian <strong>Digital Check Sheet</strong> & inspeksi kualitas tanpa kertas di stasiun kerja operator.</span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', fontSize: '0.8rem', color: '#cbd5e1', fontWeight: 700 }}>
+                    <span style={{ color: '#38bdf8' }}>✓ No-Code App Builder</span>
+                    <span style={{ color: '#34d399' }}>✓ Paperless Inspection</span>
+                    <span style={{ color: '#fbbf24' }}>✓ Live OEE Cockpit</span>
+                    <span style={{ color: '#c084fc' }}>✓ Real-Time Validation</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
             {/* 1. HERO SECTION (TULIP STYLE: Adaptable production systems. Built around operations.) */}
             <section style={{
               background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.8) 50%, rgba(15, 23, 42, 0.95) 100%)',
@@ -766,106 +904,6 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <Monitor size={14} color="#34d399" />
                     <strong>Operator:</strong> <span style={{ color: '#e2e8f0', fontFamily: 'monospace' }}>operator / 123</span>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* PLATFORM OVERVIEW VIDEO SHOWCASE */}
-            <section style={{ marginBottom: '64px' }}>
-              <div style={{
-                background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.7) 100%)',
-                border: '1px solid rgba(56, 189, 248, 0.35)',
-                borderRadius: '24px',
-                padding: '24px',
-                boxShadow: '0 25px 60px -12px rgba(56, 189, 248, 0.2), 0 0 0 1px rgba(255,255,255,0.05)',
-                overflow: 'hidden'
-              }}>
-                {/* Video Header Bar */}
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  paddingBottom: '16px',
-                  marginBottom: '16px',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-                  flexWrap: 'wrap',
-                  gap: '12px'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444' }} />
-                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#f59e0b' }} />
-                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#10b981' }} />
-                    </div>
-                    <span style={{ color: '#e2e8f0', fontWeight: 800, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Play size={14} fill="#38bdf8" color="#38bdf8" /> MAVI-MES Platform Overview 1.mp4
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{
-                      background: 'rgba(56, 189, 248, 0.15)',
-                      color: '#38bdf8',
-                      padding: '4px 12px',
-                      borderRadius: '100px',
-                      fontSize: '0.75rem',
-                      fontWeight: 800,
-                      border: '1px solid rgba(56, 189, 248, 0.3)'
-                    }}>
-                      ⚡ OFFICIAL OVERVIEW TOUR
-                    </span>
-                  </div>
-                </div>
-
-                {/* HTML5 Video Player */}
-                <div style={{
-                  position: 'relative',
-                  borderRadius: '16px',
-                  overflow: 'hidden',
-                  background: '#000',
-                  boxShadow: '0 10px 30px rgba(0,0,0,0.6)'
-                }}>
-                  <video
-                    controls
-                    autoPlay
-                    muted
-                    loop
-                    playsInline
-                    preload="metadata"
-                    style={{
-                      width: '100%',
-                      height: 'auto',
-                      maxHeight: '680px',
-                      display: 'block',
-                      objectFit: 'contain',
-                      borderRadius: '16px'
-                    }}
-                    src="/assets/mavi-core-overview-1.mp4"
-                  >
-                    Your browser does not support the video tag.
-                  </video>
-                </div>
-
-                {/* Video Badges & Highlights */}
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginTop: '18px',
-                  paddingTop: '14px',
-                  borderTop: '1px solid rgba(255, 255, 255, 0.06)',
-                  flexWrap: 'wrap',
-                  gap: '12px'
-                }}>
-                  <div style={{ color: '#94a3b8', fontSize: '0.86rem' }}>
-                    <strong>Saksikan bagaimana MAVI menghubungkan</strong> aplikasi frontline, otomasi mesin PLC, dan OEE telemetry secara terpadu.
-                  </div>
-                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', fontSize: '0.8rem', color: '#cbd5e1', fontWeight: 700 }}>
-                    <span style={{ color: '#38bdf8' }}>✓ No-Code App Builder</span>
-                    <span style={{ color: '#34d399' }}>✓ PLC & OPC-UA Ready</span>
-                    <span style={{ color: '#fbbf24' }}>✓ Live OEE Cockpit</span>
-                    <span style={{ color: '#c084fc' }}>✓ AI Vision Inspection</span>
                   </div>
                 </div>
               </div>
