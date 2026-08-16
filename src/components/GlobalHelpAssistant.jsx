@@ -3372,14 +3372,15 @@ const WIDGET_DATABASE = [
   },
   {
     id: 'CAD_VIEWER',
-    name: 'CAD Viewer (Model STL 3D)',
+    name: 'CAD Viewer (Blueprint & 3D Twin)',
     category: 'Media & Dokumen',
     icon: Layout,
     color: '#f59e0b',
-    fungsi: 'Menampilkan visualisasi gambar model teknik STL 3D yang dapat di-rotate/zoom.',
-    caraPakai: 'Membantu operator melihat detail perakitan komponen rumit.',
+    fungsi: 'Menampilkan visualisasi drawing teknik CAD 2D/3D (PDF, DXF, DWG, SVG, STL) dengan anotasi dimensi & integrasi inspeksi.',
+    caraPakai: 'Membantu operator melihat detail perakitan komponen dan memvalidasi dimensi part.',
     konfigurasi: [
-      { properti: 'fileUrl', deskripsi: 'Tautan URL tempat file model STL disimpan.' }
+      { properti: 'fileUrl', deskripsi: 'Pilihan atau ID berkas blueprint PDF/CAD yang dipetakan.' },
+      { properti: 'format', deskripsi: 'Format berkas: PDF, DXF, DWG, SVG, STL, OBJ, GLTF, GLB.' }
     ]
   },
   {

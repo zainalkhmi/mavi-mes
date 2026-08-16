@@ -26,6 +26,7 @@ import {
 import toast from 'react-hot-toast';
 import { getAllDrawings, saveDrawing, deleteDrawing, safeSaveDrawingsToLocalStorage } from '../utils/supabaseUtilityDB';
 import { convertPdfToImageDataUrl } from '../utils/pdfRenderService';
+import { parseAndProcessCadFile } from '../utils/cadDxfRenderService';
 import './DrawingFileManager.css';
 
 // Helper: Read file as DataURL
@@ -575,31 +576,19 @@ export default function DrawingFileManager() {
         }
 
         setIsParsing(true);
-        setParseProgress(10);
-        setParseStatusText('Mengunggah berkas ke server QMS...');
+        setParseProgress(15);
+        setParseStatusText('Memproses geometri CAD & decoding entitas di Node.js / Browser...');
 
-        // 1. Try real Python parsing
+        // 1. Native JavaScript / Node.js CAD & DXF parsing
         try {
-            setParseProgress(40);
-            setParseStatusText('Melakukan geometri parsing & CAD decoding di Python...');
+            setParseProgress(50);
+            setParseStatusText('Menganalisis entitas vektor & mengekstrak GD&T...');
             
-            const formData = new FormData();
-            formData.append('file', file);
+            const result = await parseAndProcessCadFile(file);
 
-            const response = await fetch('http://localhost:8000/blueprint/parse', {
-                method: 'POST',
-                body: formData
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const result = await response.json();
-            
             if (result.success && result.dimensions) {
-                setParseProgress(80);
-                setParseStatusText('Mengekstraksi anotasi GD&T & parameter toleransi...');
+                setParseProgress(85);
+                setParseStatusText('Menyimpan blueprint & parameter inspeksi...');
                 
                 const newDwg = {
                     name: file.name.split('.')[0].replace(/[-_]/g, ' ').toUpperCase() + ' Blueprint',
@@ -607,22 +596,23 @@ export default function DrawingFileManager() {
                     fileType: ext.toUpperCase(),
                     uploadedAt: new Date().toISOString(),
                     dimensions: result.dimensions,
-                    dataUrl: result.rendered_image || dataUrl
+                    entities: result.entities || [],
+                    layers: result.layers || [],
+                    dataUrl: result.rendered_image || result.dataUrl || dataUrl
                 };
 
                 setParseProgress(100);
                 const saved = await saveDrawing(newDwg);
                 setDrawings(prev => [saved, ...prev]);
                 localStorage.setItem('mavi_selected_dwg_id', saved.id);
-                toast.success(`Ekstraksi Python berhasil! Ditemukan ${result.dimensions.length} parameter pada "${file.name}".`);
+                toast.success(`Parsing CAD berhasil! Ditemukan ${result.dimensions.length} parameter pada "${file.name}".`);
                 setIsParsing(false);
                 return;
             } else {
-                console.warn('Python parser returned unsuccessful parsing, falling back:', result.error);
-                throw new Error(result.error || 'Unknown parsing failure');
+                throw new Error(result.error || 'Parsing CAD tidak menghasilkan dimensi.');
             }
         } catch (err) {
-            console.warn('Koneksi Python server gagal atau error. Menggunakan fallback simulasi:', err);
+            console.warn('[CAD Parser] Native parser fallback:', err);
             
             // Fallback Simulation logic (original behavior)
             setParseProgress(45);
@@ -783,6 +773,20 @@ export default function DrawingFileManager() {
                         }}
                     >
                         📐 CadQuery Parametric
+                    </button>
+
+                    {/* Digital Check Sheet QA Quick Launcher */}
+                    <button
+                        onClick={() => navigate('/drawing-checksheet')}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '6px',
+                            border: 'none', backgroundColor: '#22c55e',
+                            color: '#0f172a', padding: '10px 16px', borderRadius: '8px',
+                            fontSize: '0.8rem', fontWeight: 900, cursor: 'pointer',
+                            transition: 'all 0.2s', outline: 'none', boxShadow: '0 2px 8px rgba(34, 197, 94, 0.3)'
+                        }}
+                    >
+                        <FileText size={15} /> Digital Check Sheet
                     </button>
 
                     {/* Global Actions dropdown */}

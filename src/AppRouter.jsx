@@ -45,6 +45,7 @@ const PredictiveMaintenanceManager = lazy(() => import('./components/PredictiveM
 const SkillManager = lazy(() => import('./components/SkillManager'));
 const ProductionPlantDashboard = lazy(() => import('./components/ProductionPlantDashboard'));
 const MachineActivityYieldTracker = lazy(() => import('./components/MachineActivityYieldTracker'));
+const DigitalDrawingCheckSheet = lazy(() => import('./components/DigitalDrawingCheckSheet'));
 
 export default function AppRouter({ user, isOperator }) {
   const hasAccess = (path) => checkRoleAccess(user, path);
@@ -80,6 +81,8 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/store" element={hasAccess('/store') ? <AppStore /> : <Navigate to="/" replace />} />
               <Route path="/drawings" element={hasAccess('/builder') ? <DrawingManager /> : <Navigate to="/" replace />} />
               <Route path="/drawings/files" element={hasAccess('/builder') ? <DrawingFileManager /> : <Navigate to="/" replace />} />
+              <Route path="/drawing-checksheet" element={<DigitalDrawingCheckSheet />} />
+              <Route path="/qa-checksheet" element={<DigitalDrawingCheckSheet />} />
               <Route path="/app-management" element={hasAccess('/app-management') ? <AppManagement /> : <Navigate to="/" replace />} />
               <Route path="/tables" element={hasAccess('/tables') ? <TableManager /> : <Navigate to="/" replace />} />
               <Route path="/connectors" element={hasAccess('/connectors') ? <ConnectorManager /> : <Navigate to="/" replace />} />

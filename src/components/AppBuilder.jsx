@@ -11504,13 +11504,13 @@ const AppBuilder = () => {
                 const roiColor = comp.props.roiColor || '#22c55e';
                 const roiMode = comp.props.roiMode || 'Dimensional Check';
                 const roiScore = comp.props.roiMatchScore || 99.4;
-                const fileUrl = comp.props.fileUrl || '';
+                const fileUrl = comp.props.selectedDrawingId || comp.props.fileUrl || comp.props.source || '';
 
                 const drawings = (() => {
                     try { return JSON.parse(localStorage.getItem('mavi_drawings') || '[]'); } catch (e) { return []; }
                 })();
-                const selectedDwg = fileUrl ? drawings.find(d => d.id === fileUrl || d.fileName === fileUrl || d.name === fileUrl) : (drawings[0] || null);
-                const hasSource = !!(comp.props.source || comp.props.fileUrl || selectedDwg);
+                const selectedDwg = fileUrl ? (drawings.find(d => d.id === fileUrl || d.fileName === fileUrl || d.name === fileUrl) || drawings[0] || null) : (drawings[0] || null);
+                const hasSource = !!(comp.props.source || comp.props.fileUrl || comp.props.selectedDrawingId || selectedDwg);
 
                 return (
                     <div style={{
@@ -11617,14 +11617,21 @@ const AppBuilder = () => {
                                             {/* CLIPPED GROUP: ONLY Graphics inside ROI rectangle are rendered */}
                                             <g clipPath={cropBox ? `url(#${clipId})` : undefined}>
                                                 {/* Render Background Image */}
-                                                {(selectedDwg.dataUrl || selectedDwg.data_url) && (
-                                                    <image
-                                                        href={selectedDwg.dataUrl || selectedDwg.data_url}
-                                                        x="50" y="40" width="400" height="280"
-                                                        preserveAspectRatio="xMidYMid meet"
-                                                        opacity="0.85"
-                                                    />
-                                                )}
+                                                {(() => {
+                                                    const rawDUrl = selectedDwg.dataUrl || selectedDwg.data_url;
+                                                    const isValidImg = rawDUrl && typeof rawDUrl === 'string' && (rawDUrl.startsWith('data:image/') || rawDUrl.startsWith('http://') || rawDUrl.startsWith('https://') || rawDUrl.startsWith('blob:'));
+                                                    if (isValidImg) {
+                                                        return (
+                                                            <image
+                                                                href={rawDUrl}
+                                                                x="50" y="40" width="400" height="280"
+                                                                preserveAspectRatio="xMidYMid meet"
+                                                                opacity="0.85"
+                                                            />
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
                                                 {/* Render Shapes */}
                                                 {Array.isArray(selectedDwg.shapes) && selectedDwg.shapes.map((shape, idx) => {
                                                     if (!shape) return null;
@@ -19052,8 +19059,16 @@ const AppBuilder = () => {
 
                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CAD FILE BLUEPRINT</label>
                                                         <select 
-                                                            value={selectedComp.props.fileUrl || ''} 
-                                                            onChange={(e) => updateComponentProps(selectedComp.id, { fileUrl: e.target.value })} 
+                                                            value={selectedComp.props.fileUrl || selectedComp.props.selectedDrawingId || ''} 
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                let drawings = [];
+                                                                try { drawings = JSON.parse(localStorage.getItem('mavi_drawings') || '[]'); } catch (err) {}
+                                                                const matched = drawings.find(d => d.id === val || d.fileName === val);
+                                                                const updates = { fileUrl: val, selectedDrawingId: val };
+                                                                if (matched?.fileType) updates.format = matched.fileType;
+                                                                updateComponentProps(selectedComp.id, updates);
+                                                            }} 
                                                             style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)', marginBottom: '12px' }}
                                                         >
                                                             <option value="">-- Pilih Blueprint --</option>
@@ -19066,7 +19081,7 @@ const AppBuilder = () => {
                                                                     return [];
                                                                 }
                                                             })().map(d => (
-                                                                <option key={d.id} value={d.id}>{d.name} ({d.fileName})</option>
+                                                                <option key={d.id} value={d.id}>{d.name} ({d.fileName || d.fileType})</option>
                                                             ))}
                                                         </select>
 
@@ -19074,6 +19089,8 @@ const AppBuilder = () => {
                                                         <select value={selectedComp.props.format || 'DWG'} onChange={(e) => updateComponentProps(selectedComp.id, { format: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}>
                                                             <option value="DWG">DWG</option>
                                                             <option value="DXF">DXF</option>
+                                                            <option value="PDF">PDF</option>
+                                                            <option value="SVG">SVG</option>
                                                             <option value="STEP">STEP</option>
                                                             <option value="IGES">IGES</option>
                                                             <option value="STL">STL</option>

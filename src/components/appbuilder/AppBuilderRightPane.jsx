@@ -1071,11 +1071,12 @@ export default function AppBuilderRightPane({
                                                                 Blueprint Drawing
                                                             </label>
                                                             <select
-                                                                value={selectedComp.props.selectedDrawingId || ''}
+                                                                value={selectedComp.props.selectedDrawingId || selectedComp.props.fileUrl || ''}
                                                                 onChange={(e) => {
                                                                     const drawingId = e.target.value;
                                                                     updateComponentProps(selectedComp.id, {
                                                                         selectedDrawingId: drawingId,
+                                                                        fileUrl: drawingId,
                                                                         selectedDimensionId: ''
                                                                     });
                                                                 }}
@@ -4050,8 +4051,16 @@ export default function AppBuilderRightPane({
 
                                                         <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '8px' }}>CAD FILE BLUEPRINT</label>
                                                         <select 
-                                                            value={selectedComp.props.fileUrl || ''} 
-                                                            onChange={(e) => updateComponentProps(selectedComp.id, { fileUrl: e.target.value })} 
+                                                            value={selectedComp.props.fileUrl || selectedComp.props.selectedDrawingId || ''} 
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                let drawings = [];
+                                                                try { drawings = JSON.parse(localStorage.getItem('mavi_drawings') || '[]'); } catch (err) {}
+                                                                const matched = drawings.find(d => d.id === val || d.fileName === val);
+                                                                const updates = { fileUrl: val, selectedDrawingId: val };
+                                                                if (matched?.fileType) updates.format = matched.fileType;
+                                                                updateComponentProps(selectedComp.id, updates);
+                                                            }} 
                                                             style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)', marginBottom: '12px' }}
                                                         >
                                                             <option value="">-- Pilih Blueprint --</option>
@@ -4064,7 +4073,7 @@ export default function AppBuilderRightPane({
                                                                     return [];
                                                                 }
                                                             })().map(d => (
-                                                                <option key={d.id} value={d.id}>{d.name} ({d.fileName})</option>
+                                                                <option key={d.id} value={d.id}>{d.name} ({d.fileName || d.fileType})</option>
                                                             ))}
                                                         </select>
 
@@ -4072,6 +4081,8 @@ export default function AppBuilderRightPane({
                                                         <select value={selectedComp.props.format || 'DWG'} onChange={(e) => updateComponentProps(selectedComp.id, { format: e.target.value })} style={{ width: '100%', padding: '10px', border: '1px solid var(--border-primary)', borderRadius: '4px' }}>
                                                             <option value="DWG">DWG</option>
                                                             <option value="DXF">DXF</option>
+                                                            <option value="PDF">PDF</option>
+                                                            <option value="SVG">SVG</option>
                                                             <option value="STEP">STEP</option>
                                                             <option value="IGES">IGES</option>
                                                             <option value="STL">STL</option>

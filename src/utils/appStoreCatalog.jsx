@@ -22,6 +22,49 @@ export const categories = [
 
 export const rawTemplates = [
     {
+        id: 'digital-drawing-checksheet',
+        name: 'Digital Drawing Check Sheet (QA Interactive)',
+        category: 'Quality',
+        description: 'Interactive QA Digital Check Sheet linked to 2D engineering blueprints & CAD drawings from Menu Drawing with numbered hotspot inspection pins, real-time tolerance validation, and digital caliper inputs.',
+        longDescription: 'A complete manufacturing digital check sheet suite that pulls engineering drawings from the Drawing Manager, overlays interactive inspection pins on key dimensions (diameters, hole depths, tolerances, PCD), and allows inspectors to validate actual measurements against specs with instant OK/NG evaluation and PDF reporting.',
+        icon: <FileText size={28} color="#22c55e" />,
+        bg: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+        accent: '#22c55e',
+        rating: 5.0,
+        installs: '3.8k',
+        targetRoute: '/drawing-checksheet',
+        features: [
+            'Dynamic Drawing Fetching from Menu Drawing & Blueprint Library',
+            'Interactive 2D Blueprint Canvas with Numbered Hotspot Pins',
+            'Real-Time Dimension Tolerance Validation (OK / NG Auto-Check)',
+            'Digital Caliper, Micrometer & Bore Gauge Live Data Entry',
+            'Tabs for Checkers, Active Inspection, All Dimensions, and Summary',
+            'Automated n8n Webhook & WhatsApp Inspection Result Notification',
+            'Export to QA Inspection Certificate & PDF Check Sheet'
+        ],
+        guide: {
+            operation: '1. Select a blueprint/part from the left Drawing Explorer (Casting Housing, Flange, Shaft).\n2. View the 2D CAD blueprint with numbered circular hotspot pins matching each dimension.\n3. Click on any pin or checklist item to enter measured values or click OK/NG.\n4. Pins automatically turn glowing green (Passed) or bright red (Failed).\n5. Click "Commit Check Sheet" to record inspection to database and notify supervisors via WhatsApp/Webhook.',
+            widgets: ['Interactive Blueprint Canvas', 'Hotspot Pin Visualizer', 'Digital Check Sheet Table', 'Tolerance Comparator', 'Pass/Fail Summary HUD'],
+            components: ['Drawing Explorer Sidebar', 'Interactive Hotspot Engine', 'Digital Checksheet Matrix', 'QA Certificate Exporter'],
+            tables: [
+                {
+                    name: 'QA_Drawing_Checksheets',
+                    description: 'Stores inspection session headers, Work Order No, Part Serial, Inspector Name, Overall Status, and Pass Rate.'
+                },
+                {
+                    name: 'QA_Check_Items',
+                    description: 'Stores point-by-point measured values, nominal specs, lower/upper tolerances, and OK/NG results.'
+                }
+            ],
+            triggers: [
+                { event: 'ON_HOTSPOT_CLICK', function: 'Focuses and highlights corresponding check sheet dimension.' },
+                { event: 'ON_VALUE_CHANGE', function: 'Validates actual measurement against Min/Max tolerance and updates pin status.' },
+                { event: 'ON_COMMIT_CHECKSHEET', function: 'Saves inspection record and fires n8n inspection.passed/failed webhook.' }
+            ],
+            mechanism: 'Integrates frontline inspection check sheets with 2D drawing management for zero-paper quality control.'
+        }
+    },
+    {
         id: 'machine-activity-yield-tracker',
         name: 'Machine Activity & Yield Tracker (Mobile)',
         category: 'Mobile',

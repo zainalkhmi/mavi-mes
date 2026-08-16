@@ -66,6 +66,7 @@ import {
 import toast from 'react-hot-toast';
 import { getAllDrawings, saveDrawing, deleteDrawing, safeSaveDrawingsToLocalStorage } from '../utils/supabaseUtilityDB';
 import { convertPdfToImageDataUrl } from '../utils/pdfRenderService';
+import { parseAndProcessCadFile } from '../utils/cadDxfRenderService';
 const CADViewer3DEditor = lazy(() => import('./CADViewer3D').then(m => ({ default: m.CADViewer3DEditor })));
 
 // ─────────────────────────────────────────
@@ -4730,24 +4731,15 @@ export default function DrawingManager() {
 
         const dataUrl = await getFileDataUrl();
 
-        // 1. Try real Python parsing
+        // 1. Native JavaScript / Node.js CAD & DXF parsing
         try {
             setParseProgress(40);
-            setParseStatusText('Melakukan geometri parsing & CAD decoding di Python...');
+            setParseStatusText('Memproses geometri CAD & decoding entitas di Node.js / Browser...');
 
-            const formData = new FormData();
-            formData.append('file', file);
-
-            const response = await fetch('http://localhost:8000/blueprint/parse', {
-                method: 'POST',
-                body: formData
-            });
-
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            const result = await response.json();
+            const result = await parseAndProcessCadFile(file);
 
             if (result.success && result.dimensions) {
-                setParseProgress(80);
+                setParseProgress(85);
                 setParseStatusText('Mengekstraksi anotasi GD&T & parameter toleransi...');
 
                 const newDwg = {
@@ -4758,7 +4750,7 @@ export default function DrawingManager() {
                     dimensions: result.dimensions,
                     entities: result.entities || [],
                     layers: result.layers || [],
-                    dataUrl: result.rendered_image || dataUrl
+                    dataUrl: result.rendered_image || result.dataUrl || dataUrl
                 };
 
                 setParseProgress(100);
@@ -4769,7 +4761,7 @@ export default function DrawingManager() {
                     setSelectedDwgId(saved.id);
                     if (saved.dimensions?.length > 0) setActiveDimId(saved.dimensions[0].id);
                     else setActiveDimId('');
-                    toast.success(`${file.name} berhasil disimpan ke database! Ditemukan ${result.dimensions.length} parameter.`);
+                    toast.success(`${file.name} berhasil di-parse dan disimpan! Ditemukan ${result.dimensions.length} parameter.`);
                 }).catch(err => {
                     console.error(err);
                     toast.error('Gagal menyimpan file drawing baru ke database.');
@@ -4779,7 +4771,7 @@ export default function DrawingManager() {
                 throw new Error(result.error || 'Parsing failed');
             }
         } catch (err) {
-            console.warn('Python server parsing failed or offline, using client-side fallback:', err);
+            console.warn('[CAD Engine] Native parser fallback:', err);
             // Fallback (original client side behavior)
             setParseProgress(30);
             setParseStatusText('Membaca berkas secara lokal...');
@@ -7591,7 +7583,7 @@ export default function DrawingManager() {
                                                             <span style={{ fontSize: '1.2rem', marginBottom: '8px' }}>⚠️</span>
                                                             <span style={{ fontWeight: 'bold', color: '#93c5fd', marginBottom: '4px' }}>Visual DWG Blueprint tidak aktif</span>
                                                             <span style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>
-                                                                Untuk merender visualisasi DWG, pastikan server Python lokal (yolo_server.py) berjalan dengan library ezdwg terpasang.
+                                                                Format DWG merupakan format binary proprietary Autodesk. Untuk visualisasi vektor tajam & anotasi otomatis langsung di browser (Node.js engine), unggah dalam format DXF, SVG, PDF, atau CAD 3D (STL/OBJ).
                                                             </span>
                                                         </div>
                                                     </foreignObject>

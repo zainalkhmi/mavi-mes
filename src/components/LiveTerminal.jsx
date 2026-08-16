@@ -340,10 +340,35 @@ const CADViewer2D = ({ fileUrl, appVariables, setAppVariables, compProps }) => {
     try { return JSON.parse(localStorage.getItem('mavi_drawings') || '[]'); } catch { return []; }
   });
 
+  useEffect(() => {
+    let mounted = true;
+    getAllDrawings().then(list => {
+      if (mounted && Array.isArray(list) && list.length > 0) {
+        setDrawingsList(list);
+      }
+    }).catch(() => {});
+
+    const handleSync = () => {
+      getAllDrawings().then(list => {
+        if (mounted && Array.isArray(list)) setDrawingsList(list);
+      }).catch(() => {});
+    };
+
+    window.addEventListener('mavi_drawings_updated', handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      mounted = false;
+      window.removeEventListener('mavi_drawings_updated', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, []);
+
+  const targetDrawingId = compProps?.selectedDrawingId || compProps?.fileUrl || fileUrl || '';
+
   const selectedDwg = useMemo(() => {
-    if (!fileUrl) return drawingsList[0] || null;
-    return drawingsList.find(d => d.id === fileUrl || d.fileName === fileUrl || d.file_name === fileUrl || d.name === fileUrl) || drawingsList[0] || null;
-  }, [drawingsList, fileUrl]);
+    if (!targetDrawingId) return drawingsList[0] || null;
+    return drawingsList.find(d => d.id === targetDrawingId || d.fileName === targetDrawingId || d.file_name === targetDrawingId || d.name === targetDrawingId) || drawingsList[0] || null;
+  }, [drawingsList, targetDrawingId]);
 
   const activeDim = appVariables.find(v => v.name === 'Active_Dimension_Key')?.value || '';
   const [zoom, setZoom] = useState(1.0);
@@ -394,9 +419,35 @@ const CADViewer2D = ({ fileUrl, appVariables, setAppVariables, compProps }) => {
   const handleMouseMove = (e) => { if (isPanning) setPanOffset({ x: e.clientX - panStart.x, y: e.clientY - panStart.y }); };
   const handleMouseUp = () => setIsPanning(false);
 
+  const rawDataUrl = selectedDwg?.dataUrl || selectedDwg?.data_url;
+  const [pdfBackdropUrl, setPdfBackdropUrl] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    if (selectedDwg && (selectedDwg.fileType === 'PDF' || selectedDwg.fileName?.toLowerCase().endsWith('.pdf')) && rawDataUrl) {
+      if (rawDataUrl.startsWith('data:image/')) {
+        setPdfBackdropUrl(rawDataUrl);
+      } else if (rawDataUrl.startsWith('data:application/pdf') || rawDataUrl.startsWith('blob:') || rawDataUrl.startsWith('http')) {
+        import('../utils/pdfRenderService').then(({ convertPdfToImageDataUrl }) => {
+          convertPdfToImageDataUrl(rawDataUrl, 2.5).then(imgUrl => {
+            if (active) setPdfBackdropUrl(imgUrl);
+          }).catch(err => {
+            console.warn('[CADViewer2D] PDF rasterization error:', err);
+          });
+        }).catch(() => {});
+      }
+    } else {
+      setPdfBackdropUrl(null);
+    }
+    return () => { active = false; };
+  }, [selectedDwg, rawDataUrl]);
+
+  const activeImageSrc = pdfBackdropUrl || (rawDataUrl && typeof rawDataUrl === 'string' && (rawDataUrl.startsWith('data:image/') || rawDataUrl.startsWith('http://') || rawDataUrl.startsWith('https://') || rawDataUrl.startsWith('blob:')) ? rawDataUrl : null);
+  const hasValidImage = Boolean(activeImageSrc);
   const isFlange = selectedDwg?.id === 'dwg_flange_connector';
   const isCylinder = selectedDwg?.id === 'dwg_hydraulic_cylinder';
-  const isCustomImage = selectedDwg && (selectedDwg.dataUrl || selectedDwg.data_url) && !isFlange && !isCylinder;
+  const isProductChecking = selectedDwg?.id === 'dwg_product_checking';
+  const isCustomImage = Boolean(hasValidImage && !isFlange && !isCylinder && !isProductChecking);
 
   const sheetPad = 30;
   const sheetX = sheetPad, sheetY = sheetPad;
@@ -499,9 +550,9 @@ const CADViewer2D = ({ fileUrl, appVariables, setAppVariables, compProps }) => {
             {/* Margin */}
             <rect x={sheetX+12} y={sheetY+12} width={sheetW-24} height={sheetH-24} fill="none" stroke={tc.border} strokeWidth="0.75" strokeDasharray="4,4" />
 
-            {/* Uploaded image */}
+            {/* Uploaded image or PDF Blueprint */}
             {isCustomImage && (
-              <image href={selectedDwg.dataUrl||selectedDwg.data_url} x={sheetX+12} y={sheetY+12} width={sheetW-24} height={sheetH-24} preserveAspectRatio="xMidYMid meet" style={{ pointerEvents:'none' }} />
+              <image href={activeImageSrc} x={sheetX+12} y={sheetY+12} width={sheetW-24} height={sheetH-24} preserveAspectRatio="xMidYMid meet" style={{ pointerEvents:'none' }} />
             )}
 
             {/* Vector shapes */}
@@ -523,12 +574,40 @@ const CADViewer2D = ({ fileUrl, appVariables, setAppVariables, compProps }) => {
               </g>
             )}
 
+            {/* Built-in Hydraulic Cylinder */}
+            {isCylinder && (
+              <g transform={`translate(${sheetX+50}, ${canvasH/2 - 120})`}>
+                <rect x="60" y="50" width="300" height="140" fill="none" stroke={imageColor} strokeWidth="2" />
+                <rect x="360" y="85" width="180" height="70" fill="none" stroke="#60a5fa" strokeWidth="2" />
+                <circle cx="560" cy="120" r="20" fill="none" stroke={imageColor} strokeWidth="2" />
+                <line x1="20" y1="120" x2="580" y2="120" stroke={imageColor} strokeWidth="0.75" strokeDasharray="15,4,2,4" />
+              </g>
+            )}
+
+            {/* Built-in Product Checking Blueprint */}
+            {isProductChecking && (
+              <g transform={`translate(${sheetX+20}, 40)`}>
+                <text x="30" y="30" fill="#38bdf8" fontSize="8" fontFamily="monospace" opacity="0.7">UNSPECIFIED TOLERANCES ISO 2768-m</text>
+                <text x="30" y="42" fill="#38bdf8" fontSize="8" fontFamily="monospace" opacity="0.7">ALL DIMENSIONS IN MM</text>
+                <path d="M 30,350 L 30,300 L 50,300 L 250,300 L 270,300 L 270,350 L 350,350 L 350,250 L 470,250 L 470,350 Z" fill="none" stroke={imageColor} strokeWidth="1.5" />
+                <line x1="30" y1="300" x2="270" y2="300" stroke={imageColor} strokeWidth="0.5" strokeDasharray="10,4,2,4" />
+                <circle cx="200" cy="200" r="20" fill="none" stroke={imageColor} strokeWidth="1.5" />
+                <circle cx="200" cy="200" r="10" fill="none" stroke={imageColor} strokeWidth="0.75" strokeDasharray="3,3" />
+                <line x1="160" y1="200" x2="240" y2="200" stroke={imageColor} strokeWidth="0.75" strokeDasharray="10,2,2,2" />
+                <line x1="200" y1="160" x2="200" y2="240" stroke={imageColor} strokeWidth="0.75" strokeDasharray="10,2,2,2" />
+                <rect x="385" y="100" width="40" height="120" fill="none" stroke="#60a5fa" strokeWidth="1.5" />
+                <line x1="405" y1="70" x2="405" y2="240" stroke={imageColor} strokeWidth="0.75" strokeDasharray="5,2,1,2" />
+              </g>
+            )}
+
             {/* Empty fallback */}
-            {!isFlange && !isCylinder && !isCustomImage && (
+            {!isFlange && !isCylinder && !isProductChecking && !isCustomImage && (!selectedDwg?.shapes || selectedDwg.shapes.length === 0) && (
               <g>
                 <rect x={sheetX+60} y={sheetY+60} width={sheetW-120} height={sheetH-120} fill="none" stroke={imageColor} strokeWidth="1" strokeOpacity="0.35" strokeDasharray="8,4" />
                 <circle cx={canvasW/2} cy={canvasH/2} r="60" fill="none" stroke={imageColor} strokeWidth="1" strokeOpacity="0.35" strokeDasharray="8,4" />
-                <text x={canvasW/2} y={canvasH/2} textAnchor="middle" fill={tc.grid} fontSize="12" fontFamily="monospace" fontWeight="700" opacity="0.55">No Drawing Selected</text>
+                <text x={canvasW/2} y={canvasH/2} textAnchor="middle" fill={tc.grid} fontSize="12" fontFamily="monospace" fontWeight="700" opacity="0.55">
+                  {selectedDwg ? selectedDwg.name : 'No Drawing Selected'}
+                </text>
               </g>
             )}
 
@@ -11631,13 +11710,13 @@ const LiveTerminal = () => {
       // ── CAD_VIEWER / CAD ──
       case 'CAD':
       case 'CAD_VIEWER': {
-        const fileUrl = comp.props?.fileUrl || comp.props?.source || '';
+        const fileUrl = comp.props?.selectedDrawingId || comp.props?.fileUrl || comp.props?.source || '';
         const format = (comp.props?.format || '').toUpperCase();
         const drawings = (() => {
           try { return JSON.parse(localStorage.getItem('mavi_drawings') || '[]'); } catch { return []; }
         })();
         const selectedDwg = drawings.find(d => d.id === fileUrl || d.fileName === fileUrl || d.file_name === fileUrl || d.name === fileUrl);
-        const dwgType = (selectedDwg?.fileType || selectedDwg?.file_type || '').toUpperCase();
+        const dwgType = (selectedDwg?.fileType || selectedDwg?.file_type || format || '').toUpperCase();
         
         // 3D viewer is only used if explicitly a 3D format or 3D interactive preset
         const is3D = fileUrl === 'interactive-3d-cad' || 

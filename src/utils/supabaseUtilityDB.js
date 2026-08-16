@@ -5,6 +5,15 @@
  * =====================================================
  */
 import { getSupabaseClient } from './supabaseManualDB.js';
+import Dexie from 'dexie';
+
+// Dedicated IndexedDB for Full Blueprint Drawings & Large CAD/PDF DataURLs
+export const drawingsLocalDB = typeof window !== 'undefined' ? new Dexie('mavi_drawings_local_db') : null;
+if (drawingsLocalDB) {
+    drawingsLocalDB.version(1).stores({
+        drawings: 'id, fileName, fileType, name, updated_at'
+    });
+}
 
 // ── Cameras ──────────────────────────────────────────
 
@@ -482,38 +491,67 @@ export async function saveLiveMeasurement(data) {
 // ── Drawings ──────────────────────────────────────────
 
 export function safeSaveDrawingsToLocalStorage(drawingsList) {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !Array.isArray(drawingsList)) return;
+    
+    // 1. Always persist complete drawings to IndexedDB (No 5MB quota limit)
+    if (drawingsLocalDB) {
+        try {
+            drawingsLocalDB.drawings.bulkPut(drawingsList).catch(e => {
+                console.warn('[IndexedDB Drawings] Bulk put error:', e);
+            });
+        } catch (dbErr) {
+            console.warn('[IndexedDB Drawings] Error saving drawings to IndexedDB:', dbErr);
+        }
+    }
+
+    // 2. Mirror into LocalStorage for quick synchronous bootstrap
     try {
         localStorage.setItem('mavi_drawings', JSON.stringify(drawingsList));
     } catch (e) {
-        console.warn('[Storage Quota] Failed to save full drawings, attempting to save without large images:', e);
+        console.warn('[Storage Quota] LocalStorage quota reached, saving minimized version to LocalStorage (full drawings retained in IndexedDB):', e);
         try {
             const minimizedList = drawingsList.map(dwg => {
-                if (dwg.dataUrl && dwg.dataUrl.length > 80000) {
-                    return { ...dwg, dataUrl: null, hasOmittedDataUrl: true };
-                }
-                if (dwg.data_url && dwg.data_url.length > 80000) {
-                    return { ...dwg, data_url: null, hasOmittedDataUrl: true };
+                if ((dwg.dataUrl && dwg.dataUrl.length > 80000) || (dwg.data_url && dwg.data_url.length > 80000)) {
+                    return { ...dwg, hasOmittedDataUrl: true };
                 }
                 return dwg;
             });
             localStorage.setItem('mavi_drawings', JSON.stringify(minimizedList));
-            console.log('[Storage Quota] Saved minimized drawings to localStorage successfully.');
         } catch (innerErr) {
-            console.error('[Storage Quota] Completely failed to save drawings to localStorage:', innerErr);
+            console.warn('[Storage Quota] LocalStorage full, relying on IndexedDB:', innerErr);
         }
     }
 }
 
-
 export async function getAllDrawings() {
-    // If Supabase drawings table failed in this session, load from local storage directly without 400 network calls
-    if (typeof window !== 'undefined' && sessionStorage.getItem('mavi_drawings_offline') === 'true') {
+    let indexedDbList = [];
+    if (drawingsLocalDB) {
         try {
-            const cached = localStorage.getItem('mavi_drawings');
-            if (cached) return JSON.parse(cached);
+            indexedDbList = await drawingsLocalDB.drawings.toArray();
+        } catch (e) {
+            console.warn('[IndexedDB Drawings] Error loading from IndexedDB:', e);
+        }
+    }
+
+    // If Supabase drawings table failed in this session, merge indexedDB + local storage directly
+    if (typeof window !== 'undefined' && sessionStorage.getItem('mavi_drawings_offline') === 'true') {
+        let cached = [];
+        try {
+            const raw = localStorage.getItem('mavi_drawings');
+            if (raw) cached = JSON.parse(raw);
         } catch (e) {}
-        return [];
+
+        // Merge: prefer indexedDb item because it contains full dataUrl
+        const map = new Map();
+        (cached || []).forEach(d => { if (d && d.id) map.set(d.id, d); });
+        (indexedDbList || []).forEach(d => {
+            if (d && d.id) {
+                const existing = map.get(d.id) || {};
+                map.set(d.id, { ...existing, ...d, dataUrl: d.dataUrl || d.data_url || existing.dataUrl || existing.data_url });
+            }
+        });
+
+        return Array.from(map.values());
     }
 
     try {
@@ -524,71 +562,112 @@ export async function getAllDrawings() {
             .order('created_at', { ascending: false });
         if (error) throw error;
         
-        const mappedData = (data || []).map(d => ({
-            ...d,
-            fileName: d.file_name || d.fileName,
-            fileType: d.file_type || d.fileType,
-            dataUrl: d.data_url || d.dataUrl
-        }));
+        const mappedData = (data || []).map(d => {
+            // Check if full dataUrl exists in IndexedDB
+            const idbMatch = indexedDbList.find(x => x.id === d.id);
+            return {
+                ...d,
+                fileName: d.file_name || d.fileName,
+                fileType: d.file_type || d.fileType,
+                dataUrl: d.data_url || d.dataUrl || idbMatch?.dataUrl || idbMatch?.data_url
+            };
+        });
         
+        // Also add any local drawings that are not in supabase yet
+        const dbIds = new Set(mappedData.map(d => d.id));
+        indexedDbList.forEach(idbDwg => {
+            if (idbDwg && idbDwg.id && !dbIds.has(idbDwg.id)) {
+                mappedData.push(idbDwg);
+            }
+        });
+
         safeSaveDrawingsToLocalStorage(mappedData);
         return mappedData;
     } catch (err) {
         if (typeof window !== 'undefined') {
             sessionStorage.setItem('mavi_drawings_offline', 'true');
+            let cached = [];
             try {
-                const cached = localStorage.getItem('mavi_drawings');
-                if (cached) return JSON.parse(cached);
-            } catch (e) {
-                console.error('[Supabase Fallback] Failed to parse local drawings cache:', e);
-            }
+                const raw = localStorage.getItem('mavi_drawings');
+                if (raw) cached = JSON.parse(raw);
+            } catch (e) {}
+
+            const map = new Map();
+            (cached || []).forEach(d => { if (d && d.id) map.set(d.id, d); });
+            (indexedDbList || []).forEach(d => {
+                if (d && d.id) {
+                    const existing = map.get(d.id) || {};
+                    map.set(d.id, { ...existing, ...d, dataUrl: d.dataUrl || d.data_url || existing.dataUrl || existing.data_url });
+                }
+            });
+
+            return Array.from(map.values());
         }
-        return [];
+        return indexedDbList || [];
     }
 }
 
 export async function saveDrawing(drawing) {
+    const dwgId = drawing.id || ('dwg_custom_' + Date.now());
     const payload = {
+        id: dwgId,
         name: drawing.name || 'Untitled Drawing',
         file_name: drawing.fileName || drawing.file_name || '',
         file_type: drawing.fileType || drawing.file_type || 'DXF',
         dimensions: drawing.dimensions || [],
         shapes: drawing.shapes || [],
+        entities: drawing.entities || [],
+        layers: drawing.layers || [],
         data_url: drawing.dataUrl || drawing.data_url || null,
         updated_at: new Date().toISOString()
     };
 
-    // If Supabase table is offline/missing column, save locally directly to avoid network 400 error
+    const savedFullItem = {
+        ...drawing,
+        ...payload,
+        id: dwgId,
+        fileName: payload.file_name,
+        fileType: payload.file_type,
+        dataUrl: payload.data_url
+    };
+
+    // 1. Immediately write full payload to IndexedDB
+    if (drawingsLocalDB) {
+        try {
+            await drawingsLocalDB.drawings.put(savedFullItem);
+        } catch (dbErr) {
+            console.warn('[IndexedDB Drawings] Put error:', dbErr);
+        }
+    }
+
+    // 2. Broadcast update event so AppBuilder, LiveTerminal, AppPlayer react immediately
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('mavi_drawings_updated', { detail: savedFullItem }));
+    }
+
+    // 3. If Supabase table is offline/missing column, save locally directly to avoid network 400 error
     if (typeof window !== 'undefined' && sessionStorage.getItem('mavi_drawings_offline') === 'true') {
         try {
             const cachedRaw = localStorage.getItem('mavi_drawings') || '[]';
             const list = JSON.parse(cachedRaw);
-            const dwgId = drawing.id || ('dwg_custom_' + Date.now());
-            const savedItem = {
-                ...drawing,
-                ...payload,
-                fileName: payload.file_name,
-                fileType: payload.file_type,
-                dataUrl: payload.data_url,
-                id: dwgId
-            };
             const index = list.findIndex(d => d.id === dwgId);
-            if (index !== -1) list[index] = savedItem;
-            else list.push(savedItem);
+            if (index !== -1) list[index] = savedFullItem;
+            else list.unshift(savedFullItem);
             safeSaveDrawingsToLocalStorage(list);
-            return savedItem;
+            return savedFullItem;
         } catch (e) {
             console.error('[Supabase Fallback] Local save failed:', e);
+            return savedFullItem;
         }
     }
 
     try {
         const supabase = getSupabaseClient();
         let result;
-        const isRealUuid = drawing.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(drawing.id);
+        const isRealUuid = dwgId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(dwgId);
         
         if (isRealUuid) {
-            result = await supabase.from('drawings').update(payload).eq('id', drawing.id).select().single();
+            result = await supabase.from('drawings').update(payload).eq('id', dwgId).select().single();
         } else {
             const insertPayload = { ...payload, created_at: new Date().toISOString() };
             result = await supabase.from('drawings').insert(insertPayload).select().single();
@@ -601,66 +680,49 @@ export async function saveDrawing(drawing) {
                 const cachedRaw = localStorage.getItem('mavi_drawings') || '[]';
                 let list = JSON.parse(cachedRaw);
                 const mappedData = {
-                    ...drawing,
+                    ...savedFullItem,
                     ...result.data,
-                    fileName: result.data.file_name || drawing.fileName,
-                    fileType: result.data.file_type || drawing.fileType,
-                    dataUrl: result.data.data_url || drawing.dataUrl
+                    fileName: result.data.file_name || savedFullItem.fileName,
+                    fileType: result.data.file_type || savedFullItem.fileType,
+                    dataUrl: result.data.data_url || savedFullItem.dataUrl
                 };
-                const index = list.findIndex(d => d.id === drawing.id || d.id === result.data.id);
-                if (index !== -1) {
-                    list[index] = mappedData;
-                } else {
-                    list.push(mappedData);
-                }
+                const index = list.findIndex(d => d.id === dwgId || d.id === result.data?.id);
+                if (index !== -1) list[index] = mappedData;
+                else list.unshift(mappedData);
                 safeSaveDrawingsToLocalStorage(list);
             } catch (e) {
                 console.error('[Supabase Fallback] Failed to update local cache on save:', e);
             }
         }
-        return {
-            ...drawing,
-            ...result.data,
-            fileName: result.data.file_name || drawing.fileName,
-            fileType: result.data.file_type || drawing.fileType,
-            dataUrl: result.data.data_url || drawing.dataUrl
-        };
+        return savedFullItem;
     } catch (err) {
         if (typeof window !== 'undefined') {
             sessionStorage.setItem('mavi_drawings_offline', 'true');
             try {
                 const cachedRaw = localStorage.getItem('mavi_drawings') || '[]';
                 const list = JSON.parse(cachedRaw);
-                let savedItem;
-                const dwgId = drawing.id || ('dwg_custom_' + Date.now());
-                
-                savedItem = {
-                    ...drawing,
-                    ...payload,
-                    fileName: payload.file_name,
-                    fileType: payload.file_type,
-                    dataUrl: payload.data_url,
-                    id: dwgId
-                };
                 const index = list.findIndex(d => d.id === dwgId);
-                if (index !== -1) {
-                    list[index] = savedItem;
-                } else {
-                    list.push(savedItem);
-                }
+                if (index !== -1) list[index] = savedFullItem;
+                else list.unshift(savedFullItem);
                 
                 safeSaveDrawingsToLocalStorage(list);
-                return savedItem;
+                return savedFullItem;
             } catch (e) {
                 console.error('[Supabase Fallback] Failed to save drawing locally:', e);
-                throw err;
             }
         }
-        throw err;
+        return savedFullItem;
     }
 }
 
 export async function deleteDrawing(id) {
+    // 1. Delete from IndexedDB
+    if (drawingsLocalDB) {
+        try {
+            await drawingsLocalDB.drawings.delete(id);
+        } catch (e) {}
+    }
+
     try {
         const supabase = getSupabaseClient();
         const isRealUuid = id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
@@ -675,23 +737,19 @@ export async function deleteDrawing(id) {
             const list = JSON.parse(cachedRaw);
             const newList = list.filter(d => d.id !== id);
             safeSaveDrawingsToLocalStorage(newList);
+            window.dispatchEvent(new CustomEvent('mavi_drawings_updated', { detail: { id, deleted: true } }));
         }
         return true;
     } catch (err) {
-        console.warn('[Supabase Fallback] Failed to delete drawing from database, deleting from localStorage:', err);
+        console.warn('[Supabase Fallback] Delete drawing fallback:', err);
         if (typeof window !== 'undefined') {
-            try {
-                const cachedRaw = localStorage.getItem('mavi_drawings') || '[]';
-                const list = JSON.parse(cachedRaw);
-                const newList = list.filter(d => d.id !== id);
-                safeSaveDrawingsToLocalStorage(newList);
-                return true;
-            } catch (e) {
-                console.error('[Supabase Fallback] Failed to delete drawing locally:', e);
-                throw err;
-            }
+            const cachedRaw = localStorage.getItem('mavi_drawings') || '[]';
+            const list = JSON.parse(cachedRaw);
+            const newList = list.filter(d => d.id !== id);
+            safeSaveDrawingsToLocalStorage(newList);
+            window.dispatchEvent(new CustomEvent('mavi_drawings_updated', { detail: { id, deleted: true } }));
         }
-        throw err;
+        return true;
     }
 }
 
