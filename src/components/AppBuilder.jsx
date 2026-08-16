@@ -11624,9 +11624,9 @@ const AppBuilder = () => {
                                                         return (
                                                             <image
                                                                 href={rawDUrl}
-                                                                x="50" y="40" width="400" height="280"
+                                                                x="0" y="0" width="500" height="360"
                                                                 preserveAspectRatio="xMidYMid meet"
-                                                                opacity="0.85"
+                                                                opacity="1"
                                                             />
                                                         );
                                                     }
@@ -11675,7 +11675,7 @@ const AppBuilder = () => {
                                                     if (shape.type === 'image') return <image key={skey} href={shape.src || shape.dataUrl || shape.url} x={shape.x} y={shape.y} width={shape.w || shape.width || 100} height={shape.h || shape.height || 100} preserveAspectRatio="xMidYMid meet" />;
                                                     return null;
                                                 })}
-                                                {/* Render Dimensions Balloons & Markers */}
+                                                {/* Render Dimensions Badges matching Image 2 */}
                                                 {Array.isArray(selectedDwg.dimensions) && selectedDwg.dimensions.map((dim, idx) => {
                                                     if (!dim) return null;
                                                     const dkey = dim.id || `dim_${idx}`;
@@ -11692,14 +11692,60 @@ const AppBuilder = () => {
                                                             </g>
                                                         );
                                                     }
-                                                    const bx = dim.x !== undefined ? dim.x : (dim.x1 + dim.x2) / 2;
-                                                    const by = dim.y !== undefined ? dim.y : (dim.y1 + dim.y2) / 2;
-                                                    if (isNaN(bx) || isNaN(by)) return null;
+                                                    const hasCoords = dim.lx !== undefined && dim.ly !== undefined;
+                                                    const x1 = hasCoords ? dim.x1 : 130, y1 = hasCoords ? dim.y1 : 100;
+                                                    const x2 = hasCoords ? (dim.x2 ?? x1 + 30) : 160, y2 = hasCoords ? (dim.y2 ?? y1 + 30) : 130;
+                                                    const lx = hasCoords ? dim.lx : (x1 + x2) / 2;
+                                                    const ly = hasCoords ? dim.ly : (y1 + y2) / 2;
+
+                                                    let displayLabel = dim.label;
+                                                    if (!displayLabel) {
+                                                        displayLabel = dim.category === 'diameter' ? `Diameter: ${dim.spec}` : `Dimensi: ${dim.spec}`;
+                                                    } else if (!displayLabel.includes(':') && dim.spec) {
+                                                        displayLabel = `${displayLabel}: ${dim.spec}`;
+                                                    }
+
+                                                    const badgeWidth = Math.max(76, displayLabel.length * 6.5 + 16);
+                                                    const badgeHeight = 20;
+
                                                     return (
                                                         <g key={dkey}>
-                                                            <circle cx={bx} cy={by} r="10" fill="#2563eb" stroke="white" strokeWidth="1.5" />
-                                                            <text x={bx} y={by + 3.5} textAnchor="middle" fill="white" fontSize="9" fontWeight="bold">
-                                                                {idx + 1}
+                                                            {/* Extension lines if horizontal/vertical */}
+                                                            {dim.indicatorType === 'horizontal' && (
+                                                                <>
+                                                                    <line x1={x1} y1={y1} x2={x1} y2={ly} stroke="rgba(148,163,184,0.4)" strokeWidth="0.75" strokeDasharray="2,2" />
+                                                                    <line x1={x2} y1={y2} x2={x2} y2={ly} stroke="rgba(148,163,184,0.4)" strokeWidth="0.75" strokeDasharray="2,2" />
+                                                                    <line x1={x1} y1={ly} x2={x2} y2={ly} stroke="#3b82f6" strokeWidth="1.25" />
+                                                                </>
+                                                            )}
+                                                            {dim.indicatorType === 'vertical' && (
+                                                                <>
+                                                                    <line x1={x1} y1={y1} x2={lx} y2={y1} stroke="rgba(148,163,184,0.4)" strokeWidth="0.75" strokeDasharray="2,2" />
+                                                                    <line x1={x2} y1={y2} x2={lx} y2={y2} stroke="rgba(148,163,184,0.4)" strokeWidth="0.75" strokeDasharray="2,2" />
+                                                                    <line x1={lx} y1={y1} x2={lx} y2={y2} stroke="#3b82f6" strokeWidth="1.25" />
+                                                                </>
+                                                            )}
+                                                            <rect
+                                                                x={lx - badgeWidth / 2}
+                                                                y={ly - badgeHeight / 2}
+                                                                width={badgeWidth}
+                                                                height={badgeHeight}
+                                                                rx="4"
+                                                                fill="#1e3a8a"
+                                                                fillOpacity="0.9"
+                                                                stroke="#3b82f6"
+                                                                strokeWidth={1}
+                                                            />
+                                                            <text
+                                                                x={lx}
+                                                                y={ly + 3.5}
+                                                                textAnchor="middle"
+                                                                fill="#60a5fa"
+                                                                fontSize="8.5"
+                                                                fontWeight="bold"
+                                                                fontFamily="monospace"
+                                                            >
+                                                                {displayLabel}
                                                             </text>
                                                         </g>
                                                     );

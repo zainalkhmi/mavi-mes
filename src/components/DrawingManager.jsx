@@ -5412,58 +5412,6 @@ export default function DrawingManager() {
         if (!isActive || dim.locked) return null;
         
         const handles = [];
-        
-        // Handle 1: Start point P1 (x1, y1)
-        if (dim.x1 !== undefined && dim.y1 !== undefined) {
-            handles.push(
-                <g key="p1">
-                    <circle
-                        cx={dim.x1}
-                        cy={dim.y1}
-                        r="6"
-                        fill="#10b981"
-                        stroke="white"
-                        strokeWidth="2"
-                        style={{ cursor: 'move', filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.5))' }}
-                        onMouseDown={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            handleAnchorDragStart(dim.id, 'p1');
-                        }}
-                    />
-                    <g transform={`translate(${dim.x1}, ${dim.y1 - 12})`} style={{ pointerEvents: 'none' }}>
-                        <rect x="-34" y="-8" width="68" height="15" rx="3" fill="#0f172a" stroke="#10b981" strokeWidth="1" />
-                        <text x="0" y="3" fill="#10b981" fontSize="7.5" fontWeight="bold" textAnchor="middle">📍 START (P1)</text>
-                    </g>
-                </g>
-            );
-        }
-        
-        // Handle 2: End point P2 (x2, y2)
-        if (dim.x2 !== undefined && dim.y2 !== undefined) {
-            handles.push(
-                <g key="p2">
-                    <circle
-                        cx={dim.x2}
-                        cy={dim.y2}
-                        r="6"
-                        fill="#3b82f6"
-                        stroke="white"
-                        strokeWidth="2"
-                        style={{ cursor: 'move', filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.5))' }}
-                        onMouseDown={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            handleAnchorDragStart(dim.id, 'p2');
-                        }}
-                    />
-                    <g transform={`translate(${dim.x2}, ${dim.y2 + 18})`} style={{ pointerEvents: 'none' }}>
-                        <rect x="-30" y="-8" width="60" height="15" rx="3" fill="#0f172a" stroke="#3b82f6" strokeWidth="1" />
-                        <text x="0" y="3" fill="#3b82f6" fontSize="7.5" fontWeight="bold" textAnchor="middle">🏁 END (P2)</text>
-                    </g>
-                </g>
-            );
-        }
 
         // Handle 3: Center vertex (cx, cy) - only for angle/arc
         if (dim.category === 'angle' && dim.cx !== undefined && dim.cy !== undefined) {

@@ -366,8 +366,16 @@ const CADViewer2D = ({ fileUrl, appVariables, setAppVariables, compProps }) => {
   const targetDrawingId = compProps?.selectedDrawingId || compProps?.fileUrl || fileUrl || '';
 
   const selectedDwg = useMemo(() => {
-    if (!targetDrawingId) return drawingsList[0] || null;
-    return drawingsList.find(d => d.id === targetDrawingId || d.fileName === targetDrawingId || d.file_name === targetDrawingId || d.name === targetDrawingId) || drawingsList[0] || null;
+    if (targetDrawingId) {
+      const found = drawingsList.find(d => d.id === targetDrawingId || d.fileName === targetDrawingId || d.file_name === targetDrawingId || d.name === targetDrawingId);
+      if (found) return found;
+    }
+    const savedActive = typeof localStorage !== 'undefined' ? localStorage.getItem('mavi_selected_dwg_id') : null;
+    if (savedActive) {
+      const activeMatch = drawingsList.find(d => d.id === savedActive);
+      if (activeMatch) return activeMatch;
+    }
+    return drawingsList[0] || null;
   }, [drawingsList, targetDrawingId]);
 
   const activeDim = appVariables.find(v => v.name === 'Active_Dimension_Key')?.value || '';
@@ -375,18 +383,9 @@ const CADViewer2D = ({ fileUrl, appVariables, setAppVariables, compProps }) => {
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
-  const [canvasTheme, setCanvasTheme] = useState('blueprint');
-  const canvasW = 800;
-  const canvasH = 560;
 
-  const tc = canvasTheme === 'dark'
-    ? { bg: '#0f172a', grid: '#334155', gridOpacity: 0.5, border: '#334155', layoutBg: '#1e293b', paperBg: '#1e293b', paperShadow: '#000000' }
-    : canvasTheme === 'blueprint'
-    ? { bg: '#071426', grid: '#1e4d7a', gridOpacity: 0.6, border: '#1e4d7a', layoutBg: '#0a1929', paperBg: '#0d2137', paperShadow: '#000000' }
-    : { bg: '#f1f5f9', grid: '#94a3b8', gridOpacity: 0.3, border: '#cbd5e1', layoutBg: '#f1f5f9', paperBg: '#ffffff', paperShadow: '#cbd5e1' };
-
-  const imageColor = canvasTheme === 'blueprint' ? '#3b82f6' : canvasTheme === 'dark' ? '#60a5fa' : '#2563eb';
-  const textColor = canvasTheme === 'white' ? '#1e293b' : '#e2e8f0';
+  const canvasW = selectedDwg?.canvasWidth || 500;
+  const canvasH = selectedDwg?.canvasHeight || 360;
 
   const getValidationStatus = (dim) => {
     if (!dim || !dim.variable) return 'PENDING';
@@ -398,16 +397,17 @@ const CADViewer2D = ({ fileUrl, appVariables, setAppVariables, compProps }) => {
   const getStatusColor = (status, isActive) => {
     if (status === 'PASS') return '#22c55e';
     if (status === 'FAIL') return '#ef4444';
-    return isActive ? '#60a5fa' : (canvasTheme === 'blueprint' ? '#3b82f6' : '#94a3b8');
+    return isActive ? '#3b82f6' : '#2563eb';
   };
 
   const selectDim = (dimKey) => {
+    if (!dimKey) return;
     setAppVariables(prev => prev.map(v => v.name === 'Active_Dimension_Key' ? { ...v, value: dimKey } : v));
   };
 
   const handleWheel = (e) => {
     e.preventDefault();
-    setZoom(prev => Math.max(0.3, Math.min(4, prev + (e.deltaY > 0 ? -0.1 : 0.1))));
+    setZoom(prev => Math.max(0.4, Math.min(4, prev + (e.deltaY > 0 ? -0.1 : 0.1))));
   };
   const handleMouseDown = (e) => {
     if (e.button === 1 || e.button === 2 || (e.button === 0 && e.altKey)) {
@@ -447,199 +447,169 @@ const CADViewer2D = ({ fileUrl, appVariables, setAppVariables, compProps }) => {
   const isFlange = selectedDwg?.id === 'dwg_flange_connector';
   const isCylinder = selectedDwg?.id === 'dwg_hydraulic_cylinder';
   const isProductChecking = selectedDwg?.id === 'dwg_product_checking';
-  const isCustomImage = Boolean(hasValidImage && !isFlange && !isCylinder && !isProductChecking);
 
-  const sheetPad = 30;
-  const sheetX = sheetPad, sheetY = sheetPad;
-  const sheetW = canvasW - sheetPad * 2;
-  const sheetH = canvasH - sheetPad * 2;
-
-  const renderDimensions = (dims) => (dims || []).map((dim) => {
+  const renderDimensions = (dims) => (dims || []).map((dim, idx) => {
     const status = getValidationStatus(dim);
     const isActive = activeDim === dim.variable;
-    const strokeColor = getStatusColor(status, isActive);
+    const color = getStatusColor(status, isActive);
     const hasCoords = dim.lx !== undefined && dim.ly !== undefined;
     const x1 = hasCoords ? dim.x1 : 130, y1 = hasCoords ? dim.y1 : 100;
     const x2 = hasCoords ? (dim.x2 ?? x1 + 30) : 160, y2 = hasCoords ? (dim.y2 ?? y1 + 30) : 130;
-    const lx = hasCoords ? dim.lx : 200, ly = hasCoords ? dim.ly : 80;
-    const type = dim.indicatorType || dim.type || 'callout';
-    const labelText = `${dim.label ? dim.label.split(' ')[0] : 'Dim'}: ${dim.spec}`;
-    const labelBg = canvasTheme === 'white' ? 'rgba(248,250,252,0.92)' : 'rgba(15,23,42,0.88)';
-    const pulse = isActive ? <circle cx={lx} cy={ly} r="14" fill="none" stroke="#60a5fa" strokeWidth="1.5"><animate attributeName="r" values="8;22;8" dur="2s" repeatCount="indefinite" /><animate attributeName="opacity" values="0.8;0;0.8" dur="2s" repeatCount="indefinite" /></circle> : null;
+    const lx = hasCoords ? dim.lx : (x1 + x2) / 2, ly = hasCoords ? dim.ly : (y1 + y2) / 2;
+    const indicatorType = dim.indicatorType || dim.type || 'horizontal';
 
-    if (type === 'horizontal' || type === 'linear_horizontal') return (
-      <g key={dim.id} style={{ cursor: 'pointer' }} onClick={() => selectDim(dim.variable)}>
-        <line x1={x1} y1={y1} x2={x1} y2={ly - 5} stroke="rgba(148,163,184,0.3)" strokeWidth="0.75" strokeDasharray="2,2" />
-        <line x1={x2} y1={y2} x2={x2} y2={ly - 5} stroke="rgba(148,163,184,0.3)" strokeWidth="0.75" strokeDasharray="2,2" />
-        <line x1={x1 + 9} y1={ly - 5} x2={x2 - 9} y2={ly - 5} stroke={strokeColor} strokeWidth="1.5" />
-        <polygon points={`${x1},${ly-5} ${x1+9},${ly-9} ${x1+9},${ly-1}`} fill={strokeColor} />
-        <polygon points={`${x2},${ly-5} ${x2-9},${ly-9} ${x2-9},${ly-1}`} fill={strokeColor} />
-        <rect x={lx-44} y={ly-19} width="88" height="22" rx="3" fill={labelBg} stroke={strokeColor} strokeWidth={isActive ? 1.5 : 0.75} />
-        <text x={lx} y={ly-5} textAnchor="middle" fill={strokeColor} fontSize="9" fontWeight="bold" fontFamily="monospace">{labelText}</text>
-        {pulse}
-      </g>
-    );
-    if (type === 'vertical' || type === 'linear_vertical') return (
-      <g key={dim.id} style={{ cursor: 'pointer' }} onClick={() => selectDim(dim.variable)}>
-        <line x1={x1} y1={y1} x2={lx-5} y2={y1} stroke="rgba(148,163,184,0.3)" strokeWidth="0.75" strokeDasharray="2,2" />
-        <line x1={x2} y1={y2} x2={lx-5} y2={y2} stroke="rgba(148,163,184,0.3)" strokeWidth="0.75" strokeDasharray="2,2" />
-        <line x1={lx-5} y1={y1+9} x2={lx-5} y2={y2-9} stroke={strokeColor} strokeWidth="1.5" />
-        <polygon points={`${lx-5},${y1} ${lx-9},${y1+9} ${lx-1},${y1+9}`} fill={strokeColor} />
-        <polygon points={`${lx-5},${y2} ${lx-9},${y2-9} ${lx-1},${y2-9}`} fill={strokeColor} />
-        <rect x={lx-44} y={ly-11} width="88" height="22" rx="3" fill={labelBg} stroke={strokeColor} strokeWidth={isActive ? 1.5 : 0.75} />
-        <text x={lx} y={ly+4} textAnchor="middle" fill={strokeColor} fontSize="9" fontWeight="bold" fontFamily="monospace">{labelText}</text>
-        {pulse}
-      </g>
-    );
+    let displayLabel = dim.label;
+    if (!displayLabel) {
+      displayLabel = dim.category === 'diameter' ? `Diameter: ${dim.spec}` : `Dimensi: ${dim.spec}`;
+    } else if (!displayLabel.includes(':') && dim.spec) {
+      displayLabel = `${displayLabel}: ${dim.spec}`;
+    }
+
+    const badgeWidth = Math.max(76, displayLabel.length * 6.5 + 16);
+    const badgeHeight = 20;
+
     return (
-      <g key={dim.id} style={{ cursor: 'pointer' }} onClick={() => selectDim(dim.variable)}>
-        <path d={`M ${x1},${y1} L ${x2},${y2} L ${lx},${ly}`} fill="none" stroke={strokeColor} strokeWidth="1.5" />
-        <circle cx={x1} cy={y1} r="3" fill={strokeColor} />
-        <rect x={lx-44} y={ly-11} width="88" height="22" rx="3" fill={labelBg} stroke={strokeColor} strokeWidth={isActive ? 1.5 : 0.75} />
-        <text x={lx} y={ly+4} textAnchor="middle" fill={strokeColor} fontSize="9" fontWeight="bold" fontFamily="monospace">{labelText}</text>
-        {pulse}
+      <g key={dim.id || `dim_${idx}`} style={{ cursor: 'pointer' }} onClick={() => selectDim(dim.variable)}>
+        {/* Extension / Leader Lines */}
+        {indicatorType === 'horizontal' && (
+          <>
+            <line x1={x1} y1={y1} x2={x1} y2={ly} stroke="rgba(148,163,184,0.4)" strokeWidth="0.75" strokeDasharray="2,2" />
+            <line x1={x2} y1={y2} x2={x2} y2={ly} stroke="rgba(148,163,184,0.4)" strokeWidth="0.75" strokeDasharray="2,2" />
+            <line x1={x1} y1={ly} x2={x2} y2={ly} stroke={color} strokeWidth="1.25" />
+            <polygon points={`${x1},${ly} ${x1+7},${ly-3.5} ${x1+7},${ly+3.5}`} fill={color} />
+            <polygon points={`${x2},${ly} ${x2-7},${ly-3.5} ${x2-7},${ly+3.5}`} fill={color} />
+          </>
+        )}
+        {indicatorType === 'vertical' && (
+          <>
+            <line x1={x1} y1={y1} x2={lx} y2={y1} stroke="rgba(148,163,184,0.4)" strokeWidth="0.75" strokeDasharray="2,2" />
+            <line x1={x2} y1={y2} x2={lx} y2={y2} stroke="rgba(148,163,184,0.4)" strokeWidth="0.75" strokeDasharray="2,2" />
+            <line x1={lx} y1={y1} x2={lx} y2={y2} stroke={color} strokeWidth="1.25" />
+            <polygon points={`${lx},${y1} ${lx-3.5},${y1+7} ${lx+3.5},${y1+7}`} fill={color} />
+            <polygon points={`${lx},${y2} ${lx-3.5},${y2-7} ${lx+3.5},${y2-7}`} fill={color} />
+          </>
+        )}
+        {indicatorType === 'callout' && (
+          <>
+            <line x1={x1} y1={y1} x2={lx} y2={ly} stroke={color} strokeWidth="1.25" />
+            <circle cx={x1} cy={y1} r="3" fill={color} />
+          </>
+        )}
+        {indicatorType === 'radial' && (
+          <>
+            <path d={`M ${x1},${y1} L ${x2},${y2} L ${lx},${ly}`} fill="none" stroke={color} strokeWidth="1.25" />
+            <circle cx={x1} cy={y1} r="2.5" fill={color} />
+          </>
+        )}
+
+        {/* Dimension Value Pill Badge (Matching Image 2) */}
+        <rect
+          x={lx - badgeWidth / 2}
+          y={ly - badgeHeight / 2}
+          width={badgeWidth}
+          height={badgeHeight}
+          rx="4"
+          fill="#1e3a8a"
+          fillOpacity="0.9"
+          stroke="#3b82f6"
+          strokeWidth={isActive ? 1.5 : 1}
+          style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.35))' }}
+        />
+        <text
+          x={lx}
+          y={ly + 3.5}
+          textAnchor="middle"
+          fill="#60a5fa"
+          fontSize="8.5"
+          fontWeight="bold"
+          fontFamily="monospace"
+        >
+          {displayLabel}
+        </text>
       </g>
     );
   });
 
-  const rulerBg = canvasTheme === 'white' ? '#f8fafc' : (canvasTheme === 'blueprint' ? '#071426' : '#0f172a');
-
   return (
-    <div style={{ backgroundColor: tc.layoutBg, borderRadius: '12px', border: `1px solid ${tc.border}`, display: 'flex', flexDirection: 'column', height: '100%', position: 'relative', overflow: 'hidden', fontFamily: "'Inter', sans-serif" }}>
-      {/* ── Toolbar ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 12px', backgroundColor: rulerBg, borderBottom: `1px solid ${tc.border}`, flexShrink: 0, zIndex: 20, userSelect: 'none' }}>
-        <span style={{ fontSize: '0.68rem', fontWeight: 700, color: canvasTheme === 'blueprint' ? '#38bdf8' : canvasTheme === 'dark' ? '#94a3b8' : '#475569', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-          📐 {selectedDwg?.name || 'Blueprint CAD'}
-        </span>
-        <div style={{ display: 'flex', alignItems: 'center', backgroundColor: canvasTheme === 'white' ? '#ffffff' : (canvasTheme === 'blueprint' ? '#0f2a4a' : '#1e293b'), borderRadius: '30px', border: `1px solid ${canvasTheme === 'white' ? '#cbd5e1' : (canvasTheme === 'blueprint' ? '#2d6da3' : '#334155')}`, padding: '3px 10px', gap: '6px', boxShadow: '0 2px 8px rgba(0,0,0,0.25)' }}>
-          <button onClick={() => setZoom(p => Math.max(0.3, p - 0.1))} style={{ background:'transparent', border:'none', color: canvasTheme!=='white'?'#94a3b8':'#64748b', fontSize:'1.05rem', cursor:'pointer', padding:'0', fontWeight:'bold', lineHeight:1 }}>−</button>
-          <span style={{ fontSize:'0.65rem', fontWeight:800, color: canvasTheme!=='white'?'#e2e8f0':'#334155', minWidth:'36px', textAlign:'center' }}>{Math.round(zoom*100)}%</span>
-          <button onClick={() => setZoom(p => Math.min(4, p + 0.1))} style={{ background:'transparent', border:'none', color: canvasTheme!=='white'?'#94a3b8':'#64748b', fontSize:'1.05rem', cursor:'pointer', padding:'0', fontWeight:'bold', lineHeight:1 }}>+</button>
-          <div style={{ width:'1px', height:'12px', backgroundColor: canvasTheme!=='white'?'#475569':'#cbd5e1' }} />
-          <button onClick={() => { setZoom(1); setPanOffset({x:0,y:0}); }} title="Fit to screen" style={{ background:'transparent', border:'none', color: canvasTheme!=='white'?'#94a3b8':'#64748b', cursor:'pointer', fontSize:'0.65rem', fontWeight:700, padding:'0 2px' }}>⊞</button>
-          <div style={{ width:'1px', height:'12px', backgroundColor: canvasTheme!=='white'?'#475569':'#cbd5e1' }} />
-          <button onClick={() => setCanvasTheme(p => p==='white'?'dark':p==='dark'?'blueprint':'white')} style={{ background:'transparent', border:'none', cursor:'pointer', color: canvasTheme==='blueprint'?'#38bdf8':canvasTheme==='dark'?'#facc15':'#64748b', fontSize:'0.62rem', fontWeight:800, padding:'0 2px' }}>
-            {canvasTheme === 'white' ? '☀ Light' : canvasTheme === 'dark' ? '🌙 Dark' : 'BP Blueprint'}
-          </button>
-        </div>
+    <div style={{ backgroundColor: '#071426', borderRadius: '8px', border: '1px solid #1e293b', display: 'flex', flexDirection: 'column', height: '100%', position: 'relative', overflow: 'hidden', fontFamily: "'Inter', sans-serif" }}>
+      {/* ── Minimal Floating Zoom Bar ── */}
+      <div style={{ position: 'absolute', top: 8, right: 12, zIndex: 20, display: 'flex', alignItems: 'center', backgroundColor: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(4px)', borderRadius: '20px', border: '1px solid rgba(59, 130, 246, 0.3)', padding: '2px 8px', gap: '6px' }}>
+        <button onClick={() => setZoom(p => Math.max(0.4, p - 0.1))} style={{ background:'transparent', border:'none', color: '#94a3b8', fontSize:'0.9rem', cursor:'pointer', padding:'0 2px', fontWeight:'bold', lineHeight:1 }}>−</button>
+        <span style={{ fontSize:'0.65rem', fontWeight:800, color: '#f8fafc', minWidth:'32px', textAlign:'center' }}>{Math.round(zoom*100)}%</span>
+        <button onClick={() => setZoom(p => Math.min(4, p + 0.1))} style={{ background:'transparent', border:'none', color: '#94a3b8', fontSize:'0.9rem', cursor:'pointer', padding:'0 2px', fontWeight:'bold', lineHeight:1 }}>+</button>
+        <div style={{ width:'1px', height:'10px', backgroundColor: '#334155' }} />
+        <button onClick={() => { setZoom(1); setPanOffset({x:0,y:0}); }} title="Fit" style={{ background:'transparent', border:'none', color: '#94a3b8', cursor:'pointer', fontSize:'0.65rem', fontWeight:700, padding:'0 2px' }}>⊞</button>
       </div>
 
-      {/* ── Canvas ── */}
+      {/* ── Canvas (viewBox matching DrawingManager canvas) ── */}
       <div
-        style={{ flex:1, position:'relative', overflow:'hidden', cursor: isPanning?'grabbing':'grab' }}
+        style={{ flex:1, position:'relative', overflow:'hidden', cursor: isPanning?'grabbing':'grab', display:'flex', alignItems:'center', justifyContent:'center' }}
         onWheel={handleWheel} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onContextMenu={e=>e.preventDefault()}
       >
-        <svg viewBox={`0 0 ${canvasW} ${canvasH}`} style={{ width:'100%', height:'100%', display:'block', userSelect:'none' }}>
-          <defs>
-            <pattern id="cad2d_grid" width="20" height="20" patternUnits="userSpaceOnUse">
-              <path d="M 20 0 L 0 0 0 20" fill="none" stroke={tc.grid} strokeWidth="0.5" strokeOpacity={tc.gridOpacity} />
-            </pattern>
-          </defs>
-
-          {/* Canvas background */}
-          <rect width={canvasW} height={canvasH} fill={tc.layoutBg} />
-          <rect width={canvasW} height={canvasH} fill="url(#cad2d_grid)" />
-
-          {/* Zoom + pan group */}
+        <svg viewBox={`0 0 ${canvasW} ${canvasH}`} style={{ width:'100%', height:'100%', display:'block', userSelect:'none' }} preserveAspectRatio="xMidYMid meet">
+          {/* Zoom + Pan Group */}
           <g transform={`translate(${canvasW/2+panOffset.x},${canvasH/2+panOffset.y}) scale(${zoom}) translate(${-canvasW/2},${-canvasH/2})`}>
-            {/* Paper shadow */}
-            <rect x={sheetX+4} y={sheetY+4} width={sheetW} height={sheetH} fill={tc.paperShadow} opacity="0.35" rx="2" />
-            {/* Paper sheet */}
-            <rect x={sheetX} y={sheetY} width={sheetW} height={sheetH} fill={tc.paperBg} rx="2" />
-            {/* Margin */}
-            <rect x={sheetX+12} y={sheetY+12} width={sheetW-24} height={sheetH-24} fill="none" stroke={tc.border} strokeWidth="0.75" strokeDasharray="4,4" />
+            {/* White Paper Canvas Background */}
+            <rect width={canvasW} height={canvasH} fill="#ffffff" rx="2" />
 
-            {/* Uploaded image or PDF Blueprint */}
-            {isCustomImage && (
-              <image href={activeImageSrc} x={sheetX+12} y={sheetY+12} width={sheetW-24} height={sheetH-24} preserveAspectRatio="xMidYMid meet" style={{ pointerEvents:'none' }} />
-            )}
+            {/* Drawing Background Image / PDF */}
+            {hasValidImage ? (
+              <image
+                href={activeImageSrc}
+                x="0"
+                y="0"
+                width={canvasW}
+                height={canvasH}
+                preserveAspectRatio="xMidYMid meet"
+                style={{ pointerEvents: 'none' }}
+              />
+            ) : null}
 
             {/* Vector shapes */}
             {selectedDwg && Array.isArray(selectedDwg.shapes) && selectedDwg.shapes.length > 0 && (
               <g>{selectedDwg.shapes.map(s => renderDrawingShape(s))}</g>
             )}
 
-            {/* Built-in flange */}
-            {isFlange && (
-              <g transform={`translate(${sheetX+20},0)`}>
-                <circle cx="160" cy={canvasH/2} r="90" fill="none" stroke={imageColor} strokeWidth="1.5" />
-                <circle cx="160" cy={canvasH/2} r="65" fill="none" stroke={imageColor} strokeWidth="1" strokeDasharray="5,5" />
-                <circle cx="160" cy={canvasH/2} r="30" fill="none" stroke={imageColor} strokeWidth="1.5" />
-                <line x1="160" y1={canvasH/2-105} x2="160" y2={canvasH/2+105} stroke={imageColor} strokeWidth="0.75" strokeDasharray="15,4,2,4" />
-                <line x1="20" y1={canvasH/2} x2="300" y2={canvasH/2} stroke={imageColor} strokeWidth="0.75" strokeDasharray="15,4,2,4" />
-                {[0,45,90,135,180,225,270,315].map((a,i)=>(
-                  <circle key={i} cx={160+65*Math.cos(a*Math.PI/180)} cy={canvasH/2+65*Math.sin(a*Math.PI/180)} r="8" fill="none" stroke={imageColor} strokeWidth="1" />
-                ))}
+            {/* Built-in template fallbacks if no image */}
+            {!hasValidImage && isFlange && (
+              <g transform={`translate(20, 0)`}>
+                <circle cx="160" cy={canvasH/2} r="80" fill="none" stroke="#2563eb" strokeWidth="1.5" />
+                <circle cx="160" cy={canvasH/2} r="55" fill="none" stroke="#2563eb" strokeWidth="1" strokeDasharray="4,4" />
+                <circle cx="160" cy={canvasH/2} r="25" fill="none" stroke="#2563eb" strokeWidth="1.5" />
+                <line x1="160" y1={canvasH/2-95} x2="160" y2={canvasH/2+95} stroke="#2563eb" strokeWidth="0.75" strokeDasharray="10,3" />
+                <line x1="30" y1={canvasH/2} x2="290" y2={canvasH/2} stroke="#2563eb" strokeWidth="0.75" strokeDasharray="10,3" />
               </g>
             )}
 
-            {/* Built-in Hydraulic Cylinder */}
-            {isCylinder && (
-              <g transform={`translate(${sheetX+50}, ${canvasH/2 - 120})`}>
-                <rect x="60" y="50" width="300" height="140" fill="none" stroke={imageColor} strokeWidth="2" />
-                <rect x="360" y="85" width="180" height="70" fill="none" stroke="#60a5fa" strokeWidth="2" />
-                <circle cx="560" cy="120" r="20" fill="none" stroke={imageColor} strokeWidth="2" />
-                <line x1="20" y1="120" x2="580" y2="120" stroke={imageColor} strokeWidth="0.75" strokeDasharray="15,4,2,4" />
+            {!hasValidImage && isCylinder && (
+              <g transform={`translate(30, 40)`}>
+                <rect x="40" y="40" width="240" height="110" fill="none" stroke="#2563eb" strokeWidth="2" />
+                <rect x="280" y="65" width="130" height="60" fill="none" stroke="#3b82f6" strokeWidth="2" />
+                <circle cx="430" cy="95" r="16" fill="none" stroke="#2563eb" strokeWidth="2" />
               </g>
             )}
 
-            {/* Built-in Product Checking Blueprint */}
-            {isProductChecking && (
-              <g transform={`translate(${sheetX+20}, 40)`}>
-                <text x="30" y="30" fill="#38bdf8" fontSize="8" fontFamily="monospace" opacity="0.7">UNSPECIFIED TOLERANCES ISO 2768-m</text>
-                <text x="30" y="42" fill="#38bdf8" fontSize="8" fontFamily="monospace" opacity="0.7">ALL DIMENSIONS IN MM</text>
-                <path d="M 30,350 L 30,300 L 50,300 L 250,300 L 270,300 L 270,350 L 350,350 L 350,250 L 470,250 L 470,350 Z" fill="none" stroke={imageColor} strokeWidth="1.5" />
-                <line x1="30" y1="300" x2="270" y2="300" stroke={imageColor} strokeWidth="0.5" strokeDasharray="10,4,2,4" />
-                <circle cx="200" cy="200" r="20" fill="none" stroke={imageColor} strokeWidth="1.5" />
-                <circle cx="200" cy="200" r="10" fill="none" stroke={imageColor} strokeWidth="0.75" strokeDasharray="3,3" />
-                <line x1="160" y1="200" x2="240" y2="200" stroke={imageColor} strokeWidth="0.75" strokeDasharray="10,2,2,2" />
-                <line x1="200" y1="160" x2="200" y2="240" stroke={imageColor} strokeWidth="0.75" strokeDasharray="10,2,2,2" />
-                <rect x="385" y="100" width="40" height="120" fill="none" stroke="#60a5fa" strokeWidth="1.5" />
-                <line x1="405" y1="70" x2="405" y2="240" stroke={imageColor} strokeWidth="0.75" strokeDasharray="5,2,1,2" />
+            {!hasValidImage && isProductChecking && (
+              <g transform={`translate(20, 20)`}>
+                <rect x="20" y="20" width={canvasW - 40} height={canvasH - 40} fill="none" stroke="#334155" strokeWidth="1" />
+                <circle cx={canvasW/2} cy={canvasH/2} r="50" fill="none" stroke="#2563eb" strokeWidth="1.5" />
               </g>
             )}
 
-            {/* Empty fallback */}
-            {!isFlange && !isCylinder && !isProductChecking && !isCustomImage && (!selectedDwg?.shapes || selectedDwg.shapes.length === 0) && (
+            {!hasValidImage && !isFlange && !isCylinder && !isProductChecking && (!selectedDwg?.shapes || selectedDwg.shapes.length === 0) && (
               <g>
-                <rect x={sheetX+60} y={sheetY+60} width={sheetW-120} height={sheetH-120} fill="none" stroke={imageColor} strokeWidth="1" strokeOpacity="0.35" strokeDasharray="8,4" />
-                <circle cx={canvasW/2} cy={canvasH/2} r="60" fill="none" stroke={imageColor} strokeWidth="1" strokeOpacity="0.35" strokeDasharray="8,4" />
-                <text x={canvasW/2} y={canvasH/2} textAnchor="middle" fill={tc.grid} fontSize="12" fontFamily="monospace" fontWeight="700" opacity="0.55">
-                  {selectedDwg ? selectedDwg.name : 'No Drawing Selected'}
+                <rect x="20" y="20" width={canvasW - 40} height={canvasH - 40} fill="none" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="6,4" />
+                <circle cx={canvasW/2} cy={canvasH/2} r="45" fill="none" stroke="#94a3b8" strokeWidth="1" strokeDasharray="4,4" />
+                <text x={canvasW/2} y={canvasH/2 + 4} textAnchor="middle" fill="#64748b" fontSize="11" fontFamily="sans-serif" fontWeight="600">
+                  {selectedDwg ? selectedDwg.name : 'No Drawing Loaded'}
                 </text>
               </g>
             )}
 
-            {/* Dimension overlays */}
+            {/* Dimension indicators on canvas */}
             {selectedDwg && renderDimensions(selectedDwg.dimensions || [])}
           </g>
-
-          {/* ── Top Ruler (fixed) ── */}
-          <g style={{ pointerEvents:'none' }}>
-            <rect x="0" y="0" width={canvasW} height="20" fill={rulerBg} opacity="0.97" />
-            <line x1="0" y1="20" x2={canvasW} y2="20" stroke={tc.border} strokeWidth="0.5" />
-            {Array.from({length:Math.ceil(canvasW/50)},(_,i)=>i*50).map(x=>(
-              <g key={`tr${x}`}>
-                <line x1={x} y1={14} x2={x} y2={20} stroke={tc.grid} strokeWidth="0.75" />
-                <text x={x+2} y={10} fill={tc.grid} fontSize="7" fontFamily="monospace">{x}</text>
-              </g>
-            ))}
-          </g>
-          {/* ── Left Ruler (fixed) ── */}
-          <g style={{ pointerEvents:'none' }}>
-            <rect x="0" y="20" width="20" height={canvasH} fill={rulerBg} opacity="0.97" />
-            <line x1="20" y1="20" x2="20" y2={canvasH} stroke={tc.border} strokeWidth="0.5" />
-            {Array.from({length:Math.ceil(canvasH/50)},(_,i)=>(i+1)*50).map(y=>(
-              <g key={`lr${y}`}>
-                <line x1={14} y1={y} x2={20} y2={y} stroke={tc.grid} strokeWidth="0.75" />
-                <text x={10} y={y-2} fill={tc.grid} fontSize="7" fontFamily="monospace" textAnchor="middle">{y}</text>
-              </g>
-            ))}
-          </g>
-          {/* Corner square */}
-          <rect x="0" y="0" width="20" height="20" fill={canvasTheme==='white'?'#e2e8f0':(canvasTheme==='blueprint'?'#0a1929':'#1e293b')} />
-          <text x="10" y="13" fill={tc.grid} fontSize="6" fontFamily="monospace" textAnchor="middle" fontWeight="700">px</text>
         </svg>
       </div>
     </div>
