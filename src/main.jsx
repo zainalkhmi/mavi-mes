@@ -19,6 +19,12 @@ async function showTauriWindow() {
   }
 }
 
+// Auto-recover from stale chunk 404s after new Vercel deployments
+window.addEventListener('vite:preloadError', (event) => {
+  event.preventDefault();
+  window.location.reload();
+});
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <HashRouter>

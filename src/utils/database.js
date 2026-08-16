@@ -66,6 +66,15 @@ export const updateTableRecord = async (tableId, recordId, data) => {
     if (target) return supabaseTablesDB.updateTableRecord(target.id, data);
     throw new Error(`Record ${recordId} not found`);
 };
+export const deleteTableRecord = async (tableId, recordId) => {
+    if (recordId === undefined) {
+        return supabaseTablesDB.deleteTableRecord(tableId);
+    }
+    const records = await getTableRecords(tableId);
+    const target = records.find(r => String(r.recordId).toLowerCase() === String(recordId).toLowerCase() || String(r.id) === String(recordId));
+    if (target) return supabaseTablesDB.deleteTableRecord(target.id);
+    return supabaseTablesDB.deleteTableRecord(recordId);
+};
 export const resolveTableIdReference = supabaseTablesDB.resolveTableIdReference;
 export const createTable = supabaseTablesDB.createTable;
 export const deleteTable = supabaseTablesDB.deleteTable;
