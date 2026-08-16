@@ -1,6 +1,6 @@
 // Shared utilities and constants extracted from AppBuilder.jsx
 import {
-    Smartphone, Tablet, Monitor, LayoutGrid
+    Smartphone, Tablet, Monitor, LayoutGrid, Tv
 } from 'lucide-react';
 
 export const DEVICE_PRESETS = {
@@ -12,7 +12,9 @@ export const DEVICE_PRESETS = {
     IPAD_PRO: { label: 'iPad Pro (1024x1366)', width: 1024, height: 1366, icon: Tablet, kind: 'TABLET' },
     SURFACE_PRO_7: { label: 'Surface Pro 7 (912x1368)', width: 912, height: 1368, kind: 'TABLET', icon: Tablet },
     LAPTOP_HD: { label: 'Laptop 720p (1280x720)', width: 1280, height: 720, icon: Monitor, kind: 'PC' },
-    DESKTOP_FHD: { label: 'Desktop FHD (1920x1080)', width: 1920, height: 1080, icon: Monitor, kind: 'PC' }
+    DESKTOP_FHD: { label: 'Desktop FHD (1920x1080)', width: 1920, height: 1080, icon: Monitor, kind: 'PC' },
+    TV_ANDON_FHD: { label: 'Smart TV / Andon FHD (1920x1080)', width: 1920, height: 1080, icon: Tv, kind: 'TV' },
+    TV_ANDON_4K: { label: 'Smart TV / Andon 4K (3840x2160)', width: 3840, height: 2160, icon: Tv, kind: 'TV' }
 };
 
 export const DEFAULT_FRONTLINE_APP_NAME = 'New Frontline App';

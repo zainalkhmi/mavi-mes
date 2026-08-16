@@ -171,7 +171,9 @@ const DEVICE_PRESETS = {
   IPAD_PRO: { label: 'iPad Pro (1024x1366)', width: 1024, height: 1366, kind: 'TABLET', icon: Tablet },
   SURFACE_PRO_7: { label: 'Surface Pro 7 (912x1368)', width: 912, height: 1368, kind: 'TABLET', icon: Tablet },
   LAPTOP_HD: { label: 'Laptop 720p (1280x720)', width: 1280, height: 720, kind: 'PC', icon: Monitor },
-  DESKTOP_FHD: { label: 'Desktop FHD (1920x1080)', width: 1920, height: 1080, kind: 'PC', icon: Monitor }
+  DESKTOP_FHD: { label: 'Desktop FHD (1920x1080)', width: 1920, height: 1080, kind: 'PC', icon: Monitor },
+  TV_ANDON_FHD: { label: 'Smart TV / Andon FHD (1920x1080)', width: 1920, height: 1080, kind: 'TV', icon: Tv },
+  TV_ANDON_4K: { label: 'Smart TV / Andon 4K (3840x2160)', width: 3840, height: 2160, kind: 'TV', icon: Tv }
 };
 
 
@@ -3398,25 +3400,19 @@ const LiveTerminal = () => {
   const scaleY = scale;
 
   const canvasFrameRadius = useMemo(() => {
-    if (!isPreset) return '0px';
-    return preset.kind === 'PHONE' ? '30px' : preset.kind === 'TABLET' ? '22px' : '10px';
-  }, [isPreset, preset]);
+    return '0px'; // Garis siku 90 derajat tajam tanpa chamfer / rounded
+  }, []);
 
   const canvasFrameShadow = useMemo(() => {
     if (!isPreset) {
       return 'none';
     }
-    return preset.kind === 'PHONE' || preset.kind === 'TABLET'
-      ? '0 0 0 12px #1e293b, 0 20px 50px rgba(0,0,0,0.3)'
-      : '0 0 0 1px #334155, 0 18px 40px rgba(15, 23, 42, 0.25)';
-  }, [isPreset, preset]);
+    return '0 0 0 1px rgba(255,255,255,0.15), 0 15px 35px rgba(0,0,0,0.3)';
+  }, [isPreset]);
 
   const canvasFrameBorder = useMemo(() => {
-    if (!isPreset) {
-      return 'none';
-    }
     return 'none';
-  }, [isPreset, isDark]);
+  }, []);
 
   const renderComponentInColumn = (comp, idx) => {
     const err = validationErrors[comp?.id];
