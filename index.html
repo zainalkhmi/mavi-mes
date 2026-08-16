@@ -17,6 +17,40 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Self-healing: if an outdated script fails to load after a deployment, clear SW cache and force reload once
+      window.addEventListener('error', function (event) {
+        var msg = (event && event.message) || '';
+        var target = event && event.target;
+        var isScriptError = (target && target.tagName === 'SCRIPT') || msg.includes('Failed to load module script') || msg.includes('mime type');
+        if (isScriptError && !sessionStorage.getItem('mavi_reload_attempted')) {
+          sessionStorage.setItem('mavi_reload_attempted', '1');
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function (registrations) {
+              for (var i = 0; i < registrations.length; i++) {
+                registrations[i].unregister();
+              }
+              if ('caches' in window) {
+                caches.keys().then(function (names) {
+                  Promise.all(names.map(function (n) { return caches.delete(n); })).then(function () {
+                    window.location.reload();
+                  });
+                });
+              } else {
+                window.location.reload();
+              }
+            }).catch(function () {
+              window.location.reload();
+            });
+          } else {
+            window.location.reload();
+          }
+        }
+      }, true);
+      window.addEventListener('load', function () {
+        sessionStorage.removeItem('mavi_reload_attempted');
+      });
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
