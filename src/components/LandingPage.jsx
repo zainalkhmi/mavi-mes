@@ -771,6 +771,106 @@ const LandingPage = ({ initialTab = 'overview' }) => {
               </div>
             </section>
 
+            {/* PLATFORM OVERVIEW VIDEO SHOWCASE */}
+            <section style={{ marginBottom: '64px' }}>
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.7) 100%)',
+                border: '1px solid rgba(56, 189, 248, 0.35)',
+                borderRadius: '24px',
+                padding: '24px',
+                boxShadow: '0 25px 60px -12px rgba(56, 189, 248, 0.2), 0 0 0 1px rgba(255,255,255,0.05)',
+                overflow: 'hidden'
+              }}>
+                {/* Video Header Bar */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  paddingBottom: '16px',
+                  marginBottom: '16px',
+                  borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                  flexWrap: 'wrap',
+                  gap: '12px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444' }} />
+                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#f59e0b' }} />
+                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#10b981' }} />
+                    </div>
+                    <span style={{ color: '#e2e8f0', fontWeight: 800, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Play size={14} fill="#38bdf8" color="#38bdf8" /> MAVI-MES Platform Overview 1.mp4
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{
+                      background: 'rgba(56, 189, 248, 0.15)',
+                      color: '#38bdf8',
+                      padding: '4px 12px',
+                      borderRadius: '100px',
+                      fontSize: '0.75rem',
+                      fontWeight: 800,
+                      border: '1px solid rgba(56, 189, 248, 0.3)'
+                    }}>
+                      ⚡ OFFICIAL OVERVIEW TOUR
+                    </span>
+                  </div>
+                </div>
+
+                {/* HTML5 Video Player */}
+                <div style={{
+                  position: 'relative',
+                  borderRadius: '16px',
+                  overflow: 'hidden',
+                  background: '#000',
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.6)'
+                }}>
+                  <video
+                    controls
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    preload="metadata"
+                    style={{
+                      width: '100%',
+                      height: 'auto',
+                      maxHeight: '680px',
+                      display: 'block',
+                      objectFit: 'contain',
+                      borderRadius: '16px'
+                    }}
+                    src="/assets/mavi-core-overview-1.mp4"
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                </div>
+
+                {/* Video Badges & Highlights */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginTop: '18px',
+                  paddingTop: '14px',
+                  borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+                  flexWrap: 'wrap',
+                  gap: '12px'
+                }}>
+                  <div style={{ color: '#94a3b8', fontSize: '0.86rem' }}>
+                    <strong>Saksikan bagaimana MAVI menghubungkan</strong> aplikasi frontline, otomasi mesin PLC, dan OEE telemetry secara terpadu.
+                  </div>
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', fontSize: '0.8rem', color: '#cbd5e1', fontWeight: 700 }}>
+                    <span style={{ color: '#38bdf8' }}>✓ No-Code App Builder</span>
+                    <span style={{ color: '#34d399' }}>✓ PLC & OPC-UA Ready</span>
+                    <span style={{ color: '#fbbf24' }}>✓ Live OEE Cockpit</span>
+                    <span style={{ color: '#c084fc' }}>✓ AI Vision Inspection</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
             {/* 2. CONNECTED ARTIFACTS: ONE COMPOSABLE PLATFORM (TULIP SIGNATURE 4 PILLARS) */}
             <section style={{ marginBottom: '60px' }}>
               <div style={{ textAlign: 'center', maxWidth: '780px', margin: '0 auto 36px auto' }}>
