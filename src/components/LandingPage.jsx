@@ -53,15 +53,40 @@ import {
   Calculator,
   HardDrive,
   RefreshCw,
-  CheckSquare
+  CheckSquare,
+  ShoppingBag,
+  Award,
+  Boxes,
+  Wrench,
+  HeartPulse,
+  Search,
+  Download,
+  ShieldAlert,
+  Tag,
+  Share2,
+  ThumbsUp
 } from 'lucide-react';
+import { categories as catalogCategories, rawTemplates as catalogTemplates } from '../utils/appStoreCatalog';
 
-const LandingPage = () => {
+const LandingPage = ({ initialTab = 'overview' }) => {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
-  // Tab Navigation State: 'overview' | 'builder' | 'analytics' | 'iot' | 'features' | 'pricing' | 'faq'
-  const [activeTab, setActiveTab] = useState('overview');
+  // Tab Navigation State: 'overview' | 'store' | 'builder' | 'analytics' | 'iot' | 'features' | 'pricing' | 'faq'
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
+  // Mavi Store States
+  const [storeSearchQuery, setStoreSearchQuery] = useState('');
+  const [storeActiveCategory, setStoreActiveCategory] = useState('All');
+  const [selectedTemplateModal, setSelectedTemplateModal] = useState(null);
+  const [storeInstalledList, setStoreInstalledList] = useState({});
+  const [storeActiveStepIndex, setStoreActiveStepIndex] = useState(0);
 
   // Pricing, FAQ, Modals & Demo Credentials States
   const [openFaqIndex, setOpenFaqIndex] = useState(0);
@@ -128,7 +153,7 @@ const LandingPage = () => {
   useEffect(() => {
     const handleHash = () => {
       const hash = window.location.hash.replace('#', '').replace('/', '');
-      if (['overview', 'builder', 'analytics', 'iot', 'capabilities', 'features', 'pricing', 'faq'].includes(hash)) {
+      if (['overview', 'store', 'builder', 'analytics', 'iot', 'capabilities', 'features', 'pricing', 'faq'].includes(hash)) {
         setActiveTab(hash === 'capabilities' ? 'features' : hash);
       }
     };
@@ -177,13 +202,126 @@ const LandingPage = () => {
 
   const tabsList = [
     { key: 'overview', label: 'Overview', icon: <Sparkles size={15} /> },
+    { key: 'store', label: 'Mavi Store', icon: <ShoppingBag size={15} />, highlight: true },
     { key: 'builder', label: 'App Builder', icon: <Layout size={15} /> },
     { key: 'analytics', label: 'Analytics & OEE', icon: <BarChart3 size={15} /> },
     { key: 'iot', label: 'IoT & Machines', icon: <Cpu size={15} /> },
     { key: 'features', label: 'Features', icon: <Zap size={15} /> },
-    { key: 'pricing', label: 'Pricing & Value', icon: <Flame size={15} />, highlight: true },
+    { key: 'pricing', label: 'Pricing & Value', icon: <Flame size={15} /> },
     { key: 'faq', label: 'FAQ & Support', icon: <HelpCircle size={15} /> }
   ];
+
+  // Full Catalog of All Enterprise App Templates (Play Store style, matched 1:1 with Mavi Store)
+  const storeCategories = catalogCategories;
+
+  const storeTemplates = catalogTemplates.map((t, idx) => {
+    const tableNames = (t.guide?.tables || []).map(tb => tb.name || tb);
+    const triggerNames = (t.guide?.triggers || []).map(tr => `${tr.event}: ${tr.function}`);
+    const mockupSteps = (t.guide?.steps && t.guide.steps.length > 0)
+      ? t.guide.steps.map(st => ({ step: st.name, desc: st.description }))
+      : [
+          { step: 'Main Interface', desc: t.description },
+          { step: 'Operation & Trigger Flow', desc: t.guide?.operation || t.longDescription || t.description },
+          { step: 'Database Records & Logging', desc: 'Data tersimpan otomatis dan persisten ke database sistem.' }
+        ];
+
+    return {
+      id: t.id,
+      name: t.name,
+      category: t.category,
+      badge: idx < 3 ? "Editor's Choice" : (t.rating >= 5.0 ? 'Top Rated' : 'Verified Suite'),
+      rating: t.rating || 5.0,
+      reviews: 120 + ((idx * 19) % 180),
+      installs: t.installs === 'New' ? '3.4k+' : (t.installs || '2.5k+'),
+      version: ['incoming-inspection', 'weigh-dispense', 'assy-line-production'].includes(t.id) ? 'v2.0.0' : 'v1.0.0',
+      color: t.accent || '#2563eb',
+      iconBg: t.bg || 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+      rawIcon: t.icon,
+      icon: t.icon,
+      tagline: t.description,
+      description: t.longDescription || t.description,
+      features: t.features || [],
+      tables: tableNames.length > 0 ? tableNames : ['System_Logs', 'Operator_Activity'],
+      triggers: triggerNames.length > 0 ? triggerNames : ['ON_CLICK: Execute Action', 'ON_SUBMIT: Save Record'],
+      mockupSteps: mockupSteps
+    };
+  });
+
+  const renderTemplateIcon = (iconItem, size = 24) => {
+    if (!iconItem) return <Sparkles size={size} color="white" />;
+    if (React.isValidElement(iconItem)) {
+      return React.cloneElement(iconItem, { size, color: 'white' });
+    }
+    switch (iconItem) {
+      case 'Award': return <Award size={size} color="white" />;
+      case 'Activity': return <Activity size={size} color="white" />;
+      case 'AlertTriangle': return <AlertTriangle size={size} color="white" />;
+      case 'BarChart3': return <BarChart3 size={size} color="white" />;
+      case 'FileText': return <FileText size={size} color="white" />;
+      case 'ShieldCheck': return <ShieldCheck size={size} color="white" />;
+      case 'Boxes': return <Boxes size={size} color="white" />;
+      case 'HeartPulse': return <HeartPulse size={size} color="white" />;
+      case 'Cpu': return <Cpu size={size} color="white" />;
+      case 'ShieldAlert': return <ShieldAlert size={size} color="white" />;
+      case 'Wrench': return <Wrench size={size} color="white" />;
+      case 'Gauge': return <Gauge size={size} color="white" />;
+      case 'Search': return <Search size={size} color="white" />;
+      case 'ClipboardList': return <ClipboardList size={size} color="white" />;
+      case 'Package': return <Package size={size} color="white" />;
+      case 'Truck': return <Truck size={size} color="white" />;
+      case 'PlayCircle': return <PlayCircle size={size} color="white" />;
+      case 'Settings': return <Settings size={size} color="white" />;
+      case 'Layout': return <Layout size={size} color="white" />;
+      case 'Zap': return <Zap size={size} color="white" />;
+      case 'Sliders': return <Sliders size={size} color="white" />;
+      case 'Tag': return <Tag size={size} color="white" />;
+      default: return <Sparkles size={size} color="white" />;
+    }
+  };
+
+  const filteredStoreTemplates = storeTemplates.filter(t => {
+    let matchesCat = false;
+    if (storeActiveCategory === 'All') {
+      matchesCat = true;
+    } else if (storeActiveCategory === 'App Management') {
+      matchesCat = !!storeInstalledList[t.id];
+    } else {
+      matchesCat = t.category === storeActiveCategory;
+    }
+
+    const query = storeSearchQuery.trim().toLowerCase();
+    if (!query) return matchesCat;
+
+    const matchesSearch = 
+      t.name.toLowerCase().includes(query) ||
+      t.description.toLowerCase().includes(query) ||
+      (t.tagline && t.tagline.toLowerCase().includes(query)) ||
+      t.category.toLowerCase().includes(query) ||
+      (t.features && t.features.some(f => f.toLowerCase().includes(query))) ||
+      (t.tables && t.tables.some(tb => String(tb).toLowerCase().includes(query)));
+
+    return matchesCat && matchesSearch;
+  });
+
+  const totalSearchMatchesAllCategories = storeSearchQuery.trim()
+    ? storeTemplates.filter(t => {
+        const query = storeSearchQuery.trim().toLowerCase();
+        return t.name.toLowerCase().includes(query) ||
+          t.description.toLowerCase().includes(query) ||
+          (t.tagline && t.tagline.toLowerCase().includes(query)) ||
+          t.category.toLowerCase().includes(query) ||
+          (t.features && t.features.some(f => f.toLowerCase().includes(query))) ||
+          (t.tables && t.tables.some(tb => String(tb).toLowerCase().includes(query)));
+      }).length
+    : storeTemplates.length;
+
+  const handleInstallTemplate = (template) => {
+    setStoreInstalledList(prev => ({ ...prev, [template.id]: true }));
+    setModalSuccessMsg(`Template "${template.name}" berhasil disiapkan untuk workspace!`);
+    setTimeout(() => {
+      setModalSuccessMsg('');
+    }, 4000);
+  };
 
   return (
     <div style={{
@@ -367,6 +505,30 @@ const LandingPage = () => {
         </div>
       )}
 
+      {/* TOAST SUCCESS NOTIFICATION */}
+      {modalSuccessMsg && (
+        <div style={{
+          position: 'fixed',
+          top: '75px',
+          right: '24px',
+          zIndex: 1200,
+          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+          color: 'white',
+          padding: '14px 22px',
+          borderRadius: '14px',
+          boxShadow: '0 10px 30px rgba(16, 185, 129, 0.4)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          fontWeight: 700,
+          fontSize: '0.9rem',
+          animation: 'fadeIn 0.25s ease'
+        }}>
+          <CheckCircle2 size={20} color="white" />
+          <span>{modalSuccessMsg}</span>
+        </div>
+      )}
+
       {/* SINGLE PRIMARY STICKY TAB PILL BAR */}
       <div style={{
         position: 'sticky',
@@ -432,179 +594,681 @@ const LandingPage = () => {
       <main style={{ minHeight: 'calc(100vh - 160px)', paddingBottom: '40px' }}>
 
         {/* ========================================================================= */}
-        {/* 1. TAB: OVERVIEW */}
+        {/* 1. TAB: OVERVIEW (TULIP PLATFORM INSPIRED: ADAPTABLE PRODUCTION SYSTEMS) */}
         {/* ========================================================================= */}
         {activeTab === 'overview' && (
-          <div style={{ animation: 'fadeIn 0.3s ease' }}>
-            {/* Hero Section */}
+          <div style={{ animation: 'fadeIn 0.3s ease', maxWidth: '1360px', margin: '0 auto', padding: '20px 24px 60px 24px', boxSizing: 'border-box' }}>
+            
+            {/* 1. HERO SECTION (TULIP STYLE: Adaptable production systems. Built around operations.) */}
             <section style={{
-              maxWidth: '1200px',
-              margin: '0 auto',
-              padding: '60px 30px 40px 30px',
-              textAlign: 'center',
-              boxSizing: 'border-box'
+              background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.8) 50%, rgba(15, 23, 42, 0.95) 100%)',
+              border: '1px solid rgba(59, 130, 246, 0.25)',
+              borderRadius: '28px',
+              padding: '56px 40px',
+              position: 'relative',
+              overflow: 'hidden',
+              marginBottom: '50px',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.5)'
             }}>
+              {/* Background ambient glow effects */}
               <div style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                background: 'rgba(59, 130, 246, 0.08)',
-                border: '1px solid rgba(59, 130, 246, 0.25)',
-                padding: '6px 16px',
-                borderRadius: '30px',
-                color: '#60a5fa',
-                fontSize: '0.8rem',
-                fontWeight: 700,
-                marginBottom: '20px'
-              }}>
-                <Sparkles size={14} /> The Modern Frontline Operations & MES Ecosystem for Indonesian Factories
-              </div>
+                position: 'absolute',
+                top: '-20%',
+                right: '-10%',
+                width: '450px',
+                height: '450px',
+                background: 'radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, transparent 70%)',
+                filter: 'blur(70px)',
+                pointerEvents: 'none'
+              }} />
+              <div style={{
+                position: 'absolute',
+                bottom: '-20%',
+                left: '-10%',
+                width: '400px',
+                height: '400px',
+                background: 'radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, transparent 70%)',
+                filter: 'blur(70px)',
+                pointerEvents: 'none'
+              }} />
 
-              <h1 style={{
-                fontSize: '3.4rem',
-                lineHeight: 1.15,
-                fontWeight: 900,
-                color: 'white',
-                maxWidth: '900px',
-                margin: '0 auto 20px auto',
-                letterSpacing: '-1px'
-              }}>
-                Build No-Code Factory Apps. <br />
-                <span style={{
-                  background: 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 50%, #1d4ed8 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent'
+              <div style={{ maxWidth: '960px', margin: '0 auto', textAlign: 'center', position: 'relative', zIndex: 1 }}>
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  background: 'rgba(59, 130, 246, 0.12)',
+                  border: '1px solid rgba(59, 130, 246, 0.35)',
+                  padding: '6px 18px',
+                  borderRadius: '100px',
+                  color: '#60a5fa',
+                  fontSize: '0.82rem',
+                  fontWeight: 800,
+                  letterSpacing: '0.04em',
+                  textTransform: 'uppercase',
+                  marginBottom: '24px'
                 }}>
-                  Eliminate Paper & Master Real-Time OEE.
-                </span>
-              </h1>
+                  <Sparkles size={15} color="#60a5fa" /> Frontline Operations & Composable MES Platform
+                </div>
 
-              <p style={{
-                fontSize: '1.15rem',
-                lineHeight: '1.6',
-                color: '#94a3b8',
-                maxWidth: '720px',
-                margin: '0 auto 36px auto',
-                fontWeight: 500
-              }}>
-                Like Tulip, MAVI-MES gives manufacturing engineers the power to build custom operator guide apps, connect shop-floor PLCs, automate AI quality checks, and track live production telemetry—deployed in just 2 weeks.
-              </p>
+                <h1 style={{
+                  fontSize: 'clamp(2.4rem, 4.8vw, 3.8rem)',
+                  lineHeight: 1.15,
+                  fontWeight: 900,
+                  color: 'white',
+                  margin: '0 auto 24px auto',
+                  letterSpacing: '-0.03em'
+                }}>
+                  Adaptable production systems. <br />
+                  <span style={{
+                    background: 'linear-gradient(135deg, #60a5fa 0%, #38bdf8 50%, #34d399 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent'
+                  }}>
+                    Built around frontline operations.
+                  </span>
+                </h1>
 
-              {/* Action Buttons */}
-              <div style={{
-                display: 'flex',
-                justifyContent: 'center',
-                gap: '14px',
-                flexWrap: 'wrap',
-                marginBottom: '36px'
-              }}>
-                <button
-                  onClick={() => navigate('/login')}
-                  style={{
-                    background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-                    border: 'none',
-                    color: 'white',
-                    padding: '14px 32px',
-                    borderRadius: '10px',
-                    fontWeight: 800,
-                    fontSize: '0.95rem',
-                    cursor: 'pointer',
-                    boxShadow: '0 8px 24px rgba(37, 99, 235, 0.4)',
-                    transition: 'all 0.2s',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; }}
-                >
-                  Launch Platform Workspace <ArrowRight size={18} />
-                </button>
-                
-                <button
-                  onClick={() => switchTab('pricing')}
-                  style={{
-                    background: 'rgba(56, 189, 248, 0.1)',
-                    border: '1px solid rgba(56, 189, 248, 0.35)',
-                    color: '#38bdf8',
-                    padding: '14px 28px',
-                    borderRadius: '10px',
-                    fontWeight: 800,
-                    fontSize: '0.95rem',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
-                  }}
-                >
-                  <Flame size={18} /> View Transparent Pricing (Rp 3.5jt/mo)
-                </button>
-              </div>
+                <p style={{
+                  fontSize: 'clamp(1rem, 1.8vw, 1.2rem)',
+                  lineHeight: 1.65,
+                  color: '#94a3b8',
+                  maxWidth: '820px',
+                  margin: '0 auto 36px auto',
+                  fontWeight: 400
+                }}>
+                  Run manufacturing production with solutions as dynamic and unique as your factory floor. 
+                  Build no-code operator apps, connect shop-floor PLCs & AI vision cameras, automate line triggers, and master real-time OEE on a unified, governed data model.
+                </p>
 
-              {/* Quick Credentials Info Bar */}
-              <div style={{
-                maxWidth: '560px',
-                margin: '0 auto',
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '12px',
-                padding: '12px 20px',
-                fontSize: '0.85rem',
-                color: '#94a3b8',
-                display: 'flex',
-                justifyContent: 'center',
-                gap: '20px',
-                alignItems: 'center'
-              }}>
-                <div><strong>Engineer:</strong> <span style={{ color: 'white', fontFamily: 'monospace' }}>engineer / 123</span></div>
-                <div style={{ width: '1px', height: '14px', backgroundColor: 'rgba(255,255,255,0.15)' }}></div>
-                <div><strong>Operator:</strong> <span style={{ color: 'white', fontFamily: 'monospace' }}>operator / 123</span></div>
-              </div>
-            </section>
+                {/* Primary CTA Buttons */}
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '14px', flexWrap: 'wrap', marginBottom: '32px' }}>
+                  <button
+                    onClick={() => switchTab('store')}
+                    style={{
+                      background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                      border: 'none',
+                      color: 'white',
+                      padding: '14px 30px',
+                      borderRadius: '12px',
+                      fontWeight: 800,
+                      fontSize: '0.95rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxShadow: '0 8px 25px rgba(37, 99, 235, 0.45)',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; }}
+                  >
+                    <ShoppingBag size={18} /> Jelajahi Mavi Store ({storeTemplates.length}+ Apps)
+                  </button>
 
-            {/* Metric Highlights Banner */}
-            <section style={{ maxWidth: '1200px', margin: '0 auto 50px auto', padding: '0 30px' }}>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                gap: '16px',
-                background: 'rgba(15, 23, 42, 0.7)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '18px',
-                padding: '24px 32px'
-              }}>
-                {[
-                  { value: '2 Weeks', label: 'Time to First Production Line Live', color: '#38bdf8' },
-                  { value: '99.4%', label: 'First Pass Quality Yield Average', color: '#10b981' },
-                  { value: '100% Bahasa', label: 'Indonesian Native Shop-Floor UI', color: '#f59e0b' },
-                  { value: '0 Code', label: 'Drag-and-Drop Frontline App Creation', color: '#a855f7' }
-                ].map((stat, i) => (
-                  <div key={i} style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '1.8rem', fontWeight: 900, color: stat.color, marginBottom: '4px' }}>{stat.value}</div>
-                    <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600 }}>{stat.label}</div>
+                  <button
+                    onClick={() => switchTab('builder')}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.18)',
+                      color: 'white',
+                      padding: '14px 26px',
+                      borderRadius: '12px',
+                      fontWeight: 700,
+                      fontSize: '0.95rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.14)'; e.currentTarget.style.borderColor = '#38bdf8'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.18)'; }}
+                  >
+                    <Layout size={18} color="#38bdf8" /> Buka App Builder Studio
+                  </button>
+
+                  <button
+                    onClick={() => switchTab('analytics')}
+                    style={{
+                      background: 'rgba(16, 185, 129, 0.1)',
+                      border: '1px solid rgba(16, 185, 129, 0.3)',
+                      color: '#34d399',
+                      padding: '14px 24px',
+                      borderRadius: '12px',
+                      fontWeight: 700,
+                      fontSize: '0.95rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    <BarChart3 size={18} /> Live OEE Analytics
+                  </button>
+                </div>
+
+                {/* Quick Account Test Bar */}
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '16px',
+                  background: 'rgba(15, 23, 42, 0.85)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  padding: '10px 20px',
+                  borderRadius: '12px',
+                  fontSize: '0.82rem',
+                  color: '#94a3b8',
+                  flexWrap: 'wrap',
+                  justifyContent: 'center'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Users size={14} color="#38bdf8" />
+                    <strong>Akun Demo Engineer:</strong> <span style={{ color: '#e2e8f0', fontFamily: 'monospace' }}>engineer / 123</span>
                   </div>
-                ))}
+                  <div style={{ width: '1px', height: '14px', background: 'rgba(255,255,255,0.15)' }} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Monitor size={14} color="#34d399" />
+                    <strong>Operator:</strong> <span style={{ color: '#e2e8f0', fontFamily: 'monospace' }}>operator / 123</span>
+                  </div>
+                </div>
               </div>
             </section>
 
-            {/* 4 Interactive Feature Pillars */}
-            <section style={{ maxWidth: '1200px', margin: '0 auto 60px auto', padding: '0 30px' }}>
-              <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-                <h3 style={{ fontSize: '1.8rem', fontWeight: 800, color: 'white', margin: '0 0 8px 0' }}>
-                  Explore The Frontline Operating Suite
-                </h3>
-                <p style={{ color: '#94a3b8', fontSize: '0.95rem', margin: 0 }}>
-                  Click any module to jump directly to its dedicated interactive deep-dive.
+            {/* 2. CONNECTED ARTIFACTS: ONE COMPOSABLE PLATFORM (TULIP SIGNATURE 4 PILLARS) */}
+            <section style={{ marginBottom: '60px' }}>
+              <div style={{ textAlign: 'center', maxWidth: '780px', margin: '0 auto 36px auto' }}>
+                <span style={{ fontSize: '0.8rem', color: '#38bdf8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  AUTHORING & COMPOSABILITY
+                </span>
+                <h2 style={{ fontSize: '2.2rem', fontWeight: 900, color: 'white', margin: '8px 0 12px 0', letterSpacing: '-0.02em' }}>
+                  Connected Artifacts. One Composable Platform.
+                </h2>
+                <p style={{ color: '#94a3b8', fontSize: '1rem', lineHeight: '1.6', margin: 0 }}>
+                  Semua elemen frontline beroperasi di atas satu Common Data Model (CDM). Data dan peristiwa dari operator, mesin, kamera, dan AI saling terhubung secara real-time tanpa batas sistem.
                 </p>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
+              {/* 4 Composable Pillars Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
+                
+                {/* Pillar 1: APPS */}
+                <div style={{
+                  background: 'rgba(15, 23, 42, 0.75)',
+                  border: '1px solid rgba(59, 130, 246, 0.25)',
+                  borderRadius: '20px',
+                  padding: '28px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: '#3b82f6' }} />
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <span style={{ fontSize: '0.72rem', background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', padding: '4px 10px', borderRadius: '100px', fontWeight: 800, textTransform: 'uppercase' }}>
+                        APPS
+                      </span>
+                      <Layout size={22} color="#3b82f6" />
+                    </div>
+                    <h3 style={{ fontSize: '1.3rem', fontWeight: 800, color: 'white', margin: '0 0 10px 0' }}>
+                      Apps that streamline work
+                    </h3>
+                    <p style={{ color: '#94a3b8', fontSize: '0.88rem', lineHeight: '1.6', margin: '0 0 20px 0' }}>
+                      Bangun instruksi kerja digital (SOP), checklist inspeksi QC, terminal Andon, dan panel manajemen shop-floor tanpa menulis satu baris kode pun.
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.8rem', color: '#cbd5e1' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle2 size={14} color="#38bdf8" /> <span>Visual Drag-and-Drop Canvas</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle2 size={14} color="#38bdf8" /> <span>Operator Touchscreen & Barcode Ready</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle2 size={14} color="#38bdf8" /> <span>Step-by-Step Guided Assembly</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => switchTab('builder')}
+                    style={{
+                      marginTop: '24px',
+                      background: 'rgba(59, 130, 246, 0.12)',
+                      border: '1px solid rgba(59, 130, 246, 0.3)',
+                      color: '#60a5fa',
+                      padding: '10px 16px',
+                      borderRadius: '10px',
+                      fontWeight: 700,
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}
+                  >
+                    <span>Jelajahi App Studio</span> <ChevronRight size={14} />
+                  </button>
+                </div>
+
+                {/* Pillar 2: AGENTS */}
+                <div style={{
+                  background: 'rgba(15, 23, 42, 0.75)',
+                  border: '1px solid rgba(168, 85, 247, 0.25)',
+                  borderRadius: '20px',
+                  padding: '28px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: '#a855f7' }} />
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <span style={{ fontSize: '0.72rem', background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', padding: '4px 10px', borderRadius: '100px', fontWeight: 800, textTransform: 'uppercase' }}>
+                        AGENTS & AI
+                      </span>
+                      <Sparkles size={22} color="#a855f7" />
+                    </div>
+                    <h3 style={{ fontSize: '1.3rem', fontWeight: 800, color: 'white', margin: '0 0 10px 0' }}>
+                      Agents grounded in context
+                    </h3>
+                    <p style={{ color: '#94a3b8', fontSize: '0.88rem', lineHeight: '1.6', margin: '0 0 20px 0' }}>
+                      Agen AI dan model Computer Vision menganalisis data operasional real-time: membaca jangka sorong digital via OCR, mendeteksi cacat visual, dan memberikan rekomendasi terukur.
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.8rem', color: '#cbd5e1' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle2 size={14} color="#a855f7" /> <span>Real-Time Caliper & Gauge OCR</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle2 size={14} color="#a855f7" /> <span>Vision QC Pass/Fail AI Inferences</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle2 size={14} color="#a855f7" /> <span>Guarded Context-Aware Decisions</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => switchTab('features')}
+                    style={{
+                      marginTop: '24px',
+                      background: 'rgba(168, 85, 247, 0.12)',
+                      border: '1px solid rgba(168, 85, 247, 0.3)',
+                      color: '#c084fc',
+                      padding: '10px 16px',
+                      borderRadius: '10px',
+                      fontWeight: 700,
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}
+                  >
+                    <span>Lihat Solusi Vision & AI</span> <ChevronRight size={14} />
+                  </button>
+                </div>
+
+                {/* Pillar 3: AUTOMATIONS */}
+                <div style={{
+                  background: 'rgba(15, 23, 42, 0.75)',
+                  border: '1px solid rgba(245, 158, 11, 0.25)',
+                  borderRadius: '20px',
+                  padding: '28px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: '#f59e0b' }} />
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <span style={{ fontSize: '0.72rem', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', padding: '4px 10px', borderRadius: '100px', fontWeight: 800, textTransform: 'uppercase' }}>
+                        AUTOMATIONS
+                      </span>
+                      <Zap size={22} color="#f59e0b" />
+                    </div>
+                    <h3 style={{ fontSize: '1.3rem', fontWeight: 800, color: 'white', margin: '0 0 10px 0' }}>
+                      Automations that span the floor
+                    </h3>
+                    <p style={{ color: '#94a3b8', fontSize: '0.88rem', lineHeight: '1.6', margin: '0 0 20px 0' }}>
+                      Hubungkan trigger otomatis lintas mesin PLC, aplikasi operator, timbangan, dan ERP. Setiap aksi menulis ke basis data bersama sehingga konteks lini tidak pernah terputus.
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.8rem', color: '#cbd5e1' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle2 size={14} color="#f59e0b" /> <span>Event-Driven Shopfloor Triggers</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle2 size={14} color="#f59e0b" /> <span>Automated Andon Escalations</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle2 size={14} color="#f59e0b" /> <span>Live Supabase / Postgres Sync</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => switchTab('iot')}
+                    style={{
+                      marginTop: '24px',
+                      background: 'rgba(245, 158, 11, 0.12)',
+                      border: '1px solid rgba(245, 158, 11, 0.3)',
+                      color: '#fbbf24',
+                      padding: '10px 16px',
+                      borderRadius: '10px',
+                      fontWeight: 700,
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}
+                  >
+                    <span>Eksplorasi Automasi & IoT</span> <ChevronRight size={14} />
+                  </button>
+                </div>
+
+                {/* Pillar 4: ANALYTICS */}
+                <div style={{
+                  background: 'rgba(15, 23, 42, 0.75)',
+                  border: '1px solid rgba(16, 185, 129, 0.25)',
+                  borderRadius: '20px',
+                  padding: '28px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: '#10b981' }} />
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <span style={{ fontSize: '0.72rem', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', padding: '4px 10px', borderRadius: '100px', fontWeight: 800, textTransform: 'uppercase' }}>
+                        ANALYTICS
+                      </span>
+                      <BarChart3 size={22} color="#10b981" />
+                    </div>
+                    <h3 style={{ fontSize: '1.3rem', fontWeight: 800, color: 'white', margin: '0 0 10px 0' }}>
+                      Analytics with live data
+                    </h3>
+                    <p style={{ color: '#94a3b8', fontSize: '0.88rem', lineHeight: '1.6', margin: '0 0 20px 0' }}>
+                      Susun analitik OEE real-time (Availability, Performance, Quality) langsung dari data operasional asli. Setiap metrik dapat ditelusuri ke stasiun dan kejadian downtime penyebabnya.
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.8rem', color: '#cbd5e1' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle2 size={14} color="#10b981" /> <span>Real-Time OEE Radial Gauges</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle2 size={14} color="#10b981" /> <span>Downtime Root Cause Pareto</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle2 size={14} color="#10b981" /> <span>Cycle Time vs Takt Balancing</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => switchTab('analytics')}
+                    style={{
+                      marginTop: '24px',
+                      background: 'rgba(16, 185, 129, 0.12)',
+                      border: '1px solid rgba(16, 185, 129, 0.3)',
+                      color: '#34d399',
+                      padding: '10px 16px',
+                      borderRadius: '10px',
+                      fontWeight: 700,
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}
+                  >
+                    <span>Buka OEE Analytics</span> <ChevronRight size={14} />
+                  </button>
+                </div>
+
+              </div>
+            </section>
+
+            {/* 3. OPEN CONNECTIVITY & CONTEXTUALIZED DATA (TULIP EDGE & IIOT ARCHITECTURE) */}
+            <section style={{
+              background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.6) 100%)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '24px',
+              padding: '40px',
+              marginBottom: '60px'
+            }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '36px', alignItems: 'center' }}>
+                <div>
+                  <span style={{ fontSize: '0.78rem', color: '#38bdf8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    EDGE & IIOT INTEGRATION
+                  </span>
+                  <h2 style={{ fontSize: '2rem', fontWeight: 900, color: 'white', margin: '8px 0 14px 0', lineHeight: 1.25 }}>
+                    Open connectivity. Contextualized data.
+                  </h2>
+                  <p style={{ color: '#94a3b8', fontSize: '0.95rem', lineHeight: '1.65', margin: '0 0 24px 0' }}>
+                    Mesin PLC industri (Siemens S7, Omron, Mitsubishi, Modbus TCP), sensor getaran, timbangan digital RS232, barcode scanner, dan input operator terhubung langsung ke satu basis data relasional. Konteks pabrik mengalir otomatis ke seluruh aplikasi dan dashboard.
+                  </p>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', marginBottom: '28px' }}>
+                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '12px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <Cpu size={16} color="#38bdf8" style={{ marginBottom: '4px' }} />
+                      <div style={{ color: 'white', fontWeight: 700, fontSize: '0.84rem' }}>Industrial Protocols</div>
+                      <div style={{ color: '#94a3b8', fontSize: '0.74rem' }}>OPC-UA, MQTT, Modbus, REST</div>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '12px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <Database size={16} color="#34d399" style={{ marginBottom: '4px' }} />
+                      <div style={{ color: 'white', fontWeight: 700, fontSize: '0.84rem' }}>Common Data Model</div>
+                      <div style={{ color: '#94a3b8', fontSize: '0.74rem' }}>Relational Tables & BOM</div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => switchTab('iot')}
+                    style={{
+                      background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                      border: 'none',
+                      color: 'white',
+                      padding: '12px 24px',
+                      borderRadius: '10px',
+                      fontWeight: 800,
+                      fontSize: '0.88rem',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    <Cpu size={16} /> Pelajari Konektivitas Mesin & PLC <ArrowRight size={15} />
+                  </button>
+                </div>
+
+                {/* Architecture Visual Diagram Card */}
+                <div style={{
+                  background: '#030712',
+                  border: '1px solid rgba(56, 189, 248, 0.3)',
+                  borderRadius: '20px',
+                  padding: '24px',
+                  position: 'relative'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '12px' }}>
+                    <span style={{ fontSize: '0.8rem', color: '#38bdf8', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Activity size={14} /> LIVE OPERATIONAL DATA FLOW
+                    </span>
+                    <span style={{ fontSize: '0.7rem', color: '#34d399', background: 'rgba(52, 211, 153, 0.15)', padding: '2px 8px', borderRadius: '100px', fontWeight: 700 }}>
+                      Sub-second latency
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)', padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#e2e8f0', fontWeight: 600 }}>1. Shop Floor Devices & PLCs</span>
+                      <span style={{ fontSize: '0.74rem', color: '#38bdf8', fontFamily: 'monospace' }}>Siemens S7 / Modbus / Calipers</span>
+                    </div>
+                    <div style={{ textAlign: 'center', color: '#64748b', fontSize: '0.75rem' }}>↓ MQTT / OPC-UA Telemetry Stream</div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(59, 130, 246, 0.1)', padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#60a5fa', fontWeight: 700 }}>2. MAVI Common Data Model</span>
+                      <span style={{ fontSize: '0.74rem', color: '#34d399', fontWeight: 700 }}>Centralized Tables & Triggers</span>
+                    </div>
+                    <div style={{ textAlign: 'center', color: '#64748b', fontSize: '0.75rem' }}>↓ Real-Time Event Broadcasting</div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)', padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#e2e8f0', fontWeight: 600 }}>3. Operator Apps & Management Cockpit</span>
+                      <span style={{ fontSize: '0.74rem', color: '#fbbf24', fontFamily: 'monospace' }}>HMI / OEE / Andon</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* 4. GOVERNANCE THAT SCALES (TULIP ENTERPRISE GOVERNANCE SECTION) */}
+            <section style={{ marginBottom: '60px' }}>
+              <div style={{ textAlign: 'center', maxWidth: '750px', margin: '0 auto 36px auto' }}>
+                <span style={{ fontSize: '0.78rem', color: '#34d399', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  ENTERPRISE SCALABILITY
+                </span>
+                <h2 style={{ fontSize: '2.2rem', fontWeight: 900, color: 'white', margin: '8px 0 10px 0', letterSpacing: '-0.02em' }}>
+                  Governance That Scales
+                </h2>
+                <p style={{ color: '#38bdf8', fontSize: '1.05rem', fontWeight: 700, margin: '0 0 8px 0' }}>
+                  Standardize globally. Govern centrally. Configure locally.
+                </p>
+                <p style={{ color: '#94a3b8', fontSize: '0.92rem', lineHeight: '1.6', margin: 0 }}>
+                  Kembangkan aplikasi manufaktur dengan cepat lintas lini produksi, pabrik, dan unit bisnis tanpa kehilangan kendali tata kelola TI dan kepatuhan mutu.
+                </p>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+                <div style={{ background: 'rgba(15, 23, 42, 0.7)', padding: '26px', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                  <ShieldCheck size={26} color="#34d399" style={{ marginBottom: '14px' }} />
+                  <h4 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'white', margin: '0 0 8px 0' }}>
+                    Role-Based Access Control (RBAC)
+                  </h4>
+                  <p style={{ color: '#94a3b8', fontSize: '0.86rem', lineHeight: '1.55', margin: 0 }}>
+                    Hak akses terisolasi untuk Operator Stasiun, QC Inspector, Manufacturing Engineer, Supervisor, hingga Administrator Sistem dengan autentikasi aman.
+                  </p>
+                </div>
+
+                <div style={{ background: 'rgba(15, 23, 42, 0.7)', padding: '26px', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                  <Layers size={26} color="#38bdf8" style={{ marginBottom: '14px' }} />
+                  <h4 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'white', margin: '0 0 8px 0' }}>
+                    Release & Version Control
+                  </h4>
+                  <p style={{ color: '#94a3b8', fontSize: '0.86rem', lineHeight: '1.55', margin: 0 }}>
+                    Kelola siklus hidup aplikasi dengan mode Draft, Testing/Staging, dan Published Release disertai audit rollback jika terjadi anomali di lini.
+                  </p>
+                </div>
+
+                <div style={{ background: 'rgba(15, 23, 42, 0.7)', padding: '26px', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                  <FileText size={26} color="#fbbf24" style={{ marginBottom: '14px' }} />
+                  <h4 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'white', margin: '0 0 8px 0' }}>
+                    Immutable Digital Audit Trail
+                  </h4>
+                  <p style={{ color: '#94a3b8', fontSize: '0.86rem', lineHeight: '1.55', margin: 0 }}>
+                    Setiap langkah pengerjaan, nilai torsi, hasil inspeksi, dan pergantian shift tercatat dengan stempel waktu dan ID operator yang tidak dapat diubah.
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            {/* 5. COMPLIANCE INHERITED (TULIP COMPLIANCE SECTION) */}
+            <section style={{
+              background: 'rgba(15, 23, 42, 0.5)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '24px',
+              padding: '36px',
+              marginBottom: '60px'
+            }}>
+              <div style={{ textAlign: 'center', maxWidth: '750px', margin: '0 auto 30px auto' }}>
+                <span style={{ fontSize: '0.78rem', color: '#ec4899', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  INDUSTRIAL COMPLIANCE & QUALITY
+                </span>
+                <h2 style={{ fontSize: '1.9rem', fontWeight: 900, color: 'white', margin: '8px 0 10px 0' }}>
+                  Compliance inherited, not configured separately.
+                </h2>
+                <p style={{ color: '#94a3b8', fontSize: '0.9rem', lineHeight: '1.6', margin: 0 }}>
+                  Setiap artefak dan aplikasi mewarisi standar keamanan, integritas data, dan ketertelusuran manufaktur sejak saat dibuat tanpa konfigurasi rumit.
+                </p>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+                <div style={{ background: 'rgba(255,255,255,0.02)', padding: '20px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <Award size={20} color="#38bdf8" style={{ marginBottom: '8px' }} />
+                  <strong style={{ color: '#e2e8f0', display: 'block', marginBottom: '4px', fontSize: '0.92rem' }}>GxP & GMP Capabilities</strong>
+                  <p style={{ color: '#94a3b8', fontSize: '0.8rem', margin: 0, lineHeight: '1.45' }}>Kontrol bawaan untuk industri farmasi, F&B, dan kimia di tingkat data model.</p>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.02)', padding: '20px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <ShieldAlert size={20} color="#34d399" style={{ marginBottom: '8px' }} />
+                  <strong style={{ color: '#e2e8f0', display: 'block', marginBottom: '4px', fontSize: '0.92rem' }}>21 CFR Part 11 Alignment</strong>
+                  <p style={{ color: '#94a3b8', fontSize: '0.8rem', margin: 0, lineHeight: '1.45' }}>Tanda tangan elektronik dan rekaman digital yang sesuai dengan regulasi FDA.</p>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.02)', padding: '20px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <CheckCheck size={20} color="#fbbf24" style={{ marginBottom: '8px' }} />
+                  <strong style={{ color: '#e2e8f0', display: 'block', marginBottom: '4px', fontSize: '0.92rem' }}>ISO 9001 & IATF 16949 Ready</strong>
+                  <p style={{ color: '#94a3b8', fontSize: '0.8rem', margin: 0, lineHeight: '1.45' }}>Validasi toleransi LSL/USL otomatis, kalibrasi alat, dan karantina cacat non-conformance.</p>
+                </div>
+              </div>
+            </section>
+
+            {/* 6. DEPLOYED IN DAYS · BUILT TO COMPOUND (TULIP DEPLOYMENT MATRIX) */}
+            <section style={{ marginBottom: '60px' }}>
+              <div style={{ textAlign: 'center', maxWidth: '750px', margin: '0 auto 36px auto' }}>
+                <span style={{ fontSize: '0.78rem', color: '#f59e0b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  SPEED & BUSINESS ROI
+                </span>
+                <h2 style={{ fontSize: '2.2rem', fontWeight: 900, color: 'white', margin: '8px 0 10px 0', letterSpacing: '-0.02em' }}>
+                  Deployed in days. Built to compound.
+                </h2>
+                <p style={{ color: '#94a3b8', fontSize: '0.95rem', lineHeight: '1.6', margin: 0 }}>
+                  Mulai dari tantangan prioritas tertinggi di lini 1. Setiap solusi baru menambah konteks bagi sistem yang sudah ada sehingga nilai platform berlipat ganda seiring waktu.
+                </p>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
+                <div style={{ background: 'rgba(15, 23, 42, 0.7)', padding: '24px', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.08)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '2rem', fontWeight: 900, color: '#38bdf8', marginBottom: '6px' }}>⚡ 2 Minggu</div>
+                  <strong style={{ color: '#e2e8f0', display: 'block', marginBottom: '4px', fontSize: '0.95rem' }}>Deploy Lini Pertama</strong>
+                  <p style={{ color: '#94a3b8', fontSize: '0.82rem', margin: 0, lineHeight: '1.45' }}>Implementasi workstation pertama siap produksi tanpa siklus proyek bertahun-tahun.</p>
+                </div>
+
+                <div style={{ background: 'rgba(15, 23, 42, 0.7)', padding: '24px', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.08)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '2rem', fontWeight: 900, color: '#34d399', marginBottom: '6px' }}>📈 100% Shared</div>
+                  <strong style={{ color: '#e2e8f0', display: 'block', marginBottom: '4px', fontSize: '0.95rem' }}>Compounding Context</strong>
+                  <p style={{ color: '#94a3b8', fontSize: '0.82rem', margin: 0, lineHeight: '1.45' }}>Setiap aplikasi baru memperkaya data historis dan visibilitas proses pabrik.</p>
+                </div>
+
+                <div style={{ background: 'rgba(15, 23, 42, 0.7)', padding: '24px', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.08)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '2rem', fontWeight: 900, color: '#f59e0b', marginBottom: '6px' }}>🛠️ 0 Kode</div>
+                  <strong style={{ color: '#e2e8f0', display: 'block', marginBottom: '4px', fontSize: '0.95rem' }}>Frontline Empowerment</strong>
+                  <p style={{ color: '#94a3b8', fontSize: '0.82rem', margin: 0, lineHeight: '1.45' }}>Manufacturing engineer membangun & memperbarui aplikasi tanpa antre di tim IT.</p>
+                </div>
+
+                <div style={{ background: 'rgba(15, 23, 42, 0.7)', padding: '24px', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.08)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '2rem', fontWeight: 900, color: '#a855f7', marginBottom: '6px' }}>💰 30 Hari</div>
+                  <strong style={{ color: '#e2e8f0', display: 'block', marginBottom: '4px', fontSize: '0.95rem' }}>Terukur Penghematan</strong>
+                  <p style={{ color: '#94a3b8', fontSize: '0.82rem', margin: 0, lineHeight: '1.45' }}>Pengurangan nyata pada downtime, scrap rate, dan waktu pengisian dokumen kertas.</p>
+                </div>
+              </div>
+            </section>
+
+            {/* 7. QUICK ACCESS PLATFORM HUBS */}
+            <section style={{ maxWidth: '1200px', margin: '0 auto 50px auto' }}>
+              <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+                <h3 style={{ fontSize: '1.7rem', fontWeight: 800, color: 'white', margin: '0 0 8px 0' }}>
+                  Jelajahi Modul & Ekosistem Platform
+                </h3>
+                <p style={{ color: '#94a3b8', fontSize: '0.92rem', margin: 0 }}>
+                  Klik modul di bawah untuk langsung mencoba demo dan fitur interaktifnya.
+                </p>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
                 {[
-                  { icon: <Layout size={22} color="#3b82f6" />, title: 'No-Code App Builder', desc: 'Build digital SOPs, inspection checklists, and operator terminals.', tab: 'builder', tag: 'Interactive Studio' },
-                  { icon: <BarChart3 size={22} color="#10b981" />, title: 'Real-Time OEE Analytics', desc: 'Availability, Performance, Quality, and downtime root-cause pareto.', tab: 'analytics', tag: 'Live Cockpit' },
-                  { icon: <Cpu size={22} color="#f59e0b" />, title: 'IoT & Machine Gateway', desc: 'MQTT, OPC-UA, Siemens/Mitsubishi PLCs, and edge node triggers.', tab: 'iot', tag: 'Edge Connectivity' },
-                  { icon: <Zap size={22} color="#a855f7" />, title: 'Platform Capabilities', desc: 'Vision AI defect checks, relational BOM tables, and ERP sync.', tab: 'features', tag: 'Core Engines' }
+                  { icon: <ShoppingBag size={22} color="#38bdf8" />, title: 'Mavi Store', desc: `${storeTemplates.length}+ Template industri siap pasang (Play Store style).`, tab: 'store', tag: 'Marketplace' },
+                  { icon: <Layout size={22} color="#3b82f6" />, title: 'App Builder', desc: 'No-Code drag-and-drop studio untuk SOP dan HMI operator.', tab: 'builder', tag: 'Visual Studio' },
+                  { icon: <BarChart3 size={22} color="#10b981" />, title: 'OEE Analytics', desc: 'Availability, Speed, Quality, dan analisis Pareto downtime.', tab: 'analytics', tag: 'Live Cockpit' },
+                  { icon: <Cpu size={22} color="#f59e0b" />, title: 'IoT & Machines', desc: 'Gateway OPC-UA, MQTT, Siemens/Mitsubishi PLCs & Modbus.', tab: 'iot', tag: 'Edge Connectivity' },
+                  { icon: <Flame size={22} color="#ec4899" />, title: 'Pricing & Value', desc: 'Harga transparan dan kalkulator ROI penghematan pabrik.', tab: 'pricing', tag: 'Investasi' }
                 ].map((item, i) => (
                   <div
                     key={i}
@@ -613,7 +1277,7 @@ const LandingPage = () => {
                       background: 'rgba(15, 23, 42, 0.65)',
                       border: '1px solid rgba(255, 255, 255, 0.08)',
                       borderRadius: '16px',
-                      padding: '24px',
+                      padding: '22px',
                       cursor: 'pointer',
                       transition: 'all 0.2s',
                       display: 'flex',
@@ -624,91 +1288,1346 @@ const LandingPage = () => {
                     onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)'; e.currentTarget.style.transform = 'translateY(0)'; }}
                   >
                     <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                         <div>{item.icon}</div>
-                        <span style={{ fontSize: '0.72rem', background: 'rgba(255,255,255,0.06)', padding: '3px 8px', borderRadius: '6px', color: '#cbd5e1' }}>{item.tag}</span>
+                        <span style={{ fontSize: '0.7rem', background: 'rgba(255,255,255,0.06)', padding: '2px 8px', borderRadius: '6px', color: '#cbd5e1' }}>{item.tag}</span>
                       </div>
-                      <h4 style={{ color: 'white', margin: '0 0 8px 0', fontSize: '1.1rem', fontWeight: 800 }}>{item.title}</h4>
-                      <p style={{ color: '#94a3b8', fontSize: '0.88rem', margin: 0, lineHeight: '1.5' }}>{item.desc}</p>
+                      <h4 style={{ color: 'white', margin: '0 0 6px 0', fontSize: '1.05rem', fontWeight: 800 }}>{item.title}</h4>
+                      <p style={{ color: '#94a3b8', fontSize: '0.82rem', margin: 0, lineHeight: '1.45' }}>{item.desc}</p>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#38bdf8', fontSize: '0.82rem', fontWeight: 700, marginTop: '20px' }}>
-                      Explore Module <ChevronRight size={14} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#38bdf8', fontSize: '0.8rem', fontWeight: 700, marginTop: '16px' }}>
+                      Buka Modul <ChevronRight size={14} />
                     </div>
                   </div>
                 ))}
               </div>
             </section>
 
-            {/* Industrial Sectors Grid */}
-            <section style={{ maxWidth: '1200px', margin: '0 auto 60px auto', padding: '0 30px' }}>
-              <div style={{
-                background: 'rgba(15, 23, 42, 0.5)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '20px',
-                padding: '36px'
-              }}>
-                <h3 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'white', margin: '0 0 20px 0', textAlign: 'center' }}>
-                  Proven Across Key Indonesian Manufacturing Sectors
-                </h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-                  {[
-                    { title: 'Automotive & Metal Parts', desc: 'Poka-yoke assembly steps, torque gun data logging, and defect logging.' },
-                    { title: 'Electronics & PCBA', desc: 'Serial lot tracking, barcode scanning, and inline camera OCR inspection.' },
-                    { title: 'Food, Beverage & Pharma', desc: 'Digital batch records, hygiene 5S audit logs, and ingredient scale integration.' },
-                    { title: 'Plastics & Packaging', desc: 'Injection mold changeover tracking, scrap rate pareto, and shift handovers.' }
-                  ].map((sec, idx) => (
-                    <div key={idx} style={{ background: 'rgba(255,255,255,0.02)', padding: '18px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                      <strong style={{ color: '#38bdf8', display: 'block', marginBottom: '6px', fontSize: '0.95rem' }}>{sec.title}</strong>
-                      <p style={{ color: '#94a3b8', fontSize: '0.82rem', margin: 0, lineHeight: '1.4' }}>{sec.desc}</p>
-                    </div>
-                  ))}
-                </div>
+            {/* 8. SECTOR HIGHLIGHTS */}
+            <section style={{
+              background: 'rgba(15, 23, 42, 0.5)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '20px',
+              padding: '32px'
+            }}>
+              <h3 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'white', margin: '0 0 16px 0', textAlign: 'center' }}>
+                Terbukti di Berbagai Sektor Manufaktur Utama Indonesia
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+                {[
+                  { title: 'Otomotif & Komponen Logam', desc: 'Perakitan poka-yoke, integrasi digital torque wrench, dan pelacakan cacat.' },
+                  { title: 'Elektronika & PCBA', desc: 'Pelacakan lot serial, scan barcode, dan inspeksi AI camera OCR otomatis.' },
+                  { title: 'Farmasi, Makanan & Minuman', desc: 'Electronic Batch Records (EBR), audit 5S, dan integrasi timbangan resep.' },
+                  { title: 'Plastik & Pengemasan', desc: 'Pencatatan pergantian cetakan injeksi, analisis scrap, dan serah terima shift.' }
+                ].map((sec, idx) => (
+                  <div key={idx} style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <strong style={{ color: '#38bdf8', display: 'block', marginBottom: '4px', fontSize: '0.9rem' }}>{sec.title}</strong>
+                    <p style={{ color: '#94a3b8', fontSize: '0.8rem', margin: 0, lineHeight: '1.4' }}>{sec.desc}</p>
+                  </div>
+                ))}
               </div>
             </section>
+
           </div>
         )}
 
         {/* ========================================================================= */}
-        {/* 2. TAB: APP BUILDER */}
+        {/* TAB: MAVI STORE & TEMPLATES MARKETPLACE (GOOGLE PLAY STORE STYLE) */}
         {/* ========================================================================= */}
-        {activeTab === 'builder' && (
-          <div style={{ animation: 'fadeIn 0.3s ease', maxWidth: '1280px', margin: '0 auto', padding: '40px 30px' }}>
-            {/* Header */}
-            <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa', padding: '6px 16px', borderRadius: '100px', fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '14px' }}>
-                <Layout size={14} /> NO-CODE FRONTLINE APP STUDIO
-              </div>
-              <h2 style={{ fontSize: '2.6rem', fontWeight: 900, color: 'white', margin: '0 0 12px 0' }}>
-                Build Frontline Operator Apps in Minutes — Without Writing Code
-              </h2>
-              <p style={{ color: '#94a3b8', fontSize: '1.1rem', maxWidth: '750px', margin: '0 auto', lineHeight: '1.6' }}>
-                Empower manufacturing engineers to design interactive step-by-step digital work instructions, automated quality gates, and operator terminals for touchscreens, tablets, and handhelds.
-              </p>
-            </div>
-
-            {/* Interactive Visual App Studio Simulation */}
+        {activeTab === 'store' && (
+          <div style={{ animation: 'fadeIn 0.3s ease', maxWidth: '1360px', margin: '0 auto', padding: '40px 30px' }}>
+            
+            {/* STORE HEADER & SEARCH */}
             <div style={{
-              background: 'rgba(15, 23, 42, 0.7)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.12) 0%, rgba(15, 23, 42, 0.8) 100%)',
+              border: '1px solid rgba(59, 130, 246, 0.3)',
               borderRadius: '24px',
               padding: '36px',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
-              marginBottom: '48px'
+              marginBottom: '36px',
+              position: 'relative',
+              overflow: 'hidden'
             }}>
+              <div style={{
+                position: 'absolute',
+                top: '-30%',
+                right: '-10%',
+                width: '350px',
+                height: '350px',
+                background: 'radial-gradient(circle, rgba(59, 130, 246, 0.25) 0%, transparent 70%)',
+                filter: 'blur(50px)',
+                pointerEvents: 'none'
+              }} />
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '24px', flexWrap: 'wrap' }}>
+                <div style={{ maxWidth: '680px' }}>
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    background: 'rgba(59, 130, 246, 0.2)',
+                    border: '1px solid rgba(59, 130, 246, 0.4)',
+                    color: '#60a5fa',
+                    padding: '5px 14px',
+                    borderRadius: '100px',
+                    fontSize: '0.78rem',
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    marginBottom: '12px'
+                  }}>
+                    <ShoppingBag size={14} /> MAVI APP STORE & TEMPLATE MARKETPLACE
+                  </div>
+                  <h1 style={{ fontSize: '2.5rem', fontWeight: 900, color: 'white', margin: '0 0 12px 0', letterSpacing: '-0.02em' }}>
+                    Siap Pakai untuk Shop Floor Pabrik Anda
+                  </h1>
+                  <p style={{ color: '#94a3b8', fontSize: '1.05rem', margin: 0, lineHeight: '1.6' }}>
+                    Pasang template aplikasi industri instan seperti Google Play Store — lengkap dengan skema tabel database terhubung, logika trigger otomatis, dan visual HMI siap produksi.
+                  </p>
+                </div>
+
+                {/* Quick Store Stats Badge */}
+                <div style={{
+                  display: 'flex',
+                  gap: '16px',
+                  background: 'rgba(15, 23, 42, 0.7)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  padding: '16px 20px',
+                  borderRadius: '16px'
+                }}>
+                  <div style={{ textAlign: 'center', padding: '0 10px' }}>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#38bdf8' }}>{storeTemplates.length}+</div>
+                    <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>Ready Templates</div>
+                  </div>
+                  <div style={{ width: '1px', background: 'rgba(255,255,255,0.1)' }} />
+                  <div style={{ textAlign: 'center', padding: '0 10px' }}>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#34d399' }}>100%</div>
+                    <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>No-Code Editable</div>
+                  </div>
+                  <div style={{ width: '1px', background: 'rgba(255,255,255,0.1)' }} />
+                  <div style={{ textAlign: 'center', padding: '0 10px' }}>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#f59e0b' }}>1-Click</div>
+                    <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>Direct Deploy</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SEARCH & QUICK FILTER BAR */}
+              <div style={{ marginTop: '28px', display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div style={{ position: 'relative', flex: '1', minWidth: '280px' }}>
+                  <Search size={18} color="#94a3b8" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <input
+                    type="text"
+                    placeholder="Cari aplikasi: Skill Matrix, Vision QC, Andon, OEE, Kanban..."
+                    value={storeSearchQuery}
+                    onChange={e => setStoreSearchQuery(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '12px 14px 12px 42px',
+                      background: 'rgba(15, 23, 42, 0.9)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      borderRadius: '12px',
+                      color: 'white',
+                      fontSize: '0.9rem',
+                      fontWeight: 600,
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                    onFocus={e => e.target.style.borderColor = '#3b82f6'}
+                    onBlur={e => e.target.style.borderColor = 'rgba(255, 255, 255, 0.15)'}
+                  />
+                  {storeSearchQuery && (
+                    <button
+                      onClick={() => setStoreSearchQuery('')}
+                      style={{
+                        position: 'absolute',
+                        right: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#94a3b8',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => { setStoreActiveCategory('All'); setStoreSearchQuery(''); }}
+                  style={{
+                    background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                    border: 'none',
+                    color: 'white',
+                    padding: '12px 22px',
+                    borderRadius: '12px',
+                    fontWeight: 800,
+                    fontSize: '0.88rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    boxShadow: '0 4px 15px rgba(37, 99, 235, 0.4)',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  <Sparkles size={16} /> Tampilkan Semua ({storeTemplates.length}) Template
+                </button>
+              </div>
+
+              {/* CATEGORY CHIPS (PLAY STORE STYLE) */}
+              <div style={{
+                display: 'flex',
+                gap: '8px',
+                marginTop: '18px',
+                overflowX: 'auto',
+                paddingBottom: '6px'
+              }}>
+                {storeCategories.map(cat => {
+                  const isSelected = storeActiveCategory === cat;
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => setStoreActiveCategory(cat)}
+                      style={{
+                        padding: '7px 16px',
+                        borderRadius: '100px',
+                        fontSize: '0.82rem',
+                        fontWeight: isSelected ? 800 : 600,
+                        background: isSelected ? '#3b82f6' : 'rgba(255, 255, 255, 0.05)',
+                        border: isSelected ? '1px solid #60a5fa' : '1px solid rgba(255, 255, 255, 0.1)',
+                        color: isSelected ? 'white' : '#cbd5e1',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        transition: 'all 0.15s'
+                      }}
+                      onMouseEnter={e => {
+                        if (!isSelected) {
+                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+                          e.currentTarget.style.color = 'white';
+                        }
+                      }}
+                      onMouseLeave={e => {
+                        if (!isSelected) {
+                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                          e.currentTarget.style.color = '#cbd5e1';
+                        }
+                      }}
+                    >
+                      {cat}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* SPOTLIGHT & TOP CHARTS (Only visible on All category with no search query) */}
+            {!storeSearchQuery && storeActiveCategory === 'All' && (
+              <>
+                {/* SPOTLIGHT / FEATURED HERO BANNER CAROUSEL */}
+                <div style={{ marginBottom: '40px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Sparkles size={18} color="#f59e0b" />
+                      <h3 style={{ fontSize: '1.4rem', fontWeight: 900, color: 'white', margin: 0 }}>
+                        Featured & Editor's Choice Templates
+                      </h3>
+                    </div>
+                    <span style={{ fontSize: '0.82rem', color: '#94a3b8' }}>Tulip & MES Industry Standard Compliant</span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+                    {storeTemplates.slice(0, 3).map((item) => (
+                      <div
+                        key={item.id}
+                        style={{
+                          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.9) 100%)',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          borderRadius: '20px',
+                          padding: '24px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          position: 'relative',
+                          overflow: 'hidden',
+                          transition: 'all 0.25s',
+                          boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.transform = 'translateY(-4px)';
+                          e.currentTarget.style.borderColor = item.color;
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.transform = 'translateY(0)';
+                          e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                        }}
+                      >
+                        {/* Top Accent bar */}
+                        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: item.iconBg }} />
+
+                        <div>
+                          {/* Card Header with Icon, Badge & Category */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                            <div style={{
+                              width: '56px',
+                              height: '56px',
+                              borderRadius: '14px',
+                              background: item.iconBg,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              boxShadow: `0 6px 16px ${item.color}40`
+                            }}>
+                              {renderTemplateIcon(item.icon, 28)}
+                            </div>
+                            <span style={{
+                              background: 'rgba(245, 158, 11, 0.15)',
+                              border: '1px solid rgba(245, 158, 11, 0.3)',
+                              color: '#fbbf24',
+                              fontSize: '0.72rem',
+                              fontWeight: 800,
+                              padding: '4px 10px',
+                              borderRadius: '100px',
+                              textTransform: 'uppercase'
+                            }}>
+                              {item.badge}
+                            </span>
+                          </div>
+
+                          {/* App Name & Category */}
+                          <span style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            {item.category}
+                          </span>
+                          <h4 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'white', margin: '4px 0 8px 0', lineHeight: 1.3 }}>
+                            {item.name}
+                          </h4>
+                          <p style={{ color: '#94a3b8', fontSize: '0.86rem', margin: '0 0 16px 0', lineHeight: '1.5' }}>
+                            {item.tagline}
+                          </p>
+
+                          {/* Rating & Installs Strip */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '18px', fontSize: '0.82rem', color: '#cbd5e1' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#fbbf24', fontWeight: 800 }}>
+                              <Star size={14} fill="#fbbf24" /> {item.rating}
+                              <span style={{ color: '#64748b', fontWeight: 400 }}>({item.reviews})</span>
+                            </div>
+                            <span>·</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#94a3b8' }}>
+                              <Download size={13} /> {item.installs} installs
+                            </div>
+                            <span>·</span>
+                            <span style={{ color: '#64748b' }}>{item.version}</span>
+                          </div>
+
+                          {/* Feature Tags */}
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '20px' }}>
+                            {item.features.slice(0, 3).map((f, fi) => (
+                              <span key={fi} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', color: '#cbd5e1' }}>
+                                ✓ {f}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div style={{ display: 'flex', gap: '10px', marginTop: 'auto' }}>
+                          <button
+                            onClick={() => { setSelectedTemplateModal(item); setStoreActiveStepIndex(0); }}
+                            style={{
+                              flex: 1,
+                              padding: '10px 14px',
+                              background: 'rgba(255, 255, 255, 0.08)',
+                              border: '1px solid rgba(255, 255, 255, 0.15)',
+                              color: 'white',
+                              borderRadius: '10px',
+                              fontSize: '0.82rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px'
+                            }}
+                          >
+                            <Eye size={14} /> Lihat Detail
+                          </button>
+                          <button
+                            onClick={() => handleInstallTemplate(item)}
+                            style={{
+                              flex: 1,
+                              padding: '10px 14px',
+                              background: item.iconBg,
+                              border: 'none',
+                              color: 'white',
+                              borderRadius: '10px',
+                              fontSize: '0.82rem',
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px',
+                              boxShadow: `0 4px 12px ${item.color}40`
+                            }}
+                          >
+                            {storeInstalledList[item.id] ? <Check size={14} /> : <Download size={14} />}
+                            {storeInstalledList[item.id] ? 'Installed' : 'Deploy App'}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* TOP CHARTS RANKED STRIP (PLAY STORE STYLE) */}
+                <div style={{
+                  background: 'rgba(15, 23, 42, 0.6)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: '20px',
+                  padding: '24px 28px',
+                  marginBottom: '40px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <TrendingUp size={18} color="#34d399" />
+                      <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'white', margin: 0 }}>
+                        Top Charts: Paling Banyak Dipasang Minggu Ini
+                      </h3>
+                    </div>
+                    <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Live Shop Floor Rankings</span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+                    {storeTemplates.slice(0, 4).map((item, idx) => (
+                      <div
+                        key={item.id}
+                        onClick={() => { setSelectedTemplateModal(item); setStoreActiveStepIndex(0); }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '14px',
+                          padding: '12px 14px',
+                          borderRadius: '12px',
+                          background: 'rgba(255,255,255,0.02)',
+                          border: '1px solid rgba(255,255,255,0.05)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.borderColor = '#38bdf8'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)'; }}
+                      >
+                        <span style={{ fontSize: '1.2rem', fontWeight: 900, color: idx === 0 ? '#fbbf24' : idx === 1 ? '#cbd5e1' : '#94a3b8', width: '20px', textAlign: 'center' }}>
+                          {idx + 1}
+                        </span>
+                        <div style={{
+                          width: '42px',
+                          height: '42px',
+                          borderRadius: '10px',
+                          background: item.iconBg,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          {renderTemplateIcon(item.icon, 20)}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ color: 'white', fontWeight: 700, fontSize: '0.88rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {item.name}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: '#94a3b8' }}>
+                            <span>{item.category}</span>
+                            <span>·</span>
+                            <span style={{ color: '#fbbf24', fontWeight: 700 }}>★ {item.rating}</span>
+                          </div>
+                        </div>
+                        <ChevronRight size={16} color="#64748b" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* FULL TEMPLATE CATALOG GRID */}
+            <div style={{ marginBottom: '40px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+                <div>
+                  <h3 style={{ fontSize: '1.4rem', fontWeight: 900, color: 'white', margin: '0 0 4px 0' }}>
+                    {storeSearchQuery
+                      ? `Hasil Pencarian untuk "${storeSearchQuery}" (${filteredStoreTemplates.length})`
+                      : storeActiveCategory !== 'All'
+                        ? `Kategori: ${storeActiveCategory} (${filteredStoreTemplates.length})`
+                        : `Semua Aplikasi & Template (${filteredStoreTemplates.length})`}
+                  </h3>
+                  <p style={{ color: '#94a3b8', fontSize: '0.88rem', margin: 0 }}>
+                    {storeSearchQuery ? (
+                      <span>Filter pencarian aktif · Kategori: <strong style={{ color: '#38bdf8' }}>{storeActiveCategory}</strong></span>
+                    ) : (
+                      <span>Kategori aktif: <strong style={{ color: '#38bdf8' }}>{storeActiveCategory}</strong></span>
+                    )}
+                  </p>
+                </div>
+
+                {(storeSearchQuery || storeActiveCategory !== 'All') && (
+                  <button
+                    onClick={() => { setStoreSearchQuery(''); setStoreActiveCategory('All'); }}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      color: '#cbd5e1',
+                      padding: '7px 14px',
+                      borderRadius: '8px',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    ✕ Reset Filter ({storeTemplates.length} total)
+                  </button>
+                )}
+              </div>
+
+              {filteredStoreTemplates.length === 0 ? (
+                <div style={{
+                  textAlign: 'center',
+                  padding: '60px 20px',
+                  background: 'rgba(15, 23, 42, 0.4)',
+                  borderRadius: '20px',
+                  border: '1px dashed rgba(255, 255, 255, 0.15)'
+                }}>
+                  <ShoppingBag size={48} color="#64748b" style={{ margin: '0 auto 16px auto', display: 'block' }} />
+                  <h4 style={{ color: 'white', fontSize: '1.2rem', margin: '0 0 8px 0' }}>
+                    {storeActiveCategory === 'App Management'
+                      ? 'Belum Ada Aplikasi Terpasang'
+                      : 'Tidak Ada Template yang Cocok'}
+                  </h4>
+                  <p style={{ color: '#94a3b8', margin: '0 0 16px 0', maxWidth: '480px', marginInline: 'auto' }}>
+                    {storeActiveCategory === 'App Management'
+                      ? 'Aplikasi yang Anda klik "Deploy / Pasang" akan muncul di tab App Management ini untuk dikelola.'
+                      : storeActiveCategory !== 'All' && totalSearchMatchesAllCategories > 0
+                        ? `Tidak ada hasil "${storeSearchQuery}" di kategori "${storeActiveCategory}". Ditemukan ${totalSearchMatchesAllCategories} aplikasi yang cocok di kategori lain.`
+                        : `Tidak ditemukan template dengan kata kunci "${storeSearchQuery}".`}
+                  </p>
+                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                    {storeActiveCategory !== 'All' && (
+                      <button
+                        onClick={() => setStoreActiveCategory('All')}
+                        style={{
+                          background: '#2563eb',
+                          border: 'none',
+                          color: 'white',
+                          padding: '8px 18px',
+                          borderRadius: '8px',
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Cari di Semua Kategori {storeSearchQuery ? `(${totalSearchMatchesAllCategories})` : ''}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { setStoreSearchQuery(''); setStoreActiveCategory('All'); }}
+                      style={{
+                        background: 'rgba(255,255,255,0.08)',
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        color: 'white',
+                        padding: '8px 18px',
+                        borderRadius: '8px',
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Reset Filter
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+                  {filteredStoreTemplates.map((template) => (
+                    <div
+                      key={template.id}
+                      style={{
+                        background: 'rgba(15, 23, 42, 0.75)',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        borderRadius: '16px',
+                        padding: '20px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        transition: 'all 0.2s',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => { setSelectedTemplateModal(template); setStoreActiveStepIndex(0); }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.transform = 'translateY(-3px)';
+                        e.currentTarget.style.borderColor = '#38bdf8';
+                        e.currentTarget.style.boxShadow = '0 10px 25px rgba(0,0,0,0.3)';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    >
+                      <div>
+                        {/* App Icon + Title Header */}
+                        <div style={{ display: 'flex', gap: '14px', marginBottom: '14px' }}>
+                          <div style={{
+                            width: '50px',
+                            height: '50px',
+                            borderRadius: '12px',
+                            background: template.iconBg,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            boxShadow: `0 4px 12px ${template.color}30`
+                          }}>
+                            {renderTemplateIcon(template.icon, 24)}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                              <span style={{ fontSize: '0.7rem', color: '#38bdf8', fontWeight: 800, textTransform: 'uppercase' }}>
+                                {template.category}
+                              </span>
+                            </div>
+                            <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'white', margin: 0, lineHeight: '1.3' }}>
+                              {template.name}
+                            </h4>
+                          </div>
+                        </div>
+
+                        {/* Description */}
+                        <p style={{
+                          color: '#94a3b8',
+                          fontSize: '0.84rem',
+                          margin: '0 0 14px 0',
+                          lineHeight: '1.45',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden'
+                        }}>
+                          {template.tagline}
+                        </p>
+
+                        {/* Ratings & Downloads */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.78rem', color: '#cbd5e1', marginBottom: '14px' }}>
+                          <span style={{ color: '#fbbf24', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                            <Star size={12} fill="#fbbf24" /> {template.rating}
+                          </span>
+                          <span>·</span>
+                          <span style={{ color: '#94a3b8' }}>{template.installs} installs</span>
+                          <span>·</span>
+                          <span style={{ color: '#34d399', fontWeight: 600 }}>{template.badge}</span>
+                        </div>
+
+                        {/* Tables included pill */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', color: '#94a3b8', marginBottom: '16px' }}>
+                          <Database size={13} color="#38bdf8" />
+                          <span>Includes {template.tables.length} Tables & {template.triggers.length} Logic Triggers</span>
+                        </div>
+                      </div>
+
+                      {/* Card Action Buttons */}
+                      <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '14px' }} onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={() => { setSelectedTemplateModal(template); setStoreActiveStepIndex(0); }}
+                          style={{
+                            flex: 1,
+                            padding: '8px 12px',
+                            background: 'rgba(255,255,255,0.05)',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            color: '#cbd5e1',
+                            borderRadius: '8px',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Details
+                        </button>
+                        <button
+                          onClick={() => handleInstallTemplate(template)}
+                          style={{
+                            flex: 1.2,
+                            padding: '8px 12px',
+                            background: template.iconBg,
+                            border: 'none',
+                            color: 'white',
+                            borderRadius: '8px',
+                            fontSize: '0.78rem',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          {storeInstalledList[template.id] ? <Check size={12} /> : <Download size={12} />}
+                          {storeInstalledList[template.id] ? 'Installed' : 'Deploy'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* BOTTOM BUILDER CTA BANNER */}
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.8) 100%)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '20px',
+              padding: '30px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '24px',
+              flexWrap: 'wrap'
+            }}>
+              <div>
+                <h4 style={{ fontSize: '1.3rem', fontWeight: 800, color: 'white', margin: '0 0 6px 0' }}>
+                  Perlu Template Kustom Khusus Pabrik Anda?
+                </h4>
+                <p style={{ color: '#94a3b8', fontSize: '0.9rem', margin: 0 }}>
+                  Gunakan Visual App Builder untuk membuat HMI kustom tanpa kode, atau hubungi tim engineer kami untuk template pesanan.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  onClick={() => switchTab('builder')}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    color: 'white',
+                    padding: '10px 18px',
+                    borderRadius: '10px',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Layout size={14} style={{ display: 'inline', marginRight: '6px' }} /> Buka App Builder
+                </button>
+                <button
+                  onClick={() => setIsWalkthroughModalOpen(true)}
+                  style={{
+                    background: '#2563eb',
+                    border: 'none',
+                    color: 'white',
+                    padding: '10px 20px',
+                    borderRadius: '10px',
+                    fontSize: '0.85rem',
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Request Custom App
+                </button>
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* 2. TAB: APP BUILDER (NO-CODE FRONTLINE APP STUDIO) */}
+        {/* ========================================================================= */}
+        {activeTab === 'builder' && (
+          <div style={{ animation: 'fadeIn 0.3s ease', maxWidth: '1360px', margin: '0 auto', padding: '20px 24px 60px 24px', boxSizing: 'border-box' }}>
+            
+            {/* 1. HERO SECTION (IMAGE 1: FACTORIES CAN ALSO BUILD APPS WITHOUT CODING) */}
+            <section style={{
+              background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.85) 100%)',
+              border: '1px solid rgba(59, 130, 246, 0.3)',
+              borderRadius: '28px',
+              padding: '44px 36px',
+              marginBottom: '50px',
+              position: 'relative',
+              overflow: 'hidden',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.4)'
+            }}>
+              <div style={{
+                position: 'absolute',
+                top: '-20%',
+                right: '-10%',
+                width: '450px',
+                height: '450px',
+                background: 'radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, transparent 70%)',
+                filter: 'blur(70px)',
+                pointerEvents: 'none'
+              }} />
+
+              {/* Top Banner Tag */}
+              <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  background: 'rgba(59, 130, 246, 0.15)',
+                  border: '1px solid rgba(59, 130, 246, 0.35)',
+                  padding: '6px 18px',
+                  borderRadius: '100px',
+                  color: '#60a5fa',
+                  fontSize: '0.82rem',
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                  marginBottom: '16px'
+                }}>
+                  <Layout size={15} /> NO-CODE FRONTLINE APP STUDIO
+                </div>
+
+                <h1 style={{
+                  fontSize: 'clamp(2rem, 3.8vw, 3rem)',
+                  fontWeight: 900,
+                  color: 'white',
+                  lineHeight: 1.15,
+                  margin: '0 auto 14px auto',
+                  letterSpacing: '-0.02em',
+                  maxWidth: '1000px'
+                }}>
+                  FACTORIES CAN ALSO BUILD APPS <br />
+                  <span style={{
+                    background: 'linear-gradient(135deg, #60a5fa 0%, #38bdf8 50%, #34d399 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent'
+                  }}>
+                    WITHOUT CODING, DATABASE, OR IT EXPERTS
+                  </span>
+                </h1>
+
+                <p style={{
+                  fontSize: '1.15rem',
+                  color: '#94a3b8',
+                  maxWidth: '780px',
+                  margin: '0 auto 28px auto',
+                  lineHeight: 1.6
+                }}>
+                  Build your own factory apps easily with drag & drop — just like filling out a form!
+                </p>
+
+                {/* Primary Action Buttons */}
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '14px', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => {
+                      const el = document.getElementById('builder-simulator');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    style={{
+                      background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                      border: 'none',
+                      color: 'white',
+                      padding: '14px 30px',
+                      borderRadius: '12px',
+                      fontWeight: 800,
+                      fontSize: '0.95rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxShadow: '0 8px 24px rgba(37, 99, 235, 0.4)',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; }}
+                  >
+                    <Play size={18} fill="white" /> Coba Simulator Interaktif
+                  </button>
+
+                  <button
+                    onClick={() => navigate('/login')}
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(37, 99, 235, 0.25) 100%)',
+                      border: '1px solid rgba(59, 130, 246, 0.4)',
+                      color: '#60a5fa',
+                      padding: '14px 26px',
+                      borderRadius: '12px',
+                      fontWeight: 700,
+                      fontSize: '0.95rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    <Layout size={18} /> Launch Full Studio Workspace
+                  </button>
+
+                  <button
+                    onClick={() => switchTab('store')}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      color: 'white',
+                      padding: '14px 24px',
+                      borderRadius: '12px',
+                      fontWeight: 700,
+                      fontSize: '0.95rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    <ShoppingBag size={18} color="#38bdf8" /> Pasang dari Mavi Store
+                  </button>
+                </div>
+              </div>
+
+              {/* Main Illustration Preview (Image 1) */}
+              <div style={{
+                borderRadius: '20px',
+                overflow: 'hidden',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                boxShadow: '0 25px 60px rgba(0,0,0,0.6)',
+                marginBottom: '32px',
+                background: '#090d16'
+              }}>
+                <img
+                  src="/assets/builder-hero-nocode.jpg"
+                  alt="Factories Can Also Build Apps Without Coding"
+                  style={{ width: '100%', height: 'auto', display: 'block', objectFit: 'contain' }}
+                />
+              </div>
+
+              {/* 5 Core Feature Capabilities Grid (From Image 1) */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: '14px',
+                marginBottom: '28px'
+              }}>
+                {[
+                  { icon: <SlidersHorizontal size={20} color="#38bdf8" />, title: 'Drag & Drop UI Builder', desc: 'Design your app with simple drag & drop.' },
+                  { icon: <Workflow size={20} color="#34d399" />, title: 'Multi-Step Workflows', desc: 'Automate your process step by step.' },
+                  { icon: <Zap size={20} color="#fbbf24" />, title: 'Conditional Logic & Triggers', desc: 'Set rules and triggers easily.' },
+                  { icon: <Database size={20} color="#c084fc" />, title: 'No Coding, No Database', desc: 'Build apps without coding or databases.' },
+                  { icon: <Users size={20} color="#f472b6" />, title: 'Anyone Can Build', desc: 'Engineers, operators, managers – anyone can build their own apps.' }
+                ].map((item, idx) => (
+                  <div key={idx} style={{
+                    background: 'rgba(15, 23, 42, 0.65)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '14px',
+                    padding: '18px 16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      {item.icon}
+                      <strong style={{ color: 'white', fontSize: '0.92rem' }}>{item.title}</strong>
+                    </div>
+                    <p style={{ color: '#94a3b8', fontSize: '0.82rem', margin: 0, lineHeight: 1.4 }}>{item.desc}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* 4 Bottom Value Highlights (From Image 1) */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: '14px',
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: '16px',
+                padding: '20px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <CheckCircle2 size={24} color="#34d399" style={{ flexShrink: 0 }} />
+                  <div>
+                    <strong style={{ color: 'white', fontSize: '0.9rem', display: 'block' }}>Faster Development</strong>
+                    <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Build apps in hours, not weeks.</span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <TrendingUp size={24} color="#38bdf8" style={{ flexShrink: 0 }} />
+                  <div>
+                    <strong style={{ color: 'white', fontSize: '0.9rem', display: 'block' }}>Reduce Costs</strong>
+                    <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>No need for IT or external developers.</span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <ShieldCheck size={24} color="#fbbf24" style={{ flexShrink: 0 }} />
+                  <div>
+                    <strong style={{ color: 'white', fontSize: '0.9rem', display: 'block' }}>Better Control</strong>
+                    <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Create exactly what your factory needs.</span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <Flame size={24} color="#a855f7" style={{ flexShrink: 0 }} />
+                  <div>
+                    <strong style={{ color: 'white', fontSize: '0.9rem', display: 'block' }}>Go Live Quickly</strong>
+                    <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Deploy and start using your app right away.</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* 2. WORKFLOW SECTION (IMAGE 2: BUILD, DEPLOY, AND USE APPS - WITHOUT CODING) */}
+            <section style={{
+              background: 'rgba(15, 23, 42, 0.75)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '28px',
+              padding: '44px 36px',
+              marginBottom: '50px'
+            }}>
+              <div style={{ textAlign: 'center', maxWidth: '850px', margin: '0 auto 36px auto' }}>
+                <span style={{ fontSize: '0.8rem', color: '#38bdf8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  END-TO-END DEPLOYMENT WORKFLOW
+                </span>
+                <h2 style={{ fontSize: '2.3rem', fontWeight: 900, color: 'white', margin: '8px 0 12px 0', letterSpacing: '-0.02em' }}>
+                  BUILD, DEPLOY, AND USE APPS – WITHOUT CODING
+                </h2>
+                <p style={{ color: '#94a3b8', fontSize: '1.05rem', margin: 0 }}>
+                  From Admin to Operator – Everyone Can Build and Use Apps Easily
+                </p>
+              </div>
+
+              {/* Illustration Image 2 */}
+              <div style={{
+                borderRadius: '20px',
+                overflow: 'hidden',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+                marginBottom: '36px',
+                background: '#090d16'
+              }}>
+                <img
+                  src="/assets/builder-workflow-deploy.jpg"
+                  alt="Build, Deploy, and Use Apps - Without Coding"
+                  style={{ width: '100%', height: 'auto', display: 'block', objectFit: 'contain' }}
+                />
+              </div>
+
+              {/* 6 Step Interactive Cards Breakdown */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+                gap: '18px',
+                marginBottom: '32px'
+              }}>
+                {[
+                  { step: '1', role: 'ADMIN', title: 'ADMIN BUILDS APP', desc: 'Admin uses drag & drop builder to create apps – no coding needed.', note: '✓ No coding. No database. Just drag & drop.', color: '#3b82f6' },
+                  { step: '2', role: 'ADMIN', title: 'ADMIN CREATES STATION', desc: 'Admin creates stations and assigns the app to each station.', note: '✓ Organize stations. Assign apps. Done.', color: '#0284c7' },
+                  { step: '3', role: 'ADMIN', title: 'ADMIN DEPLOYS APP TO STATION', desc: 'Admin deploys the app to the desired station so it\'s ready to use on the shop floor.', note: '✓ One-click deploy. Instantly available.', color: '#10b981' },
+                  { step: '4', role: 'OPERATOR', title: 'OPERATOR OPENS APP', desc: 'Operator opens the app on the station device (PC, tablet, or kiosk).', note: '✓ Simple and user-friendly. Open and start working.', color: '#f59e0b' },
+                  { step: '5', role: 'OPERATOR', title: 'OPERATOR FILLS & SUBMITS', desc: 'Operator fills out the form and submits data in real time.', note: '✓ No manual paperwork. Data is saved instantly.', color: '#ec4899' },
+                  { step: '6', role: 'SYSTEM', title: 'DATA IS SAVED & TRACKED BY STATION', desc: 'All data is stored and can be tracked by station in real time.', note: '✓ Real-time visibility. Better control and traceability.', color: '#a855f7' }
+                ].map((st, i) => (
+                  <div key={i} style={{
+                    background: 'rgba(15, 23, 42, 0.85)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '16px',
+                    padding: '22px',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: st.color }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                      <span style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '50%',
+                        background: st.color,
+                        color: 'white',
+                        fontWeight: 900,
+                        fontSize: '0.85rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        {st.step}
+                      </span>
+                      <strong style={{ color: 'white', fontSize: '0.95rem' }}>{st.title}</strong>
+                    </div>
+                    <p style={{ color: '#94a3b8', fontSize: '0.85rem', lineHeight: '1.5', margin: '0 0 12px 0' }}>
+                      {st.desc}
+                    </p>
+                    <div style={{ fontSize: '0.78rem', color: '#38bdf8', fontWeight: 700 }}>
+                      {st.note}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Bottom Feature Badges (From Image 2) */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '12px',
+                background: 'rgba(255, 255, 255, 0.02)',
+                border: '1px solid rgba(255, 255, 255, 0.06)',
+                borderRadius: '16px',
+                padding: '16px 20px'
+              }}>
+                <div style={{ textAlign: 'center' }}>
+                  <strong style={{ color: '#38bdf8', display: 'block', fontSize: '0.88rem' }}>FOR EVERYONE</strong>
+                  <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Admins, engineers, operators – anyone can build.</span>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <strong style={{ color: '#34d399', display: 'block', fontSize: '0.88rem' }}>NO CODING</strong>
+                  <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>No programming skills required.</span>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <strong style={{ color: '#fbbf24', display: 'block', fontSize: '0.88rem' }}>NO DATABASE SETUP</strong>
+                  <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>No complex configurations needed.</span>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <strong style={{ color: '#a855f7', display: 'block', fontSize: '0.88rem' }}>DEPLOY IN MINUTES</strong>
+                  <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Build, deploy, and use in minutes.</span>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <strong style={{ color: '#ec4899', display: 'block', fontSize: '0.88rem' }}>REAL-TIME VISIBILITY</strong>
+                  <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Track data by station in real time.</span>
+                </div>
+              </div>
+            </section>
+
+            {/* 3. THREE WAYS TO CREATE APPS (IMAGE 3: 3 WAYS TO CREATE APPS - NO CODING, NO DATABASE) */}
+            <section style={{
+              background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.8) 100%)',
+              border: '1px solid rgba(59, 130, 246, 0.25)',
+              borderRadius: '28px',
+              padding: '44px 36px',
+              marginBottom: '50px'
+            }}>
+              <div style={{ textAlign: 'center', maxWidth: '850px', margin: '0 auto 36px auto' }}>
+                <span style={{ fontSize: '0.8rem', color: '#10b981', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  FLEXIBLE CREATION STRATEGIES
+                </span>
+                <h2 style={{ fontSize: '2.3rem', fontWeight: 900, color: 'white', margin: '8px 0 12px 0', letterSpacing: '-0.02em' }}>
+                  3 WAYS TO CREATE APPS – NO CODING, NO DATABASE
+                </h2>
+                <p style={{ color: '#94a3b8', fontSize: '1.05rem', margin: 0 }}>
+                  Build your industrial apps easily with MES CORE
+                </p>
+              </div>
+
+              {/* Illustration Image 3 */}
+              <div style={{
+                borderRadius: '20px',
+                overflow: 'hidden',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+                marginBottom: '36px',
+                background: '#090d16'
+              }}>
+                <img
+                  src="/assets/builder-3ways-create.jpg"
+                  alt="3 Ways to Create Apps - No Coding, No Database"
+                  style={{ width: '100%', height: 'auto', display: 'block', objectFit: 'contain' }}
+                />
+              </div>
+
+              {/* 3 Ways Detailed Columns */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+                gap: '24px',
+                marginBottom: '32px'
+              }}>
+                
+                {/* Strategy 1: Template Store */}
+                <div style={{
+                  background: 'rgba(15, 23, 42, 0.85)',
+                  border: '1px solid rgba(52, 211, 153, 0.3)',
+                  borderRadius: '20px',
+                  padding: '28px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between'
+                }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                      <span style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#10b981', color: 'white', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>1</span>
+                      <strong style={{ color: 'white', fontSize: '1.1rem' }}>DOWNLOAD TEMPLATE</strong>
+                    </div>
+                    <span style={{ fontSize: '0.75rem', color: '#34d399', fontWeight: 700, display: 'block', marginBottom: '8px' }}>From MAVI App Store</span>
+                    <p style={{ color: '#94a3b8', fontSize: '0.88rem', lineHeight: '1.6', margin: '0 0 16px 0' }}>
+                      Browse and download ready-to-use templates from MAVI App Store. Customize and deploy instantly for Quality, Manufacturing, Production & more.
+                    </p>
+                    <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '10px 14px', borderRadius: '10px', fontSize: '0.78rem', color: '#34d399', fontWeight: 700, marginBottom: '16px' }}>
+                      DOWNLOAD ➔ CUSTOMIZE ➔ DEPLOY ➔ USE
+                    </div>
+                    <div style={{ fontSize: '0.82rem', color: '#cbd5e1' }}>
+                      <strong>Best for:</strong> Quick start with proven industry templates.
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => switchTab('store')}
+                    style={{
+                      marginTop: '20px',
+                      background: 'rgba(16, 185, 129, 0.15)',
+                      border: '1px solid rgba(16, 185, 129, 0.4)',
+                      color: '#34d399',
+                      padding: '10px 16px',
+                      borderRadius: '10px',
+                      fontWeight: 800,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Buka Mavi Store Catalog
+                  </button>
+                </div>
+
+                {/* Strategy 2: Manual Drag & Drop */}
+                <div style={{
+                  background: 'rgba(15, 23, 42, 0.85)',
+                  border: '1px solid rgba(59, 130, 246, 0.3)',
+                  borderRadius: '20px',
+                  padding: '28px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between'
+                }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                      <span style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#3b82f6', color: 'white', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>2</span>
+                      <strong style={{ color: 'white', fontSize: '1.1rem' }}>MANUAL DRAG & DROP</strong>
+                    </div>
+                    <span style={{ fontSize: '0.75rem', color: '#60a5fa', fontWeight: 700, display: 'block', marginBottom: '8px' }}>To Visual Canvas</span>
+                    <p style={{ color: '#94a3b8', fontSize: '0.88rem', lineHeight: '1.6', margin: '0 0 16px 0' }}>
+                      Drag widgets from the toolbar and build your app on the canvas. Full control with logic triggers, relational tables, validation, and layout tools.
+                    </p>
+                    <div style={{ background: 'rgba(59, 130, 246, 0.1)', padding: '10px 14px', borderRadius: '10px', fontSize: '0.78rem', color: '#60a5fa', fontWeight: 700, marginBottom: '16px' }}>
+                      DRAG ➔ CONFIGURE ➔ SAVE ➔ DEPLOY
+                    </div>
+                    <div style={{ fontSize: '0.82rem', color: '#cbd5e1' }}>
+                      <strong>Best for:</strong> Custom apps built to match your exact factory needs.
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const el = document.getElementById('builder-simulator');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    style={{
+                      marginTop: '20px',
+                      background: 'rgba(59, 130, 246, 0.15)',
+                      border: '1px solid rgba(59, 130, 246, 0.4)',
+                      color: '#60a5fa',
+                      padding: '10px 16px',
+                      borderRadius: '10px',
+                      fontWeight: 800,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Buka Drag & Drop Canvas
+                  </button>
+                </div>
+
+                {/* Strategy 3: AI Copilot */}
+                <div style={{
+                  background: 'rgba(15, 23, 42, 0.85)',
+                  border: '1px solid rgba(168, 85, 247, 0.3)',
+                  borderRadius: '20px',
+                  padding: '28px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between'
+                }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                      <span style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#a855f7', color: 'white', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>3</span>
+                      <strong style={{ color: 'white', fontSize: '1.1rem' }}>GENERATE WITH COPILOT</strong>
+                    </div>
+                    <span style={{ fontSize: '0.75rem', color: '#c084fc', fontWeight: 700, display: 'block', marginBottom: '8px' }}>AI-Powered Generation</span>
+                    <p style={{ color: '#94a3b8', fontSize: '0.88rem', lineHeight: '1.6', margin: '0 0 16px 0' }}>
+                      Describe what you need in plain text. Copilot (AI) automatically generates the screens, forms, relational tables, logic triggers, and charts for you.
+                    </p>
+                    <div style={{ background: 'rgba(168, 85, 247, 0.1)', padding: '10px 14px', borderRadius: '10px', fontSize: '0.78rem', color: '#c084fc', fontWeight: 700, marginBottom: '16px' }}>
+                      DESCRIBE ➔ GENERATE ➔ REVIEW ➔ DEPLOY
+                    </div>
+                    <div style={{ fontSize: '0.82rem', color: '#cbd5e1' }}>
+                      <strong>Best for:</strong> Rapid application creation with conversational AI.
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const el = document.getElementById('builder-simulator');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    style={{
+                      marginTop: '20px',
+                      background: 'rgba(168, 85, 247, 0.15)',
+                      border: '1px solid rgba(168, 85, 247, 0.4)',
+                      color: '#c084fc',
+                      padding: '10px 16px',
+                      borderRadius: '10px',
+                      fontWeight: 800,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Coba AI Copilot Generator
+                  </button>
+                </div>
+
+              </div>
+
+              {/* Bottom Station Deployment Bar */}
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: '16px',
+                padding: '20px 24px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '16px'
+              }}>
+                <div>
+                  <h4 style={{ color: 'white', margin: '0 0 4px 0', fontSize: '1rem', fontWeight: 800 }}>
+                    DEPLOY TO STATION & START USING
+                  </h4>
+                  <p style={{ color: '#94a3b8', margin: 0, fontSize: '0.85rem' }}>
+                    Deploy your app to the right station. Operators open the app on PC, tablet, or kiosk and start working.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '0.82rem', color: '#cbd5e1', fontWeight: 700 }}>
+                  <span style={{ color: '#34d399' }}>✓ Real-time Data</span>
+                  <span style={{ color: '#38bdf8' }}>✓ Track & Monitor</span>
+                  <span style={{ color: '#fbbf24' }}>✓ Improve Productivity</span>
+                  <span style={{ color: '#c084fc' }}>✓ Ensure Quality</span>
+                </div>
+              </div>
+            </section>
+
+            {/* 4. INTERACTIVE VISUAL WIDGET SIMULATOR CANVAS */}
+            <section
+              id="builder-simulator"
+              style={{
+                background: 'rgba(15, 23, 42, 0.7)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '24px',
+                padding: '36px',
+                boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+                marginBottom: '48px'
+              }}
+            >
               <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: '36px', alignItems: 'center' }} className="grid-responsive">
-                {/* Left Side: Features & Live Control */}
+                {/* Left Side: Interactive Palette */}
                 <div>
                   <h3 style={{ fontSize: '1.6rem', fontWeight: 800, color: 'white', margin: '0 0 16px 0' }}>
-                    Visual Drag-and-Drop Frontline Canvas
+                    Uji Coba Visual Drag-and-Drop Canvas Interaktif
                   </h3>
                   <p style={{ color: '#94a3b8', fontSize: '0.95rem', lineHeight: '1.6', marginBottom: '24px' }}>
-                    Add rich media (CAD 3D models, PDF blueprints, video clips), form inputs, barcode verifiers, and live machine parameters directly onto steps.
+                    Klik widget di bawah untuk mensimulasikan penambahan elemen secara instan ke layar preview terminal stasiun di sebelah kanan.
                   </p>
 
                   {/* Interactive Palette */}
                   <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: '18px', marginBottom: '24px' }}>
                     <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#e2e8f0', display: 'block', marginBottom: '10px', textTransform: 'uppercase' }}>
-                      Try Adding Widgets to Emulated Screen:
+                      Tambah Widget ke Layar Simulasi:
                     </span>
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                       <button onClick={() => addWidgetToSimulator('button')} style={{ background: '#1e293b', border: '1px solid #334155', color: 'white', padding: '8px 12px', borderRadius: '8px', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>+ Action Button</button>
@@ -720,7 +2639,7 @@ const LandingPage = () => {
 
                   <div style={{ display: 'flex', gap: '12px' }}>
                     <button
-                      onClick={() => navigate('/builder')}
+                      onClick={() => navigate('/login')}
                       style={{
                         background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
                         border: 'none',
@@ -735,7 +2654,7 @@ const LandingPage = () => {
                         gap: '8px'
                       }}
                     >
-                      Open Live App Builder <Play size={15} fill="white" />
+                      Open Full App Builder Studio <Play size={15} fill="white" />
                     </button>
                   </div>
                 </div>
@@ -795,29 +2714,8 @@ const LandingPage = () => {
                   </div>
                 </div>
               </div>
-            </div>
+            </section>
 
-            {/* 5 Pre-Built App Templates Gallery */}
-            <div style={{ marginBottom: '48px' }}>
-              <h3 style={{ fontSize: '1.6rem', fontWeight: 800, color: 'white', margin: '0 0 20px 0', textAlign: 'center' }}>
-                Pre-Built Frontline Application Templates
-              </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '18px' }}>
-                {[
-                  { title: 'High-Mix Digital SOP', desc: 'Interactive step navigation, 3D CAD viewer, and torque limits.', icon: <FileText size={20} color="#38bdf8" /> },
-                  { title: 'Inline AI Vision QC', desc: 'Defect checks with webcam/IP camera and automated OCR.', icon: <Eye size={20} color="#10b981" /> },
-                  { title: 'Machine 5S Checklist', desc: 'Daily autonomous maintenance checklists with photo evidence.', icon: <CheckSquare size={20} color="#f59e0b" /> },
-                  { title: 'Material Receiving Lot', desc: 'Scan raw materials, generate lot numbers, and print barcodes.', icon: <QrCode size={20} color="#a855f7" /> },
-                  { title: 'Scrap & Defect Logging', desc: 'One-tap defect categorization and immediate andon alert.', icon: <AlertTriangle size={20} color="#ec4899" /> }
-                ].map((tmpl, i) => (
-                  <div key={i} style={{ background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '14px', padding: '20px' }}>
-                    <div style={{ marginBottom: '12px' }}>{tmpl.icon}</div>
-                    <h4 style={{ color: 'white', margin: '0 0 6px 0', fontSize: '1rem', fontWeight: 800 }}>{tmpl.title}</h4>
-                    <p style={{ color: '#94a3b8', fontSize: '0.82rem', margin: 0, lineHeight: '1.5' }}>{tmpl.desc}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         )}
 
@@ -2065,7 +3963,9 @@ const LandingPage = () => {
           <span style={{ color: 'rgba(255,255,255,0.1)' }}>|</span>
           <span>Version 3.4.0 (Latest)</span>
           <span style={{ color: 'rgba(255,255,255,0.1)' }}>|</span>
-          <button onClick={() => switchTab('pricing')} style={{ background: 'none', border: 'none', color: '#38bdf8', cursor: 'pointer', fontSize: '0.82rem', padding: 0 }}>Transparent Pricing</button>
+          <button onClick={() => switchTab('store')} style={{ background: 'none', border: 'none', color: '#38bdf8', cursor: 'pointer', fontSize: '0.82rem', padding: 0 }}>Mavi Store</button>
+          <span style={{ color: 'rgba(255,255,255,0.1)' }}>|</span>
+          <button onClick={() => switchTab('pricing')} style={{ background: 'none', border: 'none', color: '#cbd5e1', cursor: 'pointer', fontSize: '0.82rem', padding: 0 }}>Transparent Pricing</button>
           <span style={{ color: 'rgba(255,255,255,0.1)' }}>|</span>
           <button onClick={() => switchTab('faq')} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.82rem', padding: 0 }}>FAQ</button>
         </div>
@@ -2322,6 +4222,310 @@ const LandingPage = () => {
                 </button>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: GOOGLE PLAY STORE STYLE APP DETAILS */}
+      {selectedTemplateModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.85)',
+          backdropFilter: 'blur(10px)',
+          zIndex: 1100,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px',
+          overflowY: 'auto'
+        }}>
+          <div style={{
+            background: '#0b1120',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            borderRadius: '24px',
+            width: '100%',
+            maxWidth: '720px',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            padding: '32px',
+            boxShadow: '0 25px 60px rgba(0,0,0,0.8)',
+            position: 'relative',
+            color: '#cbd5e1'
+          }}>
+            {/* Close Button */}
+            <button
+              onClick={() => setSelectedTemplateModal(null)}
+              style={{
+                position: 'absolute',
+                top: '20px',
+                right: '20px',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                color: '#cbd5e1',
+                borderRadius: '50%',
+                width: '36px',
+                height: '36px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)'; e.currentTarget.style.color = 'white'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'; e.currentTarget.style.color = '#cbd5e1'; }}
+            >
+              <X size={18} />
+            </button>
+
+            {/* APP HEADER SECTION */}
+            <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', marginBottom: '24px', paddingRight: '40px' }}>
+              <div style={{
+                width: '72px',
+                height: '72px',
+                borderRadius: '18px',
+                background: selectedTemplateModal.iconBg,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                boxShadow: `0 8px 24px ${selectedTemplateModal.color}50`
+              }}>
+                {renderTemplateIcon(selectedTemplateModal.icon, 36)}
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: 800, textTransform: 'uppercase' }}>
+                    {selectedTemplateModal.category}
+                  </span>
+                  <span style={{ fontSize: '0.7rem', background: 'rgba(52, 211, 153, 0.15)', color: '#34d399', padding: '2px 8px', borderRadius: '100px', fontWeight: 700 }}>
+                    Verified by Mavi
+                  </span>
+                </div>
+                <h2 style={{ fontSize: '1.6rem', fontWeight: 900, color: 'white', margin: '0 0 6px 0', lineHeight: 1.25 }}>
+                  {selectedTemplateModal.name}
+                </h2>
+                <div style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
+                  Developer: <span style={{ color: '#e2e8f0', fontWeight: 600 }}>Mavi Core Engineering</span> · {selectedTemplateModal.version}
+                </div>
+              </div>
+            </div>
+
+            {/* STATS STRIP (PLAY STORE STYLE: RATING, DOWNLOADS, SIZE) */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              background: 'rgba(15, 23, 42, 0.8)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '16px',
+              padding: '14px 16px',
+              textAlign: 'center',
+              marginBottom: '24px'
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', color: '#fbbf24', fontSize: '1.2rem', fontWeight: 900 }}>
+                  <Star size={16} fill="#fbbf24" /> {selectedTemplateModal.rating}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{selectedTemplateModal.reviews} reviews</div>
+              </div>
+              <div style={{ borderLeft: '1px solid rgba(255,255,255,0.08)', borderRight: '1px solid rgba(255,255,255,0.08)' }}>
+                <div style={{ fontSize: '1.2rem', fontWeight: 900, color: 'white' }}>
+                  {selectedTemplateModal.installs}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Downloads</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#38bdf8' }}>
+                  Ready
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>1-Click Install</div>
+              </div>
+            </div>
+
+            {/* PRIMARY ACTION BUTTONS */}
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '28px' }}>
+              <button
+                onClick={() => {
+                  handleInstallTemplate(selectedTemplateModal);
+                  setSelectedTemplateModal(null);
+                }}
+                style={{
+                  flex: 2,
+                  padding: '14px 20px',
+                  background: selectedTemplateModal.iconBg,
+                  border: 'none',
+                  color: 'white',
+                  borderRadius: '12px',
+                  fontSize: '0.95rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: `0 6px 20px ${selectedTemplateModal.color}40`
+                }}
+              >
+                <Download size={18} /> Pasang ke Workspace Pabrik
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedTemplateModal(null);
+                  switchTab('builder');
+                }}
+                style={{
+                  flex: 1,
+                  padding: '14px 16px',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  color: 'white',
+                  borderRadius: '12px',
+                  fontSize: '0.9rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Play size={16} fill="white" /> Live Demo
+              </button>
+            </div>
+
+            {/* SCREENSHOTS / WORKFLOW STEP SLIDER */}
+            <div style={{ marginBottom: '28px' }}>
+              <h4 style={{ fontSize: '1rem', fontWeight: 800, color: 'white', margin: '0 0 12px 0' }}>
+                Pratinjau Antarmuka & Langkah Kerja
+              </h4>
+              
+              {/* Step selector tabs */}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', overflowX: 'auto', paddingBottom: '4px' }}>
+                {selectedTemplateModal.mockupSteps.map((s, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setStoreActiveStepIndex(idx)}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: '8px',
+                      fontSize: '0.8rem',
+                      fontWeight: storeActiveStepIndex === idx ? 800 : 600,
+                      background: storeActiveStepIndex === idx ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.04)',
+                      border: storeActiveStepIndex === idx ? '1px solid #3b82f6' : '1px solid rgba(255,255,255,0.08)',
+                      color: storeActiveStepIndex === idx ? '#38bdf8' : '#94a3b8',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    Langkah {idx + 1}: {s.step}
+                  </button>
+                ))}
+              </div>
+
+              {/* Active Step Preview Canvas Card */}
+              <div style={{
+                background: '#030712',
+                border: '1px solid rgba(59, 130, 246, 0.3)',
+                borderRadius: '14px',
+                padding: '20px',
+                position: 'relative'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#38bdf8', fontWeight: 700, fontSize: '0.88rem', marginBottom: '6px' }}>
+                  <Monitor size={16} /> {selectedTemplateModal.mockupSteps[storeActiveStepIndex]?.step}
+                </div>
+                <p style={{ color: '#cbd5e1', fontSize: '0.86rem', margin: 0, lineHeight: '1.5' }}>
+                  {selectedTemplateModal.mockupSteps[storeActiveStepIndex]?.desc}
+                </p>
+                <div style={{ marginTop: '14px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px dashed rgba(255,255,255,0.1)', fontSize: '0.78rem', color: '#94a3b8' }}>
+                  💡 <strong style={{ color: '#e2e8f0' }}>Logika Otomatis:</strong> Data pada langkah ini langsung tersinkronisasi ke basis data Supabase & PostgreSQL secara real-time.
+                </div>
+              </div>
+            </div>
+
+            {/* ABOUT THIS TEMPLATE */}
+            <div style={{ marginBottom: '28px' }}>
+              <h4 style={{ fontSize: '1rem', fontWeight: 800, color: 'white', margin: '0 0 8px 0' }}>
+                Tentang Template Ini
+              </h4>
+              <p style={{ color: '#94a3b8', fontSize: '0.9rem', lineHeight: '1.6', margin: '0 0 16px 0' }}>
+                {selectedTemplateModal.description}
+              </p>
+
+              {/* Key Features list */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '8px' }}>
+                {selectedTemplateModal.features.map((feat, fi) => (
+                  <div key={fi} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.03)', padding: '8px 12px', borderRadius: '8px', fontSize: '0.82rem', color: '#e2e8f0' }}>
+                    <CheckCircle2 size={15} color="#34d399" /> {feat}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* INCLUDED DATABASE TABLES */}
+            <div style={{ marginBottom: '28px', background: 'rgba(15, 23, 42, 0.6)', padding: '16px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'white', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Database size={15} color="#38bdf8" /> Tabel Database Terhubung Otomatis
+              </h4>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {selectedTemplateModal.tables.map((tbl, ti) => (
+                  <span key={ti} style={{ background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.25)', color: '#38bdf8', padding: '4px 10px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 700, fontFamily: 'monospace' }}>
+                    {tbl}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* AUTOMATED TRIGGERS */}
+            <div style={{ marginBottom: '28px', background: 'rgba(15, 23, 42, 0.6)', padding: '16px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'white', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Zap size={15} color="#f59e0b" /> Logika Trigger Otomatis Termasuk
+              </h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {selectedTemplateModal.triggers.map((trg, tri) => (
+                  <div key={tri} style={{ fontSize: '0.8rem', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ color: '#f59e0b' }}>⚡</span> {trg}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* USER & ENGINEER REVIEWS */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <h4 style={{ fontSize: '1rem', fontWeight: 800, color: 'white', margin: 0 }}>
+                  Ulasan Factory Engineer & Supervisor
+                </h4>
+                <span style={{ fontSize: '0.8rem', color: '#fbbf24', fontWeight: 700 }}>
+                  ★ {selectedTemplateModal.rating} dari 5.0
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ background: 'rgba(255,255,255,0.03)', padding: '12px 16px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <strong style={{ fontSize: '0.84rem', color: '#e2e8f0' }}>Budi Pratama — QC Supervisor</strong>
+                    <span style={{ color: '#fbbf24', fontSize: '0.75rem' }}>★★★★★</span>
+                  </div>
+                  <p style={{ color: '#94a3b8', fontSize: '0.82rem', margin: 0 }}>
+                    "Template ini langsung kami pasang di line 2 kemarin. Operator langsung terbiasa hanya dalam 1 jam tanpa pelatihan rumit."
+                  </p>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.03)', padding: '12px 16px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <strong style={{ fontSize: '0.84rem', color: '#e2e8f0' }}>Rian Hidayat — Manufacturing Lead</strong>
+                    <span style={{ color: '#fbbf24', fontSize: '0.75rem' }}>★★★★★</span>
+                  </div>
+                  <p style={{ color: '#94a3b8', fontSize: '0.82rem', margin: 0 }}>
+                    "Integrasi database dan trigger bawaannya sangat rapi. Menghemat waktu pengembangan berminggu-minggu."
+                  </p>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       )}

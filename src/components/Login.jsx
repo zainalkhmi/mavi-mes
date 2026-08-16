@@ -34,7 +34,7 @@ const Login = ({ onLoginSuccess }) => {
 
     return (
         <div style={{
-            height: '100%',
+            minHeight: '100vh',
             width: '100%',
             display: 'flex',
             backgroundColor: '#0f172a',
@@ -43,17 +43,19 @@ const Login = ({ onLoginSuccess }) => {
             {/* Left side: Branding / Manufacturing Visual */}
             <div style={{
                 flex: 1,
+                minWidth: '320px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 position: 'relative',
                 overflow: 'hidden',
-                backgroundColor: '#001e3c'
+                backgroundColor: '#001e3c',
+                padding: '40px 20px'
             }}>
                 <div style={{
                     position: 'absolute',
                     top: '40px',
-                    left: '50px',
+                    left: '40px',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '12px',
@@ -85,13 +87,15 @@ const Login = ({ onLoginSuccess }) => {
 
             {/* Right side: Login Form */}
             <div style={{
-                width: '500px',
+                width: '480px',
+                minWidth: '380px',
                 backgroundColor: 'white',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'center',
-                padding: '0 60px',
-                boxShadow: '-10px 0 30px rgba(0,0,0,0.2)'
+                padding: '40px 50px',
+                boxShadow: '-10px 0 30px rgba(0,0,0,0.2)',
+                boxSizing: 'border-box'
             }}>
                 <Link to="/" style={{
                     display: 'inline-flex',

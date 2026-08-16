@@ -3,7 +3,7 @@ import {
   Settings, Zap, Camera, Cpu, Database, Link2, Variable,
   BarChart3, Monitor, MapPin, Radio, Tv, Activity, Eye, BrainCircuit,
   SlidersHorizontal, Users, ShoppingBag, AppWindow, Folder, Volume2,
-  FileCode, Webhook, Play, Layout
+  FileCode, Webhook, Play, Layout, Award
 } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 
@@ -29,7 +29,6 @@ export default function TopNavbar() {
   const appItems = [
     hasAccess('/builder') && { path: '/builder', icon: <Layout size={16} />, label: 'App Builder' },
     hasAccess('/file-explorer') && { path: '/file-explorer', icon: <Folder size={16} />, label: 'File Explorer' },
-    hasAccess('/store') && { path: '/store', icon: <ShoppingBag size={16} />, label: 'App Store' },
     hasAccess('/app-management') && { path: '/app-management', icon: <AppWindow size={16} />, label: 'App Management' },
     hasAccess('/tables') && { path: '/tables', icon: <Database size={16} />, label: 'Tables' },
     hasAccess('/connectors') && { path: '/connectors', icon: <Link2 size={16} />, label: 'Connectors' },
@@ -48,6 +47,7 @@ export default function TopNavbar() {
     hasAccess('/machines') && { path: '/machines', icon: <Cpu size={16} />, label: 'Machines' },
     hasAccess('/predictive-maintenance') && { path: '/predictive-maintenance', icon: <Activity size={16} className="text-amber-500" />, label: 'Predictive Maintenance (RUL)' },
     hasAccess('/edge-devices') && { path: '/edge-devices', icon: <Activity size={16} />, label: 'Edge Devices' },
+    hasAccess('/skill-manager') && { path: '/skill-manager', icon: <Award size={16} className="text-blue-600" />, label: 'Skill Matrix & Manager' },
     hasAccess('/voice-inspection') && { path: '/voice-inspection', icon: <Volume2 size={16} />, label: 'Voice Inspection' },
     { type: 'divider' },
     hasAccess('/iot-hub') && { path: '/iot-hub', icon: <Radio size={16} className="text-violet-500" />, label: 'IoT Hub' },
@@ -111,7 +111,18 @@ export default function TopNavbar() {
             Help
           </Link>
 
-          {appItems.length > 0 && <NavDropdown title="Apps" pathMatches={['/builder', '/file-explorer', '/store', '/app-management', '/tables', '/connectors', '/variables', '/mcp-server']} items={appItems} />}
+          {hasAccess('/store') && (
+            <Link
+              to="/store"
+              className={`px-3 py-1.5 text-[0.9rem] font-semibold rounded transition-colors ${
+                location.pathname === '/store' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+            >
+              App Store
+            </Link>
+          )}
+
+          {appItems.length > 0 && <NavDropdown title="Apps" pathMatches={['/builder', '/file-explorer', '/app-management', '/tables', '/connectors', '/variables', '/mcp-server']} items={appItems} />}
           {drawingItems.length > 0 && <NavDropdown title="Drawings" pathMatches={['/drawings', '/drawings/files']} items={drawingItems} />}
           {shopFloorItems.length > 0 && <NavDropdown title="Shop Floor" pathMatches={['/stations', '/display-devices', '/machines', '/edge-devices', '/iot-hub', '/plc-settings', '/voice-inspection']} items={shopFloorItems} />}
           {visionItems.length > 0 && <NavDropdown title="Vision" pathMatches={['/vision', '/vision/calibration', '/vision/quickbuild']} items={visionItems} />}

@@ -42,6 +42,7 @@ const BuildManager = lazy(() => import('./components/BuildManager'));
 const VoiceControlledCaliperInspection = lazy(() => import('./components/VoiceControlledCaliperInspection'));
 const DrawingFileManager = lazy(() => import('./components/DrawingFileManager'));
 const PredictiveMaintenanceManager = lazy(() => import('./components/PredictiveMaintenanceManager'));
+const SkillManager = lazy(() => import('./components/SkillManager'));
 
 export default function AppRouter({ user, isOperator }) {
   const hasAccess = (path) => checkRoleAccess(user, path);
@@ -104,6 +105,7 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/build-center" element={hasAccess('/build-center') ? <BuildManager /> : <Navigate to="/" replace />} />
               <Route path="/help" element={<GlobalHelpAssistant />} />
               <Route path="/voice-inspection" element={<VoiceControlledCaliperInspection />} />
+              <Route path="/skill-manager" element={<SkillManager />} />
               <Route path="*" element={<Home />} />
             </>
           )}
