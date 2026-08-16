@@ -873,7 +873,7 @@ const AppPlayer = () => {
     // Player states
     const [isPaused, setIsPaused] = useState(false);
     const [devMode, setDevMode] = useState(() => loadLS(LS_DEV_MODE, false));
-    const [appScaleMode, setAppScaleMode] = useState(() => loadLS(LS_APP_SCALE_MODE, 'FIT_SCREEN'));
+    const [appScaleMode, setAppScaleMode] = useState(() => loadLS(LS_APP_SCALE_MODE, 'FILL_SCREEN'));
     const [appLayoutMode, setAppLayoutMode] = useState(() => {
         try {
             return localStorage.getItem('mavi_runtime_layout_mode') || 'PROPORTIONAL';
@@ -1710,8 +1710,15 @@ const AppPlayer = () => {
                                     </button>
 
                                     <button
-                                        onClick={() => setAppScaleMode(prev => prev === 'FIT_SCREEN' ? 'FIT_WIDTH' : 'FIT_SCREEN')}
-                                        title={appScaleMode === 'FIT_SCREEN' ? 'Switch to Fit Width' : 'Switch to Fit Screen'}
+                                        onClick={() => setAppScaleMode(prev => {
+                                            if (prev === 'FILL_SCREEN') return 'FIT_WIDTH';
+                                            if (prev === 'FIT_WIDTH') return 'FIT_SCREEN';
+                                            return 'FILL_SCREEN';
+                                        })}
+                                        title={
+                                            appScaleMode === 'FILL_SCREEN' ? 'Scale: Full Screen Fill (Tulip Edge-to-Edge)' :
+                                            appScaleMode === 'FIT_WIDTH' ? 'Scale: Fit Width' : 'Scale: Proportional Letterbox'
+                                        }
                                         style={{
                                             display: 'flex',
                                             alignItems: 'center',
@@ -1719,8 +1726,8 @@ const AppPlayer = () => {
                                             padding: '4px 8px',
                                             borderRadius: '4px',
                                             border: '1px solid rgba(255,255,255,0.15)',
-                                            backgroundColor: appScaleMode === 'FIT_SCREEN' ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.05)',
-                                            color: appScaleMode === 'FIT_SCREEN' ? '#86efac' : 'white',
+                                            backgroundColor: appScaleMode === 'FILL_SCREEN' ? 'rgba(34,197,94,0.18)' : appScaleMode === 'FIT_WIDTH' ? 'rgba(59,130,246,0.18)' : 'rgba(255,255,255,0.05)',
+                                            color: appScaleMode === 'FILL_SCREEN' ? '#86efac' : appScaleMode === 'FIT_WIDTH' ? '#93c5fd' : 'white',
                                             fontWeight: 700,
                                             fontSize: '0.68rem',
                                             cursor: 'pointer',
@@ -1728,7 +1735,7 @@ const AppPlayer = () => {
                                         }}
                                     >
                                         <Maximize2 size={10} />
-                                        {appScaleMode === 'FIT_SCREEN' ? 'Fit Screen' : 'Fit Width'}
+                                        {appScaleMode === 'FILL_SCREEN' ? 'Full Screen' : appScaleMode === 'FIT_WIDTH' ? 'Fit Width' : 'Fit Screen'}
                                     </button>
 
                                     {activeApp?.config?.devicePreset === 'RESPONSIVE' && (

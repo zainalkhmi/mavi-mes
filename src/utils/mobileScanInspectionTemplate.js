@@ -164,6 +164,9 @@ export function createMobileScanInspectionTemplate() {
         updatedAt: iso,
 
         config: {
+            devicePreset: 'PHONE_APP_INVENTOR',
+            previewOrientation: 'PORTRAIT',
+            scalingMode: 'FIT_SCREEN',
             appVariables,
             recordPlaceholders: [
                 {

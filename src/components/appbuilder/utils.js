@@ -5,7 +5,7 @@ import {
 
 export const DEVICE_PRESETS = {
     RESPONSIVE: { label: 'Responsive', width: null, height: null, icon: LayoutGrid, kind: 'RESPONSIVE' },
-    PHONE_APP_INVENTOR: { label: 'Phone size', width: 320, height: 505, icon: Smartphone, kind: 'PHONE' },
+    PHONE_APP_INVENTOR: { label: 'Phone size (Mobile)', width: 420, height: 750, icon: Smartphone, kind: 'PHONE' },
     TABLET_APP_INVENTOR: { label: 'Tablet size', width: 480, height: 675, icon: Tablet, kind: 'TABLET' },
     IPHONE_14: { label: 'iPhone 14', width: 393, height: 852, icon: Smartphone, kind: 'PHONE' },
     SAMSUNG_S23: { label: 'Galaxy S23', width: 360, height: 780, icon: Smartphone, kind: 'PHONE' },

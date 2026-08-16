@@ -164,7 +164,7 @@ const OBD2_DEFAULT_PIDS = {
 };
 const DEVICE_PRESETS = {
   RESPONSIVE: { label: 'Responsive', width: 1000, height: 625, kind: 'RESPONSIVE' },
-  PHONE_APP_INVENTOR: { label: 'Phone size', width: 320, height: 505, kind: 'PHONE' },
+  PHONE_APP_INVENTOR: { label: 'Phone size (Mobile)', width: 420, height: 750, kind: 'PHONE' },
   TABLET_APP_INVENTOR: { label: 'Tablet size', width: 480, height: 675, kind: 'TABLET' },
   IPHONE_14: { label: 'iPhone 14', width: 393, height: 852, kind: 'PHONE' },
   SAMSUNG_S23: { label: 'Galaxy S23', width: 360, height: 780, kind: 'PHONE' },
@@ -2752,7 +2752,7 @@ const LiveTerminal = () => {
 
   const launchOperator = (launchParams.get('operator') || '').trim();
   const launchStation = (launchParams.get('station') || '').trim();
-  const launchScaleMode = launchParams.get('scaleMode') === 'FIT_WIDTH' ? 'FIT_WIDTH' : 'FIT_SCREEN';
+  const launchScaleMode = launchParams.get('scaleMode') || 'FILL_SCREEN';
   const [runtimeScaleMode, setRuntimeScaleMode] = useState(launchScaleMode);
 
   const launchLayoutMode = launchParams.get('layoutMode') || (() => {
@@ -3208,12 +3208,27 @@ const LiveTerminal = () => {
   const [containerWidth, setContainerWidth] = useState(1280);
   const [containerHeight, setContainerHeight] = useState(800);
 
-  const canvasBaseSize = useMemo(() => {
-    const presetKey = selectedApp?.config?.devicePreset || 'RESPONSIVE';
-    const orientation = selectedApp?.config?.previewOrientation || 'PORTRAIT';
-    const preset = DEVICE_PRESETS[presetKey] || DEVICE_PRESETS.RESPONSIVE;
+  const effectivePresetKey = useMemo(() => {
+    const configuredPreset = selectedApp?.config?.devicePreset;
+    if (configuredPreset && configuredPreset !== 'RESPONSIVE') {
+      return configuredPreset;
+    }
+    // Auto-detect mobile apps by category, name, or narrow component bounds
+    const isMobileCategory = selectedApp?.category === 'Mobile' || selectedApp?.name?.toLowerCase().includes('mobile');
+    const allComps = (selectedApp?.config?.steps || []).flatMap(s => s.components || []);
+    const hasOnlyNarrowComps = allComps.length > 0 && allComps.every(c => c.x == null || (c.x + (c.w || 0)) <= 480);
     
-    if (presetKey === 'RESPONSIVE') {
+    if (isMobileCategory || (hasOnlyNarrowComps && allComps.length > 0)) {
+      return 'PHONE_APP_INVENTOR';
+    }
+    return configuredPreset || 'RESPONSIVE';
+  }, [selectedApp]);
+
+  const canvasBaseSize = useMemo(() => {
+    const orientation = selectedApp?.config?.previewOrientation || 'PORTRAIT';
+    const preset = DEVICE_PRESETS[effectivePresetKey] || DEVICE_PRESETS.RESPONSIVE;
+    
+    if (effectivePresetKey === 'RESPONSIVE') {
       // Fixed design canvas — will be stretched to fill the full screen via transform scale
       return { width: 1000, height: 625 };
     }
@@ -3222,7 +3237,7 @@ const LiveTerminal = () => {
       width: orientation === 'PORTRAIT' ? preset.width : preset.height,
       height: orientation === 'PORTRAIT' ? preset.height : preset.width
     };
-  }, [selectedApp]);
+  }, [selectedApp, effectivePresetKey]);
 
   useEffect(() => {
     if (!canvasWrapper) return;
@@ -3248,7 +3263,7 @@ const LiveTerminal = () => {
     return canvasBaseSize.height;
   }, [canvasBaseSize]);
 
-  const presetKey = selectedApp?.config?.devicePreset || 'RESPONSIVE';
+  const presetKey = effectivePresetKey;
   const preset = DEVICE_PRESETS[presetKey] || DEVICE_PRESETS.RESPONSIVE;
   const isPreset = presetKey !== 'RESPONSIVE';
   const isResponsiveMode = presetKey === 'RESPONSIVE' && layoutMode === 'RESPONSIVE';
@@ -3260,7 +3275,7 @@ const LiveTerminal = () => {
   const scaleX = useMemo(() => {
     if (containerWidth <= 0 || layoutWidth <= 0) return 1;
     const sX = containerWidth / layoutWidth;
-    if (effectiveScalingMode === 'FIT_WIDTH') return sX;
+    if (effectiveScalingMode === 'FILL_SCREEN' || effectiveScalingMode === 'STRETCH' || effectiveScalingMode === 'FIT_WIDTH') return sX;
     if (containerHeight <= 0 || layoutHeight <= 0) return sX;
     const sY = containerHeight / layoutHeight;
     return Math.min(sX, sY);
@@ -3269,8 +3284,12 @@ const LiveTerminal = () => {
   const scaleY = useMemo(() => {
     if (containerWidth <= 0 || layoutWidth <= 0) return 1;
     const sX = containerWidth / layoutWidth;
+    if (effectiveScalingMode === 'FILL_SCREEN' || effectiveScalingMode === 'STRETCH') {
+      if (containerHeight <= 0 || layoutHeight <= 0) return 1;
+      return containerHeight / layoutHeight;
+    }
     if (effectiveScalingMode === 'FIT_WIDTH') return sX;
-    if (containerHeight <= 0 || layoutHeight <= 0) return 1;
+    if (containerHeight <= 0 || layoutHeight <= 0) return sX;
     const sY = containerHeight / layoutHeight;
     return Math.min(sX, sY);
   }, [containerWidth, containerHeight, layoutWidth, layoutHeight, effectiveScalingMode]);
@@ -12423,25 +12442,36 @@ const LiveTerminal = () => {
 
               {(selectedApp || selectedManual) && (
                 <button
-                  onClick={() => setRuntimeScaleMode(prev => prev === 'FIT_SCREEN' ? 'FIT_WIDTH' : 'FIT_SCREEN')}
-                  title={runtimeScaleMode === 'FIT_SCREEN' ? 'Switch to Fit Width' : 'Switch to Fit Screen'}
+                  onClick={() => setRuntimeScaleMode(prev => {
+                    if (prev === 'FILL_SCREEN') return 'FIT_WIDTH';
+                    if (prev === 'FIT_WIDTH') return 'FIT_SCREEN';
+                    return 'FILL_SCREEN';
+                  })}
+                  title={
+                    runtimeScaleMode === 'FILL_SCREEN' ? 'Scale: Full Screen Fill (Tulip Edge-to-Edge)' :
+                    runtimeScaleMode === 'FIT_WIDTH' ? 'Scale: Fit Width' : 'Scale: Proportional Letterbox'
+                  }
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    width: '28px',
+                    gap: '4px',
+                    padding: '0 8px',
                     height: '28px',
                     borderRadius: '6px',
                     border: '1px solid rgba(255,255,255,0.08)',
-                    backgroundColor: runtimeScaleMode === 'FIT_SCREEN' ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.04)',
-                    color: runtimeScaleMode === 'FIT_SCREEN' ? '#4ade80' : '#cbd5e1',
+                    backgroundColor: runtimeScaleMode === 'FILL_SCREEN' ? 'rgba(34,197,94,0.18)' : runtimeScaleMode === 'FIT_WIDTH' ? 'rgba(59,130,246,0.18)' : 'rgba(255,255,255,0.04)',
+                    color: runtimeScaleMode === 'FILL_SCREEN' ? '#4ade80' : runtimeScaleMode === 'FIT_WIDTH' ? '#60a5fa' : '#cbd5e1',
+                    fontSize: '0.7rem',
+                    fontWeight: 700,
                     cursor: 'pointer',
                     transition: 'all 0.2s'
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = runtimeScaleMode === 'FIT_SCREEN' ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.04)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; }}
                 >
                   <Maximize2 size={12} />
+                  <span>{runtimeScaleMode === 'FILL_SCREEN' ? 'Full Screen' : runtimeScaleMode === 'FIT_WIDTH' ? 'Fit Width' : 'Fit Screen'}</span>
                 </button>
               )}
 
@@ -12718,17 +12748,17 @@ const LiveTerminal = () => {
               ref={setCanvasWrapper}
               style={{
                 flex: 1,
-                padding: (isResponsiveMode || effectiveScalingMode === 'FIT_WIDTH') ? '0px' : '20px',
+                padding: (isPreset && preset.kind === 'PHONE') ? '20px' : '0px',
                 display: 'flex',
                 flexDirection: 'column',
-                alignItems: (effectiveScalingMode === 'FIT_WIDTH') ? 'stretch' : 'center',
-                justifyContent: (effectiveScalingMode === 'FIT_WIDTH') ? 'flex-start' : 'center',
+                alignItems: (effectiveScalingMode === 'FIT_WIDTH' || effectiveScalingMode === 'FILL_SCREEN') ? 'stretch' : 'center',
+                justifyContent: (effectiveScalingMode === 'FIT_WIDTH' || effectiveScalingMode === 'FILL_SCREEN') ? 'flex-start' : 'center',
                 position: 'relative',
-                overflowX: 'hidden',
-                overflowY: 'hidden',
+                overflowX: (effectiveScalingMode === 'FIT_WIDTH') ? 'auto' : 'hidden',
+                overflowY: (effectiveScalingMode === 'FIT_WIDTH') ? 'auto' : 'hidden',
                 backgroundColor: isResponsiveMode
                   ? (activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#ffffff'))
-                  : (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f1f5f9')
+                  : (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : (activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || '#ffffff'))
               }}
             >
               {isResponsiveMode ? (
@@ -12792,12 +12822,12 @@ const LiveTerminal = () => {
               ) : (
                 /* FIXED CANVAS SCALED LAYOUT */
                 <div style={{
-                  width: (effectiveScalingMode === 'FIT_WIDTH') ? '100%' : `${layoutWidth * scaleX}px`,
-                  height: `${layoutHeight * scaleY}px`,
+                  width: (effectiveScalingMode === 'FIT_WIDTH' || effectiveScalingMode === 'FILL_SCREEN') && !isPreset ? '100%' : `${layoutWidth * scaleX}px`,
+                  height: (effectiveScalingMode === 'FILL_SCREEN' && !isPreset) ? '100%' : `${layoutHeight * scaleY}px`,
                   position: 'relative',
                   overflow: 'hidden',
                   flexShrink: 0,
-                  flex: 'none',
+                  flex: (effectiveScalingMode === 'FILL_SCREEN' && !isPreset) ? '1' : 'none',
                   backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || '#ffffff',
                   borderRadius: (isPreset && effectiveScalingMode === 'FIT_SCREEN') ? canvasFrameRadius : '0px',
                   boxShadow: (isPreset && effectiveScalingMode === 'FIT_SCREEN') ? canvasFrameShadow : 'none',
