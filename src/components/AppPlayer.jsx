@@ -5,8 +5,9 @@ import {
     AlertTriangle, RotateCcw, X, ChevronRight, Pause, MessageSquare, Info, Code, Play as PlayIcon,
     Wifi, Cpu, HardDrive, CheckCircle2, XCircle, AlertCircle, Signal, Bug,
     Languages, Camera, PenTool, Globe, Plus, FilePlus, Settings2, Sparkles, CheckCircle2 as CheckIcon,
-    LogOut, Menu, ChevronDown, BookOpen, ChevronLeft
+    LogOut, Menu, ChevronDown, BookOpen, ChevronLeft, Smartphone, Tablet, Monitor, RotateCw
 } from 'lucide-react';
+import { DEVICE_PRESETS } from './appbuilder/utils';
 import { getAllFrontlineApps, getProductionQueue, logPlayerSession, saveFrontlineApp } from '../utils/supabaseFrontlineDB';
 import { getStations, getEdgeDevices, createTable, getTables } from '../utils/database';
 import iotConnector from '../utils/iotConnector';
@@ -873,7 +874,7 @@ const AppPlayer = () => {
     // Player states
     const [isPaused, setIsPaused] = useState(false);
     const [devMode, setDevMode] = useState(() => loadLS(LS_DEV_MODE, false));
-    const [appScaleMode, setAppScaleMode] = useState(() => loadLS(LS_APP_SCALE_MODE, 'FILL_SCREEN'));
+    const [appScaleMode, setAppScaleMode] = useState(() => loadLS(LS_APP_SCALE_MODE, 'FIT_SCREEN'));
     const [appLayoutMode, setAppLayoutMode] = useState(() => {
         try {
             return localStorage.getItem('mavi_runtime_layout_mode') || 'PROPORTIONAL';
@@ -927,11 +928,39 @@ const AppPlayer = () => {
     const [iframeError, setIframeError] = useState(false);
     const iframeLoadTimer = useRef(null);
 
+    // Device Preset & Orientation in AppPlayer
+    const [playerDevicePreset, setPlayerDevicePreset] = useState(null);
+    const [playerOrientation, setPlayerOrientation] = useState(null);
+    const [showPlayerDeviceMenu, setShowPlayerDeviceMenu] = useState(false);
+    const playerDeviceMenuRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (playerDeviceMenuRef.current && !playerDeviceMenuRef.current.contains(e.target)) {
+                setShowPlayerDeviceMenu(false);
+            }
+        };
+        if (showPlayerDeviceMenu) {
+            document.addEventListener('mousedown', handleClickOutside);
+            return () => document.removeEventListener('mousedown', handleClickOutside);
+        }
+    }, [showPlayerDeviceMenu]);
+
     // Help Guide
     const [showHelpGuide, setShowHelpGuide] = useState(false);
 
     const activeApp = useMemo(() => apps.find((a) => a.id === activeAppId) || null, [apps, activeAppId]);
     const activeStationName = useMemo(() => stations.find(s => s.id === stationIdFilter)?.name || stationIdFilter, [stations, stationIdFilter]);
+
+    const activeDevicePresetKey = useMemo(() => {
+        if (playerDevicePreset && DEVICE_PRESETS[playerDevicePreset]) return playerDevicePreset;
+        return activeApp?.config?.devicePreset || 'RESPONSIVE';
+    }, [playerDevicePreset, activeApp]);
+
+    const activeOrientation = useMemo(() => {
+        if (playerOrientation) return playerOrientation;
+        return activeApp?.config?.previewOrientation || 'PORTRAIT';
+    }, [playerOrientation, activeApp]);
 
     const appLaunchUrl = useMemo(() => {
         if (!activeAppId) return '';
@@ -940,10 +969,12 @@ const AppPlayer = () => {
             operator: operator || 'Operator',
             devMode: devMode ? 'true' : 'false',
             scaleMode: appScaleMode,
-            layoutMode: appLayoutMode
+            layoutMode: appLayoutMode,
+            devicePreset: activeDevicePresetKey,
+            orientation: activeOrientation
         });
         return `/#/terminal/${activeAppId}?${params.toString()}`;
-    }, [activeAppId, stationIdFilter, operator, devMode, appScaleMode, appLayoutMode]);
+    }, [activeAppId, stationIdFilter, operator, devMode, appScaleMode, appLayoutMode, activeDevicePresetKey, activeOrientation]);
 
     // ── Load data ────────────────────────────────────────────────────────────
     const loadData = async () => {
@@ -1709,16 +1740,119 @@ const AppPlayer = () => {
                                         Kiosk
                                     </button>
 
+                                    {/* Device Preset Selector & Orientation */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }} ref={playerDeviceMenuRef}>
+                                        <button
+                                            onClick={() => setShowPlayerDeviceMenu(prev => !prev)}
+                                            title={`Device Preset: ${DEVICE_PRESETS[activeDevicePresetKey]?.label || 'Responsive'}`}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '5px',
+                                                padding: '4px 8px',
+                                                borderRadius: '4px',
+                                                border: '1px solid rgba(255,255,255,0.15)',
+                                                backgroundColor: showPlayerDeviceMenu ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.05)',
+                                                color: activeDevicePresetKey !== 'RESPONSIVE' ? '#38bdf8' : '#cbd5e1',
+                                                fontWeight: 700,
+                                                fontSize: '0.68rem',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.15s'
+                                            }}
+                                        >
+                                            {React.createElement(DEVICE_PRESETS[activeDevicePresetKey]?.icon || LayoutGrid, { size: 11 })}
+                                            <span style={{ maxWidth: '95px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                {DEVICE_PRESETS[activeDevicePresetKey]?.label?.split(' ')[0] || 'Responsive'}
+                                            </span>
+                                            <ChevronDown size={10} style={{ opacity: 0.7 }} />
+                                        </button>
+
+                                        {activeDevicePresetKey !== 'RESPONSIVE' && (
+                                            <button
+                                                onClick={() => setPlayerOrientation(prev => {
+                                                    const current = prev || activeApp?.config?.previewOrientation || 'PORTRAIT';
+                                                    return current === 'PORTRAIT' ? 'LANDSCAPE' : 'PORTRAIT';
+                                                })}
+                                                title={`Orientation: ${activeOrientation} (Click to rotate)`}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    padding: '4px 6px',
+                                                    borderRadius: '4px',
+                                                    border: '1px solid rgba(255,255,255,0.15)',
+                                                    backgroundColor: activeOrientation === 'LANDSCAPE' ? 'rgba(245,158,11,0.18)' : 'rgba(255,255,255,0.05)',
+                                                    color: activeOrientation === 'LANDSCAPE' ? '#fbbf24' : '#cbd5e1',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.15s'
+                                                }}
+                                            >
+                                                <RotateCw size={10} />
+                                            </button>
+                                        )}
+
+                                        {showPlayerDeviceMenu && (
+                                            <div style={{
+                                                position: 'absolute',
+                                                top: '30px',
+                                                right: 0,
+                                                width: '230px',
+                                                backgroundColor: '#0f172a',
+                                                border: '1px solid #334155',
+                                                borderRadius: '8px',
+                                                boxShadow: '0 12px 30px rgba(0,0,0,0.5)',
+                                                zIndex: 1000,
+                                                padding: '4px',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: '2px'
+                                            }}>
+                                                <div style={{ padding: '6px 10px', fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                    Device Presets
+                                                </div>
+                                                {Object.entries(DEVICE_PRESETS).map(([key, preset]) => {
+                                                    const isSelected = activeDevicePresetKey === key;
+                                                    const PresetIcon = preset.icon || LayoutGrid;
+                                                    return (
+                                                        <button
+                                                            key={key}
+                                                            onClick={() => {
+                                                                setPlayerDevicePreset(key);
+                                                                setShowPlayerDeviceMenu(false);
+                                                            }}
+                                                            style={{
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'space-between',
+                                                                padding: '6px 10px',
+                                                                borderRadius: '6px',
+                                                                border: 'none',
+                                                                backgroundColor: isSelected ? '#2563eb' : 'transparent',
+                                                                color: isSelected ? 'white' : '#cbd5e1',
+                                                                fontSize: '0.72rem',
+                                                                fontWeight: isSelected ? 700 : 500,
+                                                                cursor: 'pointer',
+                                                                textAlign: 'left',
+                                                                transition: 'all 0.15s'
+                                                            }}
+                                                            onMouseEnter={e => { if (!isSelected) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.06)'; }}
+                                                            onMouseLeave={e => { if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                                        >
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                <PresetIcon size={12} color={isSelected ? 'white' : '#94a3b8'} />
+                                                                <span>{preset.label}</span>
+                                                            </div>
+                                                            {isSelected && <span style={{ fontSize: '0.75rem' }}>✓</span>}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+
                                     <button
-                                        onClick={() => setAppScaleMode(prev => {
-                                            if (prev === 'FILL_SCREEN') return 'FIT_WIDTH';
-                                            if (prev === 'FIT_WIDTH') return 'FIT_SCREEN';
-                                            return 'FILL_SCREEN';
-                                        })}
-                                        title={
-                                            appScaleMode === 'FILL_SCREEN' ? 'Scale: Full Screen Fill (Tulip Edge-to-Edge)' :
-                                            appScaleMode === 'FIT_WIDTH' ? 'Scale: Fit Width' : 'Scale: Proportional Letterbox'
-                                        }
+                                        onClick={() => setAppScaleMode(prev => prev === 'FIT_SCREEN' ? 'FIT_WIDTH' : 'FIT_SCREEN')}
+                                        title={appScaleMode === 'FIT_SCREEN' ? 'Switch to Fit Width' : 'Switch to Fit Screen'}
                                         style={{
                                             display: 'flex',
                                             alignItems: 'center',
@@ -1726,8 +1860,8 @@ const AppPlayer = () => {
                                             padding: '4px 8px',
                                             borderRadius: '4px',
                                             border: '1px solid rgba(255,255,255,0.15)',
-                                            backgroundColor: appScaleMode === 'FILL_SCREEN' ? 'rgba(34,197,94,0.18)' : appScaleMode === 'FIT_WIDTH' ? 'rgba(59,130,246,0.18)' : 'rgba(255,255,255,0.05)',
-                                            color: appScaleMode === 'FILL_SCREEN' ? '#86efac' : appScaleMode === 'FIT_WIDTH' ? '#93c5fd' : 'white',
+                                            backgroundColor: appScaleMode === 'FIT_SCREEN' ? 'rgba(34,197,94,0.18)' : 'rgba(59,130,246,0.18)',
+                                            color: appScaleMode === 'FIT_SCREEN' ? '#86efac' : '#93c5fd',
                                             fontWeight: 700,
                                             fontSize: '0.68rem',
                                             cursor: 'pointer',
@@ -1735,7 +1869,7 @@ const AppPlayer = () => {
                                         }}
                                     >
                                         <Maximize2 size={10} />
-                                        {appScaleMode === 'FILL_SCREEN' ? 'Full Screen' : appScaleMode === 'FIT_WIDTH' ? 'Fit Width' : 'Fit Screen'}
+                                        {appScaleMode === 'FIT_SCREEN' ? 'Fit Screen' : 'Fit Width'}
                                     </button>
 
                                     {activeApp?.config?.devicePreset === 'RESPONSIVE' && (
@@ -2260,7 +2394,7 @@ const AppPlayer = () => {
                         ) : (
                             <iframe
                                 ref={iframeRef}
-                                key={activeAppId}
+                                key={`${activeAppId}_${activeDevicePresetKey}_${activeOrientation}_${appScaleMode}_${appLayoutMode}`}
                                 title="frontline-app-player"
                                 src={appLaunchUrl}
                                 onLoad={handleIframeLoad}

@@ -139,7 +139,7 @@ import { validateVariable } from '../utils/validationEngine';
 import { getCurrentUser, getAllUsers, logout } from '../utils/auth';
 import hardwareService from '../utils/hardwareService';
 import { translations } from '../i18n/translations';
-import { Ruler, Maximize, Minimize, ArrowUp, ArrowDown, Wrench, Weight } from 'lucide-react';
+import { Ruler, Maximize, Minimize, ArrowUp, ArrowDown, Wrench, Weight, Smartphone, Tablet, Monitor } from 'lucide-react';
 
 const STATUS_CONFIG = {
   READY: { label: 'System Ready', color: '#22c55e', bg: 'rgba(34, 197, 94, 0.1)', border: 'rgba(34, 197, 94, 0.2)' },
@@ -163,15 +163,15 @@ const OBD2_DEFAULT_PIDS = {
   'OBD2_BARO': '0133'
 };
 const DEVICE_PRESETS = {
-  RESPONSIVE: { label: 'Responsive', width: 1000, height: 625, kind: 'RESPONSIVE' },
-  PHONE_APP_INVENTOR: { label: 'Phone size (Mobile)', width: 420, height: 750, kind: 'PHONE' },
-  TABLET_APP_INVENTOR: { label: 'Tablet size', width: 480, height: 675, kind: 'TABLET' },
-  IPHONE_14: { label: 'iPhone 14', width: 393, height: 852, kind: 'PHONE' },
-  SAMSUNG_S23: { label: 'Galaxy S23', width: 360, height: 780, kind: 'PHONE' },
-  IPAD_PRO: { label: 'iPad Pro', width: 1024, height: 1366, kind: 'TABLET' },
-  SURFACE_PRO_7: { label: 'Surface Pro 7', width: 912, height: 1368, kind: 'TABLET' },
-  LAPTOP_HD: { label: 'Laptop 720p', width: 1280, height: 720, kind: 'PC' },
-  DESKTOP_FHD: { label: 'Desktop FHD', width: 1920, height: 1080, kind: 'PC' }
+  RESPONSIVE: { label: 'Responsive', width: 1000, height: 625, kind: 'RESPONSIVE', icon: LayoutGrid },
+  PHONE_APP_INVENTOR: { label: 'Phone size (Mobile) (420x750)', width: 420, height: 750, kind: 'PHONE', icon: Smartphone },
+  TABLET_APP_INVENTOR: { label: 'Tablet size (480x675)', width: 480, height: 675, kind: 'TABLET', icon: Tablet },
+  IPHONE_14: { label: 'iPhone 14 (393x852)', width: 393, height: 852, kind: 'PHONE', icon: Smartphone },
+  SAMSUNG_S23: { label: 'Galaxy S23 (360x780)', width: 360, height: 780, kind: 'PHONE', icon: Smartphone },
+  IPAD_PRO: { label: 'iPad Pro (1024x1366)', width: 1024, height: 1366, kind: 'TABLET', icon: Tablet },
+  SURFACE_PRO_7: { label: 'Surface Pro 7 (912x1368)', width: 912, height: 1368, kind: 'TABLET', icon: Tablet },
+  LAPTOP_HD: { label: 'Laptop 720p (1280x720)', width: 1280, height: 720, kind: 'PC', icon: Monitor },
+  DESKTOP_FHD: { label: 'Desktop FHD (1920x1080)', width: 1920, height: 1080, kind: 'PC', icon: Monitor }
 };
 
 
@@ -2752,7 +2752,7 @@ const LiveTerminal = () => {
 
   const launchOperator = (launchParams.get('operator') || '').trim();
   const launchStation = (launchParams.get('station') || '').trim();
-  const launchScaleMode = launchParams.get('scaleMode') || 'FILL_SCREEN';
+  const launchScaleMode = launchParams.get('scaleMode') === 'FIT_WIDTH' ? 'FIT_WIDTH' : 'FIT_SCREEN';
   const [runtimeScaleMode, setRuntimeScaleMode] = useState(launchScaleMode);
 
   const launchLayoutMode = launchParams.get('layoutMode') || (() => {
@@ -3184,9 +3184,157 @@ const LiveTerminal = () => {
   const stepLabel = steps.length > 0
     ? `Step ${currentStepIndex + 1} of ${steps.length}${activeStep?.title ? ` — ${activeStep.title}` : ''}`
     : null;
+
+  const [canvasWrapper, setCanvasWrapper] = useState(null);
+  const [containerWidth, setContainerWidth] = useState(1280);
+  const [containerHeight, setContainerHeight] = useState(800);
+
+  const [runtimeDevicePreset, setRuntimeDevicePreset] = useState(() => {
+    return launchParams.get('devicePreset') || null;
+  });
+  const [runtimeOrientation, setRuntimeOrientation] = useState(() => {
+    return launchParams.get('orientation') || null;
+  });
+  const [showDeviceMenu, setShowDeviceMenu] = useState(false);
+  const deviceMenuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (deviceMenuRef.current && !deviceMenuRef.current.contains(e.target)) {
+        setShowDeviceMenu(false);
+      }
+    };
+    if (showDeviceMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showDeviceMenu]);
+
+  useEffect(() => {
+    const urlPreset = launchParams.get('devicePreset');
+    if (urlPreset && DEVICE_PRESETS[urlPreset]) {
+      setRuntimeDevicePreset(urlPreset);
+    }
+  }, [launchParams]);
+
+  useEffect(() => {
+    const urlOrient = launchParams.get('orientation');
+    if (urlOrient) {
+      setRuntimeOrientation(urlOrient);
+    }
+  }, [launchParams]);
+
+  useEffect(() => {
+    const urlScale = launchParams.get('scaleMode');
+    if (urlScale) {
+      setRuntimeScaleMode(urlScale);
+    }
+  }, [launchParams]);
+
+  useEffect(() => {
+    const handleMsg = (e) => {
+      if (e.data?.type === 'MAVI_SET_DEVICE_PRESET') {
+        if (e.data.preset && DEVICE_PRESETS[e.data.preset]) setRuntimeDevicePreset(e.data.preset);
+        if (e.data.orientation) setRuntimeOrientation(e.data.orientation);
+        if (e.data.scaleMode) setRuntimeScaleMode(e.data.scaleMode);
+      }
+    };
+    window.addEventListener('message', handleMsg);
+    return () => window.removeEventListener('message', handleMsg);
+  }, []);
+
+  const effectivePresetKey = useMemo(() => {
+    if (runtimeDevicePreset && DEVICE_PRESETS[runtimeDevicePreset]) {
+      return runtimeDevicePreset;
+    }
+    const configuredPreset = selectedApp?.config?.devicePreset;
+    if (configuredPreset && DEVICE_PRESETS[configuredPreset] && configuredPreset !== 'RESPONSIVE') {
+      return configuredPreset;
+    }
+    // Auto-detect mobile apps by category, name, or narrow component bounds
+    const isMobileCategory = selectedApp?.category === 'Mobile' || selectedApp?.name?.toLowerCase().includes('mobile');
+    const allComps = (selectedApp?.config?.steps || []).flatMap(s => s.components || []);
+    const hasOnlyNarrowComps = allComps.length > 0 && allComps.every(c => c.x == null || (c.x + (c.w || 0)) <= 480);
+    
+    if (isMobileCategory || (hasOnlyNarrowComps && allComps.length > 0)) {
+      return 'PHONE_APP_INVENTOR';
+    }
+    return configuredPreset || 'RESPONSIVE';
+  }, [selectedApp, runtimeDevicePreset]);
+
+  const effectiveOrientation = useMemo(() => {
+    if (runtimeOrientation) return runtimeOrientation;
+    return selectedApp?.config?.previewOrientation || 'PORTRAIT';
+  }, [selectedApp, runtimeOrientation]);
+
+  const canvasBaseSize = useMemo(() => {
+    const preset = DEVICE_PRESETS[effectivePresetKey] || DEVICE_PRESETS.RESPONSIVE;
+    
+    if (effectivePresetKey === 'RESPONSIVE') {
+      // Fixed design canvas — will be stretched to fill the full screen via transform scale
+      return { width: 1000, height: 625 };
+    }
+    
+    return {
+      width: effectiveOrientation === 'PORTRAIT' ? preset.width : preset.height,
+      height: effectiveOrientation === 'PORTRAIT' ? preset.height : preset.width
+    };
+  }, [effectivePresetKey, effectiveOrientation]);
+
+  const designBaseSize = useMemo(() => {
+    // 1. If the app saved a configured preset (other than RESPONSIVE), use that
+    const origPresetKey = selectedApp?.config?.devicePreset;
+    const origOrientation = selectedApp?.config?.previewOrientation || 'PORTRAIT';
+    if (origPresetKey && origPresetKey !== 'RESPONSIVE' && DEVICE_PRESETS[origPresetKey]) {
+      const p = DEVICE_PRESETS[origPresetKey];
+      return {
+        width: origOrientation === 'PORTRAIT' ? p.width : p.height,
+        height: origOrientation === 'PORTRAIT' ? p.height : p.width
+      };
+    }
+    
+    // 2. If the app is categorized as Mobile or has mobile width components
+    const isMobileCategory = selectedApp?.category === 'Mobile' || selectedApp?.name?.toLowerCase().includes('mobile');
+    const allComps = (selectedApp?.config?.steps || []).flatMap(s => s.components || []);
+    const hasOnlyNarrowComps = allComps.length > 0 && allComps.every(c => c.x == null || (c.x + (c.w || 0)) <= 480);
+    if (isMobileCategory || (hasOnlyNarrowComps && allComps.length > 0)) {
+      return { width: 420, height: 750 };
+    }
+    
+    // 3. Standard Responsive / Desktop canvas default
+    return { width: 1000, height: 625 };
+  }, [selectedApp]);
+
   const baseComponents = useMemo(() => selectedApp?.config?.baseComponents || [], [selectedApp]);
   const stepComponents = useMemo(() => activeStep?.components || [], [activeStep]);
-  const appComponents = useMemo(() => [...baseComponents, ...stepComponents], [baseComponents, stepComponents]);
+  
+  const appComponents = useMemo(() => {
+    const raw = [...baseComponents, ...stepComponents];
+    if (!designBaseSize.width || !designBaseSize.height || !canvasBaseSize?.width || !canvasBaseSize?.height) {
+      return raw;
+    }
+    const ratioX = canvasBaseSize.width / designBaseSize.width;
+    const ratioY = canvasBaseSize.height / designBaseSize.height;
+    
+    if (Math.abs(ratioX - 1) < 0.001 && Math.abs(ratioY - 1) < 0.001) {
+      return raw;
+    }
+    
+    return raw.map(comp => {
+      if (comp.x == null || comp.y == null) return comp;
+      return {
+        ...comp,
+        x: Math.round(comp.x * ratioX),
+        y: Math.round(comp.y * ratioY),
+        w: Math.max(16, Math.round((comp.w || 100) * ratioX)),
+        h: Math.max(12, Math.round((comp.h || 40) * ratioY)),
+        props: {
+          ...comp.props,
+          fontSize: comp.props?.fontSize ? Math.max(8, Math.round(comp.props.fontSize * Math.min(ratioX, ratioY))) : comp.props?.fontSize
+        }
+      };
+    });
+  }, [baseComponents, stepComponents, designBaseSize, canvasBaseSize]);
 
   const selectedAppRef = useRef(selectedApp);
   const currentStepIndexRef = useRef(currentStepIndex);
@@ -3203,41 +3351,6 @@ const LiveTerminal = () => {
   useEffect(() => {
     appComponentsRef.current = appComponents;
   }, [appComponents]);
-
-  const [canvasWrapper, setCanvasWrapper] = useState(null);
-  const [containerWidth, setContainerWidth] = useState(1280);
-  const [containerHeight, setContainerHeight] = useState(800);
-
-  const effectivePresetKey = useMemo(() => {
-    const configuredPreset = selectedApp?.config?.devicePreset;
-    if (configuredPreset && configuredPreset !== 'RESPONSIVE') {
-      return configuredPreset;
-    }
-    // Auto-detect mobile apps by category, name, or narrow component bounds
-    const isMobileCategory = selectedApp?.category === 'Mobile' || selectedApp?.name?.toLowerCase().includes('mobile');
-    const allComps = (selectedApp?.config?.steps || []).flatMap(s => s.components || []);
-    const hasOnlyNarrowComps = allComps.length > 0 && allComps.every(c => c.x == null || (c.x + (c.w || 0)) <= 480);
-    
-    if (isMobileCategory || (hasOnlyNarrowComps && allComps.length > 0)) {
-      return 'PHONE_APP_INVENTOR';
-    }
-    return configuredPreset || 'RESPONSIVE';
-  }, [selectedApp]);
-
-  const canvasBaseSize = useMemo(() => {
-    const orientation = selectedApp?.config?.previewOrientation || 'PORTRAIT';
-    const preset = DEVICE_PRESETS[effectivePresetKey] || DEVICE_PRESETS.RESPONSIVE;
-    
-    if (effectivePresetKey === 'RESPONSIVE') {
-      // Fixed design canvas — will be stretched to fill the full screen via transform scale
-      return { width: 1000, height: 625 };
-    }
-    
-    return {
-      width: orientation === 'PORTRAIT' ? preset.width : preset.height,
-      height: orientation === 'PORTRAIT' ? preset.height : preset.width
-    };
-  }, [selectedApp, effectivePresetKey]);
 
   useEffect(() => {
     if (!canvasWrapper) return;
@@ -3272,27 +3385,17 @@ const LiveTerminal = () => {
   const runtimeSelectionActive = Boolean(selectedApp || selectedManual);
   const effectiveScalingMode = runtimeSelectionActive ? runtimeScaleMode : scalingMode;
 
-  const scaleX = useMemo(() => {
+  const scale = useMemo(() => {
     if (containerWidth <= 0 || layoutWidth <= 0) return 1;
     const sX = containerWidth / layoutWidth;
-    if (effectiveScalingMode === 'FILL_SCREEN' || effectiveScalingMode === 'STRETCH' || effectiveScalingMode === 'FIT_WIDTH') return sX;
+    if (effectiveScalingMode === 'FIT_WIDTH') return sX;
     if (containerHeight <= 0 || layoutHeight <= 0) return sX;
-    const sY = containerHeight / layoutHeight;
+    const sY = Math.max(0.1, (containerHeight - 4) / layoutHeight);
     return Math.min(sX, sY);
   }, [containerWidth, containerHeight, layoutWidth, layoutHeight, effectiveScalingMode]);
 
-  const scaleY = useMemo(() => {
-    if (containerWidth <= 0 || layoutWidth <= 0) return 1;
-    const sX = containerWidth / layoutWidth;
-    if (effectiveScalingMode === 'FILL_SCREEN' || effectiveScalingMode === 'STRETCH') {
-      if (containerHeight <= 0 || layoutHeight <= 0) return 1;
-      return containerHeight / layoutHeight;
-    }
-    if (effectiveScalingMode === 'FIT_WIDTH') return sX;
-    if (containerHeight <= 0 || layoutHeight <= 0) return sX;
-    const sY = containerHeight / layoutHeight;
-    return Math.min(sX, sY);
-  }, [containerWidth, containerHeight, layoutWidth, layoutHeight, effectiveScalingMode]);
+  const scaleX = scale;
+  const scaleY = scale;
 
   const canvasFrameRadius = useMemo(() => {
     if (!isPreset) return '0px';
@@ -12440,17 +12543,131 @@ const LiveTerminal = () => {
                 <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#cbd5e1' }}>{currentLanguage}</span>
               </div>
 
+              {/* Device Preset Selector & Orientation */}
+              {(selectedApp || selectedManual) && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }} ref={deviceMenuRef}>
+                  {/* Preset Dropdown Button */}
+                  <button
+                    onClick={() => setShowDeviceMenu(prev => !prev)}
+                    title={`Current Device Preset: ${DEVICE_PRESETS[effectivePresetKey]?.label || 'Responsive'}`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      padding: '0 8px',
+                      height: '28px',
+                      borderRadius: '6px',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      backgroundColor: showDeviceMenu ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.04)',
+                      color: effectivePresetKey !== 'RESPONSIVE' ? '#38bdf8' : '#cbd5e1',
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; }}
+                  >
+                    {React.createElement(DEVICE_PRESETS[effectivePresetKey]?.icon || LayoutGrid, { size: 12 })}
+                    <span style={{ maxWidth: '110px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {DEVICE_PRESETS[effectivePresetKey]?.label?.split(' ')[0] || 'Responsive'}
+                    </span>
+                    <ChevronDown size={10} style={{ opacity: 0.7 }} />
+                  </button>
+
+                  {/* Orientation Toggle Button */}
+                  {effectivePresetKey !== 'RESPONSIVE' && (
+                    <button
+                      onClick={() => setRuntimeOrientation(prev => {
+                        const current = prev || selectedApp?.config?.previewOrientation || 'PORTRAIT';
+                        return current === 'PORTRAIT' ? 'LANDSCAPE' : 'PORTRAIT';
+                      })}
+                      title={`Orientation: ${effectiveOrientation} (Click to rotate)`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '6px',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        backgroundColor: effectiveOrientation === 'LANDSCAPE' ? 'rgba(245,158,11,0.18)' : 'rgba(255,255,255,0.04)',
+                        color: effectiveOrientation === 'LANDSCAPE' ? '#fbbf24' : '#cbd5e1',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; }}
+                    >
+                      <RotateCw size={11} />
+                    </button>
+                  )}
+
+                  {/* Device Presets Dropdown Menu */}
+                  {showDeviceMenu && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '34px',
+                      right: 0,
+                      width: '240px',
+                      backgroundColor: '#0f172a',
+                      border: '1px solid #334155',
+                      borderRadius: '8px',
+                      boxShadow: '0 12px 30px rgba(0,0,0,0.5)',
+                      zIndex: 1000,
+                      padding: '4px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '2px'
+                    }}>
+                      <div style={{ padding: '6px 10px', fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Device Presets
+                      </div>
+                      {Object.entries(DEVICE_PRESETS).map(([key, preset]) => {
+                        const isSelected = effectivePresetKey === key;
+                        const PresetIcon = preset.icon || LayoutGrid;
+                        return (
+                          <button
+                            key={key}
+                            onClick={() => {
+                              setRuntimeDevicePreset(key);
+                              setShowDeviceMenu(false);
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '7px 10px',
+                              borderRadius: '6px',
+                              border: 'none',
+                              backgroundColor: isSelected ? '#2563eb' : 'transparent',
+                              color: isSelected ? 'white' : '#cbd5e1',
+                              fontSize: '0.75rem',
+                              fontWeight: isSelected ? 700 : 500,
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                              transition: 'all 0.15s'
+                            }}
+                            onMouseEnter={e => { if (!isSelected) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.06)'; }}
+                            onMouseLeave={e => { if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <PresetIcon size={13} color={isSelected ? 'white' : '#94a3b8'} />
+                              <span>{preset.label}</span>
+                            </div>
+                            {isSelected && <span style={{ fontSize: '0.75rem' }}>✓</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {(selectedApp || selectedManual) && (
                 <button
-                  onClick={() => setRuntimeScaleMode(prev => {
-                    if (prev === 'FILL_SCREEN') return 'FIT_WIDTH';
-                    if (prev === 'FIT_WIDTH') return 'FIT_SCREEN';
-                    return 'FILL_SCREEN';
-                  })}
-                  title={
-                    runtimeScaleMode === 'FILL_SCREEN' ? 'Scale: Full Screen Fill (Tulip Edge-to-Edge)' :
-                    runtimeScaleMode === 'FIT_WIDTH' ? 'Scale: Fit Width' : 'Scale: Proportional Letterbox'
-                  }
+                  onClick={() => setRuntimeScaleMode(prev => prev === 'FIT_SCREEN' ? 'FIT_WIDTH' : 'FIT_SCREEN')}
+                  title={runtimeScaleMode === 'FIT_SCREEN' ? 'Switch to Fit Width' : 'Switch to Fit Screen'}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -12460,8 +12677,8 @@ const LiveTerminal = () => {
                     height: '28px',
                     borderRadius: '6px',
                     border: '1px solid rgba(255,255,255,0.08)',
-                    backgroundColor: runtimeScaleMode === 'FILL_SCREEN' ? 'rgba(34,197,94,0.18)' : runtimeScaleMode === 'FIT_WIDTH' ? 'rgba(59,130,246,0.18)' : 'rgba(255,255,255,0.04)',
-                    color: runtimeScaleMode === 'FILL_SCREEN' ? '#4ade80' : runtimeScaleMode === 'FIT_WIDTH' ? '#60a5fa' : '#cbd5e1',
+                    backgroundColor: runtimeScaleMode === 'FIT_SCREEN' ? 'rgba(34,197,94,0.18)' : 'rgba(59,130,246,0.18)',
+                    color: runtimeScaleMode === 'FIT_SCREEN' ? '#4ade80' : '#60a5fa',
                     fontSize: '0.7rem',
                     fontWeight: 700,
                     cursor: 'pointer',
@@ -12471,7 +12688,7 @@ const LiveTerminal = () => {
                   onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; }}
                 >
                   <Maximize2 size={12} />
-                  <span>{runtimeScaleMode === 'FILL_SCREEN' ? 'Full Screen' : runtimeScaleMode === 'FIT_WIDTH' ? 'Fit Width' : 'Fit Screen'}</span>
+                  <span>{runtimeScaleMode === 'FIT_SCREEN' ? 'Fit Screen' : 'Fit Width'}</span>
                 </button>
               )}
 
@@ -12707,8 +12924,7 @@ const LiveTerminal = () => {
             flexDirection: 'column',
             padding: (selectedApp || selectedManual) ? '0' : '20px',
             backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc',
-            overflowY: 'auto',
-            overflowX: 'auto'
+            overflow: (effectiveScalingMode === 'FIT_WIDTH' || isResponsiveMode) ? 'auto' : 'hidden'
           }}
         >
           <div style={{
@@ -12722,7 +12938,7 @@ const LiveTerminal = () => {
             display: 'flex',
             flexDirection: 'column',
             position: 'relative',
-            overflow: 'auto'
+            overflow: (effectiveScalingMode === 'FIT_WIDTH' || isResponsiveMode) ? 'auto' : 'hidden'
           }}>
             {selectedApp && !selectedApp.is_published && (
               <div style={{
@@ -12751,8 +12967,8 @@ const LiveTerminal = () => {
                 padding: (isPreset && preset.kind === 'PHONE') ? '20px' : '0px',
                 display: 'flex',
                 flexDirection: 'column',
-                alignItems: (effectiveScalingMode === 'FIT_WIDTH' || effectiveScalingMode === 'FILL_SCREEN') ? 'stretch' : 'center',
-                justifyContent: (effectiveScalingMode === 'FIT_WIDTH' || effectiveScalingMode === 'FILL_SCREEN') ? 'flex-start' : 'center',
+                alignItems: 'center',
+                justifyContent: (effectiveScalingMode === 'FIT_WIDTH') ? 'flex-start' : 'center',
                 position: 'relative',
                 overflowX: (effectiveScalingMode === 'FIT_WIDTH') ? 'auto' : 'hidden',
                 overflowY: (effectiveScalingMode === 'FIT_WIDTH') ? 'auto' : 'hidden',
@@ -12822,12 +13038,11 @@ const LiveTerminal = () => {
               ) : (
                 /* FIXED CANVAS SCALED LAYOUT */
                 <div style={{
-                  width: (effectiveScalingMode === 'FIT_WIDTH' || effectiveScalingMode === 'FILL_SCREEN') && !isPreset ? '100%' : `${layoutWidth * scaleX}px`,
-                  height: (effectiveScalingMode === 'FILL_SCREEN' && !isPreset) ? '100%' : `${layoutHeight * scaleY}px`,
+                  width: `${layoutWidth * scale}px`,
+                  height: `${layoutHeight * scale}px`,
                   position: 'relative',
                   overflow: 'hidden',
                   flexShrink: 0,
-                  flex: (effectiveScalingMode === 'FILL_SCREEN' && !isPreset) ? '1' : 'none',
                   backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || '#ffffff',
                   borderRadius: (isPreset && effectiveScalingMode === 'FIT_SCREEN') ? canvasFrameRadius : '0px',
                   boxShadow: (isPreset && effectiveScalingMode === 'FIT_SCREEN') ? canvasFrameShadow : 'none',
@@ -12839,8 +13054,12 @@ const LiveTerminal = () => {
                     position: 'absolute',
                     top: 0,
                     left: 0,
-                    transform: `scale(${scaleX}, ${scaleY})`,
+                    transform: `scale(${scale})`,
                     transformOrigin: 'top left',
+                    WebkitFontSmoothing: 'antialiased',
+                    MozOsxFontSmoothing: 'grayscale',
+                    textRendering: 'optimizeLegibility',
+                    imageRendering: 'high-quality',
                     backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || '#ffffff'
                   }}>
                     {appComponents.length > 0 ? (

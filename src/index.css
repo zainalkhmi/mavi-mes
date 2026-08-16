@@ -391,4 +391,25 @@ body {
   animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Tulip-Parity Ultra-Crisp Canvas Rendering */
+#terminal-canvas-content,
+#terminal-canvas-wrapper,
+.tulip-canvas-layer {
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  text-rendering: optimizeLegibility !important;
+  image-rendering: -webkit-optimize-contrast !important;
+  image-rendering: high-quality !important;
+  transform-style: preserve-3d !important;
+  backface-visibility: hidden !important;
+}
+
+#terminal-canvas-content img,
+#terminal-canvas-content svg,
+#terminal-canvas-content canvas {
+  image-rendering: -webkit-optimize-contrast !important;
+  image-rendering: high-quality !important;
+}
+
+
 

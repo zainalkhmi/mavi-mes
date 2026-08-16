@@ -5,14 +5,14 @@ import {
 
 export const DEVICE_PRESETS = {
     RESPONSIVE: { label: 'Responsive', width: null, height: null, icon: LayoutGrid, kind: 'RESPONSIVE' },
-    PHONE_APP_INVENTOR: { label: 'Phone size (Mobile)', width: 420, height: 750, icon: Smartphone, kind: 'PHONE' },
-    TABLET_APP_INVENTOR: { label: 'Tablet size', width: 480, height: 675, icon: Tablet, kind: 'TABLET' },
-    IPHONE_14: { label: 'iPhone 14', width: 393, height: 852, icon: Smartphone, kind: 'PHONE' },
-    SAMSUNG_S23: { label: 'Galaxy S23', width: 360, height: 780, icon: Smartphone, kind: 'PHONE' },
-    IPAD_PRO: { label: 'iPad Pro', width: 1024, height: 1366, icon: Tablet, kind: 'TABLET' },
-    SURFACE_PRO_7: { label: 'Surface Pro 7', width: 912, height: 1368, icon: Tablet, kind: 'TABLET' },
-    LAPTOP_HD: { label: 'Laptop 720p', width: 1280, height: 720, icon: Monitor, kind: 'PC' },
-    DESKTOP_FHD: { label: 'Desktop FHD', width: 1920, height: 1080, icon: Monitor, kind: 'PC' }
+    PHONE_APP_INVENTOR: { label: 'Phone size (Mobile) (420x750)', width: 420, height: 750, icon: Smartphone, kind: 'PHONE' },
+    TABLET_APP_INVENTOR: { label: 'Tablet size (480x675)', width: 480, height: 675, icon: Tablet, kind: 'TABLET' },
+    IPHONE_14: { label: 'iPhone 14 (393x852)', width: 393, height: 852, icon: Smartphone, kind: 'PHONE' },
+    SAMSUNG_S23: { label: 'Galaxy S23 (360x780)', width: 360, height: 780, icon: Smartphone, kind: 'PHONE' },
+    IPAD_PRO: { label: 'iPad Pro (1024x1366)', width: 1024, height: 1366, icon: Tablet, kind: 'TABLET' },
+    SURFACE_PRO_7: { label: 'Surface Pro 7 (912x1368)', width: 912, height: 1368, kind: 'TABLET', icon: Tablet },
+    LAPTOP_HD: { label: 'Laptop 720p (1280x720)', width: 1280, height: 720, icon: Monitor, kind: 'PC' },
+    DESKTOP_FHD: { label: 'Desktop FHD (1920x1080)', width: 1920, height: 1080, icon: Monitor, kind: 'PC' }
 };
 
 export const DEFAULT_FRONTLINE_APP_NAME = 'New Frontline App';
