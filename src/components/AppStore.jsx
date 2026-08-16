@@ -51,6 +51,8 @@ import { createQuickStartHelloWorldTemplate } from '../utils/quickStartHelloWorl
 import { createQualityGateTemplate } from '../utils/qualityGateTemplate';
 import { createLotGeneratorTemplate } from '../utils/lotGeneratorTemplate';
 import { createSkillManagerTemplate } from '../utils/skillManagerTemplate';
+import { createMachineActivityYieldTrackerTemplate } from '../utils/machineActivityYieldTrackerTemplate';
+import { createProductionPlantDashboardTemplate } from '../utils/productionPlantDashboardTemplate';
 import { categories, rawTemplates } from '../utils/appStoreCatalog';
 
 import { saveFrontlineApp, deleteFrontlineApp, getAllFrontlineApps } from '../utils/supabaseFrontlineDB';
@@ -2910,6 +2912,80 @@ const AppStore = () => {
                     templateApp.config.appTables = tIds;
                 } catch (lotErr) {
                     console.warn('Could not create lot generator tables:', lotErr);
+                }
+            } else if (templateId === 'machine-activity-yield-tracker') {
+                templateApp = createMachineActivityYieldTrackerTemplate();
+                try {
+                    const histTable = await getOrCreateTableAndSeed(allTables, {
+                        name: 'Station_Activity_History',
+                        fields: [
+                            { name: 'Order_ID', type: 'text' },
+                            { name: 'Operation_Duration_Hr', type: 'number' },
+                            { name: 'Product_Demand', type: 'number' },
+                            { name: 'Planned_Takt_Time_Sec', type: 'number' },
+                            { name: 'Machine_Status', type: 'text' },
+                            { name: 'Downtime_Reason', type: 'text' },
+                            { name: 'Actual_Good_Parts', type: 'number' },
+                            { name: 'Defect_Parts', type: 'number' },
+                            { name: 'Yield_Rate', type: 'number' },
+                            { name: 'Cycle_Time_Sec', type: 'number' },
+                            { name: 'Station_ID', type: 'text' },
+                            { name: 'Operator', type: 'text' }
+                        ]
+                    });
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (histTable?.id) {
+                        appStr = appStr.replace(/tbl_station_activity_history/g, histTable.id);
+                        tIds.push(histTable.id);
+                    }
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (err) {
+                    console.warn('Could not create Station_Activity_History table:', err);
+                }
+            } else if (templateId === 'production-plant-dashboard') {
+                templateApp = createProductionPlantDashboardTemplate();
+                try {
+                    const cellsTable = await getOrCreateTableAndSeed(allTables, {
+                        name: 'Production_Cells',
+                        fields: [
+                            { name: 'Cell_Name', type: 'text' },
+                            { name: 'Target_Units', type: 'number' },
+                            { name: 'Complete_Units', type: 'number' },
+                            { name: 'Defect_Units', type: 'number' }
+                        ]
+                    });
+                    const dtTable = await getOrCreateTableAndSeed(allTables, {
+                        name: 'Downtime_Events',
+                        fields: [
+                            { name: 'Station_Name', type: 'text' },
+                            { name: 'Reason', type: 'text' },
+                            { name: 'Duration_Minutes', type: 'number' }
+                        ]
+                    });
+                    const ordersTable = await getOrCreateTableAndSeed(allTables, {
+                        name: 'Orders_Pipeline',
+                        fields: [
+                            { name: 'Order_ID', type: 'text' },
+                            { name: 'Product', type: 'text' },
+                            { name: 'Target_Quantity', type: 'number' },
+                            { name: 'Completed_Quantity', type: 'number' },
+                            { name: 'Status', type: 'text' }
+                        ]
+                    });
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (cellsTable?.id) { appStr = appStr.replace(/tbl_production_cells/g, cellsTable.id); tIds.push(cellsTable.id); }
+                    if (dtTable?.id) { appStr = appStr.replace(/tbl_downtime_events/g, dtTable.id); tIds.push(dtTable.id); }
+                    if (ordersTable?.id) { appStr = appStr.replace(/tbl_orders_pipeline/g, ordersTable.id); tIds.push(ordersTable.id); }
+
+                    templateApp = JSON.parse(appStr);
+                    templateApp.config.appTables = tIds;
+                } catch (err) {
+                    console.warn('Could not create production plant tables:', err);
                 }
             } else {
                 toast.error('Template not found', { id: loadingToast });
