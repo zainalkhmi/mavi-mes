@@ -90,7 +90,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
   const [storeActiveStepIndex, setStoreActiveStepIndex] = useState(0);
 
   // Pricing, FAQ, Modals & Demo Credentials States
-  const [selectedOverviewVideo, setSelectedOverviewVideo] = useState('overview'); // 'overview' | 'checksheet'
+  const [selectedOverviewVideo, setSelectedOverviewVideo] = useState('mavi-way'); // 'mavi-way' | 'mavi-ops' | 'overview' | 'checksheet' | 'wi'
   const [openFaqIndex, setOpenFaqIndex] = useState(0);
   const [copiedDemo, setCopiedDemo] = useState(false);
   const [isWalkthroughModalOpen, setIsWalkthroughModalOpen] = useState(false);
@@ -627,6 +627,8 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                     </div>
                     <span style={{ color: '#e2e8f0', fontWeight: 800, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <Play size={14} fill="#38bdf8" color="#38bdf8" />
+                      {selectedOverviewVideo === 'mavi-way' && 'mavi way.mp4'}
+                      {selectedOverviewVideo === 'mavi-ops' && 'mavi-ops.mp4'}
                       {selectedOverviewVideo === 'overview' && 'mavi-core overview 1.mp4'}
                       {selectedOverviewVideo === 'checksheet' && 'mavi-core check sheet.mp4'}
                       {selectedOverviewVideo === 'wi' && 'wi.mp4'}
@@ -635,6 +637,50 @@ const LandingPage = ({ initialTab = 'overview' }) => {
 
                   {/* Video Selector Buttons */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <button
+                      onClick={() => setSelectedOverviewVideo('mavi-way')}
+                      style={{
+                        background: selectedOverviewVideo === 'mavi-way' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'rgba(255, 255, 255, 0.06)',
+                        border: selectedOverviewVideo === 'mavi-way' ? '1px solid rgba(245, 158, 11, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
+                        color: selectedOverviewVideo === 'mavi-way' ? 'white' : '#94a3b8',
+                        padding: '6px 14px',
+                        borderRadius: '8px',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        transition: 'all 0.2s',
+                        boxShadow: selectedOverviewVideo === 'mavi-way' ? '0 4px 12px rgba(245, 158, 11, 0.3)' : 'none'
+                      }}
+                    >
+                      <Flame size={13} color={selectedOverviewVideo === 'mavi-way' ? '#fff' : '#94a3b8'} />
+                      Video 1: The MAVI Way
+                    </button>
+
+                    <button
+                      onClick={() => setSelectedOverviewVideo('mavi-ops')}
+                      style={{
+                        background: selectedOverviewVideo === 'mavi-ops' ? 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)' : 'rgba(255, 255, 255, 0.06)',
+                        border: selectedOverviewVideo === 'mavi-ops' ? '1px solid rgba(6, 182, 212, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
+                        color: selectedOverviewVideo === 'mavi-ops' ? 'white' : '#94a3b8',
+                        padding: '6px 14px',
+                        borderRadius: '8px',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        transition: 'all 0.2s',
+                        boxShadow: selectedOverviewVideo === 'mavi-ops' ? '0 4px 12px rgba(6, 182, 212, 0.3)' : 'none'
+                      }}
+                    >
+                      <Activity size={13} color={selectedOverviewVideo === 'mavi-ops' ? '#fff' : '#94a3b8'} />
+                      Video 2: MAVI Ops
+                    </button>
+
                     <button
                       onClick={() => setSelectedOverviewVideo('overview')}
                       style={{
@@ -653,7 +699,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                       }}
                     >
                       <Sparkles size={13} color={selectedOverviewVideo === 'overview' ? '#60a5fa' : '#94a3b8'} />
-                      Video 1: Platform Overview
+                      Video 3: Platform Overview
                     </button>
 
                     <button
@@ -674,7 +720,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                       }}
                     >
                       <CheckCircle2 size={13} color={selectedOverviewVideo === 'checksheet' ? '#34d399' : '#94a3b8'} />
-                      Video 2: Check Sheet
+                      Video 4: Check Sheet
                     </button>
 
                     <button
@@ -695,7 +741,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                       }}
                     >
                       <FileText size={13} color={selectedOverviewVideo === 'wi' ? '#c084fc' : '#94a3b8'} />
-                      Video 3: Work Instruction (WI)
+                      Video 5: Work Instruction (WI)
                     </button>
 
                     <div style={{
@@ -733,9 +779,11 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                     preload="metadata"
                     onEnded={() => {
                       setSelectedOverviewVideo(prev => {
+                        if (prev === 'mavi-way') return 'mavi-ops';
+                        if (prev === 'mavi-ops') return 'overview';
                         if (prev === 'overview') return 'checksheet';
                         if (prev === 'checksheet') return 'wi';
-                        return 'overview';
+                        return 'mavi-way';
                       });
                     }}
                     style={{
@@ -747,6 +795,8 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                       borderRadius: '16px'
                     }}
                     src={
+                      selectedOverviewVideo === 'mavi-way' ? '/assets/mavi-way.mp4' :
+                      selectedOverviewVideo === 'mavi-ops' ? '/assets/mavi-ops.mp4' :
                       selectedOverviewVideo === 'overview' ? '/assets/mavi-core-overview-1.mp4' :
                       selectedOverviewVideo === 'checksheet' ? '/assets/mavi-core-check-sheet.mp4' :
                       '/assets/wi.mp4'
@@ -768,21 +818,28 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                   gap: '12px'
                 }}>
                   <div style={{ color: '#94a3b8', fontSize: '0.86rem' }}>
+                    {selectedOverviewVideo === 'mavi-way' && (
+                      <span><strong>Video 1 - The MAVI Way:</strong> Filosofi manufaktur adaptif cerdas, integrasi frontline intelligence, dan transformasi digital menyeluruh.</span>
+                    )}
+                    {selectedOverviewVideo === 'mavi-ops' && (
+                      <span><strong>Video 2 - MAVI Ops:</strong> Operasional lantai produksi real-time, koordinasi stasiun kerja, tracking live order, dan eksekusi frontline MES.</span>
+                    )}
                     {selectedOverviewVideo === 'overview' && (
-                      <span><strong>Video 1:</strong> Saksikan bagaimana MAVI menghubungkan aplikasi frontline, otomasi mesin PLC, dan OEE telemetry secara terpadu.</span>
+                      <span><strong>Video 3 - Platform Overview:</strong> Saksikan bagaimana MAVI menghubungkan aplikasi frontline, otomasi mesin PLC, dan OEE telemetry secara terpadu.</span>
                     )}
                     {selectedOverviewVideo === 'checksheet' && (
-                      <span><strong>Video 2:</strong> Demonstrasi pengisian <strong>Digital Check Sheet</strong> & inspeksi kualitas tanpa kertas di stasiun kerja operator.</span>
+                      <span><strong>Video 4 - Check Sheet:</strong> Demonstrasi pengisian <strong>Digital Check Sheet</strong> & inspeksi kualitas tanpa kertas di stasiun kerja operator.</span>
                     )}
                     {selectedOverviewVideo === 'wi' && (
-                      <span><strong>Video 3:</strong> Panduan perakitan interaktif <strong>Digital Work Instruction (WI)</strong> dengan instruksi visual langkah demi langkah.</span>
+                      <span><strong>Video 5 - Work Instruction (WI):</strong> Panduan perakitan interaktif <strong>Digital Work Instruction (WI)</strong> dengan instruksi visual langkah demi langkah.</span>
                     )}
                   </div>
                   <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', fontSize: '0.8rem', color: '#cbd5e1', fontWeight: 700 }}>
+                    <span style={{ color: '#fbbf24' }}>✓ The MAVI Way</span>
+                    <span style={{ color: '#22d3ee' }}>✓ Frontline MES Ops</span>
                     <span style={{ color: '#38bdf8' }}>✓ No-Code App Builder</span>
                     <span style={{ color: '#34d399' }}>✓ Paperless Inspection</span>
                     <span style={{ color: '#c084fc' }}>✓ Guided Work Instruction</span>
-                    <span style={{ color: '#fbbf24' }}>✓ Live OEE Cockpit</span>
                   </div>
                 </div>
               </div>

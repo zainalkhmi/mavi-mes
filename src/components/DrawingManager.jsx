@@ -5494,10 +5494,6 @@ export default function DrawingManager() {
                             handleAnchorDragStart(dim.id, 'center');
                         }}
                     />
-                    <g transform={`translate(${dim.cx}, ${dim.cy - 12})`} style={{ pointerEvents: 'none' }}>
-                        <rect x="-28" y="-8" width="56" height="15" rx="3" fill="#0f172a" stroke="#f59e0b" strokeWidth="1" />
-                        <text x="0" y="3" fill="#f59e0b" fontSize="7.5" fontWeight="bold" textAnchor="middle">🎯 VERTEX</text>
-                    </g>
                 </g>
             );
         }
@@ -5520,10 +5516,6 @@ export default function DrawingManager() {
                             handleAnchorDragStart(dim.id, 'label');
                         }}
                     />
-                    <g transform={`translate(${dim.lx}, ${dim.ly - 12})`} style={{ pointerEvents: 'none' }}>
-                        <rect x="-24" y="-7" width="48" height="13" rx="3" fill="#0f172a" stroke="#a855f7" strokeWidth="1" />
-                        <text x="0" y="3" fill="#a855f7" fontSize="7" fontWeight="bold" textAnchor="middle">🎈 LABEL</text>
-                    </g>
                 </g>
             );
         }
@@ -6718,6 +6710,42 @@ export default function DrawingManager() {
                                                             }}>
                                                                 {stat.icon} {stat.label}
                                                             </span>
+
+                                                            {/* Delete Button on Card */}
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleDeleteDimension(dim.id);
+                                                                }}
+                                                                style={{
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    justifyContent: 'center',
+                                                                    width: '24px',
+                                                                    height: '24px',
+                                                                    borderRadius: '6px',
+                                                                    border: '1px solid #fecaca',
+                                                                    backgroundColor: '#fef2f2',
+                                                                    color: '#ef4444',
+                                                                    cursor: 'pointer',
+                                                                    flexShrink: 0,
+                                                                    transition: 'all 0.15s ease',
+                                                                    padding: 0
+                                                                }}
+                                                                onMouseEnter={(e) => {
+                                                                    e.currentTarget.style.backgroundColor = '#ef4444';
+                                                                    e.currentTarget.style.color = '#ffffff';
+                                                                    e.currentTarget.style.borderColor = '#dc2626';
+                                                                }}
+                                                                onMouseLeave={(e) => {
+                                                                    e.currentTarget.style.backgroundColor = '#fef2f2';
+                                                                    e.currentTarget.style.color = '#ef4444';
+                                                                    e.currentTarget.style.borderColor = '#fecaca';
+                                                                }}
+                                                                title="Hapus Parameter Ini"
+                                                            >
+                                                                <Trash2 size={12} />
+                                                            </button>
                                                         </div>
 
                                                         {/* Row 2: Spec + Tolerance range + Severity */}
@@ -10554,7 +10582,7 @@ export default function DrawingManager() {
                                 <div style={{ flex: 1, overflowY: 'auto', padding: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                     {/* Action Row containing Balloon indicator and Add Button */}
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px', marginBottom: '4px' }}>
-                                        <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                             {activeDim && (
                                                 <span style={{
                                                     fontSize: '0.7rem',
@@ -10567,6 +10595,28 @@ export default function DrawingManager() {
                                                 }}>
                                                     Balloon #{selectedDwg?.dimensions?.findIndex(d => d.id === activeDim.id) + 1 || '?'}
                                                 </span>
+                                            )}
+                                            {activeDim && (
+                                                <button
+                                                    onClick={() => handleDeleteDimension(activeDim.id)}
+                                                    style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px',
+                                                        backgroundColor: '#fee2e2',
+                                                        color: '#dc2626',
+                                                        border: '1px solid #fca5a5',
+                                                        padding: '3px 8px',
+                                                        borderRadius: '6px',
+                                                        fontSize: '0.65rem',
+                                                        fontWeight: 700,
+                                                        cursor: 'pointer'
+                                                    }}
+                                                    title="Hapus Parameter QC Ini"
+                                                >
+                                                    <Trash2 size={11} />
+                                                    <span>Hapus</span>
+                                                </button>
                                             )}
                                         </div>
                                         
@@ -11416,20 +11466,53 @@ export default function DrawingManager() {
                                                 </div>
                                             )}
 
-                                            {/* Save / Delete */}
-                                            <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                                            {/* Save / Delete Actions */}
+                                            <div style={{ display: 'flex', gap: '8px', marginTop: '12px', paddingBottom: '36px' }}>
                                                 <button
                                                     onClick={handleSaveMapping}
-                                                    style={{ flex: 1, padding: '10px', background: 'linear-gradient(135deg, #2563eb, #7c3aed)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.78rem', transition: 'opacity 0.2s' }}
+                                                    style={{ 
+                                                        flex: 2, 
+                                                        padding: '11px 14px', 
+                                                        background: 'linear-gradient(135deg, #2563eb, #7c3aed)', 
+                                                        color: 'white', 
+                                                        border: 'none', 
+                                                        borderRadius: '8px', 
+                                                        fontWeight: 700, 
+                                                        cursor: 'pointer', 
+                                                        fontSize: '0.8rem', 
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        gap: '6px',
+                                                        boxShadow: '0 2px 6px rgba(37,99,235,0.25)',
+                                                        transition: 'all 0.15s' 
+                                                    }}
                                                 >
-                                                    Simpan Mapping
+                                                    💾 Simpan Mapping
                                                 </button>
                                                 <button
                                                     onClick={() => handleDeleteDimension(activeDim.id)}
-                                                    style={{ padding: '10px', backgroundColor: '#fee2e2', color: '#ef4444', border: '1px solid #fca5a5', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                                    title="Hapus Parameter"
+                                                    style={{ 
+                                                        flex: 1, 
+                                                        padding: '11px 12px', 
+                                                        backgroundColor: '#fee2e2', 
+                                                        color: '#dc2626', 
+                                                        border: '1.5px solid #f87171', 
+                                                        borderRadius: '8px', 
+                                                        cursor: 'pointer', 
+                                                        display: 'flex', 
+                                                        alignItems: 'center', 
+                                                        justifyContent: 'center',
+                                                        gap: '5px',
+                                                        fontWeight: 700,
+                                                        fontSize: '0.78rem',
+                                                        boxShadow: '0 2px 6px rgba(220,38,38,0.15)',
+                                                        transition: 'all 0.15s'
+                                                    }}
+                                                    title="Hapus Parameter QC Ini"
                                                 >
                                                     <Trash2 size={15} />
+                                                    <span>Hapus</span>
                                                 </button>
                                             </div>
                                         </div>
@@ -11494,6 +11577,29 @@ export default function DrawingManager() {
                                                                 <span style={{ fontSize: '0.55rem', fontWeight: 800, color: '#ef4444', padding: '1px 5px', backgroundColor: '#ef444418', borderRadius: '4px' }}>TRIGGERED</span>
                                                             )}
                                                             <span style={{ color: status === 'PASS' ? '#10b981' : status === 'FAIL' ? '#ef4444' : '#94a3b8', fontWeight: 900, fontSize: '0.7rem' }}>{status}</span>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleDeleteDimension(dim.id);
+                                                                }}
+                                                                style={{
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    justifyContent: 'center',
+                                                                    width: '20px',
+                                                                    height: '20px',
+                                                                    borderRadius: '4px',
+                                                                    border: '1px solid #fecaca',
+                                                                    backgroundColor: '#fef2f2',
+                                                                    color: '#ef4444',
+                                                                    cursor: 'pointer',
+                                                                    padding: 0,
+                                                                    marginLeft: '2px'
+                                                                }}
+                                                                title="Hapus Parameter"
+                                                            >
+                                                                <Trash2 size={11} />
+                                                            </button>
                                                         </div>
                                                     </div>
                                                     {dim.visionEnabled ? (
