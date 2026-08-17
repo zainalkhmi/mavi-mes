@@ -73,6 +73,21 @@ const DEFAULT_DRAWINGS = [
         ]
     },
     {
+        id: 'dwg_housing_cover',
+        name: 'Housing Cover Blueprint HC-12527',
+        fileName: 'housing-cover-hc12527.pdf',
+        fileType: 'PDF',
+        uploadedAt: '2026-08-15T10:00:00Z',
+        dimensions: [
+            { id: 'tag_label_902', label: 'LABEL 902', spec: '902', tolMin: 900, tolMax: 905, variable: 'QC_Label_902', unit: '', category: 'custom', measureType: 'custom', indicatorType: 'callout', gdt_symbol: '🏷️', x1: 160, y1: 180, lx: 235, ly: 165 },
+            { id: 'tag_dim_3523', label: 'Hole Position 35.23', spec: '35.23', tolMin: 35.0, tolMax: 35.5, variable: 'Meas_Hole_3523', unit: 'mm', category: 'dimension', measureType: 'linear_horizontal', indicatorType: 'horizontal', gdt_symbol: '', x1: 375, y1: 375, lx: 520, ly: 435 },
+            { id: 'tag_dim_21601', label: 'Overall Height 216.01', spec: '216.01', tolMin: 215.8, tolMax: 216.2, variable: 'Meas_Height_21601', unit: 'mm', category: 'dimension', measureType: 'linear_vertical', indicatorType: 'vertical', gdt_symbol: '', x1: 765, y1: 180, lx: 895, ly: 310 },
+            { id: 'tag_dim_top_width', label: 'Top Width', spec: '193.39', tolMin: 193.0, tolMax: 193.8, variable: 'Meas_Width_Top', unit: '°', category: 'angle', measureType: 'angle', indicatorType: 'arc', gdt_symbol: '∠', x1: 270, y1: 155, lx: 425, ly: 155 },
+            { id: 'tag_dim_bot_width', label: 'Bottom Width', spec: '89.98', tolMin: 89.5, tolMax: 90.5, variable: 'Meas_Width_Bot', unit: '°', category: 'angle', measureType: 'angle', indicatorType: 'arc', gdt_symbol: '∠', x1: 300, y1: 540, lx: 395, ly: 555 },
+            { id: 'tag_dim_sec_depth', label: 'Section Thickness', spec: '27.50', tolMin: 27.2, tolMax: 27.8, variable: 'Meas_Sec_Thickness', unit: 'mm', category: 'dimension', measureType: 'linear_horizontal', indicatorType: 'horizontal', gdt_symbol: '', x1: 685, y1: 165, lx: 702, ly: 160 }
+        ]
+    },
+    {
         id: 'dwg_product_checking',
         name: 'Product Checking Template',
         fileName: 'product-checking-template.pdf',

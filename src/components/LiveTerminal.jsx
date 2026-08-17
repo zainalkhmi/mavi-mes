@@ -11688,37 +11688,14 @@ const LiveTerminal = () => {
       case 'CAD':
       case 'CAD_VIEWER': {
         const fileUrl = comp.props?.selectedDrawingId || comp.props?.fileUrl || comp.props?.source || '';
-        const format = (comp.props?.format || '').toUpperCase();
-        const drawings = (() => {
-          try { return JSON.parse(localStorage.getItem('mavi_drawings') || '[]'); } catch { return []; }
-        })();
-        const selectedDwg = drawings.find(d => d.id === fileUrl || d.fileName === fileUrl || d.file_name === fileUrl || d.name === fileUrl);
-        const dwgType = (selectedDwg?.fileType || selectedDwg?.file_type || format || '').toUpperCase();
-        
-        // 3D viewer is only used if explicitly a 3D format or 3D interactive preset
-        const is3D = fileUrl === 'interactive-3d-cad' || 
-                     ['STL', 'OBJ', 'GLTF', 'GLB', 'STEP', 'IGES'].includes(dwgType) || 
-                     (typeof fileUrl === 'string' && /\.(stl|obj|gltf|glb|step|iges)$/i.test(fileUrl));
-
-        if (is3D) {
-          return (
-            <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8', fontSize: '0.8rem' }}>Memuat 3D CAD Twin...</div>}>
-              <CADViewer3D 
-                fileUrl={fileUrl}
-                appVariables={appVariables} 
-                setAppVariables={setAppVariables} 
-              />
-            </Suspense>
-          );
-        }
-
         return (
-          <CADViewer2D 
-            fileUrl={fileUrl}
-            appVariables={appVariables} 
-            setAppVariables={setAppVariables} 
-            compProps={comp.props}
-          />
+          <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8', fontSize: '0.8rem' }}>Memuat CAD Blueprint Viewer...</div>}>
+            <CADViewer3D 
+              fileUrl={fileUrl}
+              appVariables={appVariables} 
+              setAppVariables={setAppVariables} 
+            />
+          </Suspense>
         );
       }
       case 'MEASUREMENT_WIDGET':

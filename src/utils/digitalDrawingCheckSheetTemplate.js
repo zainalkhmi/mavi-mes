@@ -51,16 +51,14 @@ export function createDigitalDrawingCheckSheetTemplate() {
                 props: { text: 'WO: {{@Work_Order_No}} | Part: {{@Part_Number}} | Inspector: {{@Inspector_Name}}', fontSize: 12, color: '#94a3b8' }
             },
 
-            // Center: Interactive Check Sheet Container
+            // Center: Interactive Check Sheet CAD Viewer
             {
-                id: `cs_interactive_viewer_${ts}`, type: 'CONTAINER',
+                id: `cs_cad_viewer_${ts}`, type: 'CAD_VIEWER',
                 x: 10, y: 60, w: 980, h: 545,
                 props: {
-                    backgroundColor: '#ffffff',
-                    borderRadius: '8px',
-                    borderColor: '#cbd5e1',
-                    border: '1px solid #cbd5e1',
-                    overflow: 'hidden'
+                    title: 'Housing Cover Blueprint (HC-12527)',
+                    fileUrl: 'dwg_housing_cover',
+                    showGrid: true
                 }
             }
         ]
