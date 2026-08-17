@@ -11495,15 +11495,6 @@ const AppBuilder = () => {
                     </div>
                 );
             case 'CAD_VIEWER': {
-                const showROI = comp.props.showROI !== false;
-                const roiLabel = comp.props.roiLabel || 'Inspection Zone #1';
-                const roiX = comp.props.roiX ?? 20;
-                const roiY = comp.props.roiY ?? 18;
-                const roiW = comp.props.roiW ?? 60;
-                const roiH = comp.props.roiH ?? 55;
-                const roiColor = comp.props.roiColor || '#22c55e';
-                const roiMode = comp.props.roiMode || 'Dimensional Check';
-                const roiScore = comp.props.roiMatchScore || 99.4;
                 const fileUrl = comp.props.selectedDrawingId || comp.props.fileUrl || comp.props.source || '';
 
                 const drawings = (() => {
@@ -11531,15 +11522,6 @@ const AppBuilder = () => {
                                 </span>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                {showROI && (
-                                    <span style={{
-                                        fontSize: '0.55rem', fontWeight: 800, color: roiColor,
-                                        backgroundColor: `${roiColor}20`, border: `1px solid ${roiColor}50`,
-                                        padding: '1px 6px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '3px'
-                                    }}>
-                                        🎯 {roiLabel} ({roiScore}%)
-                                    </span>
-                                )}
                                 <span style={{ fontSize: '0.58rem', color: '#64748b' }}>
                                     {selectedDwg?.fileType || comp.props.format || 'DWG'}
                                 </span>
@@ -11755,31 +11737,7 @@ const AppBuilder = () => {
                                                         </g>
                                                     );
                                                 })}
-                                                {/* Fallback wireframe inside SVG if drawing has no dataUrl and no shapes */}
-                                                {(!selectedDwg.dataUrl && !selectedDwg.data_url) && (!selectedDwg.shapes || selectedDwg.shapes.length === 0) && (
-                                                    <g transform="translate(40, 20)">
-                                                        <rect x="120" y="80" width="240" height="180" fill="none" stroke="#3b82f6" strokeWidth="2" />
-                                                        <circle cx="240" cy="170" r="45" fill="none" stroke="#60a5fa" strokeWidth="1.5" />
-                                                        <line x1="240" y1="50" x2="240" y2="290" stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="10,5" />
-                                                        <line x1="80" y1="170" x2="400" y2="170" stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="10,5" />
-                                                    </g>
-                                                )}
                                             </g>
-
-                                            {/* OVERLAY: Green ROI Border Box surrounding the cropped area */}
-                                            {cropBox && (
-                                                <g style={{ pointerEvents: 'none' }}>
-                                                    <rect x={cropBox.rx} y={cropBox.ry} width={cropBox.rw} height={cropBox.rh} stroke="#22c55e" strokeWidth="2" strokeDasharray="6 3" fill="none" rx="4" />
-                                                    <path d={`M ${cropBox.rx - 2} ${cropBox.ry + 12} L ${cropBox.rx - 2} ${cropBox.ry - 2} L ${cropBox.rx + 12} ${cropBox.ry - 2}`} stroke="#22c55e" strokeWidth="3" fill="none" />
-                                                    <path d={`M ${cropBox.rx + cropBox.rw - 12} ${cropBox.ry - 2} L ${cropBox.rx + cropBox.rw + 2} ${cropBox.ry - 2} L ${cropBox.rx + cropBox.rw + 2} ${cropBox.ry + 12}`} stroke="#22c55e" strokeWidth="3" fill="none" />
-                                                    <path d={`M ${cropBox.rx - 2} ${cropBox.ry + cropBox.rh - 12} L ${cropBox.rx - 2} ${cropBox.ry + cropBox.rh + 2} L ${cropBox.rx + 12} ${cropBox.ry + cropBox.rh + 2}`} stroke="#22c55e" strokeWidth="3" fill="none" />
-                                                    <path d={`M ${cropBox.rx + cropBox.rw - 12} ${cropBox.ry + cropBox.rh + 2} L ${cropBox.rx + cropBox.rw + 2} ${cropBox.ry + cropBox.rh + 2} L ${cropBox.rx + cropBox.rw + 2} ${cropBox.ry + cropBox.rh - 12}`} stroke="#22c55e" strokeWidth="3" fill="none" />
-                                                    <rect x={cropBox.rx + 4} y={cropBox.ry + 4} width={Math.max(110, ((cropBox.label || 'ROI Inspection Zone').length * 7) + 24)} height="18" fill="#22c55e" rx="3" />
-                                                    <text x={cropBox.rx + 10} y={cropBox.ry + 17} fill="white" fontSize="10" fontWeight="bold">
-                                                        🎯 {cropBox.label || 'ROI Inspection Zone'}
-                                                    </text>
-                                                </g>
-                                            )}
                                         </svg>
                                     );
                                 })()
@@ -11794,57 +11752,6 @@ const AppBuilder = () => {
                                 </div>
                             )}
 
-                            {/* ROI (Region of Interest) Overlay Box */}
-                            {showROI && (
-                                <div style={{
-                                    position: 'absolute',
-                                    top: `${roiY}%`,
-                                    left: `${roiX}%`,
-                                    width: `${roiW}%`,
-                                    height: `${roiH}%`,
-                                    border: `2px solid ${roiColor}`,
-                                    backgroundColor: `${roiColor}0d`,
-                                    borderRadius: '6px',
-                                    boxShadow: `0 0 12px ${roiColor}30`,
-                                    boxSizing: 'border-box',
-                                    zIndex: 10,
-                                    transition: 'all 0.2s ease'
-                                }}>
-                                    {/* Corner Target Bracket Markers */}
-                                    <div style={{ position: 'absolute', top: -3, left: -3, width: 10, height: 10, borderTop: `3px solid ${roiColor}`, borderLeft: `3px solid ${roiColor}` }} />
-                                    <div style={{ position: 'absolute', top: -3, right: -3, width: 10, height: 10, borderTop: `3px solid ${roiColor}`, borderRight: `3px solid ${roiColor}` }} />
-                                    <div style={{ position: 'absolute', bottom: -3, left: -3, width: 10, height: 10, borderBottom: `3px solid ${roiColor}`, borderLeft: `3px solid ${roiColor}` }} />
-                                    <div style={{ position: 'absolute', bottom: -3, right: -3, width: 10, height: 10, borderBottom: `3px solid ${roiColor}`, borderRight: `3px solid ${roiColor}` }} />
-
-                                    {/* ROI Badge Title */}
-                                    <div style={{
-                                        position: 'absolute', top: '-18px', left: '4px',
-                                        backgroundColor: roiColor, color: '#0f172a',
-                                        fontSize: '0.55rem', fontWeight: 900, padding: '1px 6px',
-                                        borderRadius: '3px', textTransform: 'uppercase',
-                                        letterSpacing: '0.5px', boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
-                                    }}>
-                                        🔍 ROI: {roiLabel}
-                                    </div>
-
-                                    {/* Animated Scan Line */}
-                                    <div style={{
-                                        position: 'absolute', top: 0, left: 0, right: 0, height: '2px',
-                                        backgroundColor: roiColor, boxShadow: `0 0 8px ${roiColor}`,
-                                        animation: 'roiScan 2.5s ease-in-out infinite'
-                                    }} />
-
-                                    {/* ROI Info tag at bottom right */}
-                                    <div style={{
-                                        position: 'absolute', bottom: '3px', right: '4px',
-                                        color: '#94a3b8', fontSize: '0.52rem', fontFamily: 'monospace',
-                                        backgroundColor: 'rgba(15, 23, 42, 0.8)', padding: '1px 4px', borderRadius: '2px'
-                                    }}>
-                                        {roiMode} | {roiW}%x{roiH}%
-                                    </div>
-                                </div>
-                            )}
-
                             {/* Bottom CAD status label */}
                             <div style={{
                                 position: 'absolute', bottom: '8px', left: '8px', right: '8px',
@@ -11852,14 +11759,6 @@ const AppBuilder = () => {
                             }}>
                                 {hasSource ? 'CAD model loaded & verified' : 'No CAD source set'}
                             </div>
-
-                            <style>{`
-                                @keyframes roiScan {
-                                    0% { top: 0%; opacity: 0.8; }
-                                    50% { top: 96%; opacity: 0.8; }
-                                    100% { top: 0%; opacity: 0.8; }
-                                }
-                            `}</style>
                         </div>
                     </div>
                 );
@@ -19150,117 +19049,7 @@ const AppBuilder = () => {
                                                             <option value="GLB">GLB</option>
                                                         </select>
 
-                                                        {/* REGION OF INTEREST (ROI) CONFIGURATION */}
-                                                        <div style={{ marginTop: '16px', padding: '12px', backgroundColor: 'var(--bg-secondary, #f8fafc)', borderRadius: '8px', border: '1px solid var(--border-primary)' }}>
-                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                                                                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                                                    🎯 REGION OF INTEREST (ROI)
-                                                                </span>
-                                                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={selectedComp.props.showROI !== false}
-                                                                        onChange={(e) => updateComponentProps(selectedComp.id, { showROI: e.target.checked })}
-                                                                    />
-                                                                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Tampilkan ROI</span>
-                                                                </label>
-                                                            </div>
 
-                                                            {selectedComp.props.showROI !== false && (
-                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                                                    <div>
-                                                                        <label style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>LABEL ROI ZONE</label>
-                                                                        <input
-                                                                            type="text"
-                                                                            value={selectedComp.props.roiLabel || 'Inspection Zone #1'}
-                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { roiLabel: e.target.value })}
-                                                                            style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--border-primary)', borderRadius: '4px', fontSize: '0.75rem' }}
-                                                                        />
-                                                                    </div>
-
-                                                                    <div>
-                                                                        <label style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>MODE INSPEKSI ROI</label>
-                                                                        <select
-                                                                            value={selectedComp.props.roiMode || 'Dimensional Check'}
-                                                                            onChange={(e) => updateComponentProps(selectedComp.id, { roiMode: e.target.value })}
-                                                                            style={{ width: '100%', padding: '6px 8px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', fontSize: '0.75rem', color: 'var(--text-primary)' }}
-                                                                        >
-                                                                            <option value="Dimensional Check">📏 Dimensional Check (Pemeriksaan Dimensi)</option>
-                                                                            <option value="Defect Detection">🔍 Defect Detection (Deteksi Cacat/Keretakan)</option>
-                                                                            <option value="Surface Quality">✨ Surface Quality (Kualitas Permukaan)</option>
-                                                                            <option value="Pattern Matching">🧩 Pattern Matching (Kesesuaian Pola CAD)</option>
-                                                                        </select>
-                                                                    </div>
-
-                                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                                                                        <div>
-                                                                            <label style={{ display: 'block', fontSize: '0.62rem', color: 'var(--text-tertiary)', marginBottom: '2px' }}>POSISI X (%)</label>
-                                                                            <input
-                                                                                type="number"
-                                                                                min="0" max="100"
-                                                                                value={selectedComp.props.roiX ?? 20}
-                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { roiX: Number(e.target.value) })}
-                                                                                style={{ width: '100%', padding: '4px 6px', border: '1px solid var(--border-primary)', borderRadius: '4px', fontSize: '0.72rem' }}
-                                                                            />
-                                                                        </div>
-                                                                        <div>
-                                                                            <label style={{ display: 'block', fontSize: '0.62rem', color: 'var(--text-tertiary)', marginBottom: '2px' }}>POSISI Y (%)</label>
-                                                                            <input
-                                                                                type="number"
-                                                                                min="0" max="100"
-                                                                                value={selectedComp.props.roiY ?? 18}
-                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { roiY: Number(e.target.value) })}
-                                                                                style={{ width: '100%', padding: '4px 6px', border: '1px solid var(--border-primary)', borderRadius: '4px', fontSize: '0.72rem' }}
-                                                                            />
-                                                                        </div>
-                                                                        <div>
-                                                                            <label style={{ display: 'block', fontSize: '0.62rem', color: 'var(--text-tertiary)', marginBottom: '2px' }}>LEBAR / W (%)</label>
-                                                                            <input
-                                                                                type="number"
-                                                                                min="10" max="100"
-                                                                                value={selectedComp.props.roiW ?? 60}
-                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { roiW: Number(e.target.value) })}
-                                                                                style={{ width: '100%', padding: '4px 6px', border: '1px solid var(--border-primary)', borderRadius: '4px', fontSize: '0.72rem' }}
-                                                                            />
-                                                                        </div>
-                                                                        <div>
-                                                                            <label style={{ display: 'block', fontSize: '0.62rem', color: 'var(--text-tertiary)', marginBottom: '2px' }}>TINGGI / H (%)</label>
-                                                                            <input
-                                                                                type="number"
-                                                                                min="10" max="100"
-                                                                                value={selectedComp.props.roiH ?? 55}
-                                                                                onChange={(e) => updateComponentProps(selectedComp.id, { roiH: Number(e.target.value) })}
-                                                                                style={{ width: '100%', padding: '4px 6px', border: '1px solid var(--border-primary)', borderRadius: '4px', fontSize: '0.72rem' }}
-                                                                            />
-                                                                        </div>
-                                                                    </div>
-
-                                                                    <div>
-                                                                        <label style={{ display: 'block', fontSize: '0.62rem', color: 'var(--text-tertiary)', marginBottom: '4px' }}>WARNA ROI</label>
-                                                                        <div style={{ display: 'flex', gap: '6px' }}>
-                                                                            {[
-                                                                                { name: 'Emerald', hex: '#22c55e' },
-                                                                                { name: 'Cyan', hex: '#06b6d4' },
-                                                                                { name: 'Amber', hex: '#f59e0b' },
-                                                                                { name: 'Rose', hex: '#f43f5e' },
-                                                                                { name: 'Blue', hex: '#3b82f6' }
-                                                                            ].map(c => (
-                                                                                <button
-                                                                                    key={c.hex}
-                                                                                    onClick={() => updateComponentProps(selectedComp.id, { roiColor: c.hex })}
-                                                                                    style={{
-                                                                                        width: '24px', height: '24px', borderRadius: '50%', backgroundColor: c.hex,
-                                                                                        border: (selectedComp.props.roiColor || '#22c55e') === c.hex ? '2px solid white' : 'none',
-                                                                                        boxShadow: (selectedComp.props.roiColor || '#22c55e') === c.hex ? '0 0 6px ' + c.hex : 'none',
-                                                                                        cursor: 'pointer'
-                                                                                    }}
-                                                                                />
-                                                                            ))}
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                        </div>
 
                                                         {/* GD&T Parameter Summary Table */}
                                                         {(() => {

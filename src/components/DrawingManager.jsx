@@ -2977,19 +2977,56 @@ export default function DrawingManager() {
                 color: cadColor,
                 strokeWidth: cadWidth
             });
-        } else if (cadTool === 'roi') {
-            setDrawingShape({
-                type: 'roi',
-                x: coords.x,
-                y: coords.y,
+        } else if (cadTool === 'balloon') {
+            const nextBalloonNum = (selectedDwg?.dimensions?.length || 0) + 1;
+            const catDef = getCategoryDef(drawingCategory || 'dimension');
+            const suggestedVars = QMS_VARIABLES_BY_CATEGORY[drawingCategory || 'dimension'] || [];
+            
+            const lx = coords.x + 35;
+            const ly = coords.y - 35;
+
+            setDimModalData({
                 x1: coords.x,
                 y1: coords.y,
-                w: 0,
-                h: 0,
-                color: '#22c55e',
-                strokeWidth: 2,
-                label: 'ROI Inspection Zone'
+                x2: lx,
+                y2: ly,
+                lx: lx,
+                ly: ly,
+                cx: coords.x,
+                cy: coords.y,
+                spec: '10.00',
+                label: `Balon #${nextBalloonNum} - ${catDef.labelId || 'Inspeksi QC'}`,
+                category: drawingCategory || 'dimension',
+                measureType: catDef.defaultMeasure || 'linear',
+                indicatorType: 'radial',
+                unit: catDef.defaultUnit || 'mm',
+                gdt_symbol: catDef.symbol || '⌀',
+                tolMin: '9.80',
+                tolMax: '10.20',
+                variable: suggestedVars[0] || `Meas_Balloon_${nextBalloonNum}`,
+                angleStart: 0,
+                angleEnd: 90,
+                markerShape: 'circle',
+                markerSize: 60,
+                visionEnabled: false,
+                yoloModel: 'yolov8n.pt',
+                yoloClass: '',
+                deviceLockEnabled: false,
+                deviceProfile: 'Mitutoyo Caliper (BLE)',
+                gdtFrameEnabled: false,
+                gdtTolerance: '',
+                gdtHasDiameter: false,
+                gdtModifier: '',
+                gdtDatum1: '',
+                gdtDatum2: '',
+                gdtDatum3: '',
+                isBalloonOrigin: true,
+                balloonNumber: nextBalloonNum
             });
+            setIsBalloonMode(true);
+            setIsDimModalOpen(true);
+            toast.success(`Titik Balon #${nextBalloonNum} dipilih! Silakan tentukan tipe parameter QC.`);
+            return;
         } else if (cadTool === 'text') {
             const svgRect = svgRef.current.getBoundingClientRect();
             const parentRect = svgRef.current.parentElement.getBoundingClientRect();
@@ -5856,14 +5893,29 @@ export default function DrawingManager() {
                     { id: 'hexagon', icon: 'Hexagon', label: 'Hexagon (Segienam)' },
                     { id: 'circle', icon: 'Circle', label: 'Circle (Lingkaran)' },
                     { id: 'ellipse', icon: 'ellipse_icon', label: 'Ellipse (Elips)' },
-                    { id: 'roi', icon: 'Target', label: 'ROI (Region of Interest Zone)' },
                     { id: 'region', icon: 'Crop', label: 'CAD Display Region (Kotak Merah Viewport App Builder)', action: () => { setCadTool('region'); setShowQCInspector(true); setQcTab('region'); } },
                     { id: 'text', icon: 'Type', label: 'Teks (Text)' },
                     { id: 'move', icon: 'Move', label: 'Pindah Elemen' },
                     { id: '_sep2' },
                     { id: 'gdt_tools', label: 'Dimensi / GD&T' },
-                    { id: '_sep3' },
-                    { id: 'balloon', icon: 'balloon_icon', label: 'Balloon Mode', isToggle: true, toggleState: isBalloonMode, color: '#ef4444', action: () => setIsBalloonMode(prev => !prev) },
+                    { 
+                        id: 'balloon', 
+                        icon: 'balloon_icon', 
+                        label: '🎈 Balon QC (Klik Titik di Canvas untuk Buat QC Plan)', 
+                        isToggle: true, 
+                        toggleState: cadTool === 'balloon' || isBalloonMode, 
+                        color: '#ef4444', 
+                        action: () => {
+                            setIsBalloonMode(true);
+                            if (cadTool === 'balloon') {
+                                setCadTool('select');
+                                toast('Mode Balon dinonaktifkan (kembali ke Select)', { icon: '👆' });
+                            } else {
+                                setCadTool('balloon');
+                                toast.success('🎈 Mode Balon Aktif: Klik pada titik mana saja di canvas untuk membuat Balon & QC Plan!');
+                            }
+                        } 
+                    },
                     { id: 'erase', icon: 'Trash2', label: 'Hapus', danger: true },
                     { id: '_sep4' },
                     { id: 'color', icon: 'color_swatch', label: 'Warna' },
@@ -12014,8 +12066,10 @@ export default function DrawingManager() {
                     }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span style={{ fontSize: '1.3rem' }}>📏</span>
-                                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 900, color: '#0f172a' }}>Tambah Dimensi QC Baru</h3>
+                                <span style={{ fontSize: '1.3rem' }}>{dimModalData.isBalloonOrigin ? '🎈' : '📏'}</span>
+                                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 900, color: '#0f172a' }}>
+                                    {dimModalData.isBalloonOrigin ? `Tambah Balon QC Plan #${dimModalData.balloonNumber || ''}` : 'Tambah Dimensi QC Baru'}
+                                </h3>
                             </div>
                             <button
                                 onClick={() => { setIsDimModalOpen(false); setDimModalData(null); }}
@@ -12404,9 +12458,9 @@ export default function DrawingManager() {
                             </button>
                             <button
                                 onClick={() => handleSaveNewDimension(dimModalData)}
-                                style={{ flex: 1, padding: '10px', background: 'linear-gradient(135deg, #2563eb, #7c3aed)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.78rem' }}
+                                style={{ flex: 1, padding: '10px', background: dimModalData.isBalloonOrigin ? 'linear-gradient(135deg, #ef4444, #b91c1c)' : 'linear-gradient(135deg, #2563eb, #7c3aed)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.78rem' }}
                             >
-                                Simpan Dimensi
+                                {dimModalData.isBalloonOrigin ? 'Simpan Balon & QC Plan' : 'Simpan Dimensi'}
                             </button>
                         </div>
                     </div>

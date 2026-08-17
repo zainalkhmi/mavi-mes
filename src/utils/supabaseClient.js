@@ -24,11 +24,7 @@ const validateSupabaseUrl = (rawUrl = '') => {
     }
 
     if (!['https:', 'http:'].includes(parsed.protocol)) {
-        throw new Error('Supabase URL must start with http:// or https:// (not libsql://).');
-    }
-
-    if (!parsed.hostname.toLowerCase().includes('supabase.co')) {
-        throw new Error('Supabase URL should be your Supabase project domain (…supabase.co).');
+        throw new Error('Supabase URL must start with http:// or https://');
     }
 
     return normalizeBaseUrl(parsed.toString());
