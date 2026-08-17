@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
     ZoomIn,
     ZoomOut,
@@ -10,7 +10,6 @@ import {
     XCircle,
     AlertCircle,
     RotateCw,
-    Box,
     FileText,
     ChevronDown,
     Crosshair,
@@ -18,159 +17,11 @@ import {
     Check,
     Folder
 } from 'lucide-react';
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
-import * as THREE from 'three';
-import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
-import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { getAllDrawings } from '../utils/supabaseUtilityDB';
 import { convertPdfToImageDataUrl } from '../utils/pdfRenderService';
 
 // ─────────────────────────────────────────
-// CUSTOM HOOK: LOAD & DECODE 3D MODEL
-// ─────────────────────────────────────────
-export function useCADModel(dataUrl, fileType) {
-    const [model, setModel] = useState(null);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
-
-    useEffect(() => {
-        if (!dataUrl) {
-            setModel(null);
-            return;
-        }
-
-        setLoading(true);
-        setError(null);
-
-        const type = (fileType || '').toUpperCase();
-        let loader;
-
-        if (type === 'STL') {
-            loader = new STLLoader();
-        } else if (type === 'OBJ') {
-            loader = new OBJLoader();
-        } else if (type === 'GLTF' || type === 'GLB') {
-            loader = new GLTFLoader();
-        } else {
-            if (dataUrl.includes('model/stl') || dataUrl.includes('octet-stream') || dataUrl.toLowerCase().includes('.stl')) {
-                loader = new STLLoader();
-            } else if (dataUrl.toLowerCase().includes('.obj')) {
-                loader = new OBJLoader();
-            } else {
-                loader = new GLTFLoader();
-            }
-        }
-
-        try {
-            loader.load(
-                dataUrl,
-                (loaded) => {
-                    const group = new THREE.Group();
-                    if (type === 'STL' || loaded instanceof THREE.BufferGeometry) {
-                        loaded.center();
-                        loaded.computeBoundingSphere();
-                        loaded.computeVertexNormals();
-
-                        const material = new THREE.MeshStandardMaterial({
-                            color: 0x94a3b8,
-                            metalness: 0.6,
-                            roughness: 0.35,
-                        });
-                        const mesh = new THREE.Mesh(loaded, material);
-                        group.add(mesh);
-                    } else if (type === 'OBJ') {
-                        const box = new THREE.Box3().setFromObject(loaded);
-                        const center = new THREE.Vector3();
-                        box.getCenter(center);
-                        loaded.position.sub(center);
-
-                        loaded.traverse((child) => {
-                            if (child.isMesh) {
-                                child.material = new THREE.MeshStandardMaterial({
-                                    color: 0x94a3b8,
-                                    metalness: 0.6,
-                                    roughness: 0.35,
-                                });
-                            }
-                        });
-                        group.add(loaded);
-                    } else {
-                        const scene = loaded.scene || loaded;
-                        const box = new THREE.Box3().setFromObject(scene);
-                        const center = new THREE.Vector3();
-                        box.getCenter(center);
-                        scene.position.sub(center);
-                        group.add(scene);
-                    }
-
-                    const box = new THREE.Box3().setFromObject(group);
-                    const size = box.getSize(new THREE.Vector3());
-                    const maxDim = Math.max(size.x, size.y, size.z);
-                    if (maxDim > 0) {
-                        const scaleFactor = 3.0 / maxDim;
-                        group.scale.set(scaleFactor, scaleFactor, scaleFactor);
-                    }
-
-                    setModel(group);
-                    setLoading(false);
-                },
-                undefined,
-                (err) => {
-                    console.error('Error loading 3D model:', err);
-                    setError(err.message || 'Gagal memproses file model 3D.');
-                    setLoading(false);
-                }
-            );
-        } catch (e) {
-            console.error('Loader exception:', e);
-            setError(e.message || 'Gagal menginisialisasi CAD loader.');
-            setLoading(false);
-        }
-    }, [dataUrl, fileType]);
-
-    return { model, loading, error };
-}
-
-// ─────────────────────────────────────────
-// 3D MECHANICAL MODEL FALLBACK
-// ─────────────────────────────────────────
-export function FallbackModel() {
-    return (
-        <group>
-            <mesh castShadow receiveShadow>
-                <cylinderGeometry args={[2.2, 2.2, 0.4, 64]} />
-                <meshStandardMaterial color="#64748b" metalness={0.65} roughness={0.3} />
-            </mesh>
-            <mesh position={[0, 0.5, 0]} castShadow>
-                <cylinderGeometry args={[1.3, 1.4, 0.6, 64]} />
-                <meshStandardMaterial color="#475569" metalness={0.7} roughness={0.25} />
-            </mesh>
-            <mesh position={[0, 0.9, 0]} castShadow>
-                <cylinderGeometry args={[1.5, 1.5, 0.2, 64]} />
-                <meshStandardMaterial color="#334155" metalness={0.8} roughness={0.2} />
-            </mesh>
-            <mesh position={[0, 0.4, 0]}>
-                <cylinderGeometry args={[0.7, 0.7, 1.3, 64]} />
-                <meshBasicMaterial color="#090d16" />
-            </mesh>
-            {[0, 60, 120, 180, 240, 300].map((angle, idx) => {
-                const rad = (angle * Math.PI) / 180;
-                const r = 1.7;
-                return (
-                    <mesh key={idx} position={[r * Math.cos(rad), 0, r * Math.sin(rad)]}>
-                        <cylinderGeometry args={[0.15, 0.15, 0.42, 16]} />
-                        <meshBasicMaterial color="#090d16" />
-                    </mesh>
-                );
-            })}
-        </group>
-    );
-}
-
-// ─────────────────────────────────────────
-// HOUSING COVER (HC-12527) TECHNICAL BLUEPRINT SVG (FULL BLEED FILL PARENT)
+// HOUSING COVER (HC-12527) TECHNICAL BLUEPRINT SVG (LIGHTWEIGHT PURE 2D)
 // ─────────────────────────────────────────
 export function HousingCoverDrawingSheet({ isDark = false }) {
     return (
@@ -592,7 +443,7 @@ function HydraulicCylinderDrawingGeometry() {
 }
 
 // ─────────────────────────────────────────
-// COMPREHENSIVE CAD BLUEPRINT & 3D VIEWER
+// COMPREHENSIVE CAD BLUEPRINT 2D VIEWER (ULTRA FAST LIGHTWEIGHT)
 // ─────────────────────────────────────────
 export function CADBlueprintViewer({
     fileUrl,
@@ -600,11 +451,8 @@ export function CADBlueprintViewer({
     setAppVariables,
     onAddDimension,
     onSelectDimension,
-    activeDimId: propActiveDimId,
-    mode = 'BLUEPRINT',
-    enableOrbit = true
+    activeDimId: propActiveDimId
 }) {
-    const [viewMode, setViewMode] = useState(mode || 'BLUEPRINT');
     const [zoom, setZoom] = useState(1.0);
     const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
     const [isPanning, setIsPanning] = useState(false);
@@ -797,186 +645,174 @@ export function CADBlueprintViewer({
                 justifyContent: 'center',
                 backgroundColor: '#ffffff'
             }}>
-                {viewMode === '3D' ? (
-                    <div style={{ width: '100%', height: '100%', position: 'relative', backgroundColor: '#07172e' }}>
-                        <Canvas frameloop="demand" camera={{ position: [3.5, 3.5, 3.5], fov: 45 }}>
-                            <ambientLight intensity={0.8} />
-                            <pointLight position={[10, 10, 10]} intensity={1.5} />
-                            <directionalLight position={[-8, 5, -8]} intensity={0.6} />
-                            <FallbackModel />
-                            <OrbitControls makeDefault />
-                        </Canvas>
-                    </div>
-                ) : (
-                    <svg
-                        id="blueprint-canvas-bg"
-                        viewBox="0 0 1000 700"
-                        style={{ width: '100%', height: '100%', display: 'block' }}
-                        preserveAspectRatio="xMidYMid meet"
-                    >
-                        {/* Background Base */}
-                        <rect x="0" y="0" width="1000" height="700" fill="#ffffff" />
+                <svg
+                    id="blueprint-canvas-bg"
+                    viewBox="0 0 1000 700"
+                    style={{ width: '100%', height: '100%', display: 'block' }}
+                    preserveAspectRatio="xMidYMid meet"
+                >
+                    {/* Background Base */}
+                    <rect x="0" y="0" width="1000" height="700" fill="#ffffff" />
 
-                        {/* Transform Group for Pan & Zoom */}
-                        <g transform={`translate(${500 + panOffset.x}, ${350 + panOffset.y}) scale(${zoom}) translate(-500, -350)`}>
-                            
-                            {/* Render Technical Drawing Geometry Based on Selected Drawing from Menu Drawing */}
-                            {activeImageSrc ? (
-                                <g id="uploaded-drawing-backdrop">
-                                    <image
-                                        href={activeImageSrc}
-                                        x="0"
-                                        y="0"
-                                        width="1000"
-                                        height="700"
-                                        preserveAspectRatio={selectedDwg?.stretchFill ? "none" : "xMidYMid meet"}
+                    {/* Transform Group for Pan & Zoom */}
+                    <g transform={`translate(${500 + panOffset.x}, ${350 + panOffset.y}) scale(${zoom}) translate(-500, -350)`}>
+                        
+                        {/* Render Technical Drawing Geometry Based on Selected Drawing from Menu Drawing */}
+                        {activeImageSrc ? (
+                            <g id="uploaded-drawing-backdrop">
+                                <image
+                                    href={activeImageSrc}
+                                    x="0"
+                                    y="0"
+                                    width="1000"
+                                    height="700"
+                                    preserveAspectRatio={selectedDwg?.stretchFill ? "none" : "xMidYMid meet"}
+                                />
+                            </g>
+                        ) : isHousingCover ? (
+                            <HousingCoverDrawingSheet />
+                        ) : isFlange ? (
+                            <FlangeDrawingGeometry />
+                        ) : isCylinder ? (
+                            <HydraulicCylinderDrawingGeometry />
+                        ) : (
+                            <g id="generic-drawing-sheet">
+                                <rect x="0" y="0" width="1000" height="700" fill="#ffffff" />
+                                <rect x="12" y="12" width="976" height="676" fill="none" stroke="#1e293b" strokeWidth="1.6" />
+                                <rect x="30" y="30" width="940" height="640" fill="none" stroke="#475569" strokeWidth="1.2" />
+                                <text x="500" y="350" textAnchor="middle" fill="#64748b" fontSize="16" fontWeight="bold">
+                                    {selectedDwg?.name || 'Technical Drawing Blueprint'}
+                                </text>
+                            </g>
+                        )}
+
+                        {/* ────────────────────────────────────────────────── */}
+                        {/* INTERACTIVE QC PARAMETERS & DIMENSION BADGES */}
+                        {/* ────────────────────────────────────────────────── */}
+                        {dimensions.map((dim, idx) => {
+                            const status = getDimStatus(dim);
+                            const isSelected = activeDimId === dim.id || activeDimId === dim.variable;
+
+                            const x1 = dim.x1 !== undefined ? dim.x1 : 200 + (idx * 120);
+                            const y1 = dim.y1 !== undefined ? dim.y1 : 180 + (idx * 40);
+                            const lx = dim.lx !== undefined ? dim.lx : x1 + 60;
+                            const ly = dim.ly !== undefined ? dim.ly : y1 - 20;
+
+                            const measuredVal = appVariables.find(v => v.name === dim.variable)?.value;
+                            const displayValue = measuredVal ? `${measuredVal} ${dim.unit || ''}` : (dim.spec ? `${dim.spec} ${dim.unit || ''}` : '--');
+
+                            const isLabelTag = dim.id?.includes('label') || dim.category === 'custom' || dim.category === 'datum';
+                            const badgeWidth = Math.max(76, (dim.label?.length || 8) * 6.5 + 24);
+                            const badgeHeight = 28;
+
+                            const borderColor = isSelected ? '#00e5a3' : (status === 'FAIL' ? '#ef4444' : '#10b981');
+
+                            return (
+                                <g
+                                    key={dim.id || `dim_${idx}`}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleSelectDim(dim);
+                                    }}
+                                    style={{ cursor: 'pointer' }}
+                                >
+                                    {/* Leader line connecting contact point (x1, y1) to balloon (lx, ly) */}
+                                    <line
+                                        x1={x1}
+                                        y1={y1}
+                                        x2={lx}
+                                        y2={ly}
+                                        stroke={borderColor}
+                                        strokeWidth="1.4"
+                                        strokeDasharray={isSelected ? 'none' : '3,2'}
                                     />
-                                </g>
-                            ) : isHousingCover ? (
-                                <HousingCoverDrawingSheet />
-                            ) : isFlange ? (
-                                <FlangeDrawingGeometry />
-                            ) : isCylinder ? (
-                                <HydraulicCylinderDrawingGeometry />
-                            ) : (
-                                <g id="generic-drawing-sheet">
-                                    <rect x="0" y="0" width="1000" height="700" fill="#ffffff" />
-                                    <rect x="12" y="12" width="976" height="676" fill="none" stroke="#1e293b" strokeWidth="1.6" />
-                                    <rect x="30" y="30" width="940" height="640" fill="none" stroke="#475569" strokeWidth="1.2" />
-                                    <text x="500" y="350" textAnchor="middle" fill="#64748b" fontSize="16" fontWeight="bold">
-                                        {selectedDwg?.name || 'Technical Drawing Blueprint'}
-                                    </text>
-                                </g>
-                            )}
+                                    <circle cx={x1} cy={y1} r="3.5" fill={borderColor} />
 
-                            {/* ────────────────────────────────────────────────── */}
-                            {/* INTERACTIVE QC PARAMETERS & DIMENSION BADGES */}
-                            {/* ────────────────────────────────────────────────── */}
-                            {dimensions.map((dim, idx) => {
-                                const status = getDimStatus(dim);
-                                const isSelected = activeDimId === dim.id || activeDimId === dim.variable;
+                                    {/* Active selection box & resize corner handles */}
+                                    {isSelected && (
+                                        <>
+                                            <rect
+                                                x={lx - badgeWidth / 2 - 6}
+                                                y={ly - badgeHeight / 2 - 6}
+                                                width={badgeWidth + 12}
+                                                height={badgeHeight + 12}
+                                                rx="6"
+                                                fill="none"
+                                                stroke="#38bdf8"
+                                                strokeWidth="1.2"
+                                                strokeDasharray="4,2"
+                                            />
+                                            <circle cx={lx - badgeWidth / 2 - 6} cy={ly - badgeHeight / 2 - 6} r="2.5" fill="#38bdf8" />
+                                            <circle cx={lx + badgeWidth / 2 + 6} cy={ly - badgeHeight / 2 - 6} r="2.5" fill="#38bdf8" />
+                                            <circle cx={lx - badgeWidth / 2 - 6} cy={ly + badgeHeight / 2 + 6} r="2.5" fill="#38bdf8" />
+                                            <circle cx={lx + badgeWidth / 2 + 6} cy={ly + badgeHeight / 2 + 6} r="2.5" fill="#38bdf8" />
+                                        </>
+                                    )}
 
-                                const x1 = dim.x1 !== undefined ? dim.x1 : 200 + (idx * 120);
-                                const y1 = dim.y1 !== undefined ? dim.y1 : 180 + (idx * 40);
-                                const lx = dim.lx !== undefined ? dim.lx : x1 + 60;
-                                const ly = dim.ly !== undefined ? dim.ly : y1 - 20;
-
-                                const measuredVal = appVariables.find(v => v.name === dim.variable)?.value;
-                                const displayValue = measuredVal ? `${measuredVal} ${dim.unit || ''}` : (dim.spec ? `${dim.spec} ${dim.unit || ''}` : '--');
-
-                                const isLabelTag = dim.id?.includes('label') || dim.category === 'custom' || dim.category === 'datum';
-                                const badgeWidth = Math.max(76, (dim.label?.length || 8) * 6.5 + 24);
-                                const badgeHeight = 28;
-
-                                const borderColor = isSelected ? '#00e5a3' : (status === 'FAIL' ? '#ef4444' : '#10b981');
-
-                                return (
-                                    <g
-                                        key={dim.id || `dim_${idx}`}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleSelectDim(dim);
-                                        }}
-                                        style={{ cursor: 'pointer' }}
-                                    >
-                                        {/* Leader line connecting contact point (x1, y1) to balloon (lx, ly) */}
-                                        <line
-                                            x1={x1}
-                                            y1={y1}
-                                            x2={lx}
-                                            y2={ly}
-                                            stroke={borderColor}
-                                            strokeWidth="1.4"
-                                            strokeDasharray={isSelected ? 'none' : '3,2'}
-                                        />
-                                        <circle cx={x1} cy={y1} r="3.5" fill={borderColor} />
-
-                                        {/* Active selection box & resize corner handles */}
-                                        {isSelected && (
-                                            <>
-                                                <rect
-                                                    x={lx - badgeWidth / 2 - 6}
-                                                    y={ly - badgeHeight / 2 - 6}
-                                                    width={badgeWidth + 12}
-                                                    height={badgeHeight + 12}
-                                                    rx="6"
-                                                    fill="none"
-                                                    stroke="#38bdf8"
-                                                    strokeWidth="1.2"
-                                                    strokeDasharray="4,2"
-                                                />
-                                                <circle cx={lx - badgeWidth / 2 - 6} cy={ly - badgeHeight / 2 - 6} r="2.5" fill="#38bdf8" />
-                                                <circle cx={lx + badgeWidth / 2 + 6} cy={ly - badgeHeight / 2 - 6} r="2.5" fill="#38bdf8" />
-                                                <circle cx={lx - badgeWidth / 2 - 6} cy={ly + badgeHeight / 2 + 6} r="2.5" fill="#38bdf8" />
-                                                <circle cx={lx + badgeWidth / 2 + 6} cy={ly + badgeHeight / 2 + 6} r="2.5" fill="#38bdf8" />
-                                            </>
-                                        )}
-
-                                        {/* Top Pill / Floating Label if configured */}
-                                        {isLabelTag && (
-                                            <g transform={`translate(${lx - 35}, ${ly - 24})`}>
-                                                <rect
-                                                    x="0"
-                                                    y="0"
-                                                    width="70"
-                                                    height="15"
-                                                    rx="4"
-                                                    fill="#1e1b4b"
-                                                    stroke="#a855f7"
-                                                    strokeWidth="1"
-                                                />
-                                                <circle cx="8" cy="7.5" r="2.5" fill="#ec4899" />
-                                                <text
-                                                    x="15"
-                                                    y="11"
-                                                    fill="#e0e7ff"
-                                                    fontSize="8"
-                                                    fontWeight="900"
-                                                    fontFamily="'Inter', sans-serif"
-                                                >
-                                                    {dim.label || 'LABEL'}
-                                                </text>
-                                            </g>
-                                        )}
-
-                                        {/* Main Dark Capsule Badge Body with Neon Border */}
-                                        <rect
-                                            x={lx - badgeWidth / 2}
-                                            y={ly - badgeHeight / 2}
-                                            width={badgeWidth}
-                                            height={badgeHeight}
-                                            rx="6"
-                                            fill="#091426"
-                                            stroke={borderColor}
-                                            strokeWidth={isSelected ? '2.5' : '1.8'}
-                                            style={{
-                                                filter: isSelected
-                                                    ? 'drop-shadow(0 0 10px rgba(0, 229, 163, 0.6))'
-                                                    : 'drop-shadow(0 4px 10px rgba(0, 0, 0, 0.5))',
-                                                transition: 'all 0.15s ease'
-                                            }}
-                                        />
-
-                                        {/* Badge Inner Content */}
-                                        <g transform={`translate(${lx}, ${ly})`}>
-                                            <text
+                                    {/* Top Pill / Floating Label if configured */}
+                                    {isLabelTag && (
+                                        <g transform={`translate(${lx - 35}, ${ly - 24})`}>
+                                            <rect
                                                 x="0"
-                                                y="4"
-                                                textAnchor="middle"
-                                                fill="#ffffff"
-                                                fontSize="10"
-                                                fontWeight="bold"
-                                                fontFamily="'Inter', monospace"
+                                                y="0"
+                                                width="70"
+                                                height="15"
+                                                rx="4"
+                                                fill="#1e1b4b"
+                                                stroke="#a855f7"
+                                                strokeWidth="1"
+                                            />
+                                            <circle cx="8" cy="7.5" r="2.5" fill="#ec4899" />
+                                            <text
+                                                x="15"
+                                                y="11"
+                                                fill="#e0e7ff"
+                                                fontSize="8"
+                                                fontWeight="900"
+                                                fontFamily="'Inter', sans-serif"
                                             >
-                                                {displayValue}
+                                                {dim.label || 'LABEL'}
                                             </text>
                                         </g>
+                                    )}
+
+                                    {/* Main Dark Capsule Badge Body with Neon Border */}
+                                    <rect
+                                        x={lx - badgeWidth / 2}
+                                        y={ly - badgeHeight / 2}
+                                        width={badgeWidth}
+                                        height={badgeHeight}
+                                        rx="6"
+                                        fill="#091426"
+                                        stroke={borderColor}
+                                        strokeWidth={isSelected ? '2.5' : '1.8'}
+                                        style={{
+                                            filter: isSelected
+                                                ? 'drop-shadow(0 0 10px rgba(0, 229, 163, 0.6))'
+                                                : 'drop-shadow(0 4px 10px rgba(0, 0, 0, 0.5))',
+                                            transition: 'all 0.15s ease'
+                                        }}
+                                    />
+
+                                    {/* Badge Inner Content */}
+                                    <g transform={`translate(${lx}, ${ly})`}>
+                                        <text
+                                            x="0"
+                                            y="4"
+                                            textAnchor="middle"
+                                            fill="#ffffff"
+                                            fontSize="10"
+                                            fontWeight="bold"
+                                            fontFamily="'Inter', monospace"
+                                        >
+                                            {displayValue}
+                                        </text>
                                     </g>
-                                );
-                            })}
-                        </g>
-                    </svg>
-                )}
+                                </g>
+                            );
+                        })}
+                    </g>
+                </svg>
             </div>
         </div>
     );
@@ -991,7 +827,6 @@ export function CADViewer3D({ fileUrl, appVariables = [], setAppVariables }) {
             fileUrl={fileUrl}
             appVariables={appVariables}
             setAppVariables={setAppVariables}
-            mode="BLUEPRINT"
         />
     );
 }
@@ -1006,7 +841,6 @@ export function CADViewer3DEditor({ drawing, dimensions = [], activeDimId, onAdd
             activeDimId={activeDimId}
             onAddDimension={onAddDimension}
             onSelectDimension={onSelectDimension}
-            mode="BLUEPRINT"
         />
     );
 }
