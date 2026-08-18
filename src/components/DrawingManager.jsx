@@ -9132,32 +9132,7 @@ export default function DrawingManager() {
                                                     </g>
                                                 )}
 
-                                                {/* Interactive Cursor Tooltip for QC Parameter & Drawing Steps */}
-                                                {cadTool === 'dimension' && (
-                                                    <g style={{ pointerEvents: 'none' }}>
-                                                        {dimDrawState === 'idle' && (
-                                                            <g transform={`translate(${crosshairPos.x + 14}, ${crosshairPos.y - 14})`}>
-                                                                <rect x="-4" y="-12" width="126" height="22" rx="4" fill="rgba(15, 23, 42, 0.92)" stroke="#10b981" strokeWidth="1.5" />
-                                                                <circle cx="6" cy="-1" r="3.5" fill="#10b981" />
-                                                                <text x="16" y="2.5" fill="#10b981" fontSize="8.5" fontWeight="bold" fontFamily="sans-serif">📍 KLIK START POINT</text>
-                                                            </g>
-                                                        )}
-                                                        {dimDrawState === 'waiting_end' && !snappedPoint && (
-                                                            <g transform={`translate(${crosshairPos.x + 14}, ${crosshairPos.y + 14})`}>
-                                                                <rect x="-4" y="-12" width="118" height="22" rx="4" fill="rgba(15, 23, 42, 0.92)" stroke="#3b82f6" strokeWidth="1.5" />
-                                                                <circle cx="6" cy="-1" r="3.5" fill="#3b82f6" />
-                                                                <text x="16" y="2.5" fill="#38bdf8" fontSize="8.5" fontWeight="bold" fontFamily="sans-serif">🏁 KLIK END POINT</text>
-                                                            </g>
-                                                        )}
-                                                    </g>
-                                                )}
-                                                {cadTool === 'line' && !drawingShape && (
-                                                    <g transform={`translate(${crosshairPos.x + 14}, ${crosshairPos.y - 14})`} style={{ pointerEvents: 'none' }}>
-                                                        <rect x="-4" y="-12" width="126" height="22" rx="4" fill="rgba(15, 23, 42, 0.92)" stroke="#10b981" strokeWidth="1.5" />
-                                                        <circle cx="6" cy="-1" r="3.5" fill="#10b981" />
-                                                        <text x="16" y="2.5" fill="#10b981" fontSize="8.5" fontWeight="bold" fontFamily="sans-serif">📍 KLIK START POINT</text>
-                                                    </g>
-                                                )}
+
                                             </g>
 
                                             {/* UCS Coordinate Axis Indicator */}
