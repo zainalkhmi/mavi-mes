@@ -5,13 +5,17 @@ import {
     Plus, Trash2, Edit3, Eye, RefreshCw, Save, Filter, Database,
     Maximize2, Grid, Sparkles, TrendingUp, Cpu, CheckCircle2,
     SlidersHorizontal, Calendar, HelpCircle, ArrowUpRight, FileSpreadsheet,
-    FileText, Zap, ChevronRight, X, Gauge, Award, Search
+    FileText, Zap, ChevronRight, X, Gauge, Award, Search, Link2,
+    Play, Upload, AlertCircle, ArrowDown, ArrowUp, Check, Move,
+    Type, Palette, Layout, Copy, Settings2, Hash, AlignLeft,
+    Square, Undo, Redo, ZoomIn, ZoomOut, CheckSquare
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getTables, getTableRecords } from '../utils/supabaseTablesDB';
 import { getSupabaseClient } from '../utils/supabaseManualDB';
+import { executeConnector } from '../utils/connectorHub';
 
-// ─── SAMPLE INDUSTRIAL DATASETS FOR INSTANT EXPERIENCE ─────────────
+// ─── SAMPLE INDUSTRIAL DATASETS ─────────────────────────────────────
 const SAMPLE_PRODUCTION_DATA = [
     { date: '2026-08-12', shift: 'Shift 1', line: 'Line A', machine: 'CNC-01', operator: 'Budi Santoso', product: 'Gearbox Housing A', plannedQty: 1000, actualQty: 960, goodQty: 940, rejectQty: 20, cycleTime: 42, downtimeMin: 25, defectType: 'Dimension Out' },
     { date: '2026-08-12', shift: 'Shift 2', line: 'Line A', machine: 'CNC-01', operator: 'Siti Rahma', product: 'Gearbox Housing A', plannedQty: 1000, actualQty: 910, goodQty: 880, rejectQty: 30, cycleTime: 45, downtimeMin: 45, defectType: 'Surface Scratch' },
@@ -27,874 +31,835 @@ const SAMPLE_PRODUCTION_DATA = [
     { date: '2026-08-18', shift: 'Shift 1', line: 'Line A', machine: 'CNC-01', operator: 'Siti Rahma', product: 'Gearbox Housing A', plannedQty: 1000, actualQty: 985, goodQty: 975, rejectQty: 10, cycleTime: 41, downtimeMin: 12, defectType: 'Surface Scratch' }
 ];
 
-const DEFECT_PARETO_DATA = [
-    { defect: 'Dimension Out (Toleransi Melampaui)', count: 185 },
-    { defect: 'Surface Scratch (Goresan Permukaan)', count: 142 },
-    { defect: 'Burr Excess (Sisa Gram/Geram)', count: 86 },
-    { defect: 'Crack (Retak Press)', count: 48 },
-    { defect: 'Pinhole (Porositas Cor)', count: 24 },
-    { defect: 'Color Mismatch (Warna Anodize)', count: 12 },
-    { defect: 'Other (Lain-lain)', count: 7 }
-];
-
 const SANKEY_MATERIAL_FLOW = {
     nodes: [
-        { name: 'Raw Ingot 6061' },
-        { name: 'Steel Sheet 2mm' },
-        { name: 'CNC Milling Section' },
-        { name: 'Stamping Press Section' },
-        { name: 'Manual Lathe Section' },
-        { name: 'Surface Deburring' },
+        { name: 'Raw Material Stock' },
+        { name: 'CNC Section' },
+        { name: 'Stamping Press' },
+        { name: 'Assembly Line' },
         { name: 'QC Automated Vision' },
-        { name: 'Approved Finished Goods' },
+        { name: 'Finished Good Warehouse' },
         { name: 'Rework Station' },
-        { name: 'Scrap & Recycling' }
+        { name: 'Scrap Yard' }
     ],
     links: [
-        { source: 'Raw Ingot 6061', target: 'CNC Milling Section', value: 4500 },
-        { source: 'Raw Ingot 6061', target: 'Manual Lathe Section', value: 1800 },
-        { source: 'Steel Sheet 2mm', target: 'Stamping Press Section', value: 6200 },
-        { source: 'CNC Milling Section', target: 'Surface Deburring', value: 4350 },
-        { source: 'CNC Milling Section', target: 'Rework Station', value: 150 },
-        { source: 'Manual Lathe Section', target: 'Surface Deburring', value: 1740 },
-        { source: 'Manual Lathe Section', target: 'Scrap & Recycling', value: 60 },
-        { source: 'Stamping Press Section', target: 'Surface Deburring', value: 6080 },
-        { source: 'Stamping Press Section', target: 'Rework Station', value: 120 },
-        { source: 'Surface Deburring', target: 'QC Automated Vision', value: 12170 },
-        { source: 'QC Automated Vision', target: 'Approved Finished Goods', value: 11890 },
+        { source: 'Raw Material Stock', target: 'CNC Section', value: 4500 },
+        { source: 'Raw Material Stock', target: 'Stamping Press', value: 6200 },
+        { source: 'CNC Section', target: 'Assembly Line', value: 4350 },
+        { source: 'CNC Section', target: 'Rework Station', value: 150 },
+        { source: 'Stamping Press', target: 'Assembly Line', value: 6080 },
+        { source: 'Stamping Press', target: 'Rework Station', value: 120 },
+        { source: 'Assembly Line', target: 'QC Automated Vision', value: 10430 },
+        { source: 'QC Automated Vision', target: 'Finished Good Warehouse', value: 10150 },
         { source: 'QC Automated Vision', target: 'Rework Station', value: 200 },
-        { source: 'QC Automated Vision', target: 'Scrap & Recycling', value: 80 },
-        { source: 'Rework Station', target: 'Approved Finished Goods', value: 390 },
-        { source: 'Rework Station', target: 'Scrap & Recycling', value: 80 }
+        { source: 'QC Automated Vision', target: 'Scrap Yard', value: 80 },
+        { source: 'Rework Station', target: 'Finished Good Warehouse', value: 390 },
+        { source: 'Rework Station', target: 'Scrap Yard', value: 80 }
     ]
 };
 
-// ─── DEFAULT PRESET DASHBOARDS ──────────────────────────────────────
-const DEFAULT_PRESETS = [
-    {
-        id: 'manufacturing-oee',
-        name: '🏭 Manufacturing OEE & Production Plant',
-        description: 'Pemantauan OEE (Availability, Performance, Quality), Output Harian, dan Kerugian Downtime Mesin',
-        cards: [
-            {
-                id: 'c_oee_gauge',
-                title: '⚡ Overall Equipment Effectiveness (OEE)',
-                type: 'OEE_GAUGE',
-                width: 'col-4',
-                height: 280,
-                metrics: { oee: 87.4, availability: 91.2, performance: 97.5, quality: 98.3 }
-            },
-            {
-                id: 'c_prod_trend',
-                title: '📈 Tren Output Produksi vs Target Harian',
-                type: 'COMBO_BAR_LINE',
-                width: 'col-8',
-                height: 280,
-                dimension: 'date',
-                metrics: ['plannedQty', 'actualQty', 'goodQty']
-            },
-            {
-                id: 'c_pareto_qc',
-                title: '🔍 Analisis Pareto 80/20 Cacat Part QC (Root Cause)',
-                type: 'PARETO',
-                width: 'col-6',
-                height: 320
-            },
-            {
-                id: 'c_material_sankey',
-                title: '🌊 Sankey Material Flow: Raw Material ke Finished Good',
-                type: 'SANKEY',
-                width: 'col-6',
-                height: 320
-            },
-            {
-                id: 'c_operator_radar',
-                title: '🎯 Radar Kompetensi & Performa Operator / Shift',
-                type: 'RADAR',
-                width: 'col-4',
-                height: 300
-            },
-            {
-                id: 'c_downtime_tree',
-                title: '🌲 Hierarki Penyebab Downtime Mesin (Loss Tree)',
-                type: 'TREEMAP',
-                width: 'col-4',
-                height: 300
-            },
-            {
-                id: 'c_shift_heatmap',
-                title: '🔥 Heatmap Produksi Per Hari & Shift',
-                type: 'HEATMAP',
-                width: 'col-4',
-                height: 300
-            }
-        ]
-    },
-    {
-        id: 'qc-quality-control',
-        name: '🔍 Quality Assurance & Six Sigma Analysis',
-        description: 'Analisis Cacat Part, Pareto Root Cause, Distribusi Toleransi Dimensi Part, dan Yield Rate',
-        cards: [
-            {
-                id: 'c_qc_pareto',
-                title: '📊 Pareto Analisis Cacat Kualitas',
-                type: 'PARETO',
-                width: 'col-7',
-                height: 320
-            },
-            {
-                id: 'c_defect_donut',
-                title: '🍩 Proporsi Kategori Reject QC',
-                type: 'DONUT',
-                width: 'col-5',
-                height: 320
-            },
-            {
-                id: 'c_material_sankey_qc',
-                title: '🌊 Alur Material & Stasiun Inspeksi QC',
-                type: 'SANKEY',
-                width: 'col-12',
-                height: 340
-            }
-        ]
-    }
+// ─── POWER BI VISUAL TYPES PALETTE ──────────────────────────────────
+const VISUAL_TYPES = [
+    { type: 'BAR', label: 'Clustered Bar', icon: BarChart3, desc: 'Grafik Batang Kolom' },
+    { type: 'LINE', label: 'Line Chart', icon: LineChart, desc: 'Tren Garis Kontinu' },
+    { type: 'PARETO', label: 'Pareto 80/20', icon: TrendingUp, desc: 'Analisis Cacat QC 80/20' },
+    { type: 'DONUT', label: 'Donut Pie', icon: PieChart, desc: 'Proporsi & Persentase' },
+    { type: 'OEE_GAUGE', label: 'Gauge Meter', icon: Gauge, desc: 'Indikator Target & OEE' },
+    { type: 'RADAR', label: 'Radar Spider', icon: Award, desc: 'Analisis Multi-Sumbu' },
+    { type: 'SANKEY', label: 'Sankey Flow', icon: Activity, desc: 'Alur Proses & Material' },
+    { type: 'TREEMAP', label: 'Treemap Loss', icon: Layout, desc: 'Hierarki Kategori & Loss' },
+    { type: 'HEATMAP', label: 'Heatmap Matrix', icon: Sparkles, desc: 'Kepadatan Shift x Hari' },
+    { type: 'KPI_CARD', label: 'KPI Card', icon: Hash, desc: 'Angka Metrik Utama' },
+    { type: 'TEXT', label: 'Text Box', icon: Type, desc: 'Label Judul / Catatan' }
 ];
 
 export default function BiStudio() {
-    const [activeTab, setActiveTab] = useState('DASHBOARD'); // 'DASHBOARD' | 'STUDIO' | 'DATA_PREVIEW'
-    const [selectedPresetId, setSelectedPresetId] = useState('manufacturing-oee');
-    const [dashboards, setDashboards] = useState(() => {
-        try {
-            const saved = localStorage.getItem('mavi_bi_dashboards_v1');
-            if (saved) return JSON.parse(saved);
-        } catch (e) { }
-        return DEFAULT_PRESETS;
-    });
+    const [activeTab, setActiveTab] = useState('CANVAS'); // 'CANVAS' | 'DASHBOARD' | 'CONNECTOR_HUB' | 'DATA_PREVIEW'
 
-    const [activeDashboard, setActiveDashboard] = useState(() => {
-        return dashboards[0] || DEFAULT_PRESETS[0];
-    });
+    // ─── DATA SOURCE STATE ──────────────────────────────────────────
+    const [sourceName, setSourceName] = useState('Manufacturing Telemetry (Live)');
+    const [interactiveTables, setInteractiveTables] = useState([]);
+    const [selectedTableId, setSelectedTableId] = useState('');
+    const [supabaseTableName, setSupabaseTableName] = useState('work_orders');
+    const [availableConnectors, setAvailableConnectors] = useState([]);
+    const [selectedConnectorId, setSelectedConnectorId] = useState('');
+    const [selectedFunctionId, setSelectedFunctionId] = useState('');
+    const [connectorLoading, setConnectorLoading] = useState(false);
 
-    // Global Filters
-    const [dateRange, setDateRange] = useState('ALL');
+    // Active Raw Records
+    const [activeDataset, setActiveDataset] = useState(SAMPLE_PRODUCTION_DATA);
+
+    // Global Filters / Slicers
     const [filterShift, setFilterShift] = useState('ALL');
     const [filterLine, setFilterLine] = useState('ALL');
     const [searchQuery, setSearchQuery] = useState('');
 
-    // Available Interactive DB Tables
-    const [interactiveTables, setInteractiveTables] = useState([]);
-    const [selectedTableId, setSelectedTableId] = useState('');
-    const [tableRecords, setTableRecords] = useState([]);
-    const [loadingData, setLoadingData] = useState(false);
-
-    // Chart Designer Modal State
-    const [designerModalOpen, setDesignerModalOpen] = useState(false);
-    const [editingCardIndex, setEditingCardIndex] = useState(null);
-    const [cardDraft, setCardDraft] = useState({
-        id: '',
-        title: 'Grafik Baru',
-        type: 'BAR',
-        width: 'col-6',
-        height: 300,
-        dimension: 'machine',
-        metric: 'goodQty',
-        aggregation: 'SUM'
+    // ─── CANVAS STUDIO STATE (POWER BI STYLE) ───────────────────────
+    const [canvasElements, setCanvasElements] = useState(() => {
+        try {
+            const saved = localStorage.getItem('mavi_bi_canvas_elements_v1');
+            if (saved) return JSON.parse(saved);
+        } catch (e) { }
+        return [
+            { id: 'el_title', type: 'TEXT', x: 20, y: 20, width: 420, height: 60, title: '🏭 PLANT PRODUCTION & QUALITY BI DASHBOARD', textContent: 'Live Shopfloor Telemetry & Defect Pareto Analysis', fontSize: 16, color: '#714B67', bgColor: '#ffffff' },
+            { id: 'el_kpi_out', type: 'KPI_CARD', x: 460, y: 20, width: 220, height: 90, title: 'Actual Output', metric: 'actualQty', aggregation: 'SUM', prefix: '', suffix: ' pcs', color: '#714B67' },
+            { id: 'el_kpi_yield', type: 'KPI_CARD', x: 700, y: 20, width: 220, height: 90, title: 'Quality Yield Rate', metric: 'goodQty', aggregation: 'PERCENT', prefix: '', suffix: '%', color: '#16a34a' },
+            { id: 'el_kpi_dt', type: 'KPI_CARD', x: 940, y: 20, width: 220, height: 90, title: 'Total Downtime', metric: 'downtimeMin', aggregation: 'SUM', prefix: '', suffix: ' Min', color: '#ea580c' },
+            { id: 'el_oee', type: 'OEE_GAUGE', x: 20, y: 130, width: 340, height: 280, title: '⚡ Plant Overall OEE', metrics: { oee: 88.4 } },
+            { id: 'el_bar', type: 'BAR', x: 380, y: 130, width: 440, height: 280, title: '📊 Output Per Mesin', dimension: 'machine', metric: 'actualQty', aggregation: 'SUM' },
+            { id: 'el_pareto', type: 'PARETO', x: 840, y: 130, width: 460, height: 280, title: '🔍 Pareto 80/20 QC Defect Analysis', dimension: 'defectType', metric: 'rejectQty' },
+            { id: 'el_sankey', type: 'SANKEY', x: 20, y: 430, width: 620, height: 300, title: '🌊 Material Flow: Raw Material ke Finished Good' },
+            { id: 'el_donut', type: 'DONUT', x: 660, y: 430, width: 340, height: 300, title: '🍩 Rejection Breakdown', dimension: 'defectType', metric: 'rejectQty' },
+            { id: 'el_radar', type: 'RADAR', x: 1020, y: 430, width: 340, height: 300, title: '🎯 Operator & Machine Radar' }
+        ];
     });
 
-    // Save to LocalStorage
+    const [selectedElementId, setSelectedElementId] = useState(null);
+    const [canvasScale, setCanvasScale] = useState(1);
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+    const canvasRef = useRef(null);
+
+    // Save Canvas Elements
     useEffect(() => {
         try {
-            localStorage.setItem('mavi_bi_dashboards_v1', JSON.stringify(dashboards));
+            localStorage.setItem('mavi_bi_canvas_elements_v1', JSON.stringify(canvasElements));
         } catch (e) { }
-    }, [dashboards]);
+    }, [canvasElements]);
 
-    // Load Supabase App Tables
+    // Load tables and connectors
     useEffect(() => {
-        const fetchTables = async () => {
+        const init = async () => {
             try {
                 const tbls = await getTables();
                 if (Array.isArray(tbls)) setInteractiveTables(tbls);
-            } catch (err) {
-                console.warn('Failed to load interactive tables:', err);
-            }
+                const conns = JSON.parse(localStorage.getItem('mavi_integration_connectors') || '[]');
+                setAvailableConnectors(conns);
+                if (conns.length > 0) {
+                    setSelectedConnectorId(conns[0].id);
+                    if (conns[0].functions?.length > 0) {
+                        setSelectedFunctionId(conns[0].functions[0].id || conns[0].functions[0].name);
+                    }
+                }
+            } catch (e) { }
         };
-        fetchTables();
+        init();
     }, []);
 
-    // Filtered Production Records
-    const currentRecords = useMemo(() => {
-        let list = tableRecords.length > 0 ? tableRecords : SAMPLE_PRODUCTION_DATA;
-        if (filterShift !== 'ALL') list = list.filter(r => r.shift === filterShift);
-        if (filterLine !== 'ALL') list = list.filter(r => r.line === filterLine);
+    // Filtered Dataset
+    const filteredDataset = useMemo(() => {
+        let list = [...activeDataset];
+        if (filterShift !== 'ALL' && list.some(r => r.shift)) list = list.filter(r => r.shift === filterShift);
+        if (filterLine !== 'ALL' && list.some(r => r.line)) list = list.filter(r => r.line === filterLine);
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase();
             list = list.filter(r => Object.values(r).some(v => String(v).toLowerCase().includes(q)));
         }
         return list;
-    }, [tableRecords, filterShift, filterLine, searchQuery]);
+    }, [activeDataset, filterShift, filterLine, searchQuery]);
 
-    // ─── KPI SUMMARY CALCULATIONS ───────────────────────────────────────
-    const kpiSummary = useMemo(() => {
-        const totalPlanned = currentRecords.reduce((acc, r) => acc + (Number(r.plannedQty) || 0), 0) || 12650;
-        const totalActual = currentRecords.reduce((acc, r) => acc + (Number(r.actualQty) || 0), 0) || 12380;
-        const totalGood = currentRecords.reduce((acc, r) => acc + (Number(r.goodQty) || 0), 0) || 12190;
-        const totalReject = currentRecords.reduce((acc, r) => acc + (Number(r.rejectQty) || 0), 0) || 190;
-        const yieldRate = totalActual > 0 ? ((totalGood / totalActual) * 100).toFixed(1) : 98.5;
-        const scrapRate = totalActual > 0 ? ((totalReject / totalActual) * 100).toFixed(2) : 1.5;
-        const totalDowntime = currentRecords.reduce((acc, r) => acc + (Number(r.downtimeMin) || 0), 0) || 244;
+    const availableColumns = useMemo(() => {
+        if (!activeDataset || activeDataset.length === 0) return [];
+        return Object.keys(activeDataset[0]);
+    }, [activeDataset]);
 
-        return { totalPlanned, totalActual, totalGood, totalReject, yieldRate, scrapRate, totalDowntime };
-    }, [currentRecords]);
+    const numericColumns = useMemo(() => {
+        if (!activeDataset || activeDataset.length === 0) return [];
+        const first = activeDataset[0];
+        return Object.keys(first).filter(k => typeof first[k] === 'number' || (!isNaN(Number(first[k])) && first[k] !== '' && typeof first[k] !== 'boolean'));
+    }, [activeDataset]);
 
-    // ─── ECHARTS GENERATORS ─────────────────────────────────────────────
+    // Selected Element Object
+    const selectedElement = useMemo(() => {
+        return canvasElements.find(el => el.id === selectedElementId) || null;
+    }, [canvasElements, selectedElementId]);
 
-    // 1. OEE Gauges
-    const getOeeGaugeOption = (metrics = { oee: 87.4, availability: 91.2, performance: 97.5, quality: 98.3 }) => ({
-        tooltip: { formatter: '{a} <br/>{b} : {c}%' },
-        series: [
-            {
-                name: 'OEE Total',
-                type: 'gauge',
-                center: ['50%', '55%'],
-                radius: '90%',
-                startAngle: 190,
-                endAngle: -10,
-                min: 0,
-                max: 100,
-                splitNumber: 5,
-                itemStyle: { color: '#714B67' },
-                progress: { show: true, width: 14, roundCap: true, itemStyle: { color: '#714B67' } },
-                pointer: { show: false },
-                axisLine: { lineStyle: { width: 14, color: [[1, '#e9ecef']] } },
-                axisTick: { show: false },
-                splitLine: { show: false },
-                axisLabel: { show: false },
-                title: { offsetCenter: [0, '25%'], fontSize: 13, color: '#6c757d', fontWeight: 600 },
-                detail: { valueAnimation: true, offsetCenter: [0, '-10%'], fontSize: 28, fontWeight: 'bold', formatter: '{value}%', color: '#714B67' },
-                data: [{ value: metrics.oee, name: 'Overall OEE' }]
-            }
-        ]
-    });
+    // ─── AGGREGATOR FUNCTION ──────────────────────────────────────────
+    const aggregateData = (dimensionCol, metricCol, aggType = 'SUM') => {
+        if (!dimensionCol || !filteredDataset.length) return { labels: [], values: [] };
+        const groups = {};
 
-    // 2. Combo Bar Line
-    const getComboBarLineOption = () => {
-        const dates = [...new Set(currentRecords.map(r => r.date))].sort();
-        const plannedSeries = dates.map(d => currentRecords.filter(r => r.date === d).reduce((s, r) => s + (Number(r.plannedQty) || 0), 0));
-        const actualSeries = dates.map(d => currentRecords.filter(r => r.date === d).reduce((s, r) => s + (Number(r.actualQty) || 0), 0));
-        const yieldSeries = dates.map(d => {
-            const act = currentRecords.filter(r => r.date === d).reduce((s, r) => s + (Number(r.actualQty) || 0), 0);
-            const gd = currentRecords.filter(r => r.date === d).reduce((s, r) => s + (Number(r.goodQty) || 0), 0);
-            return act > 0 ? Number(((gd / act) * 100).toFixed(1)) : 100;
+        filteredDataset.forEach(row => {
+            const dimVal = String(row[dimensionCol] ?? 'N/A');
+            const numVal = Number(row[metricCol]) || (aggType === 'COUNT' ? 1 : 0);
+            if (!groups[dimVal]) groups[dimVal] = { sum: 0, count: 0, min: numVal, max: numVal };
+            groups[dimVal].sum += numVal;
+            groups[dimVal].count += 1;
+            groups[dimVal].min = Math.min(groups[dimVal].min, numVal);
+            groups[dimVal].max = Math.max(groups[dimVal].max, numVal);
         });
 
-        return {
-            tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
-            legend: { data: ['Planned Qty', 'Actual Output', 'Yield Rate %'], bottom: 0 },
-            grid: { left: '3%', right: '4%', bottom: '14%', top: '12%', containLabel: true },
-            xAxis: [{ type: 'category', data: dates, axisPointer: { type: 'shadow' } }],
-            yAxis: [
-                { type: 'value', name: 'Pcs Output', min: 0 },
-                { type: 'value', name: 'Yield %', min: 80, max: 100, axisLabel: { formatter: '{value} %' } }
-            ],
-            series: [
-                { name: 'Planned Qty', type: 'bar', data: plannedSeries, itemStyle: { color: '#cbd5e1', borderRadius: [4, 4, 0, 0] } },
-                { name: 'Actual Output', type: 'bar', data: actualSeries, itemStyle: { color: '#714B67', borderRadius: [4, 4, 0, 0] } },
-                { name: 'Yield Rate %', type: 'line', yAxisIndex: 1, data: yieldSeries, itemStyle: { color: '#16a34a' }, lineStyle: { width: 3 } }
-            ]
-        };
-    };
-
-    // 3. Pareto 80/20
-    const getParetoOption = () => {
-        const total = DEFECT_PARETO_DATA.reduce((s, d) => s + d.count, 0);
-        let cumulative = 0;
-        const paretoLines = DEFECT_PARETO_DATA.map(d => {
-            cumulative += d.count;
-            return Number(((cumulative / total) * 100).toFixed(1));
+        const labels = Object.keys(groups);
+        const values = labels.map(lbl => {
+            const g = groups[lbl];
+            if (aggType === 'COUNT') return g.count;
+            if (aggType === 'AVG') return g.count > 0 ? Number((g.sum / g.count).toFixed(2)) : 0;
+            if (aggType === 'MIN') return g.min;
+            if (aggType === 'MAX') return g.max;
+            return g.sum;
         });
-
-        return {
-            tooltip: { trigger: 'axis' },
-            legend: { data: ['Jumlah Defect (Bar)', 'Kumulatif % (Line 80/20)'], bottom: 0 },
-            grid: { left: '3%', right: '4%', bottom: '18%', top: '12%', containLabel: true },
-            xAxis: {
-                type: 'category',
-                data: DEFECT_PARETO_DATA.map(d => d.defect.split(' ')[0]),
-                axisLabel: { interval: 0, rotate: 20 }
-            },
-            yAxis: [
-                { type: 'value', name: 'Kasus Cacat' },
-                { type: 'value', name: 'Kumulatif %', min: 0, max: 100, axisLabel: { formatter: '{value}%' } }
-            ],
-            series: [
-                {
-                    name: 'Jumlah Defect (Bar)',
-                    type: 'bar',
-                    data: DEFECT_PARETO_DATA.map(d => d.count),
-                    itemStyle: { color: '#e11d48', borderRadius: [4, 4, 0, 0] }
-                },
-                {
-                    name: 'Kumulatif % (Line 80/20)',
-                    type: 'line',
-                    yAxisIndex: 1,
-                    data: paretoLines,
-                    itemStyle: { color: '#f59e0b' },
-                    lineStyle: { width: 3 },
-                    markLine: {
-                        data: [{ yAxis: 80, name: '80% Threshold', lineStyle: { color: '#dc2626', type: 'dashed' } }]
-                    }
-                }
-            ]
-        };
+        return { labels, values };
     };
 
-    // 4. Sankey Diagram
-    const getSankeyOption = () => ({
-        tooltip: { trigger: 'item', triggerOn: 'mousemove' },
-        series: [
-            {
-                type: 'sankey',
-                data: SANKEY_MATERIAL_FLOW.nodes,
-                links: SANKEY_MATERIAL_FLOW.links,
-                emphasis: { focus: 'adjacency' },
-                lineStyle: { color: 'gradient', curveness: 0.5 },
-                itemStyle: { borderWidth: 1, borderColor: '#aaa' },
-                label: { position: 'right', fontSize: 10, color: '#333' }
-            }
-        ]
-    });
+    // Calculate Single KPI metric
+    const calculateKpiValue = (el) => {
+        const met = el.metric || numericColumns[0];
+        if (!met || !filteredDataset.length) return 0;
 
-    // 5. Radar Chart
-    const getRadarOption = () => ({
-        tooltip: {},
-        legend: { data: ['Shift 1 (Pagi)', 'Shift 2 (Malam)', 'Benchmark Target'], bottom: 0 },
-        radar: {
-            indicator: [
-                { name: 'OEE Speed', max: 100 },
-                { name: 'Quality Yield', max: 100 },
-                { name: 'Uptime / Availability', max: 100 },
-                { name: 'Safety Compliance', max: 100 },
-                { name: '5S Workstation', max: 100 }
-            ],
-            radius: '65%'
-        },
-        series: [
-            {
-                name: 'Kinerja Operasional',
-                type: 'radar',
-                data: [
-                    { value: [92, 98, 94, 99, 95], name: 'Shift 1 (Pagi)', itemStyle: { color: '#714B67' } },
-                    { value: [86, 94, 88, 96, 90], name: 'Shift 2 (Malam)', itemStyle: { color: '#0284c7' } },
-                    { value: [90, 95, 90, 95, 90], name: 'Benchmark Target', itemStyle: { color: '#16a34a' }, lineStyle: { type: 'dashed' } }
-                ]
-            }
-        ]
-    });
-
-    // 6. Treemap (Loss Hierarchy)
-    const getTreemapOption = () => ({
-        tooltip: { formatter: '{b}: {c} Menit' },
-        series: [
-            {
-                type: 'treemap',
-                data: [
-                    {
-                        name: 'Unplanned Breakdown',
-                        value: 140,
-                        children: [
-                            { name: 'Spindle Overheat CNC', value: 65 },
-                            { name: 'Hydraulic Leak Press', value: 45 },
-                            { name: 'Sensor PLC Error', value: 30 }
-                        ]
-                    },
-                    {
-                        name: 'Setup & Adjustment',
-                        value: 70,
-                        children: [
-                            { name: 'Die Tool Change', value: 40 },
-                            { name: 'First Part Inspection QC', value: 30 }
-                        ]
-                    },
-                    {
-                        name: 'Material Shortage',
-                        value: 34,
-                        children: [{ name: 'Delay Forklift Delivery', value: 34 }]
-                    }
-                ]
-            }
-        ]
-    });
-
-    // 7. Heatmap Shift x Hari
-    const getHeatmapOption = () => {
-        const days = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
-        const shifts = ['Shift 1 (07:00)', 'Shift 2 (15:00)', 'Shift 3 (23:00)'];
-        const data = [
-            [0, 0, 98], [0, 1, 92], [0, 2, 85],
-            [1, 0, 95], [1, 1, 89], [1, 2, 82],
-            [2, 0, 99], [2, 1, 94], [2, 2, 88],
-            [3, 0, 97], [3, 1, 91], [3, 2, 84],
-            [4, 0, 96], [4, 1, 87], [4, 2, 80],
-            [5, 0, 94], [5, 1, 90], [5, 2, 78],
-            [6, 0, 92], [6, 1, 88], [6, 2, 75]
-        ];
-
-        return {
-            tooltip: { position: 'top', formatter: (p) => `${days[p.data[0]]}, ${shifts[p.data[1]]}<br/>Yield Rate: <b>${p.data[2]}%</b>` },
-            grid: { height: '65%', top: '10%' },
-            xAxis: { type: 'category', data: days, splitArea: { show: true } },
-            yAxis: { type: 'category', data: shifts, splitArea: { show: true } },
-            visualMap: {
-                min: 75,
-                max: 100,
-                calculable: true,
-                orient: 'horizontal',
-                left: 'center',
-                bottom: '0%',
-                inRange: { color: ['#fca5a5', '#fef08a', '#86efac', '#15803d'] }
-            },
-            series: [
-                {
-                    name: 'Yield Rate',
-                    type: 'heatmap',
-                    data: data,
-                    label: { show: true, formatter: (p) => `${p.data[2]}%` }
-                }
-            ]
-        };
-    };
-
-    // 8. Donut Pie
-    const getDonutOption = () => ({
-        tooltip: { trigger: 'item' },
-        legend: { bottom: '0%', left: 'center' },
-        series: [
-            {
-                name: 'Kategori Defect',
-                type: 'pie',
-                radius: ['45%', '70%'],
-                avoidLabelOverlap: false,
-                itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
-                label: { show: false, position: 'center' },
-                emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold' } },
-                data: DEFECT_PARETO_DATA.map(d => ({ name: d.defect.split(' ')[0], value: d.count }))
-            }
-        ]
-    });
-
-    // Helper to render correct chart
-    const renderChartByCard = (card) => {
-        let option = {};
-        switch (card.type) {
-            case 'OEE_GAUGE':
-                option = getOeeGaugeOption(card.metrics);
-                break;
-            case 'COMBO_BAR_LINE':
-                option = getComboBarLineOption();
-                break;
-            case 'PARETO':
-                option = getParetoOption();
-                break;
-            case 'SANKEY':
-                option = getSankeyOption();
-                break;
-            case 'RADAR':
-                option = getRadarOption();
-                break;
-            case 'TREEMAP':
-                option = getTreemapOption();
-                break;
-            case 'HEATMAP':
-                option = getHeatmapOption();
-                break;
-            case 'DONUT':
-                option = getDonutOption();
-                break;
-            default:
-                option = getComboBarLineOption();
+        if (el.aggregation === 'PERCENT') {
+            const totalGood = filteredDataset.reduce((s, r) => s + (Number(r.goodQty) || 0), 0);
+            const totalActual = filteredDataset.reduce((s, r) => s + (Number(r.actualQty) || 0), 0);
+            return totalActual > 0 ? ((totalGood / totalActual) * 100).toFixed(1) : '98.5';
         }
-        return <ReactECharts option={option} style={{ height: `${card.height - 50}px`, width: '100%' }} notMerge={true} lazyUpdate={true} />;
+
+        const sum = filteredDataset.reduce((s, r) => s + (Number(r[met]) || 0), 0);
+        if (el.aggregation === 'AVG') return (sum / filteredDataset.length).toFixed(1);
+        if (el.aggregation === 'COUNT') return filteredDataset.length;
+        return sum.toLocaleString();
     };
 
-    // ─── DASHBOARD CARD ACTIONS ─────────────────────────────────────────
-    const handleAddCard = () => {
-        const newCard = {
-            id: `card_${Date.now()}`,
-            title: cardDraft.title,
-            type: cardDraft.type,
-            width: cardDraft.width,
-            height: cardDraft.height,
-            dimension: cardDraft.dimension,
-            metric: cardDraft.metric
+    // ─── ECHARTS OPTIONS BUILDERS ──────────────────────────────────────
+    const getChartOption = (el) => {
+        const dim = el.dimension || availableColumns[0] || 'machine';
+        const met = el.metric || numericColumns[0] || 'actualQty';
+
+        if (el.type === 'OEE_GAUGE') {
+            return {
+                series: [{
+                    name: 'OEE',
+                    type: 'gauge',
+                    center: ['50%', '55%'],
+                    radius: '90%',
+                    startAngle: 190,
+                    endAngle: -10,
+                    min: 0,
+                    max: 100,
+                    splitNumber: 5,
+                    itemStyle: { color: el.color || '#714B67' },
+                    progress: { show: true, width: 12, roundCap: true, itemStyle: { color: el.color || '#714B67' } },
+                    pointer: { show: false },
+                    axisLine: { lineStyle: { width: 12, color: [[1, '#e2e8f0']] } },
+                    axisTick: { show: false },
+                    splitLine: { show: false },
+                    axisLabel: { show: false },
+                    title: { offsetCenter: [0, '25%'], fontSize: 11, color: '#64748b', fontWeight: 600 },
+                    detail: { offsetCenter: [0, '-10%'], fontSize: 24, fontWeight: 'bold', formatter: '{value}%', color: el.color || '#714B67' },
+                    data: [{ value: el.metrics?.oee || 88.4, name: 'Overall OEE' }]
+                }]
+            };
+        }
+
+        if (el.type === 'PARETO') {
+            const { labels, values } = aggregateData(dim, met, 'SUM');
+            const combined = labels.map((l, i) => ({ label: l, val: values[i] })).sort((a, b) => b.val - a.val);
+            const sortedLabels = combined.map(c => c.label);
+            const sortedVals = combined.map(c => c.val);
+            const total = sortedVals.reduce((a, b) => a + b, 0) || 1;
+            let cum = 0;
+            const cumLines = sortedVals.map(v => {
+                cum += v;
+                return Number(((cum / total) * 100).toFixed(1));
+            });
+
+            return {
+                tooltip: { trigger: 'axis' },
+                grid: { left: '3%', right: '4%', bottom: '18%', top: '12%', containLabel: true },
+                xAxis: { type: 'category', data: sortedLabels, axisLabel: { interval: 0, rotate: 20, fontSize: 10 } },
+                yAxis: [{ type: 'value' }, { type: 'value', min: 0, max: 100, axisLabel: { formatter: '{value}%' } }],
+                series: [
+                    { name: 'Defects', type: 'bar', data: sortedVals, itemStyle: { color: '#e11d48', borderRadius: [3, 3, 0, 0] } },
+                    { name: 'Kumulatif %', type: 'line', yAxisIndex: 1, data: cumLines, itemStyle: { color: '#f59e0b' }, lineStyle: { width: 2 }, markLine: { data: [{ yAxis: 80, lineStyle: { color: '#dc2626', type: 'dashed' } }] } }
+                ]
+            };
+        }
+
+        if (el.type === 'DONUT') {
+            const { labels, values } = aggregateData(dim, met, 'SUM');
+            return {
+                tooltip: { trigger: 'item' },
+                legend: { bottom: '0%', left: 'center', textStyle: { fontSize: 10 } },
+                series: [{
+                    type: 'pie',
+                    radius: ['45%', '70%'],
+                    avoidLabelOverlap: false,
+                    itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 },
+                    label: { show: false },
+                    data: labels.map((l, i) => ({ name: l, value: values[i] }))
+                }]
+            };
+        }
+
+        if (el.type === 'SANKEY') {
+            return {
+                tooltip: { trigger: 'item' },
+                series: [{
+                    type: 'sankey',
+                    data: SANKEY_MATERIAL_FLOW.nodes,
+                    links: SANKEY_MATERIAL_FLOW.links,
+                    lineStyle: { color: 'gradient', curveness: 0.5 },
+                    label: { fontSize: 9 }
+                }]
+            };
+        }
+
+        if (el.type === 'RADAR') {
+            return {
+                radar: {
+                    indicator: [{ name: 'Speed', max: 100 }, { name: 'Quality', max: 100 }, { name: 'Availability', max: 100 }, { name: 'Safety', max: 100 }, { name: '5S', max: 100 }],
+                    radius: '60%'
+                },
+                series: [{
+                    type: 'radar',
+                    data: [
+                        { value: [92, 98, 94, 99, 95], name: 'Shift 1', itemStyle: { color: '#714B67' } },
+                        { value: [86, 94, 88, 96, 90], name: 'Shift 2', itemStyle: { color: '#0284c7' } }
+                    ]
+                }]
+            };
+        }
+
+        // Standard Bar / Line
+        const { labels, values } = aggregateData(dim, met, el.aggregation || 'SUM');
+        return {
+            tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+            grid: { left: '3%', right: '4%', bottom: '15%', top: '12%', containLabel: true },
+            xAxis: { type: 'category', data: labels, axisLabel: { interval: 0, rotate: labels.length > 5 ? 20 : 0, fontSize: 10 } },
+            yAxis: { type: 'value' },
+            series: [{
+                name: met,
+                type: el.type === 'LINE' ? 'line' : 'bar',
+                data: values,
+                itemStyle: { color: el.color || '#714B67', borderRadius: [3, 3, 0, 0] },
+                lineStyle: { width: 3, color: el.color || '#714B67' },
+                smooth: true
+            }]
         };
-        const updated = {
-            ...activeDashboard,
-            cards: [...activeDashboard.cards, newCard]
-        };
-        setActiveDashboard(updated);
-        setDashboards(dashboards.map(d => d.id === updated.id ? updated : d));
-        setDesignerModalOpen(false);
-        toast.success(`Grafik "${newCard.title}" berhasil ditambahkan!`);
     };
 
-    const handleDeleteCard = (cardId) => {
-        const updated = {
-            ...activeDashboard,
-            cards: activeDashboard.cards.filter(c => c.id !== cardId)
+    // ─── CANVAS MANIPULATION HANDLERS ──────────────────────────────────
+    const handleAddCanvasElement = (visualType) => {
+        const newEl = {
+            id: `el_${Date.now()}`,
+            type: visualType,
+            x: 50 + (canvasElements.length % 5) * 30,
+            y: 50 + (canvasElements.length % 5) * 30,
+            width: visualType === 'KPI_CARD' ? 220 : visualType === 'TEXT' ? 350 : 400,
+            height: visualType === 'KPI_CARD' ? 90 : visualType === 'TEXT' ? 60 : 280,
+            title: `Grafik ${visualType}`,
+            dimension: availableColumns[0] || 'machine',
+            metric: numericColumns[0] || 'actualQty',
+            aggregation: 'SUM',
+            color: '#714B67',
+            textContent: visualType === 'TEXT' ? 'Tulis judul atau catatan di sini' : ''
         };
-        setActiveDashboard(updated);
-        setDashboards(dashboards.map(d => d.id === updated.id ? updated : d));
-        toast.success('Kartu grafik dihapus');
+        setCanvasElements([...canvasElements, newEl]);
+        setSelectedElementId(newEl.id);
+        toast.success(`Visual ${visualType} ditambahkan ke Canvas!`);
+    };
+
+    const handleUpdateSelectedElement = (updates) => {
+        if (!selectedElementId) return;
+        setCanvasElements(canvasElements.map(el => el.id === selectedElementId ? { ...el, ...updates } : el));
+    };
+
+    const handleDeleteElement = (id) => {
+        setCanvasElements(canvasElements.filter(el => el.id !== id));
+        if (selectedElementId === id) setSelectedElementId(null);
+        toast.success('Visual dihapus dari Canvas');
+    };
+
+    // ─── DRAG HANDLERS ────────────────────────────────────────────────
+    const handleElementMouseDown = (e, el) => {
+        e.stopPropagation();
+        setSelectedElementId(el.id);
+        setIsDragging(true);
+        const rect = canvasRef.current.getBoundingClientRect();
+        const mouseX = (e.clientX - rect.left) / canvasScale;
+        const mouseY = (e.clientY - rect.top) / canvasScale;
+        setDragOffset({ x: mouseX - el.x, y: mouseY - el.y });
+    };
+
+    const handleCanvasMouseMove = (e) => {
+        if (!isDragging || !selectedElementId) return;
+        const rect = canvasRef.current.getBoundingClientRect();
+        const mouseX = (e.clientX - rect.left) / canvasScale;
+        const mouseY = (e.clientY - rect.top) / canvasScale;
+
+        // Snap to 10px grid
+        const rawX = mouseX - dragOffset.x;
+        const rawY = mouseY - dragOffset.y;
+        const snappedX = Math.max(0, Math.round(rawX / 10) * 10);
+        const snappedY = Math.max(0, Math.round(rawY / 10) * 10);
+
+        setCanvasElements(canvasElements.map(el => el.id === selectedElementId ? { ...el, x: snappedX, y: snappedY } : el));
+    };
+
+    const handleCanvasMouseUp = () => {
+        setIsDragging(false);
     };
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%', backgroundColor: '#f8fafc', fontFamily: "'Inter', 'Segoe UI', sans-serif", color: '#1e293b', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%', backgroundColor: '#f1f5f9', fontFamily: "'Inter', 'Segoe UI', sans-serif", color: '#1e293b', overflow: 'hidden' }}>
 
-            {/* ─── 1. TOP ODOO / POWER BI STYLE HEADER ──────────────────── */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px', backgroundColor: '#714B67', color: '#ffffff', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', zIndex: 20 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                    <div style={{ backgroundColor: 'rgba(255,255,255,0.18)', padding: '7px 10px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <BarChart3 size={20} color="#ffffff" />
-                        <span style={{ fontWeight: 800, fontSize: '1.05rem', letterSpacing: '0.4px' }}>MAVI BI Studio</span>
+            {/* ─── 1. TOP HEADER (ODOO & POWER BI STYLE) ────────────────── */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px', backgroundColor: '#714B67', color: '#ffffff', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', zIndex: 30 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ backgroundColor: 'rgba(255,255,255,0.18)', padding: '6px 10px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <BarChart3 size={18} color="#ffffff" />
+                        <span style={{ fontWeight: 800, fontSize: '0.98rem', letterSpacing: '0.3px' }}>MAVI BI Studio</span>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '4px', backgroundColor: 'rgba(0,0,0,0.18)', padding: '3px', borderRadius: '6px' }}>
+                    <div style={{ display: 'flex', gap: '4px', backgroundColor: 'rgba(0,0,0,0.2)', padding: '3px', borderRadius: '6px' }}>
+                        <button
+                            onClick={() => setActiveTab('CANVAS')}
+                            style={{ padding: '4px 12px', borderRadius: '4px', border: 'none', backgroundColor: activeTab === 'CANVAS' ? '#ffffff' : 'transparent', color: activeTab === 'CANVAS' ? '#714B67' : '#ffffff', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                        >
+                            <Layout size={13} /> Visual Canvas Studio
+                        </button>
                         <button
                             onClick={() => setActiveTab('DASHBOARD')}
-                            style={{ padding: '5px 14px', borderRadius: '4px', border: 'none', backgroundColor: activeTab === 'DASHBOARD' ? '#ffffff' : 'transparent', color: activeTab === 'DASHBOARD' ? '#714B67' : '#ffffff', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                            style={{ padding: '4px 12px', borderRadius: '4px', border: 'none', backgroundColor: activeTab === 'DASHBOARD' ? '#ffffff' : 'transparent', color: activeTab === 'DASHBOARD' ? '#714B67' : '#ffffff', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
                         >
-                            <Grid size={14} /> Executive Dashboard
+                            <Grid size={13} /> Grid Dashboard
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('CONNECTOR_HUB')}
+                            style={{ padding: '4px 12px', borderRadius: '4px', border: 'none', backgroundColor: activeTab === 'CONNECTOR_HUB' ? '#ffffff' : 'transparent', color: activeTab === 'CONNECTOR_HUB' ? '#714B67' : '#ffffff', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                        >
+                            <Link2 size={13} /> Data Source & ERP
                         </button>
                         <button
                             onClick={() => setActiveTab('DATA_PREVIEW')}
-                            style={{ padding: '5px 14px', borderRadius: '4px', border: 'none', backgroundColor: activeTab === 'DATA_PREVIEW' ? '#ffffff' : 'transparent', color: activeTab === 'DATA_PREVIEW' ? '#714B67' : '#ffffff', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                            style={{ padding: '4px 12px', borderRadius: '4px', border: 'none', backgroundColor: activeTab === 'DATA_PREVIEW' ? '#ffffff' : 'transparent', color: activeTab === 'DATA_PREVIEW' ? '#714B67' : '#ffffff', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
                         >
-                            <Database size={14} /> Data Source Explorer
+                            <Database size={13} /> Data Grid ({filteredDataset.length})
                         </button>
                     </div>
-
-                    {/* Preset Selector */}
-                    <select
-                        value={activeDashboard.id}
-                        onChange={(e) => {
-                            const found = dashboards.find(d => d.id === e.target.value);
-                            if (found) setActiveDashboard(found);
-                        }}
-                        style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.3)', backgroundColor: 'rgba(255,255,255,0.12)', color: '#ffffff', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer', outline: 'none' }}
-                    >
-                        {dashboards.map(d => (
-                            <option key={d.id} value={d.id} style={{ color: '#212529', backgroundColor: '#ffffff' }}>
-                                {d.name}
-                            </option>
-                        ))}
-                    </select>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <button
-                        onClick={() => {
-                            setCardDraft({
-                                id: '',
-                                title: 'Analisis Output Mesin',
-                                type: 'COMBO_BAR_LINE',
-                                width: 'col-6',
-                                height: 300,
-                                dimension: 'machine',
-                                metric: 'goodQty'
-                            });
-                            setDesignerModalOpen(true);
-                        }}
-                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', backgroundColor: '#ffffff', color: '#714B67', border: 'none', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
-                    >
-                        <Plus size={15} /> Buat Visual Baru
-                    </button>
+                    <div style={{ fontSize: '0.72rem', padding: '3px 10px', borderRadius: '20px', backgroundColor: 'rgba(255,255,255,0.15)', color: '#ffffff', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#4ade80' }}></span>
+                        {sourceName}
+                    </div>
 
                     <button
-                        onClick={() => {
-                            window.print();
-                        }}
-                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', backgroundColor: 'rgba(255,255,255,0.15)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer' }}
+                        onClick={() => window.print()}
+                        style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 12px', backgroundColor: '#ffffff', color: '#714B67', border: 'none', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}
                     >
-                        <Download size={15} /> Export PDF
-                    </button>
-
-                    <button
-                        onClick={() => {
-                            toast.success('Data analitik berhasil di-refresh!');
-                        }}
-                        style={{ padding: '6px 10px', backgroundColor: 'rgba(255,255,255,0.15)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '6px', cursor: 'pointer' }}
-                        title="Refresh Data"
-                    >
-                        <RefreshCw size={15} />
+                        <Download size={13} /> Export PDF
                     </button>
                 </div>
             </div>
 
-            {/* ─── 2. GLOBAL SLICER / FILTER BAR ────────────────────────── */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 20px', backgroundColor: '#ffffff', borderBottom: '1px solid #e2e8f0' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>
-                        <Filter size={14} color="#714B67" /> Global Filter:
-                    </div>
+            {/* ─── 2. POWER BI STYLE CANVAS WORKSPACE ────────────────────── */}
+            {activeTab === 'CANVAS' && (
+                <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Shift:</span>
-                        <select
-                            value={filterShift}
-                            onChange={(e) => setFilterShift(e.target.value)}
-                            style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.78rem', backgroundColor: '#f8fafc' }}
-                        >
-                            <option value="ALL">Semua Shift (1, 2, 3)</option>
-                            <option value="Shift 1">Shift 1 (Pagi)</option>
-                            <option value="Shift 2">Shift 2 (Malam)</option>
-                        </select>
-                    </div>
+                    {/* ── LEFT PANEL: VISUALIZATIONS PALETTE & FIELDS (POWER BI STYLE) ── */}
+                    <div style={{ width: '270px', backgroundColor: '#ffffff', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', zIndex: 10 }}>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Lini Produksi:</span>
-                        <select
-                            value={filterLine}
-                            onChange={(e) => setFilterLine(e.target.value)}
-                            style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.78rem', backgroundColor: '#f8fafc' }}
-                        >
-                            <option value="ALL">Semua Lini (A, B, C)</option>
-                            <option value="Line A">Line A (CNC Precision)</option>
-                            <option value="Line B">Line B (Stamping)</option>
-                            <option value="Line C">Line C (Lathe Turning)</option>
-                        </select>
-                    </div>
-
-                    <div style={{ position: 'relative' }}>
-                        <Search size={13} color="#94a3b8" style={{ position: 'absolute', left: '8px', top: '8px' }} />
-                        <input
-                            type="text"
-                            placeholder="Cari part, operator, mesin..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            style={{ padding: '4px 10px 4px 26px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.78rem', width: '200px' }}
-                        />
-                    </div>
-                </div>
-
-                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                    Terhubung ke: <span style={{ fontWeight: 700, color: '#16a34a' }}>● Live Supabase & Frontline Tables</span> ({currentRecords.length} Record Terfilter)
-                </div>
-            </div>
-
-            {/* ─── 3. MAIN CONTENT BODY ─────────────────────────────────── */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
-                {activeTab === 'DASHBOARD' && (
-                    <>
-                        {/* ── KPI HIGHLIGHT CARDS ── */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-                            <div style={{ backgroundColor: '#ffffff', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                                <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Planned Target</div>
-                                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#1e293b', marginTop: '2px' }}>{kpiSummary.totalPlanned.toLocaleString()} <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>pcs</span></div>
-                                <div style={{ fontSize: '0.7rem', color: '#3b82f6', marginTop: '2px' }}>🎯 100% Scheduled</div>
-                            </div>
-
-                            <div style={{ backgroundColor: '#ffffff', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                                <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Actual Output</div>
-                                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#714B67', marginTop: '2px' }}>{kpiSummary.totalActual.toLocaleString()} <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>pcs</span></div>
-                                <div style={{ fontSize: '0.7rem', color: '#16a34a', marginTop: '2px' }}>⚡ {((kpiSummary.totalActual / kpiSummary.totalPlanned) * 100).toFixed(1)}% Attainment</div>
-                            </div>
-
-                            <div style={{ backgroundColor: '#ffffff', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                                <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Good Quality Parts</div>
-                                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#16a34a', marginTop: '2px' }}>{kpiSummary.totalGood.toLocaleString()} <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>pcs</span></div>
-                                <div style={{ fontSize: '0.7rem', color: '#16a34a', marginTop: '2px' }}>✨ Yield: {kpiSummary.yieldRate}%</div>
-                            </div>
-
-                            <div style={{ backgroundColor: '#ffffff', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                                <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Scrap & Reject</div>
-                                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#dc2626', marginTop: '2px' }}>{kpiSummary.totalReject.toLocaleString()} <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>pcs</span></div>
-                                <div style={{ fontSize: '0.7rem', color: '#dc2626', marginTop: '2px' }}>⚠️ Scrap Rate: {kpiSummary.scrapRate}%</div>
-                            </div>
-
-                            <div style={{ backgroundColor: '#ffffff', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                                <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Machine Downtime</div>
-                                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#ea580c', marginTop: '2px' }}>{kpiSummary.totalDowntime} <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Menit</span></div>
-                                <div style={{ fontSize: '0.7rem', color: '#ea580c', marginTop: '2px' }}>⏱️ {(kpiSummary.totalDowntime / 60).toFixed(1)} Jam Loss</div>
+                        {/* Visuals Palette */}
+                        <div style={{ padding: '12px 14px', borderBottom: '1px solid #f1f5f9' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                📊 Visualizations Pane
+                            </span>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', marginTop: '8px' }}>
+                                {VISUAL_TYPES.map(vt => {
+                                    const Icon = vt.icon;
+                                    return (
+                                        <button
+                                            key={vt.type}
+                                            onClick={() => handleAddCanvasElement(vt.type)}
+                                            style={{
+                                                padding: '8px 4px',
+                                                borderRadius: '6px',
+                                                border: '1px solid #e2e8f0',
+                                                backgroundColor: '#f8fafc',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                alignItems: 'center',
+                                                gap: '4px',
+                                                cursor: 'pointer',
+                                                color: '#714B67',
+                                                transition: 'all 0.15s ease'
+                                            }}
+                                            title={`Tambah ${vt.label}: ${vt.desc}`}
+                                        >
+                                            <Icon size={16} />
+                                            <span style={{ fontSize: '0.62rem', fontWeight: 600, color: '#475569', textAlign: 'center', lineHeight: 1.1 }}>{vt.label.split(' ')[0]}</span>
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
 
-                        {/* ── VISUAL CHART GRID (POWER BI STYLE) ── */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '16px' }}>
-                            {activeDashboard.cards.map((card, idx) => {
-                                const gridSpan = card.width === 'col-12' ? 12 : card.width === 'col-8' ? 8 : card.width === 'col-7' ? 7 : card.width === 'col-6' ? 6 : card.width === 'col-5' ? 5 : card.width === 'col-4' ? 4 : 6;
+                        {/* Fields & Dataset Columns */}
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                🗂️ Data Fields ({availableColumns.length})
+                            </span>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                {availableColumns.map(col => {
+                                    const isNumeric = numericColumns.includes(col);
+                                    return (
+                                        <div
+                                            key={col}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                padding: '4px 8px',
+                                                borderRadius: '4px',
+                                                backgroundColor: isNumeric ? '#f3e8ff' : '#f8fafc',
+                                                border: '1px solid',
+                                                borderColor: isNumeric ? '#e9d5ff' : '#e2e8f0',
+                                                fontSize: '0.75rem',
+                                                color: isNumeric ? '#714B67' : '#334155',
+                                                fontWeight: isNumeric ? 700 : 500
+                                            }}
+                                        >
+                                            {isNumeric ? <Hash size={12} color="#714B67" /> : <AlignLeft size={12} color="#64748b" />}
+                                            <span>{col}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Canvas Zoom & Quick Actions */}
+                        <div style={{ padding: '8px 12px', borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fafbfc' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <button onClick={() => setCanvasScale(Math.max(0.6, canvasScale - 0.1))} style={{ padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#fff', cursor: 'pointer' }}><ZoomOut size={12} /></button>
+                                <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>{Math.round(canvasScale * 100)}%</span>
+                                <button onClick={() => setCanvasScale(Math.min(1.5, canvasScale + 0.1))} style={{ padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#fff', cursor: 'pointer' }}><ZoomIn size={12} /></button>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    localStorage.removeItem('mavi_bi_canvas_elements_v1');
+                                    toast.success('Canvas di-reset!');
+                                    window.location.reload();
+                                }}
+                                style={{ fontSize: '0.7rem', color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+                            >
+                                Reset Canvas
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* ── CENTER: FREEFORM INTERACTIVE CANVAS AREA ── */}
+                    <div
+                        style={{
+                            flex: 1,
+                            overflow: 'auto',
+                            backgroundColor: '#e2e8f0',
+                            position: 'relative',
+                            backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)',
+                            backgroundSize: '20px 20px',
+                            cursor: isDragging ? 'grabbing' : 'default'
+                        }}
+                        onMouseMove={handleCanvasMouseMove}
+                        onMouseUp={handleCanvasMouseUp}
+                        onClick={() => setSelectedElementId(null)}
+                    >
+                        <div
+                            ref={canvasRef}
+                            style={{
+                                width: '1400px',
+                                minHeight: '900px',
+                                margin: '24px auto',
+                                backgroundColor: '#ffffff',
+                                boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)',
+                                borderRadius: '8px',
+                                position: 'relative',
+                                transform: `scale(${canvasScale})`,
+                                transformOrigin: 'top center',
+                                transition: isDragging ? 'none' : 'transform 0.1s ease'
+                            }}
+                        >
+                            {canvasElements.map(el => {
+                                const isSelected = el.id === selectedElementId;
+
                                 return (
                                     <div
-                                        key={card.id || idx}
+                                        key={el.id}
+                                        onMouseDown={(e) => handleElementMouseDown(e, el)}
                                         style={{
-                                            gridColumn: `span ${gridSpan}`,
-                                            backgroundColor: '#ffffff',
-                                            borderRadius: '8px',
-                                            border: '1px solid #e2e8f0',
-                                            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                                            position: 'absolute',
+                                            left: `${el.x}px`,
+                                            top: `${el.y}px`,
+                                            width: `${el.width}px`,
+                                            height: `${el.height}px`,
+                                            backgroundColor: el.bgColor || '#ffffff',
+                                            border: isSelected ? '2px solid #714B67' : '1px solid #e2e8f0',
+                                            borderRadius: '6px',
+                                            boxShadow: isSelected ? '0 8px 20px rgba(113,75,103,0.25)' : '0 1px 3px rgba(0,0,0,0.05)',
+                                            cursor: 'move',
                                             display: 'flex',
                                             flexDirection: 'column',
-                                            overflow: 'hidden'
+                                            overflow: 'hidden',
+                                            userSelect: 'none',
+                                            zIndex: isSelected ? 20 : 5
                                         }}
                                     >
-                                        {/* Card Header */}
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid #f1f5f9', backgroundColor: '#fafbfc' }}>
-                                            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b' }}>
-                                                {card.title}
+                                        {/* Element Header */}
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', backgroundColor: isSelected ? '#714B67' : '#fafbfc', color: isSelected ? '#ffffff' : '#334155', borderBottom: '1px solid #f1f5f9' }}>
+                                            <span style={{ fontSize: '0.75rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                {el.title || el.type}
                                             </span>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                 <button
-                                                    onClick={() => handleDeleteCard(card.id)}
-                                                    style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px' }}
-                                                    title="Hapus Visual"
+                                                    onClick={(e) => { e.stopPropagation(); handleDeleteElement(el.id); }}
+                                                    style={{ background: 'none', border: 'none', color: isSelected ? '#ffffff' : '#94a3b8', cursor: 'pointer', padding: '1px' }}
+                                                    title="Hapus"
                                                 >
-                                                    <Trash2 size={13} />
+                                                    <Trash2 size={12} />
                                                 </button>
                                             </div>
                                         </div>
 
-                                        {/* Chart Canvas */}
-                                        <div style={{ padding: '10px', flex: 1, minHeight: `${card.height - 40}px` }}>
-                                            {renderChartByCard(card)}
+                                        {/* Element Body */}
+                                        <div style={{ flex: 1, padding: '8px', overflow: 'hidden', position: 'relative' }}>
+                                            {el.type === 'TEXT' ? (
+                                                <div style={{ fontSize: `${el.fontSize || 14}px`, color: el.color || '#1e293b', fontWeight: 600 }}>
+                                                    {el.textContent || el.title}
+                                                </div>
+                                            ) : el.type === 'KPI_CARD' ? (
+                                                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%' }}>
+                                                    <div style={{ fontSize: '1.5rem', fontWeight: 800, color: el.color || '#714B67' }}>
+                                                        {el.prefix || ''}{calculateKpiValue(el)}{el.suffix || ''}
+                                                    </div>
+                                                    <div style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 600 }}>
+                                                        {el.aggregation || 'SUM'} of {el.metric || 'Data'}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <ReactECharts
+                                                    option={getChartOption(el)}
+                                                    style={{ height: '100%', width: '100%' }}
+                                                    notMerge={true}
+                                                    lazyUpdate={true}
+                                                />
+                                            )}
                                         </div>
                                     </div>
                                 );
                             })}
                         </div>
-                    </>
-                )}
-
-                {/* ── DATA SOURCE EXPLORER TAB ── */}
-                {activeTab === 'DATA_PREVIEW' && (
-                    <div style={{ backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <div>
-                                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b', margin: 0 }}>Data Source Explorer (Database MAVI & Supabase)</h3>
-                                <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '2px 0 0 0' }}>Data real-time dari lantai produksi yang memberi makan grafik visual di atas.</p>
-                            </div>
-                            <button
-                                onClick={() => {
-                                    const csvHeader = Object.keys(currentRecords[0] || {}).join(',');
-                                    const csvRows = currentRecords.map(r => Object.values(r).join(',')).join('\n');
-                                    const blob = new Blob([`${csvHeader}\n${csvRows}`], { type: 'text/csv' });
-                                    const url = URL.createObjectURL(blob);
-                                    const a = document.createElement('a');
-                                    a.href = url;
-                                    a.download = `mavi_bi_export_${Date.now()}.csv`;
-                                    a.click();
-                                    toast.success('CSV berhasil di-export!');
-                                }}
-                                style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', backgroundColor: '#714B67', color: '#ffffff', borderRadius: '6px', border: 'none', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
-                            >
-                                <FileSpreadsheet size={15} /> Export ke CSV / Excel
-                            </button>
-                        </div>
-
-                        <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
-                                <thead>
-                                    <tr style={{ backgroundColor: '#714B67', color: '#ffffff' }}>
-                                        {Object.keys(currentRecords[0] || {}).map(k => (
-                                            <th key={k} style={{ padding: '8px 12px', borderBottom: '1px solid #e2e8f0', fontWeight: 600 }}>{k}</th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {currentRecords.slice(0, 20).map((row, idx) => (
-                                        <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-                                            {Object.values(row).map((v, i) => (
-                                                <td key={i} style={{ padding: '8px 12px' }}>{String(v)}</td>
-                                            ))}
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
                     </div>
-                )}
-            </div>
 
-            {/* ─── 4. MODAL BUAT VISUAL BARU (CHART DESIGNER) ────────────── */}
-            {designerModalOpen && (
-                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-                    <div style={{ backgroundColor: '#ffffff', borderRadius: '10px', width: '600px', maxWidth: '100%', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                        {/* Modal Header */}
-                        <div style={{ padding: '14px 20px', backgroundColor: '#714B67', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>🛠️ Visual Chart Studio — Tambah Grafik</span>
-                            <button onClick={() => setDesignerModalOpen(false)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}><X size={18} /></button>
-                        </div>
-
-                        {/* Modal Body */}
-                        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px', maxHeight: '75vh', overflowY: 'auto' }}>
-                            <div>
-                                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Judul Visual</label>
-                                <input
-                                    type="text"
-                                    value={cardDraft.title}
-                                    onChange={(e) => setCardDraft({ ...cardDraft, title: e.target.value })}
-                                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', marginTop: '4px' }}
-                                />
+                    {/* ── RIGHT PANEL: VISUAL FORMATTING & BINDINGS (POWER BI STYLE) ── */}
+                    {selectedElement ? (
+                        <div style={{ width: '280px', backgroundColor: '#ffffff', borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', zIndex: 10 }}>
+                            <div style={{ padding: '12px 16px', backgroundColor: '#714B67', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <span style={{ fontSize: '0.82rem', fontWeight: 700 }}>⚙️ Visual Settings</span>
+                                <button onClick={() => setSelectedElementId(null)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}><X size={14} /></button>
                             </div>
 
-                            <div>
-                                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Tipe Grafik Visual</label>
-                                <select
-                                    value={cardDraft.type}
-                                    onChange={(e) => setCardDraft({ ...cardDraft, type: e.target.value })}
-                                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', marginTop: '4px' }}
-                                >
-                                    <option value="COMBO_BAR_LINE">📊 Combo Bar & Line Chart (Output vs Target vs Yield)</option>
-                                    <option value="PARETO">🔍 Pareto 80/20 QC Defect Analysis</option>
-                                    <option value="SANKEY">🌊 Sankey Material / Process Flow Diagram</option>
-                                    <option value="OEE_GAUGE">⚡ OEE Dashboard Gauge (Availability, Performance, Quality)</option>
-                                    <option value="RADAR">🎯 Radar Chart (Kompetensi Operator & Mesin)</option>
-                                    <option value="TREEMAP">🌲 Treemap Hierarchy (Loss Tree & Downtime)</option>
-                                    <option value="HEATMAP">🔥 Shift & Hourly Production Heatmap</option>
-                                    <option value="DONUT">🍩 Donut Pie Rejection Breakdown</option>
-                                </select>
-                            </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                            <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                                 <div>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Lebar Grid</label>
-                                    <select
-                                        value={cardDraft.width}
-                                        onChange={(e) => setCardDraft({ ...cardDraft, width: e.target.value })}
-                                        style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', marginTop: '4px' }}
-                                    >
-                                        <option value="col-4">1/3 Layar (Col-4)</option>
-                                        <option value="col-6">1/2 Layar (Col-6)</option>
-                                        <option value="col-8">2/3 Layar (Col-8)</option>
-                                        <option value="col-12">Layar Penuh (Col-12)</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Tinggi (px)</label>
+                                    <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#475569' }}>Judul Visual</label>
                                     <input
-                                        type="number"
-                                        value={cardDraft.height}
-                                        onChange={(e) => setCardDraft({ ...cardDraft, height: Number(e.target.value) || 300 })}
-                                        style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', marginTop: '4px' }}
+                                        type="text"
+                                        value={selectedElement.title || ''}
+                                        onChange={(e) => handleUpdateSelectedElement({ title: e.target.value })}
+                                        style={{ width: '100%', padding: '6px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.8rem', marginTop: '3px' }}
+                                    />
+                                </div>
+
+                                {selectedElement.type !== 'TEXT' && (
+                                    <>
+                                        <div>
+                                            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#475569' }}>Category / Dimension (X-Axis)</label>
+                                            <select
+                                                value={selectedElement.dimension || ''}
+                                                onChange={(e) => handleUpdateSelectedElement({ dimension: e.target.value })}
+                                                style={{ width: '100%', padding: '6px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.8rem', marginTop: '3px' }}
+                                            >
+                                                {availableColumns.map(c => <option key={c} value={c}>{c}</option>)}
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#475569' }}>Values / Metric (Y-Axis)</label>
+                                            <select
+                                                value={selectedElement.metric || ''}
+                                                onChange={(e) => handleUpdateSelectedElement({ metric: e.target.value })}
+                                                style={{ width: '100%', padding: '6px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.8rem', marginTop: '3px' }}
+                                            >
+                                                {numericColumns.map(c => <option key={c} value={c}>{c}</option>)}
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#475569' }}>Aggregation Function</label>
+                                            <select
+                                                value={selectedElement.aggregation || 'SUM'}
+                                                onChange={(e) => handleUpdateSelectedElement({ aggregation: e.target.value })}
+                                                style={{ width: '100%', padding: '6px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.8rem', marginTop: '3px' }}
+                                            >
+                                                <option value="SUM">SUM (Penjumlahan)</option>
+                                                <option value="AVG">AVG (Rata-Rata)</option>
+                                                <option value="COUNT">COUNT (Hitung Baris)</option>
+                                                <option value="PERCENT">PERCENT Yield (%)</option>
+                                                <option value="MAX">MAX (Maksimal)</option>
+                                                <option value="MIN">MIN (Minimal)</option>
+                                            </select>
+                                        </div>
+                                    </>
+                                )}
+
+                                {selectedElement.type === 'TEXT' && (
+                                    <div>
+                                        <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#475569' }}>Isi Teks</label>
+                                        <textarea
+                                            value={selectedElement.textContent || ''}
+                                            onChange={(e) => handleUpdateSelectedElement({ textContent: e.target.value })}
+                                            rows={3}
+                                            style={{ width: '100%', padding: '6px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.8rem', marginTop: '3px' }}
+                                        />
+                                    </div>
+                                )}
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                    <div>
+                                        <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#475569' }}>Lebar (px)</label>
+                                        <input
+                                            type="number"
+                                            value={selectedElement.width || 300}
+                                            onChange={(e) => handleUpdateSelectedElement({ width: Number(e.target.value) || 200 })}
+                                            style={{ width: '100%', padding: '6px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.8rem', marginTop: '3px' }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#475569' }}>Tinggi (px)</label>
+                                        <input
+                                            type="number"
+                                            value={selectedElement.height || 200}
+                                            onChange={(e) => handleUpdateSelectedElement({ height: Number(e.target.value) || 150 })}
+                                            style={{ width: '100%', padding: '6px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.8rem', marginTop: '3px' }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#475569' }}>Warna Aksen</label>
+                                    <input
+                                        type="color"
+                                        value={selectedElement.color || '#714B67'}
+                                        onChange={(e) => handleUpdateSelectedElement({ color: e.target.value })}
+                                        style={{ width: '100%', height: '36px', padding: '2px', borderRadius: '4px', border: '1px solid #cbd5e1', cursor: 'pointer', marginTop: '3px' }}
                                     />
                                 </div>
                             </div>
                         </div>
-
-                        {/* Modal Footer */}
-                        <div style={{ padding: '14px 20px', backgroundColor: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                            <button
-                                onClick={() => setDesignerModalOpen(false)}
-                                style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#fff', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer' }}
-                            >
-                                Batal
-                            </button>
-                            <button
-                                onClick={handleAddCard}
-                                style={{ padding: '6px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#714B67', color: '#fff', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer' }}
-                            >
-                                Simpan ke Dashboard
-                            </button>
+                    ) : (
+                        <div style={{ width: '260px', backgroundColor: '#ffffff', borderLeft: '1px solid #e2e8f0', padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#94a3b8' }}>
+                            <Layout size={32} style={{ opacity: 0.4, marginBottom: '10px' }} />
+                            <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Klik elemen di Canvas untuk mengedit konfigurasi visual.</span>
                         </div>
+                    )}
+                </div>
+            )}
+
+            {/* ─── 3. CONNECTOR HUB TAB ─────────────────────────────────── */}
+            {activeTab === 'CONNECTOR_HUB' && (
+                <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
+                    <div style={{ backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '18px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ backgroundColor: '#eff6ff', padding: '6px', borderRadius: '6px', color: '#3b82f6' }}><Database size={18} /></div>
+                            <div>
+                                <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 700 }}>Interactive App Tables (MAVI Core)</h4>
+                                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Tabel data dinamis dari AppBuilder</span>
+                            </div>
+                        </div>
+                        <select
+                            value={selectedTableId}
+                            onChange={(e) => setSelectedTableId(e.target.value)}
+                            style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.82rem' }}
+                        >
+                            <option value="">-- Pilih Tabel Interaktif --</option>
+                            {interactiveTables.map(t => <option key={t.id} value={t.id}>{t.name} ({t.id})</option>)}
+                        </select>
+                        <button
+                            onClick={async () => {
+                                if (!selectedTableId) return;
+                                try {
+                                    const recs = await getTableRecords(selectedTableId);
+                                    if (recs?.length > 0) {
+                                        setActiveDataset(recs);
+                                        const tbl = interactiveTables.find(t => t.id === selectedTableId);
+                                        setSourceName(`App Table: ${tbl?.name}`);
+                                        toast.success(`Berhasil load ${recs.length} baris!`);
+                                    }
+                                } catch (e) { toast.error(e.message); }
+                            }}
+                            style={{ padding: '8px 14px', borderRadius: '6px', backgroundColor: '#3b82f6', color: '#fff', border: 'none', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}
+                        >
+                            ⚡ Hubungkan & Tarik Data Tabel
+                        </button>
+                    </div>
+
+                    <div style={{ backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '18px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ backgroundColor: '#f3e8ff', padding: '6px', borderRadius: '6px', color: '#714B67' }}><Link2 size={18} /></div>
+                            <div>
+                                <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 700 }}>Connector Hub (Odoo / SAP / SQL / REST)</h4>
+                                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Tarik data dari ERP external</span>
+                            </div>
+                        </div>
+                        <select
+                            value={selectedConnectorId}
+                            onChange={(e) => setSelectedConnectorId(e.target.value)}
+                            style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.82rem' }}
+                        >
+                            <option value="">-- Pilih Connector ERP --</option>
+                            {availableConnectors.map(c => <option key={c.id} value={c.id}>{c.name} ({c.type})</option>)}
+                        </select>
+                        <button
+                            onClick={async () => {
+                                if (!selectedConnectorId || !selectedFunctionId) return;
+                                try {
+                                    setConnectorLoading(true);
+                                    const res = await executeConnector(selectedConnectorId, selectedFunctionId, {});
+                                    setConnectorLoading(false);
+                                    const rows = Array.isArray(res) ? res : res?.rows || res?.data || [];
+                                    if (rows.length > 0) {
+                                        setActiveDataset(rows);
+                                        setSourceName(`Connector: ${selectedConnectorId}`);
+                                        toast.success(`Berhasil menarik ${rows.length} data ERP!`);
+                                    }
+                                } catch (e) { setConnectorLoading(false); toast.error(e.message); }
+                            }}
+                            style={{ padding: '8px 14px', borderRadius: '6px', backgroundColor: '#714B67', color: '#fff', border: 'none', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}
+                        >
+                            {connectorLoading ? '⏳ Mengambil Data ERP...' : '⚡ Eksekusi Connector & Sinkronkan ke Canvas'}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* ─── 4. RAW DATA GRID TAB ─────────────────────────────────── */}
+            {activeTab === 'DATA_PREVIEW' && (
+                <div style={{ flex: 1, overflowY: 'auto', padding: '16px', backgroundColor: '#ffffff', margin: '16px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                        <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0 }}>Data Grid ({filteredDataset.length} rows)</h3>
+                    </div>
+                    <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px', maxHeight: '500px' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                            <thead>
+                                <tr style={{ backgroundColor: '#714B67', color: '#ffffff' }}>
+                                    {availableColumns.map(k => <th key={k} style={{ padding: '8px 12px' }}>{k}</th>)}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredDataset.slice(0, 50).map((row, idx) => (
+                                    <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
+                                        {availableColumns.map((c, i) => <td key={i} style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9' }}>{String(row[c] ?? '')}</td>)}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             )}
