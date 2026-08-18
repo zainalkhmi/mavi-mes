@@ -5593,6 +5593,34 @@ const LiveTerminal = () => {
                 window.print();
               }
             }, 300);
+          } else if (action.type === 'PRINT_REPORT_TEMPLATE') {
+            const { templateId, actionTarget, mappings } = action.payload || {};
+            const { executeReportPrintAction } = await import('../utils/reportPrintService');
+            const resolvedInputs = {};
+
+            for (const [tag, mapObj] of Object.entries(mappings || {})) {
+              if (!mapObj) continue;
+              if (mapObj.type === 'STATIC') {
+                resolvedInputs[tag] = mapObj.value || '';
+              } else if (mapObj.type === 'APP_CONTEXT') {
+                if (mapObj.value === 'USER_NAME') resolvedInputs[tag] = loggedInUser?.name || 'Operator';
+                else if (mapObj.value === 'USER_BADGE') resolvedInputs[tag] = loggedInUser?.badge || 'OP-01';
+                else if (mapObj.value === 'STATION') resolvedInputs[tag] = currentStation || 'Station-01';
+                else if (mapObj.value === 'DATE_NOW') resolvedInputs[tag] = new Date().toISOString().split('T')[0];
+                else if (mapObj.value === 'TIME_NOW') resolvedInputs[tag] = new Date().toLocaleString();
+                else if (mapObj.value === 'APP_NAME') resolvedInputs[tag] = selectedApp?.name || 'MAVI App';
+              } else {
+                const varName = typeof mapObj === 'string' ? mapObj : mapObj.value;
+                resolvedInputs[tag] = await resolveSourceValue('VARIABLE', varName, '', eventPayload);
+              }
+            }
+
+            console.log('[LiveTerminal] Executing PRINT_REPORT_TEMPLATE:', templateId, resolvedInputs);
+            await executeReportPrintAction({
+              templateId,
+              actionTarget: actionTarget || 'PRINT',
+              resolvedInputs
+            });
           } else if (action.type === 'COMPLETE_APP') {
             await handleCompleteApp();
           } else if (action.type === 'CANCEL_APP') {

@@ -237,6 +237,7 @@ const VisionCamera = lazy(() => import('./VisionCamera'));
 import { getAllCameras } from '../utils/supabaseUtilityDB';
 
 import { saveFrontlineApp, getAllFrontlineApps, deleteFrontlineApp, publishApp, requestApproval, approveApp, getAllVariables, saveVariable, getAllSavedAnalyses } from '../utils/supabaseFrontlineDB';
+import { getSavedReportTemplates, extractTemplateFieldTags, executeReportPrintAction } from '../utils/reportPrintService';
 import {
     createTable,
     addTableRecord,
@@ -4991,6 +4992,48 @@ const AppBuilder = () => {
                         });
                     }
                     break;
+                }
+                case 'PRINT_REPORT_TEMPLATE': {
+                    const { templateId, actionTarget, mappings } = action.payload || {};
+                    const resolvedInputs = {};
+
+                    Object.entries(mappings || {}).forEach(([tag, mapObj]) => {
+                        if (!mapObj) return;
+                        if (mapObj.type === 'STATIC') {
+                            resolvedInputs[tag] = mapObj.value || '';
+                        } else if (mapObj.type === 'APP_CONTEXT') {
+                            if (mapObj.value === 'USER_NAME') resolvedInputs[tag] = appContext?.user?.name || 'Operator 1';
+                            else if (mapObj.value === 'USER_BADGE') resolvedInputs[tag] = appContext?.user?.badge || 'OP-01';
+                            else if (mapObj.value === 'STATION') resolvedInputs[tag] = appContext?.station || 'Station-A';
+                            else if (mapObj.value === 'DATE_NOW') resolvedInputs[tag] = new Date().toISOString().split('T')[0];
+                            else if (mapObj.value === 'TIME_NOW') resolvedInputs[tag] = new Date().toLocaleString();
+                            else if (mapObj.value === 'APP_NAME') resolvedInputs[tag] = appName || 'MAVI App';
+                        } else {
+                            const varName = typeof mapObj === 'string' ? mapObj : mapObj.value;
+                            const targetVar = appVariables.find(v => v.name === varName);
+                            if (targetVar) {
+                                resolvedInputs[tag] = targetVar.value;
+                            } else if (varName && recordPlaceholderData) {
+                                const [pName, fName] = varName.split('.');
+                                const pHolder = recordPlaceholders?.find(p => p.name === pName);
+                                if (pHolder && fName && recordPlaceholderData[pHolder.id]) {
+                                    resolvedInputs[tag] = recordPlaceholderData[pHolder.id][fName];
+                                }
+                            }
+                        }
+                    });
+
+                    console.log('[AppBuilder Trigger] Executing PRINT_REPORT_TEMPLATE with inputs:', resolvedInputs);
+                    const res = await executeReportPrintAction({
+                        templateId,
+                        actionTarget: actionTarget || 'PRINT',
+                        resolvedInputs
+                    });
+                    if (!res.ok) {
+                        toast.error(`Gagal mencetak: ${res.error}`);
+                        return false;
+                    }
+                    return true;
                 }
                 case 'LOG_EVENT':
                     console.log(`[Trigger Log] ${action.payload.message || 'Event logged'}`);
@@ -26037,6 +26080,132 @@ D3:0
                                                         </div>
                                                     </div>
                                                 );
+                                            case 'PRINT_REPORT_TEMPLATE': {
+                                                const allReportTemplates = getSavedReportTemplates();
+                                                const selTemplateId = act.payload?.templateId || allReportTemplates[0]?.id || '';
+                                                const selTemplate = allReportTemplates.find(t => t.id === selTemplateId) || allReportTemplates[0];
+                                                const tags = extractTemplateFieldTags(selTemplate);
+                                                const mappings = act.payload?.mappings || {};
+
+                                                return (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', backgroundColor: 'var(--bg-panel)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-secondary)' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                            <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-quaternary)', minWidth: '110px' }}>Report Template</label>
+                                                            <select
+                                                                value={selTemplateId}
+                                                                onChange={(e) => {
+                                                                    const newTplId = e.target.value;
+                                                                    const tpl = allReportTemplates.find(t => t.id === newTplId);
+                                                                    const newTags = extractTemplateFieldTags(tpl);
+                                                                    const autoMap = {};
+                                                                    newTags.forEach(tag => {
+                                                                        const matchingVar = appVariables.find(v => v.name.toLowerCase() === tag.toLowerCase());
+                                                                        if (matchingVar) autoMap[tag] = { type: 'VARIABLE', value: matchingVar.name };
+                                                                    });
+                                                                    updatePayload({ templateId: newTplId, mappings: autoMap });
+                                                                }}
+                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                                                            >
+                                                                {allReportTemplates.map(t => (
+                                                                    <option key={t.id} value={t.id}>{t.name} ({t.category || 'Custom'})</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                            <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-quaternary)', minWidth: '110px' }}>Action Target</label>
+                                                            <select
+                                                                value={act.payload?.actionTarget || 'PRINT'}
+                                                                onChange={(e) => updatePayload({ actionTarget: e.target.value })}
+                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                                                            >
+                                                                <option value="PRINT">🖨️ Direct Print (Thermal / Laser Printer)</option>
+                                                                <option value="DOWNLOAD">📥 Download PDF File</option>
+                                                                <option value="PREVIEW">👁️ Open PDF Preview in New Tab</option>
+                                                            </select>
+                                                        </div>
+
+                                                        <div style={{ marginTop: '6px', paddingTop: '8px', borderTop: '1px solid var(--border-secondary)' }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                                    Tag Mapping ({tags.length} Tag Template)
+                                                                </span>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.preventDefault();
+                                                                        const autoMap = { ...mappings };
+                                                                        tags.forEach(tag => {
+                                                                            const matchingVar = appVariables.find(v => v.name.toLowerCase() === tag.toLowerCase());
+                                                                            if (matchingVar) autoMap[tag] = { type: 'VARIABLE', value: matchingVar.name };
+                                                                        });
+                                                                        updatePayload({ mappings: autoMap });
+                                                                    }}
+                                                                    style={{ fontSize: '0.7rem', padding: '3px 8px', borderRadius: '4px', backgroundColor: '#714B67', color: '#fff', border: 'none', cursor: 'pointer' }}
+                                                                >
+                                                                    Auto-Map Variables
+                                                                </button>
+                                                            </div>
+
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '180px', overflowY: 'auto' }}>
+                                                                {tags.map(tag => {
+                                                                    const curMap = mappings[tag] || { type: 'VARIABLE', value: '' };
+                                                                    return (
+                                                                        <div key={tag} style={{ display: 'grid', gridTemplateColumns: '130px 100px 1fr', gap: '8px', alignItems: 'center', backgroundColor: 'var(--bg-primary)', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)' }}>
+                                                                            <span style={{ fontSize: '0.75rem', fontWeight: 600, fontFamily: 'monospace', color: '#714B67', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={tag}>
+                                                                                {tag}
+                                                                            </span>
+                                                                            <select
+                                                                                value={curMap.type || 'VARIABLE'}
+                                                                                onChange={(e) => {
+                                                                                    const newType = e.target.value;
+                                                                                    updatePayload({ mappings: { ...mappings, [tag]: { type: newType, value: '' } } });
+                                                                                }}
+                                                                                style={{ padding: '4px 6px', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border-secondary)' }}
+                                                                            >
+                                                                                <option value="VARIABLE">Variable</option>
+                                                                                <option value="STATIC">Static Text</option>
+                                                                                <option value="APP_CONTEXT">App Context</option>
+                                                                            </select>
+                                                                            {curMap.type === 'STATIC' ? (
+                                                                                <input
+                                                                                    type="text"
+                                                                                    value={curMap.value || ''}
+                                                                                    placeholder="Static text / value"
+                                                                                    onChange={(e) => updatePayload({ mappings: { ...mappings, [tag]: { type: 'STATIC', value: e.target.value } } })}
+                                                                                    style={{ padding: '4px 8px', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border-secondary)' }}
+                                                                                />
+                                                                            ) : curMap.type === 'APP_CONTEXT' ? (
+                                                                                <select
+                                                                                    value={curMap.value || 'USER_NAME'}
+                                                                                    onChange={(e) => updatePayload({ mappings: { ...mappings, [tag]: { type: 'APP_CONTEXT', value: e.target.value } } })}
+                                                                                    style={{ padding: '4px 6px', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border-secondary)' }}
+                                                                                >
+                                                                                    <option value="USER_NAME">Logged in User Name</option>
+                                                                                    <option value="USER_BADGE">User Badge / ID</option>
+                                                                                    <option value="STATION">Current Station</option>
+                                                                                    <option value="DATE_NOW">Current Date (YYYY-MM-DD)</option>
+                                                                                    <option value="TIME_NOW">Current Timestamp</option>
+                                                                                    <option value="APP_NAME">App Name</option>
+                                                                                </select>
+                                                                            ) : (
+                                                                                <select
+                                                                                    value={curMap.value || ''}
+                                                                                    onChange={(e) => updatePayload({ mappings: { ...mappings, [tag]: { type: 'VARIABLE', value: e.target.value } } })}
+                                                                                    style={{ padding: '4px 6px', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border-secondary)' }}
+                                                                                >
+                                                                                    <option value="">-- Select App Variable --</option>
+                                                                                    {appVariables.map(v => <option key={v.name} value={v.name}>{v.name} ({v.type || 'string'})</option>)}
+                                                                                </select>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
                                             case 'COMPLETE_APP':
                                             case 'CANCEL_APP':
                                                 return <div style={{ fontSize: '0.85rem', color: 'var(--text-quaternary)', fontStyle: 'italic', padding: '8px' }}>No additional parameters required.</div>;
@@ -26414,6 +26583,7 @@ D3:0
                                                                                         <option value="OBD2_CLEAR_DTC">OBD2: Clear Error Codes</option>
                                                                                     </optgroup>
                                                                                     <optgroup label="App & Navigation">
+                                                                                        <option value="PRINT_REPORT_TEMPLATE">Report: Print / Generate PDF</option>
                                                                                         <option value="APP_REFRESH">App: Refresh All Data</option>
                                                                                         <option value="PRINT_SCREEN">App: Print Screen / Area</option>
                                                                                         {(() => {
@@ -26531,6 +26701,7 @@ D3:0
                                                                                     <option value="OBD2_CLEAR_DTC">OBD2: Clear Error Codes</option>
                                                                                 </optgroup>
                                                                                 <optgroup label="App & Navigation">
+                                                                                    <option value="PRINT_REPORT_TEMPLATE">Report: Print / Generate PDF</option>
                                                                                     <option value="PRINT_SCREEN">App: Print Screen / Area</option>
                                                                                     {(() => {
                                                                                         const isTransitionActionType = (t) => ['GO_TO_STEP', 'NEXT_STEP', 'PREV_STEP', 'COMPLETE_APP', 'CANCEL_APP'].includes(String(t || ''));
