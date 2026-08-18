@@ -60,6 +60,7 @@ export default function TopNavbar() {
   ].filter(Boolean);
 
   const analyticsItems = [
+    { path: '/bi', icon: <BarChart3 size={16} className="text-purple-600" />, label: '📊 BI Studio (Power BI Style)' },
     hasAccess('/analytics') && { path: '/analytics', icon: <BarChart3 size={16} />, label: 'Analysis Manager' },
     hasAccess('/dashboards') && { path: '/dashboards', icon: <Layout size={16} />, label: 'Dashboards' },
     hasAccess('/reports') && { path: '/reports', icon: <FileText size={16} className="text-emerald-400" />, label: 'Report Designer (PDF)' }

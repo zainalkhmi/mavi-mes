@@ -47,6 +47,7 @@ const ProductionPlantDashboard = lazy(() => import('./components/ProductionPlant
 const MachineActivityYieldTracker = lazy(() => import('./components/MachineActivityYieldTracker'));
 const DigitalDrawingCheckSheet = lazy(() => import('./components/DigitalDrawingCheckSheet'));
 const ReportDesigner = lazy(() => import('./components/ReportDesigner'));
+const BiStudio = lazy(() => import('./components/BiStudio'));
 
 export default function AppRouter({ user, isOperator }) {
   const hasAccess = (path) => checkRoleAccess(user, path);
@@ -95,6 +96,9 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/dashboards" element={hasAccess('/dashboards') ? <DashboardManager /> : <Navigate to="/" replace />} />
               <Route path="/dashboards/new" element={hasAccess('/dashboards') ? <DashboardEditor /> : <Navigate to="/" replace />} />
               <Route path="/dashboards/edit/:id" element={hasAccess('/dashboards') ? <DashboardEditor /> : <Navigate to="/" replace />} />
+              <Route path="/bi" element={<BiStudio />} />
+              <Route path="/bi-studio" element={<BiStudio />} />
+              <Route path="/power-bi" element={<BiStudio />} />
               <Route path="/reports" element={hasAccess('/reports') ? <ReportDesigner /> : <Navigate to="/" replace />} />
               <Route path="/users" element={hasAccess('/users') ? <UserManager /> : <Navigate to="/" replace />} />
               <Route path="/apps/data-entry-form-example" element={<DataEntryFormGuide />} />
