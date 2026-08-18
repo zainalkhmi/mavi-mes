@@ -3,7 +3,7 @@ import {
   Settings, Zap, Camera, Cpu, Database, Link2, Variable,
   BarChart3, Monitor, MapPin, Radio, Tv, Activity, Eye, BrainCircuit,
   SlidersHorizontal, Users, ShoppingBag, AppWindow, Folder, Volume2,
-  FileCode, Webhook, Play, Layout, Award
+  FileCode, Webhook, Play, Layout
 } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 
@@ -47,7 +47,6 @@ export default function TopNavbar() {
     hasAccess('/machines') && { path: '/machines', icon: <Cpu size={16} />, label: 'Machines' },
     hasAccess('/predictive-maintenance') && { path: '/predictive-maintenance', icon: <Activity size={16} className="text-amber-500" />, label: 'Predictive Maintenance (RUL)' },
     hasAccess('/edge-devices') && { path: '/edge-devices', icon: <Activity size={16} />, label: 'Edge Devices' },
-    hasAccess('/skill-manager') && { path: '/skill-manager', icon: <Award size={16} className="text-blue-600" />, label: 'Skill Matrix & Manager' },
     hasAccess('/voice-inspection') && { path: '/voice-inspection', icon: <Volume2 size={16} />, label: 'Voice Inspection' },
     { type: 'divider' },
     hasAccess('/iot-hub') && { path: '/iot-hub', icon: <Radio size={16} className="text-violet-500" />, label: 'IoT Hub' },
