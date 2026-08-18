@@ -3,7 +3,7 @@ import {
   Settings, Zap, Camera, Cpu, Database, Link2, Variable,
   BarChart3, Monitor, MapPin, Radio, Tv, Activity, Eye, BrainCircuit,
   SlidersHorizontal, Users, ShoppingBag, AppWindow, Folder, Volume2,
-  FileCode, Webhook, Play, Layout
+  FileCode, Webhook, Play, Layout, FileText
 } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 
@@ -61,7 +61,8 @@ export default function TopNavbar() {
 
   const analyticsItems = [
     hasAccess('/analytics') && { path: '/analytics', icon: <BarChart3 size={16} />, label: 'Analysis Manager' },
-    hasAccess('/dashboards') && { path: '/dashboards', icon: <Layout size={16} />, label: 'Dashboards' }
+    hasAccess('/dashboards') && { path: '/dashboards', icon: <Layout size={16} />, label: 'Dashboards' },
+    hasAccess('/reports') && { path: '/reports', icon: <FileText size={16} className="text-emerald-400" />, label: 'Report Designer (PDF)' }
   ].filter(Boolean);
 
   const logicItems = [

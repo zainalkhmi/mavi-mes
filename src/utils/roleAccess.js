@@ -19,8 +19,8 @@ export const hasAccess = (user, path) => {
   if (role === 'CONNECTOR_SUPERVISOR') {
     const allowed = [
       '/', '/builder', '/file-explorer', '/store', '/app-management', '/variables',
-      '/connectors', '/functions', '/automations', '/analytics', '/dashboards', '/mcp-server',
-      '/player', '/terminal', '/plc-settings', '/voice-inspection', '/predictive-maintenance', '/skill-manager'
+      '/connectors', '/functions', '/automations', '/analytics', '/dashboards', '/reports', '/mcp-server',
+      '/player', '/terminal', '/plc-settings', '/voice-inspection', '/predictive-maintenance'
     ];
     return allowed.some(p => path === p || path.startsWith(p + '/'));
   }
@@ -30,7 +30,7 @@ export const hasAccess = (user, path) => {
     const allowed = [
       '/', '/builder', '/file-explorer', '/store', '/app-management', '/variables',
       '/stations', '/display-devices', '/machines', '/edge-devices', '/iot-hub', '/vision', '/mcp-server',
-      '/analytics', '/dashboards', '/player', '/terminal', '/plc-settings', '/voice-inspection', '/predictive-maintenance', '/skill-manager'
+      '/analytics', '/dashboards', '/reports', '/player', '/terminal', '/plc-settings', '/voice-inspection', '/predictive-maintenance'
     ];
     return allowed.some(p => path === p || path.startsWith(p + '/'));
   }
@@ -39,7 +39,7 @@ export const hasAccess = (user, path) => {
   if (role === 'TABLES_SUPERVISOR') {
     const allowed = [
       '/', '/builder', '/file-explorer', '/store', '/app-management', '/variables',
-      '/tables', '/analytics', '/dashboards', '/player', '/terminal', '/voice-inspection', '/predictive-maintenance', '/skill-manager'
+      '/tables', '/analytics', '/dashboards', '/reports', '/player', '/terminal', '/voice-inspection', '/predictive-maintenance'
     ];
     return allowed.some(p => path === p || path.startsWith(p + '/'));
   }
@@ -48,7 +48,7 @@ export const hasAccess = (user, path) => {
   if (role === 'APPLICATION_ENGINEER' || role === 'ENGINEER') {
     const allowed = [
       '/', '/builder', '/file-explorer', '/store', '/app-management', '/variables',
-      '/analytics', '/dashboards', '/player', '/terminal', '/voice-inspection', '/predictive-maintenance', '/skill-manager'
+      '/analytics', '/dashboards', '/reports', '/player', '/terminal', '/voice-inspection', '/predictive-maintenance'
     ];
     return allowed.some(p => path === p || path.startsWith(p + '/'));
   }
@@ -56,7 +56,7 @@ export const hasAccess = (user, path) => {
   // Viewer: App Store, Analytics, Dashboards, Console
   if (role === 'VIEWER') {
     const allowed = [
-      '/', '/store', '/analytics', '/dashboards', '/player', '/terminal', '/voice-inspection', '/predictive-maintenance', '/skill-manager'
+      '/', '/store', '/analytics', '/dashboards', '/reports', '/player', '/terminal', '/voice-inspection', '/predictive-maintenance'
     ];
     return allowed.some(p => path === p || path.startsWith(p + '/'));
   }
