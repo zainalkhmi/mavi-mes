@@ -584,6 +584,7 @@ export default function BiStudio() {
                                     <div
                                         key={el.id}
                                         onMouseDown={(e) => handleElementMouseDown(e, el)}
+                                        onClick={(e) => e.stopPropagation()}
                                         style={{
                                             position: 'absolute',
                                             left: `${el.x}px`,
