@@ -14,6 +14,7 @@ import toast from 'react-hot-toast';
 import { getTables, getTableRecords } from '../utils/supabaseTablesDB';
 import { getSupabaseClient } from '../utils/supabaseManualDB';
 import { executeConnector } from '../utils/connectorHub';
+import { maviReadTable } from '../utils/supabaseMESDB';
 
 // ─── SAMPLE INDUSTRIAL DATASETS ─────────────────────────────────────
 const SAMPLE_PRODUCTION_DATA = [
@@ -88,6 +89,13 @@ export default function BiStudio() {
 
     // Active Raw Records
     const [activeDataset, setActiveDataset] = useState(SAMPLE_PRODUCTION_DATA);
+
+    // ─── DATA SOURCE SELECTOR STATE ──────────────────────────────────
+    const [dataSourceType, setDataSourceType] = useState('SAMPLE'); // 'SAMPLE' | 'APP_TABLE' | 'MES_TABLE' | 'CONNECTOR'
+    const [dataSourceLoading, setDataSourceLoading] = useState(false);
+    const [dataSourceLabel, setDataSourceLabel] = useState('Manufacturing Telemetry (Sample)');
+    const [selectedMesTable, setSelectedMesTable] = useState('');
+    const [showDataSourcePanel, setShowDataSourcePanel] = useState(false);
 
     // Global Filters / Slicers
     const [filterShift, setFilterShift] = useState('ALL');
@@ -368,6 +376,91 @@ export default function BiStudio() {
         toast.success('Visual dihapus dari Canvas');
     };
 
+    // ─── DATA SOURCE LOADING FUNCTIONS ────────────────────────────────
+    const loadSampleData = () => {
+        setDataSourceType('SAMPLE');
+        setActiveDataset(SAMPLE_PRODUCTION_DATA);
+        setDataSourceLabel('Manufacturing Telemetry (Sample)');
+        setSourceName('Manufacturing Telemetry (Sample)');
+        toast.success('Sample data loaded');
+    };
+
+    const loadAppTableData = async (tableId) => {
+        if (!tableId) return;
+        setDataSourceLoading(true);
+        try {
+            const recs = await getTableRecords(tableId);
+            if (recs?.length > 0) {
+                setDataSourceType('APP_TABLE');
+                setActiveDataset(recs);
+                const tbl = interactiveTables.find(t => t.id === tableId);
+                const label = `App Table: ${tbl?.name || tableId}`;
+                setDataSourceLabel(label);
+                setSourceName(label);
+                setSelectedTableId(tableId);
+                toast.success(`Loaded ${recs.length} rows from ${tbl?.name}`);
+            } else {
+                toast.error('Table is empty');
+            }
+        } catch (e) {
+            toast.error(e.message);
+        } finally {
+            setDataSourceLoading(false);
+        }
+    };
+
+    const loadMESTableData = async (tableId) => {
+        if (!tableId) return;
+        setDataSourceLoading(true);
+        try {
+            const { readMESTable, getMESTables } = await import('../utils/supabaseMESDB');
+            const recs = await readMESTable(tableId, { limit: 500 });
+            if (recs?.length > 0) {
+                setDataSourceType('MES_TABLE');
+                setActiveDataset(recs);
+                const tbl = getMESTables().find(t => t.id === tableId);
+                const label = `MES: ${tbl?.name || tableId}`;
+                setDataSourceLabel(label);
+                setSourceName(label);
+                setSelectedMesTable(tableId);
+                toast.success(`Loaded ${recs.length} rows from ${tbl?.name}`);
+            } else {
+                toast.error('Table is empty or not accessible');
+            }
+        } catch (e) {
+            toast.error(e.message);
+        } finally {
+            setDataSourceLoading(false);
+        }
+    };
+
+    const loadConnectorData = async () => {
+        if (!selectedConnectorId || !selectedFunctionId) {
+            toast.error('Select connector and function first');
+            return;
+        }
+        setDataSourceLoading(true);
+        try {
+            const res = await executeConnector(selectedConnectorId, selectedFunctionId, {});
+            const rows = Array.isArray(res) ? res : res?.rows || res?.data || [];
+            if (rows.length > 0) {
+                setDataSourceType('CONNECTOR');
+                setActiveDataset(rows);
+                const conn = availableConnectors.find(c => c.id === selectedConnectorId);
+                const label = `Connector: ${conn?.name || selectedConnectorId}`;
+                setDataSourceLabel(label);
+                setSourceName(label);
+                toast.success(`Loaded ${rows.length} rows from connector`);
+            } else {
+                toast.error('No data returned from connector');
+            }
+        } catch (e) {
+            toast.error(e.message);
+        } finally {
+            setDataSourceLoading(false);
+        }
+    };
+
     // ─── DRAG HANDLERS ────────────────────────────────────────────────
     const handleElementMouseDown = (e, el) => {
         e.stopPropagation();
@@ -494,10 +587,98 @@ export default function BiStudio() {
                             </div>
                         </div>
 
+                        {/* ── DATA SOURCE SELECTOR ── */}
+                        <div style={{ padding: '10px 14px', borderBottom: '1px solid #f1f5f9' }}>
+                            <button
+                                onClick={() => setShowDataSourcePanel(!showDataSourcePanel)}
+                                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', borderRadius: '4px', border: '1px solid #e2e8f0', backgroundColor: '#f0fdf4', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, color: '#166534' }}
+                            >
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <Database size={12} /> Data Source
+                                </span>
+                                <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 500 }}>{dataSourceType}</span>
+                            </button>
+
+                            {showDataSourcePanel && (
+                                <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                    {/* Current Source */}
+                                    <div style={{ fontSize: '0.68rem', color: '#64748b', padding: '4px 6px', backgroundColor: '#f8fafc', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
+                                        {dataSourceLabel}
+                                    </div>
+
+                                    {/* Sample Data */}
+                                    <button
+                                        onClick={loadSampleData}
+                                        style={{ padding: '6px 8px', borderRadius: '4px', border: '1px solid #e2e8f0', backgroundColor: dataSourceType === 'SAMPLE' ? '#dcfce7' : '#fff', cursor: 'pointer', fontSize: '0.7rem', textAlign: 'left', fontWeight: 600, color: '#334155' }}
+                                    >
+                                        Demo / Sample Data
+                                    </button>
+
+                                    {/* App Tables */}
+                                    <select
+                                        value={selectedTableId}
+                                        onChange={(e) => loadAppTableData(e.target.value)}
+                                        style={{ padding: '6px 8px', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '0.7rem', backgroundColor: '#fff', cursor: 'pointer' }}
+                                    >
+                                        <option value="">App Tables...</option>
+                                        {interactiveTables.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                    </select>
+
+                                    {/* MES Tables */}
+                                    <select
+                                        value={selectedMesTable}
+                                        onChange={(e) => loadMESTableData(e.target.value)}
+                                        style={{ padding: '6px 8px', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '0.7rem', backgroundColor: '#fff', cursor: 'pointer' }}
+                                    >
+                                        <option value="">MES Tables...</option>
+                                        {[
+                                            { id: 'machines', name: 'Machines' },
+                                            { id: 'stations', name: 'Stations' },
+                                            { id: 'completions', name: 'Completions' },
+                                            { id: 'measurements', name: 'Measurements' },
+                                            { id: 'production_queue', name: 'Production Queue' },
+                                            { id: 'audit_logs', name: 'Audit Logs' },
+                                            { id: 'player_sessions', name: 'Player Sessions' },
+                                            { id: 'plc_tags', name: 'PLC Tags' },
+                                        ].map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                    </select>
+
+                                    {/* Connector Hub */}
+                                    {availableConnectors.length > 0 && (
+                                        <>
+                                            <select
+                                                value={selectedConnectorId}
+                                                onChange={(e) => setSelectedConnectorId(e.target.value)}
+                                                style={{ padding: '6px 8px', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '0.7rem', backgroundColor: '#fff', cursor: 'pointer' }}
+                                            >
+                                                <option value="">Connector Hub...</option>
+                                                {availableConnectors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                            </select>
+                                            {selectedConnectorId && (
+                                                <button
+                                                    onClick={loadConnectorData}
+                                                    disabled={dataSourceLoading}
+                                                    style={{ padding: '6px 8px', borderRadius: '4px', border: 'none', backgroundColor: '#714B67', color: '#fff', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 600, opacity: dataSourceLoading ? 0.6 : 1 }}
+                                                >
+                                                    {dataSourceLoading ? 'Loading...' : 'Pull Data'}
+                                                </button>
+                                            )}
+                                        </>
+                                    )}
+
+                                    {dataSourceLoading && (
+                                        <div style={{ fontSize: '0.65rem', color: '#714B67', textAlign: 'center', padding: '4px' }}>
+                                            Loading data...
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
                         {/* Fields & Dataset Columns */}
                         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                             <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                🗂️ Data Fields ({availableColumns.length})
+                                Data Fields ({availableColumns.length})
                             </span>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                 {availableColumns.map(col => {
