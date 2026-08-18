@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
     FilePlus, HelpCircle, Save, Smartphone, Undo2, Redo2, 
-    Lock, Unlock, Layout, Code, Play, Blocks, Network, Sun, Moon, Settings2, LayoutGrid, Monitor
+    Lock, Unlock, Layout, Code, Play, Blocks, Sun, Moon, Settings2, LayoutGrid, Monitor
 } from 'lucide-react';
 import ProjectManager from '../ProjectManager';
 
@@ -565,40 +565,6 @@ export default function AppBuilderToolbar({
                             title="Code Blocks"
                         >
                             <Blocks size={18} />
-                        </button>
-                        <button
-                            onClick={() => setViewMode('NODES')}
-                            style={{
-                                width: '36px',
-                                height: '36px',
-                                borderRadius: '6px',
-                                backgroundColor: viewMode === 'NODES' ? '#6366f1' : 'transparent',
-                                border: 'none',
-                                color: viewMode === 'NODES' ? 'white' : '#818cf8',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                boxShadow: viewMode === 'NODES' ? '0 2px 4px rgba(0,0,0,0.2)' : 'none'
-                            }}
-                            onMouseEnter={(e) => {
-                                if (viewMode !== 'NODES') {
-                                    e.currentTarget.style.backgroundColor = 'rgba(99, 102, 241, 0.2)';
-                                    e.currentTarget.style.color = '#a5b4fc';
-                                    e.currentTarget.style.transform = 'scale(1.05)';
-                                }
-                            }}
-                            onMouseLeave={(e) => {
-                                if (viewMode !== 'NODES') {
-                                    e.currentTarget.style.backgroundColor = 'transparent';
-                                    e.currentTarget.style.color = '#818cf8';
-                                    e.currentTarget.style.transform = 'none';
-                                }
-                            }}
-                            title="Visual Node Canvas Wiring"
-                        >
-                            <Network size={18} />
                         </button>
                     </div>
                 </div>
