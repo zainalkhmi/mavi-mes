@@ -14,7 +14,6 @@ import toast from 'react-hot-toast';
 import { getTables, getTableRecords } from '../utils/supabaseTablesDB';
 import { getSupabaseClient } from '../utils/supabaseManualDB';
 import { executeConnector } from '../utils/connectorHub';
-import { maviReadTable } from '../utils/supabaseMESDB';
 
 // ─── SAMPLE INDUSTRIAL DATASETS ─────────────────────────────────────
 const SAMPLE_PRODUCTION_DATA = [
@@ -96,6 +95,15 @@ export default function BiStudio() {
     const [dataSourceLabel, setDataSourceLabel] = useState('Manufacturing Telemetry (Sample)');
     const [selectedMesTable, setSelectedMesTable] = useState('');
     const [showDataSourcePanel, setShowDataSourcePanel] = useState(false);
+
+    // ─── DASHBOARD MANAGEMENT STATE ──────────────────────────────────
+    const [currentDashboardId, setCurrentDashboardId] = useState(null);
+    const [currentDashboardName, setCurrentDashboardName] = useState('Untitled Dashboard');
+    const [currentDashboardDesc, setCurrentDashboardDesc] = useState('');
+    const [dashboardList, setDashboardList] = useState([]);
+    const [dashboardSaving, setDashboardSaving] = useState(false);
+    const [showDashboardManager, setShowDashboardManager] = useState(false);
+    const [isPublished, setIsPublished] = useState(false);
 
     // Global Filters / Slicers
     const [filterShift, setFilterShift] = useState('ALL');
@@ -459,6 +467,150 @@ export default function BiStudio() {
         } finally {
             setDataSourceLoading(false);
         }
+    };
+
+    // ─── DASHBOARD MANAGEMENT FUNCTIONS ───────────────────────────────
+    const loadDashboardList = async () => {
+        try {
+            const supabase = getSupabaseClient();
+            const { data, error } = await supabase
+                .from('dashboards')
+                .select('id, name, description, layout, created_at, updated_at')
+                .order('updated_at', { ascending: false });
+            if (error) throw error;
+            setDashboardList(data || []);
+        } catch (e) {
+            console.error('[BI Studio] Failed to load dashboards:', e);
+        }
+    };
+
+    useEffect(() => {
+        loadDashboardList();
+    }, []);
+
+    const saveDashboard = async (publish = false) => {
+        if (!currentDashboardName.trim()) {
+            toast.error('Dashboard name is required');
+            return;
+        }
+        setDashboardSaving(true);
+        try {
+            const supabase = getSupabaseClient();
+            const layoutData = canvasElements.map(el => ({
+                id: el.id,
+                type: el.type,
+                x: el.x,
+                y: el.y,
+                width: el.width,
+                height: el.height,
+                title: el.title,
+                dimension: el.dimension,
+                metric: el.metric,
+                aggregation: el.aggregation,
+                color: el.color,
+                textContent: el.textContent,
+                fontSize: el.fontSize,
+                bgColor: el.bgColor,
+                prefix: el.prefix,
+                suffix: el.suffix,
+                metrics: el.metrics
+            }));
+
+            const payload = {
+                name: currentDashboardName,
+                description: currentDashboardDesc,
+                layout: layoutData,
+                updated_at: new Date().toISOString()
+            };
+
+            if (currentDashboardId) {
+                const { error } = await supabase
+                    .from('dashboards')
+                    .update(payload)
+                    .eq('id', currentDashboardId);
+                if (error) throw error;
+            } else {
+                payload.created_at = new Date().toISOString();
+                const { data, error } = await supabase
+                    .from('dashboards')
+                    .insert(payload)
+                    .select('id')
+                    .single();
+                if (error) throw error;
+                setCurrentDashboardId(data.id);
+            }
+
+            setIsPublished(publish);
+            toast.success(publish ? 'Dashboard published!' : 'Dashboard saved!');
+            loadDashboardList();
+        } catch (e) {
+            toast.error(`Save failed: ${e.message}`);
+        } finally {
+            setDashboardSaving(false);
+        }
+    };
+
+    const loadDashboard = async (dashboardId) => {
+        try {
+            const supabase = getSupabaseClient();
+            const { data, error } = await supabase
+                .from('dashboards')
+                .select('*')
+                .eq('id', dashboardId)
+                .single();
+            if (error) throw error;
+
+            setCurrentDashboardId(data.id);
+            setCurrentDashboardName(data.name || 'Untitled');
+            setCurrentDashboardDesc(data.description || '');
+            setIsPublished(false);
+
+            if (data.layout && Array.isArray(data.layout) && data.layout.length > 0) {
+                const restored = data.layout.map(el => ({
+                    ...el,
+                    id: el.id || `el_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+                }));
+                setCanvasElements(restored);
+            }
+
+            setShowDashboardManager(false);
+            setActiveTab('CANVAS');
+            toast.success(`Loaded: ${data.name}`);
+        } catch (e) {
+            toast.error(`Load failed: ${e.message}`);
+        }
+    };
+
+    const deleteDashboard = async (dashboardId) => {
+        if (!confirm('Delete this dashboard?')) return;
+        try {
+            const supabase = getSupabaseClient();
+            const { error } = await supabase
+                .from('dashboards')
+                .delete()
+                .eq('id', dashboardId);
+            if (error) throw error;
+            if (currentDashboardId === dashboardId) {
+                setCurrentDashboardId(null);
+                setCurrentDashboardName('Untitled Dashboard');
+            }
+            toast.success('Dashboard deleted');
+            loadDashboardList();
+        } catch (e) {
+            toast.error(`Delete failed: ${e.message}`);
+        }
+    };
+
+    const createNewDashboard = () => {
+        setCurrentDashboardId(null);
+        setCurrentDashboardName('New Dashboard');
+        setCurrentDashboardDesc('');
+        setIsPublished(false);
+        setCanvasElements([
+            { id: `el_${Date.now()}`, type: 'TEXT', x: 20, y: 20, width: 500, height: 60, title: 'Dashboard Title', textContent: 'My New Dashboard', fontSize: 18, color: '#714B67', bgColor: '#ffffff' }
+        ]);
+        setActiveTab('CANVAS');
+        toast.success('New dashboard created');
     };
 
     // ─── DRAG HANDLERS ────────────────────────────────────────────────
