@@ -8,7 +8,6 @@ import {
 import toast from 'react-hot-toast';
 import { Designer } from '@pdfme/ui';
 import { generate } from '@pdfme/generator';
-import { BLANK_PDF } from '@pdfme/common';
 import {
     text,
     image,
@@ -41,6 +40,39 @@ const PDF_PLUGINS = {
     multiVariableText
 };
 
+// A4 page definition for basePdf (required for table support)
+const A4_BASE = { width: 210, height: 297, padding: [10, 10, 10, 10] };
+
+// Standard table style objects matching pdfme internal format
+const STD_HEAD_STYLES = {
+    alignment: 'center',
+    verticalAlignment: 'middle',
+    fontSize: 9,
+    lineHeight: 1,
+    characterSpacing: 0,
+    fontColor: '#ffffff',
+    backgroundColor: '#0f172a',
+    borderColor: '',
+    borderWidth: { top: 0, right: 0, bottom: 0, left: 0 },
+    padding: { top: 3, right: 3, bottom: 3, left: 3 }
+};
+
+const STD_BODY_STYLES = {
+    alignment: 'center',
+    verticalAlignment: 'middle',
+    fontSize: 8,
+    lineHeight: 1,
+    characterSpacing: 0,
+    fontColor: '#000000',
+    backgroundColor: '',
+    borderColor: '#888888',
+    borderWidth: { top: 0.1, right: 0.1, bottom: 0.1, left: 0.1 },
+    padding: { top: 3, right: 3, bottom: 3, left: 3 },
+    alternateBackgroundColor: '#f5f5f5'
+};
+
+const STD_TABLE_STYLES = { borderColor: '#000000', borderWidth: 0.3 };
+
 // ── Built-in Manufacturing Report Templates ──
 const DEFAULT_TEMPLATES = [
     {
@@ -49,7 +81,7 @@ const DEFAULT_TEMPLATES = [
         category: 'Quality Control',
         description: 'Standard shop floor QC dimension check report with part details, measurement table, QR code & signature.',
         template: {
-            basePdf: BLANK_PDF,
+            basePdf: A4_BASE,
             schemas: [
                 [
                     // Header background
@@ -71,7 +103,6 @@ const DEFAULT_TEMPLATES = [
                         height: 8,
                         fontSize: 16,
                         fontColor: '#ffffff',
-                        fontWeight: 'bold',
                         content: 'MAVI MANUFACTURING — QC CHECKSHEET'
                     },
                     {
@@ -92,7 +123,7 @@ const DEFAULT_TEMPLATES = [
                         width: 20,
                         height: 20
                     },
-                    // Info Grid Border
+                    // Info section
                     {
                         name: 'info_border',
                         type: 'rectangle',
@@ -103,131 +134,61 @@ const DEFAULT_TEMPLATES = [
                         borderWidth: 0.5,
                         color: '#f8fafc'
                     },
-                    // Info Fields
-                    {
-                        name: 'lbl_wo',
-                        type: 'text',
-                        position: { x: 20, y: 44 },
-                        width: 40,
-                        height: 5,
-                        fontSize: 8,
-                        fontColor: '#64748b',
-                        fontWeight: 'bold',
-                        content: 'WORK ORDER NO:'
-                    },
                     {
                         name: 'wo_number',
                         type: 'text',
-                        position: { x: 20, y: 49 },
+                        position: { x: 20, y: 44 },
                         width: 40,
-                        height: 6,
+                        height: 8,
                         fontSize: 10,
-                        fontColor: '#0f172a',
-                        fontWeight: 'bold'
-                    },
-                    {
-                        name: 'lbl_part',
-                        type: 'text',
-                        position: { x: 65, y: 44 },
-                        width: 50,
-                        height: 5,
-                        fontSize: 8,
-                        fontColor: '#64748b',
-                        fontWeight: 'bold',
-                        content: 'PART NAME / REF:'
+                        fontColor: '#0f172a'
                     },
                     {
                         name: 'part_name',
                         type: 'text',
-                        position: { x: 65, y: 49 },
+                        position: { x: 65, y: 44 },
                         width: 50,
-                        height: 6,
+                        height: 8,
                         fontSize: 10,
-                        fontColor: '#0f172a',
-                        fontWeight: 'bold'
-                    },
-                    {
-                        name: 'lbl_lot',
-                        type: 'text',
-                        position: { x: 120, y: 44 },
-                        width: 40,
-                        height: 5,
-                        fontSize: 8,
-                        fontColor: '#64748b',
-                        fontWeight: 'bold',
-                        content: 'LOT / BATCH NO:'
+                        fontColor: '#0f172a'
                     },
                     {
                         name: 'lot_no',
                         type: 'text',
-                        position: { x: 120, y: 49 },
+                        position: { x: 120, y: 44 },
                         width: 40,
-                        height: 6,
+                        height: 8,
                         fontSize: 10,
                         fontColor: '#0f172a'
-                    },
-                    {
-                        name: 'lbl_inspector',
-                        type: 'text',
-                        position: { x: 20, y: 57 },
-                        width: 40,
-                        height: 5,
-                        fontSize: 8,
-                        fontColor: '#64748b',
-                        fontWeight: 'bold',
-                        content: 'QC INSPECTOR:'
                     },
                     {
                         name: 'inspector_name',
                         type: 'text',
-                        position: { x: 20, y: 62 },
+                        position: { x: 20, y: 57 },
                         width: 40,
-                        height: 6,
+                        height: 8,
                         fontSize: 10,
                         fontColor: '#0f172a'
-                    },
-                    {
-                        name: 'lbl_date',
-                        type: 'text',
-                        position: { x: 65, y: 57 },
-                        width: 50,
-                        height: 5,
-                        fontSize: 8,
-                        fontColor: '#64748b',
-                        fontWeight: 'bold',
-                        content: 'INSPECTION DATE:'
                     },
                     {
                         name: 'inspection_date',
                         type: 'text',
-                        position: { x: 65, y: 62 },
+                        position: { x: 65, y: 57 },
                         width: 50,
-                        height: 6,
+                        height: 8,
                         fontSize: 10,
                         fontColor: '#0f172a'
                     },
                     {
-                        name: 'lbl_status',
+                        name: 'overall_status',
                         type: 'text',
                         position: { x: 120, y: 57 },
                         width: 40,
-                        height: 5,
-                        fontSize: 8,
-                        fontColor: '#64748b',
-                        fontWeight: 'bold',
-                        content: 'OVERALL QC STATUS:'
-                    },
-                    {
-                        name: 'overall_status',
-                        type: 'text',
-                        position: { x: 120, y: 62 },
-                        width: 40,
-                        height: 6,
+                        height: 8,
                         fontSize: 11,
-                        fontColor: '#16a34a',
-                        fontWeight: 'bold'
+                        fontColor: '#16a34a'
                     },
-                    // Table Header
+                    // Table Header Label
                     {
                         name: 'table_title',
                         type: 'text',
@@ -236,10 +197,9 @@ const DEFAULT_TEMPLATES = [
                         height: 6,
                         fontSize: 10,
                         fontColor: '#0f172a',
-                        fontWeight: 'bold',
                         content: 'DIMENSION & MEASUREMENT RESULTS'
                     },
-                    // QC Measurement Table
+                    // QC Measurement Table (pdfme v5 correct format)
                     {
                         name: 'qc_measurement_table',
                         type: 'table',
@@ -247,41 +207,14 @@ const DEFAULT_TEMPLATES = [
                         width: 180,
                         height: 80,
                         showHead: true,
-                        head: ['Item #', 'Parameter', 'Nominal', 'Tolerance', 'Actual', 'Deviation', 'Status'],
-                        headStyles: {
-                            fillColor: '#0f172a',
-                            textColor: '#ffffff',
-                            fontStyle: 'bold',
-                            fontSize: 8,
-                            alignment: 'center'
-                        },
-                        bodyStyles: {
-                            fontSize: 8,
-                            alignment: 'center',
-                            textColor: '#334155'
-                        },
-                        columnStyles: {
-                            0: { width: 15, alignment: 'center' },
-                            1: { width: 45, alignment: 'left' },
-                            2: { width: 22, alignment: 'center' },
-                            3: { width: 25, alignment: 'center' },
-                            4: { width: 25, alignment: 'center' },
-                            5: { width: 25, alignment: 'center' },
-                            6: { width: 23, alignment: 'center', fontStyle: 'bold' }
-                        }
+                        head: ['Item #', 'Parameter', 'Nominal', 'Tolerance', 'Actual', 'Status'],
+                        headWidthPercentages: [10, 30, 15, 15, 15, 15],
+                        tableStyles: STD_TABLE_STYLES,
+                        headStyles: { ...STD_HEAD_STYLES },
+                        bodyStyles: { ...STD_BODY_STYLES },
+                        columnStyles: {}
                     },
-                    // Notes Box
-                    {
-                        name: 'notes_lbl',
-                        type: 'text',
-                        position: { x: 15, y: 190 },
-                        width: 80,
-                        height: 5,
-                        fontSize: 8,
-                        fontWeight: 'bold',
-                        fontColor: '#64748b',
-                        content: 'INSPECTOR REMARKS / DEFECT NOTES:'
-                    },
+                    // Notes
                     {
                         name: 'remarks',
                         type: 'text',
@@ -291,7 +224,7 @@ const DEFAULT_TEMPLATES = [
                         fontSize: 9,
                         fontColor: '#0f172a'
                     },
-                    // Signoff Box
+                    // Signature
                     {
                         name: 'sign_box',
                         type: 'rectangle',
@@ -309,16 +242,8 @@ const DEFAULT_TEMPLATES = [
                         width: 54,
                         height: 5,
                         fontSize: 8,
-                        fontWeight: 'bold',
                         fontColor: '#64748b',
                         content: 'AUTHORIZED SIGNATURE'
-                    },
-                    {
-                        name: 'inspector_signature',
-                        type: 'signature',
-                        position: { x: 140, y: 200 },
-                        width: 50,
-                        height: 18
                     },
                     {
                         name: 'sign_date',
@@ -327,8 +252,7 @@ const DEFAULT_TEMPLATES = [
                         width: 54,
                         height: 4,
                         fontSize: 7,
-                        fontColor: '#94a3b8',
-                        alignment: 'center'
+                        fontColor: '#94a3b8'
                     }
                 ]
             ]
@@ -336,20 +260,20 @@ const DEFAULT_TEMPLATES = [
         sampleInputs: [
             {
                 report_qr: 'https://mavi-core.online/wo/WO-2026-0819',
-                wo_number: 'WO-2026-0819',
-                part_name: 'FLANGE HOUSING 45MM',
-                lot_no: 'LOT-A-9902',
-                inspector_name: 'Budi Santoso (QC Lead)',
-                inspection_date: '2026-08-18',
+                wo_number: 'WO: WO-2026-0819',
+                part_name: 'Part: FLANGE HOUSING 45MM',
+                lot_no: 'Lot: LOT-A-9902',
+                inspector_name: 'Inspector: Budi Santoso',
+                inspection_date: 'Date: 2026-08-18',
                 overall_status: 'PASSED (100% OK)',
-                remarks: 'All 5 critical dimensions are within ±0.05mm engineering tolerance. Surface finish is clean without burr defects.',
+                remarks: 'All 5 critical dimensions within ±0.05mm tolerance. Surface finish clean.',
                 sign_date: 'Approved 2026-08-18 16:45',
                 qc_measurement_table: JSON.stringify([
-                    ['1', 'Outer Diameter A', '45.00 mm', '± 0.05', '45.02 mm', '+0.02', 'PASS'],
-                    ['2', 'Inner Bore Dia', '20.00 mm', '+0.03/-0.00', '20.01 mm', '+0.01', 'PASS'],
-                    ['3', 'Total Flange Height', '32.50 mm', '± 0.10', '32.48 mm', '-0.02', 'PASS'],
-                    ['4', 'Bolt Hole Pitch PCD', '65.00 mm', '± 0.05', '65.00 mm', '0.00', 'PASS'],
-                    ['5', 'Perpendicularity', '0.02 mm', 'Max 0.03', '0.015 mm', 'OK', 'PASS']
+                    ['1', 'Outer Diameter A', '45.00 mm', '± 0.05', '45.02 mm', 'PASS'],
+                    ['2', 'Inner Bore Dia', '20.00 mm', '+0.03/-0.00', '20.01 mm', 'PASS'],
+                    ['3', 'Total Height', '32.50 mm', '± 0.10', '32.48 mm', 'PASS'],
+                    ['4', 'Bolt Hole PCD', '65.00 mm', '± 0.05', '65.00 mm', 'PASS'],
+                    ['5', 'Perpendicularity', '0.02 mm', 'Max 0.03', '0.015 mm', 'PASS']
                 ])
             }
         ]
@@ -360,7 +284,7 @@ const DEFAULT_TEMPLATES = [
         category: 'Production',
         description: 'Executive shift summary with target vs actual quantity, availability, performance, quality breakdown.',
         template: {
-            basePdf: BLANK_PDF,
+            basePdf: A4_BASE,
             schemas: [
                 [
                     {
@@ -379,7 +303,6 @@ const DEFAULT_TEMPLATES = [
                         height: 8,
                         fontSize: 15,
                         fontColor: '#ffffff',
-                        fontWeight: 'bold',
                         content: 'DAILY PRODUCTION & OEE REPORT'
                     },
                     {
@@ -399,163 +322,67 @@ const DEFAULT_TEMPLATES = [
                         width: 45,
                         height: 14
                     },
-                    // Summary KPIs Box
-                    {
-                        name: 'kpi_box_1',
-                        type: 'rectangle',
-                        position: { x: 15, y: 38 },
-                        width: 42,
-                        height: 20,
-                        color: '#f0fdf4',
-                        borderColor: '#86efac',
-                        borderWidth: 0.5
-                    },
-                    {
-                        name: 'kpi_lbl_1',
-                        type: 'text',
-                        position: { x: 17, y: 40 },
-                        width: 38,
-                        height: 4,
-                        fontSize: 7,
-                        fontColor: '#166534',
-                        fontWeight: 'bold',
-                        content: 'PLANT OEE SCORE'
-                    },
+                    // KPI Values as text
                     {
                         name: 'val_oee',
                         type: 'text',
-                        position: { x: 17, y: 46 },
-                        width: 38,
-                        height: 9,
-                        fontSize: 16,
-                        fontColor: '#15803d',
-                        fontWeight: 'bold'
-                    },
-                    {
-                        name: 'kpi_box_2',
-                        type: 'rectangle',
-                        position: { x: 61, y: 38 },
-                        width: 42,
-                        height: 20,
-                        color: '#eff6ff',
-                        borderColor: '#93c5fd',
-                        borderWidth: 0.5
-                    },
-                    {
-                        name: 'kpi_lbl_2',
-                        type: 'text',
-                        position: { x: 63, y: 40 },
-                        width: 38,
-                        height: 4,
-                        fontSize: 7,
-                        fontColor: '#1e40af',
-                        fontWeight: 'bold',
-                        content: 'AVAILABILITY'
+                        position: { x: 20, y: 40 },
+                        width: 40,
+                        height: 10,
+                        fontSize: 14,
+                        fontColor: '#15803d'
                     },
                     {
                         name: 'val_availability',
                         type: 'text',
-                        position: { x: 63, y: 46 },
-                        width: 38,
-                        height: 9,
-                        fontSize: 16,
-                        fontColor: '#1d4ed8',
-                        fontWeight: 'bold'
-                    },
-                    {
-                        name: 'kpi_box_3',
-                        type: 'rectangle',
-                        position: { x: 107, y: 38 },
-                        width: 42,
-                        height: 20,
-                        color: '#faf5ff',
-                        borderColor: '#d8b4fe',
-                        borderWidth: 0.5
-                    },
-                    {
-                        name: 'kpi_lbl_3',
-                        type: 'text',
-                        position: { x: 109, y: 40 },
-                        width: 38,
-                        height: 4,
-                        fontSize: 7,
-                        fontColor: '#6b21a8',
-                        fontWeight: 'bold',
-                        content: 'PERFORMANCE'
+                        position: { x: 65, y: 40 },
+                        width: 40,
+                        height: 10,
+                        fontSize: 14,
+                        fontColor: '#1d4ed8'
                     },
                     {
                         name: 'val_performance',
                         type: 'text',
-                        position: { x: 109, y: 46 },
-                        width: 38,
-                        height: 9,
-                        fontSize: 16,
-                        fontColor: '#7e22ce',
-                        fontWeight: 'bold'
-                    },
-                    {
-                        name: 'kpi_box_4',
-                        type: 'rectangle',
-                        position: { x: 153, y: 38 },
-                        width: 42,
-                        height: 20,
-                        color: '#fff7ed',
-                        borderColor: '#fed7aa',
-                        borderWidth: 0.5
-                    },
-                    {
-                        name: 'kpi_lbl_4',
-                        type: 'text',
-                        position: { x: 155, y: 40 },
-                        width: 38,
-                        height: 4,
-                        fontSize: 7,
-                        fontColor: '#9a3412',
-                        fontWeight: 'bold',
-                        content: 'QUALITY RATE'
+                        position: { x: 110, y: 40 },
+                        width: 40,
+                        height: 10,
+                        fontSize: 14,
+                        fontColor: '#7e22ce'
                     },
                     {
                         name: 'val_quality',
                         type: 'text',
-                        position: { x: 155, y: 46 },
-                        width: 38,
-                        height: 9,
-                        fontSize: 16,
-                        fontColor: '#c2410c',
-                        fontWeight: 'bold'
+                        position: { x: 155, y: 40 },
+                        width: 40,
+                        height: 10,
+                        fontSize: 14,
+                        fontColor: '#c2410c'
                     },
-                    // Machine Breakdown Table
+                    // Production Table
                     {
                         name: 'tbl_label',
                         type: 'text',
-                        position: { x: 15, y: 64 },
+                        position: { x: 15, y: 56 },
                         width: 100,
                         height: 5,
                         fontSize: 9,
                         fontColor: '#0f172a',
-                        fontWeight: 'bold',
                         content: 'WORK CENTER & MACHINE STATUS BREAKDOWN'
                     },
                     {
                         name: 'production_table',
                         type: 'table',
-                        position: { x: 15, y: 72 },
+                        position: { x: 15, y: 64 },
                         width: 180,
-                        height: 90,
+                        height: 80,
                         showHead: true,
-                        head: ['Machine Line', 'Target Qty', 'Actual Produced', 'Good Parts', 'Scrap Qty', 'Yield Rate', 'OEE %'],
-                        headStyles: {
-                            fillColor: '#1e293b',
-                            textColor: '#ffffff',
-                            fontStyle: 'bold',
-                            fontSize: 8,
-                            alignment: 'center'
-                        },
-                        bodyStyles: {
-                            fontSize: 8,
-                            alignment: 'center',
-                            textColor: '#334155'
-                        }
+                        head: ['Machine Line', 'Target Qty', 'Actual', 'Good Parts', 'Scrap', 'Yield %', 'OEE %'],
+                        headWidthPercentages: [22, 13, 13, 13, 10, 14, 15],
+                        tableStyles: STD_TABLE_STYLES,
+                        headStyles: { ...STD_HEAD_STYLES, backgroundColor: '#1e293b' },
+                        bodyStyles: { ...STD_BODY_STYLES },
+                        columnStyles: {}
                     }
                 ]
             ]
@@ -563,15 +390,15 @@ const DEFAULT_TEMPLATES = [
         sampleInputs: [
             {
                 barcode_top: 'OEE-20260818-S1',
-                val_oee: '87.4%',
-                val_availability: '92.1%',
-                val_performance: '96.5%',
-                val_quality: '98.3%',
+                val_oee: 'OEE: 87.4%',
+                val_availability: 'Avail: 92.1%',
+                val_performance: 'Perf: 96.5%',
+                val_quality: 'Qual: 98.3%',
                 production_table: JSON.stringify([
-                    ['Line 01 - CNC Machining', '1,200 pcs', '1,180 pcs', '1,165 pcs', '15 pcs', '98.7%', '89.2%'],
-                    ['Line 02 - Auto Stamping', '2,500 pcs', '2,490 pcs', '2,450 pcs', '40 pcs', '98.4%', '88.1%'],
-                    ['Line 03 - Laser Welding', '800 pcs', '785 pcs', '778 pcs', '7 pcs', '99.1%', '85.4%'],
-                    ['Line 04 - Final Assembly', '1,000 pcs', '995 pcs', '990 pcs', '5 pcs', '99.5%', '86.9%']
+                    ['Line 01 - CNC', '1,200', '1,180', '1,165', '15', '98.7%', '89.2%'],
+                    ['Line 02 - Stamping', '2,500', '2,490', '2,450', '40', '98.4%', '88.1%'],
+                    ['Line 03 - Welding', '800', '785', '778', '7', '99.1%', '85.4%'],
+                    ['Line 04 - Assembly', '1,000', '995', '990', '5', '99.5%', '86.9%']
                 ])
             }
         ]
@@ -580,7 +407,7 @@ const DEFAULT_TEMPLATES = [
 
 export default function ReportDesigner() {
     const [templates, setTemplates] = useState(() => {
-        const saved = localStorage.getItem('mavi_pdf_templates');
+        const saved = localStorage.getItem('mavi_pdf_templates_v2');
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
@@ -604,7 +431,7 @@ export default function ReportDesigner() {
 
     // Save templates to localStorage on changes
     useEffect(() => {
-        localStorage.setItem('mavi_pdf_templates', JSON.stringify(templates));
+        localStorage.setItem('mavi_pdf_templates_v2', JSON.stringify(templates));
     }, [templates]);
 
     // When switching template, update schema and sample data
@@ -622,43 +449,35 @@ export default function ReportDesigner() {
 
         // Cleanup old instance
         if (designerInstance.current) {
-            try {
-                designerInstance.current.destroy();
-            } catch (e) { /* ignore */ }
+            try { designerInstance.current.destroy(); } catch (e) { /* ignore */ }
             designerInstance.current = null;
         }
 
-        try {
-            const designer = new Designer({
-                domContainer: designerRef.current,
-                template: templateSchema,
-                plugins: PDF_PLUGINS,
-                options: {
-                    theme: {
-                        token: {
-                            colorPrimary: '#3b82f6',
-                            colorBgBase: '#ffffff'
-                        }
-                    }
-                }
-            });
+        // Small delay to ensure DOM is ready
+        const timer = setTimeout(() => {
+            try {
+                const designer = new Designer({
+                    domContainer: designerRef.current,
+                    template: templateSchema,
+                    plugins: PDF_PLUGINS
+                });
 
-            designer.onChangeTemplate((updatedTemplate) => {
-                setTemplateSchema(updatedTemplate);
-                // Also update in list
-                setTemplates(prev => prev.map(t => t.id === selectedTemplateId ? { ...t, template: updatedTemplate } : t));
-            });
+                designer.onChangeTemplate((updatedTemplate) => {
+                    setTemplateSchema(updatedTemplate);
+                    setTemplates(prev => prev.map(t => t.id === selectedTemplateId ? { ...t, template: updatedTemplate } : t));
+                });
 
-            designerInstance.current = designer;
-        } catch (err) {
-            console.error('Failed to initialize pdfme designer:', err);
-        }
+                designerInstance.current = designer;
+            } catch (err) {
+                console.error('Failed to initialize pdfme designer:', err);
+                toast.error('Gagal memuat designer: ' + err.message);
+            }
+        }, 100);
 
         return () => {
+            clearTimeout(timer);
             if (designerInstance.current) {
-                try {
-                    designerInstance.current.destroy();
-                } catch (e) { /* ignore */ }
+                try { designerInstance.current.destroy(); } catch (e) { /* ignore */ }
                 designerInstance.current = null;
             }
         };
@@ -688,9 +507,7 @@ export default function ReportDesigner() {
             } else if (action === 'print') {
                 const printWindow = window.open(url);
                 if (printWindow) {
-                    printWindow.onload = () => {
-                        printWindow.print();
-                    };
+                    printWindow.onload = () => printWindow.print();
                 }
             } else {
                 setPdfPreviewUrl(url);
@@ -717,7 +534,7 @@ export default function ReportDesigner() {
             category: 'Custom',
             description: 'Custom printable manufacturing report template.',
             template: {
-                basePdf: BLANK_PDF,
+                basePdf: A4_BASE,
                 schemas: [
                     [
                         {
@@ -727,13 +544,13 @@ export default function ReportDesigner() {
                             width: 170,
                             height: 10,
                             fontSize: 16,
-                            fontWeight: 'bold',
+                            fontColor: '#0f172a',
                             content: name.toUpperCase()
                         }
                     ]
                 ]
             },
-            sampleInputs: [{ title: name.toUpperCase() }]
+            sampleInputs: [{}]
         };
 
         setTemplates(prev => [...prev, newTemplate]);
@@ -745,7 +562,7 @@ export default function ReportDesigner() {
     const handleDuplicateTemplate = () => {
         const newId = 'tpl-' + Date.now();
         const duplicated = {
-            ...currentTemplateObj,
+            ...JSON.parse(JSON.stringify(currentTemplateObj)),
             id: newId,
             name: `${currentTemplateObj.name} (Copy)`
         };
@@ -793,10 +610,7 @@ export default function ReportDesigner() {
                     throw new Error('Format template JSON tidak valid');
                 }
                 const newId = 'tpl-' + Date.now();
-                const imported = {
-                    ...parsed,
-                    id: newId
-                };
+                const imported = { ...parsed, id: newId };
                 setTemplates(prev => [...prev, imported]);
                 setSelectedTemplateId(newId);
                 toast.success(`Template "${imported.name}" berhasil diimpor!`);
@@ -991,8 +805,8 @@ export default function ReportDesigner() {
                             {/* pdfme Designer Container */}
                             <div
                                 ref={designerRef}
-                                className="flex-1 w-full h-full bg-slate-900 overflow-auto"
-                                style={{ minHeight: '500px' }}
+                                className="flex-1 w-full h-full overflow-auto"
+                                style={{ minHeight: '500px', backgroundColor: '#e2e8f0' }}
                             />
                         </div>
                     ) : (
@@ -1020,7 +834,7 @@ export default function ReportDesigner() {
                                 ) : (
                                     <div className="text-center text-slate-500">
                                         <FileText size={48} className="mx-auto mb-2 text-slate-600" />
-                                        <p className="text-sm">Klik "Refresh Render" untuk menghasilkan dokumen PDF</p>
+                                        <p className="text-sm">Klik "Preview & Export PDF" atau "Refresh Render" untuk menghasilkan dokumen PDF</p>
                                     </div>
                                 )}
                             </div>
