@@ -4,7 +4,9 @@ import {
     Sparkles, RefreshCw, Eye, Edit3, CheckCircle2, ChevronRight,
     Layers, QrCode, Barcode, Table, Image, PenTool, Type, HelpCircle,
     Upload, FileDown, ArrowLeft, Sliders, Settings2, X, Maximize2,
-    Check, Tag, ShoppingBag, Truck, Shirt, Mail, Box, LayoutGrid
+    Check, Tag, ShoppingBag, Truck, Shirt, Mail, Box, LayoutGrid,
+    Database, Filter, Play, CheckSquare, Search, FileSpreadsheet,
+    ArrowRight, ChevronLeft, ListFilter, Cpu, HardDrive
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Designer } from '@pdfme/ui';
@@ -23,6 +25,10 @@ import {
     svg,
     multiVariableText
 } from '@pdfme/schemas';
+
+// MAVI Database Utilities
+import { getTables, getTableRecords } from '../utils/supabaseTablesDB';
+import { getSupabaseClient } from '../utils/supabaseManualDB';
 
 // PDF Plugins Bundle
 const PDF_PLUGINS = {
@@ -106,12 +112,10 @@ export const PAPER_PRESETS = [
     { category: 'Custom', id: 'CUSTOM', name: 'Custom Ukuran (mm)', width: 100, height: 100, padding: [5, 5, 5, 5], icon: Settings2, desc: 'Bebas tentukan lebar & tinggi kertas sesuai printer Anda' }
 ];
 
-// Helper to find preset
 const getPresetById = (id) => PAPER_PRESETS.find(p => p.id === id) || PAPER_PRESETS[0];
 
-// ── Built-in Templates Covering All Industry Use Cases ──
+// ── Built-in Default Templates ──
 const DEFAULT_TEMPLATES = [
-    // 1. QC Checksheet (A4)
     {
         id: 'qc-checksheet',
         name: 'QC Inspection Checksheet',
@@ -122,116 +126,18 @@ const DEFAULT_TEMPLATES = [
             basePdf: { width: 210, height: 297, padding: [10, 10, 10, 10] },
             schemas: [
                 [
-                    {
-                        name: 'header_bg',
-                        type: 'rectangle',
-                        position: { x: 15, y: 12 },
-                        width: 180,
-                        height: 24,
-                        color: '#714B67',
-                        borderWidth: 0
-                    },
-                    {
-                        name: 'company_title',
-                        type: 'text',
-                        position: { x: 20, y: 16 },
-                        width: 110,
-                        height: 8,
-                        fontSize: 15,
-                        fontColor: '#ffffff',
-                        content: 'MAVI MES — QC INSPECTION CHECKSHEET'
-                    },
-                    {
-                        name: 'company_subtitle',
-                        type: 'text',
-                        position: { x: 20, y: 24 },
-                        width: 110,
-                        height: 6,
-                        fontSize: 8,
-                        fontColor: '#e2cfe0',
-                        content: 'Digital Quality Assurance & Dimensional Verification Report'
-                    },
-                    {
-                        name: 'report_qr',
-                        type: 'qrcode',
-                        position: { x: 172, y: 14 },
-                        width: 20,
-                        height: 20
-                    },
-                    {
-                        name: 'info_border',
-                        type: 'rectangle',
-                        position: { x: 15, y: 40 },
-                        width: 180,
-                        height: 32,
-                        borderColor: '#dee2e6',
-                        borderWidth: 0.5,
-                        color: '#faf5f9'
-                    },
-                    {
-                        name: 'wo_number',
-                        type: 'text',
-                        position: { x: 20, y: 44 },
-                        width: 40,
-                        height: 8,
-                        fontSize: 10,
-                        fontColor: '#212529'
-                    },
-                    {
-                        name: 'part_name',
-                        type: 'text',
-                        position: { x: 65, y: 44 },
-                        width: 50,
-                        height: 8,
-                        fontSize: 10,
-                        fontColor: '#212529'
-                    },
-                    {
-                        name: 'lot_no',
-                        type: 'text',
-                        position: { x: 120, y: 44 },
-                        width: 40,
-                        height: 8,
-                        fontSize: 10,
-                        fontColor: '#212529'
-                    },
-                    {
-                        name: 'inspector_name',
-                        type: 'text',
-                        position: { x: 20, y: 57 },
-                        width: 40,
-                        height: 8,
-                        fontSize: 10,
-                        fontColor: '#212529'
-                    },
-                    {
-                        name: 'inspection_date',
-                        type: 'text',
-                        position: { x: 65, y: 57 },
-                        width: 50,
-                        height: 8,
-                        fontSize: 10,
-                        fontColor: '#212529'
-                    },
-                    {
-                        name: 'overall_status',
-                        type: 'text',
-                        position: { x: 120, y: 57 },
-                        width: 40,
-                        height: 8,
-                        fontSize: 11,
-                        fontColor: '#16a34a'
-                    },
-                    {
-                        name: 'table_title',
-                        type: 'text',
-                        position: { x: 15, y: 77 },
-                        width: 180,
-                        height: 6,
-                        fontSize: 10,
-                        fontColor: '#714B67',
-                        content: 'DIMENSION & MEASUREMENT RESULTS'
-                    },
+                    { name: 'header_bg', type: 'rectangle', position: { x: 15, y: 12 }, width: 180, height: 24, color: '#714B67', borderWidth: 0 },
+                    { name: 'company_title', type: 'text', position: { x: 20, y: 16 }, width: 110, height: 8, fontSize: 15, fontColor: '#ffffff', content: 'MAVI MES — QC INSPECTION CHECKSHEET' },
+                    { name: 'company_subtitle', type: 'text', position: { x: 20, y: 24 }, width: 110, height: 6, fontSize: 8, fontColor: '#e2cfe0', content: 'Digital Quality Assurance & Dimensional Verification Report' },
+                    { name: 'report_qr', type: 'qrcode', position: { x: 172, y: 14 }, width: 20, height: 20 },
+                    { name: 'info_border', type: 'rectangle', position: { x: 15, y: 40 }, width: 180, height: 32, borderColor: '#dee2e6', borderWidth: 0.5, color: '#faf5f9' },
+                    { name: 'wo_number', type: 'text', position: { x: 20, y: 44 }, width: 40, height: 8, fontSize: 10, fontColor: '#212529' },
+                    { name: 'part_name', type: 'text', position: { x: 65, y: 44 }, width: 50, height: 8, fontSize: 10, fontColor: '#212529' },
+                    { name: 'lot_no', type: 'text', position: { x: 120, y: 44 }, width: 40, height: 8, fontSize: 10, fontColor: '#212529' },
+                    { name: 'inspector_name', type: 'text', position: { x: 20, y: 57 }, width: 40, height: 8, fontSize: 10, fontColor: '#212529' },
+                    { name: 'inspection_date', type: 'text', position: { x: 65, y: 57 }, width: 50, height: 8, fontSize: 10, fontColor: '#212529' },
+                    { name: 'overall_status', type: 'text', position: { x: 120, y: 57 }, width: 40, height: 8, fontSize: 11, fontColor: '#16a34a' },
+                    { name: 'table_title', type: 'text', position: { x: 15, y: 77 }, width: 180, height: 6, fontSize: 10, fontColor: '#714B67', content: 'DIMENSION & MEASUREMENT RESULTS' },
                     {
                         name: 'qc_measurement_table',
                         type: 'table',
@@ -246,44 +152,10 @@ const DEFAULT_TEMPLATES = [
                         bodyStyles: { ...STD_BODY_STYLES },
                         columnStyles: {}
                     },
-                    {
-                        name: 'remarks',
-                        type: 'text',
-                        position: { x: 15, y: 196 },
-                        width: 110,
-                        height: 25,
-                        fontSize: 9,
-                        fontColor: '#212529'
-                    },
-                    {
-                        name: 'sign_box',
-                        type: 'rectangle',
-                        position: { x: 135, y: 190 },
-                        width: 60,
-                        height: 35,
-                        borderColor: '#dee2e6',
-                        borderWidth: 0.5,
-                        color: '#faf5f9'
-                    },
-                    {
-                        name: 'sign_lbl',
-                        type: 'text',
-                        position: { x: 138, y: 193 },
-                        width: 54,
-                        height: 5,
-                        fontSize: 8,
-                        fontColor: '#714B67',
-                        content: 'AUTHORIZED SIGNATURE'
-                    },
-                    {
-                        name: 'sign_date',
-                        type: 'text',
-                        position: { x: 138, y: 220 },
-                        width: 54,
-                        height: 4,
-                        fontSize: 7,
-                        fontColor: '#94a3b8'
-                    }
+                    { name: 'remarks', type: 'text', position: { x: 15, y: 196 }, width: 110, height: 25, fontSize: 9, fontColor: '#212529' },
+                    { name: 'sign_box', type: 'rectangle', position: { x: 135, y: 190 }, width: 60, height: 35, borderColor: '#dee2e6', borderWidth: 0.5, color: '#faf5f9' },
+                    { name: 'sign_lbl', type: 'text', position: { x: 138, y: 193 }, width: 54, height: 5, fontSize: 8, fontColor: '#714B67', content: 'AUTHORIZED SIGNATURE' },
+                    { name: 'sign_date', type: 'text', position: { x: 138, y: 220 }, width: 54, height: 4, fontSize: 7, fontColor: '#94a3b8' }
                 ]
             ]
         },
@@ -308,8 +180,6 @@ const DEFAULT_TEMPLATES = [
             }
         ]
     },
-
-    // 2. Shipping Label / Resi Kurir (100 × 150 mm Thermal)
     {
         id: 'shipping-label-100x150',
         name: 'Resi Pengiriman / Shipping Label (100 × 150 mm)',
@@ -320,213 +190,28 @@ const DEFAULT_TEMPLATES = [
             basePdf: { width: 100, height: 150, padding: [4, 4, 4, 4] },
             schemas: [
                 [
-                    // Courier Banner
-                    {
-                        name: 'courier_header',
-                        type: 'rectangle',
-                        position: { x: 5, y: 5 },
-                        width: 90,
-                        height: 14,
-                        color: '#000000'
-                    },
-                    {
-                        name: 'courier_name',
-                        type: 'text',
-                        position: { x: 8, y: 8 },
-                        width: 45,
-                        height: 8,
-                        fontSize: 16,
-                        fontColor: '#ffffff',
-                        content: 'MAVI EXPRESS'
-                    },
-                    {
-                        name: 'service_type',
-                        type: 'text',
-                        position: { x: 55, y: 9 },
-                        width: 38,
-                        height: 6,
-                        fontSize: 11,
-                        fontColor: '#ffffff',
-                        content: 'REGULER (STD)'
-                    },
-                    // Resi Barcode 128
-                    {
-                        name: 'tracking_barcode',
-                        type: 'code128',
-                        position: { x: 8, y: 22 },
-                        width: 58,
-                        height: 18
-                    },
-                    // QR Code for Sorting
-                    {
-                        name: 'sorting_qr',
-                        type: 'qrcode',
-                        position: { x: 70, y: 21 },
-                        width: 20,
-                        height: 20
-                    },
-                    // Resi Number Text
-                    {
-                        name: 'tracking_no',
-                        type: 'text',
-                        position: { x: 8, y: 42 },
-                        width: 84,
-                        height: 6,
-                        fontSize: 11,
-                        fontColor: '#000000'
-                    },
-                    // Divider Line
-                    {
-                        name: 'div_1',
-                        type: 'line',
-                        position: { x: 5, y: 49 },
-                        width: 90,
-                        height: 1,
-                        color: '#000000'
-                    },
-                    // Recipient Section
-                    {
-                        name: 'lbl_penerima',
-                        type: 'text',
-                        position: { x: 6, y: 51 },
-                        width: 42,
-                        height: 4,
-                        fontSize: 8,
-                        fontColor: '#666666',
-                        content: 'PENERIMA (DESTINATION):'
-                    },
-                    {
-                        name: 'nama_penerima',
-                        type: 'text',
-                        position: { x: 6, y: 56 },
-                        width: 44,
-                        height: 6,
-                        fontSize: 10,
-                        fontColor: '#000000'
-                    },
-                    {
-                        name: 'telp_penerima',
-                        type: 'text',
-                        position: { x: 6, y: 62 },
-                        width: 44,
-                        height: 5,
-                        fontSize: 9,
-                        fontColor: '#000000'
-                    },
-                    {
-                        name: 'alamat_penerima',
-                        type: 'text',
-                        position: { x: 6, y: 68 },
-                        width: 44,
-                        height: 24,
-                        fontSize: 8,
-                        fontColor: '#000000'
-                    },
-                    // Sender Section
-                    {
-                        name: 'lbl_pengirim',
-                        type: 'text',
-                        position: { x: 52, y: 51 },
-                        width: 42,
-                        height: 4,
-                        fontSize: 8,
-                        fontColor: '#666666',
-                        content: 'PENGIRIM (ORIGIN):'
-                    },
-                    {
-                        name: 'nama_pengirim',
-                        type: 'text',
-                        position: { x: 52, y: 56 },
-                        width: 43,
-                        height: 6,
-                        fontSize: 9,
-                        fontColor: '#000000'
-                    },
-                    {
-                        name: 'telp_pengirim',
-                        type: 'text',
-                        position: { x: 52, y: 62 },
-                        width: 43,
-                        height: 5,
-                        fontSize: 8,
-                        fontColor: '#000000'
-                    },
-                    {
-                        name: 'kota_pengirim',
-                        type: 'text',
-                        position: { x: 52, y: 68 },
-                        width: 43,
-                        height: 12,
-                        fontSize: 8,
-                        fontColor: '#000000'
-                    },
-                    // Divider Line 2
-                    {
-                        name: 'div_2',
-                        type: 'line',
-                        position: { x: 5, y: 94 },
-                        width: 90,
-                        height: 1,
-                        color: '#000000'
-                    },
-                    // COD & Weight Info Box
-                    {
-                        name: 'cod_box',
-                        type: 'rectangle',
-                        position: { x: 5, y: 97 },
-                        width: 44,
-                        height: 14,
-                        borderColor: '#000000',
-                        borderWidth: 0.5
-                    },
-                    {
-                        name: 'cod_lbl',
-                        type: 'text',
-                        position: { x: 7, y: 99 },
-                        width: 40,
-                        height: 4,
-                        fontSize: 7,
-                        fontColor: '#444444',
-                        content: 'METODE PEMBAYARAN'
-                    },
-                    {
-                        name: 'cod_val',
-                        type: 'text',
-                        position: { x: 7, y: 104 },
-                        width: 40,
-                        height: 6,
-                        fontSize: 11,
-                        fontColor: '#000000'
-                    },
-                    {
-                        name: 'weight_box',
-                        type: 'rectangle',
-                        position: { x: 51, y: 97 },
-                        width: 44,
-                        height: 14,
-                        borderColor: '#000000',
-                        borderWidth: 0.5
-                    },
-                    {
-                        name: 'weight_lbl',
-                        type: 'text',
-                        position: { x: 53, y: 99 },
-                        width: 40,
-                        height: 4,
-                        fontSize: 7,
-                        fontColor: '#444444',
-                        content: 'BERAT PAKET'
-                    },
-                    {
-                        name: 'weight_val',
-                        type: 'text',
-                        position: { x: 53, y: 104 },
-                        width: 40,
-                        height: 6,
-                        fontSize: 11,
-                        fontColor: '#000000'
-                    },
-                    // Package Contents Table
+                    { name: 'courier_header', type: 'rectangle', position: { x: 5, y: 5 }, width: 90, height: 14, color: '#000000' },
+                    { name: 'courier_name', type: 'text', position: { x: 8, y: 8 }, width: 45, height: 8, fontSize: 16, fontColor: '#ffffff', content: 'MAVI EXPRESS' },
+                    { name: 'service_type', type: 'text', position: { x: 55, y: 9 }, width: 38, height: 6, fontSize: 11, fontColor: '#ffffff', content: 'REGULER (STD)' },
+                    { name: 'tracking_barcode', type: 'code128', position: { x: 8, y: 22 }, width: 58, height: 18 },
+                    { name: 'sorting_qr', type: 'qrcode', position: { x: 70, y: 21 }, width: 20, height: 20 },
+                    { name: 'tracking_no', type: 'text', position: { x: 8, y: 42 }, width: 84, height: 6, fontSize: 11, fontColor: '#000000' },
+                    { name: 'div_1', type: 'line', position: { x: 5, y: 49 }, width: 90, height: 1, color: '#000000' },
+                    { name: 'lbl_penerima', type: 'text', position: { x: 6, y: 51 }, width: 42, height: 4, fontSize: 8, fontColor: '#666666', content: 'PENERIMA (DESTINATION):' },
+                    { name: 'nama_penerima', type: 'text', position: { x: 6, y: 56 }, width: 44, height: 6, fontSize: 10, fontColor: '#000000' },
+                    { name: 'telp_penerima', type: 'text', position: { x: 6, y: 62 }, width: 44, height: 5, fontSize: 9, fontColor: '#000000' },
+                    { name: 'alamat_penerima', type: 'text', position: { x: 6, y: 68 }, width: 44, height: 24, fontSize: 8, fontColor: '#000000' },
+                    { name: 'lbl_pengirim', type: 'text', position: { x: 52, y: 51 }, width: 42, height: 4, fontSize: 8, fontColor: '#666666', content: 'PENGIRIM (ORIGIN):' },
+                    { name: 'nama_pengirim', type: 'text', position: { x: 52, y: 56 }, width: 43, height: 6, fontSize: 9, fontColor: '#000000' },
+                    { name: 'telp_pengirim', type: 'text', position: { x: 52, y: 62 }, width: 43, height: 5, fontSize: 8, fontColor: '#000000' },
+                    { name: 'kota_pengirim', type: 'text', position: { x: 52, y: 68 }, width: 43, height: 12, fontSize: 8, fontColor: '#000000' },
+                    { name: 'div_2', type: 'line', position: { x: 5, y: 94 }, width: 90, height: 1, color: '#000000' },
+                    { name: 'cod_box', type: 'rectangle', position: { x: 5, y: 97 }, width: 44, height: 14, borderColor: '#000000', borderWidth: 0.5 },
+                    { name: 'cod_lbl', type: 'text', position: { x: 7, y: 99 }, width: 40, height: 4, fontSize: 7, fontColor: '#444444', content: 'METODE PEMBAYARAN' },
+                    { name: 'cod_val', type: 'text', position: { x: 7, y: 104 }, width: 40, height: 6, fontSize: 11, fontColor: '#000000' },
+                    { name: 'weight_box', type: 'rectangle', position: { x: 51, y: 97 }, width: 44, height: 14, borderColor: '#000000', borderWidth: 0.5 },
+                    { name: 'weight_lbl', type: 'text', position: { x: 53, y: 99 }, width: 40, height: 4, fontSize: 7, fontColor: '#444444', content: 'BERAT PAKET' },
+                    { name: 'weight_val', type: 'text', position: { x: 53, y: 104 }, width: 40, height: 6, fontSize: 11, fontColor: '#000000' },
                     {
                         name: 'package_items_table',
                         type: 'table',
@@ -564,8 +249,6 @@ const DEFAULT_TEMPLATES = [
             }
         ]
     },
-
-    // 3. Label Barcode & Price Tag Retail (50 × 30 mm)
     {
         id: 'retail-price-tag-50x30',
         name: 'Label Harga & Barcode Retail (50 × 30 mm)',
@@ -576,55 +259,11 @@ const DEFAULT_TEMPLATES = [
             basePdf: { width: 50, height: 30, padding: [2, 2, 2, 2] },
             schemas: [
                 [
-                    // Store Name
-                    {
-                        name: 'store_name',
-                        type: 'text',
-                        position: { x: 3, y: 2 },
-                        width: 44,
-                        height: 4,
-                        fontSize: 7,
-                        fontColor: '#444444',
-                        content: 'MAVI INDUSTRIAL STORE'
-                    },
-                    // Product Name
-                    {
-                        name: 'item_name',
-                        type: 'text',
-                        position: { x: 3, y: 6 },
-                        width: 44,
-                        height: 5,
-                        fontSize: 9,
-                        fontColor: '#000000'
-                    },
-                    // SKU / Specs
-                    {
-                        name: 'item_sku',
-                        type: 'text',
-                        position: { x: 3, y: 11 },
-                        width: 44,
-                        height: 3.5,
-                        fontSize: 6,
-                        fontColor: '#666666'
-                    },
-                    // Barcode
-                    {
-                        name: 'product_barcode',
-                        type: 'code128',
-                        position: { x: 3, y: 15 },
-                        width: 44,
-                        height: 8
-                    },
-                    // Price IDR
-                    {
-                        name: 'price_display',
-                        type: 'text',
-                        position: { x: 3, y: 24 },
-                        width: 44,
-                        height: 5,
-                        fontSize: 11,
-                        fontColor: '#000000'
-                    }
+                    { name: 'store_name', type: 'text', position: { x: 3, y: 2 }, width: 44, height: 4, fontSize: 7, fontColor: '#444444', content: 'MAVI INDUSTRIAL STORE' },
+                    { name: 'item_name', type: 'text', position: { x: 3, y: 6 }, width: 44, height: 5, fontSize: 9, fontColor: '#000000' },
+                    { name: 'item_sku', type: 'text', position: { x: 3, y: 11 }, width: 44, height: 3.5, fontSize: 6, fontColor: '#666666' },
+                    { name: 'product_barcode', type: 'code128', position: { x: 3, y: 15 }, width: 44, height: 8 },
+                    { name: 'price_display', type: 'text', position: { x: 3, y: 24 }, width: 44, height: 5, fontSize: 11, fontColor: '#000000' }
                 ]
             ]
         },
@@ -637,150 +276,6 @@ const DEFAULT_TEMPLATES = [
             }
         ]
     },
-
-    // 4. Care Label & Garment Size (30 × 80 mm)
-    {
-        id: 'garment-care-label-30x80',
-        name: 'Care Label Baju & Garment (30 × 80 mm)',
-        category: 'Baju & Garment',
-        paperPresetId: 'GM-30x80',
-        description: 'Label baju satin / woven 30x80mm dengan logo brand, ukuran baju (S/M/L/XL), komposisi bahan & instruksi cuci.',
-        template: {
-            basePdf: { width: 30, height: 80, padding: [2, 2, 2, 2] },
-            schemas: [
-                [
-                    // Brand Name
-                    {
-                        name: 'brand_title',
-                        type: 'text',
-                        position: { x: 2, y: 4 },
-                        width: 26,
-                        height: 5,
-                        fontSize: 9,
-                        fontColor: '#000000',
-                        content: 'MAVI APPAREL'
-                    },
-                    // Size Badge Circle Box
-                    {
-                        name: 'size_box',
-                        type: 'rectangle',
-                        position: { x: 9, y: 10 },
-                        width: 12,
-                        height: 10,
-                        borderColor: '#000000',
-                        borderWidth: 0.5
-                    },
-                    {
-                        name: 'size_text',
-                        type: 'text',
-                        position: { x: 10, y: 12 },
-                        width: 10,
-                        height: 6,
-                        fontSize: 12,
-                        fontColor: '#000000'
-                    },
-                    // Material Composition
-                    {
-                        name: 'mat_1',
-                        type: 'text',
-                        position: { x: 2, y: 22 },
-                        width: 26,
-                        height: 4,
-                        fontSize: 6,
-                        fontColor: '#000000',
-                        content: '100% COMBED COTTON'
-                    },
-                    {
-                        name: 'mat_2',
-                        type: 'text',
-                        position: { x: 2, y: 26 },
-                        width: 26,
-                        height: 4,
-                        fontSize: 5.5,
-                        fontColor: '#555555',
-                        content: 'MADE IN INDONESIA'
-                    },
-                    // Care Instructions
-                    {
-                        name: 'care_header',
-                        type: 'text',
-                        position: { x: 2, y: 32 },
-                        width: 26,
-                        height: 4,
-                        fontSize: 6,
-                        fontColor: '#000000',
-                        content: 'PETUNJUK PERAWATAN:'
-                    },
-                    {
-                        name: 'care_1',
-                        type: 'text',
-                        position: { x: 2, y: 37 },
-                        width: 26,
-                        height: 3.5,
-                        fontSize: 5,
-                        fontColor: '#444444',
-                        content: '• Cuci dengan air dingin (<30°C)'
-                    },
-                    {
-                        name: 'care_2',
-                        type: 'text',
-                        position: { x: 2, y: 41 },
-                        width: 26,
-                        height: 3.5,
-                        fontSize: 5,
-                        fontColor: '#444444',
-                        content: '• Jangan gunakan pemutih'
-                    },
-                    {
-                        name: 'care_3',
-                        type: 'text',
-                        position: { x: 2, y: 45 },
-                        width: 26,
-                        height: 3.5,
-                        fontSize: 5,
-                        fontColor: '#444444',
-                        content: '• Setrika suhu sedang'
-                    },
-                    {
-                        name: 'care_4',
-                        type: 'text',
-                        position: { x: 2, y: 49 },
-                        width: 26,
-                        height: 3.5,
-                        fontSize: 5,
-                        fontColor: '#444444',
-                        content: '• Jangan cuci kering'
-                    },
-                    // Garment Barcode
-                    {
-                        name: 'garment_code',
-                        type: 'code128',
-                        position: { x: 2, y: 55 },
-                        width: 26,
-                        height: 12
-                    },
-                    {
-                        name: 'article_no',
-                        type: 'text',
-                        position: { x: 2, y: 69 },
-                        width: 26,
-                        height: 4,
-                        fontSize: 6,
-                        fontColor: '#000000'
-                    }
-                ]
-            ]
-        },
-        sampleInputs: [
-            {
-                size_text: 'XL',
-                garment_code: 'ART-TS-092-XL',
-                article_no: 'Art: TS-POLO-NAVY-XL'
-            }
-        ]
-    },
-
-    // 5. Stiker Undangan Tom & Jerry No. 103 (64 × 32 mm)
     {
         id: 'invitation-label-tj103',
         name: 'Label Undangan Tom & Jerry No. 103 (64 × 32 mm)',
@@ -791,34 +286,9 @@ const DEFAULT_TEMPLATES = [
             basePdf: { width: 64, height: 32, padding: [2, 2, 2, 2] },
             schemas: [
                 [
-                    {
-                        name: 'salutation',
-                        type: 'text',
-                        position: { x: 4, y: 4 },
-                        width: 56,
-                        height: 4,
-                        fontSize: 7.5,
-                        fontColor: '#555555',
-                        content: 'Kepada Yth. Bapak / Ibu / Saudara/i:'
-                    },
-                    {
-                        name: 'guest_name',
-                        type: 'text',
-                        position: { x: 4, y: 11 },
-                        width: 56,
-                        height: 8,
-                        fontSize: 11,
-                        fontColor: '#111111'
-                    },
-                    {
-                        name: 'guest_location',
-                        type: 'text',
-                        position: { x: 4, y: 21 },
-                        width: 56,
-                        height: 5,
-                        fontSize: 8,
-                        fontColor: '#444444'
-                    }
+                    { name: 'salutation', type: 'text', position: { x: 4, y: 4 }, width: 56, height: 4, fontSize: 7.5, fontColor: '#555555', content: 'Kepada Yth. Bapak / Ibu / Saudara/i:' },
+                    { name: 'guest_name', type: 'text', position: { x: 4, y: 11 }, width: 56, height: 8, fontSize: 11, fontColor: '#111111' },
+                    { name: 'guest_location', type: 'text', position: { x: 4, y: 21 }, width: 56, height: 5, fontSize: 8, fontColor: '#444444' }
                 ]
             ]
         },
@@ -833,7 +303,7 @@ const DEFAULT_TEMPLATES = [
 
 export default function ReportDesigner() {
     const [templates, setTemplates] = useState(() => {
-        const saved = localStorage.getItem('mavi_pdf_templates_v3');
+        const saved = localStorage.getItem('mavi_pdf_templates_v4');
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
@@ -844,26 +314,41 @@ export default function ReportDesigner() {
     });
 
     const [selectedTemplateId, setSelectedTemplateId] = useState(DEFAULT_TEMPLATES[0].id);
-    const [activeTab, setActiveTab] = useState('designer'); // 'designer' | 'preview'
+    const [activeTab, setActiveTab] = useState('designer'); // 'designer' | 'preview' | 'datasource'
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
 
-    // Modal state for New Template / Page Settings
+    // Modal state
     const [showNewModal, setShowNewModal] = useState(false);
     const [showPageSettingsModal, setShowPageSettingsModal] = useState(false);
 
-    // New Template Form State
+    // ── DATA SOURCE & QUERY STATE ──
+    const [dbTables, setDbTables] = useState([]);
+    const [selectedSourceType, setSelectedSourceType] = useState('app_table'); // 'app_table' | 'supabase_table' | 'csv' | 'sample'
+    const [selectedAppTableId, setSelectedAppTableId] = useState('');
+    const [customTableName, setCustomTableName] = useState('measurements');
+    const [customFilterQuery, setCustomFilterQuery] = useState('');
+    const [customLimit, setCustomLimit] = useState(50);
+    const [csvInputText, setCsvInputText] = useState('');
+
+    // Loaded Data Records from Database/Query
+    const [loadedRecords, setLoadedRecords] = useState([]);
+    const [availableColumns, setAvailableColumns] = useState([]);
+    const [selectedRecordIndex, setSelectedRecordIndex] = useState(0);
+    const [isLoadingData, setIsLoadingData] = useState(false);
+    const [batchMode, setBatchMode] = useState(false); // If true, generates multi-page PDF for all rows
+
+    // Forms
     const [newForm, setNewForm] = useState({
         name: '',
         category: 'Quality Control',
         presetId: 'A4',
         customWidth: 210,
         customHeight: 297,
-        orientation: 'portrait', // 'portrait' | 'landscape'
+        orientation: 'portrait',
         padding: 5
     });
 
-    // Page Settings Edit Form
     const [pageEditForm, setPageEditForm] = useState({
         presetId: 'A4',
         width: 210,
@@ -881,9 +366,25 @@ export default function ReportDesigner() {
     const designerRef = useRef(null);
     const designerInstance = useRef(null);
 
-    // Save templates to localStorage on changes
+    // Fetch App Tables on mount
     useEffect(() => {
-        localStorage.setItem('mavi_pdf_templates_v3', JSON.stringify(templates));
+        const fetchAvailableTables = async () => {
+            try {
+                const tables = await getTables();
+                setDbTables(tables || []);
+                if (tables && tables.length > 0) {
+                    setSelectedAppTableId(tables[0].id);
+                }
+            } catch (err) {
+                console.warn('[ReportDesigner] Could not fetch app tables:', err);
+            }
+        };
+        fetchAvailableTables();
+    }, []);
+
+    // Save templates to localStorage
+    useEffect(() => {
+        localStorage.setItem('mavi_pdf_templates_v4', JSON.stringify(templates));
     }, [templates]);
 
     // When switching template, update schema and sample data
@@ -893,7 +394,6 @@ export default function ReportDesigner() {
             setTemplateSchema(t.template);
             setSampleInputData(t.sampleInputs || [{}]);
 
-            // Sync page settings state
             const base = t.template.basePdf || { width: 210, height: 297, padding: [10, 10, 10, 10] };
             const pad = Array.isArray(base.padding) ? base.padding : [5, 5, 5, 5];
             setPageEditForm({
@@ -908,7 +408,7 @@ export default function ReportDesigner() {
         }
     }, [selectedTemplateId]);
 
-    // Initialize / Update pdfme Designer
+    // Initialize pdfme Designer
     useEffect(() => {
         if (activeTab !== 'designer' || !designerRef.current) return;
 
@@ -946,6 +446,119 @@ export default function ReportDesigner() {
         };
     }, [activeTab, selectedTemplateId, templateSchema.basePdf?.width, templateSchema.basePdf?.height]);
 
+    // ── QUERY & FETCH DATA FROM SELECTED SOURCE ──
+    const handleFetchDataSource = async () => {
+        setIsLoadingData(true);
+        try {
+            let records = [];
+            let cols = [];
+
+            if (selectedSourceType === 'app_table') {
+                if (!selectedAppTableId) {
+                    toast.error('Pilih interactive table terlebih dahulu.');
+                    setIsLoadingData(false);
+                    return;
+                }
+                const rawRows = await getTableRecords(selectedAppTableId);
+                const targetTable = dbTables.find(t => t.id === selectedAppTableId);
+                if (targetTable?.fields) {
+                    cols = targetTable.fields.map(f => f.name || f.label || f.id);
+                }
+                records = rawRows || [];
+            } else if (selectedSourceType === 'supabase_table') {
+                const supabase = getSupabaseClient();
+                let query = supabase.from(customTableName.trim()).select('*').limit(Number(customLimit) || 50);
+
+                if (customFilterQuery) {
+                    // example: status=eq.PASS or simple column:value
+                    const parts = customFilterQuery.split(':');
+                    if (parts.length === 2) {
+                        query = query.eq(parts[0].trim(), parts[1].trim());
+                    }
+                }
+
+                const { data, error } = await query;
+                if (error) throw error;
+                records = data || [];
+            } else if (selectedSourceType === 'csv') {
+                // Parse CSV Text
+                if (!csvInputText.trim()) {
+                    toast.error('Masukkan data CSV atau upload file.');
+                    setIsLoadingData(false);
+                    return;
+                }
+                const lines = csvInputText.trim().split('\n');
+                if (lines.length > 0) {
+                    cols = lines[0].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+                    records = lines.slice(1).map(line => {
+                        const vals = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+                        const obj = {};
+                        cols.forEach((col, idx) => { obj[col] = vals[idx] || ''; });
+                        return obj;
+                    });
+                }
+            } else if (selectedSourceType === 'sample') {
+                records = currentTemplateObj.sampleInputs || [{}];
+            }
+
+            // Detect Columns from first record if not already defined
+            if (cols.length === 0 && records.length > 0) {
+                cols = Object.keys(records[0]);
+            }
+
+            setLoadedRecords(records);
+            setAvailableColumns(cols);
+            setSelectedRecordIndex(0);
+
+            if (records.length > 0) {
+                toast.success(`✅ Berhasil mengambil ${records.length} data baris!`);
+            } else {
+                toast.warn('Data kosong / tidak ditemukan baris yang cocok.');
+            }
+        } catch (err) {
+            console.error('Error fetching data source:', err);
+            toast.error('Gagal mengambil data: ' + err.message);
+        } finally {
+            setIsLoadingData(false);
+        }
+    };
+
+    // Apply active record(s) to sample inputs and switch to Designer/Preview
+    const handleApplyLoadedDataToTemplate = (targetMode = 'single') => {
+        if (loadedRecords.length === 0) {
+            toast.error('Belum ada data yang dimuat. Klik "Jalankan Query" terlebih dahulu.');
+            return;
+        }
+
+        if (targetMode === 'batch') {
+            // Apply all rows (Multi-page PDF batch)
+            setSampleInputData(loadedRecords);
+            setBatchMode(true);
+            toast.success(`Mode Cetak Massal (${loadedRecords.length} Halaman) diaktifkan!`);
+        } else {
+            // Apply single selected row
+            const activeRow = loadedRecords[selectedRecordIndex] || loadedRecords[0];
+            setSampleInputData([activeRow]);
+            setBatchMode(false);
+            toast.success(`Data baris #${selectedRecordIndex + 1} diterapkan ke kanvas!`);
+        }
+    };
+
+    // CSV File Reader
+    const handleCsvFileUpload = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const text = event.target.result;
+            setCsvInputText(text);
+            setSelectedSourceType('csv');
+            toast.success(`File CSV "${file.name}" berhasil dibaca!`);
+        };
+        reader.readAsText(file);
+    };
+
     // Generate PDF Preview / Download / Print
     const handleGeneratePdf = async (action = 'preview') => {
         setIsGeneratingPdf(true);
@@ -966,7 +579,7 @@ export default function ReportDesigner() {
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
-                toast.success('🎉 PDF Berhasil diunduh!');
+                toast.success(`🎉 PDF (${sampleInputData.length} Halaman) Berhasil diunduh!`);
             } else if (action === 'print') {
                 const printWindow = window.open(url);
                 if (printWindow) {
@@ -975,7 +588,7 @@ export default function ReportDesigner() {
             } else {
                 setPdfPreviewUrl(url);
                 setActiveTab('preview');
-                toast.success('✨ Preview PDF siap!');
+                toast.success(`✨ Preview PDF (${sampleInputData.length} Halaman) siap!`);
             }
         } catch (err) {
             console.error('PDF Generation Error:', err);
@@ -998,7 +611,6 @@ export default function ReportDesigner() {
         let finalWidth = newForm.presetId === 'CUSTOM' ? Number(newForm.customWidth) : preset.width;
         let finalHeight = newForm.presetId === 'CUSTOM' ? Number(newForm.customHeight) : preset.height;
 
-        // Switch if landscape
         if (newForm.orientation === 'landscape' && finalWidth < finalHeight) {
             const tmp = finalWidth;
             finalWidth = finalHeight;
@@ -1128,9 +740,7 @@ export default function ReportDesigner() {
         reader.readAsText(file);
     };
 
-    // Get current paper size display label
     const currentBasePdf = templateSchema.basePdf || { width: 210, height: 297 };
-    const currentPreset = PAPER_PRESETS.find(p => p.id === currentTemplateObj.paperPresetId) || { name: `${currentBasePdf.width} × ${currentBasePdf.height} mm` };
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%', backgroundColor: '#f0f0f0', fontFamily: "'Roboto', 'Noto Sans', sans-serif", color: '#212529', overflow: 'hidden' }}>
@@ -1147,17 +757,17 @@ export default function ReportDesigner() {
                     </div>
                     <div style={{ height: '20px', width: '1px', backgroundColor: 'rgba(255,255,255,0.25)' }} />
                     <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.8)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Tag size={12} /> Thermal Resi, Barcode, Stiker & A4
+                        <Database size={13} /> Live Database & Query Binding
                     </span>
                 </div>
 
-                {/* Center Tabs */}
+                {/* Center Tabs: Designer | Data Source | Preview */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '2px', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: '8px', padding: '3px' }}>
                     <button
                         onClick={() => setActiveTab('designer')}
                         style={{
                             display: 'flex', alignItems: 'center', gap: '6px',
-                            padding: '5px 16px', borderRadius: '6px', fontSize: '12px', fontWeight: 600,
+                            padding: '5px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 600,
                             border: 'none', cursor: 'pointer', transition: 'all 0.2s',
                             backgroundColor: activeTab === 'designer' ? '#fff' : 'transparent',
                             color: activeTab === 'designer' ? '#714B67' : 'rgba(255,255,255,0.85)'
@@ -1166,16 +776,38 @@ export default function ReportDesigner() {
                         <Edit3 size={14} /> Designer
                     </button>
                     <button
+                        onClick={() => setActiveTab('datasource')}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '6px',
+                            padding: '5px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 600,
+                            border: 'none', cursor: 'pointer', transition: 'all 0.2s',
+                            backgroundColor: activeTab === 'datasource' ? '#fff' : 'transparent',
+                            color: activeTab === 'datasource' ? '#714B67' : 'rgba(255,255,255,0.85)'
+                        }}
+                    >
+                        <Database size={14} /> Data Source & Query
+                        {loadedRecords.length > 0 && (
+                            <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '10px', backgroundColor: '#714B67', color: '#fff' }}>
+                                {loadedRecords.length}
+                            </span>
+                        )}
+                    </button>
+                    <button
                         onClick={() => handleGeneratePdf('preview')}
                         style={{
                             display: 'flex', alignItems: 'center', gap: '6px',
-                            padding: '5px 16px', borderRadius: '6px', fontSize: '12px', fontWeight: 600,
+                            padding: '5px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 600,
                             border: 'none', cursor: 'pointer', transition: 'all 0.2s',
                             backgroundColor: activeTab === 'preview' ? '#fff' : 'transparent',
                             color: activeTab === 'preview' ? '#714B67' : 'rgba(255,255,255,0.85)'
                         }}
                     >
                         <Eye size={14} /> Preview PDF
+                        {sampleInputData.length > 1 && (
+                            <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '10px', backgroundColor: '#28a745', color: '#fff' }}>
+                                {sampleInputData.length} Hal
+                            </span>
+                        )}
                     </button>
                 </div>
 
@@ -1324,15 +956,25 @@ export default function ReportDesigner() {
 
                     {/* Dynamic Tags Footer */}
                     <div style={{ padding: '10px 12px', borderTop: '1px solid #dee2e6', backgroundColor: '#f8f9fa' }}>
-                        <div style={{ fontSize: '11px', fontWeight: 700, color: '#495057', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                            <Sparkles size={13} color="#714B67" /> Tag Data Dinamis (Klik untuk Salin)
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: '#495057', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <Sparkles size={13} color="#714B67" /> Tag Kolom Data
+                            </span>
+                            <button
+                                onClick={() => setActiveTab('datasource')}
+                                style={{ fontSize: '10px', color: '#714B67', border: 'none', background: 'none', cursor: 'pointer', textDecoration: 'underline', fontWeight: 600 }}
+                            >
+                                Kelola Sumber Data →
+                            </button>
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px' }}>
-                            {[
+
+                        {/* List of active columns */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px', maxHeight: '110px', overflowY: 'auto' }}>
+                            {(availableColumns.length > 0 ? availableColumns : [
                                 'tracking_barcode', 'tracking_no', 'nama_penerima', 'alamat_penerima',
                                 'item_name', 'price_display', 'size_text', 'guest_name',
                                 'wo_number', 'qc_measurement_table'
-                            ].map(tag => (
+                            ]).map(tag => (
                                 <button
                                     key={tag}
                                     onClick={() => { navigator.clipboard.writeText(tag); toast.success(`Disalin: ${tag}`); }}
@@ -1342,7 +984,7 @@ export default function ReportDesigner() {
                                         cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
                                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
                                     }}
-                                    title={`Klik untuk menyalin: ${tag}`}
+                                    title={`Klik untuk menyalin nama field: ${tag}`}
                                 >
                                     {tag}
                                 </button>
@@ -1351,11 +993,13 @@ export default function ReportDesigner() {
                     </div>
                 </div>
 
-                {/* ── Center Canvas Area ── */}
+                {/* ── Center Content Area (Tabs) ── */}
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
-                    {activeTab === 'designer' ? (
+
+                    {/* TAB 1: VISUAL DESIGNER */}
+                    {activeTab === 'designer' && (
                         <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-                            {/* Sub-toolbar with Page Size Controller */}
+                            {/* Sub-toolbar with Page Size & Active Row Controller */}
                             <div style={{
                                 padding: '6px 16px', backgroundColor: '#fff', borderBottom: '1px solid #dee2e6',
                                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px'
@@ -1364,7 +1008,7 @@ export default function ReportDesigner() {
                                     <span style={{ fontWeight: 700, color: '#212529' }}>{currentTemplateObj.name}</span>
                                     <span style={{ color: '#adb5bd' }}>—</span>
 
-                                    {/* Paper Size Indicator & Switcher Button */}
+                                    {/* Paper Size Button */}
                                     <button
                                         onClick={() => setShowPageSettingsModal(true)}
                                         style={{
@@ -1378,9 +1022,52 @@ export default function ReportDesigner() {
                                         <Sliders size={12} />
                                         <span>Kertas: {currentBasePdf.width} × {currentBasePdf.height} mm</span>
                                     </button>
+
+                                    {/* Record Navigator if records exist */}
+                                    {loadedRecords.length > 0 && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '6px', padding: '2px 8px', borderRadius: '5px', backgroundColor: '#f8f9fa', border: '1px solid #dee2e6' }}>
+                                            <span style={{ fontSize: '11px', color: '#6c757d' }}>Baris Data:</span>
+                                            <button
+                                                onClick={() => {
+                                                    const nextIdx = Math.max(0, selectedRecordIndex - 1);
+                                                    setSelectedRecordIndex(nextIdx);
+                                                    setSampleInputData([loadedRecords[nextIdx]]);
+                                                    toast.success(`Baris #${nextIdx + 1} aktif`);
+                                                }}
+                                                disabled={selectedRecordIndex <= 0}
+                                                style={{ padding: '2px 4px', border: 'none', background: 'none', cursor: 'pointer', color: '#714B67' }}
+                                            >
+                                                <ChevronLeft size={14} />
+                                            </button>
+                                            <span style={{ fontSize: '11px', fontWeight: 700, color: '#714B67' }}>
+                                                {selectedRecordIndex + 1} / {loadedRecords.length}
+                                            </span>
+                                            <button
+                                                onClick={() => {
+                                                    const nextIdx = Math.min(loadedRecords.length - 1, selectedRecordIndex + 1);
+                                                    setSelectedRecordIndex(nextIdx);
+                                                    setSampleInputData([loadedRecords[nextIdx]]);
+                                                    toast.success(`Baris #${nextIdx + 1} aktif`);
+                                                }}
+                                                disabled={selectedRecordIndex >= loadedRecords.length - 1}
+                                                style={{ padding: '2px 4px', border: 'none', background: 'none', cursor: 'pointer', color: '#714B67' }}
+                                            >
+                                                <ChevronRight size={14} />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#28a745', fontSize: '11px' }}>
-                                    <CheckCircle2 size={13} /> Autosaved ke Local
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    {batchMode ? (
+                                        <span style={{ fontSize: '11px', color: '#28a745', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <CheckSquare size={13} /> Cetak Massal: {sampleInputData.length} Halaman Aktif
+                                        </span>
+                                    ) : (
+                                        <span style={{ fontSize: '11px', color: '#28a745', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <CheckCircle2 size={13} /> Autosaved ke Local
+                                        </span>
+                                    )}
                                 </div>
                             </div>
 
@@ -1390,15 +1077,305 @@ export default function ReportDesigner() {
                                 style={{ flex: 1, width: '100%', height: '100%', overflow: 'auto', backgroundColor: '#e9ecef', minHeight: '500px' }}
                             />
                         </div>
-                    ) : (
-                        /* PDF Preview Tab */
+                    )}
+
+                    {/* TAB 2: DATA SOURCE & QUERY CONNECTOR */}
+                    {activeTab === 'datasource' && (
+                        <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#f8f9fa' }}>
+                            {/* Toolbar Banner */}
+                            <div style={{
+                                padding: '10px 20px', backgroundColor: '#fff', borderBottom: '1px solid #dee2e6',
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                            }}>
+                                <div>
+                                    <h2 style={{ fontSize: '14px', fontWeight: 700, color: '#212529', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <Database size={16} color="#714B67" /> Konektor Sumber Data & Query (Live Data Binding)
+                                    </h2>
+                                    <p style={{ fontSize: '11px', color: '#6c757d', margin: '2px 0 0 0' }}>
+                                        Tautkan database MAVI, interactive table, atau query custom untuk mengisi data laporan/label secara otomatis.
+                                    </p>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <button
+                                        onClick={handleFetchDataSource}
+                                        disabled={isLoadingData}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: '6px',
+                                            padding: '6px 16px', borderRadius: '6px', fontSize: '12px', fontWeight: 600,
+                                            border: 'none', backgroundColor: '#714B67', color: '#fff', cursor: 'pointer'
+                                        }}
+                                    >
+                                        <Play size={13} className={isLoadingData ? 'animate-spin' : ''} />
+                                        {isLoadingData ? 'Memuat Data...' : 'Jalankan Query & Ambil Data'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Main Data Source Grid */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', flex: 1, overflow: 'hidden' }}>
+
+                                {/* Left Query Config Panel */}
+                                <div style={{ padding: '16px', backgroundColor: '#fff', borderRight: '1px solid #dee2e6', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                                    {/* Source Type Selector */}
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#212529', marginBottom: '6px' }}>
+                                            Pilih Tipe Sumber Data:
+                                        </label>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                            {[
+                                                { id: 'app_table', label: 'Interactive App Table', icon: LayoutGrid, desc: 'Tabel interaktif dari AppBuilder' },
+                                                { id: 'supabase_table', label: 'Supabase Database Table', icon: HardDrive, desc: 'Tabel sistem (measurements, work_orders)' },
+                                                { id: 'csv', label: 'Import File CSV / Excel', icon: FileSpreadsheet, desc: 'Upload file spreadsheet atau paste teks CSV' },
+                                                { id: 'sample', label: 'Sample Mock Data', icon: Sparkles, desc: 'Data simulasi bawaan template' }
+                                            ].map(opt => {
+                                                const isSel = selectedSourceType === opt.id;
+                                                const IconC = opt.icon;
+                                                return (
+                                                    <div
+                                                        key={opt.id}
+                                                        onClick={() => setSelectedSourceType(opt.id)}
+                                                        style={{
+                                                            padding: '8px 10px', borderRadius: '6px', cursor: 'pointer',
+                                                            border: isSel ? '2px solid #714B67' : '1px solid #dee2e6',
+                                                            backgroundColor: isSel ? '#faf5f9' : '#fff',
+                                                            display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.15s'
+                                                        }}
+                                                    >
+                                                        <IconC size={16} color={isSel ? '#714B67' : '#6c757d'} />
+                                                        <div>
+                                                            <div style={{ fontSize: '12px', fontWeight: 600, color: isSel ? '#714B67' : '#212529' }}>{opt.label}</div>
+                                                            <div style={{ fontSize: '10px', color: '#6c757d' }}>{opt.desc}</div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    {/* Config Options based on Source Type */}
+                                    {selectedSourceType === 'app_table' && (
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#212529', marginBottom: '6px' }}>
+                                                Pilih Interactive Table:
+                                            </label>
+                                            {dbTables.length > 0 ? (
+                                                <select
+                                                    value={selectedAppTableId}
+                                                    onChange={e => setSelectedAppTableId(e.target.value)}
+                                                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #ced4da', fontSize: '12px', backgroundColor: '#fff' }}
+                                                >
+                                                    {dbTables.map(t => (
+                                                        <option key={t.id} value={t.id}>{t.name} ({t.fields?.length || 0} Kolom)</option>
+                                                    ))}
+                                                </select>
+                                            ) : (
+                                                <div style={{ padding: '8px', backgroundColor: '#fff3cd', borderRadius: '6px', fontSize: '11px', color: '#856404' }}>
+                                                    Belum ada interactive table di AppBuilder. Anda bisa memilih tabel sistem Supabase atau import CSV.
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {selectedSourceType === 'supabase_table' && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#212529', marginBottom: '4px' }}>
+                                                    Nama Tabel Database:
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={customTableName}
+                                                    onChange={e => setCustomTableName(e.target.value)}
+                                                    placeholder="contoh: measurements, work_orders, products"
+                                                    style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #ced4da', fontSize: '12px' }}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#212529', marginBottom: '4px' }}>
+                                                    Filter Query (Opsional - format kolom:nilai):
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={customFilterQuery}
+                                                    onChange={e => setCustomFilterQuery(e.target.value)}
+                                                    placeholder="contoh: status:PASS atau part_id:45"
+                                                    style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #ced4da', fontSize: '12px' }}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#212529', marginBottom: '4px' }}>
+                                                    Limit Jumlah Baris:
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    value={customLimit}
+                                                    onChange={e => setCustomLimit(e.target.value)}
+                                                    style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #ced4da', fontSize: '12px' }}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {selectedSourceType === 'csv' && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#212529', marginBottom: '4px' }}>
+                                                    Upload File CSV:
+                                                </label>
+                                                <input
+                                                    type="file"
+                                                    accept=".csv"
+                                                    onChange={handleCsvFileUpload}
+                                                    style={{ fontSize: '12px' }}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#212529', marginBottom: '4px' }}>
+                                                    Atau Paste Teks CSV (Baris 1 = Header):
+                                                </label>
+                                                <textarea
+                                                    rows={6}
+                                                    value={csvInputText}
+                                                    onChange={e => setCsvInputText(e.target.value)}
+                                                    placeholder="nama_penerima,alamat_penerima,tracking_no&#10;Budi Santoso,Jl. Merdeka No 1,MV-1001&#10;Siti Rahma,Jl. Sudirman No 5,MV-1002"
+                                                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #ced4da', fontSize: '11px', fontFamily: 'monospace' }}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Action Buttons for Binding */}
+                                    {loadedRecords.length > 0 && (
+                                        <div style={{ marginTop: 'auto', paddingTop: '14px', borderTop: '1px solid #dee2e6', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                            <button
+                                                onClick={() => { handleApplyLoadedDataToTemplate('single'); setActiveTab('designer'); }}
+                                                style={{
+                                                    padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: 600,
+                                                    border: '1px solid #714B67', backgroundColor: '#faf5f9', color: '#714B67', cursor: 'pointer'
+                                                }}
+                                            >
+                                                Terapkan Baris #{selectedRecordIndex + 1} ke Kanvas
+                                            </button>
+                                            <button
+                                                onClick={() => { handleApplyLoadedDataToTemplate('batch'); handleGeneratePdf('preview'); }}
+                                                style={{
+                                                    padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: 600,
+                                                    border: 'none', backgroundColor: '#714B67', color: '#fff', cursor: 'pointer',
+                                                    boxShadow: '0 1px 3px rgba(0,0,0,0.15)'
+                                                }}
+                                            >
+                                                Cetak Massal Semua ({loadedRecords.length} Halaman)
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Right Data Preview Table & Column Tags */}
+                                <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                                    {/* Detected Column Tags Bar */}
+                                    <div style={{ padding: '12px 16px', backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #dee2e6', marginBottom: '14px' }}>
+                                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#212529', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <Tag size={14} color="#714B67" />
+                                            Kolom Terdeteksi (Klik untuk salin / gunakan pada template):
+                                        </div>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                            {availableColumns.map(col => (
+                                                <button
+                                                    key={col}
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(col);
+                                                        toast.success(`Disalin: ${col}`);
+                                                    }}
+                                                    style={{
+                                                        padding: '4px 10px', borderRadius: '4px', fontSize: '11px', fontFamily: 'monospace',
+                                                        backgroundColor: '#faf5f9', border: '1px solid #e2cfe0', color: '#714B67',
+                                                        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px'
+                                                    }}
+                                                    title="Klik untuk menyalin nama field"
+                                                >
+                                                    <span>{col}</span>
+                                                    <Copy size={10} />
+                                                </button>
+                                            ))}
+                                            {availableColumns.length === 0 && (
+                                                <span style={{ fontSize: '11px', color: '#6c757d' }}>Belum ada kolom terdeteksi. Klik "Jalankan Query & Ambil Data".</span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Records Table View */}
+                                    <div style={{ flex: 1, backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #dee2e6', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                                        <div style={{
+                                            padding: '10px 16px', borderBottom: '1px solid #dee2e6',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fdfbfd'
+                                        }}>
+                                            <span style={{ fontSize: '12px', fontWeight: 700, color: '#212529' }}>
+                                                Hasil Query ({loadedRecords.length} Baris Data Ditemukan)
+                                            </span>
+                                            <span style={{ fontSize: '11px', color: '#6c757d' }}>
+                                                Pilih baris untuk melihat preview
+                                            </span>
+                                        </div>
+
+                                        <div style={{ flex: 1, overflow: 'auto' }}>
+                                            {loadedRecords.length > 0 ? (
+                                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11.5px', textAlign: 'left' }}>
+                                                    <thead>
+                                                        <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
+                                                            <th style={{ padding: '8px 12px', width: '50px' }}>#</th>
+                                                            {availableColumns.map(col => (
+                                                                <th key={col} style={{ padding: '8px 12px', fontWeight: 700, color: '#495057' }}>{col}</th>
+                                                            ))}
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {loadedRecords.map((row, rIdx) => {
+                                                            const isSel = rIdx === selectedRecordIndex;
+                                                            return (
+                                                                <tr
+                                                                    key={rIdx}
+                                                                    onClick={() => setSelectedRecordIndex(rIdx)}
+                                                                    style={{
+                                                                        borderBottom: '1px solid #f1f3f5', cursor: 'pointer',
+                                                                        backgroundColor: isSel ? '#faf5f9' : '#fff'
+                                                                    }}
+                                                                >
+                                                                    <td style={{ padding: '8px 12px', fontWeight: 700, color: isSel ? '#714B67' : '#adb5bd' }}>
+                                                                        {rIdx + 1}
+                                                                    </td>
+                                                                    {availableColumns.map(col => (
+                                                                        <td key={col} style={{ padding: '8px 12px', color: '#212529', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                            {typeof row[col] === 'object' ? JSON.stringify(row[col]) : String(row[col] ?? '')}
+                                                                        </td>
+                                                                    ))}
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            ) : (
+                                                <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#adb5bd' }}>
+                                                    <Database size={40} style={{ marginBottom: '8px' }} />
+                                                    <span style={{ fontSize: '13px', color: '#6c757d' }}>Belum ada data query. Klik tombol "Jalankan Query & Ambil Data" di atas.</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* TAB 3: PDF PREVIEW & EXPORT */}
+                    {activeTab === 'preview' && (
                         <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
                             <div style={{
                                 padding: '6px 16px', backgroundColor: '#fff', borderBottom: '1px solid #dee2e6',
                                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px'
                             }}>
                                 <span style={{ fontWeight: 700, color: '#212529' }}>
-                                    PDF Preview — {currentBasePdf.width} × {currentBasePdf.height} mm (Resolusi Cetak Tinggi)
+                                    PDF Preview — {currentBasePdf.width} × {currentBasePdf.height} mm ({sampleInputData.length} Halaman)
                                 </span>
                                 <button
                                     onClick={() => handleGeneratePdf('preview')}
@@ -1467,7 +1444,6 @@ export default function ReportDesigner() {
 
                         {/* Modal Body */}
                         <form onSubmit={handleConfirmCreateTemplate} style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
-                            {/* Template Name */}
                             <div style={{ marginBottom: '16px' }}>
                                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#212529', marginBottom: '6px' }}>
                                     Nama Template *
@@ -1485,7 +1461,6 @@ export default function ReportDesigner() {
                                 />
                             </div>
 
-                            {/* Category & Orientation */}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
                                 <div>
                                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#212529', marginBottom: '6px' }}>
@@ -1541,7 +1516,6 @@ export default function ReportDesigner() {
                                 </div>
                             </div>
 
-                            {/* Paper Size Preset Grid */}
                             <div style={{ marginBottom: '16px' }}>
                                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#212529', marginBottom: '8px' }}>
                                     Pilih Ukuran Kertas / Thermal Label
@@ -1582,7 +1556,6 @@ export default function ReportDesigner() {
                                 </div>
                             </div>
 
-                            {/* Custom Dimensions if CUSTOM selected */}
                             {newForm.presetId === 'CUSTOM' && (
                                 <div style={{
                                     padding: '12px', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6',
@@ -1618,7 +1591,6 @@ export default function ReportDesigner() {
                                 </div>
                             )}
 
-                            {/* Modal Footer */}
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
                                 <button
                                     type="button"
@@ -1657,7 +1629,6 @@ export default function ReportDesigner() {
                         borderRadius: '10px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
                         overflow: 'hidden', display: 'flex', flexDirection: 'column'
                     }}>
-                        {/* Header */}
                         <div style={{
                             padding: '14px 20px', backgroundColor: '#714B67', color: '#fff',
                             display: 'flex', alignItems: 'center', justifyContent: 'space-between'
@@ -1674,7 +1645,6 @@ export default function ReportDesigner() {
                             </button>
                         </div>
 
-                        {/* Body */}
                         <div style={{ padding: '20px' }}>
                             <div style={{ marginBottom: '14px' }}>
                                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#212529', marginBottom: '6px' }}>
@@ -1707,7 +1677,6 @@ export default function ReportDesigner() {
                                 </select>
                             </div>
 
-                            {/* Dimension Inputs */}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
                                 <div>
                                     <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#495057', marginBottom: '4px' }}>
@@ -1733,7 +1702,6 @@ export default function ReportDesigner() {
                                 </div>
                             </div>
 
-                            {/* Margin / Padding Inputs */}
                             <div style={{ marginBottom: '16px' }}>
                                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#212529', marginBottom: '6px' }}>
                                     Margin Kertas (Top, Right, Bottom, Left mm)
@@ -1778,7 +1746,6 @@ export default function ReportDesigner() {
                                 </div>
                             </div>
 
-                            {/* Footer */}
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
                                 <button
                                     onClick={() => setShowPageSettingsModal(false)}
