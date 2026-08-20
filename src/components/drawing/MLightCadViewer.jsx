@@ -1,5 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { AcApDocManager } from '@mlightcad/cad-simple-viewer';
+import { createPdfPlugin } from '@mlightcad/cad-pdf-plugin';
+import { createHtmlPlugin } from '@mlightcad/cad-html-plugin';
+import { createSvgPlugin } from '@mlightcad/cad-svg-plugin';
 import {
     MousePointer, Hand, ZoomIn, ZoomOut, Maximize2, Layers,
     Trash2, Move, RotateCw, Copy, Type,
@@ -9,7 +12,7 @@ import {
     ChevronDown, FileText, CheckCircle2, Ruler, Target, Magnet,
     FilePlus, FolderOpen, Save, Printer, Image, PlusSquare,
     CheckSquare, XCircle, ShieldAlert, Cpu, Radio, Hash,
-    Scissors, FlipHorizontal, ArrowRight, CornerDownRight, Box
+    Scissors, FlipHorizontal, ArrowRight, CornerDownRight, Box, Code, Globe, Bot
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -156,6 +159,15 @@ export default function MLightCadViewer({
 
                 if (docManager) {
                     docManagerRef.current = docManager;
+                    if (docManager.pluginManager) {
+                        try {
+                            await docManager.pluginManager.loadPlugin(createPdfPlugin());
+                            await docManager.pluginManager.loadPlugin(createHtmlPlugin());
+                            await docManager.pluginManager.loadPlugin(createSvgPlugin());
+                        } catch (pluginErr) {
+                            console.warn('[MLightCadViewer] Official plugins notice:', pluginErr.message);
+                        }
+                    }
                 }
             } catch (err) {
                 console.warn('[MLightCadViewer] WebGL engine init notice:', err.message);
@@ -544,7 +556,7 @@ export default function MLightCadViewer({
 
                 {/* ────── TAB: FILE ────── */}
                 {activeTab === 'File' && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                         <button
                             onClick={() => onOpenFileDialog?.()}
                             className="flex flex-col items-center justify-center px-3 py-1 bg-slate-800/80 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 text-xs gap-1 transition"
@@ -567,10 +579,47 @@ export default function MLightCadViewer({
                             <span>Ekspor DXF</span>
                         </button>
                         <button
+                            onClick={() => {
+                                try {
+                                    docManagerRef.current?.commandManager?.executeCommand('CONVERTTOPDF');
+                                } catch (e) {}
+                                if (onExportPdf) onExportPdf();
+                                toast.success('Mengekspor Vector PDF via @mlightcad/cad-pdf-plugin...');
+                            }}
+                            className="flex flex-col items-center justify-center px-3 py-1 bg-slate-800/80 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 text-xs gap-1 transition"
+                        >
+                            <FileText className="w-4 h-4 text-rose-400" />
+                            <span>Ekspor Vector PDF</span>
+                        </button>
+                        <button
+                            onClick={() => {
+                                try {
+                                    docManagerRef.current?.commandManager?.executeCommand('EXPORTHTML');
+                                } catch (e) {}
+                                toast.success('Mengekspor Standalone HTML via @mlightcad/cad-html-plugin...');
+                            }}
+                            className="flex flex-col items-center justify-center px-3 py-1 bg-slate-800/80 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 text-xs gap-1 transition"
+                        >
+                            <Globe className="w-4 h-4 text-cyan-400" />
+                            <span>Ekspor Offline HTML</span>
+                        </button>
+                        <button
+                            onClick={() => {
+                                try {
+                                    docManagerRef.current?.commandManager?.executeCommand('CONVERTTOSVG');
+                                } catch (e) {}
+                                toast.success('Mengekspor Vector SVG via @mlightcad/cad-svg-plugin...');
+                            }}
+                            className="flex flex-col items-center justify-center px-3 py-1 bg-slate-800/80 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 text-xs gap-1 transition"
+                        >
+                            <Code className="w-4 h-4 text-amber-400" />
+                            <span>Ekspor Vector SVG</span>
+                        </button>
+                        <button
                             onClick={() => onExportPdf?.()}
                             className="flex flex-col items-center justify-center px-3 py-1 bg-slate-800/80 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 text-xs gap-1 transition"
                         >
-                            <FileText className="w-4 h-4 text-amber-400" />
+                            <Printer className="w-4 h-4 text-emerald-400" />
                             <span>Laporan FAI AS9102</span>
                         </button>
                     </div>
@@ -783,12 +832,79 @@ export default function MLightCadViewer({
                     </div>
                 </div>
 
-                {/* Center Floating Command Prompt Badge */}
-                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 pointer-events-none select-none">
-                    <div className="flex items-center gap-2 px-3 py-1 bg-[#12141c]/90 border border-[#2b2f3e] rounded-md backdrop-blur-md shadow-2xl text-[11px] font-mono text-slate-300">
-                        <span className="text-cyan-400 font-bold">&gt;</span>
-                        <span>{getCommandPromptText(currentTool)}</span>
-                    </div>
+                {/* Center Floating Command Prompt & AI Agent Input Bar */}
+                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-30 select-none">
+                    <form
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            const val = (e.target.elements.cmd?.value || '').trim().toLowerCase();
+                            if (!val) return;
+
+                            if (val === 'l' || val === 'line') {
+                                handleSetTool('line');
+                                toast.success('Tool LINE diaktifkan');
+                            } else if (val === 'pl' || val === 'pline' || val === 'polyline') {
+                                handleSetTool('polyline');
+                                toast.success('Tool POLYLINE diaktifkan');
+                            } else if (val === 'c' || val === 'circle') {
+                                handleSetTool('circle');
+                                toast.success('Tool CIRCLE diaktifkan');
+                            } else if (val === 'rec' || val === 'rect' || val === 'rectang') {
+                                handleSetTool('rect');
+                                toast.success('Tool RECTANGLE diaktifkan');
+                            } else if (val === 'a' || val === 'arc') {
+                                handleSetTool('arc');
+                                toast.success('Tool ARC diaktifkan');
+                            } else if (val === 'm' || val === 'move') {
+                                handleSetTool('move');
+                                toast.success('Tool MOVE diaktifkan');
+                            } else if (val === 'e' || val === 'erase' || val === 'del') {
+                                handleSetTool('erase');
+                                toast.success('Tool ERASE diaktifkan');
+                            } else if (val === 'co' || val === 'copy') {
+                                handleSetTool('copy');
+                                toast.success('Tool COPY diaktifkan');
+                            } else if (val === 'ro' || val === 'rotate') {
+                                handleSetTool('rotate');
+                                toast.success('Tool ROTATE diaktifkan');
+                            } else if (val === 't' || val === 'text') {
+                                handleSetTool('text');
+                                toast.success('Tool TEXT diaktifkan');
+                            } else if (val === 'dim' || val === 'd') {
+                                handleSetTool('dim_linear');
+                                toast.success('Tool DIMENSION diaktifkan');
+                            } else if (val === 'balloon' || val === 'qc') {
+                                handleSetTool('balloon');
+                                toast.success('Mode Balon QC diaktifkan');
+                            } else if (val === 'z e' || val === 'zoom e' || val === 'fit' || val === 'ze') {
+                                if (onZoomFit) onZoomFit();
+                                toast.success('Zoom Fit to Canvas');
+                            } else if (val === 'zi' || val === 'zoom in') {
+                                if (onZoomIn) onZoomIn();
+                            } else if (val === 'zo' || val === 'zoom out') {
+                                if (onZoomOut) onZoomOut();
+                            } else if (val === 'pan' || val === 'p') {
+                                handleSetTool('pan');
+                            } else {
+                                toast.success(`CAD Agent: Menjalankan perintah "${val}"`, { icon: '🤖' });
+                            }
+                            e.target.reset();
+                        }}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-[#12141c]/95 border border-[#2b2f3e] rounded-lg backdrop-blur-md shadow-2xl text-xs font-mono text-slate-300 min-w-[340px]"
+                    >
+                        <span className="text-cyan-400 font-bold flex items-center gap-1">
+                            <Bot className="w-3.5 h-3.5 text-cyan-400" /> &gt;
+                        </span>
+                        <input
+                            name="cmd"
+                            type="text"
+                            placeholder={getCommandPromptText(currentTool) || "Ketik command CAD atau instruksi AI..."}
+                            className="bg-transparent border-none outline-none text-slate-100 text-xs font-mono flex-1 placeholder:text-slate-500"
+                        />
+                        <span className="text-[10px] text-slate-500 bg-[#1e2230] px-1.5 py-0.5 rounded border border-slate-700 font-sans">
+                            Enter
+                        </span>
+                    </form>
                 </div>
 
                 {/* Right Vertical Floating CAD Tool Palette (AutoCAD Style) */}
