@@ -111,7 +111,6 @@ export default defineConfig({
             if (id.includes('i18next') || id.includes('react-i18next') || id.includes('mqtt') || id.includes('dexie')) {
               return 'vendor-services';
             }
-            return 'vendor-utils';
           }
         }
       }

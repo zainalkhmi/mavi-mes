@@ -682,11 +682,53 @@ export default function BiStudio() {
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <div style={{ fontSize: '0.72rem', padding: '3px 10px', borderRadius: '20px', backgroundColor: 'rgba(255,255,255,0.15)', color: '#ffffff', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#4ade80' }}></span>
                         {sourceName}
                     </div>
+
+                    {/* Dashboard Name Input */}
+                    <input
+                        value={currentDashboardName}
+                        onChange={(e) => setCurrentDashboardName(e.target.value)}
+                        placeholder="Dashboard name..."
+                        style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.3)', backgroundColor: 'rgba(255,255,255,0.15)', color: '#ffffff', fontSize: '0.78rem', fontWeight: 600, width: '160px' }}
+                    />
+
+                    {/* New Dashboard */}
+                    <button
+                        onClick={createNewDashboard}
+                        style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', backgroundColor: 'rgba(255,255,255,0.15)', color: '#ffffff', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                        <Plus size={12} /> New
+                    </button>
+
+                    {/* Save */}
+                    <button
+                        onClick={() => saveDashboard(false)}
+                        disabled={dashboardSaving}
+                        style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', backgroundColor: '#ffffff', color: '#714B67', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', opacity: dashboardSaving ? 0.6 : 1 }}
+                    >
+                        <Save size={12} /> {dashboardSaving ? 'Saving...' : 'Save'}
+                    </button>
+
+                    {/* Publish */}
+                    <button
+                        onClick={() => saveDashboard(true)}
+                        disabled={dashboardSaving}
+                        style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', backgroundColor: isPublished ? '#16a34a' : '#f59e0b', color: '#ffffff', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', opacity: dashboardSaving ? 0.6 : 1 }}
+                    >
+                        <Play size={12} /> {isPublished ? 'Published' : 'Publish'}
+                    </button>
+
+                    {/* My Dashboards */}
+                    <button
+                        onClick={() => { setShowDashboardManager(!showDashboardManager); loadDashboardList(); }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', backgroundColor: showDashboardManager ? '#ffffff' : 'rgba(255,255,255,0.15)', color: showDashboardManager ? '#714B67' : '#ffffff', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                        <Layers size={12} /> My Dashboards
+                    </button>
 
                     <button
                         onClick={() => window.print()}
@@ -696,6 +738,56 @@ export default function BiStudio() {
                     </button>
                 </div>
             </div>
+
+            {/* ─── DASHBOARD MANAGER DROPDOWN ─────────────────────────── */}
+            {showDashboardManager && (
+                <div style={{ position: 'absolute', top: '52px', right: '16px', width: '380px', maxHeight: '480px', backgroundColor: '#ffffff', borderRadius: '8px', boxShadow: '0 12px 40px rgba(0,0,0,0.2)', zIndex: 50, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                    <div style={{ padding: '12px 16px', backgroundColor: '#714B67', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Layers size={14} /> My Dashboards ({dashboardList.length})
+                        </span>
+                        <button onClick={() => setShowDashboardManager(false)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}><X size={14} /></button>
+                    </div>
+
+                    <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
+                        {dashboardList.length === 0 ? (
+                            <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem' }}>
+                                <Layout size={28} style={{ opacity: 0.3, marginBottom: '8px' }} />
+                                <div>Belum ada dashboard tersimpan.</div>
+                                <button onClick={createNewDashboard} style={{ marginTop: '10px', padding: '6px 14px', borderRadius: '6px', backgroundColor: '#714B67', color: '#fff', border: 'none', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer' }}>
+                                    <Plus size={12} style={{ marginRight: '4px' }} /> Buat Dashboard Baru
+                                </button>
+                            </div>
+                        ) : (
+                            dashboardList.map(d => (
+                                <div key={d.id} style={{ padding: '10px 12px', borderRadius: '6px', border: '1px solid #e2e8f0', marginBottom: '6px', cursor: 'pointer', backgroundColor: d.id === currentDashboardId ? '#f0fdf4' : '#fff', transition: 'all 0.15s' }}
+                                    onClick={() => loadDashboard(d.id)}
+                                    onMouseEnter={(e) => e.currentTarget.style.borderColor = '#714B67'}
+                                    onMouseLeave={(e) => e.currentTarget.style.borderColor = '#e2e8f0'}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b' }}>{d.name}</span>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); deleteDashboard(d.id); }}
+                                            style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', padding: '2px' }}
+                                            title="Delete"
+                                        >
+                                            <Trash2 size={12} />
+                                        </button>
+                                    </div>
+                                    {d.description && (
+                                        <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>{d.description}</div>
+                                    )}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', fontSize: '0.65rem', color: '#94a3b8' }}>
+                                        <span>{Array.isArray(d.layout) ? d.layout.length : 0} visuals</span>
+                                        <span>{d.updated_at ? new Date(d.updated_at).toLocaleDateString() : '-'}</span>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* ─── 2. POWER BI STYLE CANVAS WORKSPACE ────────────────────── */}
             {activeTab === 'CANVAS' && (

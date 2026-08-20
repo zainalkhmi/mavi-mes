@@ -111,24 +111,7 @@ export const EnterpriseDialogContainer = () => {
   }, []);
 
   if (!modalState.isOpen) {
-    return (
-      <Toaster 
-        position="top-center"
-        toastOptions={{
-          style: {
-            fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-            borderRadius: '12px',
-            background: '#ffffff',
-            color: '#212529',
-            border: '1px solid #e9ecef',
-            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.12)',
-            padding: '12px 18px',
-            fontSize: '0.9rem',
-            fontWeight: 700
-          }
-        }}
-      />
-    );
+    return null;
   }
 
   const getTypeTheme = () => {
@@ -173,22 +156,6 @@ export const EnterpriseDialogContainer = () => {
 
   return (
     <>
-      <Toaster 
-        position="top-center"
-        toastOptions={{
-          style: {
-            fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-            borderRadius: '12px',
-            background: '#ffffff',
-            color: '#212529',
-            border: '1px solid #e9ecef',
-            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.12)',
-            padding: '12px 18px',
-            fontSize: '0.9rem',
-            fontWeight: 700
-          }
-        }}
-      />
 
       {/* BACKDROP OVERLAY */}
       <div 
