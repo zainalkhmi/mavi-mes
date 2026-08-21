@@ -42,6 +42,7 @@ export default function MLightCadViewer({
     onSaveDrawing,
     onExportDxf,
     onExportPdf,
+    onPrint,
     onInsertImage,
     onEntitySelect,
     onViewportChange,
@@ -333,6 +334,24 @@ export default function MLightCadViewer({
         async function initViewer() {
             try {
                 const { AcApDocManager } = await import('@mlightcad/cad-simple-viewer');
+                
+                // Register LibreDWG Parser for DWG support
+                try {
+                    const { AcDbDatabaseConverterManager, AcDbFileType } = await import('@mlightcad/data-model');
+                    const { AcDbLibreDwgConverter } = await import('@mlightcad/libredwg-converter');
+                    
+                    AcDbDatabaseConverterManager.instance.register(
+                        AcDbFileType.DWG,
+                        new AcDbLibreDwgConverter({
+                            convertByEntityType: false,
+                            useWorker: true,
+                            parserWorkerUrl: '/workers/libredwg-parser-worker.js'
+                        })
+                    );
+                } catch (dwgErr) {
+                    console.warn('[MLightCadViewer] DWG Parser Opt-in missing or failed:', dwgErr.message);
+                }
+
                 let docManager;
                 try {
                     docManager = AcApDocManager.instance;
@@ -398,7 +417,28 @@ export default function MLightCadViewer({
                 } else if (fileData instanceof Blob) {
                     buffer = await fileData.arrayBuffer();
                 } else if (typeof fileData === 'string') {
-                    if (fileData.startsWith('data:') || fileData.startsWith('blob:') || fileData.startsWith('http')) {
+                    if (fileData.startsWith('data:image/svg+xml')) {
+                        // WebGL engine cannot parse SVG Data URLs natively, skip loading into WebGL
+                        // It will be rendered by the overlay instead.
+                        return;
+                    }
+                    if (fileData.startsWith('data:')) {
+                        try {
+                            const base64Part = fileData.split(',')[1];
+                            const binaryString = atob(base64Part);
+                            const len = binaryString.length;
+                            const bytes = new Uint8Array(len);
+                            for (let i = 0; i < len; i++) {
+                                bytes[i] = binaryString.charCodeAt(i);
+                            }
+                            buffer = bytes.buffer;
+                        } catch (decodeErr) {
+                            console.error('[MLightCadViewer] Base64 Decode Error:', decodeErr);
+                            // Fallback to fetch if manual decode fails
+                            const res = await fetch(fileData);
+                            buffer = await res.arrayBuffer();
+                        }
+                    } else if (fileData.startsWith('blob:') || fileData.startsWith('http')) {
                         const res = await fetch(fileData);
                         buffer = await res.arrayBuffer();
                     } else {
@@ -407,10 +447,13 @@ export default function MLightCadViewer({
                     }
                 }
 
-                await docManager.openDocument(fileName, buffer, { readHeaderOnly: false });
-                docManager.curView?.zoomToFit?.();
+                if (buffer && buffer.byteLength > 0) {
+                    await docManager.openDocument(fileName, buffer, { readHeaderOnly: false });
+                    docManager.curView?.zoomToFit?.();
+                }
             } catch (err) {
-                console.warn('[MLightCadViewer] File load notice:', err.message);
+                console.error('[MLightCadViewer] File load error:', err);
+                toast.error('Gagal memparsing file CAD: ' + (err.message || 'Unknown error'));
             }
         }
 
@@ -698,7 +741,7 @@ export default function MLightCadViewer({
                                     </button>
                                     <button
                                         onClick={() => {
-                                            if (onExportPdf) onExportPdf();
+                                            if (onPrint) onPrint();
                                             else window.print();
                                             setShowFileDropdown(false);
                                         }}

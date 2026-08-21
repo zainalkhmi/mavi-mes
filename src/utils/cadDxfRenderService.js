@@ -634,5 +634,24 @@ export async function parseAndProcessCadFile(file) {
         });
     }
 
+    // 5. For DWG files
+    if (ext === 'dwg') {
+        // Return basic structure, letting the actual WebGL engine (MLightCAD) handle the raw DWG buffer natively
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                resolve({
+                    success: true,
+                    dimensions: [],
+                    entities: [],
+                    layers: ['DWG_NATIVE'],
+                    dataUrl: e.target.result, // The raw base64 data URI of the DWG
+                    fileType: 'DWG'
+                });
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
     throw new Error(`Format .${ext} tidak didukung langsung oleh native CAD parser.`);
 }

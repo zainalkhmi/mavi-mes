@@ -21,6 +21,7 @@
     "@mlightcad/cad-simple-viewer": "^1.6.1",
     "@mlightcad/cad-svg-plugin": "^1.6.1",
     "@mlightcad/data-model": "^1.13.1",
+    "@mlightcad/libredwg-converter": "^3.14.1",
     "@mlightcad/mtext-renderer": "^0.12.4",
     "@mlightcad/three-renderer": "^1.6.1",
     "@pdfme/generator": "^6.1.12",
