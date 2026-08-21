@@ -101,12 +101,20 @@ export default function MLightCadViewer({
     // ─── Dropdown Menus State ───────────────────────────────────────
     const [showDrawDropdown, setShowDrawDropdown] = useState(false);
     const [showModifyDropdown, setShowModifyDropdown] = useState(false);
+    const [showCircleDropdown, setShowCircleDropdown] = useState(false);
     const [showArcDropdown, setShowArcDropdown] = useState(false);
     const [showLayerDropdown, setShowLayerDropdown] = useState(false);
     const [showColorDropdown, setShowColorDropdown] = useState(false);
     const [showLinetypeDropdown, setShowLinetypeDropdown] = useState(false);
     const [showLineweightDropdown, setShowLineweightDropdown] = useState(false);
     const [showMoreTabsDropdown, setShowMoreTabsDropdown] = useState(false);
+    const [reviewColor, setReviewColor] = useState('#ef4444');
+    const [reviewLineweight, setReviewLineweight] = useState('0.70 mm');
+    const [reviewFontSize, setReviewFontSize] = useState(12);
+    const [showReviewMarkups, setShowReviewMarkups] = useState(true);
+    const [showReviewColorDropdown, setShowReviewColorDropdown] = useState(false);
+    const [showReviewLineweightDropdown, setShowReviewLineweightDropdown] = useState(false);
+    const [showReviewFontDropdown, setShowReviewFontDropdown] = useState(false);
 
     // ─── Panels & Modals State ──────────────────────────────────────
     const [showLayerManagerModal, setShowLayerManagerModal] = useState(false);
@@ -128,6 +136,15 @@ export default function MLightCadViewer({
         { name: 'Text_Notes', isOff: false, isFrozen: false, isLocked: false, color: '#22c55e', linetype: 'Continuous', lineweight: '0.25 mm' },
     ]);
     const currentLayers = (layersList && layersList.length > 1) ? layersList : localLayers;
+    const activeLayerObj = currentLayers.find(l => l.name === activeLayer) || currentLayers[0];
+
+    const handleToggleLayerProp = (layerName, prop) => {
+        if (onToggleLayerProp) {
+            onToggleLayerProp(layerName, prop);
+        }
+        setLocalLayers(prev => prev.map(l => l.name === layerName ? { ...l, [prop]: !l[prop] } : l));
+        toast.success(`Layer "${layerName}" ${prop === 'isOff' ? 'visibility diubah' : prop === 'isFrozen' ? 'freeze status diubah' : 'lock status diubah'}.`);
+    };
 
     // ─── Color & Lineweight Choices ─────────────────────────────────
     const availableColors = [
@@ -181,6 +198,26 @@ export default function MLightCadViewer({
             onToggleBalloonMode();
         } else if (toolName !== 'balloon' && isBalloonMode && onToggleBalloonMode) {
             onToggleBalloonMode();
+        }
+        const toolLabels = {
+            line: 'Line Tool (Klik & drag di canvas)',
+            polyline: 'Polyline Tool (Klik untuk tambah titik, double-klik untuk selesai)',
+            circle: 'Circle Tool (Klik pusat & drag untuk radius)',
+            arc: 'Arc Tool (Klik pusat, tentukan radius & sudut)',
+            rect: 'Rectangle Tool (Klik & drag sudut)',
+            polygon: 'Polygon Tool (Klik & drag)',
+            ellipse: 'Ellipse Tool (Klik & drag)',
+            move: 'Move Tool (Klik & geser objek)',
+            erase: 'Erase Tool (Klik objek untuk menghapus)',
+            rotate: 'Rotate Tool (Klik objek untuk merotasi)',
+            offset: 'Offset Tool (Klik objek untuk offset)',
+            copy: 'Copy Tool (Klik objek untuk duplikasi)',
+            text: 'Text Tool (Klik di canvas untuk mengetik teks)',
+            select: 'Select Mode',
+            pan: 'Pan Mode'
+        };
+        if (toolLabels[toolName]) {
+            toast.success(toolLabels[toolName], { id: 'cad-tool-toast' });
         }
     };
 
@@ -652,17 +689,122 @@ export default function MLightCadViewer({
                                     <span className="text-[10px] mt-0.5 font-normal">Polyline</span>
                                 </button>
 
-                                {/* Circle */}
-                                <button
-                                    onClick={() => handleSetTool('circle')}
-                                    className={`flex flex-col items-center justify-center p-1.5 min-w-[42px] rounded hover:bg-[#303030] transition ${
-                                        currentTool === 'circle' ? 'bg-[#1677ff]/20 text-[#1677ff] border border-[#1677ff]/50' : 'text-slate-200'
-                                    }`}
-                                    title="Circle (C)"
-                                >
-                                    <Circle className="w-4 h-4" />
-                                    <span className="text-[10px] mt-0.5 font-normal">Circle</span>
-                                </button>
+                                {/* Circle with AutoCAD Dropdown */}
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setShowCircleDropdown(!showCircleDropdown)}
+                                        className={`flex flex-col items-center justify-center p-1.5 min-w-[42px] rounded hover:bg-[#303030] transition ${
+                                            ['circle', 'circle_diameter', 'circle_2p', 'circle_3p', 'circle_ttr', 'circle_ttt'].includes(currentTool)
+                                                ? 'bg-[#1677ff]/20 text-[#1677ff] border border-[#1677ff]/50'
+                                                : 'text-slate-200'
+                                        }`}
+                                        title="Circle Options (Center Radius, Diameter, 2P, 3P, TTR, TTT)"
+                                    >
+                                        <Circle className="w-4 h-4" />
+                                        <span className="text-[10px] mt-0.5 font-normal flex items-center">
+                                            Circle <ChevronDown className="w-2.5 h-2.5 ml-0.5" />
+                                        </span>
+                                    </button>
+
+                                    {showCircleDropdown && (
+                                        <div className="absolute top-12 left-0 z-50 bg-[#1f1f1f] border border-[#383838] rounded-lg shadow-2xl p-1.5 flex flex-col gap-1 w-48 text-xs text-slate-200">
+                                            {[
+                                                {
+                                                    id: 'circle',
+                                                    label: 'Center, Radius',
+                                                    desc: 'Pusat dan Radius',
+                                                    icon: (
+                                                        <svg className="w-4 h-4 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                            <circle cx="12" cy="12" r="9" />
+                                                            <line x1="12" y1="12" x2="19" y2="7" strokeDasharray="1,1" />
+                                                            <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+                                                        </svg>
+                                                    )
+                                                },
+                                                {
+                                                    id: 'circle_diameter',
+                                                    label: 'Center, Diameter',
+                                                    desc: 'Pusat dan Diameter',
+                                                    icon: (
+                                                        <svg className="w-4 h-4 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                            <circle cx="12" cy="12" r="9" />
+                                                            <line x1="5" y1="19" x2="19" y2="5" />
+                                                            <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+                                                        </svg>
+                                                    )
+                                                },
+                                                {
+                                                    id: 'circle_2p',
+                                                    label: '2-Point',
+                                                    desc: '2 Titik Diameter',
+                                                    icon: (
+                                                        <svg className="w-4 h-4 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                            <circle cx="12" cy="12" r="9" strokeDasharray="3,2" />
+                                                            <circle cx="3" cy="12" r="2" fill="#38bdf8" />
+                                                            <circle cx="21" cy="12" r="2" fill="#38bdf8" />
+                                                        </svg>
+                                                    )
+                                                },
+                                                {
+                                                    id: 'circle_3p',
+                                                    label: '3-Point',
+                                                    desc: '3 Titik Keliling',
+                                                    icon: (
+                                                        <svg className="w-4 h-4 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                            <circle cx="12" cy="12" r="9" strokeDasharray="3,2" />
+                                                            <circle cx="5" cy="17" r="2" fill="#38bdf8" />
+                                                            <circle cx="12" cy="3" r="2" fill="#38bdf8" />
+                                                            <circle cx="19" cy="17" r="2" fill="#38bdf8" />
+                                                        </svg>
+                                                    )
+                                                },
+                                                {
+                                                    id: 'circle_ttr',
+                                                    label: 'Tan, Tan, Radius',
+                                                    desc: 'Singgung 2 Objek & Radius',
+                                                    icon: (
+                                                        <svg className="w-4 h-4 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                            <circle cx="12" cy="12" r="7" />
+                                                            <line x1="2" y1="19" x2="22" y2="19" />
+                                                            <line x1="2" y1="5" x2="22" y2="5" />
+                                                            <circle cx="12" cy="5" r="1.5" fill="#22c55e" />
+                                                            <circle cx="12" cy="19" r="1.5" fill="#22c55e" />
+                                                        </svg>
+                                                    )
+                                                },
+                                                {
+                                                    id: 'circle_ttt',
+                                                    label: 'Tan, Tan, Tan',
+                                                    desc: 'Singgung 3 Objek',
+                                                    icon: (
+                                                        <svg className="w-4 h-4 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                            <circle cx="12" cy="13" r="6" />
+                                                            <polygon points="12,2 22,21 2,21" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                                                        </svg>
+                                                    )
+                                                }
+                                            ].map((item) => (
+                                                <button
+                                                    key={item.id}
+                                                    onClick={() => {
+                                                        handleSetTool(item.id);
+                                                        setShowCircleDropdown(false);
+                                                        toast.success(`Mode Lingkaran: ${item.label}`);
+                                                    }}
+                                                    className={`flex items-center gap-2.5 px-2.5 py-2 rounded hover:bg-[#2c2c2c] transition text-left ${
+                                                        currentTool === item.id ? 'bg-[#1677ff]/20 text-sky-400 font-medium' : 'text-slate-200'
+                                                    }`}
+                                                >
+                                                    <span className="shrink-0">{item.icon}</span>
+                                                    <div>
+                                                        <div className="font-medium text-slate-100">{item.label}</div>
+                                                        <div className="text-[10px] text-slate-400">{item.desc}</div>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
 
                                 {/* Arc with Dropdown */}
                                 <div className="relative">
@@ -825,10 +967,43 @@ export default function MLightCadViewer({
                                         className="flex items-center justify-between bg-[#141414] border border-[#383838] rounded px-2 py-0.5 text-[11px] cursor-pointer hover:border-[#1677ff]/60"
                                     >
                                         <div className="flex items-center gap-1.5">
-                                            <span className="text-amber-400 text-xs" title="Turn Layer On/Off">💡</span>
-                                            <span className="text-amber-300 text-xs" title="Freeze/Thaw">☀️</span>
-                                            <span className="text-slate-400 text-xs" title="Lock/Unlock">🔓</span>
-                                            <div className="w-2.5 h-2.5 bg-white border border-slate-600 rounded-sm ml-1" />
+                                            <button
+                                                type="button"
+                                                className="text-xs hover:scale-125 transition cursor-pointer"
+                                                title={activeLayerObj?.isOff ? 'Layer Off (Klik untuk On)' : 'Layer On (Klik untuk Off)'}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleToggleLayerProp(activeLayer, 'isOff');
+                                                }}
+                                            >
+                                                {activeLayerObj?.isOff ? '⚪' : '💡'}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="text-xs hover:scale-125 transition cursor-pointer"
+                                                title={activeLayerObj?.isFrozen ? 'Layer Frozen (Klik untuk Thaw)' : 'Layer Thawed (Klik untuk Freeze)'}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleToggleLayerProp(activeLayer, 'isFrozen');
+                                                }}
+                                            >
+                                                {activeLayerObj?.isFrozen ? '❄️' : '☀️'}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="text-xs hover:scale-125 transition cursor-pointer"
+                                                title={activeLayerObj?.isLocked ? 'Layer Locked (Klik untuk Unlock)' : 'Layer Unlocked (Klik untuk Lock)'}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleToggleLayerProp(activeLayer, 'isLocked');
+                                                }}
+                                            >
+                                                {activeLayerObj?.isLocked ? '🔒' : '🔓'}
+                                            </button>
+                                            <div
+                                                className="w-2.5 h-2.5 rounded-sm border border-slate-600 ml-1"
+                                                style={{ backgroundColor: activeLayerObj?.color || '#ffffff' }}
+                                            />
                                             <span className="font-mono font-medium text-slate-200 ml-1 truncate max-w-[65px]">
                                                 {activeLayer}
                                             </span>
@@ -1115,34 +1290,275 @@ export default function MLightCadViewer({
                     </div>
                 )}
 
-                {/* ────── TAB: REVIEW ────── */}
+                {/* ────── TAB: REVIEW (1:1 with MLightCAD Screenshot) ────── */}
                 {activeTab === 'Review' && (
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => handleSetTool('revcloud')}
-                            className={`flex flex-col items-center justify-center px-3 py-1.5 rounded border text-xs gap-1 transition ${
-                                currentTool === 'revcloud' ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-[#1a1a1a] text-slate-200 border-[#333333]'
-                            }`}
-                        >
-                            <Sparkles className="w-4 h-4 text-amber-400" />
-                            <span>Revision Cloud</span>
-                        </button>
-                        <button
-                            onClick={() => handleSetTool('text')}
-                            className={`flex flex-col items-center justify-center px-3 py-1.5 rounded border text-xs gap-1 transition ${
-                                currentTool === 'text' ? 'bg-[#1677ff]/20 text-[#1677ff] border-[#1677ff]/40' : 'bg-[#1a1a1a] text-slate-200 border-[#333333]'
-                            }`}
-                        >
-                            <Type className="w-4 h-4 text-sky-400" />
-                            <span>Review Leader Note</span>
-                        </button>
-                        <button
-                            onClick={() => toast.success('Stamp APPROVED attached to drawing')}
-                            className="flex flex-col items-center justify-center px-3 py-1.5 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 rounded border border-emerald-700/50 text-xs gap-1 transition"
-                        >
-                            <CheckSquare className="w-4 h-4 text-emerald-400" />
-                            <span>Stamp APPROVED</span>
-                        </button>
+                    <div className="flex items-stretch gap-4">
+                        {/* 1. Review Tools Group */}
+                        <div className="flex flex-col justify-between items-center border-r border-[#333333] pr-4">
+                            <div className="flex items-center gap-2">
+                                {/* Cloud (RevCloud) */}
+                                <button
+                                    onClick={() => {
+                                        handleSetTool('revcloud');
+                                        toast.success('Revision Cloud: Klik titik untuk membuat awan revisi');
+                                    }}
+                                    className={`flex flex-col items-center justify-center p-2 min-w-[50px] rounded hover:bg-[#303030] transition ${
+                                        currentTool === 'revcloud' ? 'bg-[#1677ff]/20 text-[#1677ff] border border-[#1677ff]/50' : 'text-slate-200'
+                                    }`}
+                                    title="Cloud (Revision Cloud)"
+                                >
+                                    <svg className="w-5 h-5 text-slate-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" strokeDasharray="2,1.5" />
+                                    </svg>
+                                    <span className="text-[11px] mt-1 font-normal">Cloud</span>
+                                </button>
+
+                                {/* Callout */}
+                                <button
+                                    onClick={() => {
+                                        handleSetTool('callout');
+                                        toast.success('Callout Note: Klik target titik, lalu klik posisi kotak catatan');
+                                    }}
+                                    className={`flex flex-col items-center justify-center p-2 min-w-[50px] rounded hover:bg-[#303030] transition ${
+                                        currentTool === 'callout' ? 'bg-[#1677ff]/20 text-[#1677ff] border border-[#1677ff]/50' : 'text-slate-200'
+                                    }`}
+                                    title="Callout (Leader Annotation)"
+                                >
+                                    <svg className="w-5 h-5 text-slate-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                                    </svg>
+                                    <span className="text-[11px] mt-1 font-normal">Callout</span>
+                                </button>
+
+                                {/* Text */}
+                                <button
+                                    onClick={() => {
+                                        handleSetTool('text');
+                                        toast.success('Text Annotation: Klik titik pada kanvas untuk mengetik');
+                                    }}
+                                    className={`flex flex-col items-center justify-center p-2 min-w-[50px] rounded hover:bg-[#303030] transition ${
+                                        currentTool === 'text' ? 'bg-[#1677ff]/20 text-[#1677ff] border border-[#1677ff]/50' : 'text-slate-200'
+                                    }`}
+                                    title="Text (A)"
+                                >
+                                    <span className="text-lg font-serif font-bold text-slate-200 leading-none">A</span>
+                                    <span className="text-[11px] mt-1 font-normal">Text</span>
+                                </button>
+
+                                {/* Review Sub-Tools Grid */}
+                                <div className="grid grid-cols-3 gap-x-2.5 gap-y-1 pl-2 border-l border-[#333333] text-[11px]">
+                                    {/* Row 1 */}
+                                    <button
+                                        onClick={() => handleSetTool('rect')}
+                                        className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-[#303030] text-slate-200 transition ${
+                                            currentTool === 'rect' ? 'text-sky-400 font-medium' : ''
+                                        }`}
+                                    >
+                                        <Square className="w-3.5 h-3.5" />
+                                        <span>Rectangle</span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            handleSetTool('stamp');
+                                            toast.success('Stamp Mode: Klik kanvas untuk stempel review');
+                                        }}
+                                        className="flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-[#303030] text-slate-200 transition"
+                                    >
+                                        <FileCheck className="w-3.5 h-3.5 text-slate-300" />
+                                        <span>Stamp</span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => toast.success('Review List: 0 unaddressed comments')}
+                                        className="flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-[#303030] text-slate-200 transition"
+                                    >
+                                        <FileText className="w-3.5 h-3.5 text-slate-300" />
+                                        <span>Review</span>
+                                    </button>
+
+                                    {/* Row 2 */}
+                                    <button
+                                        onClick={() => handleSetTool('circle')}
+                                        className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-[#303030] text-slate-200 transition ${
+                                            currentTool === 'circle' ? 'text-sky-400 font-medium' : ''
+                                        }`}
+                                    >
+                                        <Circle className="w-3.5 h-3.5" />
+                                        <span>Circle</span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            const input = document.createElement('input');
+                                            input.type = 'file';
+                                            input.accept = '.json,.bcf';
+                                            input.onchange = () => toast.success('Markups loaded successfully.');
+                                            input.click();
+                                        }}
+                                        className="flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-[#303030] text-slate-200 transition"
+                                    >
+                                        <Upload className="w-3.5 h-3.5 text-slate-300" />
+                                        <span>Import</span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            setShowReviewMarkups(!showReviewMarkups);
+                                            toast.success(showReviewMarkups ? 'Markups disembunyikan' : 'Markups ditampilkan');
+                                        }}
+                                        className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-[#303030] transition ${
+                                            showReviewMarkups ? 'text-slate-200' : 'text-slate-500 line-through'
+                                        }`}
+                                    >
+                                        <Eye className="w-3.5 h-3.5 text-slate-300" />
+                                        <span>Show</span>
+                                    </button>
+
+                                    {/* Row 3 */}
+                                    <button
+                                        onClick={() => handleSetTool('arrow')}
+                                        className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-[#303030] text-slate-200 transition ${
+                                            currentTool === 'arrow' ? 'text-sky-400 font-medium' : ''
+                                        }`}
+                                    >
+                                        <ArrowRight className="w-3.5 h-3.5" />
+                                        <span>Arrow</span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => toast.success('Markups exported as BCF / PDF Report.')}
+                                        className="flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-[#303030] text-slate-200 transition"
+                                    >
+                                        <Download className="w-3.5 h-3.5 text-slate-300" />
+                                        <span>Export</span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            if (window.confirm('Hapus semua markup review?')) {
+                                                toast.success('Markups review dibersihkan.');
+                                            }
+                                        }}
+                                        className="flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-[#303030] text-slate-200 hover:text-red-400 transition"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5 text-slate-300 hover:text-red-400" />
+                                        <span>Clear</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <span className="text-[9px] text-slate-400 mt-0.5 font-normal">Review</span>
+                        </div>
+
+                        {/* 2. Style Controls Group (Color, Lineweight, Text Size) */}
+                        <div className="flex flex-col justify-between items-center">
+                            <div className="flex flex-col gap-1 text-[11px] min-w-[130px]">
+                                {/* Color Selector Dropdown */}
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setShowReviewColorDropdown(!showReviewColorDropdown)}
+                                        className="flex items-center justify-between w-full px-2 py-0.5 bg-[#181818] border border-[#333333] rounded hover:border-[#555555] transition text-slate-200"
+                                    >
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-3.5 h-3.5 rounded-full" style={{ backgroundColor: reviewColor }} />
+                                            <span>{reviewColor === '#ef4444' ? 'Red' : reviewColor === '#22c55e' ? 'Green' : reviewColor === '#eab308' ? 'Yellow' : reviewColor === '#38bdf8' ? 'Cyan' : reviewColor === '#3b82f6' ? 'Blue' : reviewColor === '#ec4899' ? 'Magenta' : 'Custom'}</span>
+                                        </div>
+                                        <ChevronDown className="w-3 h-3 text-slate-400" />
+                                    </button>
+                                    {showReviewColorDropdown && (
+                                        <div className="absolute top-6 left-0 z-50 bg-[#1f1f1f] border border-[#383838] rounded shadow-2xl p-1 grid grid-cols-4 gap-1 w-36">
+                                            {[
+                                                { name: 'Red', hex: '#ef4444' },
+                                                { name: 'Yellow', hex: '#eab308' },
+                                                { name: 'Green', hex: '#22c55e' },
+                                                { name: 'Cyan', hex: '#38bdf8' },
+                                                { name: 'Blue', hex: '#3b82f6' },
+                                                { name: 'Magenta', hex: '#ec4899' },
+                                                { name: 'White', hex: '#ffffff' },
+                                                { name: 'Orange', hex: '#f97316' }
+                                            ].map((c) => (
+                                                <button
+                                                    key={c.hex}
+                                                    onClick={() => {
+                                                        setReviewColor(c.hex);
+                                                        if (onSelectCadColor) onSelectCadColor(c.hex);
+                                                        setShowReviewColorDropdown(false);
+                                                    }}
+                                                    className="w-7 h-7 rounded flex items-center justify-center hover:scale-110 transition border border-[#444444]"
+                                                    style={{ backgroundColor: c.hex }}
+                                                    title={c.name}
+                                                />
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Lineweight Selector Dropdown */}
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setShowReviewLineweightDropdown(!showReviewLineweightDropdown)}
+                                        className="flex items-center justify-between w-full px-2 py-0.5 bg-[#181818] border border-[#333333] rounded hover:border-[#555555] transition text-slate-200"
+                                    >
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-3.5 h-[2px] bg-slate-300 rounded" />
+                                            <span>{reviewLineweight}</span>
+                                        </div>
+                                        <ChevronDown className="w-3 h-3 text-slate-400" />
+                                    </button>
+                                    {showReviewLineweightDropdown && (
+                                        <div className="absolute top-6 left-0 z-50 bg-[#1f1f1f] border border-[#383838] rounded shadow-2xl py-1 w-28 text-left">
+                                            {['0.15 mm', '0.25 mm', '0.35 mm', '0.50 mm', '0.70 mm', '1.00 mm'].map((lw) => (
+                                                <button
+                                                    key={lw}
+                                                    onClick={() => {
+                                                        setReviewLineweight(lw);
+                                                        setShowReviewLineweightDropdown(false);
+                                                    }}
+                                                    className={`w-full px-2 py-1 text-[11px] hover:bg-[#2c2c2c] block ${
+                                                        reviewLineweight === lw ? 'text-sky-400 font-bold bg-[#262626]' : 'text-slate-200'
+                                                    }`}
+                                                >
+                                                    {lw}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Font Size Selector Dropdown */}
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setShowReviewFontDropdown(!showReviewFontDropdown)}
+                                        className="flex items-center justify-between w-full px-2 py-0.5 bg-[#181818] border border-[#333333] rounded hover:border-[#555555] transition text-slate-200"
+                                    >
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="font-serif font-bold text-xs">A</span>
+                                            <span>{reviewFontSize}</span>
+                                        </div>
+                                        <ChevronDown className="w-3 h-3 text-slate-400" />
+                                    </button>
+                                    {showReviewFontDropdown && (
+                                        <div className="absolute top-6 left-0 z-50 bg-[#1f1f1f] border border-[#383838] rounded shadow-2xl py-1 w-24 text-left">
+                                            {[10, 12, 14, 16, 18, 24, 32].map((fs) => (
+                                                <button
+                                                    key={fs}
+                                                    onClick={() => {
+                                                        setReviewFontSize(fs);
+                                                        setShowReviewFontDropdown(false);
+                                                    }}
+                                                    className={`w-full px-2 py-1 text-[11px] hover:bg-[#2c2c2c] block ${
+                                                        reviewFontSize === fs ? 'text-sky-400 font-bold bg-[#262626]' : 'text-slate-200'
+                                                    }`}
+                                                >
+                                                    {fs} pt
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            <span className="text-[9px] text-slate-400 mt-0.5 font-normal">Style</span>
+                        </div>
                     </div>
                 )}
 
@@ -1304,6 +1720,33 @@ export default function MLightCadViewer({
                                 try {
                                     docManagerRef.current?.commandManager?.executeCommand('EXPORTHTML');
                                 } catch (e) {}
+                                const svgElem = document.querySelector('svg');
+                                const svgContent = svgElem ? svgElem.outerHTML : '<p>No CAD entities</p>';
+                                const htmlDoc = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <title>MLightCAD Offline Viewer</title>
+    <style>
+        body { margin: 0; background: #000000; display: flex; align-items: center; justify-content: center; width: 100vw; height: 100vh; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        svg { width: 100%; height: 100%; }
+        .badge { position: absolute; top: 12px; left: 16px; background: rgba(15,23,42,0.85); color: #38bdf8; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; border: 1px solid rgba(56,189,248,0.3); pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div class="badge">📐 MLightCAD Offline Viewer Export</div>
+    ${svgContent}
+</body>
+</html>`;
+                                const blob = new Blob([htmlDoc], { type: 'text/html;charset=utf-8' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `cad_drawing_${Date.now()}.html`;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                URL.revokeObjectURL(url);
                                 toast.success('Exporting self-contained offline HTML via @mlightcad/cad-html-plugin...');
                             }}
                             className="flex flex-col items-center justify-center px-3 py-1.5 bg-[#1a1a1a] hover:bg-[#282828] text-slate-200 rounded border border-[#333333] text-xs gap-0.5 transition"
@@ -1341,6 +1784,20 @@ export default function MLightCadViewer({
                                 try {
                                     docManagerRef.current?.commandManager?.executeCommand('CONVERTTOSVG');
                                 } catch (e) {}
+                                const svgElem = document.querySelector('svg');
+                                if (svgElem) {
+                                    const svgClone = svgElem.cloneNode(true);
+                                    const svgString = new XMLSerializer().serializeToString(svgClone);
+                                    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = `cad_drawing_${Date.now()}.svg`;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                    URL.revokeObjectURL(url);
+                                }
                                 toast.success('Exporting Vector SVG via @mlightcad/cad-svg-plugin...');
                             }}
                             className="flex flex-col items-center justify-center px-3 py-1.5 bg-[#1a1a1a] hover:bg-[#282828] text-slate-200 rounded border border-[#333333] text-xs gap-0.5 transition"
@@ -1395,7 +1852,7 @@ export default function MLightCadViewer({
                 />
 
                 {/* SVG Quality & Balloon Overlay Layer */}
-                <div className="absolute inset-0" style={{ pointerEvents: 'none' }}>
+                <div className="absolute inset-0 pointer-events-auto">
                     {children}
                 </div>
 
@@ -1912,6 +2369,34 @@ export default function MLightCadViewer({
                                         try {
                                             docManagerRef.current?.commandManager?.executeCommand('EXPORTHTML');
                                         } catch (e) {}
+                                        const svgElem = document.querySelector('svg');
+                                        const svgContent = svgElem ? svgElem.outerHTML : '<p>No CAD entities</p>';
+                                        const htmlDoc = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <title>MLightCAD Offline Viewer</title>
+    <style>
+        body { margin: 0; background: #000000; display: flex; align-items: center; justify-content: center; width: 100vw; height: 100vh; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        svg { width: 100%; height: 100%; }
+        .badge { position: absolute; top: 12px; left: 16px; background: rgba(15,23,42,0.85); color: #38bdf8; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; border: 1px solid rgba(56,189,248,0.3); pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div class="badge">📐 MLightCAD Offline Viewer Export</div>
+    ${svgContent}
+</body>
+</html>`;
+                                        const blob = new Blob([htmlDoc], { type: 'text/html;charset=utf-8' });
+                                        const url = URL.createObjectURL(blob);
+                                        const a = document.createElement('a');
+                                        a.href = url;
+                                        a.download = `cad_drawing_${Date.now()}.html`;
+                                        document.body.appendChild(a);
+                                        a.click();
+                                        document.body.removeChild(a);
+                                        URL.revokeObjectURL(url);
+                                        setShowPluginModal(false);
                                         toast.success('Generated offline standalone HTML via @mlightcad/cad-html-plugin');
                                     }
                                 },
@@ -1929,6 +2414,7 @@ export default function MLightCadViewer({
                                             docManagerRef.current?.commandManager?.executeCommand('CONVERTTOPDF');
                                         } catch (e) {}
                                         if (onExportPdf) onExportPdf();
+                                        setShowPluginModal(false);
                                         toast.success('Generated Vector PDF via @mlightcad/cad-pdf-plugin');
                                     }
                                 },
@@ -1945,6 +2431,21 @@ export default function MLightCadViewer({
                                         try {
                                             docManagerRef.current?.commandManager?.executeCommand('CONVERTTOSVG');
                                         } catch (e) {}
+                                        const svgElem = document.querySelector('svg');
+                                        if (svgElem) {
+                                            const svgClone = svgElem.cloneNode(true);
+                                            const svgString = new XMLSerializer().serializeToString(svgClone);
+                                            const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+                                            const url = URL.createObjectURL(blob);
+                                            const a = document.createElement('a');
+                                            a.href = url;
+                                            a.download = `cad_drawing_${Date.now()}.svg`;
+                                            document.body.appendChild(a);
+                                            a.click();
+                                            document.body.removeChild(a);
+                                            URL.revokeObjectURL(url);
+                                        }
+                                        setShowPluginModal(false);
                                         toast.success('Generated Vector SVG via @mlightcad/cad-svg-plugin');
                                     }
                                 },

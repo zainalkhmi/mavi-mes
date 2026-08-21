@@ -692,6 +692,8 @@ export default function DrawingManager() {
 
     // Viewport Panning & Quantity Takeoff States
     const svgRef = useRef(null);
+    const canvasGroupRef = useRef(null);
+    const [isMouseOverCanvas, setIsMouseOverCanvas] = useState(false);
     const [canvasSize, setCanvasSize] = useState({ width: 500, height: 360 });
     const [zoom, setZoom] = useState(1.0);
     const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -906,15 +908,88 @@ export default function DrawingManager() {
     const [showOsnapModal, setShowOsnapModal] = useState(false);
     const [dragImageShape, setDragImageShape] = useState(null); // image being dragged/resized on canvas
     const [selectedShapeId, setSelectedShapeId] = useState(null); // currently selected shape ID (e.g. image)
+    const [selectedShapeIds, setSelectedShapeIds] = useState([]); // multiple selected shape IDs (Select All / Marquee selection)
+    const [selectionBox, setSelectionBox] = useState(null); // Marquee box: { startX, startY, currentX, currentY }
+
+    const getEntityBounds = (shape) => {
+        if (!shape) return null;
+        if (shape.type === 'line' || shape.type === 'arrow') {
+            const x1 = shape.x1 ?? 0;
+            const y1 = shape.y1 ?? 0;
+            const x2 = shape.x2 ?? 0;
+            const y2 = shape.y2 ?? 0;
+            return { minX: Math.min(x1, x2), minY: Math.min(y1, y2), maxX: Math.max(x1, x2), maxY: Math.max(y1, y2) };
+        }
+        if (shape.type === 'circle') {
+            const cx = shape.cx ?? 0;
+            const cy = shape.cy ?? 0;
+            const r = shape.r ?? 0;
+            return { minX: cx - r, minY: cy - r, maxX: cx + r, maxY: cy + r };
+        }
+        if (shape.type === 'rect' || shape.type === 'revcloud' || shape.type === 'image') {
+            const x = shape.x ?? 0;
+            const y = shape.y ?? 0;
+            const w = shape.w ?? 0;
+            const h = shape.h ?? 0;
+            return { minX: x, minY: y, maxX: x + w, maxY: y + h };
+        }
+        if (shape.type === 'ellipse') {
+            const cx = shape.cx ?? 0;
+            const cy = shape.cy ?? 0;
+            const rx = shape.rx ?? 0;
+            const ry = shape.ry ?? 0;
+            return { minX: cx - rx, minY: cy - ry, maxX: cx + rx, maxY: cy + ry };
+        }
+        if (shape.type === 'triangle') {
+            const x = shape.x ?? 0;
+            const y = shape.y ?? 0;
+            const w = shape.w ?? 0;
+            const h = shape.h ?? 0;
+            return { minX: x, minY: y, maxX: x + w, maxY: y + h };
+        }
+        if (shape.type === 'hexagon') {
+            const cx = shape.cx ?? 0;
+            const cy = shape.cy ?? 0;
+            const r = shape.r ?? 0;
+            return { minX: cx - r, minY: cy - r, maxX: cx + r, maxY: cy + r };
+        }
+        if (shape.type === 'polyline' && Array.isArray(shape.points) && shape.points.length > 0) {
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            shape.points.forEach(p => {
+                if (p.x < minX) minX = p.x;
+                if (p.x > maxX) maxX = p.x;
+                if (p.y < minY) minY = p.y;
+                if (p.y > maxY) maxY = p.y;
+            });
+            return { minX, minY, maxX, maxY };
+        }
+        if (shape.type === 'callout') {
+            const tX = shape.targetX ?? 0;
+            const tY = shape.targetY ?? 0;
+            const bX = shape.boxX ?? 0;
+            const bY = shape.boxY ?? 0;
+            return { minX: Math.min(tX, bX - 35), minY: Math.min(tY, bY - 15), maxX: Math.max(tX, bX + 35), maxY: Math.max(tY, bY + 15) };
+        }
+        if (shape.type === 'text' || shape.type === 'stamp') {
+            const x = shape.x ?? 0;
+            const y = shape.y ?? 0;
+            return { minX: x - 40, minY: y - 20, maxX: x + 40, maxY: y + 20 };
+        }
+        return null;
+    };
 
     // Clear selection on tool or drawing change
     useEffect(() => {
         setSelectedShapeId(null);
+        setSelectedShapeIds([]);
+        setSelectionBox(null);
         setHoveredShapeId(null);
     }, [cadTool]);
 
     useEffect(() => {
         setSelectedShapeId(null);
+        setSelectedShapeIds([]);
+        setSelectionBox(null);
         setHoveredShapeId(null);
         setPanOffset({ x: 0, y: 0 });
         setZoom(1.0);
@@ -2138,9 +2213,37 @@ export default function DrawingManager() {
                 }
             }
 
-            // 3. Escape -> Clear active selection / cancel polyline draft / close menus
+            // Ctrl + A -> Select All CAD Entities
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
+                e.preventDefault();
+                const allShapes = selectedDwg?.shapes || [];
+                const allIds = allShapes.map(s => s.id);
+                setSelectedShapeIds(allIds);
+                setSelectedShapeId(null);
+                if (allIds.length > 0) {
+                    toast.success(`${allIds.length} seluruh entitas CAD dipilih (Select All).`);
+                }
+            }
+
+            // Delete / Backspace -> Delete Selected CAD Entities
+            if ((e.key === 'Delete' || e.key === 'Backspace') && (selectedShapeIds.length > 0 || selectedShapeId)) {
+                e.preventDefault();
+                const toDeleteIds = selectedShapeId ? [...new Set([...selectedShapeIds, selectedShapeId])] : selectedShapeIds;
+                const currentShapes = selectedDwg?.shapes || [];
+                const remaining = currentShapes.filter(s => !toDeleteIds.includes(s.id));
+                updateShapes(remaining);
+                toast.success(`${toDeleteIds.length} entitas CAD dihapus.`);
+                setSelectedShapeIds([]);
+                setSelectedShapeId(null);
+            }
+
+            // 3. Escape -> Clear active selection / cancel polyline draft / cancel shape draft / close menus
             if (e.key === 'Escape') {
                 e.preventDefault();
+                if (drawingShape) {
+                    setDrawingShape(null);
+                    toast.info('Pembuatan objek dibatalkan.');
+                }
                 if (cadTool === 'polyline' && polylineDraftPoints.length > 0) {
                     setPolylineDraftPoints([]);
                     toast.info('Pembuatan polyline dibatalkan.');
@@ -2150,6 +2253,8 @@ export default function DrawingManager() {
                 setDimDrawState('idle');
                 setDimDraftCoords(null);
                 setSelectedShapeId(null);
+                setSelectedShapeIds([]);
+                setSelectionBox(null);
             }
 
             // 4. F3 -> Toggle OSNAP Mode
@@ -2551,19 +2656,64 @@ export default function DrawingManager() {
 
     const getCanvasCoords = (e) => {
         if (!svgRef.current) return { x: 0, y: 0 };
-        const rect = svgRef.current.getBoundingClientRect();
 
-        // Scale click position from screen pixels to SVG viewBox coordinates
-        const scaleX = canvasSize.width / rect.width;
-        const scaleY = canvasSize.height / rect.height;
-        const clickX = (e.clientX - rect.left) * scaleX;
-        const clickY = (e.clientY - rect.top) * scaleY;
+        let x = 0;
+        let y = 0;
+        let ctmCalculated = false;
 
-        const cx = canvasSize.width / 2;
-        const cy = canvasSize.height / 2;
+        // Use the native SVG CTM inverse to achieve exact mathematical precision
+        // regardless of screen resolution, container aspect-ratio, SVG letterboxing, pan, and zoom.
+        if (canvasGroupRef.current && canvasGroupRef.current.getScreenCTM) {
+            try {
+                const ctm = canvasGroupRef.current.getScreenCTM();
+                if (ctm) {
+                    const pt = svgRef.current.createSVGPoint();
+                    pt.x = e.clientX;
+                    pt.y = e.clientY;
+                    const transformed = pt.matrixTransform(ctm.inverse());
+                    x = transformed.x;
+                    y = transformed.y;
+                    ctmCalculated = true;
+                }
+            } catch (err) {
+                // Fallback below
+            }
+        }
 
-        let x = cx + (clickX - cx - panOffset.x) / zoom;
-        let y = cy + (clickY - cy - panOffset.y) / zoom;
+        if (!ctmCalculated) {
+            if (svgRef.current.getScreenCTM) {
+                try {
+                    const ctm = svgRef.current.getScreenCTM();
+                    if (ctm) {
+                        const pt = svgRef.current.createSVGPoint();
+                        pt.x = e.clientX;
+                        pt.y = e.clientY;
+                        const svgP = pt.matrixTransform(ctm.inverse());
+                        const cx = canvasSize.width / 2;
+                        const cy = canvasSize.height / 2;
+                        x = cx + (svgP.x - cx - panOffset.x) / zoom;
+                        y = cy + (svgP.y - cy - panOffset.y) / zoom;
+                        ctmCalculated = true;
+                    }
+                } catch (err) {
+                    // Fallback below
+                }
+            }
+        }
+
+        if (!ctmCalculated) {
+            const rect = svgRef.current.getBoundingClientRect();
+            const scaleX = canvasSize.width / rect.width;
+            const scaleY = canvasSize.height / rect.height;
+            const clickX = (e.clientX - rect.left) * scaleX;
+            const clickY = (e.clientY - rect.top) * scaleY;
+
+            const cx = canvasSize.width / 2;
+            const cy = canvasSize.height / 2;
+
+            x = cx + (clickX - cx - panOffset.x) / zoom;
+            y = cy + (clickY - cy - panOffset.y) / zoom;
+        }
 
         // Perform OSNAP check first
         const snapRes = getSnappedCoords(x, y);
@@ -2578,12 +2728,9 @@ export default function DrawingManager() {
             x = Math.round(x / 10) * 10;
             y = Math.round(y / 10) * 10;
         } else {
-            x = Math.round(x);
-            y = Math.round(y);
+            x = Math.round(x * 10) / 10;
+            y = Math.round(y * 10) / 10;
         }
-
-        x = Math.max(0, Math.min(canvasSize.width, x));
-        y = Math.max(0, Math.min(canvasSize.height, y));
 
         return { x, y };
     };
@@ -2890,7 +3037,20 @@ export default function DrawingManager() {
             return;
         }
 
-        if (cadTool === 'select' || cadTool === 'move' || cadTool === 'rotate' || cadTool === 'mirror' || cadTool === 'trim' || cadTool === 'erase') return;
+        if (cadTool === 'select') {
+            const coords = getCanvasCoords(e);
+            setSelectionBox({
+                startX: coords.x,
+                startY: coords.y,
+                currentX: coords.x,
+                currentY: coords.y
+            });
+            setSelectedShapeId(null);
+            setSelectedShapeIds([]);
+            return;
+        }
+
+        if (cadTool === 'move' || cadTool === 'rotate' || cadTool === 'mirror' || cadTool === 'trim' || cadTool === 'erase' || cadTool === 'copy' || cadTool === 'offset') return;
 
         if (!selectedDwg) {
             toast.error("Silakan pilih atau unggah blueprint terlebih dahulu.");
@@ -2921,68 +3081,168 @@ export default function DrawingManager() {
 
         if (e.button !== 0) return; // left click only
 
-        if (cadTool === 'line') {
-            setDrawingShape({
-                type: 'line',
-                x1: coords.x,
-                y1: coords.y,
-                x2: coords.x,
-                y2: coords.y,
-                color: cadColor,
-                strokeWidth: cadWidth
-            });
-        } else if (cadTool === 'circle') {
-            setDrawingShape({
-                type: 'circle',
-                cx: coords.x,
-                cy: coords.y,
-                r: 0,
-                color: cadColor,
-                strokeWidth: cadWidth
-            });
-        } else if (cadTool === 'rect') {
-            setDrawingShape({
-                type: 'rect',
-                x: coords.x,
-                y: coords.y,
-                x1: coords.x,
-                y1: coords.y,
-                w: 0,
-                h: 0,
-                color: cadColor,
-                strokeWidth: cadWidth
-            });
-        } else if (cadTool === 'ellipse') {
-            setDrawingShape({
-                type: 'ellipse',
-                cx: coords.x,
-                cy: coords.y,
-                rx: 0,
-                ry: 0,
-                color: cadColor,
-                strokeWidth: cadWidth
-            });
-        } else if (cadTool === 'triangle') {
-            setDrawingShape({
-                type: 'triangle',
-                x: coords.x,
-                y: coords.y,
-                x1: coords.x,
-                y1: coords.y,
-                w: 0,
-                h: 0,
-                color: cadColor,
-                strokeWidth: cadWidth
-            });
-        } else if (cadTool === 'hexagon') {
-            setDrawingShape({
-                type: 'hexagon',
-                cx: coords.x,
-                cy: coords.y,
-                r: 0,
-                color: cadColor,
-                strokeWidth: cadWidth
-            });
+        const isCadShapeTool = ['line', 'circle', 'circle_diameter', 'circle_2p', 'circle_3p', 'circle_ttr', 'circle_ttt', 'rect', 'rectangle', 'ellipse', 'triangle', 'hexagon', 'polygon', 'callout', 'revcloud', 'arrow', 'stamp'].includes(cadTool);
+
+        if (isCadShapeTool) {
+            if (drawingShape) {
+                // Second Click: Commit/place the shape onto canvas!
+                const currentShapes = selectedDwg.shapes || [];
+                const newShape = {
+                    ...drawingShape,
+                    id: `shape_${Date.now()}_${Math.floor(Math.random() * 1000)}`
+                };
+
+                // Tag takeoff if active
+                if (activeTakeoffCategory) {
+                    const takeoffShapesList = currentShapes.filter(s => s.takeoffType);
+                    if (activeTakeoffCategory === 'length_cable') {
+                        newShape.takeoffType = 'length';
+                        newShape.takeoffSubtype = 'cable_length';
+                        newShape.takeoffName = `Pipa #${takeoffShapesList.filter(s => s.takeoffSubtype === 'cable_length').length + 1}`;
+                        newShape.color = '#10b981';
+                    } else if (activeTakeoffCategory === 'area_paint') {
+                        newShape.takeoffType = 'area';
+                        newShape.takeoffSubtype = 'paint_area';
+                        newShape.takeoffName = `Luas Ducting #${takeoffShapesList.filter(s => s.takeoffSubtype === 'paint_area').length + 1}`;
+                        newShape.color = '#3b82f6';
+                    } else if (activeTakeoffCategory === 'area_floor') {
+                        newShape.takeoffType = 'area';
+                        newShape.takeoffSubtype = 'floor_area';
+                        newShape.takeoffName = `Luas Isolasi #${takeoffShapesList.filter(s => s.takeoffSubtype === 'floor_area').length + 1}`;
+                        newShape.color = '#f59e0b';
+                    } else if (activeTakeoffCategory === 'count_bolt') {
+                        newShape.takeoffType = 'count';
+                        newShape.takeoffSubtype = 'bolt_count';
+                        newShape.takeoffName = `Valve #${takeoffShapesList.filter(s => s.takeoffSubtype === 'bolt_count').length + 1}`;
+                        newShape.color = '#ef4444';
+                    }
+                }
+
+                updateShapes([...currentShapes, newShape]);
+                toast.success(`${(drawingShape.type || 'Objek').toUpperCase()} berhasil ditempatkan.`);
+                setDrawingShape(null);
+                return;
+            } else {
+                // First Click: Set starting point!
+                if (cadTool === 'line') {
+                    setDrawingShape({
+                        type: 'line',
+                        x1: coords.x,
+                        y1: coords.y,
+                        x2: coords.x,
+                        y2: coords.y,
+                        color: cadColor,
+                        strokeWidth: cadWidth
+                    });
+                } else if (['circle', 'circle_diameter', 'circle_2p', 'circle_3p', 'circle_ttr', 'circle_ttt'].includes(cadTool)) {
+                    setDrawingShape({
+                        type: 'circle',
+                        mode: cadTool,
+                        startX: coords.x,
+                        startY: coords.y,
+                        cx: coords.x,
+                        cy: coords.y,
+                        r: 0,
+                        color: cadColor,
+                        strokeWidth: cadWidth
+                    });
+                } else if (cadTool === 'rect' || cadTool === 'rectangle') {
+                    setDrawingShape({
+                        type: 'rect',
+                        x: coords.x,
+                        y: coords.y,
+                        x1: coords.x,
+                        y1: coords.y,
+                        w: 0,
+                        h: 0,
+                        color: cadColor,
+                        strokeWidth: cadWidth
+                    });
+                } else if (cadTool === 'ellipse') {
+                    setDrawingShape({
+                        type: 'ellipse',
+                        cx: coords.x,
+                        cy: coords.y,
+                        startX: coords.x,
+                        startY: coords.y,
+                        rx: 0,
+                        ry: 0,
+                        color: cadColor,
+                        strokeWidth: cadWidth
+                    });
+                } else if (cadTool === 'triangle') {
+                    setDrawingShape({
+                        type: 'triangle',
+                        x: coords.x,
+                        y: coords.y,
+                        x1: coords.x,
+                        y1: coords.y,
+                        w: 0,
+                        h: 0,
+                        color: cadColor,
+                        strokeWidth: cadWidth
+                    });
+                } else if (cadTool === 'hexagon' || cadTool === 'polygon') {
+                    setDrawingShape({
+                        type: 'hexagon',
+                        cx: coords.x,
+                        cy: coords.y,
+                        startX: coords.x,
+                        startY: coords.y,
+                        r: 0,
+                        color: cadColor,
+                        strokeWidth: cadWidth
+                    });
+                } else if (cadTool === 'callout') {
+                    setDrawingShape({
+                        type: 'callout',
+                        targetX: coords.x,
+                        targetY: coords.y,
+                        boxX: coords.x + 40,
+                        boxY: coords.y - 30,
+                        text: 'Callout',
+                        color: cadColor || '#ef4444',
+                        strokeWidth: cadWidth || 2
+                    });
+                } else if (cadTool === 'arrow') {
+                    setDrawingShape({
+                        type: 'arrow',
+                        x1: coords.x,
+                        y1: coords.y,
+                        x2: coords.x,
+                        y2: coords.y,
+                        color: cadColor || '#ef4444',
+                        strokeWidth: cadWidth || 2
+                    });
+                } else if (cadTool === 'revcloud') {
+                    setDrawingShape({
+                        type: 'revcloud',
+                        x: coords.x,
+                        y: coords.y,
+                        x1: coords.x,
+                        y1: coords.y,
+                        w: 0,
+                        h: 0,
+                        color: cadColor || '#ef4444',
+                        strokeWidth: cadWidth || 2
+                    });
+                } else if (cadTool === 'stamp') {
+                    const currentShapes = selectedDwg.shapes || [];
+                    const newShape = {
+                        id: `shape_stamp_${Date.now()}`,
+                        type: 'stamp',
+                        x: coords.x,
+                        y: coords.y,
+                        text: 'APPROVED',
+                        color: '#22c55e',
+                        strokeWidth: 2
+                    };
+                    updateShapes([...currentShapes, newShape]);
+                    toast.success('Stempel APPROVED ditempatkan.');
+                    return;
+                }
+                return;
+            }
         } else if (cadTool === 'balloon') {
             const nextBalloonNum = (selectedDwg?.dimensions?.length || 0) + 1;
             const catDef = getCategoryDef(drawingCategory || 'dimension');
@@ -3528,6 +3788,15 @@ export default function DrawingManager() {
 
         setMousePos(coords);
 
+        if (selectionBox) {
+            setSelectionBox(prev => ({
+                ...prev,
+                currentX: coords.x,
+                currentY: coords.y
+            }));
+            return;
+        }
+
         if (cadTool === 'dimension' && dimDraftCoords) {
             if (dimDrawState === 'waiting_end') {
                 setDimDraftCoords(prev => ({ ...prev, x2: coords.x, y2: coords.y }));
@@ -3598,13 +3867,37 @@ export default function DrawingManager() {
                 y2: targetY
             }));
         } else if (drawingShape.type === 'circle') {
-            const dx = coords.x - drawingShape.cx;
-            const dy = coords.y - drawingShape.cy;
-            const r = Math.round(Math.sqrt(dx * dx + dy * dy));
-            setDrawingShape(prev => ({
-                ...prev,
-                r
-            }));
+            const startX = drawingShape.startX ?? drawingShape.cx;
+            const startY = drawingShape.startY ?? drawingShape.cy;
+            const dx = coords.x - startX;
+            const dy = coords.y - startY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (drawingShape.mode === 'circle_diameter') {
+                setDrawingShape(prev => ({
+                    ...prev,
+                    cx: startX,
+                    cy: startY,
+                    r: Math.round(dist / 2),
+                    diameter: Math.round(dist)
+                }));
+            } else if (drawingShape.mode === 'circle_2p') {
+                const midX = (startX + coords.x) / 2;
+                const midY = (startY + coords.y) / 2;
+                setDrawingShape(prev => ({
+                    ...prev,
+                    cx: Math.round(midX),
+                    cy: Math.round(midY),
+                    r: Math.round(dist / 2)
+                }));
+            } else {
+                setDrawingShape(prev => ({
+                    ...prev,
+                    cx: startX,
+                    cy: startY,
+                    r: Math.round(dist)
+                }));
+            }
         } else if (drawingShape.type === 'rect') {
             const x = Math.min(drawingShape.x1, coords.x);
             const y = Math.min(drawingShape.y1, coords.y);
@@ -3645,6 +3938,30 @@ export default function DrawingManager() {
                 ...prev,
                 r
             }));
+        } else if (drawingShape.type === 'callout') {
+            setDrawingShape(prev => ({
+                ...prev,
+                boxX: coords.x,
+                boxY: coords.y
+            }));
+        } else if (drawingShape.type === 'arrow') {
+            setDrawingShape(prev => ({
+                ...prev,
+                x2: coords.x,
+                y2: coords.y
+            }));
+        } else if (drawingShape.type === 'revcloud') {
+            const x = Math.min(drawingShape.x1, coords.x);
+            const y = Math.min(drawingShape.y1, coords.y);
+            const w = Math.abs(coords.x - drawingShape.x1);
+            const h = Math.abs(coords.y - drawingShape.y1);
+            setDrawingShape(prev => ({
+                ...prev,
+                x,
+                y,
+                w,
+                h
+            }));
         } else if (drawingShape.type === 'roi') {
             const x = Math.min(drawingShape.x1, coords.x);
             const y = Math.min(drawingShape.y1, coords.y);
@@ -3661,6 +3978,45 @@ export default function DrawingManager() {
     };
 
     const handleSvgMouseUp = () => {
+        if (selectionBox) {
+            const minX = Math.min(selectionBox.startX, selectionBox.currentX);
+            const maxX = Math.max(selectionBox.startX, selectionBox.currentX);
+            const minY = Math.min(selectionBox.startY, selectionBox.currentY);
+            const maxY = Math.max(selectionBox.startY, selectionBox.currentY);
+            const width = maxX - minX;
+            const height = maxY - minY;
+
+            if (width > 4 || height > 4) {
+                const isCrossing = selectionBox.currentX < selectionBox.startX; // Right-to-Left = Crossing (Green), Left-to-Right = Window (Blue)
+                const shapes = selectedDwg?.shapes || [];
+                const matchedIds = [];
+
+                shapes.forEach(shape => {
+                    const bounds = getEntityBounds(shape);
+                    if (!bounds) return;
+
+                    if (isCrossing) {
+                        // Crossing: intersects or touches selection box
+                        const intersects = !(bounds.maxX < minX || bounds.minX > maxX || bounds.maxY < minY || bounds.minY > maxY);
+                        if (intersects) matchedIds.push(shape.id);
+                    } else {
+                        // Window: completely enclosed inside selection box
+                        const inside = bounds.minX >= minX && bounds.maxX <= maxX && bounds.minY >= minY && bounds.maxY <= maxY;
+                        if (inside) matchedIds.push(shape.id);
+                    }
+                });
+
+                setSelectedShapeIds(matchedIds);
+                if (matchedIds.length > 0) {
+                    toast.success(`${matchedIds.length} entitas CAD dipilih (${isCrossing ? 'Crossing' : 'Window'} Selection).`);
+                } else {
+                    setSelectedShapeId(null);
+                }
+            }
+            setSelectionBox(null);
+            return;
+        }
+
         if (dragRegionState) {
             setDragRegionState(null);
             if (selectedDwg) {
@@ -3726,45 +4082,8 @@ export default function DrawingManager() {
             return;
         }
 
-        if (!drawingShape) return;
-        if (!selectedDwg) {
-            setDrawingShape(null);
-            return;
-        }
-        const currentShapes = selectedDwg.shapes || [];
-        const newShape = {
-            ...drawingShape,
-            id: `shape_${Date.now()}_${Math.floor(Math.random() * 1000)}`
-        };
-
-        // If in Takeoff active mode, automatically tag new shape
-        if (activeTakeoffCategory) {
-            const takeoffShapesList = currentShapes.filter(s => s.takeoffType);
-            if (activeTakeoffCategory === 'length_cable') {
-                newShape.takeoffType = 'length';
-                newShape.takeoffSubtype = 'cable_length';
-                newShape.takeoffName = `Pipa #${takeoffShapesList.filter(s => s.takeoffSubtype === 'cable_length').length + 1}`;
-                newShape.color = '#10b981';
-            } else if (activeTakeoffCategory === 'area_paint') {
-                newShape.takeoffType = 'area';
-                newShape.takeoffSubtype = 'paint_area';
-                newShape.takeoffName = `Luas Ducting #${takeoffShapesList.filter(s => s.takeoffSubtype === 'paint_area').length + 1}`;
-                newShape.color = '#3b82f6';
-            } else if (activeTakeoffCategory === 'area_floor') {
-                newShape.takeoffType = 'area';
-                newShape.takeoffSubtype = 'floor_area';
-                newShape.takeoffName = `Luas Isolasi #${takeoffShapesList.filter(s => s.takeoffSubtype === 'floor_area').length + 1}`;
-                newShape.color = '#f59e0b';
-            } else if (activeTakeoffCategory === 'count_bolt') {
-                newShape.takeoffType = 'count';
-                newShape.takeoffSubtype = 'bolt_count';
-                newShape.takeoffName = `Valve #${takeoffShapesList.filter(s => s.takeoffSubtype === 'bolt_count').length + 1}`;
-                newShape.color = '#ef4444';
-            }
-        }
-
-        updateShapes([...currentShapes, newShape]);
-        setDrawingShape(null);
+        // Do not auto-commit drawingShape on mouseUp to enable standard AutoCAD Click-Move-Click drafting
+        // Shape is committed on the 2nd Left Click in handleSvgMouseDown
     };
 
     const handleCanvasClick = (e) => {
@@ -5850,35 +6169,149 @@ export default function DrawingManager() {
                 };
 
                 if (drawingShape.type === 'line') {
+                    const p1 = { x: drawingShape.x1, y: drawingShape.y1 };
+                    const p2 = { x: drawingShape.x2, y: drawingShape.y2 };
+                    const dx = p2.x - p1.x;
+                    const dy = p2.y - p1.y;
+                    const distPx = Math.sqrt(dx * dx + dy * dy);
+                    const scaleFactor = selectedDwg?.scaleFactor || 1.0;
+                    const lengthVal = selectedDwg?.scaleFactor ? distPx * scaleFactor : distPx;
+                    const lengthDisplay = lengthVal.toFixed(3);
+                    const angleRad = Math.atan2(dy, dx);
+                    const angleDeg = Math.round(Math.abs(angleRad * 180 / Math.PI)) % 180;
+                    const baselineLen = Math.max(60, distPx * 0.85);
+                    const arcR = Math.min(55, Math.max(25, distPx * 0.35));
+                    const arcStartX = p1.x + arcR;
+                    const arcStartY = p1.y;
+                    const arcEndX = p1.x + arcR * Math.cos(angleRad);
+                    const arcEndY = p1.y + arcR * Math.sin(angleRad);
+                    const largeArc = Math.abs(angleRad) > Math.PI ? 1 : 0;
+                    const sweep = angleRad >= 0 ? 1 : 0;
+                    const midAngle = angleRad / 2;
+                    const angleTextX = p1.x + (arcR + 15) * Math.cos(midAngle);
+                    const angleTextY = p1.y + (arcR + 15) * Math.sin(midAngle);
+                    const midSegmentX = (p1.x + p2.x) / 2;
+                    const midSegmentY = (p1.y + p2.y) / 2;
+                    const perpX = -Math.sin(angleRad) * 14;
+                    const perpY = Math.cos(angleRad) * 14;
+
                     return (
                         <g style={{ pointerEvents: 'none' }}>
+                            {/* Active rubber-band line */}
                             <line
                                 {...tempProps}
-                                x1={drawingShape.x1}
-                                y1={drawingShape.y1}
-                                x2={drawingShape.x2}
-                                y2={drawingShape.y2}
+                                stroke="#ffffff"
+                                strokeWidth={1.5}
+                                x1={p1.x}
+                                y1={p1.y}
+                                x2={p2.x}
+                                y2={p2.y}
                             />
-                            <circle cx={drawingShape.x1} cy={drawingShape.y1} r="5" fill="#10b981" />
-                            <circle cx={drawingShape.x2} cy={drawingShape.y2} r="5" fill="#3b82f6" />
-                            <g transform={`translate(${drawingShape.x1}, ${drawingShape.y1 - 14})`}>
-                                <rect x="-35" y="-8" width="70" height="16" rx="3" fill="#0f172a" stroke="#10b981" strokeWidth="1" />
-                                <text x="0" y="3" fill="#10b981" fontSize="8" fontWeight="bold" textAnchor="middle">📍 START</text>
-                            </g>
-                            <g transform={`translate(${drawingShape.x2}, ${drawingShape.y2 + 14})`}>
-                                <rect x="-30" y="-8" width="60" height="16" rx="3" fill="#0f172a" stroke="#3b82f6" strokeWidth="1" />
-                                <text x="0" y="3" fill="#3b82f6" fontSize="8" fontWeight="bold" textAnchor="middle">🏁 END</text>
-                            </g>
+                            {distPx > 4 && (
+                                <>
+                                    {/* Green Horizontal Baseline */}
+                                    <line x1={p1.x} y1={p1.y} x2={p1.x + baselineLen} y2={p1.y} stroke="#22c55e" strokeWidth={1} />
+                                    {/* Green Polar Tracking Ray */}
+                                    <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#22c55e" strokeWidth={1} strokeDasharray="3,3" />
+                                    {/* Green Polar Angular Arc */}
+                                    {angleDeg > 1 && (
+                                        <>
+                                            <path
+                                                d={`M ${arcStartX} ${arcStartY} A ${arcR} ${arcR} 0 ${largeArc} ${sweep} ${arcEndX} ${arcEndY}`}
+                                                fill="none"
+                                                stroke="#22c55e"
+                                                strokeWidth={1}
+                                                strokeDasharray="3,3"
+                                            />
+                                            <text
+                                                x={angleTextX}
+                                                y={angleTextY}
+                                                fill="#22c55e"
+                                                fontSize="11"
+                                                fontFamily="monospace"
+                                                fontWeight="bold"
+                                                textAnchor="middle"
+                                                dominantBaseline="middle"
+                                            >
+                                                {angleDeg}°
+                                            </text>
+                                        </>
+                                    )}
+                                    {/* Green length dimension label along segment */}
+                                    <text
+                                        x={midSegmentX + perpX}
+                                        y={midSegmentY + perpY}
+                                        fill="#22c55e"
+                                        fontSize="11"
+                                        fontFamily="monospace"
+                                        fontWeight="bold"
+                                        textAnchor="middle"
+                                        dominantBaseline="middle"
+                                    >
+                                        {lengthDisplay}
+                                    </text>
+                                    {/* Floating AutoCAD Dynamic Input HUD */}
+                                    <g transform={`translate(${p2.x + 12}, ${p2.y - 12})`}>
+                                        <rect x="0" y="0" width="225" height="26" rx="4" fill="rgba(45, 45, 45, 0.95)" stroke="rgba(95, 95, 95, 0.85)" strokeWidth="1" />
+                                        <text x="8" y="17" fill="#ffffff" fontSize="11" fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">
+                                            Specify next point or
+                                        </text>
+                                        <rect x="115" y="4" width="52" height="18" rx="2" fill="#1677ff" stroke="#ffffff" strokeWidth="1.5" />
+                                        <text x="141" y="17" fill="#ffffff" fontSize="10.5" fontFamily="monospace" fontWeight="bold" textAnchor="middle">
+                                            {lengthDisplay}
+                                        </text>
+                                        <rect x="171" y="4" width="48" height="18" rx="2" fill="rgba(65, 65, 65, 0.95)" stroke="rgba(115, 115, 115, 0.6)" strokeWidth="1" />
+                                        <text x="195" y="17" fill="#ffffff" fontSize="10.5" fontFamily="monospace" textAnchor="middle">
+                                            {p2.y.toFixed(3)}
+                                        </text>
+                                    </g>
+                                </>
+                            )}
                         </g>
                     );
                 } else if (drawingShape.type === 'circle') {
+                    const isDiameter = drawingShape.mode === 'circle_diameter';
+                    const is2P = drawingShape.mode === 'circle_2p';
+                    const scaleFactor = selectedDwg?.scaleFactor || 1.0;
+                    const rDisplay = selectedDwg?.scaleFactor ? (drawingShape.r * scaleFactor).toFixed(2) : `${drawingShape.r} px`;
+                    const dDisplay = selectedDwg?.scaleFactor ? ((drawingShape.diameter || drawingShape.r * 2) * scaleFactor).toFixed(2) : `${(drawingShape.diameter || drawingShape.r * 2)} px`;
+
                     return (
-                        <circle
-                            {...tempProps}
-                            cx={drawingShape.cx}
-                            cy={drawingShape.cy}
-                            r={drawingShape.r}
-                        />
+                        <g style={{ pointerEvents: 'none' }}>
+                            <circle
+                                {...tempProps}
+                                cx={drawingShape.cx}
+                                cy={drawingShape.cy}
+                                r={drawingShape.r}
+                            />
+                            {drawingShape.r > 3 && (
+                                <>
+                                    {/* Center point marker */}
+                                    <circle cx={drawingShape.cx} cy={drawingShape.cy} r="3" fill="#38bdf8" />
+                                    {/* Radius / Diameter reference line */}
+                                    <line
+                                        x1={drawingShape.cx}
+                                        y1={drawingShape.cy}
+                                        x2={drawingShape.cx + drawingShape.r}
+                                        y2={drawingShape.cy}
+                                        stroke="#22c55e"
+                                        strokeWidth="1"
+                                        strokeDasharray="3,3"
+                                    />
+                                    {/* Floating Circle Dynamic Input HUD */}
+                                    <g transform={`translate(${drawingShape.cx + drawingShape.r + 10}, ${drawingShape.cy - 12})`}>
+                                        <rect x="0" y="0" width="210" height="26" rx="4" fill="rgba(45, 45, 45, 0.95)" stroke="rgba(95, 95, 95, 0.85)" strokeWidth="1" />
+                                        <text x="8" y="17" fill="#ffffff" fontSize="11" fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">
+                                            {isDiameter ? 'Specify diameter or' : is2P ? 'Specify second point or' : 'Specify radius or'}
+                                        </text>
+                                        <rect x={isDiameter ? 130 : is2P ? 145 : 120} y="4" width="55" height="18" rx="2" fill="#1677ff" stroke="#ffffff" strokeWidth="1.5" />
+                                        <text x={isDiameter ? 157 : is2P ? 172 : 147} y="17" fill="#ffffff" fontSize="10.5" fontFamily="monospace" fontWeight="bold" textAnchor="middle">
+                                            {isDiameter ? dDisplay : rDisplay}
+                                        </text>
+                                    </g>
+                                </>
+                            )}
+                        </g>
                     );
                 } else if (drawingShape.type === 'rect') {
                     return (
@@ -5923,64 +6356,75 @@ export default function DrawingManager() {
                             points={points.join(' ')}
                         />
                     );
+                } else if (drawingShape.type === 'callout') {
+                    const targetX = drawingShape.targetX;
+                    const targetY = drawingShape.targetY;
+                    const boxX = drawingShape.boxX;
+                    const boxY = drawingShape.boxY;
+                    const color = drawingShape.color || '#ef4444';
+                    return (
+                        <g style={{ pointerEvents: 'none' }}>
+                            {/* Target ring */}
+                            <circle cx={targetX} cy={targetY} r="4" fill="#ffffff" stroke={color} strokeWidth="2" />
+                            {/* Leader line */}
+                            <line x1={targetX} y1={targetY} x2={boxX} y2={boxY} stroke={color} strokeWidth="2" />
+                            {/* Text pill container */}
+                            <rect x={boxX - 32} y={boxY - 12} width="64" height="24" rx="4" fill="#ffffff" stroke={color} strokeWidth="2" />
+                            <text x={boxX} y={boxY + 4} fill={color} fontSize="11" fontWeight="bold" textAnchor="middle">{drawingShape.text || 'Callout'}</text>
+                        </g>
+                    );
+                } else if (drawingShape.type === 'arrow') {
+                    const x1 = drawingShape.x1;
+                    const y1 = drawingShape.y1;
+                    const x2 = drawingShape.x2;
+                    const y2 = drawingShape.y2;
+                    const color = drawingShape.color || '#ef4444';
+                    const angle = Math.atan2(y2 - y1, x2 - x1);
+                    const headLen = 12;
+                    const arrowP1 = `${x2 - headLen * Math.cos(angle - Math.PI / 6)},${y2 - headLen * Math.sin(angle - Math.PI / 6)}`;
+                    const arrowP2 = `${x2 - headLen * Math.cos(angle + Math.PI / 6)},${y2 - headLen * Math.sin(angle + Math.PI / 6)}`;
+                    return (
+                        <g style={{ pointerEvents: 'none' }}>
+                            <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth="2" />
+                            <polygon points={`${x2},${y2} ${arrowP1} ${arrowP2}`} fill={color} />
+                        </g>
+                    );
+                } else if (drawingShape.type === 'revcloud') {
+                    const x = drawingShape.x;
+                    const y = drawingShape.y;
+                    const w = drawingShape.w;
+                    const h = drawingShape.h;
+                    const color = drawingShape.color || '#ef4444';
+                    return (
+                        <g style={{ pointerEvents: 'none' }}>
+                            <rect x={x} y={y} width={w} height={h} rx="8" stroke={color} strokeWidth="2" strokeDasharray="6,4" fill="rgba(239, 68, 68, 0.08)" />
+                        </g>
+                    );
                 }
                 return null;
             })()}
 
-            {/* Real-time measurement tooltips for active line/circle/rect drawing */}
-            {drawingShape && (() => {
-                if (drawingShape.type === 'line') {
-                    const dx = drawingShape.x2 - drawingShape.x1;
-                    const dy = drawingShape.y2 - drawingShape.y1;
-                    const px = Math.sqrt(dx * dx + dy * dy);
-                    const factor = selectedDwg?.scaleFactor || 1.0;
-                    const text = selectedDwg?.scaleFactor ? `${(px * factor).toFixed(2)} mm` : `${px.toFixed(1)} px`;
-                    return (
-                        <g style={{ pointerEvents: 'none' }} transform={`translate(${drawingShape.x2 + 15}, ${drawingShape.y2 - 15})`}>
-                            <rect x="0" y="-8" width="85" height="18" rx="3" fill="#0f172ae6" stroke="#3b82f6" strokeWidth="1" />
-                            <text x="42.5" y="4" fill="#3b82f6" fontSize="8.5" fontWeight="bold" textAnchor="middle">{text}</text>
-                        </g>
-                    );
-                } else if (drawingShape.type === 'circle') {
-                    const px = drawingShape.r;
-                    const factor = selectedDwg?.scaleFactor || 1.0;
-                    const text = selectedDwg?.scaleFactor ? `⌀ ${(px * 2 * factor).toFixed(2)} mm` : `⌀ ${(px * 2).toFixed(1)} px`;
-                    return (
-                        <g style={{ pointerEvents: 'none' }} transform={`translate(${drawingShape.cx + drawingShape.r + 10}, ${drawingShape.cy - 10})`}>
-                            <rect x="0" y="-8" width="85" height="18" rx="3" fill="#0f172ae6" stroke="#3b82f6" strokeWidth="1" />
-                            <text x="42.5" y="4" fill="#3b82f6" fontSize="8.5" fontWeight="bold" textAnchor="middle">{text}</text>
-                        </g>
-                    );
-                } else if (drawingShape.type === 'rect') {
-                    const factor = selectedDwg?.scaleFactor || 1.0;
-                    const w = (drawingShape.w || 0) * factor;
-                    const h = (drawingShape.h || 0) * factor;
-                    const unit = selectedDwg?.scaleFactor ? 'mm' : 'px';
-                    return (
-                        <g style={{ pointerEvents: 'none' }} transform={`translate(${drawingShape.x + drawingShape.w + 10}, ${drawingShape.y + drawingShape.h - 10})`}>
-                            <rect x="0" y="-8" width="95" height="18" rx="3" fill="#0f172ae6" stroke="#3b82f6" strokeWidth="1" />
-                            <text x="47.5" y="4" fill="#3b82f6" fontSize="8" fontWeight="bold" textAnchor="middle">{`${w.toFixed(1)}x${h.toFixed(1)} ${unit}`}</text>
-                        </g>
-                    );
-                }
-                return null;
-            })()}
+            {/* AutoCAD Marquee Selection Box (Blue Window Selection / Green Crossing Selection) */}
+            {selectionBox && (
+                <rect
+                    x={Math.min(selectionBox.startX, selectionBox.currentX)}
+                    y={Math.min(selectionBox.startY, selectionBox.currentY)}
+                    width={Math.abs(selectionBox.currentX - selectionBox.startX)}
+                    height={Math.abs(selectionBox.currentY - selectionBox.startY)}
+                    fill={selectionBox.currentX >= selectionBox.startX ? 'rgba(22, 119, 255, 0.18)' : 'rgba(34, 197, 94, 0.18)'}
+                    stroke={selectionBox.currentX >= selectionBox.startX ? '#1677ff' : '#22c55e'}
+                    strokeWidth={1 / Math.max(0.2, zoom)}
+                    strokeDasharray={selectionBox.currentX >= selectionBox.startX ? undefined : `${4 / Math.max(0.2, zoom)},${3 / Math.max(0.2, zoom)}`}
+                    style={{ pointerEvents: 'none' }}
+                />
+            )}
 
             {/* Scale Calibration Line Draft Preview */}
             {cadTool === 'scale' && scaleDraftCoords && (
                 <g style={{ pointerEvents: 'none' }}>
-                    <line x1={scaleDraftCoords.x1} y1={scaleDraftCoords.y1} x2={scaleDraftCoords.x2} y2={scaleDraftCoords.y2} stroke="#10b981" strokeWidth="2.5" />
-                    <circle cx={scaleDraftCoords.x1} cy={scaleDraftCoords.y1} r="4" fill="#10b981" />
-                    <circle cx={scaleDraftCoords.x2} cy={scaleDraftCoords.y2} r="4" fill="#10b981" />
-                    {(() => {
-                        const px = Math.sqrt((scaleDraftCoords.x2 - scaleDraftCoords.x1) ** 2 + (scaleDraftCoords.y2 - scaleDraftCoords.y1) ** 2);
-                        return (
-                            <g transform={`translate(${(scaleDraftCoords.x1 + scaleDraftCoords.x2) / 2}, ${(scaleDraftCoords.y1 + scaleDraftCoords.y2) / 2 - 15})`}>
-                                <rect x="-40" y="-8" width="80" height="16" rx="2" fill="#0f172a" stroke="#10b981" strokeWidth="1" />
-                                <text x="0" y="4" fill="#10b981" fontSize="9" fontWeight="bold" textAnchor="middle">{px.toFixed(1)} px</text>
-                            </g>
-                        );
-                    })()}
+                    <line x1={scaleDraftCoords.x1} y1={scaleDraftCoords.y1} x2={scaleDraftCoords.x2} y2={scaleDraftCoords.y2} stroke="#10b981" strokeWidth="2" />
+                    <circle cx={scaleDraftCoords.x1} cy={scaleDraftCoords.y1} r="3" fill="#10b981" />
+                    <circle cx={scaleDraftCoords.x2} cy={scaleDraftCoords.y2} r="3" fill="#10b981" />
                 </g>
             )}
 
@@ -5988,75 +6432,19 @@ export default function DrawingManager() {
             {cadTool === 'dimension' && dimDraftCoords && (
                 <g style={{ pointerEvents: 'none' }}>
                     {dimDrawState === 'waiting_end' && (
-                        drawingCategory === 'angle' ? (
-                            <>
-                                <circle cx={dimDraftCoords.cx} cy={dimDraftCoords.cy} r="6" fill="#f59e0b" stroke="white" strokeWidth="1.5" />
-                                <g transform={`translate(${dimDraftCoords.cx}, ${dimDraftCoords.cy - 12})`}>
-                                    <rect x="-36" y="-8" width="72" height="16" rx="3" fill="#0f172a" stroke="#f59e0b" strokeWidth="1" />
-                                    <text x="0" y="3" fill="#f59e0b" fontSize="8" fontWeight="bold" textAnchor="middle">🎯 VERTEX</text>
-                                </g>
-                                <line x1={dimDraftCoords.cx} y1={dimDraftCoords.cy} x2={dimDraftCoords.x2} y2={dimDraftCoords.y2} stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="3,3" />
-                                <circle cx={dimDraftCoords.x2} cy={dimDraftCoords.y2} r="5" fill="#10b981" />
-                                <g transform={`translate(${dimDraftCoords.x2}, ${dimDraftCoords.y2 + 14})`}>
-                                    <rect x="-35" y="-8" width="70" height="16" rx="3" fill="#0f172a" stroke="#10b981" strokeWidth="1" />
-                                    <text x="0" y="3" fill="#10b981" fontSize="8" fontWeight="bold" textAnchor="middle">📍 LENGAN 1</text>
-                                </g>
-                            </>
-                        ) : (
-                            <>
-                                <line x1={dimDraftCoords.x1} y1={dimDraftCoords.y1} x2={dimDraftCoords.x2} y2={dimDraftCoords.y2} stroke="#3b82f6" strokeWidth="1.5" strokeDasharray="3,3" />
-                                <circle cx={dimDraftCoords.x1} cy={dimDraftCoords.y1} r="9" fill="rgba(16, 185, 129, 0.2)" stroke="#10b981" strokeWidth="1" strokeDasharray="2,2" />
-                                <circle cx={dimDraftCoords.x1} cy={dimDraftCoords.y1} r="5" fill="#10b981" stroke="white" strokeWidth="1.5" />
-                                <g transform={`translate(${dimDraftCoords.x1}, ${dimDraftCoords.y1 - 16})`}>
-                                    <rect x="-42" y="-9" width="84" height="18" rx="4" fill="#0f172a" stroke="#10b981" strokeWidth="1.5" />
-                                    <text x="0" y="3" fill="#10b981" fontSize="9" fontWeight="bold" textAnchor="middle">📍 START POINT</text>
-                                </g>
-                                <circle cx={dimDraftCoords.x2} cy={dimDraftCoords.y2} r="9" fill="rgba(59, 130, 246, 0.2)" stroke="#3b82f6" strokeWidth="1" strokeDasharray="2,2" />
-                                <circle cx={dimDraftCoords.x2} cy={dimDraftCoords.y2} r="5" fill="#3b82f6" stroke="white" strokeWidth="1.5" />
-                                <g transform={`translate(${dimDraftCoords.x2}, ${dimDraftCoords.y2 + 16})`}>
-                                    <rect x="-40" y="-9" width="80" height="18" rx="4" fill="#0f172a" stroke="#3b82f6" strokeWidth="1.5" />
-                                    <text x="0" y="3" fill="#3b82f6" fontSize="9" fontWeight="bold" textAnchor="middle">🏁 END POINT</text>
-                                </g>
-                                {(() => {
-                                    const px = Math.sqrt((dimDraftCoords.x2 - dimDraftCoords.x1) ** 2 + (dimDraftCoords.y2 - dimDraftCoords.y1) ** 2);
-                                    const factor = selectedDwg?.scaleFactor || 1.0;
-                                    const text = selectedDwg?.scaleFactor ? `${(px * factor).toFixed(2)} mm` : `${px.toFixed(1)} px`;
-                                    return (
-                                        <g transform={`translate(${(dimDraftCoords.x1 + dimDraftCoords.x2) / 2}, ${(dimDraftCoords.y1 + dimDraftCoords.y2) / 2 - 15})`}>
-                                            <rect x="-40" y="-8" width="80" height="16" rx="2" fill="#0f172a" stroke="#3b82f6" strokeWidth="1" />
-                                            <text x="0" y="4" fill="#3b82f6" fontSize="9" fontWeight="bold" textAnchor="middle">{text}</text>
-                                        </g>
-                                    );
-                                })()}
-                            </>
-                        )
+                        <line x1={dimDraftCoords.x1} y1={dimDraftCoords.y1} x2={dimDraftCoords.x2} y2={dimDraftCoords.y2} stroke="#38bdf8" strokeWidth="1.5" strokeDasharray="3,3" />
                     )}
                     {dimDrawState === 'waiting_offset' && (
                         drawingCategory === 'angle' ? (
                             <>
-                                <circle cx={dimDraftCoords.cx} cy={dimDraftCoords.cy} r="5" fill="#f59e0b" />
-                                <line x1={dimDraftCoords.cx} y1={dimDraftCoords.cy} x2={dimDraftCoords.x1} y2={dimDraftCoords.y1} stroke="#f59e0b" strokeWidth="1.5" />
-                                <circle cx={dimDraftCoords.x1} cy={dimDraftCoords.y1} r="4" fill="#f59e0b" />
-                                <line x1={dimDraftCoords.cx} y1={dimDraftCoords.cy} x2={dimDraftCoords.lx} y2={dimDraftCoords.ly} stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="3,3" />
-                                <circle cx={dimDraftCoords.lx} cy={dimDraftCoords.ly} r="4" fill="#f59e0b" />
+                                <line x1={dimDraftCoords.cx} y1={dimDraftCoords.cy} x2={dimDraftCoords.x1} y2={dimDraftCoords.y1} stroke="#38bdf8" strokeWidth="1.5" />
+                                <line x1={dimDraftCoords.cx} y1={dimDraftCoords.cy} x2={dimDraftCoords.lx} y2={dimDraftCoords.ly} stroke="#38bdf8" strokeWidth="1.5" strokeDasharray="3,3" />
                             </>
                         ) : (
                             <>
-                                <line x1={dimDraftCoords.x1} y1={dimDraftCoords.y1} x2={dimDraftCoords.x1} y2={dimDraftCoords.ly} stroke="rgba(148,163,184,0.4)" strokeWidth="0.75" strokeDasharray="2,2" />
-                                <line x1={dimDraftCoords.x2} y1={dimDraftCoords.y2} x2={dimDraftCoords.x2} y2={dimDraftCoords.ly} stroke="rgba(148,163,184,0.4)" strokeWidth="0.75" strokeDasharray="2,2" />
-                                <line x1={dimDraftCoords.x1} y1={dimDraftCoords.ly} x2={dimDraftCoords.x2} y2={dimDraftCoords.ly} stroke="#3b82f6" strokeWidth="1.5" />
-                                <polygon points={`${dimDraftCoords.x1},${dimDraftCoords.ly} ${dimDraftCoords.x1 + 8},${dimDraftCoords.ly - 3} ${dimDraftCoords.x1 + 8},${dimDraftCoords.ly + 3}`} fill="#3b82f6" />
-                                <polygon points={`${dimDraftCoords.x2},${dimDraftCoords.ly} ${dimDraftCoords.x2 - 8},${dimDraftCoords.ly - 3} ${dimDraftCoords.x2 - 8},${dimDraftCoords.ly + 3}`} fill="#3b82f6" />
-                                <g transform={`translate(${dimDraftCoords.lx}, ${dimDraftCoords.ly - 10})`}>
-                                    <rect x="-45" y="-8" width="90" height="16" rx="2" fill="#0f172a" stroke="#3b82f6" strokeWidth="1" />
-                                    <text x="0" y="4" fill="#3b82f6" fontSize="9" fontWeight="bold" textAnchor="middle">
-                                        {(() => {
-                                            const px = Math.sqrt((dimDraftCoords.x2 - dimDraftCoords.x1) ** 2 + (dimDraftCoords.y2 - dimDraftCoords.y1) ** 2);
-                                            const factor = selectedDwg?.scaleFactor || 1.0;
-                                            return selectedDwg?.scaleFactor ? `${(px * factor).toFixed(2)} mm` : `${px.toFixed(1)} px`;
-                                        })()}
-                                    </text>
-                                </g>
+                                <line x1={dimDraftCoords.x1} y1={dimDraftCoords.y1} x2={dimDraftCoords.x1} y2={dimDraftCoords.ly} stroke="#38bdf8" strokeWidth="0.75" strokeDasharray="2,2" opacity={0.6} />
+                                <line x1={dimDraftCoords.x2} y1={dimDraftCoords.y2} x2={dimDraftCoords.x2} y2={dimDraftCoords.ly} stroke="#38bdf8" strokeWidth="0.75" strokeDasharray="2,2" opacity={0.6} />
+                                <line x1={dimDraftCoords.x1} y1={dimDraftCoords.ly} x2={dimDraftCoords.x2} y2={dimDraftCoords.ly} stroke="#38bdf8" strokeWidth="1.5" />
                             </>
                         )
                     )}
@@ -6082,30 +6470,123 @@ export default function DrawingManager() {
                 </g>
             )}
 
-            {/* Polyline Drafting Previews */}
+            {/* Polyline Drafting Previews with AutoCAD Polar Angle Arc & Dynamic Input HUD */}
             {cadTool === 'polyline' && polylineDraftPoints.length > 0 && (
                 <g style={{ pointerEvents: 'none' }}>
-                    <polyline
-                        points={polylineDraftPoints.map(p => `${p.x},${p.y}`).join(' ')}
-                        fill="none"
-                        stroke={cadColor || '#38bdf8'}
-                        strokeWidth={cadWidth || 2}
-                        strokeDasharray="4,2"
-                    />
+                    {/* Fixed segments */}
+                    {polylineDraftPoints.length > 2 && (
+                        <polyline
+                            points={polylineDraftPoints.slice(0, -1).map(p => `${p.x},${p.y}`).join(' ')}
+                            fill="none"
+                            stroke={cadColor || '#38bdf8'}
+                            strokeWidth={cadWidth || 2}
+                        />
+                    )}
+                    {/* Fixed vertices */}
                     {polylineDraftPoints.slice(0, -1).map((p, idx) => (
-                        <circle key={idx} cx={p.x} cy={p.y} r="4" fill="#10b981" />
+                        <circle key={idx} cx={p.x} cy={p.y} r="3.5" fill="#38bdf8" stroke="#ffffff" strokeWidth="1" />
                     ))}
-                    <circle cx={polylineDraftPoints[polylineDraftPoints.length - 1].x} cy={polylineDraftPoints[polylineDraftPoints.length - 1].y} r="4" fill="#ef4444" />
+
+                    {/* Active Rubberband Segment & Polar Dynamic HUD */}
                     {polylineDraftPoints.length > 1 && (() => {
                         const p1 = polylineDraftPoints[polylineDraftPoints.length - 2];
                         const p2 = polylineDraftPoints[polylineDraftPoints.length - 1];
-                        const px = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
-                        const factor = selectedDwg?.scaleFactor || 1.0;
-                        const text = selectedDwg?.scaleFactor ? `${(px * factor).toFixed(2)} mm` : `${px.toFixed(1)} px`;
+                        const dx = p2.x - p1.x;
+                        const dy = p2.y - p1.y;
+                        const distPx = Math.sqrt(dx * dx + dy * dy);
+                        const scaleFactor = selectedDwg?.scaleFactor || 1.0;
+                        const lengthVal = selectedDwg?.scaleFactor ? distPx * scaleFactor : distPx;
+                        const lengthDisplay = lengthVal.toFixed(3);
+                        const angleRad = Math.atan2(dy, dx);
+                        const angleDeg = Math.round(Math.abs(angleRad * 180 / Math.PI)) % 180;
+                        const baselineLen = Math.max(60, distPx * 0.85);
+                        const arcR = Math.min(55, Math.max(25, distPx * 0.35));
+                        const arcStartX = p1.x + arcR;
+                        const arcStartY = p1.y;
+                        const arcEndX = p1.x + arcR * Math.cos(angleRad);
+                        const arcEndY = p1.y + arcR * Math.sin(angleRad);
+                        const largeArc = Math.abs(angleRad) > Math.PI ? 1 : 0;
+                        const sweep = angleRad >= 0 ? 1 : 0;
+                        const midAngle = angleRad / 2;
+                        const angleTextX = p1.x + (arcR + 15) * Math.cos(midAngle);
+                        const angleTextY = p1.y + (arcR + 15) * Math.sin(midAngle);
+                        const midSegmentX = (p1.x + p2.x) / 2;
+                        const midSegmentY = (p1.y + p2.y) / 2;
+                        const perpX = -Math.sin(angleRad) * 14;
+                        const perpY = Math.cos(angleRad) * 14;
+
                         return (
-                            <g transform={`translate(${p2.x}, ${p2.y - 15})`}>
-                                <rect x="-35" y="-8" width="70" height="16" rx="2" fill="#0f172a" stroke="#10b981" strokeWidth="1" />
-                                <text x="0" y="4" fill="#10b981" fontSize="8" fontWeight="bold" textAnchor="middle">{text}</text>
+                            <g>
+                                {/* White rubberband line for active segment */}
+                                <line
+                                    x1={p1.x}
+                                    y1={p1.y}
+                                    x2={p2.x}
+                                    y2={p2.y}
+                                    stroke="#ffffff"
+                                    strokeWidth={1.5}
+                                />
+                                {/* Dynamic Polar Tracking Elements */}
+                                {distPx > 4 && (
+                                    <>
+                                        {/* Green Baseline */}
+                                        <line x1={p1.x} y1={p1.y} x2={p1.x + baselineLen} y2={p1.y} stroke="#22c55e" strokeWidth={1} />
+                                        {/* Green Polar Ray */}
+                                        <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#22c55e" strokeWidth={1} strokeDasharray="3,3" />
+                                        {/* Green Angular Arc */}
+                                        {angleDeg > 1 && (
+                                            <>
+                                                <path
+                                                    d={`M ${arcStartX} ${arcStartY} A ${arcR} ${arcR} 0 ${largeArc} ${sweep} ${arcEndX} ${arcEndY}`}
+                                                    fill="none"
+                                                    stroke="#22c55e"
+                                                    strokeWidth={1}
+                                                    strokeDasharray="3,3"
+                                                />
+                                                <text
+                                                    x={angleTextX}
+                                                    y={angleTextY}
+                                                    fill="#22c55e"
+                                                    fontSize="11"
+                                                    fontFamily="monospace"
+                                                    fontWeight="bold"
+                                                    textAnchor="middle"
+                                                    dominantBaseline="middle"
+                                                >
+                                                    {angleDeg}°
+                                                </text>
+                                            </>
+                                        )}
+                                        {/* Green Segment Length Label */}
+                                        <text
+                                            x={midSegmentX + perpX}
+                                            y={midSegmentY + perpY}
+                                            fill="#22c55e"
+                                            fontSize="11"
+                                            fontFamily="monospace"
+                                            fontWeight="bold"
+                                            textAnchor="middle"
+                                            dominantBaseline="middle"
+                                        >
+                                            {lengthDisplay}
+                                        </text>
+                                        {/* Floating AutoCAD / MLightCAD Dynamic Input HUD */}
+                                        <g transform={`translate(${p2.x + 12}, ${p2.y - 12})`}>
+                                            <rect x="0" y="0" width="225" height="26" rx="4" fill="rgba(45, 45, 45, 0.95)" stroke="rgba(95, 95, 95, 0.85)" strokeWidth="1" />
+                                            <text x="8" y="17" fill="#ffffff" fontSize="11" fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">
+                                                Specify next point or
+                                            </text>
+                                            <rect x="115" y="4" width="52" height="18" rx="2" fill="#1677ff" stroke="#ffffff" strokeWidth="1.5" />
+                                            <text x="141" y="17" fill="#ffffff" fontSize="10.5" fontFamily="monospace" fontWeight="bold" textAnchor="middle">
+                                                {lengthDisplay}
+                                            </text>
+                                            <rect x="171" y="4" width="48" height="18" rx="2" fill="rgba(65, 65, 65, 0.95)" stroke="rgba(115, 115, 115, 0.6)" strokeWidth="1" />
+                                            <text x="195" y="17" fill="#ffffff" fontSize="10.5" fontFamily="monospace" textAnchor="middle">
+                                                {p2.y.toFixed(3)}
+                                            </text>
+                                        </g>
+                                    </>
+                                )}
                             </g>
                         );
                     })()}
@@ -6183,6 +6664,51 @@ export default function DrawingManager() {
                             style={{ pointerEvents: 'none' }}
                         />
                     )}
+                </g>
+            )}
+
+            {/* AutoCAD Precision Dynamic Crosshair / Crossbar Overlay */}
+            {(showCrosshair || ['line', 'polyline', 'circle', 'circle_diameter', 'circle_2p', 'circle_3p', 'circle_ttr', 'circle_ttt', 'rect', 'arc', 'ellipse', 'triangle', 'hexagon', 'dimension', 'scale', 'balloon', 'takeoff_count'].includes(cadTool) || isBalloonMode) && isMouseOverCanvas && (
+                <g style={{ pointerEvents: 'none' }}>
+                    {/* Full infinite horizontal crosshair line */}
+                    <line
+                        x1={-100000}
+                        y1={crosshairPos.y}
+                        x2={100000}
+                        y2={crosshairPos.y}
+                        stroke="#38bdf8"
+                        strokeWidth={0.8 / Math.max(0.2, zoom)}
+                        strokeDasharray={`${6 / Math.max(0.2, zoom)},${4 / Math.max(0.2, zoom)}`}
+                        opacity={0.65}
+                    />
+                    {/* Full infinite vertical crosshair line */}
+                    <line
+                        x1={crosshairPos.x}
+                        y1={-100000}
+                        x2={crosshairPos.x}
+                        y2={100000}
+                        stroke="#38bdf8"
+                        strokeWidth={0.8 / Math.max(0.2, zoom)}
+                        strokeDasharray={`${6 / Math.max(0.2, zoom)},${4 / Math.max(0.2, zoom)}`}
+                        opacity={0.65}
+                    />
+                    {/* Center Pickbox target aperture */}
+                    <rect
+                        x={crosshairPos.x - 4 / Math.max(0.2, zoom)}
+                        y={crosshairPos.y - 4 / Math.max(0.2, zoom)}
+                        width={8 / Math.max(0.2, zoom)}
+                        height={8 / Math.max(0.2, zoom)}
+                        fill="rgba(56, 189, 248, 0.1)"
+                        stroke="#38bdf8"
+                        strokeWidth={1.2 / Math.max(0.2, zoom)}
+                    />
+                    {/* Exact sub-pixel center point */}
+                    <circle
+                        cx={crosshairPos.x}
+                        cy={crosshairPos.y}
+                        r={1.5 / Math.max(0.2, zoom)}
+                        fill="#38bdf8"
+                    />
                 </g>
             )}
         </>
@@ -6520,142 +7046,14 @@ export default function DrawingManager() {
                                 {/* Canvas SVG */}
                                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0px', position: 'relative', width: '100%', minHeight: 0 }}>
 
-                                    {/* CAD-Style Ruler - Top */}
-                                    <div style={{
-                                        position: 'absolute', top: 0, left: '24px', right: 0, height: '22px', zIndex: 15,
-                                        background: canvasTheme === 'dark' ? 'linear-gradient(180deg, #1e293b 0%, #1e293bee 85%, transparent 100%)' :
-                                            canvasTheme === 'blueprint' ? 'linear-gradient(180deg, #0a1e3d 0%, #0a1e3dee 85%, transparent 100%)' :
-                                            'linear-gradient(180deg, #f8fafc 0%, #f8fafcee 85%, transparent 100%)',
-                                        borderBottom: `1px solid ${canvasTheme === 'dark' ? '#334155' : canvasTheme === 'blueprint' ? '#1e4d7a' : '#e2e8f0'}`,
-                                        overflow: 'hidden', userSelect: 'none', pointerEvents: 'none'
-                                    }}>
-                                        <svg width="100%" height="22" style={{ display: 'block' }}>
-                                            {(() => {
-                                                const rulerTicks = [];
-                                                const step = zoom >= 2 ? 20 : zoom >= 1 ? 50 : zoom >= 0.5 ? 100 : 200;
-                                                const labelEvery = zoom >= 2 ? 5 : zoom >= 1 ? 2 : 1;
-                                                const tickColor = canvasTheme === 'dark' ? '#475569' : canvasTheme === 'blueprint' ? '#2d6da3' : '#94a3b8';
-                                                const labelColor = canvasTheme === 'dark' ? '#94a3b8' : canvasTheme === 'blueprint' ? '#7dd3fc' : '#64748b';
-                                                const totalWidth = canvasSize.width;
-                                                for (let i = 0; i <= totalWidth; i += step) {
-                                                    const screenX = (i - canvasSize.width / 2) * zoom + canvasSize.width / 2 + panOffset.x;
-                                                    const viewPx = screenX / (canvasSize.width) * 100;
-                                                    const tickIdx = i / step;
-                                                    const isLabel = tickIdx % labelEvery === 0;
-                                                    rulerTicks.push(
-                                                        <g key={`rt_${i}`}>
-                                                            <line x1={`${viewPx}%`} y1={isLabel ? 8 : 14} x2={`${viewPx}%`} y2={22} stroke={tickColor} strokeWidth={isLabel ? 1 : 0.5} />
-                                                            {isLabel && <text x={`${viewPx}%`} y={7} fill={labelColor} fontSize="7" fontFamily="monospace" fontWeight="600" textAnchor="middle" dominantBaseline="middle">{i}</text>}
-                                                        </g>
-                                                    );
-                                                }
-                                                return rulerTicks;
-                                            })()}
-                                        </svg>
-                                    </div>
-
-                                    {/* CAD-Style Ruler - Left */}
-                                    <div style={{
-                                        position: 'absolute', top: '22px', left: 0, bottom: 0, width: '24px', zIndex: 15,
-                                        background: canvasTheme === 'dark' ? 'linear-gradient(90deg, #1e293b 0%, #1e293bee 85%, transparent 100%)' :
-                                            canvasTheme === 'blueprint' ? 'linear-gradient(90deg, #0a1e3d 0%, #0a1e3dee 85%, transparent 100%)' :
-                                            'linear-gradient(90deg, #f8fafc 0%, #f8fafcee 85%, transparent 100%)',
-                                        borderRight: `1px solid ${canvasTheme === 'dark' ? '#334155' : canvasTheme === 'blueprint' ? '#1e4d7a' : '#e2e8f0'}`,
-                                        overflow: 'hidden', userSelect: 'none', pointerEvents: 'none'
-                                    }}>
-                                        <svg width="24" height="100%" style={{ display: 'block' }}>
-                                            {(() => {
-                                                const rulerTicks = [];
-                                                const step = zoom >= 2 ? 20 : zoom >= 1 ? 50 : zoom >= 0.5 ? 100 : 200;
-                                                const labelEvery = zoom >= 2 ? 5 : zoom >= 1 ? 2 : 1;
-                                                const tickColor = canvasTheme === 'dark' ? '#475569' : canvasTheme === 'blueprint' ? '#2d6da3' : '#94a3b8';
-                                                const labelColor = canvasTheme === 'dark' ? '#94a3b8' : canvasTheme === 'blueprint' ? '#7dd3fc' : '#64748b';
-                                                const totalHeight = canvasSize.height;
-                                                for (let i = 0; i <= totalHeight; i += step) {
-                                                    const screenY = (i - canvasSize.height / 2) * zoom + canvasSize.height / 2 + panOffset.y;
-                                                    const viewPy = screenY / (canvasSize.height) * 100;
-                                                    const tickIdx = i / step;
-                                                    const isLabel = tickIdx % labelEvery === 0;
-                                                    rulerTicks.push(
-                                                        <g key={`rl_${i}`}>
-                                                            <line x1={isLabel ? 8 : 14} y1={`${viewPy}%`} x2={24} y2={`${viewPy}%`} stroke={tickColor} strokeWidth={isLabel ? 1 : 0.5} />
-                                                            {isLabel && <text x={6} y={`${viewPy}%`} fill={labelColor} fontSize="7" fontFamily="monospace" fontWeight="600" textAnchor="middle" dominantBaseline="middle" transform={`rotate(-90, 6, ${viewPy})`} style={{ transformBox: 'fill-box', transformOrigin: 'center' }}>{i}</text>}
-                                                        </g>
-                                                    );
-                                                }
-                                                return rulerTicks;
-                                            })()}
-                                        </svg>
-                                    </div>
-
-                                    {/* Ruler Corner */}
-                                    <div style={{
-                                        position: 'absolute', top: 0, left: 0, width: '24px', height: '22px', zIndex: 16,
-                                        backgroundColor: canvasTheme === 'dark' ? '#1e293b' : canvasTheme === 'blueprint' ? '#0a1e3d' : '#f1f5f9',
-                                        borderRight: `1px solid ${canvasTheme === 'dark' ? '#334155' : canvasTheme === 'blueprint' ? '#1e4d7a' : '#e2e8f0'}`,
-                                        borderBottom: `1px solid ${canvasTheme === 'dark' ? '#334155' : canvasTheme === 'blueprint' ? '#1e4d7a' : '#e2e8f0'}`,
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center'
-                                    }}>
-                                        <span style={{ fontSize: '6px', fontWeight: 900, color: canvasTheme === 'dark' ? '#64748b' : canvasTheme === 'blueprint' ? '#38bdf8' : '#94a3b8', fontFamily: 'monospace' }}>px</span>
-                                    </div>
-                                    
-                                    {/* Top-Right Floating Controls Bar (Zoom + Theme + QC Panel Toggle) */}
-                                     <div style={{
-                                         position: 'absolute', top: '30px', right: '16px',
-                                         display: 'flex', alignItems: 'center',
-                                         backgroundColor: canvasTheme === 'dark' ? '#1e293b' : canvasTheme === 'blueprint' ? '#0f2a4a' : '#ffffff',
-                                         borderRadius: '30px',
-                                         border: `1px solid ${canvasTheme === 'dark' ? '#334155' : canvasTheme === 'blueprint' ? '#2d6da3' : '#cbd5e1'}`,
-                                         boxShadow: canvasTheme === 'dark' || canvasTheme === 'blueprint' ? '0 4px 14px rgba(0, 0, 0, 0.4)' : '0 4px 14px rgba(0, 0, 0, 0.1)',
-                                         padding: '4px 10px', gap: '8px', zIndex: 20,
-                                         userSelect: 'none', fontFamily: "'Inter', sans-serif"
-                                     }}>
-                                         <button title="Zoom Out" onClick={() => setZoom(prev => Math.max(0.2, prev - 0.1))}
-                                             style={{ backgroundColor: 'transparent', border: 'none', color: canvasTheme !== 'white' ? '#94a3b8' : '#64748b', fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px 4px', outline: 'none', fontWeight: 'bold' }}>-</button>
-                                         <span style={{ fontSize: '0.68rem', fontWeight: 800, color: canvasTheme !== 'white' ? '#e2e8f0' : '#334155', minWidth: '38px', textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
-                                         <button title="Zoom In" onClick={() => setZoom(prev => Math.min(4, prev + 0.1))}
-                                             style={{ backgroundColor: 'transparent', border: 'none', color: canvasTheme !== 'white' ? '#94a3b8' : '#64748b', fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px 4px', outline: 'none', fontWeight: 'bold' }}>+</button>
-                                         <div style={{ width: '1px', height: '12px', backgroundColor: canvasTheme !== 'white' ? '#475569' : '#cbd5e1' }} />
-                                         <button title="Fit to Screen" onClick={() => { setZoom(1.0); setPanOffset({ x: 0, y: 0 }); }}
-                                             style={{ backgroundColor: 'transparent', border: 'none', color: canvasTheme !== 'white' ? '#94a3b8' : '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '2px', outline: 'none' }}>
-                                             <Maximize size={12} />
-                                         </button>
-                                         <div style={{ width: '1px', height: '12px', backgroundColor: canvasTheme !== 'white' ? '#475569' : '#cbd5e1' }} />
-                                         <button
-                                             title={`Mode: ${canvasTheme === 'white' ? 'Light' : canvasTheme === 'dark' ? 'Dark' : 'Blueprint'} — Klik untuk ganti`}
-                                             onClick={() => setCanvasTheme(prev => prev === 'white' ? 'dark' : prev === 'dark' ? 'blueprint' : 'white')}
-                                             style={{
-                                                 backgroundColor: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 4px', outline: 'none', borderRadius: '4px', transition: 'all 0.15s',
-                                                 color: canvasTheme === 'blueprint' ? '#38bdf8' : canvasTheme === 'dark' ? '#facc15' : '#64748b',
-                                             }}
-                                         >
-                                             {canvasTheme === 'white' && <Sun size={13} />}
-                                             {canvasTheme === 'dark' && <Moon size={13} />}
-                                             {canvasTheme === 'blueprint' && <span style={{ fontSize: '0.7rem', fontWeight: 800, lineHeight: 1 }}>BP</span>}
-                                             <span style={{ fontSize: '0.58rem', fontWeight: 700 }}>
-                                                 {canvasTheme === 'white' ? 'Light' : canvasTheme === 'dark' ? 'Dark' : 'Blueprint'}
-                                             </span>
-                                         </button>
-                                         <div style={{ width: '1px', height: '12px', backgroundColor: canvasTheme !== 'white' ? '#475569' : '#cbd5e1' }} />
-                                         <button title="Toggle Parameters Panel" onClick={() => setShowQCInspector(prev => !prev)}
-                                             style={{
-                                                 backgroundColor: showQCInspector ? '#2563eb' : 'transparent',
-                                                 color: showQCInspector ? 'white' : (canvasTheme !== 'white' ? '#94a3b8' : '#64748b'),
-                                                 border: 'none', borderRadius: '20px', padding: '3px 8px', cursor: 'pointer',
-                                                 display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.62rem', fontWeight: 800,
-                                                 outline: 'none', transition: 'all 0.2s'
-                                             }}
-                                         >
-                                             <Sliders size={12} /> Panel
-                                         </button>
-                                     </div>
+                                    {/* Pure MLightCAD Canvas Viewport */}
 
                                      {selectedDwg && ['STL', 'OBJ', 'GLTF', 'GLB'].includes(selectedDwg.fileType) ? (
                                          <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8', fontSize: '0.8rem' }}>Memuat 3D CAD Editor...</div>}>
                                              <CADViewer3DEditor
                                                   drawing={selectedDwg}
                                                   dimensions={selectedDwg.dimensions || []}
-                                                  activeDimId={activeDimId}
+                                                 activeDimId={activeDimId}
                                                   onAddDimension={handleAdd3DDimension}
                                                   onSelectDimension={(id) => setActiveDimId(id)}
                                              />
@@ -6690,6 +7088,53 @@ export default function DrawingManager() {
                                                          setCadTool('select');
                                                          setIsBalloonMode(false);
                                                      } else {
+                                                         // Check if a shape is already selected to apply modification immediately
+                                                         const currentShapes = selectedDwg?.shapes || [];
+                                                         const targetShape = currentShapes.find(s => s.id === selectedShapeId);
+                                                         if (targetShape) {
+                                                             if (t === 'erase') {
+                                                                 updateShapes(currentShapes.filter(s => s.id !== targetShape.id));
+                                                                 setSelectedShapeId(null);
+                                                                 toast.success('Geometri terpilih berhasil dihapus.');
+                                                                 return;
+                                                             } else if (t === 'copy') {
+                                                                 handleDuplicateShape(targetShape);
+                                                                 toast.success('Geometri terpilih berhasil diduplikasi.');
+                                                                 return;
+                                                             } else if (t === 'rotate') {
+                                                                 const newRot = ((targetShape.rotation || 0) + 45) % 360;
+                                                                 updateShapes(currentShapes.map(s => s.id === targetShape.id ? { ...s, rotation: newRot } : s));
+                                                                 toast.success(`Geometri terpilih diputar: ${newRot}°`);
+                                                                 return;
+                                                             } else if (t === 'offset') {
+                                                                 const offsetShape = {
+                                                                     ...targetShape,
+                                                                     id: `shape_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+                                                                     x: targetShape.x !== undefined ? targetShape.x + 15 : undefined,
+                                                                     y: targetShape.y !== undefined ? targetShape.y + 15 : undefined,
+                                                                     x1: targetShape.x1 !== undefined ? targetShape.x1 + 15 : undefined,
+                                                                     y1: targetShape.y1 !== undefined ? targetShape.y1 + 15 : undefined,
+                                                                     x2: targetShape.x2 !== undefined ? targetShape.x2 + 15 : undefined,
+                                                                     y2: targetShape.y2 !== undefined ? targetShape.y2 + 15 : undefined,
+                                                                     cx: targetShape.cx !== undefined ? targetShape.cx + 15 : undefined,
+                                                                     cy: targetShape.cy !== undefined ? targetShape.cy + 15 : undefined,
+                                                                     r: targetShape.r !== undefined ? targetShape.r + 10 : undefined,
+                                                                     points: targetShape.points ? targetShape.points.map(p => ({ x: p.x + 15, y: p.y + 15 })) : undefined
+                                                                 };
+                                                                 updateShapes([...currentShapes, offsetShape]);
+                                                                 setSelectedShapeId(offsetShape.id);
+                                                                 toast.success('Offset geometri terpilih berhasil dibuat (+15px).');
+                                                                 return;
+                                                             } else if (t === 'mirror') {
+                                                                 const mirrored = {
+                                                                     ...targetShape,
+                                                                     rotation: ((targetShape.rotation || 0) + 180) % 360
+                                                                 };
+                                                                 updateShapes(currentShapes.map(s => s.id === targetShape.id ? mirrored : s));
+                                                                 toast.success('Geometri terpilih di-mirror.');
+                                                                 return;
+                                                             }
+                                                         }
                                                          setCadTool(t);
                                                          setIsBalloonMode(false);
                                                      }
@@ -6740,21 +7185,49 @@ export default function DrawingManager() {
                                                     onDoubleClick={handleSvgDoubleClick}
                                                     onClick={handleCanvasClick}
                                                     onContextMenu={handleCanvasContextMenu}
+                                                    onMouseEnter={() => setIsMouseOverCanvas(true)}
+                                                    onMouseLeave={() => { setIsMouseOverCanvas(false); setSnappedPoint(null); }}
                                                     style={{
                                                         width: '100%',
                                                         height: '100%',
                                                         position: 'absolute',
                                                         inset: 0,
-                                                        pointerEvents: (isBalloonMode || cadTool !== 'select') ? 'auto' : 'none',
+                                                        pointerEvents: 'auto',
                                                         cursor: isPanning ? 'grabbing'
                                                             : (spacePressed || cadTool === 'pan') ? 'grab'
-                                                            : ['line', 'polyline', 'circle', 'rect', 'arc', 'ellipse', 'triangle', 'hexagon', 'dimension', 'balloon', 'scale', 'text', 'takeoff_count', 'region'].includes(cadTool) || isBalloonMode ? 'crosshair'
+                                                            : ['line', 'polyline', 'circle', 'circle_diameter', 'circle_2p', 'circle_3p', 'circle_ttr', 'circle_ttt', 'rect', 'arc', 'ellipse', 'triangle', 'hexagon', 'dimension', 'balloon', 'scale', 'text', 'takeoff_count', 'region'].includes(cadTool) || isBalloonMode ? 'crosshair'
                                                             : cadTool === 'erase' ? 'pointer'
                                                             : cadTool === 'move' ? 'move'
+                                                            : cadTool === 'copy' ? 'copy'
+                                                            : cadTool === 'offset' ? 'crosshair'
+                                                            : cadTool === 'rotate' ? 'pointer'
+                                                            : cadTool === 'mirror' ? 'pointer'
                                                             : 'default'
                                                     }}
                                                 >
-                                                    <g transform={`translate(${canvasSize.width / 2 + panOffset.x}, ${canvasSize.height / 2 + panOffset.y}) scale(${zoom}) translate(${-canvasSize.width / 2}, ${-canvasSize.height / 2})`}>
+                                                     <defs>
+                                                         <style>
+                                                             {`
+                                                                 @keyframes cadSelectionBlink {
+                                                                     0%, 100% { opacity: 1; filter: drop-shadow(0 0 6px #38bdf8); }
+                                                                     50% { opacity: 0.3; filter: drop-shadow(0 0 1px #0284c7); }
+                                                                 }
+                                                                 @keyframes cadGripBlink {
+                                                                     0%, 100% { transform: scale(1); }
+                                                                     50% { transform: scale(1.35); }
+                                                                 }
+                                                                 .cad-selected-glow {
+                                                                     animation: cadSelectionBlink 0.8s ease-in-out infinite;
+                                                                 }
+                                                                 .cad-grip-glow {
+                                                                     animation: cadGripBlink 0.8s ease-in-out infinite;
+                                                                     transform-box: fill-box;
+                                                                     transform-origin: center;
+                                                                 }
+                                                             `}
+                                                         </style>
+                                                     </defs>
+                                                    <g ref={canvasGroupRef} transform={`translate(${canvasSize.width / 2 + panOffset.x}, ${canvasSize.height / 2 + panOffset.y}) scale(${zoom}) translate(${-canvasSize.width / 2}, ${-canvasSize.height / 2})`}>
                                                         {/* Blueprint backdrop image if PDF/Image */}
                                                         {selectedDwg && (pdfBackdropUrl || selectedDwg.dataUrl || selectedDwg.data_url) && !(pdfBackdropUrl === null && (selectedDwg.dataUrl || selectedDwg.data_url)?.startsWith('data:application/pdf')) && (
                                                             <image
@@ -6782,71 +7255,186 @@ export default function DrawingManager() {
                                                         {selectedDwg && (selectedDwg.shapes || []).map((shape) => {
                                                             const center = getShapeCenter(shape);
                                                             const rotationStr = shape.rotation ? `rotate(${shape.rotation}, ${shape.cx ?? center.x}, ${shape.cy ?? center.y})` : '';
-                                                            const isSelected = selectedShapeId === shape.id;
+                                                            const isSelected = selectedShapeId === shape.id || selectedShapeIds.includes(shape.id);
                                                             const shapeColor = isSelected ? '#38bdf8' : (shape.color || '#38bdf8');
                                                             const shapeWidth = (shape.strokeWidth || 2) + (isSelected ? 1 : 0);
+                                                            const animClass = isSelected ? 'cad-selected-glow' : '';
+                                                            const dashArray = isSelected ? '8,4' : (shape.strokeDasharray || undefined);
 
                                                             const handleShapeClick = (e) => {
+                                                                e.stopPropagation();
+                                                                if (e.shiftKey || e.ctrlKey) {
+                                                                    setSelectedShapeIds(prev =>
+                                                                        prev.includes(shape.id) ? prev.filter(id => id !== shape.id) : [...prev, shape.id]
+                                                                    );
+                                                                } else {
+                                                                    setSelectedShapeId(shape.id);
+                                                                    setSelectedShapeIds([shape.id]);
+                                                                }
                                                                 if (cadTool === 'erase') {
-                                                                    e.stopPropagation();
                                                                     const currentShapes = selectedDwg.shapes || [];
                                                                     updateShapes(currentShapes.filter(s => s.id !== shape.id));
+                                                                    setSelectedShapeId(null);
+                                                                    setSelectedShapeIds(prev => prev.filter(id => id !== shape.id));
                                                                     toast.success('Geometri terhapus.');
                                                                 } else if (cadTool === 'copy') {
-                                                                    e.stopPropagation();
                                                                     handleDuplicateShape(shape);
                                                                     toast.success('Geometri diduplikasi.');
                                                                 } else if (cadTool === 'rotate') {
-                                                                    e.stopPropagation();
                                                                     const currentShapes = selectedDwg.shapes || [];
                                                                     const newRot = ((shape.rotation || 0) + 45) % 360;
                                                                     updateShapes(currentShapes.map(s => s.id === shape.id ? { ...s, rotation: newRot } : s));
                                                                     toast.success(`Rotasi: ${newRot}°`);
-                                                                } else if (cadTool === 'select' || cadTool === 'move') {
-                                                                    e.stopPropagation();
-                                                                    setSelectedShapeId(shape.id);
+                                                                } else if (cadTool === 'offset') {
+                                                                    const currentShapes = selectedDwg.shapes || [];
+                                                                    const offsetShape = {
+                                                                        ...shape,
+                                                                        id: `shape_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+                                                                        x: shape.x !== undefined ? shape.x + 15 : undefined,
+                                                                        y: shape.y !== undefined ? shape.y + 15 : undefined,
+                                                                        x1: shape.x1 !== undefined ? shape.x1 + 15 : undefined,
+                                                                        y1: shape.y1 !== undefined ? shape.y1 + 15 : undefined,
+                                                                        x2: shape.x2 !== undefined ? shape.x2 + 15 : undefined,
+                                                                        y2: shape.y2 !== undefined ? shape.y2 + 15 : undefined,
+                                                                        cx: shape.cx !== undefined ? shape.cx + 15 : undefined,
+                                                                        cy: shape.cy !== undefined ? shape.cy + 15 : undefined,
+                                                                        r: shape.r !== undefined ? shape.r + 10 : undefined,
+                                                                        points: shape.points ? shape.points.map(p => ({ x: p.x + 15, y: p.y + 15 })) : undefined
+                                                                    };
+                                                                    updateShapes([...currentShapes, offsetShape]);
+                                                                    setSelectedShapeId(offsetShape.id);
+                                                                    toast.success('Offset geometri berhasil dibuat (+15px).');
+                                                                } else if (cadTool === 'mirror') {
+                                                                    const currentShapes = selectedDwg.shapes || [];
+                                                                    const mirrored = {
+                                                                        ...shape,
+                                                                        rotation: ((shape.rotation || 0) + 180) % 360
+                                                                    };
+                                                                    updateShapes(currentShapes.map(s => s.id === shape.id ? mirrored : s));
+                                                                    toast.success('Geometri di-mirror.');
                                                                 }
                                                             };
 
                                                             const handleShapeMouseDown = (e) => {
-                                                                if (cadTool === 'move' && e.button === 0) {
+                                                                if ((cadTool === 'move' || cadTool === 'select') && e.button === 0) {
                                                                     e.stopPropagation();
                                                                     const coords = getCanvasCoords(e);
+                                                                    const shapeCenter = getShapeCenter(shape);
                                                                     setDragShape({
                                                                         id: shape.id,
+                                                                        type: 'move',
                                                                         startX: coords.x,
                                                                         startY: coords.y,
-                                                                        initialShape: { ...shape }
+                                                                        startShape: JSON.parse(JSON.stringify(shape)),
+                                                                        center: shapeCenter
                                                                     });
+                                                                    setSelectedShapeId(shape.id);
                                                                 }
                                                             };
 
                                                             const shapeStyle = {
-                                                                cursor: cadTool === 'erase' ? 'pointer' : cadTool === 'move' ? 'move' : cadTool === 'rotate' ? 'pointer' : cadTool === 'copy' ? 'copy' : 'default',
-                                                                pointerEvents: ['erase', 'move', 'rotate', 'copy', 'select'].includes(cadTool) ? 'auto' : 'none'
+                                                                cursor: cadTool === 'erase' ? 'pointer' : cadTool === 'move' ? 'move' : cadTool === 'rotate' ? 'pointer' : cadTool === 'copy' ? 'copy' : cadTool === 'offset' ? 'crosshair' : cadTool === 'mirror' ? 'pointer' : 'default',
+                                                                pointerEvents: ['erase', 'move', 'rotate', 'copy', 'offset', 'mirror', 'select'].includes(cadTool) ? 'auto' : 'none'
                                                             };
 
+                                                            const hitWidth = Math.max(16, shapeWidth + 12);
+
                                                             if (shape.type === 'line') {
-                                                                return <line key={shape.id} x1={shape.x1} y1={shape.y1} x2={shape.x2} y2={shape.y2} stroke={shapeColor} strokeWidth={shapeWidth} transform={rotationStr} onClick={handleShapeClick} onMouseDown={handleShapeMouseDown} style={shapeStyle} />;
+                                                                return (
+                                                                    <g key={shape.id} transform={rotationStr} onClick={handleShapeClick} onMouseDown={handleShapeMouseDown} style={shapeStyle}>
+                                                                        <line x1={shape.x1} y1={shape.y1} x2={shape.x2} y2={shape.y2} stroke="transparent" strokeWidth={hitWidth} />
+                                                                        <line x1={shape.x1} y1={shape.y1} x2={shape.x2} y2={shape.y2} stroke={shapeColor} strokeWidth={shapeWidth} strokeDasharray={dashArray} className={animClass} />
+                                                                        {isSelected && (
+                                                                            <>
+                                                                                <rect className="cad-grip-glow" x={shape.x1 - 3.5} y={shape.y1 - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                                <rect className="cad-grip-glow" x={shape.x2 - 3.5} y={shape.y2 - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                                <rect className="cad-grip-glow" x={(shape.x1 + shape.x2) / 2 - 3.5} y={(shape.y1 + shape.y2) / 2 - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                            </>
+                                                                        )}
+                                                                    </g>
+                                                                );
                                                             }
                                                             if (shape.type === 'circle') {
-                                                                return <circle key={shape.id} cx={shape.cx} cy={shape.cy} r={shape.r} fill={shape.fill || 'none'} stroke={shapeColor} strokeWidth={shapeWidth} transform={rotationStr} onClick={handleShapeClick} onMouseDown={handleShapeMouseDown} style={shapeStyle} />;
+                                                                return (
+                                                                    <g key={shape.id} transform={rotationStr} onClick={handleShapeClick} onMouseDown={handleShapeMouseDown} style={shapeStyle}>
+                                                                        <circle cx={shape.cx} cy={shape.cy} r={shape.r} fill="transparent" stroke="transparent" strokeWidth={hitWidth} />
+                                                                        <circle cx={shape.cx} cy={shape.cy} r={shape.r} fill={shape.fill || 'none'} stroke={shapeColor} strokeWidth={shapeWidth} strokeDasharray={dashArray} className={animClass} />
+                                                                        {isSelected && (
+                                                                            <>
+                                                                                <rect className="cad-grip-glow" x={shape.cx - 3.5} y={shape.cy - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                                <rect className="cad-grip-glow" x={shape.cx + shape.r - 3.5} y={shape.cy - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                                <rect className="cad-grip-glow" x={shape.cx - shape.r - 3.5} y={shape.cy - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                                <rect className="cad-grip-glow" x={shape.cx - 3.5} y={shape.cy - shape.r - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                                <rect className="cad-grip-glow" x={shape.cx - 3.5} y={shape.cy + shape.r - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                            </>
+                                                                        )}
+                                                                    </g>
+                                                                );
                                                             }
                                                             if (shape.type === 'rect') {
-                                                                return <rect key={shape.id} x={shape.x} y={shape.y} width={shape.w} height={shape.h} fill={shape.fill || 'none'} stroke={shapeColor} strokeWidth={shapeWidth} transform={rotationStr} onClick={handleShapeClick} onMouseDown={handleShapeMouseDown} style={shapeStyle} />;
+                                                                return (
+                                                                    <g key={shape.id} transform={rotationStr} onClick={handleShapeClick} onMouseDown={handleShapeMouseDown} style={shapeStyle}>
+                                                                        <rect x={shape.x} y={shape.y} width={shape.w} height={shape.h} fill="transparent" stroke="transparent" strokeWidth={hitWidth} />
+                                                                        <rect x={shape.x} y={shape.y} width={shape.w} height={shape.h} fill={shape.fill || 'none'} stroke={shapeColor} strokeWidth={shapeWidth} strokeDasharray={dashArray} className={animClass} />
+                                                                        {isSelected && (
+                                                                            <>
+                                                                                <rect className="cad-grip-glow" x={shape.x - 3.5} y={shape.y - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                                <rect className="cad-grip-glow" x={shape.x + shape.w - 3.5} y={shape.y - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                                <rect className="cad-grip-glow" x={shape.x - 3.5} y={shape.y + shape.h - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                                <rect className="cad-grip-glow" x={shape.x + shape.w - 3.5} y={shape.y + shape.h - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                                <rect className="cad-grip-glow" x={shape.x + shape.w / 2 - 3.5} y={shape.y + shape.h / 2 - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                            </>
+                                                                        )}
+                                                                    </g>
+                                                                );
                                                             }
                                                             if (shape.type === 'ellipse') {
-                                                                return <ellipse key={shape.id} cx={shape.cx} cy={shape.cy} rx={shape.rx} ry={shape.ry} fill={shape.fill || 'none'} stroke={shapeColor} strokeWidth={shapeWidth} transform={rotationStr} onClick={handleShapeClick} onMouseDown={handleShapeMouseDown} style={shapeStyle} />;
+                                                                return (
+                                                                    <g key={shape.id} transform={rotationStr} onClick={handleShapeClick} onMouseDown={handleShapeMouseDown} style={shapeStyle}>
+                                                                        <ellipse cx={shape.cx} cy={shape.cy} rx={shape.rx} ry={shape.ry} fill="transparent" stroke="transparent" strokeWidth={hitWidth} />
+                                                                        <ellipse cx={shape.cx} cy={shape.cy} rx={shape.rx} ry={shape.ry} fill={shape.fill || 'none'} stroke={shapeColor} strokeWidth={shapeWidth} strokeDasharray={dashArray} className={animClass} />
+                                                                        {isSelected && (
+                                                                            <>
+                                                                                <rect className="cad-grip-glow" x={shape.cx - 3.5} y={shape.cy - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                                <rect className="cad-grip-glow" x={shape.cx + shape.rx - 3.5} y={shape.cy - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                                <rect className="cad-grip-glow" x={shape.cx - 3.5} y={shape.cy + shape.ry - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                            </>
+                                                                        )}
+                                                                    </g>
+                                                                );
                                                             }
                                                             if (shape.type === 'triangle') {
-                                                                return <polygon key={shape.id} points={`${shape.x + shape.w / 2},${shape.y} ${shape.x + shape.w},${shape.y + shape.h} ${shape.x},${shape.y + shape.h}`} fill={shape.fill || 'none'} stroke={shapeColor} strokeWidth={shapeWidth} transform={rotationStr} onClick={handleShapeClick} onMouseDown={handleShapeMouseDown} style={shapeStyle} />;
+                                                                const p1 = { x: shape.x + shape.w / 2, y: shape.y };
+                                                                const p2 = { x: shape.x + shape.w, y: shape.y + shape.h };
+                                                                const p3 = { x: shape.x, y: shape.y + shape.h };
+                                                                return (
+                                                                    <g key={shape.id} transform={rotationStr} onClick={handleShapeClick} onMouseDown={handleShapeMouseDown} style={shapeStyle}>
+                                                                        <polygon points={`${p1.x},${p1.y} ${p2.x},${p2.y} ${p3.x},${p3.y}`} fill="transparent" stroke="transparent" strokeWidth={hitWidth} />
+                                                                        <polygon points={`${p1.x},${p1.y} ${p2.x},${p2.y} ${p3.x},${p3.y}`} fill={shape.fill || 'none'} stroke={shapeColor} strokeWidth={shapeWidth} strokeDasharray={dashArray} className={animClass} />
+                                                                        {isSelected && (
+                                                                            <>
+                                                                                <rect className="cad-grip-glow" x={p1.x - 3.5} y={p1.y - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                                <rect className="cad-grip-glow" x={p2.x - 3.5} y={p2.y - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                                <rect className="cad-grip-glow" x={p3.x - 3.5} y={p3.y - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                            </>
+                                                                        )}
+                                                                    </g>
+                                                                );
                                                             }
                                                             if (shape.type === 'hexagon') {
                                                                 const hexPts = [0, 60, 120, 180, 240, 300].map(deg => {
                                                                     const rad = deg * Math.PI / 180;
                                                                     return `${shape.cx + shape.r * Math.cos(rad)},${shape.cy + shape.r * Math.sin(rad)}`;
                                                                 }).join(' ');
-                                                                return <polygon key={shape.id} points={hexPts} fill={shape.fill || 'none'} stroke={shapeColor} strokeWidth={shapeWidth} transform={rotationStr} onClick={handleShapeClick} onMouseDown={handleShapeMouseDown} style={shapeStyle} />;
+                                                                return (
+                                                                    <g key={shape.id} transform={rotationStr} onClick={handleShapeClick} onMouseDown={handleShapeMouseDown} style={shapeStyle}>
+                                                                        <polygon points={hexPts} fill="transparent" stroke="transparent" strokeWidth={hitWidth} />
+                                                                        <polygon points={hexPts} fill={shape.fill || 'none'} stroke={shapeColor} strokeWidth={shapeWidth} strokeDasharray={dashArray} className={animClass} />
+                                                                        {isSelected && (
+                                                                            <rect className="cad-grip-glow" x={shape.cx - 3.5} y={shape.cy - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                        )}
+                                                                    </g>
+                                                                );
                                                             }
                                                             if (shape.type === 'arc') {
                                                                 const startRad = ((shape.startAngle || 0) * Math.PI) / 180;
@@ -6859,29 +7447,133 @@ export default function DrawingManager() {
                                                                 while (diff < 0) diff += 360;
                                                                 const largeArc = diff > 180 ? 1 : 0;
                                                                 const arcD = `M ${x1} ${y1} A ${shape.r} ${shape.r} 0 ${largeArc} 1 ${x2} ${y2}`;
-                                                                return <path key={shape.id} d={arcD} fill="none" stroke={shapeColor} strokeWidth={shapeWidth} transform={rotationStr} onClick={handleShapeClick} onMouseDown={handleShapeMouseDown} style={shapeStyle} />;
+                                                                return (
+                                                                    <g key={shape.id} transform={rotationStr} onClick={handleShapeClick} onMouseDown={handleShapeMouseDown} style={shapeStyle}>
+                                                                        <path d={arcD} fill="none" stroke="transparent" strokeWidth={hitWidth} />
+                                                                        <path d={arcD} fill="none" stroke={shapeColor} strokeWidth={shapeWidth} strokeDasharray={dashArray} className={animClass} />
+                                                                        {isSelected && (
+                                                                            <>
+                                                                                <rect className="cad-grip-glow" x={x1 - 3.5} y={y1 - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                                <rect className="cad-grip-glow" x={x2 - 3.5} y={y2 - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                                <rect className="cad-grip-glow" x={shape.cx - 3.5} y={shape.cy - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                            </>
+                                                                        )}
+                                                                    </g>
+                                                                );
                                                             }
                                                             if (shape.type === 'polyline' && Array.isArray(shape.points)) {
                                                                 const pts = shape.points.map(p => `${p.x},${p.y}`).join(' ');
-                                                                return <polyline key={shape.id} points={pts} fill="none" stroke={shapeColor} strokeWidth={shapeWidth} transform={rotationStr} onClick={handleShapeClick} onMouseDown={handleShapeMouseDown} style={shapeStyle} />;
+                                                                return (
+                                                                    <g key={shape.id} transform={rotationStr} onClick={handleShapeClick} onMouseDown={handleShapeMouseDown} style={shapeStyle}>
+                                                                        <polyline points={pts} fill="none" stroke="transparent" strokeWidth={hitWidth} />
+                                                                        <polyline points={pts} fill="none" stroke={shapeColor} strokeWidth={shapeWidth} strokeDasharray={dashArray} className={animClass} />
+                                                                        {isSelected && shape.points.map((pt, pIdx) => (
+                                                                            <rect key={`grip_${pIdx}`} className="cad-grip-glow" x={pt.x - 3.5} y={pt.y - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                        ))}
+                                                                    </g>
+                                                                );
                                                             }
                                                             if (shape.type === 'text') {
-                                                                return <text key={shape.id} x={shape.x} y={shape.y} fill={shape.color || '#ffffff'} fontSize={shape.fontSize || 14} fontFamily="monospace" transform={rotationStr} onClick={handleShapeClick} onMouseDown={handleShapeMouseDown} style={shapeStyle}>{shape.text}</text>;
+                                                                return (
+                                                                    <g key={shape.id} transform={rotationStr} onClick={handleShapeClick} onMouseDown={handleShapeMouseDown} style={shapeStyle}>
+                                                                        <text x={shape.x} y={shape.y} fill={isSelected ? '#38bdf8' : (shape.color || '#ffffff')} fontSize={shape.fontSize || 14} fontFamily="monospace" className={animClass}>{shape.text}</text>
+                                                                        {isSelected && (
+                                                                            <rect className="cad-grip-glow" x={shape.x - 3.5} y={shape.y - (shape.fontSize || 14) - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                        )}
+                                                                    </g>
+                                                                );
                                                             }
                                                             if (shape.type === 'image' && shape.dataUrl) {
                                                                 return (
-                                                                    <image
-                                                                        key={shape.id}
-                                                                        href={shape.dataUrl}
-                                                                        x={shape.x}
-                                                                        y={shape.y}
-                                                                        width={shape.w}
-                                                                        height={shape.h}
-                                                                        transform={rotationStr}
-                                                                        onClick={handleShapeClick}
-                                                                        onMouseDown={handleShapeMouseDown}
-                                                                        style={shapeStyle}
-                                                                    />
+                                                                    <g key={shape.id} transform={rotationStr} onClick={handleShapeClick} onMouseDown={handleShapeMouseDown} style={shapeStyle}>
+                                                                        <image
+                                                                            href={shape.dataUrl}
+                                                                            x={shape.x}
+                                                                            y={shape.y}
+                                                                            width={shape.w}
+                                                                            height={shape.h}
+                                                                            className={animClass}
+                                                                        />
+                                                                        {isSelected && (
+                                                                            <rect className="cad-grip-glow" x={shape.x - 3.5} y={shape.y - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                        )}
+                                                                    </g>
+                                                                );
+                                                            }
+                                                            if (shape.type === 'callout') {
+                                                                const targetX = shape.targetX;
+                                                                const targetY = shape.targetY;
+                                                                const boxX = shape.boxX;
+                                                                const boxY = shape.boxY;
+                                                                const color = isSelected ? '#38bdf8' : (shape.color || '#ef4444');
+                                                                return (
+                                                                    <g key={shape.id} transform={rotationStr} onClick={handleShapeClick} onMouseDown={handleShapeMouseDown} style={shapeStyle}>
+                                                                        {/* Target anchor */}
+                                                                        <circle cx={targetX} cy={targetY} r="4" fill="#ffffff" stroke={color} strokeWidth="2" className={animClass} />
+                                                                        {/* Leader line */}
+                                                                        <line x1={targetX} y1={targetY} x2={boxX} y2={boxY} stroke={color} strokeWidth={shapeWidth} className={animClass} />
+                                                                        {/* Callout Text Box */}
+                                                                        <rect x={boxX - 32} y={boxY - 12} width="64" height="24" rx="4" fill="#ffffff" stroke={color} strokeWidth={shapeWidth} className={animClass} />
+                                                                        <text x={boxX} y={boxY + 4} fill={color} fontSize="11" fontWeight="bold" textAnchor="middle" dominantBaseline="middle">{shape.text || 'Callout'}</text>
+                                                                        {isSelected && (
+                                                                            <>
+                                                                                <rect className="cad-grip-glow" x={targetX - 3.5} y={targetY - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                                <rect className="cad-grip-glow" x={boxX - 3.5} y={boxY - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                            </>
+                                                                        )}
+                                                                    </g>
+                                                                );
+                                                            }
+                                                            if (shape.type === 'arrow') {
+                                                                const x1 = shape.x1;
+                                                                const y1 = shape.y1;
+                                                                const x2 = shape.x2;
+                                                                const y2 = shape.y2;
+                                                                const color = isSelected ? '#38bdf8' : (shape.color || '#ef4444');
+                                                                const angle = Math.atan2(y2 - y1, x2 - x1);
+                                                                const headLen = 12;
+                                                                const arrowP1 = `${x2 - headLen * Math.cos(angle - Math.PI / 6)},${y2 - headLen * Math.sin(angle - Math.PI / 6)}`;
+                                                                const arrowP2 = `${x2 - headLen * Math.cos(angle + Math.PI / 6)},${y2 - headLen * Math.sin(angle + Math.PI / 6)}`;
+                                                                return (
+                                                                    <g key={shape.id} transform={rotationStr} onClick={handleShapeClick} onMouseDown={handleShapeMouseDown} style={shapeStyle}>
+                                                                        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="transparent" strokeWidth={hitWidth} />
+                                                                        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={shapeWidth} strokeDasharray={dashArray} className={animClass} />
+                                                                        <polygon points={`${x2},${y2} ${arrowP1} ${arrowP2}`} fill={color} />
+                                                                        {isSelected && (
+                                                                            <>
+                                                                                <rect className="cad-grip-glow" x={x1 - 3.5} y={y1 - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                                <rect className="cad-grip-glow" x={x2 - 3.5} y={y2 - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                            </>
+                                                                        )}
+                                                                    </g>
+                                                                );
+                                                            }
+                                                            if (shape.type === 'revcloud') {
+                                                                const x = shape.x;
+                                                                const y = shape.y;
+                                                                const w = shape.w;
+                                                                const h = shape.h;
+                                                                const color = isSelected ? '#38bdf8' : (shape.color || '#ef4444');
+                                                                return (
+                                                                    <g key={shape.id} transform={rotationStr} onClick={handleShapeClick} onMouseDown={handleShapeMouseDown} style={shapeStyle}>
+                                                                        <rect x={x} y={y} width={w} height={h} rx="8" stroke="transparent" strokeWidth={hitWidth} fill="transparent" />
+                                                                        <rect x={x} y={y} width={w} height={h} rx="8" stroke={color} strokeWidth={shapeWidth} strokeDasharray="6,4" fill={isSelected ? 'rgba(56, 189, 248, 0.1)' : 'rgba(239, 68, 68, 0.08)'} className={animClass} />
+                                                                        {isSelected && (
+                                                                            <>
+                                                                                <rect className="cad-grip-glow" x={x - 3.5} y={y - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                                <rect className="cad-grip-glow" x={x + w - 3.5} y={y + h - 3.5} width="7" height="7" fill="#38bdf8" stroke="white" strokeWidth="1" />
+                                                                            </>
+                                                                        )}
+                                                                    </g>
+                                                                );
+                                                            }
+                                                            if (shape.type === 'stamp') {
+                                                                const color = shape.color || '#22c55e';
+                                                                return (
+                                                                    <g key={shape.id} transform={`translate(${shape.x}, ${shape.y})`} onClick={handleShapeClick} onMouseDown={handleShapeMouseDown} style={shapeStyle}>
+                                                                        <rect x="-60" y="-20" width="120" height="40" rx="4" fill="rgba(34, 197, 94, 0.15)" stroke={color} strokeWidth="2.5" strokeDasharray="4,2" className={animClass} />
+                                                                        <text x="0" y="6" fill={color} fontSize="14" fontWeight="bold" fontFamily="monospace" textAnchor="middle">{shape.text || 'APPROVED'}</text>
+                                                                    </g>
                                                                 );
                                                             }
                                                             return null;
@@ -6898,6 +7590,20 @@ export default function DrawingManager() {
                                                                 !dim.id.startsWith('dim_dxf')
                                                             )
                                                         )}
+                                                    </g>
+
+                                                    {/* AutoCAD / MLightCAD Bottom-Left UCS Coordinate Triad */}
+                                                    <g transform={`translate(35, ${canvasSize.height - 35})`} style={{ pointerEvents: 'none' }}>
+                                                        {/* Y Axis Green Arrow */}
+                                                        <line x1="0" y1="0" x2="0" y2="-28" stroke="#22c55e" strokeWidth="2" />
+                                                        <polygon points="0,-34 -4,-26 4,-26" fill="#22c55e" />
+                                                        <text x="-4" y="-38" fill="#22c55e" fontSize="12" fontWeight="bold" fontFamily="monospace">Y</text>
+                                                        {/* X Axis Orange/Yellow Arrow */}
+                                                        <line x1="0" y1="0" x2="28" y2="0" stroke="#f59e0b" strokeWidth="2" />
+                                                        <polygon points="34,0 26,-4 26,4" fill="#f59e0b" />
+                                                        <text x="38" y="4" fill="#f59e0b" fontSize="12" fontWeight="bold" fontFamily="monospace">X</text>
+                                                        {/* Origin Box */}
+                                                        <rect x="-3" y="-3" width="6" height="6" fill="#ffffff" />
                                                     </g>
                                                 </svg>
                                             </MLightCadViewer>
@@ -8032,6 +8738,26 @@ export default function DrawingManager() {
                                                 }}
                                             >
                                                 <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M4 20 L20 20 M4 20 L4 4" /></svg> ORTHO
+                                            </button>
+
+                                            <button
+                                                onClick={() => setShowCrosshair(c => !c)}
+                                                title="Toggle AutoCAD Crossbar Guide (CROSSHAIR)"
+                                                style={{
+                                                    backgroundColor: showCrosshair ? '#2563eb20' : 'transparent',
+                                                    border: '1px solid ' + (showCrosshair ? '#2563eb' : '#334155'),
+                                                    color: showCrosshair ? '#60a5fa' : '#64748b',
+                                                    borderRadius: '4px',
+                                                    padding: '2px 6px',
+                                                    fontSize: '0.55rem',
+                                                    fontWeight: 'bold',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '2px'
+                                                }}
+                                            >
+                                                <Crosshair size={9} /> CROSSHAIR
                                             </button>
 
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '1px' }}>
