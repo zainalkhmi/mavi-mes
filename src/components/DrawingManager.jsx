@@ -910,6 +910,7 @@ export default function DrawingManager() {
     const [selectedShapeId, setSelectedShapeId] = useState(null); // currently selected shape ID (e.g. image)
     const [selectedShapeIds, setSelectedShapeIds] = useState([]); // multiple selected shape IDs (Select All / Marquee selection)
     const [selectionBox, setSelectionBox] = useState(null); // Marquee box: { startX, startY, currentX, currentY }
+    const justSelectedRef = useRef(false);
 
     const getEntityBounds = (shape) => {
         if (!shape) return null;
@@ -1615,14 +1616,16 @@ export default function DrawingManager() {
         }
     };
 
+    const handleDeleteShape = (shapeId) => {
+        if (!selectedDwg || !shapeId) return;
+        const currentShapes = selectedDwg.shapes || [];
+        const filtered = currentShapes.filter(s => s.id !== shapeId);
+        updateShapes(filtered);
+        if (selectedShapeId === shapeId) setSelectedShapeId(null);
+        toast.success('Bentuk geometri berhasil dihapus.');
+    };
+
     const handleCanvasContextMenu = (e) => {
-        if (cadTool === 'polyline' && polylineDraftPoints.length > 0) {
-            e.preventDefault();
-            e.stopPropagation();
-            finishPolylineDraft();
-            return;
-        }
-        if (cadTool !== 'select' || !activeDimId) return;
         e.preventDefault();
         e.stopPropagation();
         if (svgRef.current) {
@@ -2870,6 +2873,29 @@ export default function DrawingManager() {
                 setShowOsnapModal(true);
                 successMessage = 'OSNAP Settings opened.';
                 break;
+            case 'theme': {
+                const themeOrder = ['dark', 'blueprint', 'white'];
+                const themeLabels = { dark: '⬛ Dark (Black)', blueprint: '📐 Blueprint (Blue)', white: '⬜ White (Light)' };
+                const idx = themeOrder.indexOf(canvasTheme);
+                const next = themeOrder[(idx + 1) % themeOrder.length];
+                setCanvasTheme(next);
+                successMessage = `Canvas Theme: ${themeLabels[next]}`;
+                break;
+            }
+            case 'blueprint':
+                setCanvasTheme('blueprint');
+                successMessage = 'Canvas Theme: 📐 Blueprint (Blue)';
+                break;
+            case 'darkmode':
+            case 'dark':
+                setCanvasTheme('dark');
+                successMessage = 'Canvas Theme: ⬛ Dark (Black)';
+                break;
+            case 'lightmode':
+            case 'white':
+                setCanvasTheme('white');
+                successMessage = 'Canvas Theme: ⬜ White (Light)';
+                break;
             case 'clear':
                 updateShapes([]);
                 successMessage = 'Canvas shapes cleared.';
@@ -2879,7 +2905,8 @@ export default function DrawingManager() {
                     ...prev,
                     'Available commands: LINE, CIRCLE, RECT, ARC, POLYLINE, TEXT, IMAGE',
                     'Editing commands: MOVE, ROTATE, MIRROR, TRIM, ERASE, SELECT, UNDO, REDO',
-                    'Toggles: GRID (toggle snap), ORTHO (toggle drawing lock), OSNAP (Object Snap settings), CLEAR (clear shapes), HELP'
+                    'Toggles: GRID (toggle snap), ORTHO (toggle drawing lock), OSNAP (Object Snap settings), CLEAR (clear shapes), HELP',
+                    'Theme: THEME (cycle), BLUEPRINT (blue), DARK (black), WHITE (light)'
                 ]);
                 matched = false;
                 break;
@@ -3020,14 +3047,6 @@ export default function DrawingManager() {
         setDimContextMenu(null);
         setCanvasContextMenu(null);
 
-        // Intercept right click to finish polyline
-        if (e.button === 2 && cadTool === 'polyline' && polylineDraftPoints.length > 0) {
-            e.stopPropagation();
-            e.preventDefault();
-            finishPolylineDraft();
-            return;
-        }
-
         // Intercept middle click, Spacebar + drag, or Pan tool active
         if (e.button === 1 || (e.button === 0 && spacePressed) || (cadTool === 'pan' && e.button === 0)) {
             setIsPanning(true);
@@ -3037,17 +3056,59 @@ export default function DrawingManager() {
             return;
         }
 
-        if (cadTool === 'select') {
+        const isSelectionTool = !cadTool || cadTool === 'select' || cadTool === 'default';
+
+        if (isSelectionTool) {
             const coords = getCanvasCoords(e);
-            setSelectionBox({
-                startX: coords.x,
-                startY: coords.y,
-                currentX: coords.x,
-                currentY: coords.y
-            });
-            setSelectedShapeId(null);
-            setSelectedShapeIds([]);
-            return;
+            if (selectionBox) {
+                // Second Click: Commit Marquee Selection!
+                const minX = Math.min(selectionBox.startX, coords.x);
+                const maxX = Math.max(selectionBox.startX, coords.x);
+                const minY = Math.min(selectionBox.startY, coords.y);
+                const maxY = Math.max(selectionBox.startY, coords.y);
+                const width = maxX - minX;
+                const height = maxY - minY;
+
+                if (width > 4 || height > 4) {
+                    const isCrossing = coords.x < selectionBox.startX; // Right-to-Left = Crossing (Green), Left-to-Right = Window (Blue)
+                    const shapes = selectedDwg?.shapes || [];
+                    const matchedIds = [];
+
+                    shapes.forEach(shape => {
+                        const bounds = getEntityBounds(shape);
+                        if (!bounds) return;
+
+                        if (isCrossing) {
+                            const intersects = !(bounds.maxX < minX || bounds.minX > maxX || bounds.maxY < minY || bounds.minY > maxY);
+                            if (intersects) matchedIds.push(shape.id);
+                        } else {
+                            const inside = bounds.minX >= minX && bounds.maxX <= maxX && bounds.minY >= minY && bounds.maxY <= maxY;
+                            if (inside) matchedIds.push(shape.id);
+                        }
+                    });
+
+                    setSelectedShapeIds(matchedIds);
+                    justSelectedRef.current = true;
+                    if (matchedIds.length > 0) {
+                        toast.success(`${matchedIds.length} entitas CAD dipilih (${isCrossing ? 'Crossing' : 'Window'} Selection).`);
+                    } else {
+                        setSelectedShapeId(null);
+                    }
+                }
+                setSelectionBox(null);
+                return;
+            } else {
+                // First Click: Start Marquee Selection Box!
+                setSelectionBox({
+                    startX: coords.x,
+                    startY: coords.y,
+                    currentX: coords.x,
+                    currentY: coords.y
+                });
+                setSelectedShapeId(null);
+                setSelectedShapeIds([]);
+                return;
+            }
         }
 
         if (cadTool === 'move' || cadTool === 'rotate' || cadTool === 'mirror' || cadTool === 'trim' || cadTool === 'erase' || cadTool === 'copy' || cadTool === 'offset') return;
@@ -4089,10 +4150,15 @@ export default function DrawingManager() {
     const handleCanvasClick = (e) => {
         setDimContextMenu(null);
         setCanvasContextMenu(null);
-        if (cadTool !== 'select') return;
+        if (justSelectedRef.current) {
+            justSelectedRef.current = false;
+            return;
+        }
+        if (cadTool !== 'select' && cadTool !== 'default' && cadTool) return;
         
-        // Clear active selection on background click
+        // Clear active selection on blank canvas click only if not just selected
         setSelectedShapeId(null);
+        setSelectedShapeIds([]);
 
         if (!activeDim) return;
         if (activeDim.locked) {
@@ -6051,10 +6117,10 @@ export default function DrawingManager() {
         });
     };
 
-    // ─── Label helper ───
-    const inputStyle = { width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.8rem', outline: 'none', fontFamily: "'Inter', sans-serif", transition: 'border-color 0.2s' };
-    const selectStyle = { ...inputStyle, backgroundColor: 'white', cursor: 'pointer' };
-    const labelStyle = { display: 'block', fontSize: '0.68rem', color: '#64748b', fontWeight: 700, marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.03em' };
+    // ─── Odoo Enterprise Style helper ───
+    const inputStyle = { width: '100%', padding: '7px 10px', borderRadius: '5px', border: '1px solid #ced4da', fontSize: '0.78rem', outline: 'none', fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", color: '#212529', backgroundColor: '#ffffff', transition: 'border-color 0.15s, box-shadow 0.15s' };
+    const selectStyle = { ...inputStyle, backgroundColor: '#ffffff', cursor: 'pointer' };
+    const labelStyle = { display: 'block', fontSize: '0.65rem', color: '#495057', fontWeight: 700, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.04em' };
     const mgmtItemStyle = {
         display: 'flex',
         alignItems: 'center',
@@ -7169,6 +7235,54 @@ export default function DrawingManager() {
                                                 showQCInspector={showQCInspector}
                                                 onToggleInspector={() => setShowQCInspector(prev => !prev)}
                                                 dimensionsCount={selectedDwg?.dimensions?.length || 0}
+                                                canvasTheme={canvasTheme}
+                                                onCanvasThemeChange={setCanvasTheme}
+                                                onAiCreateShape={(shape) => {
+                                                    if (!selectedDwg) return;
+                                                    const currentShapes = selectedDwg.shapes || [];
+                                                    const newShape = {
+                                                        ...shape,
+                                                        id: `shape_ai_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+                                                        color: shape.color || cadColor || '#38bdf8',
+                                                        strokeWidth: shape.strokeWidth || cadWidth || 2
+                                                    };
+                                                    updateShapes([...currentShapes, newShape]);
+                                                    setSelectedShapeId(newShape.id);
+                                                    setSelectedShapeIds([newShape.id]);
+                                                    toast.success(`✨ Objek CAD (${newShape.type.toUpperCase()}) berhasil digenerate oleh AI ke kanvas!`);
+                                                }}
+                                                onAiCreateDimension={(dim) => {
+                                                    if (!selectedDwg) return;
+                                                    const currentDims = selectedDwg.dimensions || [];
+                                                    const nextBalloonNum = currentDims.length + 1;
+                                                    const newDim = {
+                                                        id: `dim_ai_${Date.now()}`,
+                                                        label: dim.label || `Balon #${nextBalloonNum} - AI`,
+                                                        spec: dim.spec || '25.00',
+                                                        unit: 'mm',
+                                                        category: dim.category || 'dimension',
+                                                        measureType: 'linear',
+                                                        indicatorType: dim.indicatorType || 'balloon',
+                                                        nominal: 25.00,
+                                                        upperTol: 0.05,
+                                                        lowerTol: -0.05,
+                                                        x1: dim.x1 ?? 200,
+                                                        y1: dim.y1 ?? 200,
+                                                        x2: dim.x2 ?? 280,
+                                                        y2: dim.y2 ?? 200,
+                                                        lx: dim.lx ?? 300,
+                                                        ly: dim.ly ?? 160,
+                                                        cx: dim.cx ?? 240,
+                                                        cy: dim.cy ?? 200
+                                                    };
+                                                    const updatedDwg = {
+                                                        ...selectedDwg,
+                                                        dimensions: [...currentDims, newDim]
+                                                    };
+                                                    setDrawings(prev => prev.map(d => d.id === selectedDwgId ? updatedDwg : d));
+                                                    saveDrawing(updatedDwg);
+                                                    toast.success(`✨ Balon Inspeksi QC (#${nextBalloonNum}) berhasil dibuat oleh AI!`);
+                                                }}
                                                 onEntitySelect={(ent) => {
                                                     if (ent && ent.nominal) {
                                                         toast.success(`Entitas CAD dipilih: ${ent.nominal} mm`);
@@ -7590,20 +7704,6 @@ export default function DrawingManager() {
                                                                 !dim.id.startsWith('dim_dxf')
                                                             )
                                                         )}
-                                                    </g>
-
-                                                    {/* AutoCAD / MLightCAD Bottom-Left UCS Coordinate Triad */}
-                                                    <g transform={`translate(35, ${canvasSize.height - 35})`} style={{ pointerEvents: 'none' }}>
-                                                        {/* Y Axis Green Arrow */}
-                                                        <line x1="0" y1="0" x2="0" y2="-28" stroke="#22c55e" strokeWidth="2" />
-                                                        <polygon points="0,-34 -4,-26 4,-26" fill="#22c55e" />
-                                                        <text x="-4" y="-38" fill="#22c55e" fontSize="12" fontWeight="bold" fontFamily="monospace">Y</text>
-                                                        {/* X Axis Orange/Yellow Arrow */}
-                                                        <line x1="0" y1="0" x2="28" y2="0" stroke="#f59e0b" strokeWidth="2" />
-                                                        <polygon points="34,0 26,-4 26,4" fill="#f59e0b" />
-                                                        <text x="38" y="4" fill="#f59e0b" fontSize="12" fontWeight="bold" fontFamily="monospace">X</text>
-                                                        {/* Origin Box */}
-                                                        <rect x="-3" y="-3" width="6" height="6" fill="#ffffff" />
                                                     </g>
                                                 </svg>
                                             </MLightCadViewer>
@@ -8390,93 +8490,211 @@ export default function DrawingManager() {
                                     })()}
 
                                     {canvasContextMenu && (() => {
-                                        const activeDim = selectedDwg?.dimensions.find(d => d.id === activeDimId);
-                                        if (!activeDim) return null;
-                                        const catColor = activeDim.color || getCategoryColor(activeDim.category || 'dimension');
-                                        const isAngle = activeDim.category === 'angle';
+                                        const activeDim = selectedDwg?.dimensions?.find(d => d.id === activeDimId);
+                                        const activeShape = selectedDwg?.shapes?.find(s => s.id === selectedShapeId);
+                                        const hasSelection = !!activeDim || !!activeShape;
+                                        const isPolylineDrafting = cadTool === 'polyline' && polylineDraftPoints.length > 0;
+                                        const isDrawingLine = cadTool === 'line' || isPolylineDrafting;
+
                                         return (
                                             <div style={{
                                                 position: 'absolute',
                                                 top: `${canvasContextMenu.y}px`,
                                                 left: `${canvasContextMenu.x}px`,
-                                                transform: 'translate(10px, 10px)',
-                                                backgroundColor: '#0f172af2',
-                                                border: `1px solid ${catColor}`,
+                                                transform: 'translate(6px, 6px)',
+                                                backgroundColor: '#0f172af5',
+                                                border: '1px solid #334155',
                                                 borderRadius: '10px',
-                                                padding: '12px',
+                                                padding: '8px',
                                                 display: 'flex',
                                                 flexDirection: 'column',
-                                                gap: '6px',
+                                                gap: '4px',
                                                 zIndex: 1100,
-                                                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
+                                                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.7), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
                                                 fontFamily: "'Inter', sans-serif",
-                                                minWidth: '200px',
-                                                backdropFilter: 'blur(4px)',
-                                                borderLeft: `4px solid ${catColor}`
+                                                minWidth: '225px',
+                                                backdropFilter: 'blur(8px)',
+                                                borderLeft: '4px solid #3b82f6'
                                             }}>
-                                                <div style={{ borderBottom: '1px solid #334155', paddingBottom: '4px', marginBottom: '4px' }}>
-                                                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#f8fafc', display: 'block' }}>Atur Koordinat Canvas</span>
-                                                    <span style={{ fontSize: '0.58rem', color: '#94a3b8' }}>X: {Math.round(canvasContextMenu.canvasX)}, Y: {Math.round(canvasContextMenu.canvasY)}</span>
+                                                {/* Context Header */}
+                                                <div style={{ borderBottom: '1px solid #334155', paddingBottom: '4px', marginBottom: '2px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#f8fafc' }}>
+                                                        {isPolylineDrafting ? '〽️ Polyline Drafting' : hasSelection ? '⚙️ Opsi Entitas Terpilih' : '🎯 CAD Canvas Menu'}
+                                                    </span>
+                                                    <span style={{ fontSize: '0.58rem', color: '#94a3b8', fontFamily: 'monospace' }}>
+                                                        X:{Math.round(canvasContextMenu.canvasX)} Y:{Math.round(canvasContextMenu.canvasY)}
+                                                    </span>
                                                 </div>
-                                                <button
-                                                    onClick={setStartPointFromCanvasMenu}
-                                                    style={{
-                                                        padding: '6px 8px',
-                                                        backgroundColor: '#1e293b',
-                                                        color: '#f8fafc',
-                                                        border: '1px solid #334155',
-                                                        borderRadius: '6px',
-                                                        fontSize: '0.68rem',
-                                                        fontWeight: 'bold',
-                                                        cursor: 'pointer',
-                                                        textAlign: 'left',
-                                                        transition: 'all 0.2s'
-                                                    }}
-                                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#334155'; }}
-                                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#1e293b'; }}
-                                                >
-                                                    📍 Tentukan Titik Awal (Start Point)
-                                                </button>
-                                                <button
-                                                    onClick={setEndPointFromCanvasMenu}
-                                                    style={{
-                                                        padding: '6px 8px',
-                                                        backgroundColor: '#1e293b',
-                                                        color: '#f8fafc',
-                                                        border: '1px solid #334155',
-                                                        borderRadius: '6px',
-                                                        fontSize: '0.68rem',
-                                                        fontWeight: 'bold',
-                                                        cursor: 'pointer',
-                                                        textAlign: 'left',
-                                                        transition: 'all 0.2s'
-                                                    }}
-                                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#334155'; }}
-                                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#1e293b'; }}
-                                                >
-                                                    🏁 Tentukan Titik Akhir (End Point)
-                                                </button>
-                                                {isAngle && (
+
+                                                {/* 3. END POINT (Untuk akhiri garis atau polyline / Finish Drafting) */}
+                                                {(isPolylineDrafting || isDrawingLine) && (
                                                     <button
-                                                        onClick={setCenterPointFromCanvasMenu}
+                                                        onClick={() => {
+                                                            if (isPolylineDrafting) {
+                                                                finishPolylineDraft();
+                                                            } else if (cadTool === 'line') {
+                                                                setCadTool('select');
+                                                                toast.success('Garis selesai digambar.');
+                                                            }
+                                                            setCanvasContextMenu(null);
+                                                        }}
                                                         style={{
                                                             padding: '6px 8px',
+                                                            backgroundColor: '#064e3b',
+                                                            color: '#34d399',
+                                                            border: '1px solid #059669',
+                                                            borderRadius: '6px',
+                                                            fontSize: '0.70rem',
+                                                            fontWeight: 'bold',
+                                                            cursor: 'pointer',
+                                                            textAlign: 'left',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '6px'
+                                                        }}
+                                                        onMouseEnter={e => e.currentTarget.style.backgroundColor = '#047857'}
+                                                        onMouseLeave={e => e.currentTarget.style.backgroundColor = '#064e3b'}
+                                                    >
+                                                        <span>🏁 3. End Point (Akhiri Garis / Polyline)</span>
+                                                    </button>
+                                                )}
+
+                                                {/* If has active dimension, option to set End Point coordinate */}
+                                                {activeDim && !isPolylineDrafting && (
+                                                    <button
+                                                        onClick={setEndPointFromCanvasMenu}
+                                                        style={{
+                                                            padding: '5px 8px',
                                                             backgroundColor: '#1e293b',
-                                                            color: '#f8fafc',
+                                                            color: '#38bdf8',
                                                             border: '1px solid #334155',
                                                             borderRadius: '6px',
                                                             fontSize: '0.68rem',
                                                             fontWeight: 'bold',
                                                             cursor: 'pointer',
                                                             textAlign: 'left',
-                                                            transition: 'all 0.2s'
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '6px'
                                                         }}
-                                                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#334155'; }}
-                                                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#1e293b'; }}
+                                                        onMouseEnter={e => e.currentTarget.style.backgroundColor = '#334155'}
+                                                        onMouseLeave={e => e.currentTarget.style.backgroundColor = '#1e293b'}
                                                     >
-                                                        🎯 Tentukan Titik Pusat (Vertex)
+                                                        <span>🏁 3. Tentukan End Point (Titik Akhir)</span>
                                                     </button>
                                                 )}
+
+                                                {/* 1. COPY (Duplikasi Objek / Garis) */}
+                                                <button
+                                                    onClick={() => {
+                                                        if (activeDimId) {
+                                                            handleDuplicateDimension(activeDimId);
+                                                        } else if (selectedShapeId && activeShape) {
+                                                            handleDuplicateShape(activeShape);
+                                                        } else {
+                                                            toast.info('Pilih objek atau parameter terlebih dahulu untuk di-copy.');
+                                                        }
+                                                        setCanvasContextMenu(null);
+                                                    }}
+                                                    disabled={!hasSelection}
+                                                    style={{
+                                                        padding: '5px 8px',
+                                                        backgroundColor: hasSelection ? '#1e293b' : '#0f172a',
+                                                        color: hasSelection ? '#38bdf8' : '#64748b',
+                                                        border: '1px solid #334155',
+                                                        borderRadius: '6px',
+                                                        fontSize: '0.68rem',
+                                                        fontWeight: 'bold',
+                                                        cursor: hasSelection ? 'pointer' : 'not-allowed',
+                                                        textAlign: 'left',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '6px'
+                                                    }}
+                                                    onMouseEnter={e => { if (hasSelection) e.currentTarget.style.backgroundColor = '#334155'; }}
+                                                    onMouseLeave={e => { if (hasSelection) e.currentTarget.style.backgroundColor = '#1e293b'; }}
+                                                >
+                                                    <span>📋 1. Copy (Duplikasi Objek Terpilih)</span>
+                                                </button>
+
+                                                {/* 2. DELETE (Hapus Objek / Garis) */}
+                                                <button
+                                                    onClick={() => {
+                                                        if (activeDimId) {
+                                                            handleDeleteDimension(activeDimId);
+                                                        } else if (selectedShapeId) {
+                                                            handleDeleteShape(selectedShapeId);
+                                                        } else {
+                                                            toast.info('Pilih objek atau parameter terlebih dahulu untuk dihapus.');
+                                                        }
+                                                        setCanvasContextMenu(null);
+                                                    }}
+                                                    disabled={!hasSelection}
+                                                    style={{
+                                                        padding: '5px 8px',
+                                                        backgroundColor: hasSelection ? '#1e293b' : '#0f172a',
+                                                        color: hasSelection ? '#f87171' : '#64748b',
+                                                        border: '1px solid #334155',
+                                                        borderRadius: '6px',
+                                                        fontSize: '0.68rem',
+                                                        fontWeight: 'bold',
+                                                        cursor: hasSelection ? 'pointer' : 'not-allowed',
+                                                        textAlign: 'left',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '6px'
+                                                    }}
+                                                    onMouseEnter={e => { if (hasSelection) e.currentTarget.style.backgroundColor = '#7f1d1d'; }}
+                                                    onMouseLeave={e => { if (hasSelection) e.currentTarget.style.backgroundColor = '#1e293b'; }}
+                                                >
+                                                    <span>🗑️ 2. Delete (Hapus Objek / Garis)</span>
+                                                </button>
+
+                                                {/* Optional Coordinate Modifiers if activeDim */}
+                                                {activeDim && (
+                                                    <>
+                                                        <div style={{ height: '1px', backgroundColor: '#334155', margin: '2px 0' }} />
+                                                        <button
+                                                            onClick={setStartPointFromCanvasMenu}
+                                                            style={{
+                                                                padding: '5px 8px',
+                                                                backgroundColor: '#1e293b',
+                                                                color: '#e2e8f0',
+                                                                border: '1px solid #334155',
+                                                                borderRadius: '6px',
+                                                                fontSize: '0.64rem',
+                                                                fontWeight: '500',
+                                                                cursor: 'pointer',
+                                                                textAlign: 'left'
+                                                            }}
+                                                            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#334155'}
+                                                            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#1e293b'}
+                                                        >
+                                                            📍 Tentukan Start Point (Titik Awal)
+                                                        </button>
+                                                        {activeDim.category === 'angle' && (
+                                                            <button
+                                                                onClick={setCenterPointFromCanvasMenu}
+                                                                style={{
+                                                                    padding: '5px 8px',
+                                                                    backgroundColor: '#1e293b',
+                                                                    color: '#e2e8f0',
+                                                                    border: '1px solid #334155',
+                                                                    borderRadius: '6px',
+                                                                    fontSize: '0.64rem',
+                                                                    fontWeight: '500',
+                                                                    cursor: 'pointer',
+                                                                    textAlign: 'left'
+                                                                }}
+                                                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#334155'}
+                                                                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#1e293b'}
+                                                            >
+                                                                🎯 Tentukan Titik Pusat (Vertex)
+                                                            </button>
+                                                        )}
+                                                    </>
+                                                )}
+
                                                 <button
                                                     onClick={() => setCanvasContextMenu(null)}
                                                     style={{
@@ -8494,7 +8712,7 @@ export default function DrawingManager() {
                                                     onMouseEnter={e => e.currentTarget.style.color = 'white'}
                                                     onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
                                                 >
-                                                    Batal
+                                                    Tutup Menu (Esc)
                                                 </button>
                                             </div>
                                         );
@@ -8848,52 +9066,53 @@ export default function DrawingManager() {
 
                         </div> {/* Closes AutoCAD Canvas Card Content wrapper */}
 
-                    {/* Right Sidebar: QC Inspector (Tabs: Parameter Mapping / QC Simulator) */}
+                    {/* Right Sidebar: QC Inspector (Odoo Enterprise Theme) */}
                     {showQCInspector && (
                         <div style={{
                             width: '350px',
                             display: 'flex',
                             flexDirection: 'column',
                             backgroundColor: '#ffffff',
-                            borderRadius: '16px',
-                            border: '1px solid #cbd5e1',
+                            borderRadius: '10px',
+                            border: '1px solid #d1d5db',
                             overflow: 'hidden',
-                            fontFamily: "'Inter', sans-serif",
-                            color: '#1e293b',
+                            fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+                            color: '#212529',
                             flexShrink: 0,
                             height: '100%',
-                            zIndex: 10
+                            zIndex: 10,
+                            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05)'
                         }}>
-                            {/* Unified Panel Header */}
+                            {/* Odoo Unified Panel Header */}
                             <div style={{
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
-                                padding: '12px 16px',
-                                borderBottom: '1px solid rgba(226, 232, 240, 0.8)',
-                                backgroundColor: 'rgba(248, 250, 252, 0.8)'
+                                padding: '10px 14px',
+                                borderBottom: '1px solid #e9ecef',
+                                backgroundColor: '#f8f9fa'
                             }}>
-                                {/* Tab Switcher / Pills */}
+                                {/* Odoo Tab Switcher / Breadcrumb Pills */}
                                 <div style={{
                                     display: 'flex',
-                                    padding: '3px',
-                                    backgroundColor: '#e2e8f0',
-                                    borderRadius: '8px',
+                                    padding: '2px',
+                                    backgroundColor: '#e9ecef',
+                                    borderRadius: '6px',
                                     gap: '2px'
                                 }}>
                                     <button
                                         onClick={() => setQcTab('properties')}
                                         style={{
-                                            padding: '6px 12px',
-                                            borderRadius: '6px',
+                                            padding: '5px 12px',
+                                            borderRadius: '5px',
                                             border: 'none',
                                             fontSize: '0.72rem',
-                                            fontWeight: 800,
+                                            fontWeight: qcTab === 'properties' ? 700 : 600,
                                             cursor: 'pointer',
-                                            backgroundColor: qcTab === 'properties' ? 'white' : 'transparent',
-                                            color: qcTab === 'properties' ? '#0f172a' : '#64748b',
-                                            boxShadow: qcTab === 'properties' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
-                                            transition: 'all 0.2s',
+                                            backgroundColor: qcTab === 'properties' ? '#714B67' : 'transparent',
+                                            color: qcTab === 'properties' ? '#ffffff' : '#495057',
+                                            boxShadow: qcTab === 'properties' ? '0 1px 3px rgba(113, 75, 103, 0.35)' : 'none',
+                                            transition: 'all 0.15s ease',
                                             outline: 'none'
                                         }}
                                     >
@@ -8902,16 +9121,16 @@ export default function DrawingManager() {
                                     <button
                                         onClick={() => setQcTab('simulator')}
                                         style={{
-                                            padding: '6px 12px',
-                                            borderRadius: '6px',
+                                            padding: '5px 12px',
+                                            borderRadius: '5px',
                                             border: 'none',
                                             fontSize: '0.72rem',
-                                            fontWeight: 800,
+                                            fontWeight: qcTab === 'simulator' ? 700 : 600,
                                             cursor: 'pointer',
-                                            backgroundColor: qcTab === 'simulator' ? 'white' : 'transparent',
-                                            color: qcTab === 'simulator' ? '#0f172a' : '#64748b',
-                                            boxShadow: qcTab === 'simulator' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
-                                            transition: 'all 0.2s',
+                                            backgroundColor: qcTab === 'simulator' ? '#714B67' : 'transparent',
+                                            color: qcTab === 'simulator' ? '#ffffff' : '#495057',
+                                            boxShadow: qcTab === 'simulator' ? '0 1px 3px rgba(113, 75, 103, 0.35)' : 'none',
+                                            transition: 'all 0.15s ease',
                                             outline: 'none'
                                         }}
                                     >
@@ -8920,16 +9139,16 @@ export default function DrawingManager() {
                                     <button
                                         onClick={() => setQcTab('region')}
                                         style={{
-                                            padding: '6px 12px',
-                                            borderRadius: '6px',
+                                            padding: '5px 12px',
+                                            borderRadius: '5px',
                                             border: 'none',
                                             fontSize: '0.72rem',
-                                            fontWeight: 800,
+                                            fontWeight: qcTab === 'region' ? 700 : 600,
                                             cursor: 'pointer',
-                                            backgroundColor: qcTab === 'region' ? 'white' : 'transparent',
-                                            color: qcTab === 'region' ? '#ef4444' : '#64748b',
-                                            boxShadow: qcTab === 'region' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
-                                            transition: 'all 0.2s',
+                                            backgroundColor: qcTab === 'region' ? '#017E84' : 'transparent',
+                                            color: qcTab === 'region' ? '#ffffff' : '#495057',
+                                            boxShadow: qcTab === 'region' ? '0 1px 3px rgba(1, 126, 132, 0.35)' : 'none',
+                                            transition: 'all 0.15s ease',
                                             outline: 'none'
                                         }}
                                     >
@@ -8939,23 +9158,22 @@ export default function DrawingManager() {
 
                                 {/* Right side items + Close Button */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    {/* Close Button */}
                                     <button
                                         onClick={() => setShowQCInspector(false)}
                                         style={{
                                             background: 'none',
                                             border: 'none',
-                                            color: '#64748b',
-                                            fontSize: '0.9rem',
+                                            color: '#6c757d',
+                                            fontSize: '0.85rem',
                                             cursor: 'pointer',
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center',
                                             padding: '4px',
-                                            borderRadius: '50%'
+                                            borderRadius: '4px'
                                         }}
-                                        onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(226, 232, 240, 0.5)'}
-                                        onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#e9ecef'; e.currentTarget.style.color = '#212529'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#6c757d'; }}
                                     >
                                         <X size={14} />
                                     </button>
@@ -8966,16 +9184,17 @@ export default function DrawingManager() {
                             {qcTab === 'properties' ? (
                                 <div style={{ flex: 1, overflowY: 'auto', padding: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                     {/* Action Row containing Balloon indicator and Add Button */}
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px', marginBottom: '4px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e9ecef', paddingBottom: '8px', marginBottom: '4px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                             {activeDim && (
                                                 <span style={{
-                                                    fontSize: '0.7rem',
-                                                    backgroundColor: '#eff6ff',
-                                                    color: '#2563eb',
-                                                    padding: '3px 10px',
-                                                    borderRadius: '12px',
-                                                    fontWeight: 'bold',
+                                                    fontSize: '0.68rem',
+                                                    backgroundColor: '#f3eef2',
+                                                    color: '#714B67',
+                                                    border: '1px solid #d9c4d4',
+                                                    padding: '3px 8px',
+                                                    borderRadius: '4px',
+                                                    fontWeight: 700,
                                                     display: 'inline-block'
                                                 }}>
                                                     Balloon #{selectedDwg?.dimensions?.findIndex(d => d.id === activeDim.id) + 1 || '?'}
@@ -8992,7 +9211,7 @@ export default function DrawingManager() {
                                                         color: '#dc2626',
                                                         border: '1px solid #fca5a5',
                                                         padding: '3px 8px',
-                                                        borderRadius: '6px',
+                                                        borderRadius: '4px',
                                                         fontSize: '0.65rem',
                                                         fontWeight: 700,
                                                         cursor: 'pointer'
@@ -9005,23 +9224,39 @@ export default function DrawingManager() {
                                             )}
                                         </div>
                                         
-                                        {/* Add button with category picker */}
+                                        {/* Odoo Style "+ Tambah" button with category picker */}
                                         <div style={{ position: 'relative' }} ref={addPickerRef}>
                                             <button
                                                 onClick={() => setShowAddPicker(!showAddPicker)}
-                                                style={{ display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #bfdbfe', backgroundColor: '#eff6ff', color: '#2563eb', padding: '4px 10px', borderRadius: '6px', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '5px',
+                                                    border: '1px solid #5a3c52',
+                                                    backgroundColor: '#714B67',
+                                                    color: '#ffffff',
+                                                    padding: '5px 12px',
+                                                    borderRadius: '5px',
+                                                    fontSize: '0.70rem',
+                                                    fontWeight: 700,
+                                                    cursor: 'pointer',
+                                                    boxShadow: '0 1px 2px rgba(113, 75, 103, 0.25)',
+                                                    transition: 'all 0.15s ease'
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#5a3c52'}
+                                                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#714B67'}
                                             >
                                                 <Plus size={12} /> Tambah <ChevronDown size={10} />
                                             </button>
                                             {showAddPicker && (
                                                 <div style={{
                                                     position: 'absolute', top: '100%', right: 0, marginTop: '6px',
-                                                    backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0',
-                                                    boxShadow: '0 12px 40px rgba(0,0,0,0.15)', padding: '10px', zIndex: 100,
-                                                    width: '220px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px',
+                                                    backgroundColor: 'white', borderRadius: '8px', border: '1px solid #d1d5db',
+                                                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.15)', padding: '10px', zIndex: 100,
+                                                    width: '230px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px',
                                                 }}>
-                                                    <div style={{ gridColumn: '1 / -1', fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '2px', padding: '0 4px' }}>
-                                                        Pilih Tipe Parameter
+                                                    <div style={{ gridColumn: '1 / -1', fontSize: '0.62rem', fontWeight: 800, color: '#6c757d', textTransform: 'uppercase', marginBottom: '2px', padding: '0 4px', letterSpacing: '0.5px' }}>
+                                                        TIPE PARAMETER ODOO
                                                     </div>
                                                     {PARAM_CATEGORIES.map(cat => (
                                                         <button
@@ -9029,14 +9264,14 @@ export default function DrawingManager() {
                                                             onClick={() => handleAddDimension(cat.key)}
                                                             style={{
                                                                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px',
-                                                                padding: '10px 6px', borderRadius: '8px', border: `1px solid ${cat.color}30`,
-                                                                backgroundColor: `${cat.color}08`, cursor: 'pointer', transition: 'all 0.2s',
+                                                                padding: '8px 6px', borderRadius: '6px', border: `1px solid ${cat.color}25`,
+                                                                backgroundColor: `${cat.color}08`, cursor: 'pointer', transition: 'all 0.15s',
                                                             }}
                                                             onMouseEnter={e => { e.currentTarget.style.backgroundColor = `${cat.color}18`; e.currentTarget.style.borderColor = cat.color; }}
-                                                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = `${cat.color}08`; e.currentTarget.style.borderColor = `${cat.color}30`; }}
+                                                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = `${cat.color}08`; e.currentTarget.style.borderColor = `${cat.color}25`; }}
                                                         >
-                                                            <span style={{ fontSize: '1.1rem' }}>{cat.icon}</span>
-                                                            <span style={{ fontSize: '0.6rem', fontWeight: 700, color: cat.color, textAlign: 'center' }}>{cat.labelId}</span>
+                                                            <span style={{ fontSize: '1.05rem' }}>{cat.icon}</span>
+                                                            <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#212529', textAlign: 'center' }}>{cat.labelId}</span>
                                                         </button>
                                                     ))}
                                                 </div>
@@ -9902,8 +10137,36 @@ export default function DrawingManager() {
                                             </div>
                                         </div>
                                     ) : (
-                                        <div style={{ padding: '24px 0', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>
-                                            Pilih dimensi pada gambar atau gunakan "+ Tambah" untuk memulai konfigurasi.
+                                        <div style={{
+                                            padding: '40px 16px',
+                                            textAlign: 'center',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '12px'
+                                        }}>
+                                            <div style={{
+                                                width: '54px',
+                                                height: '54px',
+                                                borderRadius: '50%',
+                                                backgroundColor: '#f3eef2',
+                                                border: '1px solid #e5dbe3',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                color: '#714B67'
+                                            }}>
+                                                <Sliders size={26} />
+                                            </div>
+                                            <div>
+                                                <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#212529', marginBottom: '4px' }}>
+                                                    Parameter QC Odoo
+                                                </div>
+                                                <div style={{ fontSize: '0.72rem', color: '#6c757d', maxWidth: '240px', lineHeight: '1.4' }}>
+                                                    Pilih dimensi pada gambar CAD atau gunakan tombol <b style={{ color: '#714B67' }}>+ Tambah</b> untuk memulai konfigurasi.
+                                                </div>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
