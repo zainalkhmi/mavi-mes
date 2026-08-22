@@ -590,6 +590,11 @@ function ESignatureModal({ operator, onClose, onSign }) {
 }
 
 function NewAppModal({ onConfirm, onCancel }) {
+    const [step, setStep] = useState(1);
+    const [selectedTemplate, setSelectedTemplate] = useState(null);
+    const [selectedDevice, setSelectedDevice] = useState('RESPONSIVE');
+    const [selectedOrientation, setSelectedOrientation] = useState('PORTRAIT');
+
     const templates = [
         {
             id: 'incoming-inspection',
@@ -609,6 +614,32 @@ function NewAppModal({ onConfirm, onCancel }) {
         }
     ];
 
+    // Filter device presets for selection (exclude RESPONSIVE for default)
+    const devicePresets = Object.entries(DEVICE_PRESETS).filter(([key]) => key !== 'RESPONSIVE');
+    const selectedPreset = DEVICE_PRESETS[selectedDevice];
+
+    const handleTemplateSelect = (templateId) => {
+        setSelectedTemplate(templateId);
+        // Auto-detect recommended device based on template
+        if (templateId === 'product-drawing-inspection') {
+            setSelectedDevice('DESKTOP_FHD');
+        }
+        setStep(2);
+    };
+
+    const handleConfirm = () => {
+        onConfirm({
+            templateId: selectedTemplate,
+            devicePreset: selectedDevice,
+            orientation: selectedOrientation
+        });
+    };
+
+    const handleBack = () => {
+        setStep(1);
+        setSelectedTemplate(null);
+    };
+
     return (
         <div style={{
             position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.6)',
@@ -616,54 +647,180 @@ function NewAppModal({ onConfirm, onCancel }) {
             backdropFilter: 'blur(8px)'
         }}>
             <div style={{
-                backgroundColor: 'white', borderRadius: '24px', width: '500px',
+                backgroundColor: 'white', borderRadius: '24px', width: step === 1 ? '500px' : '600px',
                 boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden'
             }}>
                 <div style={{ padding: '24px 32px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                        <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>Create New App</h2>
-                        <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>Choose a template to get started</p>
+                        <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>
+                            {step === 1 ? 'Create New App' : 'Select Device Target'}
+                        </h2>
+                        <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
+                            {step === 1 ? 'Step 1: Choose a template' : 'Step 2: Choose target device'}
+                        </p>
                     </div>
-                    <button onClick={onCancel} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', padding: '8px', cursor: 'pointer', color: '#64748b' }}>
-                        <X size={20} />
+                    <button onClick={step === 1 ? onCancel : handleBack} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', padding: '8px', cursor: 'pointer', color: '#64748b' }}>
+                        {step === 1 ? <X size={20} /> : <ChevronLeft size={20} />}
                     </button>
                 </div>
 
-                <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {templates.map(t => (
-                        <div
-                            key={t.id}
-                            onClick={() => onConfirm(t.id)}
-                            style={{
-                                padding: '20px', borderRadius: '16px', border: '2px solid #f1f5f9',
-                                background: t.bg, cursor: 'pointer', transition: 'all 0.2s',
-                                display: 'flex', gap: '16px', alignItems: 'center'
-                            }}
-                            onMouseEnter={e => {
-                                e.currentTarget.style.borderColor = t.accent;
-                                e.currentTarget.style.transform = 'translateY(-2px)';
-                            }}
-                            onMouseLeave={e => {
-                                e.currentTarget.style.borderColor = '#f1f5f9';
-                                e.currentTarget.style.transform = 'translateY(0)';
-                            }}
-                        >
-                            <div style={{ width: '48px', height: '48px', borderRadius: '12px', backgroundColor: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-                                {t.icon}
+                {step === 1 ? (
+                    /* Step 1: Template Selection */
+                    <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        {templates.map(t => (
+                            <div
+                                key={t.id}
+                                onClick={() => handleTemplateSelect(t.id)}
+                                style={{
+                                    padding: '20px', borderRadius: '16px', border: '2px solid #f1f5f9',
+                                    background: t.bg, cursor: 'pointer', transition: 'all 0.2s',
+                                    display: 'flex', gap: '16px', alignItems: 'center'
+                                }}
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.borderColor = t.accent;
+                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                }}
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.borderColor = '#f1f5f9';
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                }}
+                            >
+                                <div style={{ width: '48px', height: '48px', borderRadius: '12px', backgroundColor: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                                    {t.icon}
+                                </div>
+                                <div>
+                                    <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '1rem' }}>{t.name}</div>
+                                    <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '2px', lineHeight: 1.4 }}>{t.description}</div>
+                                </div>
                             </div>
-                            <div>
-                                <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '1rem' }}>{t.name}</div>
-                                <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '2px', lineHeight: 1.4 }}>{t.description}</div>
+                        ))}
+                    </div>
+                ) : (
+                    /* Step 2: Device Selection */
+                    <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        {/* Device Category Tabs */}
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                            {['PHONE', 'TABLET', 'PC', 'TV'].map(kind => {
+                                const hasDevices = devicePresets.some(([, p]) => p.kind === kind);
+                                if (!hasDevices) return null;
+                                return (
+                                    <button
+                                        key={kind}
+                                        onClick={() => {/* Filter devices by kind - show all for now */}}
+                                        style={{
+                                            padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0',
+                                            backgroundColor: 'white', color: '#64748b', fontSize: '0.75rem', fontWeight: 700,
+                                            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                                        }}
+                                    >
+                                        {kind === 'PHONE' && <Smartphone size={14} />}
+                                        {kind === 'TABLET' && <Tablet size={14} />}
+                                        {kind === 'PC' && <Monitor size={14} />}
+                                        {kind === 'TV' && <Monitor size={14} />}
+                                        {kind}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Device Grid */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', maxHeight: '300px', overflowY: 'auto' }}>
+                            {/* RESPONSIVE option */}
+                            <div
+                                onClick={() => setSelectedDevice('RESPONSIVE')}
+                                style={{
+                                    padding: '16px', borderRadius: '12px', border: `2px solid ${selectedDevice === 'RESPONSIVE' ? '#3b82f6' : '#e2e8f0'}`,
+                                    backgroundColor: selectedDevice === 'RESPONSIVE' ? '#eff6ff' : 'white',
+                                    cursor: 'pointer', transition: 'all 0.2s'
+                                }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                                    <LayoutGrid size={18} color={selectedDevice === 'RESPONSIVE' ? '#3b82f6' : '#64748b'} />
+                                    <span style={{ fontWeight: 700, fontSize: '0.85rem', color: selectedDevice === 'RESPONSIVE' ? '#1e40af' : '#0f172a' }}>Responsive</span>
+                                </div>
+                                <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Adapts to any screen size</div>
+                                <div style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: '4px' }}>1000 × 625</div>
+                            </div>
+
+                            {devicePresets.map(([key, preset]) => {
+                                const PresetIcon = preset.icon || LayoutGrid;
+                                const isSelected = selectedDevice === key;
+                                return (
+                                    <div
+                                        key={key}
+                                        onClick={() => setSelectedDevice(key)}
+                                        style={{
+                                            padding: '16px', borderRadius: '12px', border: `2px solid ${isSelected ? '#3b82f6' : '#e2e8f0'}`,
+                                            backgroundColor: isSelected ? '#eff6ff' : 'white',
+                                            cursor: 'pointer', transition: 'all 0.2s'
+                                        }}
+                                        onMouseEnter={e => {
+                                            if (!isSelected) e.currentTarget.style.borderColor = '#93c5fd';
+                                        }}
+                                        onMouseLeave={e => {
+                                            if (!isSelected) e.currentTarget.style.borderColor = '#e2e8f0';
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                                            <PresetIcon size={18} color={isSelected ? '#3b82f6' : '#64748b'} />
+                                            <span style={{ fontWeight: 700, fontSize: '0.8rem', color: isSelected ? '#1e40af' : '#0f172a' }}>
+                                                {preset.label.split('(')[0].trim()}
+                                            </span>
+                                        </div>
+                                        <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>{preset.width} × {preset.height}</div>
+                                        <div style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
+                                            {['PORTRAIT', 'LANDSCAPE'].map(orient => (
+                                                <button
+                                                    key={orient}
+                                                    onClick={e => { e.stopPropagation(); setSelectedOrientation(orient); }}
+                                                    style={{
+                                                        padding: '2px 8px', borderRadius: '4px',
+                                                        border: `1px solid ${selectedOrientation === orient && isSelected ? '#3b82f6' : '#e2e8f0'}`,
+                                                        backgroundColor: selectedOrientation === orient && isSelected ? '#3b82f6' : 'white',
+                                                        color: selectedOrientation === orient && isSelected ? 'white' : '#64748b',
+                                                        fontSize: '0.6rem', fontWeight: 600, cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    {orient === 'PORTRAIT' ? '📱 P' : '📱 L'}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Selected Device Summary */}
+                        <div style={{ padding: '12px 16px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>Selected Configuration:</div>
+                            <div style={{ display: 'flex', gap: '16px', fontSize: '0.8rem' }}>
+                                <span>📱 <strong>Device:</strong> {selectedPreset?.label || 'Responsive'}</span>
+                                <span>🔄 <strong>Orientation:</strong> {selectedOrientation}</span>
+                                <span>📐 <strong>Canvas:</strong> {selectedOrientation === 'PORTRAIT' ? `${selectedPreset?.width || 1000} × ${selectedPreset?.height || 625}` : `${selectedPreset?.height || 625} × ${selectedPreset?.width || 1000}`}</span>
                             </div>
                         </div>
-                    ))}
-                </div>
 
-                <div style={{ padding: '16px 24px', backgroundColor: '#f8fafc', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end' }}>
-                    <button onClick={onCancel} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', color: '#64748b', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>
-                        Cancel
-                    </button>
-                </div>
+                        <button
+                            onClick={handleConfirm}
+                            style={{
+                                padding: '14px 24px', borderRadius: '12px', border: 'none',
+                                background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                                color: 'white', fontWeight: 800, fontSize: '1rem', cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                            }}
+                        >
+                            <Rocket size={18} /> Create App with {selectedPreset?.label?.split('(')[0].trim() || 'Responsive'}
+                        </button>
+                    </div>
+                )}
+
+                {step === 1 && (
+                    <div style={{ padding: '16px 24px', backgroundColor: '#f8fafc', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end' }}>
+                        <button onClick={onCancel} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white', color: '#64748b', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>
+                            Cancel
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -1182,7 +1339,12 @@ const AppPlayer = () => {
         setPendingApp(null);
     };
 
-    const handleCreateTemplate = async (templateId) => {
+    const handleCreateTemplate = async (options) => {
+        // Support both old signature (templateId string) and new signature (object)
+        const templateId = typeof options === 'string' ? options : options?.templateId;
+        const devicePreset = typeof options === 'object' ? (options?.devicePreset || 'RESPONSIVE') : 'RESPONSIVE';
+        const orientation = typeof options === 'object' ? (options?.orientation || 'PORTRAIT') : 'PORTRAIT';
+
         setShowNewAppModal(false);
         setIsCreating(true);
         try {
@@ -1268,6 +1430,38 @@ const AppPlayer = () => {
                 }
             }
 
+            // Apply device preset and orientation settings
+            if (templateApp.config) {
+                templateApp.config.devicePreset = devicePreset;
+                templateApp.config.previewOrientation = orientation;
+
+                // Scale components to fit the selected device
+                const preset = DEVICE_PRESETS[devicePreset];
+                if (preset && devicePreset !== 'RESPONSIVE') {
+                    const canvasWidth = orientation === 'PORTRAIT' ? preset.width : preset.height;
+                    const canvasHeight = orientation === 'PORTRAIT' ? preset.height : preset.width;
+
+                    // Scale all components in steps
+                    const originalWidth = 1000;
+                    const originalHeight = 625;
+                    const scaleX = canvasWidth / originalWidth;
+                    const scaleY = canvasHeight / originalHeight;
+
+                    if (templateApp.config.steps) {
+                        templateApp.config.steps = templateApp.config.steps.map(step => ({
+                            ...step,
+                            components: (step.components || []).map(comp => ({
+                                ...comp,
+                                x: comp.x != null ? Math.round(comp.x * scaleX) : comp.x,
+                                y: comp.y != null ? Math.round(comp.y * scaleY) : comp.y,
+                                w: comp.w != null ? Math.round(comp.w * scaleX) : comp.w,
+                                h: comp.h != null ? Math.round(comp.h * scaleY) : comp.h
+                            }))
+                        }));
+                    }
+                }
+            }
+
             // Save the new app
             const { id, ...templateData } = templateApp;
             const savedApp = await saveFrontlineApp({
@@ -1280,7 +1474,11 @@ const AppPlayer = () => {
             // Refresh and load
             await loadData();
             if (savedApp) {
-                requestLaunch(savedApp);
+                // Navigate to AppBuilder with the new app and device preset set
+                const devicePreset = templateApp.config?.devicePreset || 'RESPONSIVE';
+                const orientation = templateApp.config?.previewOrientation || 'PORTRAIT';
+                const url = `/#/builder?appId=${savedApp.id}&devicePreset=${devicePreset}&orientation=${orientation}`;
+                window.location.href = url;
             }
         } catch (err) {
             console.error('Failed to create template:', err);

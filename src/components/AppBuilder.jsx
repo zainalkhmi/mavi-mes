@@ -7153,15 +7153,25 @@ const AppBuilder = () => {
         const hashStr = window.location.hash;
         const queryStr = hashStr.includes('?') ? hashStr.split('?')[1] : '';
         const queryParams = new URLSearchParams(queryStr);
-        
+
         const appIdParam = queryParams.get('appId');
         if (appIdParam && appsList.length > 0) {
             const matchedApp = appsList.find(app => String(app.id) === String(appIdParam));
             if (matchedApp && matchedApp.id !== currentAppId) {
                 loadApp(matchedApp);
+
+                // Handle device preset from URL parameters (passed from AppPlayer when creating new app)
+                const devicePresetParam = queryParams.get('devicePreset');
+                const orientationParam = queryParams.get('orientation');
+                if (devicePresetParam) {
+                    setTimeout(() => setPreviewDevice(devicePresetParam), 100);
+                }
+                if (orientationParam) {
+                    setTimeout(() => setPreviewOrientation(orientationParam), 100);
+                }
             }
         }
-        
+
         const copilotParam = queryParams.get('copilot');
         if (copilotParam === 'true') {
             setIsCopilotOpen(true);
@@ -12933,20 +12943,23 @@ const AppBuilder = () => {
                             const deviceColor = deviceKind === 'RESPONSIVE' ? '#38bdf8' : deviceKind === 'PHONE' ? '#34d399' : deviceKind === 'TABLET' ? '#c084fc' : '#fb923c';
                             const deviceBg = deviceKind === 'RESPONSIVE' ? 'rgba(56, 189, 248, 0.15)' : deviceKind === 'PHONE' ? 'rgba(52, 211, 153, 0.15)' : deviceKind === 'TABLET' ? 'rgba(192, 132, 252, 0.15)' : 'rgba(251, 146, 60, 0.15)';
                             const deviceBorder = deviceKind === 'RESPONSIVE' ? '1px solid rgba(56, 189, 248, 0.4)' : deviceKind === 'PHONE' ? '1px solid rgba(52, 211, 153, 0.4)' : deviceKind === 'TABLET' ? '1px solid rgba(192, 132, 252, 0.4)' : '1px solid rgba(251, 146, 60, 0.4)';
+                            const isDeviceLocked = deviceKind !== 'RESPONSIVE';
                             return (
-                                <div style={{ 
-                                    position: 'relative', 
-                                    display: 'flex', 
-                                    alignItems: 'center', 
-                                    justifyContent: 'center', 
-                                    width: '28px', 
-                                    height: '28px', 
-                                    backgroundColor: deviceBg, 
-                                    border: deviceBorder,
-                                    borderRadius: '6px',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s'
-                                }} 
+                                <React.Fragment>
+                                    {/* Device Icon/Selector */}
+                                    <div style={{
+                                        position: 'relative',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        width: '28px',
+                                        height: '28px',
+                                        backgroundColor: deviceBg,
+                                        border: deviceBorder,
+                                        borderRadius: '6px',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s'
+                                    }} 
                                 onMouseEnter={(e) => { 
                                     e.currentTarget.style.transform = 'scale(1.08)'; 
                                     e.currentTarget.style.filter = 'brightness(1.2)';
@@ -12979,6 +12992,25 @@ const AppBuilder = () => {
                                         ))}
                                     </select>
                                 </div>
+
+                                {/* Lock Indicator - shown when device is locked */}
+                                {isDeviceLocked && (
+                                    <div style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        padding: '2px 6px',
+                                        backgroundColor: 'rgba(52, 211, 153, 0.2)',
+                                        borderRadius: '4px',
+                                        border: '1px solid rgba(52, 211, 153, 0.4)'
+                                    }}>
+                                        <Lock size={10} color="#34d399" />
+                                        <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#34d399' }}>
+                                            {DEVICE_PRESETS[previewDevice]?.label?.split(' ').slice(0, 2).join(' ')}
+                                        </span>
+                                    </div>
+                                )}
+                            </React.Fragment>
                             );
                         })()}
 
