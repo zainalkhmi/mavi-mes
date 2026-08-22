@@ -592,8 +592,14 @@ function ESignatureModal({ operator, onClose, onSign }) {
 function NewAppModal({ onConfirm, onCancel }) {
     const [step, setStep] = useState(1);
     const [selectedTemplate, setSelectedTemplate] = useState(null);
-    const [selectedDevice, setSelectedDevice] = useState('RESPONSIVE');
+    const [selectedDevice, setSelectedDevice] = useState('IPHONE_14');
     const [selectedOrientation, setSelectedOrientation] = useState('PORTRAIT');
+
+    // Custom size state
+    const [useCustomSize, setUseCustomSize] = useState(false);
+    const [customWidth, setCustomWidth] = useState(360);
+    const [customHeight, setCustomHeight] = useState(640);
+    const [customLabel, setCustomLabel] = useState('Custom Device');
 
     const templates = [
         {
@@ -614,15 +620,45 @@ function NewAppModal({ onConfirm, onCancel }) {
         }
     ];
 
-    // Filter device presets for selection (exclude RESPONSIVE for default)
-    const devicePresets = Object.entries(DEVICE_PRESETS).filter(([key]) => key !== 'RESPONSIVE');
+    // Group devices by kind
+    const deviceGroups = {
+        PHONE: Object.entries(DEVICE_PRESETS).filter(([, p]) => p.kind === 'PHONE'),
+        TABLET: Object.entries(DEVICE_PRESETS).filter(([, p]) => p.kind === 'TABLET'),
+        PC: Object.entries(DEVICE_PRESETS).filter(([, p]) => p.kind === 'PC'),
+        TV: Object.entries(DEVICE_PRESETS).filter(([, p]) => p.kind === 'TV'),
+    };
+
+    // Calculate canvas dimensions based on selection
+    const getCanvasDimensions = () => {
+        if (useCustomSize) {
+            return selectedOrientation === 'PORTRAIT'
+                ? { width: customWidth, height: customHeight }
+                : { width: customHeight, height: customWidth };
+        }
+        const preset = DEVICE_PRESETS[selectedDevice];
+        if (!preset || selectedDevice === 'RESPONSIVE') {
+            return { width: 1000, height: 625 };
+        }
+        return selectedOrientation === 'PORTRAIT'
+            ? { width: preset.width, height: preset.height }
+            : { width: preset.height, height: preset.width };
+    };
+
     const selectedPreset = DEVICE_PRESETS[selectedDevice];
+    const canvasDim = getCanvasDimensions();
+
+    // Scale factor for visual preview
+    const previewScale = Math.min(80 / canvasDim.width, 120 / canvasDim.height, 1);
+    const previewWidth = canvasDim.width * previewScale;
+    const previewHeight = canvasDim.height * previewScale;
 
     const handleTemplateSelect = (templateId) => {
         setSelectedTemplate(templateId);
         // Auto-detect recommended device based on template
         if (templateId === 'product-drawing-inspection') {
             setSelectedDevice('DESKTOP_FHD');
+        } else {
+            setSelectedDevice('IPHONE_14');
         }
         setStep(2);
     };
@@ -630,8 +666,11 @@ function NewAppModal({ onConfirm, onCancel }) {
     const handleConfirm = () => {
         onConfirm({
             templateId: selectedTemplate,
-            devicePreset: selectedDevice,
-            orientation: selectedOrientation
+            devicePreset: useCustomSize ? 'CUSTOM' : selectedDevice,
+            orientation: selectedOrientation,
+            customWidth: useCustomSize ? customWidth : undefined,
+            customHeight: useCustomSize ? customHeight : undefined,
+            customLabel: useCustomSize ? customLabel : undefined
         });
     };
 
@@ -647,7 +686,7 @@ function NewAppModal({ onConfirm, onCancel }) {
             backdropFilter: 'blur(8px)'
         }}>
             <div style={{
-                backgroundColor: 'white', borderRadius: '24px', width: step === 1 ? '500px' : '600px',
+                backgroundColor: 'white', borderRadius: '24px', width: step === 1 ? '500px' : '800px',
                 boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden'
             }}>
                 <div style={{ padding: '24px 32px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -656,7 +695,7 @@ function NewAppModal({ onConfirm, onCancel }) {
                             {step === 1 ? 'Create New App' : 'Select Device Target'}
                         </h2>
                         <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
-                            {step === 1 ? 'Step 1: Choose a template' : 'Step 2: Choose target device'}
+                            {step === 1 ? 'Step 1: Choose a template' : 'Step 2: Choose target device & size'}
                         </p>
                     </div>
                     <button onClick={step === 1 ? onCancel : handleBack} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', padding: '8px', cursor: 'pointer', color: '#64748b' }}>
@@ -696,121 +735,229 @@ function NewAppModal({ onConfirm, onCancel }) {
                         ))}
                     </div>
                 ) : (
-                    /* Step 2: Device Selection */
-                    <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                        {/* Device Category Tabs */}
-                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                            {['PHONE', 'TABLET', 'PC', 'TV'].map(kind => {
-                                const hasDevices = devicePresets.some(([, p]) => p.kind === kind);
-                                if (!hasDevices) return null;
-                                return (
-                                    <button
-                                        key={kind}
-                                        onClick={() => {/* Filter devices by kind - show all for now */}}
-                                        style={{
-                                            padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0',
-                                            backgroundColor: 'white', color: '#64748b', fontSize: '0.75rem', fontWeight: 700,
-                                            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
-                                        }}
-                                    >
-                                        {kind === 'PHONE' && <Smartphone size={14} />}
-                                        {kind === 'TABLET' && <Tablet size={14} />}
-                                        {kind === 'PC' && <Monitor size={14} />}
-                                        {kind === 'TV' && <Monitor size={14} />}
-                                        {kind}
-                                    </button>
-                                );
-                            })}
-                        </div>
-
-                        {/* Device Grid */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', maxHeight: '300px', overflowY: 'auto' }}>
-                            {/* RESPONSIVE option */}
-                            <div
-                                onClick={() => setSelectedDevice('RESPONSIVE')}
-                                style={{
-                                    padding: '16px', borderRadius: '12px', border: `2px solid ${selectedDevice === 'RESPONSIVE' ? '#3b82f6' : '#e2e8f0'}`,
-                                    backgroundColor: selectedDevice === 'RESPONSIVE' ? '#eff6ff' : 'white',
-                                    cursor: 'pointer', transition: 'all 0.2s'
-                                }}
-                            >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                                    <LayoutGrid size={18} color={selectedDevice === 'RESPONSIVE' ? '#3b82f6' : '#64748b'} />
-                                    <span style={{ fontWeight: 700, fontSize: '0.85rem', color: selectedDevice === 'RESPONSIVE' ? '#1e40af' : '#0f172a' }}>Responsive</span>
-                                </div>
-                                <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Adapts to any screen size</div>
-                                <div style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: '4px' }}>1000 × 625</div>
+                    /* Step 2: Device Selection with Visual Preview */
+                    <div style={{ padding: '24px', display: 'flex', gap: '24px' }}>
+                        {/* Left Panel: Device List */}
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '400px' }}>
+                            {/* Device Kind Tabs */}
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' }}>
+                                {Object.entries(deviceGroups).map(([kind, devices]) => {
+                                    if (devices.length === 0) return null;
+                                    const isActive = devices.some(([key]) => selectedDevice === key) || (kind === 'PHONE' && selectedDevice === 'RESPONSIVE');
+                                    return (
+                                        <button
+                                            key={kind}
+                                            style={{
+                                                padding: '4px 10px', borderRadius: '6px', border: 'none',
+                                                backgroundColor: isActive ? '#3b82f6' : '#f1f5f9',
+                                                color: isActive ? 'white' : '#64748b', fontSize: '0.7rem', fontWeight: 700,
+                                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px'
+                                            }}
+                                        >
+                                            {kind === 'PHONE' && <Smartphone size={12} />}
+                                            {kind === 'TABLET' && <Tablet size={12} />}
+                                            {kind === 'PC' && <Monitor size={12} />}
+                                            {kind === 'TV' && <Monitor size={12} />}
+                                            {kind}
+                                        </button>
+                                    );
+                                })}
                             </div>
 
-                            {devicePresets.map(([key, preset]) => {
-                                const PresetIcon = preset.icon || LayoutGrid;
-                                const isSelected = selectedDevice === key;
-                                return (
-                                    <div
-                                        key={key}
-                                        onClick={() => setSelectedDevice(key)}
-                                        style={{
-                                            padding: '16px', borderRadius: '12px', border: `2px solid ${isSelected ? '#3b82f6' : '#e2e8f0'}`,
-                                            backgroundColor: isSelected ? '#eff6ff' : 'white',
-                                            cursor: 'pointer', transition: 'all 0.2s'
-                                        }}
-                                        onMouseEnter={e => {
-                                            if (!isSelected) e.currentTarget.style.borderColor = '#93c5fd';
-                                        }}
-                                        onMouseLeave={e => {
-                                            if (!isSelected) e.currentTarget.style.borderColor = '#e2e8f0';
-                                        }}
-                                    >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                                            <PresetIcon size={18} color={isSelected ? '#3b82f6' : '#64748b'} />
-                                            <span style={{ fontWeight: 700, fontSize: '0.8rem', color: isSelected ? '#1e40af' : '#0f172a' }}>
-                                                {preset.label.split('(')[0].trim()}
-                                            </span>
+                            {/* Device List */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '280px', overflowY: 'auto' }}>
+                                {/* Responsive Option */}
+                                <div
+                                    onClick={() => { setSelectedDevice('RESPONSIVE'); setUseCustomSize(false); }}
+                                    style={{
+                                        padding: '12px', borderRadius: '10px', border: `2px solid ${selectedDevice === 'RESPONSIVE' && !useCustomSize ? '#3b82f6' : '#e2e8f0'}`,
+                                        backgroundColor: selectedDevice === 'RESPONSIVE' && !useCustomSize ? '#eff6ff' : 'white',
+                                        cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '10px'
+                                    }}
+                                >
+                                    <LayoutGrid size={18} color={selectedDevice === 'RESPONSIVE' && !useCustomSize ? '#3b82f6' : '#64748b'} />
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontWeight: 700, fontSize: '0.8rem', color: selectedDevice === 'RESPONSIVE' && !useCustomSize ? '#1e40af' : '#0f172a' }}>Responsive</div>
+                                        <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Adapts to any screen</div>
+                                    </div>
+                                </div>
+
+                                {/* All Preset Devices */}
+                                {Object.entries(deviceGroups).flatMap(([, devices]) => devices).map(([key, preset]) => {
+                                    const PresetIcon = preset.icon || LayoutGrid;
+                                    const isSelected = selectedDevice === key && !useCustomSize;
+                                    return (
+                                        <div
+                                            key={key}
+                                            onClick={() => { setSelectedDevice(key); setUseCustomSize(false); }}
+                                            style={{
+                                                padding: '12px', borderRadius: '10px', border: `2px solid ${isSelected ? '#3b82f6' : '#e2e8f0'}`,
+                                                backgroundColor: isSelected ? '#eff6ff' : 'white',
+                                                cursor: 'pointer', transition: 'all 0.2s'
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                                                <PresetIcon size={16} color={isSelected ? '#3b82f6' : '#64748b'} />
+                                                <span style={{ fontWeight: 700, fontSize: '0.75rem', color: isSelected ? '#1e40af' : '#0f172a' }}>
+                                                    {preset.label.split('(')[0].trim()}
+                                                </span>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '4px' }}>
+                                                {['PORTRAIT', 'LANDSCAPE'].map(orient => (
+                                                    <button
+                                                        key={orient}
+                                                        onClick={e => { e.stopPropagation(); setSelectedOrientation(orient); setUseCustomSize(false); setSelectedDevice(key); }}
+                                                        style={{
+                                                            flex: 1, padding: '4px', borderRadius: '4px',
+                                                            border: `1px solid ${selectedOrientation === orient && isSelected ? '#3b82f6' : '#e2e8f0'}`,
+                                                            backgroundColor: selectedOrientation === orient && isSelected ? '#3b82f6' : 'white',
+                                                            color: selectedOrientation === orient && isSelected ? 'white' : '#64748b',
+                                                            fontSize: '0.65rem', fontWeight: 600, cursor: 'pointer'
+                                                        }}
+                                                    >
+                                                        {orient === 'PORTRAIT' ? 'P' : 'L'}
+                                                    </button>
+                                                ))}
+                                            </div>
                                         </div>
-                                        <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>{preset.width} × {preset.height}</div>
-                                        <div style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
-                                            {['PORTRAIT', 'LANDSCAPE'].map(orient => (
-                                                <button
-                                                    key={orient}
-                                                    onClick={e => { e.stopPropagation(); setSelectedOrientation(orient); }}
-                                                    style={{
-                                                        padding: '2px 8px', borderRadius: '4px',
-                                                        border: `1px solid ${selectedOrientation === orient && isSelected ? '#3b82f6' : '#e2e8f0'}`,
-                                                        backgroundColor: selectedOrientation === orient && isSelected ? '#3b82f6' : 'white',
-                                                        color: selectedOrientation === orient && isSelected ? 'white' : '#64748b',
-                                                        fontSize: '0.6rem', fontWeight: 600, cursor: 'pointer'
-                                                    }}
-                                                >
-                                                    {orient === 'PORTRAIT' ? '📱 P' : '📱 L'}
-                                                </button>
-                                            ))}
+                                    );
+                                })}
+
+                                {/* Custom Size Option */}
+                                <div
+                                    onClick={() => setUseCustomSize(true)}
+                                    style={{
+                                        padding: '12px', borderRadius: '10px', border: `2px solid ${useCustomSize ? '#8b5cf6' : '#e2e8f0'}`,
+                                        backgroundColor: useCustomSize ? '#faf5ff' : 'white',
+                                        cursor: 'pointer', transition: 'all 0.2s'
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                                        <Settings2 size={16} color={useCustomSize ? '#8b5cf6' : '#64748b'} />
+                                        <span style={{ fontWeight: 700, fontSize: '0.75rem', color: useCustomSize ? '#7c3aed' : '#0f172a' }}>Custom Size</span>
+                                    </div>
+                                    {useCustomSize && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            <input
+                                                type="text"
+                                                value={customLabel}
+                                                onChange={e => setCustomLabel(e.target.value)}
+                                                placeholder="Device name"
+                                                style={{ padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem' }}
+                                            />
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                <div style={{ flex: 1 }}>
+                                                    <label style={{ fontSize: '0.6rem', color: '#64748b', display: 'block', marginBottom: '2px' }}>Width</label>
+                                                    <input
+                                                        type="number"
+                                                        value={customWidth}
+                                                        onChange={e => setCustomWidth(Number(e.target.value))}
+                                                        style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem' }}
+                                                    />
+                                                </div>
+                                                <div style={{ flex: 1 }}>
+                                                    <label style={{ fontSize: '0.6rem', color: '#64748b', display: 'block', marginBottom: '2px' }}>Height</label>
+                                                    <input
+                                                        type="number"
+                                                        value={customHeight}
+                                                        onChange={e => setCustomHeight(Number(e.target.value))}
+                                                        style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.75rem' }}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '4px' }}>
+                                                {['PORTRAIT', 'LANDSCAPE'].map(orient => (
+                                                    <button
+                                                        key={orient}
+                                                        onClick={e => { e.stopPropagation(); setSelectedOrientation(orient); }}
+                                                        style={{
+                                                            flex: 1, padding: '4px', borderRadius: '4px',
+                                                            border: `1px solid ${selectedOrientation === orient ? '#8b5cf6' : '#e2e8f0'}`,
+                                                            backgroundColor: selectedOrientation === orient ? '#8b5cf6' : 'white',
+                                                            color: selectedOrientation === orient ? 'white' : '#64748b',
+                                                            fontSize: '0.65rem', fontWeight: 600, cursor: 'pointer'
+                                                        }}
+                                                    >
+                                                        {orient === 'PORTRAIT' ? 'Portrait' : 'Landscape'}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Right Panel: Visual Preview */}
+                        <div style={{ width: '200px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            {/* Device Preview */}
+                            <div style={{
+                                flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                backgroundColor: '#f8fafc', borderRadius: '12px', padding: '16px', minHeight: '300px'
+                            }}>
+                                <div style={{ marginBottom: '12px', fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Preview</div>
+
+                                {/* Device Frame */}
+                                <div style={{
+                                    position: 'relative',
+                                    padding: '12px',
+                                    backgroundColor: useCustomSize ? '#2a2a38' : (selectedPreset?.kind === 'PHONE' ? '#1a1a2e' : selectedPreset?.kind === 'TABLET' ? '#2a2a38' : 'transparent'),
+                                    borderRadius: selectedDevice !== 'RESPONSIVE' && !useCustomSize ? (selectedPreset?.kind === 'PHONE' ? '20px' : '8px') : '4px',
+                                    boxShadow: selectedDevice !== 'RESPONSIVE' && !useCustomSize ? '0 4px 20px rgba(0,0,0,0.3)' : 'none'
+                                }}>
+                                    {/* Notch for phones */}
+                                    {selectedDevice !== 'RESPONSIVE' && !useCustomSize && selectedPreset?.kind === 'PHONE' && (
+                                        <div style={{
+                                            position: 'absolute', top: '6px', left: '50%', transform: 'translateX(-50%)',
+                                            width: '40px', height: '6px', backgroundColor: '#000', borderRadius: '3px'
+                                        }} />
+                                    )}
+
+                                    {/* Screen */}
+                                    <div style={{
+                                        width: `${previewWidth}px`,
+                                        height: `${previewHeight}px`,
+                                        backgroundColor: 'white',
+                                        borderRadius: selectedDevice === 'RESPONSIVE' || useCustomSize ? '2px' : '8px',
+                                        overflow: 'hidden',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        padding: '4px'
+                                    }}>
+                                        {/* Mock content */}
+                                        <div style={{ backgroundColor: '#e2e8f0', height: '20%', borderRadius: '2px', marginBottom: '2px' }} />
+                                        <div style={{ backgroundColor: '#cbd5e1', flex: 1, borderRadius: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <span style={{ fontSize: '6px', color: '#94a3b8' }}>Content</span>
                                         </div>
                                     </div>
-                                );
-                            })}
-                        </div>
+                                </div>
 
-                        {/* Selected Device Summary */}
-                        <div style={{ padding: '12px 16px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>Selected Configuration:</div>
-                            <div style={{ display: 'flex', gap: '16px', fontSize: '0.8rem' }}>
-                                <span>📱 <strong>Device:</strong> {selectedPreset?.label || 'Responsive'}</span>
-                                <span>🔄 <strong>Orientation:</strong> {selectedOrientation}</span>
-                                <span>📐 <strong>Canvas:</strong> {selectedOrientation === 'PORTRAIT' ? `${selectedPreset?.width || 1000} × ${selectedPreset?.height || 625}` : `${selectedPreset?.height || 625} × ${selectedPreset?.width || 1000}`}</span>
+                                <div style={{ marginTop: '12px', textAlign: 'center' }}>
+                                    <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#0f172a' }}>
+                                        {useCustomSize ? customLabel : (selectedPreset?.label?.split('(')[0].trim() || 'Responsive')}
+                                    </div>
+                                    <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '2px' }}>
+                                        {canvasDim.width} × {canvasDim.height}px
+                                    </div>
+                                    <div style={{ fontSize: '0.6rem', color: '#94a3b8', marginTop: '2px' }}>
+                                        {selectedOrientation}
+                                    </div>
+                                </div>
                             </div>
-                        </div>
 
-                        <button
-                            onClick={handleConfirm}
-                            style={{
-                                padding: '14px 24px', borderRadius: '12px', border: 'none',
-                                background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-                                color: 'white', fontWeight: 800, fontSize: '1rem', cursor: 'pointer',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
-                            }}
-                        >
-                            <Rocket size={18} /> Create App with {selectedPreset?.label?.split('(')[0].trim() || 'Responsive'}
-                        </button>
+                            {/* Create Button */}
+                            <button
+                                onClick={handleConfirm}
+                                style={{
+                                    padding: '14px', borderRadius: '12px', border: 'none',
+                                    background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                                    color: 'white', fontWeight: 800, fontSize: '0.9rem', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                                }}
+                            >
+                                <Rocket size={16} /> Create App
+                            </button>
+                        </div>
                     </div>
                 )}
 
@@ -1344,6 +1491,9 @@ const AppPlayer = () => {
         const templateId = typeof options === 'string' ? options : options?.templateId;
         const devicePreset = typeof options === 'object' ? (options?.devicePreset || 'RESPONSIVE') : 'RESPONSIVE';
         const orientation = typeof options === 'object' ? (options?.orientation || 'PORTRAIT') : 'PORTRAIT';
+        const customWidth = typeof options === 'object' ? options?.customWidth : undefined;
+        const customHeight = typeof options === 'object' ? options?.customHeight : undefined;
+        const customLabel = typeof options === 'object' ? options?.customLabel : undefined;
 
         setShowNewAppModal(false);
         setIsCreating(true);
@@ -1435,30 +1585,39 @@ const AppPlayer = () => {
                 templateApp.config.devicePreset = devicePreset;
                 templateApp.config.previewOrientation = orientation;
 
+                // Handle custom size
+                if (devicePreset === 'CUSTOM' && customWidth && customHeight) {
+                    templateApp.config.customDeviceWidth = customWidth;
+                    templateApp.config.customDeviceHeight = customHeight;
+                    templateApp.config.customDeviceLabel = customLabel || 'Custom Device';
+                }
+
                 // Scale components to fit the selected device
                 const preset = DEVICE_PRESETS[devicePreset];
-                if (preset && devicePreset !== 'RESPONSIVE') {
-                    const canvasWidth = orientation === 'PORTRAIT' ? preset.width : preset.height;
-                    const canvasHeight = orientation === 'PORTRAIT' ? preset.height : preset.width;
+                const canvasWidth = devicePreset === 'CUSTOM'
+                    ? (orientation === 'PORTRAIT' ? customWidth : customHeight)
+                    : (preset ? (orientation === 'PORTRAIT' ? preset.width : preset.height) : 1000);
+                const canvasHeight = devicePreset === 'CUSTOM'
+                    ? (orientation === 'PORTRAIT' ? customHeight : customWidth)
+                    : (preset ? (orientation === 'PORTRAIT' ? preset.height : preset.width) : 625);
 
-                    // Scale all components in steps
-                    const originalWidth = 1000;
-                    const originalHeight = 625;
-                    const scaleX = canvasWidth / originalWidth;
-                    const scaleY = canvasHeight / originalHeight;
+                // Scale all components in steps
+                const originalWidth = 1000;
+                const originalHeight = 625;
+                const scaleX = canvasWidth / originalWidth;
+                const scaleY = canvasHeight / originalHeight;
 
-                    if (templateApp.config.steps) {
-                        templateApp.config.steps = templateApp.config.steps.map(step => ({
-                            ...step,
-                            components: (step.components || []).map(comp => ({
-                                ...comp,
-                                x: comp.x != null ? Math.round(comp.x * scaleX) : comp.x,
-                                y: comp.y != null ? Math.round(comp.y * scaleY) : comp.y,
-                                w: comp.w != null ? Math.round(comp.w * scaleX) : comp.w,
-                                h: comp.h != null ? Math.round(comp.h * scaleY) : comp.h
-                            }))
-                        }));
-                    }
+                if (templateApp.config.steps) {
+                    templateApp.config.steps = templateApp.config.steps.map(step => ({
+                        ...step,
+                        components: (step.components || []).map(comp => ({
+                            ...comp,
+                            x: comp.x != null ? Math.round(comp.x * scaleX) : comp.x,
+                            y: comp.y != null ? Math.round(comp.y * scaleY) : comp.y,
+                            w: comp.w != null ? Math.round(comp.w * scaleX) : comp.w,
+                            h: comp.h != null ? Math.round(comp.h * scaleY) : comp.h
+                        }))
+                    }));
                 }
             }
 
