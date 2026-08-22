@@ -1062,4 +1062,33 @@ CREATE TABLE IF NOT EXISTS public.scada_reports (
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.scada_reports TO anon, authenticated;
 ALTER TABLE public.scada_reports ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow all scada_reports" ON public.scada_reports;
+
+-- =====================================================
+-- AI AGENTS TABLE
+-- =====================================================
+
+-- 19. Table: ai_agents
+CREATE TABLE IF NOT EXISTS public.ai_agents (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    type TEXT DEFAULT 'custom',
+    system_prompt TEXT,
+    capabilities JSONB DEFAULT '[]',
+    config JSONB DEFAULT '{}',
+    memory JSONB DEFAULT '{}',
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Grant permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.ai_agents TO anon, authenticated;
+ALTER TABLE public.ai_agents ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all ai_agents" ON public.ai_agents;
+CREATE POLICY "Allow all ai_agents" ON public.ai_agents FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+-- Indexes for ai_agents
+CREATE INDEX IF NOT EXISTS idx_ai_agents_type ON public.ai_agents(type);
+CREATE INDEX IF NOT EXISTS idx_ai_agents_active ON public.ai_agents(is_active) WHERE is_active = TRUE;
 CREATE POLICY "Allow all scada_reports" ON public.scada_reports FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);

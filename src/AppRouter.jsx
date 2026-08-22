@@ -1,8 +1,32 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, Component } from 'react';
 import { Route, Routes, Navigate } from 'react-router-dom';
 import { hasAccess as checkRoleAccess } from './utils/roleAccess';
 
 import Home from './components/Home';
+import ReportDesignerFallback from './components/ReportDesignerFallback';
+
+// Error Boundary for Report Designer
+class ReportDesignerErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error) {
+    console.error('ReportDesigner Error:', error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <ReportDesignerFallback />;
+    }
+    return this.props.children;
+  }
+}
 
 const TableManager = lazy(() => import('./components/TableManager'));
 const ConnectorManager = lazy(() => import('./components/ConnectorManager'));
@@ -49,6 +73,8 @@ const DigitalDrawingCheckSheet = lazy(() => import('./components/DigitalDrawingC
 const ReportDesigner = lazy(() => import('./components/ReportDesigner'));
 const BiStudio = lazy(() => import('./components/BiStudio'));
 const NodeREDDashboard = lazy(() => import('./components/NodeREDDashboard'));
+const ShiftHandoffDashboard = lazy(() => import('./components/ShiftHandoffDashboard'));
+const ShiftHandoffSettings = lazy(() => import('./components/ShiftHandoffSettings'));
 
 export default function AppRouter({ user, isOperator }) {
   const hasAccess = (path) => checkRoleAccess(user, path);
@@ -100,7 +126,9 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/bi" element={<BiStudio />} />
               <Route path="/bi-studio" element={<BiStudio />} />
               <Route path="/power-bi" element={<BiStudio />} />
-              <Route path="/reports" element={hasAccess('/reports') ? <ReportDesigner /> : <Navigate to="/" replace />} />
+              <Route path="/reports" element={hasAccess('/reports') ? <ReportDesignerErrorBoundary><ReportDesigner /></ReportDesignerErrorBoundary> : <Navigate to="/" replace />} />
+              <Route path="/shift-handoff" element={<ShiftHandoffDashboard />} />
+              <Route path="/shift-handoff-settings" element={<ShiftHandoffSettings />} />
               <Route path="/nodered" element={hasAccess('/plc-settings') ? <NodeREDDashboard /> : <Navigate to="/" replace />} />
               <Route path="/users" element={hasAccess('/users') ? <UserManager /> : <Navigate to="/" replace />} />
               <Route path="/apps/data-entry-form-example" element={<DataEntryFormGuide />} />

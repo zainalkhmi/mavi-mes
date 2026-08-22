@@ -3,7 +3,7 @@ import {
   Settings, Zap, Camera, Cpu, Database, Link2, Variable,
   BarChart3, Monitor, MapPin, Radio, Tv, Activity, Eye, BrainCircuit,
   SlidersHorizontal, Users, ShoppingBag, AppWindow, Folder, Volume2,
-  FileCode, Webhook, Play, Layout, FileText, PieChart, Terminal
+  FileCode, Webhook, Play, Layout, FileText, PieChart, Terminal, Bot, Clock
 } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 
@@ -59,7 +59,8 @@ export default function TopNavbar() {
 
   const analyticsItems = [
     { path: '/bi', icon: <PieChart size={16} className="text-purple-600" />, label: 'Dashboard' },
-    hasAccess('/reports') && { path: '/reports', icon: <FileText size={16} className="text-emerald-400" />, label: 'Report Designer (PDF)' }
+    hasAccess('/reports') && { path: '/reports', icon: <FileText size={16} className="text-emerald-400" />, label: 'Report Designer (PDF)' },
+    { path: '/shift-handoff', icon: <Clock size={16} className="text-cyan-400" />, label: 'Shift Handoff' }
   ].filter(Boolean);
 
   const logicItems = [
@@ -76,6 +77,7 @@ export default function TopNavbar() {
     hasAccess('/users') && { path: '/users', icon: <Users size={16} />, label: 'User Access Role' },
     { type: 'divider' },
     hasAccess('/ai-settings') && { path: '/ai-settings', icon: <BrainCircuit size={16} />, label: 'AI Settings' },
+    { path: '/ai-agents', icon: <Bot size={16} className="text-purple-500" />, label: 'AI Agents' },
     { type: 'divider' },
     hasAccess('/supabase-settings') && { path: '/supabase-settings', icon: <Database size={16} />, label: 'Database Settings' },
     { type: 'divider' },
@@ -123,7 +125,7 @@ export default function TopNavbar() {
           {drawingItems.length > 0 && <NavDropdown title="Drawings" pathMatches={['/drawings', '/drawings/files']} items={drawingItems} />}
           {shopFloorItems.length > 0 && <NavDropdown title="Shop Floor" pathMatches={['/stations', '/display-devices', '/machines', '/edge-devices', '/plc-settings', '/nodered']} items={shopFloorItems} />}
           {visionItems.length > 0 && <NavDropdown title="Vision" pathMatches={['/vision', '/vision/calibration', '/vision/quickbuild']} items={visionItems} />}
-          {analyticsItems.length > 0 && <NavDropdown title="Analytics" pathMatches={['/bi', '/reports']} items={analyticsItems} />}
+          {analyticsItems.length > 0 && <NavDropdown title="Analytics" pathMatches={['/bi', '/reports', '/shift-handoff']} items={analyticsItems} />}
           {logicItems.length > 0 && <NavDropdown title="Logic" pathMatches={['/automations', '/functions']} items={logicItems} />}
         </div>
       </div>
