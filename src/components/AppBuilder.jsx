@@ -412,6 +412,14 @@ const AppBuilder = () => {
         isOpen: false, title: '', message: '', initialValue: '', onConfirm: null
     });
     const [isCreateDrawerOpen, setIsCreateDrawerOpen] = useState(false);
+    const [createStep, setCreateStep] = useState(1); // 1: Choose type, 2: Choose device
+    const [createFromType, setCreateFromType] = useState(null); // 'blank' | 'copilot'
+    const [selectedDevicePreset, setSelectedDevicePreset] = useState('RESPONSIVE');
+    const [selectedOrientation, setSelectedOrientation] = useState('PORTRAIT');
+    const [useCustomSize, setUseCustomSize] = useState(false);
+    const [customWidth, setCustomWidth] = useState(360);
+    const [customHeight, setCustomHeight] = useState(640);
+    const [customLabel, setCustomLabel] = useState('Custom Device');
     const loadApps = async () => {
         try {
             const data = await getAllFrontlineApps();
@@ -12754,7 +12762,7 @@ const AppBuilder = () => {
                 {/* Center Side: Main Action Toolbar */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: '0 0 auto', justifyContent: 'center' }}>
                     <button
-                        onClick={() => setIsCreateDrawerOpen(true)}
+                        onClick={() => { setIsCreateDrawerOpen(true); setCreateStep(1); }}
                         style={{
                             width: '36px',
                             height: '36px',
@@ -28060,13 +28068,13 @@ D3:0
                         {/* Content */}
                         <div style={{ flex: 1, padding: '40px', overflowY: 'auto' }}>
                             {aiComposerState === 'IDLE' && (
+                                <div>
+                                    {/* Step 1: Choose how to start */}
+                                    {createStep === 1 && (
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '32px' }}>
                                     {/* Blank App Card */}
                                     <div
-                                        onClick={() => {
-                                            resetBuilder();
-                                            setIsCreateDrawerOpen(false);
-                                        }}
+                                        onClick={() => { setCreateFromType('blank'); setCreateStep(2); }}
                                         style={{
                                             padding: '40px', borderRadius: '20px', border: '2px solid var(--border-primary)', cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                                             display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '20px',
@@ -28122,11 +28130,7 @@ D3:0
 
                                     {/* Copilot Card */}
                                     <div
-                                        onClick={() => {
-                                            resetBuilder();
-                                            setIsCreateDrawerOpen(false);
-                                            setTimeout(() => setIsCopilotOpen(true), 300);
-                                        }}
+                                        onClick={() => { setCreateFromType('copilot'); setCreateStep(2); }}
                                         style={{
                                             padding: '40px', borderRadius: '20px', border: '2px solid var(--border-primary)', cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                                             display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '20px',
@@ -28168,6 +28172,220 @@ D3:0
                                             }
                                         }}
                                     />
+                                </div>
+                                    )}
+
+                                    {/* Step 2: Choose Device Target */}
+                                    {createStep === 2 && (
+                                        <div style={{ display: 'flex', gap: '24px' }}>
+                                            {/* Left: Device List */}
+                                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '400px', overflowY: 'auto' }}>
+                                                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px' }}>Choose Device Target</div>
+
+                                                {/* Responsive */}
+                                                <div
+                                                    onClick={() => { setSelectedDevicePreset('RESPONSIVE'); setUseCustomSize(false); }}
+                                                    style={{
+                                                        padding: '12px', borderRadius: '10px', border: `2px solid ${selectedDevicePreset === 'RESPONSIVE' && !useCustomSize ? 'var(--accent-blue)' : 'var(--border-primary)'}`,
+                                                        backgroundColor: selectedDevicePreset === 'RESPONSIVE' && !useCustomSize ? '#eff6ff' : '#fff',
+                                                        cursor: 'pointer', transition: 'all 0.2s'
+                                                    }}
+                                                >
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                        <LayoutGrid size={16} color={selectedDevicePreset === 'RESPONSIVE' && !useCustomSize ? 'var(--accent-blue)' : 'var(--text-quaternary)'} />
+                                                        <div>
+                                                            <div style={{ fontWeight: 600, fontSize: '0.85rem', color: selectedDevicePreset === 'RESPONSIVE' && !useCustomSize ? 'var(--accent-blue)' : 'var(--text-primary)' }}>Responsive</div>
+                                                            <div style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)' }}>Adapts to any screen</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Device Presets */}
+                                                {Object.entries(DEVICE_PRESETS).filter(([key]) => key !== 'RESPONSIVE').map(([key, preset]) => {
+                                                    const PresetIcon = preset.icon || LayoutGrid;
+                                                    const isSelected = selectedDevicePreset === key && !useCustomSize;
+                                                    return (
+                                                        <div
+                                                            key={key}
+                                                            onClick={() => { setSelectedDevicePreset(key); setUseCustomSize(false); }}
+                                                            style={{
+                                                                padding: '12px', borderRadius: '10px', border: `2px solid ${isSelected ? 'var(--accent-blue)' : 'var(--border-primary)'}`,
+                                                                backgroundColor: isSelected ? '#eff6ff' : '#fff',
+                                                                cursor: 'pointer', transition: 'all 0.2s'
+                                                            }}
+                                                        >
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                                                                <PresetIcon size={16} color={isSelected ? 'var(--accent-blue)' : 'var(--text-quaternary)'} />
+                                                                <div style={{ fontWeight: 600, fontSize: '0.8rem', color: isSelected ? 'var(--accent-blue)' : 'var(--text-primary)' }}>
+                                                                    {preset.label.split('(')[0].trim()}
+                                                                </div>
+                                                            </div>
+                                                            <div style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', marginBottom: '6px' }}>{preset.width} × {preset.height}px</div>
+                                                            <div style={{ display: 'flex', gap: '4px' }}>
+                                                                {['PORTRAIT', 'LANDSCAPE'].map(orient => (
+                                                                    <button
+                                                                        key={orient}
+                                                                        onClick={e => { e.stopPropagation(); setSelectedOrientation(orient); setUseCustomSize(false); setSelectedDevicePreset(key); }}
+                                                                        style={{
+                                                                            flex: 1, padding: '4px', borderRadius: '4px',
+                                                                            border: `1px solid ${selectedOrientation === orient && isSelected ? 'var(--accent-blue)' : 'var(--border-primary)'}`,
+                                                                            backgroundColor: selectedOrientation === orient && isSelected ? 'var(--accent-blue)' : '#fff',
+                                                                            color: selectedOrientation === orient && isSelected ? '#fff' : 'var(--text-quaternary)',
+                                                                            fontSize: '0.65rem', fontWeight: 600, cursor: 'pointer'
+                                                                        }}
+                                                                    >
+                                                                        {orient === 'PORTRAIT' ? '📱 P' : '📱 L'}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+
+                                                {/* Custom Size */}
+                                                <div
+                                                    onClick={() => setUseCustomSize(true)}
+                                                    style={{
+                                                        padding: '12px', borderRadius: '10px', border: `2px solid ${useCustomSize ? '#8b5cf6' : 'var(--border-primary)'}`,
+                                                        backgroundColor: useCustomSize ? '#faf5ff' : '#fff',
+                                                        cursor: 'pointer', transition: 'all 0.2s'
+                                                    }}
+                                                >
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: useCustomSize ? '8px' : '0' }}>
+                                                        <Settings2 size={16} color={useCustomSize ? '#8b5cf6' : 'var(--text-quaternary)'} />
+                                                        <div style={{ fontWeight: 600, fontSize: '0.8rem', color: useCustomSize ? '#8b5cf6' : 'var(--text-primary)' }}>Custom Size</div>
+                                                    </div>
+                                                    {useCustomSize && (
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px' }}>
+                                                            <input
+                                                                type="text"
+                                                                value={customLabel}
+                                                                onChange={e => setCustomLabel(e.target.value)}
+                                                                placeholder="Device name"
+                                                                style={{ padding: '6px 8px', border: '1px solid var(--border-primary)', borderRadius: '6px', fontSize: '0.75rem' }}
+                                                            />
+                                                            <div style={{ display: 'flex', gap: '6px' }}>
+                                                                <div style={{ flex: 1 }}>
+                                                                    <label style={{ fontSize: '0.6rem', color: 'var(--text-quaternary)', display: 'block', marginBottom: '2px' }}>Width</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        value={customWidth}
+                                                                        onChange={e => setCustomWidth(Number(e.target.value))}
+                                                                        style={{ width: '100%', padding: '6px', border: '1px solid var(--border-primary)', borderRadius: '6px', fontSize: '0.75rem' }}
+                                                                    />
+                                                                </div>
+                                                                <div style={{ flex: 1 }}>
+                                                                    <label style={{ fontSize: '0.6rem', color: 'var(--text-quaternary)', display: 'block', marginBottom: '2px' }}>Height</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        value={customHeight}
+                                                                        onChange={e => setCustomHeight(Number(e.target.value))}
+                                                                        style={{ width: '100%', padding: '6px', border: '1px solid var(--border-primary)', borderRadius: '6px', fontSize: '0.75rem' }}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                            <div style={{ display: 'flex', gap: '4px' }}>
+                                                                {['PORTRAIT', 'LANDSCAPE'].map(orient => (
+                                                                    <button
+                                                                        key={orient}
+                                                                        onClick={e => { e.stopPropagation(); setSelectedOrientation(orient); }}
+                                                                        style={{
+                                                                            flex: 1, padding: '4px', borderRadius: '4px',
+                                                                            border: `1px solid ${selectedOrientation === orient ? '#8b5cf6' : 'var(--border-primary)'}`,
+                                                                            backgroundColor: selectedOrientation === orient ? '#8b5cf6' : '#fff',
+                                                                            color: selectedOrientation === orient ? '#fff' : 'var(--text-quaternary)',
+                                                                            fontSize: '0.65rem', fontWeight: 600, cursor: 'pointer'
+                                                                        }}
+                                                                    >
+                                                                        {orient === 'PORTRAIT' ? 'Portrait' : 'Landscape'}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Right: Preview & Actions */}
+                                            <div style={{ width: '220px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                                {/* Preview */}
+                                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-secondary)', borderRadius: '12px', padding: '16px', minHeight: '200px' }}>
+                                                    <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-quaternary)', textTransform: 'uppercase', marginBottom: '12px' }}>Preview</div>
+                                                    <div style={{
+                                                        position: 'relative', padding: '8px',
+                                                        backgroundColor: selectedDevicePreset !== 'RESPONSIVE' && !useCustomSize ? (DEVICE_PRESETS[selectedDevicePreset]?.kind === 'PHONE' ? '#1a1a2e' : '#2a2a38') : 'transparent',
+                                                        borderRadius: selectedDevicePreset !== 'RESPONSIVE' && !useCustomSize ? (DEVICE_PRESETS[selectedDevicePreset]?.kind === 'PHONE' ? '16px' : '8px') : '4px',
+                                                        boxShadow: selectedDevicePreset !== 'RESPONSIVE' && !useCustomSize ? '0 4px 12px rgba(0,0,0,0.3)' : 'none'
+                                                    }}>
+                                                        {selectedDevicePreset !== 'RESPONSIVE' && !useCustomSize && DEVICE_PRESETS[selectedDevicePreset]?.kind === 'PHONE' && (
+                                                            <div style={{ position: 'absolute', top: '4px', left: '50%', transform: 'translateX(-50%)', width: '30px', height: '4px', backgroundColor: '#000', borderRadius: '2px' }} />
+                                                        )}
+                                                        <div style={{
+                                                            width: '60px',
+                                                            height: '90px',
+                                                            backgroundColor: '#fff', borderRadius: '4px', overflow: 'hidden'
+                                                        }}>
+                                                            <div style={{ backgroundColor: '#e2e8f0', height: '20%' }} />
+                                                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '6px', color: 'var(--text-quaternary)' }}>App</div>
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ marginTop: '12px', textAlign: 'center' }}>
+                                                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                            {useCustomSize ? customLabel : (DEVICE_PRESETS[selectedDevicePreset]?.label?.split('(')[0].trim() || 'Responsive')}
+                                                        </div>
+                                                        <div style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', marginTop: '2px' }}>
+                                                            {selectedOrientation}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Actions */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                    <button
+                                                        onClick={() => {
+                                                            // Apply device preset
+                                                            if (selectedDevicePreset !== 'RESPONSIVE' || useCustomSize) {
+                                                                setPreviewDevice(useCustomSize ? 'CUSTOM' : selectedDevicePreset);
+                                                                setPreviewOrientation(selectedOrientation);
+                                                            }
+
+                                                            // Handle based on creation type
+                                                            if (createFromType === 'copilot') {
+                                                                resetBuilder();
+                                                                setIsCreateDrawerOpen(false);
+                                                                setTimeout(() => setIsCopilotOpen(true), 300);
+                                                            } else {
+                                                                resetBuilder();
+                                                                setIsCreateDrawerOpen(false);
+                                                            }
+                                                        }}
+                                                        style={{
+                                                            padding: '12px', borderRadius: '10px', border: 'none',
+                                                            background: createFromType === 'copilot'
+                                                                ? 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)'
+                                                                : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                                            color: '#fff', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                                                        }}
+                                                    >
+                                                        {createFromType === 'copilot' ? (
+                                                            <><Sparkles size={16} /> Use Copilot</>
+                                                        ) : (
+                                                            <><Plus size={16} /> Create App</>
+                                                        )}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => { setCreateStep(1); setCreateFromType(null); }}
+                                                        style={{
+                                                            padding: '8px', borderRadius: '8px', border: '1px solid var(--border-primary)',
+                                                            background: '#fff', color: 'var(--text-quaternary)', fontSize: '0.8rem', cursor: 'pointer'
+                                                        }}
+                                                    >
+                                                        ← Back
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
