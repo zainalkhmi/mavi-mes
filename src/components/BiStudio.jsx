@@ -646,7 +646,7 @@ export default function BiStudio() {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%', backgroundColor: '#f1f5f9', fontFamily: "'Inter', 'Segoe UI', sans-serif", color: '#1e293b', overflow: 'hidden' }}>
 
-            {/* ─── 1. TOP HEADER (ODOO & POWER BI STYLE) ────────────────── */}
+            {/* ─── 1. TOP HEADER (MAVI & POWER BI STYLE) ────────────────── */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px', backgroundColor: '#714B67', color: '#ffffff', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', zIndex: 30 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{ backgroundColor: 'rgba(255,255,255,0.18)', padding: '6px 10px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1230,7 +1230,7 @@ export default function BiStudio() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <div style={{ backgroundColor: '#f3e8ff', padding: '6px', borderRadius: '6px', color: '#714B67' }}><Link2 size={18} /></div>
                             <div>
-                                <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 700 }}>Connector Hub (Odoo / SAP / SQL / REST)</h4>
+                                <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 700 }}>Connector Hub (ERP / SAP / SQL / REST)</h4>
                                 <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Tarik data dari ERP external</span>
                             </div>
                         </div>

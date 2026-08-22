@@ -191,7 +191,7 @@ const Home = () => {
               letterSpacing: '0.03em', textTransform: 'uppercase'
             }}>
               <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#00A09D' }} />
-              Odoo Manufacturing MES Live
+              MAVI Manufacturing MES Live
             </span>
           </div>
           <h1 style={{ margin: 0, fontSize: '1.85rem', fontWeight: 800, color: '#212529', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -277,7 +277,7 @@ const Home = () => {
           backgroundColor: 'rgba(0, 160, 157, 0.08)', border: '1px solid rgba(0, 160, 157, 0.2)',
           padding: '10px 16px', borderRadius: '8px', color: '#00A09D', fontSize: '0.82rem', fontWeight: 700 
         }}>
-          <RefreshCw size={15} className="animate-spin" /> Synchronizing live Odoo work center data...
+          <RefreshCw size={15} className="animate-spin" /> Synchronizing live MES work center data...
         </div>
       )}
       {error && (

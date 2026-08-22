@@ -4269,6 +4269,43 @@ export default function DrawingManager() {
         }
     };
 
+    // ─── Rename Drawing Handler ───
+    const handleRenameDrawing = async (dwgId, e) => {
+        e?.stopPropagation();
+        const dwg = drawings.find(d => d.id === dwgId);
+        if (!dwg) {
+            toast.error('Drawing tidak ditemukan.');
+            return;
+        }
+
+        const newName = window.prompt('Masukkan nama baru untuk blueprint:', dwg.name);
+        if (!newName || newName.trim() === '') {
+            return;
+        }
+
+        const trimmedName = newName.trim();
+
+        // Update in memory
+        const updatedDwg = { ...dwg, name: trimmedName };
+        setDrawings(prev => prev.map(d => d.id === dwgId ? updatedDwg : d));
+
+        // Update selected if needed
+        if (selectedDwgId === dwgId) {
+            setSelectedDwgId(dwgId);
+        }
+
+        // Save to database
+        try {
+            await saveDrawing(updatedDwg);
+            toast.success(`Blueprint "${trimmedName}" berhasil direname!`);
+        } catch (err) {
+            console.error(err);
+            toast.error('Gagal menyimpan nama baru ke database.');
+            // Revert on failure
+            setDrawings(prev => prev.map(d => d.id === dwgId ? dwg : d));
+        }
+    };
+
     // ─── Image Insertion Handler ───
     const handleImageInsert = (e) => {
         const file = e.target.files?.[0];
@@ -5233,11 +5270,8 @@ export default function DrawingManager() {
                 setParseProgress(85);
                 setParseStatusText('Mengekstraksi anotasi GD&T & parameter toleransi...');
 
-                // For DWG files, use rawBuffer if available for better binary handling
-                const dwgData = extension === 'dwg' && result.rawBuffer
-                    ? { rawBuffer: result.rawBuffer, dataUrl: result.dataUrl || result.rendered_image || dataUrl }
-                    : { dataUrl: result.rendered_image || result.dataUrl || dataUrl };
-
+                // For DWG files: dataUrl already contains base64 encoded binary data
+                // rawBuffer is kept only in memory, NOT saved to IndexedDB
                 const newDwg = {
                     name: file.name.split('.')[0].replace(/[-_]/g, ' ').toUpperCase() + ' Blueprint',
                     fileName: file.name,
@@ -5246,14 +5280,19 @@ export default function DrawingManager() {
                     dimensions: result.dimensions || [],
                     entities: result.entities || [],
                     layers: result.layers || [],
-                    ...dwgData
+                    // Use rendered_image (SVG) or dataUrl (base64 for DWG/PDF)
+                    dataUrl: result.rendered_image || result.dataUrl || dataUrl,
+                    // Keep rawBuffer only for current session memory (for WebGL loader)
+                    _rawBuffer: result.rawBuffer || null
                 };
 
                 setParseProgress(100);
                 setIsParsing(false);
 
                 saveDrawing(newDwg).then(saved => {
-                    setDrawings(prev => [saved, ...prev]);
+                    // Re-attach rawBuffer for session use
+                    const savedWithBuffer = { ...saved, _rawBuffer: result.rawBuffer };
+                    setDrawings(prev => [...prev.map(d => d.id === saved.id ? savedWithBuffer : d)]);
                     setSelectedDwgId(saved.id);
                     if (saved.dimensions?.length > 0) setActiveDimId(saved.dimensions[0].id);
                     else setActiveDimId('');
@@ -6159,7 +6198,7 @@ export default function DrawingManager() {
         });
     };
 
-    // ─── Odoo Enterprise Style helper ───
+    // ─── MAVI Enterprise Style helper ───
     const inputStyle = { width: '100%', padding: '7px 10px', borderRadius: '5px', border: '1px solid #ced4da', fontSize: '0.78rem', outline: 'none', fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", color: '#212529', backgroundColor: '#ffffff', transition: 'border-color 0.15s, box-shadow 0.15s' };
     const selectStyle = { ...inputStyle, backgroundColor: '#ffffff', cursor: 'pointer' };
     const labelStyle = { display: 'block', fontSize: '0.65rem', color: '#495057', fontWeight: 700, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.04em' };
@@ -6880,6 +6919,30 @@ export default function DrawingManager() {
                                 <button title="Undo" disabled={undoStack.length === 0} onClick={handleUndo} style={{ background: 'none', border: 'none', color: undoStack.length === 0 ? '#475569' : '#94a3b8', cursor: undoStack.length === 0 ? 'not-allowed' : 'pointer', padding: '2px' }}><Undo size={11} /></button>
                                 <button title="Redo" disabled={redoStack.length === 0} onClick={handleRedo} style={{ background: 'none', border: 'none', color: redoStack.length === 0 ? '#475569' : '#94a3b8', cursor: redoStack.length === 0 ? 'not-allowed' : 'pointer', padding: '2px' }}><Redo size={11} /></button>
                                 <button title="Clear vector drawing overlay" onClick={() => { if (window.confirm('Hapus semua coretan/gambar CAD kustom?')) updateShapes([]); }} style={{ background: 'none', border: 'none', color: '#fca5a5', cursor: 'pointer', padding: '2px' }}><Trash2 size={11} /></button>
+                                <div style={{ width: '1px', height: '12px', backgroundColor: '#334155' }}></div>
+                                {/* Import PDF/DWG/DXF Button */}
+                                <button
+                                    title="Import PDF, DWG, DXF, SVG"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    style={{
+                                        background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                                        border: 'none',
+                                        color: 'white',
+                                        cursor: 'pointer',
+                                        padding: '3px 8px',
+                                        borderRadius: '4px',
+                                        fontSize: '0.6rem',
+                                        fontWeight: 700,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        transition: 'all 0.15s'
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'linear-gradient(135deg, #2563eb, #1d4ed8)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'linear-gradient(135deg, #3b82f6, #2563eb)'}
+                                >
+                                    <Upload size={11} /> Import PDF
+                                </button>
                             </div>
 
                             {/* Center: File name tab title */}
@@ -7096,18 +7159,31 @@ export default function DrawingManager() {
                                         <span style={{ fontSize: '0.65rem', color: isSelected ? '#f8fafc' : '#64748b', fontWeight: isSelected ? 700 : 500 }}>
                                             {dwg.fileName || dwg.name}
                                         </span>
-                                        {drawings.length > 1 && (
+                                        <div style={{ display: 'flex', gap: '2px', marginLeft: '4px' }}>
                                             <button
-                                                onClick={(e) => handleDeleteDwg(dwg.id, e)}
+                                                onClick={(e) => handleRenameDrawing(dwg.id, e)}
                                                 style={{
-                                                    background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '0.55rem', padding: '0 2px', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                    background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '0.6rem', padding: '0 2px', display: 'flex', alignItems: 'center', justifyContent: 'center'
                                                 }}
-                                                onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                                                onMouseEnter={e => e.currentTarget.style.color = '#3b82f6'}
                                                 onMouseLeave={e => e.currentTarget.style.color = '#475569'}
+                                                title="Rename"
                                             >
-                                                ✕
+                                                ✏️
                                             </button>
-                                        )}
+                                            {drawings.length > 1 && (
+                                                <button
+                                                    onClick={(e) => handleDeleteDwg(dwg.id, e)}
+                                                    style={{
+                                                        background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '0.55rem', padding: '0 2px', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                    }}
+                                                    onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                                                    onMouseLeave={e => e.currentTarget.style.color = '#475569'}
+                                                >
+                                                    ✕
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 );
                             })}
@@ -7178,7 +7254,7 @@ export default function DrawingManager() {
                                          <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8', fontSize: '0.8rem' }}>Memuat MLightCAD WebAssembly Engine...</div>}>
                                              <MLightCadViewer
                                                  fileName={selectedDwg?.fileName || (selectedDwg?.name ? selectedDwg.name + (selectedDwg?.fileType === 'DWG' ? '.dwg' : '.dxf') : 'drawing.dxf')}
-                                                 fileData={selectedDwg?.rawBuffer || selectedDwg?.dataUrl || selectedDwg?.data_url || selectedDwg?.rawDxf || selectedDwg?.fileName}
+                                                 fileData={selectedDwg?._rawBuffer || selectedDwg?.rawBuffer || selectedDwg?.dataUrl || selectedDwg?.data_url || selectedDwg?.rawDxf || selectedDwg?.fileName}
                                                  cadTool={cadTool}
                                                  onSelectCadTool={(t) => {
                                                      if (t === 'dim_linear') {
@@ -9306,7 +9382,7 @@ export default function DrawingManager() {
                                                     width: '230px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px',
                                                 }}>
                                                     <div style={{ gridColumn: '1 / -1', fontSize: '0.62rem', fontWeight: 800, color: '#6c757d', textTransform: 'uppercase', marginBottom: '2px', padding: '0 4px', letterSpacing: '0.5px' }}>
-                                                        TIPE PARAMETER ODOO
+                                                        TIPE PARAMETER QC
                                                     </div>
                                                     {PARAM_CATEGORIES.map(cat => (
                                                         <button
@@ -10211,7 +10287,7 @@ export default function DrawingManager() {
                                             </div>
                                             <div>
                                                 <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#212529', marginBottom: '4px' }}>
-                                                    Parameter QC Odoo
+                                                    Parameter QC
                                                 </div>
                                                 <div style={{ fontSize: '0.72rem', color: '#6c757d', maxWidth: '240px', lineHeight: '1.4' }}>
                                                     Pilih dimensi pada gambar CAD atau gunakan tombol <b style={{ color: '#714B67' }}>+ Tambah</b> untuk memulai konfigurasi.

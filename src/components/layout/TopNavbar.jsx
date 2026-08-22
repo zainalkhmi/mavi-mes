@@ -60,9 +60,7 @@ export default function TopNavbar() {
   ].filter(Boolean);
 
   const analyticsItems = [
-    { path: '/bi', icon: <BarChart3 size={16} className="text-purple-600" />, label: '📊 BI Studio (Power BI Style)' },
-    hasAccess('/analytics') && { path: '/analytics', icon: <BarChart3 size={16} />, label: 'Analysis Manager' },
-    hasAccess('/dashboards') && { path: '/dashboards', icon: <Layout size={16} />, label: 'Dashboards' },
+    { path: '/bi', icon: <BarChart3 size={16} className="text-purple-600" />, label: 'Dashboard' },
     hasAccess('/reports') && { path: '/reports', icon: <FileText size={16} className="text-emerald-400" />, label: 'Report Designer (PDF)' }
   ].filter(Boolean);
 
@@ -127,7 +125,7 @@ export default function TopNavbar() {
           {drawingItems.length > 0 && <NavDropdown title="Drawings" pathMatches={['/drawings', '/drawings/files']} items={drawingItems} />}
           {shopFloorItems.length > 0 && <NavDropdown title="Shop Floor" pathMatches={['/stations', '/display-devices', '/machines', '/edge-devices', '/iot-hub', '/plc-settings', '/voice-inspection']} items={shopFloorItems} />}
           {visionItems.length > 0 && <NavDropdown title="Vision" pathMatches={['/vision', '/vision/calibration', '/vision/quickbuild']} items={visionItems} />}
-          {analyticsItems.length > 0 && <NavDropdown title="Analytics" pathMatches={['/analytics', '/dashboards']} items={analyticsItems} />}
+          {analyticsItems.length > 0 && <NavDropdown title="Analytics" pathMatches={['/bi', '/reports']} items={analyticsItems} />}
           {logicItems.length > 0 && <NavDropdown title="Logic" pathMatches={['/automations', '/functions']} items={logicItems} />}
         </div>
       </div>

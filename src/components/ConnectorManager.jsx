@@ -874,7 +874,7 @@ const ConnectorManager = () => {
                             <Link2 size={30} />
                         </div>
                         <h3 style={{ margin: '0 0 8px', fontWeight: 800 }}>No Connectors Yet</h3>
-                        <p style={{ color: '#64748b', margin: '0 0 18px' }}>Connect Mavi-MES to SAP, Odoo, FrePPLe, or any REST API.</p>
+                        <p style={{ color: '#64748b', margin: '0 0 18px' }}>Connect Mavi-MES to SAP, FrePPLe, or any REST API.</p>
                         <button onClick={() => setIsCreateModalOpen(true)} style={{
                             color: '#2563eb', background: '#eff6ff', border: '1px solid #bfdbfe',
                             padding: '8px 18px', borderRadius: 8, fontWeight: 700, cursor: 'pointer'

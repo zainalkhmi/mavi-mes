@@ -288,7 +288,7 @@ const AiSettings = () => {
       flex: 1, minHeight: 0, width: '100%', backgroundColor: '#f8f9fa', color: '#495057',
       display: 'flex', flexDirection: 'column', fontFamily: "'Inter', system-ui, sans-serif"
     }}>
-      {/* Odoo Navbar - Action Bar (Fixed at top) */}
+      {/* Mavi Navbar - Action Bar (Fixed at top) */}
       <div style={{
         padding: '16px 24px', borderBottom: '1px solid #dee2e6', display: 'flex',
         justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff',
@@ -377,7 +377,7 @@ const AiSettings = () => {
                   </div>
                 </div>
 
-                {/* Status Indicator (Odoo small alert style) */}
+                {/* Status Indicator (Mavi alert style) */}
                 <div style={{
                   padding: '12px 16px', borderRadius: '4px', border: '1px solid #cce5ff',
                   backgroundColor: '#f8f9fa', borderLeftWidth: '4px', borderLeftColor: '#017E84',

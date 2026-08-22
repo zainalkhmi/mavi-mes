@@ -87,7 +87,7 @@ Berikut adalah panduan langkah demi langkah (workflow) untuk merancang, membangu
 
 3. **Fase 3: Implementasi Logika (Triggers & Connectors)**
    - **Langkah 3.1: Tambahkan Logic Trigger:** Konfigurasi aksi pada tombol atau widget (contoh: "Ketika tombol Submit diklik -> Tulis data form ke Record Placeholder -> Simpan ke Tabel").
-   - **Langkah 3.2: Integrasikan Functions / Connectors:** Jika aplikasi butuh validasi kustom atau transfer data ke ERP eksternal (SAP/Odoo), hubungkan aksi widget untuk memanggil **Function** atau REST API **Connector**.
+   - **Langkah 3.2: Integrasikan Functions / Connectors:** Jika aplikasi butuh validasi kustom atau transfer data ke ERP eksternal (SAP), hubungkan aksi widget untuk memanggil **Function** atau REST API **Connector**.
 
 4. **Fase 4: Uji Coba & Deployment**
    - **Langkah 4.1: Simulasi Lokal (Simulate/Preview):** Gunakan tombol Preview di App Builder untuk mensimulasikan alur kerja aplikasi secara lokal.
@@ -270,7 +270,7 @@ Sistem automasi Mavi memproses data dari perangkat keras (PLC/IoT) dan tingkat o
 
 2. **Connectors (Konektor):**
    - Jembatan integrasi untuk menghubungkan Mavi dengan sistem luar, database relasional pihak ketiga, atau REST API eksternal.
-   - Mendukung integrasi dengan ERP Enterprise (seperti **SAP, Odoo, Dynamics 365**), database SQL (PostgreSQL, MSSQL, MySQL), serta web service eksternal (Webhook).
+   - Mendukung integrasi dengan ERP Enterprise (seperti **SAP, Dynamics 365**), database SQL (PostgreSQL, MSSQL, MySQL), serta web service eksternal (Webhook).
 
 3. **Functions (Fungsi):**
    - Skrip kustom JavaScript atau kueri REST API yang dapat dipanggil langsung dari widget aplikasi HMI (App Builder).
@@ -343,7 +343,7 @@ Berikut adalah panduan konfigurasi (*caranya*) dan contoh penggunaan (*contohnya
         "shortForecast": "Partly Cloudy"
       }
       \`\`\`
-  * **Mengirim Data Work Order ke Odoo ERP (POST)**:
+  * **Mengirim Data Work Order ke ERP (POST)**:
     * Endpoint: \`https://erp.mycompany.com/api/workorder/update\`
     * Payload:
       \`\`\`json

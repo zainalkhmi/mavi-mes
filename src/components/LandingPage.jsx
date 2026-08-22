@@ -3206,7 +3206,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                       'Inventory & BOM tables (relational, audit-logged)',
                       'Real-time OEE analytics dashboards on terminals & wallboards',
                       'Up to 5 lines · 30 users',
-                      'ERP integration (Mekari, Accurate, Odoo) + e-faktur export',
+                      'ERP integration (Mekari, Accurate) + e-faktur export',
                       'Priority support'
                     ].map((feature, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '0.9rem', color: '#f1f5f9' }}>
@@ -3545,7 +3545,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                 },
                 {
                   q: 'Can it integrate with our accounting software?',
-                  a: 'Yes — Growth and Enterprise include ERP integration (Mekari, Accurate, Odoo) and e-faktur export.'
+                  a: 'Yes — Growth and Enterprise include ERP integration (Mekari, Accurate) and e-faktur export.'
                 },
                 {
                   q: 'Is there a discount for multi-plant?',

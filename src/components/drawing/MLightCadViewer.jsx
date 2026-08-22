@@ -192,6 +192,24 @@ export default function MLightCadViewer({
     const [showAiAgentPanel, setShowAiAgentPanel] = useState(false);
     const [showQuickMeasureResult, setShowQuickMeasureResult] = useState(null);
 
+    // ─── Plugin Status Tracking ─────────────────────────────────────
+    const [pluginStatus, setPluginStatus] = useState({
+        dwg: false,
+        pdf: false,
+        html: false,
+        svg: false,
+        ui: false,
+        agent: false
+    });
+
+    // ─── DWG Parse Status ───────────────────────────────────────────
+    const [dwgParseStatus, setDwgParseStatus] = useState({
+        attempted: false,
+        success: false,
+        error: null,
+        isDwgFile: false
+    });
+
     // ─── Local Active Linetype ───────────────────────────────────────
     const [activeLinetype, setActiveLinetype] = useState('ByLayer');
 
@@ -334,12 +352,12 @@ export default function MLightCadViewer({
         async function initViewer() {
             try {
                 const { AcApDocManager } = await import('@mlightcad/cad-simple-viewer');
-                
+
                 // Register LibreDWG Parser for DWG support
                 try {
                     const { AcDbDatabaseConverterManager, AcDbFileType } = await import('@mlightcad/data-model');
                     const { AcDbLibreDwgConverter } = await import('@mlightcad/libredwg-converter');
-                    
+
                     AcDbDatabaseConverterManager.instance.register(
                         AcDbFileType.DWG,
                         new AcDbLibreDwgConverter({
@@ -348,13 +366,16 @@ export default function MLightCadViewer({
                             parserWorkerUrl: '/workers/libredwg-parser-worker.js'
                         })
                     );
+                    setPluginStatus(prev => ({ ...prev, dwg: true }));
+                    console.log('[MLightCadViewer] ✅ DWG Parser registered successfully');
                 } catch (dwgErr) {
-                    console.warn('[MLightCadViewer] DWG Parser Opt-in missing or failed:', dwgErr.message);
+                    console.warn('[MLightCadViewer] ⚠️ DWG Parser Opt-in failed:', dwgErr.message);
                 }
 
                 let docManager;
                 try {
                     docManager = AcApDocManager.instance;
+                    console.log('[MLightCadViewer] ✅ AcApDocManager instance retrieved');
                 } catch {
                     docManager = AcApDocManager.createInstance({
                         container: containerRef.current,
@@ -363,33 +384,97 @@ export default function MLightCadViewer({
                         preloadDefaultFonts: false,
                         builtinOpenFileDialog: false
                     });
+                    console.log('[MLightCadViewer] ✅ AcApDocManager created with custom options');
                 }
 
                 if (docManager) {
                     docManagerRef.current = docManager;
-                    if (docManager.pluginManager) {
+
+                    // Load Official MLightCAD Ecosystem Plugins
+                    const loadPlugins = async () => {
+                        const pluginResults = { pdf: null, html: null, svg: null, ui: null, agent: null };
+
+                        // 1. PDF Plugin
                         try {
                             const { createPdfPlugin } = await import('@mlightcad/cad-pdf-plugin');
-                            const { createHtmlPlugin } = await import('@mlightcad/cad-html-plugin');
-                            const { createSvgPlugin } = await import('@mlightcad/cad-svg-plugin');
-                            const { createSimpleUiPlugin } = await import('@mlightcad/cad-simple-ui-plugin');
-                            
                             const pdfPlugin = await createPdfPlugin();
-                            const htmlPlugin = await createHtmlPlugin();
-                            const svgPlugin = await createSvgPlugin();
-                            const simpleUiPlugin = await createSimpleUiPlugin();
-                            
-                            if (pdfPlugin) await docManager.pluginManager.loadPlugin(pdfPlugin);
-                            if (htmlPlugin) await docManager.pluginManager.loadPlugin(htmlPlugin);
-                            if (svgPlugin) await docManager.pluginManager.loadPlugin(svgPlugin);
-                            if (simpleUiPlugin) await docManager.pluginManager.loadPlugin(simpleUiPlugin);
-                        } catch (pluginErr) {
-                            console.warn('[MLightCadViewer] Official Plugins ecosystem notice:', pluginErr.message);
+                            if (pdfPlugin && docManager.pluginManager) {
+                                await docManager.pluginManager.loadPlugin(pdfPlugin);
+                                pluginResults.pdf = true;
+                                setPluginStatus(prev => ({ ...prev, pdf: true }));
+                                console.log('[MLightCadViewer] ✅ PDF Plugin loaded');
+                            }
+                        } catch (err) {
+                            console.warn('[MLightCadViewer] ⚠️ PDF Plugin failed:', err.message);
                         }
-                    }
+
+                        // 2. HTML Plugin (with viewer runtime URL)
+                        try {
+                            const { createHtmlPlugin } = await import('@mlightcad/cad-html-plugin');
+                            const htmlPlugin = await createHtmlPlugin({
+                                viewerRuntimeUrl: '/viewer-runtime.iife.js'
+                            });
+                            if (htmlPlugin && docManager.pluginManager) {
+                                await docManager.pluginManager.loadPlugin(htmlPlugin);
+                                pluginResults.html = true;
+                                setPluginStatus(prev => ({ ...prev, html: true }));
+                                console.log('[MLightCadViewer] ✅ HTML Plugin loaded');
+                            }
+                        } catch (err) {
+                            console.warn('[MLightCadViewer] ⚠️ HTML Plugin failed:', err.message);
+                        }
+
+                        // 3. SVG Plugin
+                        try {
+                            const { createSvgPlugin } = await import('@mlightcad/cad-svg-plugin');
+                            const svgPlugin = await createSvgPlugin();
+                            if (svgPlugin && docManager.pluginManager) {
+                                await docManager.pluginManager.loadPlugin(svgPlugin);
+                                pluginResults.svg = true;
+                                setPluginStatus(prev => ({ ...prev, svg: true }));
+                                console.log('[MLightCadViewer] ✅ SVG Plugin loaded');
+                            }
+                        } catch (err) {
+                            console.warn('[MLightCadViewer] ⚠️ SVG Plugin failed:', err.message);
+                        }
+
+                        // 4. Simple UI Plugin (Toolbar & Layer Manager)
+                        try {
+                            const { createSimpleUiPlugin } = await import('@mlightcad/cad-simple-ui-plugin');
+                            const uiPlugin = await createSimpleUiPlugin();
+                            if (uiPlugin && docManager.pluginManager) {
+                                await docManager.pluginManager.loadPlugin(uiPlugin);
+                                pluginResults.ui = true;
+                                setPluginStatus(prev => ({ ...prev, ui: true }));
+                                console.log('[MLightCadViewer] ✅ UI Plugin loaded');
+                            }
+                        } catch (err) {
+                            console.warn('[MLightCadViewer] ⚠️ UI Plugin failed:', err.message);
+                        }
+
+                        // 5. CAD Agent Plugin (Natural Language)
+                        try {
+                            const { createAgentPlugin } = await import('@mlightcad/cad-agent-plugin');
+                            const agentPlugin = await createAgentPlugin();
+                            if (agentPlugin && docManager.pluginManager) {
+                                await docManager.pluginManager.loadPlugin(agentPlugin);
+                                pluginResults.agent = true;
+                                setPluginStatus(prev => ({ ...prev, agent: true }));
+                                console.log('[MLightCadViewer] ✅ Agent Plugin loaded');
+                            }
+                        } catch (err) {
+                            console.warn('[MLightCadViewer] ⚠️ Agent Plugin failed:', err.message);
+                        }
+
+                        return pluginResults;
+                    };
+
+                    // Load plugins with proper sequencing
+                    const loadedPlugins = await loadPlugins();
+                    console.log('[MLightCadViewer] Plugin loading results:', loadedPlugins);
                 }
             } catch (err) {
-                console.warn('[MLightCadViewer] WebGL init notice:', err.message);
+                console.error('[MLightCadViewer] ❌ WebGL init failed:', err);
             }
         }
 
@@ -403,8 +488,15 @@ export default function MLightCadViewer({
     // ─── File Loader ────────────────────────────────────────────────
     useEffect(() => {
         if (!fileData || !docManagerRef.current) return;
-        const isNativeCad = fileName.toLowerCase().endsWith('.dwg') || fileName.toLowerCase().endsWith('.dxf') || (typeof fileData === 'string' && fileData.includes('SECTION') && fileData.includes('ENTITIES'));
+        const isDwg = fileName.toLowerCase().endsWith('.dwg');
+        const isDxf = fileName.toLowerCase().endsWith('.dxf');
+        const isNativeCad = isDwg || isDxf || (typeof fileData === 'string' && fileData.includes('SECTION') && fileData.includes('ENTITIES'));
         if (!isNativeCad) return;
+
+        // Mark as attempted for DWG files
+        if (isDwg) {
+            setDwgParseStatus({ attempted: true, success: false, error: null, isDwgFile: true });
+        }
 
         async function loadCadFile() {
             try {
@@ -478,7 +570,7 @@ export default function MLightCadViewer({
                 }
 
                 // Verify DWG magic bytes for DWG files
-                if (fileName.toLowerCase().endsWith('.dwg')) {
+                if (isDwg) {
                     const headerView = new DataView(buffer, 0, Math.min(20, buffer.byteLength));
                     const magic = String.fromCharCode(headerView.getUint8(0)) +
                                   String.fromCharCode(headerView.getUint8(1)) +
@@ -487,6 +579,12 @@ export default function MLightCadViewer({
                     // DWG files start with "AC" (AutoCAD)
                     if (magic !== 'AC' && buffer.byteLength > 100) {
                         console.warn('[MLightCadViewer] DWG file magic bytes not found, proceeding anyway:', magic);
+                    }
+
+                    // Warn if file is too large for WebAssembly memory limit (~500MB)
+                    const fileSizeMB = buffer.byteLength / (1024 * 1024);
+                    if (fileSizeMB > 10) {
+                        console.warn(`[MLightCadViewer] DWG file is ${fileSizeMB.toFixed(1)}MB - may exceed WebAssembly memory limit`);
                     }
                 }
 
@@ -500,10 +598,35 @@ export default function MLightCadViewer({
 
                 await docManager.openDocument(fileName, buffer, loadOptions);
                 docManager.curView?.zoomToFit?.();
+
+                // Mark DWG as successfully parsed
+                if (isDwg) {
+                    setDwgParseStatus({ attempted: true, success: true, error: null, isDwgFile: true });
+                }
                 toast.success(`File CAD "${fileName}" berhasil dimuat!`);
             } catch (err) {
                 console.error('[MLightCadViewer] File load error:', err);
-                toast.error('Gagal memparsing file CAD: ' + (err.message || 'Unknown error'));
+
+                // Check for specific error types
+                const errorMsg = err.message || String(err);
+
+                if (isDwg) {
+                    // DWG-specific error handling
+                    if (errorMsg.includes('Out of memory') || errorMsg.includes('WebAssembly') || errorMsg.includes('memory')) {
+                        toast.error('⚠️ File DWG terlalu besar untuk diparse di browser (limitasi WebAssembly ~500MB). Solusi: Export ke format DXF atau gunakan file DWG yang lebih kecil.', { duration: 8000 });
+                        setDwgParseStatus({ attempted: true, success: false, error: 'File terlalu besar untuk browser', isDwgFile: true });
+                    } else if (errorMsg.includes('Failed to parse') || errorMsg.includes('parse')) {
+                        toast.error('⚠️ File DWG tidak bisa diparse oleh browser. Gunakan format DXF sebagai alternatif.', { duration: 6000 });
+                        setDwgParseStatus({ attempted: true, success: false, error: 'Parsing gagal', isDwgFile: true });
+                    } else {
+                        toast.error(`⚠️ Gagal memuat DWG: ${errorMsg.substring(0, 100)}`, { duration: 6000 });
+                        setDwgParseStatus({ attempted: true, success: false, error: errorMsg, isDwgFile: true });
+                    }
+                } else if (errorMsg.includes('Failed to parse')) {
+                    toast.error('File CAD tidak bisa diparse. Pastikan format file valid.');
+                } else {
+                    toast.error('Gagal memparsing file CAD: ' + errorMsg);
+                }
             }
         }
 
@@ -754,7 +877,7 @@ export default function MLightCadViewer({
                                         className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#2a2a2a] text-slate-200 text-xs"
                                     >
                                         <FolderOpen className="w-3.5 h-3.5 text-sky-400" />
-                                        <span>Buka File (DWG/DXF)</span>
+                                        <span>Buka File (DWG/DXF/PDF/SVG)</span>
                                     </button>
                                     <button
                                         onClick={() => {
@@ -1442,6 +1565,30 @@ export default function MLightCadViewer({
                     }}
                 />
 
+                {/* DWG Parse Failed - Show Read-Only Mode Notice */}
+                {dwgParseStatus.attempted && dwgParseStatus.isDwgFile && !dwgParseStatus.success && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                        <div className="bg-amber-500/10 border border-amber-500/40 rounded-lg p-4 max-w-md text-center pointer-events-auto">
+                            <AlertCircle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
+                            <h3 className="text-amber-400 font-bold text-sm mb-1">DWG Native Parsing Gagal</h3>
+                            <p className="text-amber-300/80 text-xs mb-3">
+                                File DWG terlalu besar atau format tidak didukung oleh parser WebAssembly browser.
+                            </p>
+                            <div className="text-left text-xs text-slate-300 space-y-1">
+                                <p className="font-medium text-slate-200">💡 Solusi:</p>
+                                <ul className="list-disc list-inside space-y-0.5 text-slate-400">
+                                    <li>Export file ke format <strong className="text-amber-300">DXF</strong> dari AutoCAD</li>
+                                    <li>Gunakan file DWG yang lebih kecil (&lt;5MB)</li>
+                                    <li>Gunakan browser dengan RAM lebih besar</li>
+                                </ul>
+                            </div>
+                            <p className="text-slate-500 text-[10px] mt-3">
+                                ✅ Mode baca-override aktif: Anotasi GD&T tetap bisa dilakukan
+                            </p>
+                        </div>
+                    </div>
+                )}
+
                 {/* SVG Quality & Balloon Overlay Layer */}
                 <div className="absolute inset-0 pointer-events-auto">
                     {children}
@@ -1765,7 +1912,26 @@ export default function MLightCadViewer({
 
                 {/* Exact 1:1 Right: Real-time Coordinates & AutoCAD Status Buttons */}
                 <div className="flex items-center gap-2 pr-2 text-xs" style={{ color: tc.statusText }}>
-                    
+
+                    {/* DWG Parse Status Indicator */}
+                    {dwgParseStatus.attempted && dwgParseStatus.isDwgFile && (
+                        <>
+                            {dwgParseStatus.success ? (
+                                <span className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-[10px] font-medium">
+                                    <CheckCircle2 className="w-3 h-3" /> DWG Native
+                                </span>
+                            ) : (
+                                <span
+                                    className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded text-[10px] font-medium cursor-help"
+                                    title={dwgParseStatus.error || 'DWG parsing failed - using image overlay mode'}
+                                >
+                                    <AlertCircle className="w-3 h-3" /> DWG: Read-Only
+                                </span>
+                            )}
+                            <div className="w-[1px] h-3.5 bg-[#333333]" />
+                        </>
+                    )}
+
                     {/* Live Coordinates: "2104.7656, 2301.5848" */}
                     <span className="font-mono text-[11px] px-2 py-0.5 tracking-tight" style={{ color: tc.coordText }}>
                         {cursorCoords.x}, {cursorCoords.y}
@@ -2147,9 +2313,16 @@ export default function MLightCadViewer({
                                     border: 'border-emerald-500/30',
                                     actionLabel: 'Export Offline HTML',
                                     action: () => {
+                                        let pluginExportSuccess = false;
                                         try {
-                                            docManagerRef.current?.commandManager?.executeCommand('EXPORTHTML');
-                                        } catch (e) {}
+                                            // Try native plugin command first
+                                            const cmd = docManagerRef.current?.commandManager?.executeCommand('EXPORTHTML');
+                                            if (cmd) pluginExportSuccess = true;
+                                        } catch (e) {
+                                            console.warn('[MLightCadViewer] HTML Export command failed:', e);
+                                        }
+
+                                        // Fallback: Generate offline HTML with SVG
                                         const svgElem = document.querySelector('svg');
                                         const svgContent = svgElem ? svgElem.outerHTML : '<p>No CAD entities</p>';
                                         const htmlDoc = `<!DOCTYPE html>
@@ -2161,11 +2334,19 @@ export default function MLightCadViewer({
         body { margin: 0; background: #000000; display: flex; align-items: center; justify-content: center; width: 100vw; height: 100vh; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         svg { width: 100%; height: 100%; }
         .badge { position: absolute; top: 12px; left: 16px; background: rgba(15,23,42,0.85); color: #38bdf8; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; border: 1px solid rgba(56,189,248,0.3); pointer-events: none; }
+        .toolbar { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); background: rgba(15,23,42,0.9); padding: 8px 16px; border-radius: 8px; display: flex; gap: 8px; }
+        .btn { background: #3b82f6; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .btn:hover { background: #2563eb; }
     </style>
 </head>
 <body>
     <div class="badge">📐 MLightCAD Offline Viewer Export</div>
     ${svgContent}
+    <div class="toolbar">
+        <button class="btn" onclick="document.body.style.background='#000'">Dark</button>
+        <button class="btn" onclick="document.body.style.background='#fff'">Light</button>
+        <button class="btn" onclick="document.body.style.background='#1a3054'">Blueprint</button>
+    </div>
 </body>
 </html>`;
                                         const blob = new Blob([htmlDoc], { type: 'text/html;charset=utf-8' });
@@ -2178,7 +2359,9 @@ export default function MLightCadViewer({
                                         document.body.removeChild(a);
                                         URL.revokeObjectURL(url);
                                         setShowPluginModal(false);
-                                        toast.success('Generated offline standalone HTML via @mlightcad/cad-html-plugin');
+                                        toast.success(pluginExportSuccess
+                                            ? '✅ Generated offline HTML via @mlightcad/cad-html-plugin'
+                                            : '📄 Generated offline HTML (SVG fallback)');
                                     }
                                 },
                                 {
@@ -2191,12 +2374,19 @@ export default function MLightCadViewer({
                                     border: 'border-rose-500/30',
                                     actionLabel: 'Export Vector PDF',
                                     action: () => {
+                                        let pluginExportSuccess = false;
                                         try {
-                                            docManagerRef.current?.commandManager?.executeCommand('CONVERTTOPDF');
-                                        } catch (e) {}
+                                            // Try native plugin command
+                                            const cmd = docManagerRef.current?.commandManager?.executeCommand('CONVERTTOPDF');
+                                            if (cmd) pluginExportSuccess = true;
+                                        } catch (e) {
+                                            console.warn('[MLightCadViewer] PDF Export command failed:', e);
+                                        }
                                         if (onExportPdf) onExportPdf();
                                         setShowPluginModal(false);
-                                        toast.success('Generated Vector PDF via @mlightcad/cad-pdf-plugin');
+                                        toast.success(pluginExportSuccess
+                                            ? '✅ Generated Vector PDF via @mlightcad/cad-pdf-plugin'
+                                            : '📄 Generated Vector PDF');
                                     }
                                 },
                                 {
@@ -2209,9 +2399,15 @@ export default function MLightCadViewer({
                                     border: 'border-amber-500/30',
                                     actionLabel: 'Export Vector SVG',
                                     action: () => {
+                                        let pluginExportSuccess = false;
                                         try {
-                                            docManagerRef.current?.commandManager?.executeCommand('CONVERTTOSVG');
-                                        } catch (e) {}
+                                            // Try native plugin command
+                                            const cmd = docManagerRef.current?.commandManager?.executeCommand('CONVERTTOSVG');
+                                            if (cmd) pluginExportSuccess = true;
+                                        } catch (e) {
+                                            console.warn('[MLightCadViewer] SVG Export command failed:', e);
+                                        }
+
                                         const svgElem = document.querySelector('svg');
                                         if (svgElem) {
                                             const svgClone = svgElem.cloneNode(true);
@@ -2227,7 +2423,9 @@ export default function MLightCadViewer({
                                             URL.revokeObjectURL(url);
                                         }
                                         setShowPluginModal(false);
-                                        toast.success('Generated Vector SVG via @mlightcad/cad-svg-plugin');
+                                        toast.success(pluginExportSuccess
+                                            ? '✅ Generated Vector SVG via @mlightcad/cad-svg-plugin'
+                                            : '🎨 Generated Vector SVG');
                                     }
                                 },
                             ].map((plugin) => (
