@@ -201,6 +201,9 @@ import {
     Binary
 } from 'lucide-react';
 
+// --- Konva Canvas Import ---
+import { DevicePreviewCanvas, KonvaHmiDashboard, DEVICE_PRESETS as KONVA_DEVICE_PRESETS } from './DevicePreviewCanvas';
+
 // --- Extracted module imports ---
 import { COMPONENT_TYPES } from './appbuilder/componentTypes';
 import {
@@ -3068,6 +3071,7 @@ const AppBuilder = () => {
     const [previewDevice, setPreviewDevice] = useState('RESPONSIVE'); // Key from DEVICE_PRESETS
     const [previewOrientation, setPreviewOrientation] = useState('PORTRAIT'); // PORTRAIT or LANDSCAPE
     const [scalingMode, setScalingMode] = useState('FIT_SCREEN'); // 'FIT_SCREEN' | 'FIT_WIDTH'
+    const [konvaCanvasMode, setKonvaCanvasMode] = useState(false); // Toggle Konva Canvas rendering mode
 
     const canvasPreset = DEVICE_PRESETS[previewDevice] || DEVICE_PRESETS.RESPONSIVE;
     const isPresetCanvasMode = ['DESIGN', 'PREVIEW'].includes(viewMode) && previewDevice !== 'RESPONSIVE';
@@ -7140,7 +7144,7 @@ const AppBuilder = () => {
     const {
         handleCreateTemplateApp, handleCreateTuneUpTemplate, handleSave, handleDeleteApp, handlePublish, handleRequestApproval, handleApproveApp, handleImportProject, handleDuplicateProject, handleAutoSave, handleRecoverDraft, getCurrentApp, handleCopyUrl, loadApp
     } = useAppBuilderProject({
-        state: { setIsSaving, createTable, getTables, setTables, loadApps, setIsCreateDrawerOpen, setProUiDialog, currentAppId, appName, appCategory, appMeta, steps, baseComponents, appTriggers, appVariables, appFunctions, appTables, recordPlaceholders, globalLogic, helpGuide, materialId, productImage, iotConfig, integrationConnectors, appBackgroundColor, appThemeMode, leftSidebarEnabled, rightSidebarEnabled, copilotEnabled, stepListEnabled, isCanvasLocked, previewDevice, previewOrientation, scalingMode, setAppMeta, setCurrentAppId, resetBuilder, setPublishModal, setProPrompt, setAppName, setAppCategory, setSteps, setBaseComponents, setAppTriggers, setAppVariables, setAppFunctions, setAppTables, setRecordPlaceholders, setMaterialId, setProductImage, setIotConfig, setIntegrationConnectors, setAppBackgroundColor, setAppThemeMode, setScalingMode, setLeftSidebarEnabled, setRightSidebarEnabled, setCopilotEnabled, setStepListEnabled, setGlobalLogic, setHelpGuide, setRecordPlaceholderData, setCurrentStepId, setSelectedCompIds, setViewMode, setIsCanvasLocked },
+        state: { setIsSaving, createTable, getTables, setTables, loadApps, setIsCreateDrawerOpen, setProUiDialog, currentAppId, appName, appCategory, appMeta, steps, baseComponents, appTriggers, appVariables, appFunctions, appTables, recordPlaceholders, globalLogic, helpGuide, materialId, productImage, iotConfig, integrationConnectors, appBackgroundColor, appThemeMode, leftSidebarEnabled, rightSidebarEnabled, copilotEnabled, stepListEnabled, isCanvasLocked, previewDevice, previewOrientation, scalingMode, setAppMeta, setCurrentAppId, resetBuilder, setPublishModal, setProPrompt, setAppName, setAppCategory, setSteps, setBaseComponents, setAppTriggers, setAppVariables, setAppFunctions, setAppTables, setRecordPlaceholders, setMaterialId, setProductImage, setIotConfig, setIntegrationConnectors, setAppBackgroundColor, setAppThemeMode, setScalingMode, setLeftSidebarEnabled, setRightSidebarEnabled, setCopilotEnabled, setStepListEnabled, setGlobalLogic, setHelpGuide, setRecordPlaceholderData, setCurrentStepId, setSelectedCompIds, setViewMode, setIsCanvasLocked, setPreviewDevice, setPreviewOrientation },
         utils: { projectMgmt, clampNonNegativeInt, normalizeFormSubmitConfig, uploadManualImage, isSupabaseReady, updateComponentProps, setIsUploadingImage, setIsUploadingPdf }
     });
 
@@ -13949,6 +13953,41 @@ const AppBuilder = () => {
                                             </div>
                                         )}
                                     </div>
+
+                                    {/* Konva Canvas Mode Toggle */}
+                                    <div style={{ padding: '14px 16px', borderTop: '1px solid var(--border-secondary)' }}>
+                                        <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <Shapes size={12} /> Canvas Engine
+                                        </div>
+                                        <button
+                                            onClick={() => setKonvaCanvasMode(!konvaCanvasMode)}
+                                            style={{
+                                                width: '100%',
+                                                padding: '10px 14px',
+                                                background: konvaCanvasMode ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' : 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                color: 'white',
+                                                fontSize: '0.78rem',
+                                                fontWeight: 600,
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '8px',
+                                                transition: 'all 0.2s',
+                                                boxShadow: konvaCanvasMode ? '0 4px 12px rgba(34,197,94,0.3)' : 'none'
+                                            }}
+                                        >
+                                            <Shapes size={14} />
+                                            {konvaCanvasMode ? '🎯 Konva Canvas ON' : 'Konva Canvas OFF'}
+                                        </button>
+                                        <div style={{ marginTop: '8px', padding: '8px 10px', background: '#f0fdf4', borderRadius: '6px', border: '1px solid #bbf7d0' }}>
+                                            <div style={{ fontSize: '0.65rem', color: '#166534', lineHeight: 1.4 }}>
+                                                ⚡ <strong>Konva Canvas:</strong> 60fps rendering, better for HMI/Industrial displays
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 {/* Live Data Panel */}
@@ -14858,6 +14897,23 @@ const AppBuilder = () => {
                                                 </p>
                                             </div>
                                         </>
+                                    )}
+
+                                    {/* Konva Canvas Rendering Mode */}
+                                    {konvaCanvasMode && viewMode === 'PREVIEW' && (
+                                        <div style={{ width: '100%', height: '100%', position: 'absolute', inset: 0, zIndex: 100 }}>
+                                            <DevicePreviewCanvas
+                                                devicePreset={previewDevice !== 'RESPONSIVE' ? previewDevice : 'desktop-1080p'}
+                                                scaleMode="FIT"
+                                                showDeviceFrame={true}
+                                                backgroundColor={appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc'}
+                                            >
+                                                <KonvaHmiDashboard
+                                                    deviceWidth={canvasBaseSize.width}
+                                                    deviceHeight={canvasBaseSize.height}
+                                                />
+                                            </DevicePreviewCanvas>
+                                        </div>
                                     )}
 
                                     {/* Removed Base Layout Layer */}
@@ -28471,7 +28527,7 @@ D3:0
                     automations: (appTriggers || []).filter(t => t._isAutomation),
                     helpGuide: helpGuide || '',
                     appName: appName || '',
-                    previewDevice: previewDevice,
+                    devicePreset: previewDevice,
                     previewOrientation: previewOrientation,
                     canvasWidth: canvasBaseSize.width,
                     canvasHeight: canvasBaseSize.height

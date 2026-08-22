@@ -128,6 +128,7 @@ import webhookUtility from '../utils/webhookUtility';
 import WorkOrderManager from './WorkOrderManager';
 import { logEvent, AUDIT_EVENTS } from '../utils/auditLog';
 import { calculateOEE } from '../utils/oeeEngine';
+import KonvaHmiDashboard from './KonvaHmiDashboard';
 import FrontlineCopilot from './FrontlineCopilot';
 import ChatWidget from './ChatWidget';
 import AnalysisWidget from './AnalysisWidget';
@@ -175,6 +176,213 @@ const DEVICE_PRESETS = {
   TV_ANDON_FHD: { label: 'Smart TV / Andon FHD (1920x1080)', width: 1920, height: 1080, kind: 'TV', icon: Tv },
   TV_ANDON_4K: { label: 'Smart TV / Andon 4K (3840x2160)', width: 3840, height: 2160, kind: 'TV', icon: Tv }
 };
+
+// ─── Device Frame Component (Flutter-style device bezel) ─────────────────────
+const DeviceFrame = React.memo(function DeviceFrame({
+  preset,
+  scale,
+  children,
+  showDeviceLabel = true
+}) {
+  if (!preset || preset.kind === 'RESPONSIVE' || preset.kind === 'PC' || preset.kind === 'TV') {
+    return children;
+  }
+
+  const { kind, width, height, label } = preset;
+  const frameWidth = width * scale;
+  const frameHeight = height * scale;
+
+  // Device frame colors based on kind
+  const frameColors = {
+    PHONE: { bg: '#1a1a2e', border: '#2d2d3a', shadow: 'rgba(0,0,0,0.5)' },
+    TABLET: { bg: '#2a2a38', border: '#3a3a4a', shadow: 'rgba(0,0,0,0.4)' },
+    WATCH: { bg: '#1a1a2e', border: '#2d2d3a', shadow: 'rgba(0,0,0,0.5)' }
+  };
+  const colors = frameColors[kind] || frameColors.PHONE;
+
+  // Calculate notch/status bar height based on device
+  const getNotchHeight = () => {
+    if (kind === 'PHONE') return Math.max(20, 28 * scale);
+    if (kind === 'TABLET') return Math.max(12, 16 * scale);
+    return 0;
+  };
+  const notchHeight = getNotchHeight();
+
+  // Calculate home indicator height for phones
+  const homeIndicatorHeight = kind === 'PHONE' ? Math.max(12, 20 * scale) : 0;
+
+  // Corner radius based on device
+  const getCornerRadius = () => {
+    if (kind === 'PHONE') return Math.max(16, 32 * scale);
+    if (kind === 'TABLET') return Math.max(8, 16 * scale);
+    return 0;
+  };
+  const cornerRadius = getCornerRadius();
+
+  return (
+    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      {/* Device Label */}
+      {showDeviceLabel && (
+        <div style={{
+          marginBottom: '8px',
+          padding: '4px 12px',
+          backgroundColor: 'rgba(0,0,0,0.6)',
+          borderRadius: '12px',
+          fontSize: '11px',
+          color: '#94a3b8',
+          fontFamily: 'monospace',
+          fontWeight: 600
+        }}>
+          {label} ({width}×{height})
+        </div>
+      )}
+
+      {/* Outer Device Frame */}
+      <div style={{
+        position: 'relative',
+        backgroundColor: colors.bg,
+        borderRadius: cornerRadius + 8,
+        padding: `${notchHeight + 12}px ${12}px ${homeIndicatorHeight + 12}px`,
+        boxShadow: `
+          0 0 0 1px ${colors.border},
+          0 ${8 * scale}px ${32 * scale}px ${colors.shadow},
+          inset 0 1px 0 rgba(255,255,255,0.05)
+        `,
+        border: `1px solid ${colors.border}`,
+      }}>
+        {/* Status Bar / Notch Area */}
+        {kind === 'PHONE' && (
+          <div style={{
+            position: 'absolute',
+            top: `${8 * scale}px`,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10
+          }}>
+            {/* Dynamic Island / Notch */}
+            <div style={{
+              backgroundColor: '#000',
+              borderRadius: `${12 * scale}px`,
+              padding: `${4 * scale}px ${12 * scale}px`,
+              minWidth: `${60 * scale}px`,
+              minHeight: `${18 * scale}px`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: `${4 * scale}px`
+            }}>
+              {/* Camera dot */}
+              <div style={{
+                width: `${6 * scale}px`,
+                height: `${6 * scale}px`,
+                borderRadius: '50%',
+                backgroundColor: '#1a1a2e',
+                border: `${1 * scale}px solid #333`
+              }} />
+            </div>
+          </div>
+        )}
+
+        {/* Speaker for tablets */}
+        {kind === 'TABLET' && (
+          <div style={{
+            position: 'absolute',
+            top: `${6 * scale}px`,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: `${40 * scale}px`,
+            height: `${3 * scale}px`,
+            backgroundColor: '#1a1a2e',
+            borderRadius: `${2 * scale}px`
+          }} />
+        )}
+
+        {/* Screen Container */}
+        <div style={{
+          width: `${frameWidth}px`,
+          height: `${frameHeight}px`,
+          borderRadius: cornerRadius,
+          overflow: 'hidden',
+          backgroundColor: '#fff',
+          position: 'relative',
+          boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.1)'
+        }}>
+          {/* Screen content */}
+          {children}
+        </div>
+
+        {/* Home Indicator for phones */}
+        {kind === 'PHONE' && homeIndicatorHeight > 0 && (
+          <div style={{
+            position: 'absolute',
+            bottom: `${8 * scale}px`,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: `${80 * scale}px`,
+            height: `${4 * scale}px`,
+            backgroundColor: 'rgba(255,255,255,0.3)',
+            borderRadius: `${2 * scale}px`
+          }} />
+        )}
+
+        {/* Side Buttons for phones (power on right) */}
+        {kind === 'PHONE' && (
+          <>
+            <div style={{
+              position: 'absolute',
+              right: `${-3 * scale}px`,
+              top: `${80 * scale}px`,
+              width: `${3 * scale}px`,
+              height: `${40 * scale}px`,
+              backgroundColor: colors.bg,
+              borderRadius: `0 ${2 * scale}px ${2 * scale}px 0`,
+              boxShadow: `inset 0 0 0 1px ${colors.border}`
+            }} />
+            {/* Volume buttons on left */}
+            <div style={{
+              position: 'absolute',
+              left: `${-3 * scale}px`,
+              top: `${60 * scale}px`,
+              width: `${3 * scale}px`,
+              height: `${25 * scale}px`,
+              backgroundColor: colors.bg,
+              borderRadius: `${2 * scale}px 0 0 ${2 * scale}px`,
+              boxShadow: `inset 0 0 0 1px ${colors.border}`
+            }} />
+            <div style={{
+              position: 'absolute',
+              left: `${-3 * scale}px`,
+              top: `${90 * scale}px`,
+              width: `${3 * scale}px`,
+              height: `${25 * scale}px`,
+              backgroundColor: colors.bg,
+              borderRadius: `${2 * scale}px 0 0 ${2 * scale}px`,
+              boxShadow: `inset 0 0 0 1px ${colors.border}`
+            }} />
+          </>
+        )}
+
+        {/* Camera for tablets (front facing) */}
+        {kind === 'TABLET' && (
+          <div style={{
+            position: 'absolute',
+            top: `${8 * scale}px`,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: `${6 * scale}px`,
+            height: `${6 * scale}px`,
+            borderRadius: '50%',
+            backgroundColor: '#1a1a2e',
+            border: `${1 * scale}px solid #333`
+          }} />
+        )}
+      </div>
+    </div>
+  );
+});
 
 
 const WorkSequenceStrip = React.memo(function WorkSequenceStrip({ steps, currentStepIndex, onSelectStep, selectedApp, stepValidationSummaries }) {
@@ -3439,6 +3647,11 @@ const LiveTerminal = () => {
   const isPreset = presetKey !== 'RESPONSIVE';
   const isResponsiveMode = presetKey === 'RESPONSIVE' && layoutMode === 'RESPONSIVE';
   const isDark = selectedApp?.config?.appThemeMode === 'DARK';
+
+  // Check if this is a Konva HMI template
+  const isKonvaTemplate = selectedApp?.config?.useKonva === true;
+  const konvaDesignWidth = selectedApp?.config?.designWidth || 1920;
+  const konvaDesignHeight = selectedApp?.config?.designHeight || 1080;
   const scalingMode = selectedApp?.config?.scalingMode || 'FIT_SCREEN';
   const runtimeSelectionActive = Boolean(selectedApp || selectedManual);
   const effectiveScalingMode = runtimeSelectionActive ? runtimeScaleMode : scalingMode;
@@ -13025,6 +13238,7 @@ const LiveTerminal = () => {
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
+                justifyContent: 'center',
                 justifyContent: (effectiveScalingMode === 'FIT_WIDTH') ? 'flex-start' : 'center',
                 position: 'relative',
                 overflowX: (effectiveScalingMode === 'FIT_WIDTH') ? 'auto' : 'hidden',
@@ -13034,7 +13248,31 @@ const LiveTerminal = () => {
                   : (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : (activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || '#ffffff'))
               }}
             >
-              {isResponsiveMode ? (
+              {/* KONVA HMI CANVAS MODE */}
+              {isKonvaTemplate ? (
+                <KonvaHmiDashboard
+                  designWidth={konvaDesignWidth}
+                  designHeight={konvaDesignHeight}
+                  scaleMode="FIT"
+                  backgroundColor={selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc'}
+                  data={{
+                    temperature: 45,
+                    pressure: 120,
+                    motorRpm: 1500,
+                    totalOutput: 1247,
+                    targetOutput: 1500,
+                    availability: 92,
+                    performance: 87,
+                    quality: 98,
+                    systemStatus: 1,
+                    motorStatus: 1,
+                    conveyorStatus: 1,
+                    sensorStatus: 1,
+                    valveStatus: 1,
+                    alarms: []
+                  }}
+                />
+              ) : isResponsiveMode ? (
                 /* RESPONSIVE FLEXBOX 2-COLUMN SPLIT LAYOUT (Tulip-Style) */
                 <div style={{
                   display: 'flex',
@@ -13093,7 +13331,96 @@ const LiveTerminal = () => {
                   )}
                 </div>
               ) : (
-                /* FIXED CANVAS SCALED LAYOUT */
+                /* FIXED CANVAS SCALED LAYOUT - with optional DeviceFrame */
+                isPreset ? (
+                  <div>
+                    <DeviceFrame
+                      preset={preset}
+                      scale={scale}
+                      showDeviceLabel={true}
+                    >
+                      <div id="terminal-canvas-content" style={{
+                      width: `${layoutWidth}px`,
+                      height: `${layoutHeight}px`,
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      transformOrigin: 'top left',
+                      WebkitFontSmoothing: 'antialiased',
+                      MozOsxFontSmoothing: 'grayscale',
+                      textRendering: 'optimizeLegibility',
+                      imageRendering: 'high-quality',
+                      backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || '#ffffff'
+                    }}>
+                      {appComponents.length > 0 ? (
+                        <div style={{
+                          position: 'relative',
+                          width: '100%',
+                          height: '100%'
+                        }}>
+                          {[...appComponents]
+                            .filter(c => visibilityMap[c.id] !== false)
+                            .sort((a, b) => (a.props?.zIndex || 0) - (b.props?.zIndex || 0))
+                            .map((comp, idx) => {
+                              const isAbsolute = comp.x != null && comp.y != null;
+
+                              const containerStyle = isAbsolute ? {
+                                position: 'absolute',
+                                left: `${comp.x}px`,
+                                top: `${comp.y}px`,
+                                width: comp.w ? `${comp.w}px` : 'auto',
+                                height: comp.h ? `${comp.h}px` : 'auto',
+                                zIndex: comp.props?.zIndex || 100,
+                                transform: `rotate(${comp.props?.rotation || 0}deg)`,
+                                overflow: 'visible'
+                              } : {
+                                width: '100%',
+                                transform: `rotate(${comp.props?.rotation || 0}deg)`,
+                                marginBottom: '20px',
+                                position: 'relative'
+                              };
+
+                              const err = validationErrors[comp.id];
+                              return (
+                                <div
+                                  key={comp.id || idx}
+                                  id={comp.id ? `terminal-comp-${comp.id}` : undefined}
+                                  ref={(el) => { if (comp?.id) widgetContainerRefs.current[comp.id] = el; }}
+                                  className={comp.props?.isBlinking ? 'animate-blink' : ''}
+                                  style={containerStyle}
+                                >
+                                  <div style={{
+                                    border: err ? '2px solid #ef4444' : 'none',
+                                    borderRadius: '8px',
+                                    padding: err ? '10px' : 0,
+                                    backgroundColor: err ? '#fee2e2' : 'transparent',
+                                    height: isAbsolute ? '100%' : 'auto',
+                                    position: 'relative',
+                                    boxSizing: 'border-box'
+                                  }}>
+                                    {renderComponent(comp)}
+                                  </div>
+                                  {err && (
+                                    <div style={{ marginTop: '6px', fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>
+                                      {err}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '30px', marginTop: '40px' }}>
+                          <img src="/assets/assembly_procedure.png" style={{ maxWidth: '100%', borderRadius: '4px' }} alt="Visual" />
+                          <p style={{ textAlign: 'center', color: '#475569', fontSize: '1.1rem', lineHeight: '1.6' }}>
+                            {activeStep?.description || "Follow the standard procedure defined for this assembly step."}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </DeviceFrame>
+                ) : (
+                /* FIXED CANVAS SCALED LAYOUT - without device frame */
                 <div style={{
                   width: `${layoutWidth * scale}px`,
                   height: `${layoutHeight * scale}px`,
@@ -13186,6 +13513,102 @@ const LiveTerminal = () => {
                     )}
                   </div>
                 </div>
+                </div>
+                ) : (
+                /* FIXED CANVAS SCALED LAYOUT - without device frame */
+                <div style={{
+                  width: `${layoutWidth * scale}px`,
+                  height: `${layoutHeight * scale}px`,
+                  position: 'relative',
+                  overflow: 'hidden',
+                  flexShrink: 0,
+                  backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || '#ffffff',
+                  borderRadius: (isPreset && effectiveScalingMode === 'FIT_SCREEN') ? canvasFrameRadius : '0px',
+                  boxShadow: (isPreset && effectiveScalingMode === 'FIT_SCREEN') ? canvasFrameShadow : 'none',
+                  border: (isPreset && effectiveScalingMode === 'FIT_SCREEN') ? canvasFrameBorder : 'none'
+                }}>
+                  <div id="terminal-canvas-content" style={{
+                    width: `${layoutWidth}px`,
+                    height: `${layoutHeight}px`,
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    transform: `scale(${scale})`,
+                    transformOrigin: 'top left',
+                    WebkitFontSmoothing: 'antialiased',
+                    MozOsxFontSmoothing: 'grayscale',
+                    textRendering: 'optimizeLegibility',
+                    imageRendering: 'high-quality',
+                    backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || '#ffffff'
+                  }}>
+                    {appComponents.length > 0 ? (
+                      <div style={{
+                        position: 'relative',
+                        width: '100%',
+                        height: '100%'
+                      }}>
+                        {[...appComponents]
+                          .filter(c => visibilityMap[c.id] !== false)
+                          .sort((a, b) => (a.props?.zIndex || 0) - (b.props?.zIndex || 0))
+                          .map((comp, idx) => {
+                            const isAbsolute = comp.x != null && comp.y != null;
+
+                            const containerStyle = isAbsolute ? {
+                              position: 'absolute',
+                              left: `${comp.x}px`,
+                              top: `${comp.y}px`,
+                              width: comp.w ? `${comp.w}px` : 'auto',
+                              height: comp.h ? `${comp.h}px` : 'auto',
+                              zIndex: comp.props?.zIndex || 100,
+                              transform: `rotate(${comp.props?.rotation || 0}deg)`,
+                              overflow: 'visible'
+                            } : {
+                              width: '100%',
+                              transform: `rotate(${comp.props?.rotation || 0}deg)`,
+                              marginBottom: '20px',
+                              position: 'relative'
+                            };
+
+                            const err = validationErrors[comp.id];
+                            return (
+                              <div
+                                key={comp.id || idx}
+                                id={comp.id ? `terminal-comp-${comp.id}` : undefined}
+                                ref={(el) => { if (comp?.id) widgetContainerRefs.current[comp.id] = el; }}
+                                className={comp.props?.isBlinking ? 'animate-blink' : ''}
+                                style={containerStyle}
+                              >
+                                <div style={{
+                                  border: err ? '2px solid #ef4444' : 'none',
+                                  borderRadius: '8px',
+                                  padding: err ? '10px' : 0,
+                                  backgroundColor: err ? '#fee2e2' : 'transparent',
+                                  height: isAbsolute ? '100%' : 'auto',
+                                  position: 'relative',
+                                  boxSizing: 'border-box'
+                                }}>
+                                  {renderComponent(comp)}
+                                </div>
+                                {err && (
+                                  <div style={{ marginTop: '6px', fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>
+                                    {err}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '30px', marginTop: '40px' }}>
+                        <img src="/assets/assembly_procedure.png" style={{ maxWidth: '100%', borderRadius: '4px' }} alt="Visual" />
+                        <p style={{ textAlign: 'center', color: '#475569', fontSize: '1.1rem', lineHeight: '1.6' }}>
+                          {activeStep?.description || "Follow the standard procedure defined for this assembly step."}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                )
               )}
             </div>
 

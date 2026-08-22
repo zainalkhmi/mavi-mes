@@ -2,19 +2,20 @@ import { saveFrontlineApp, deleteFrontlineApp, publishApp, requestApproval, appr
 import { createIncomingInspectionTemplate } from '../utils/incomingInspectionTemplate';
 
 export default function useAppBuilderProject({ state, utils }) {
-    const { 
-        setIsSaving, createTable, getTables, setTables, loadApps, setIsCreateDrawerOpen, 
-        setProUiDialog, currentAppId, appName, appCategory, appMeta, steps, baseComponents, 
-        appTriggers, appVariables, appFunctions, appTables, recordPlaceholders, globalLogic, 
-        helpGuide, materialId, productImage, iotConfig, integrationConnectors, appBackgroundColor, 
-        appThemeMode, leftSidebarEnabled, rightSidebarEnabled, copilotEnabled, stepListEnabled, 
-        isCanvasLocked, previewDevice, previewOrientation, scalingMode, setAppMeta, setCurrentAppId, 
-        resetBuilder, setPublishModal, setProPrompt, setAppName, setAppCategory, setSteps, 
-        setBaseComponents, setAppTriggers, setAppVariables, setAppFunctions, setAppTables, 
-        setRecordPlaceholders, setMaterialId, setProductImage, setIotConfig, setIntegrationConnectors, 
-        setAppBackgroundColor, setAppThemeMode, setScalingMode, setLeftSidebarEnabled, 
-        setRightSidebarEnabled, setCopilotEnabled, setStepListEnabled, setGlobalLogic, setHelpGuide, 
-        setRecordPlaceholderData, setCurrentStepId, setSelectedCompIds, setViewMode, setIsCanvasLocked, publishModal 
+    const {
+        setIsSaving, createTable, getTables, setTables, loadApps, setIsCreateDrawerOpen,
+        setProUiDialog, currentAppId, appName, appCategory, appMeta, steps, baseComponents,
+        appTriggers, appVariables, appFunctions, appTables, recordPlaceholders, globalLogic,
+        helpGuide, materialId, productImage, iotConfig, integrationConnectors, appBackgroundColor,
+        appThemeMode, leftSidebarEnabled, rightSidebarEnabled, copilotEnabled, stepListEnabled,
+        isCanvasLocked, previewDevice, previewOrientation, scalingMode, setAppMeta, setCurrentAppId,
+        resetBuilder, setPublishModal, setProPrompt, setAppName, setAppCategory, setSteps,
+        setBaseComponents, setAppTriggers, setAppVariables, setAppFunctions, setAppTables,
+        setRecordPlaceholders, setMaterialId, setProductImage, setIotConfig, setIntegrationConnectors,
+        setAppBackgroundColor, setAppThemeMode, setScalingMode, setLeftSidebarEnabled,
+        setRightSidebarEnabled, setCopilotEnabled, setStepListEnabled, setGlobalLogic, setHelpGuide,
+        setRecordPlaceholderData, setCurrentStepId, setSelectedCompIds, setViewMode, setIsCanvasLocked, publishModal,
+        setPreviewDevice, setPreviewOrientation
     } = state;
 
     const { 
@@ -545,13 +546,24 @@ export default function useAppBuilderProject({ state, utils }) {
         setRecordPlaceholderData({});    
         setMaterialId(app.config?.materialId || '');    
         setProductImage(app.config?.productImage || '');    
-        setAppBackgroundColor(app.config?.appBackgroundColor || '#ffffff');    
-        setAppThemeMode(app.config?.appThemeMode || 'LIGHT');    
-        setScalingMode(app.config?.scalingMode || 'FIT_SCREEN');    
-        setLeftSidebarEnabled(app.config?.leftSidebarEnabled !== false);    
-        setRightSidebarEnabled(app.config?.rightSidebarEnabled !== false);    
-        setCopilotEnabled(app.config?.copilotEnabled !== false);    
-        setStepListEnabled(app.config?.stepListEnabled !== false);    
+        setAppBackgroundColor(app.config?.appBackgroundColor || '#ffffff');
+        setAppThemeMode(app.config?.appThemeMode || 'LIGHT');
+        setScalingMode(app.config?.scalingMode || 'FIT_SCREEN');
+        setLeftSidebarEnabled(app.config?.leftSidebarEnabled !== false);
+        setRightSidebarEnabled(app.config?.rightSidebarEnabled !== false);
+        setCopilotEnabled(app.config?.copilotEnabled !== false);
+        setStepListEnabled(app.config?.stepListEnabled !== false);
+
+        // Restore device preset from saved app config
+        const savedDevicePreset = app.config?.devicePreset || app.config?.previewDevice || 'RESPONSIVE';
+        const savedOrientation = app.config?.previewOrientation || 'PORTRAIT';
+        // These setters should be passed from AppBuilder state
+        if (typeof state.setPreviewDevice === 'function') {
+            state.setPreviewDevice(savedDevicePreset);
+        }
+        if (typeof state.setPreviewOrientation === 'function') {
+            state.setPreviewOrientation(savedOrientation);
+        }    
         if (app.config?.iotConfig) {    
             const cfg = { ...app.config.iotConfig };    
             if (cfg.brokerUrl === 'ws://broker.emqx.io:8083/mqtt') {    

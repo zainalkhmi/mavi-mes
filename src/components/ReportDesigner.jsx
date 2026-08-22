@@ -298,12 +298,318 @@ const DEFAULT_TEMPLATES = [
                 guest_location: 'di Tempat'
             }
         ]
+    },
+    // ─────────────────────────────────────────────────────────────────────
+    // KANBAN TEMPLATES
+    // ─────────────────────────────────────────────────────────────────────
+    {
+        id: 'kanban-picking',
+        name: 'Kanban Picking (100 × 150 mm)',
+        category: 'Kanban & Manufacturing',
+        paperPresetId: 'SH-100x150',
+        description: 'Label Kanban Picking untuk warehouse - berisi part number, quantity, location, barcode QR code untuk scan.',
+        template: {
+            basePdf: { width: 100, height: 150, padding: [4, 4, 4, 4] },
+            schemas: [
+                [
+                    // Header - Company & Kanban Type
+                    { name: 'header_bg', type: 'rectangle', position: { x: 5, y: 5 }, width: 90, height: 16, color: '#1e40af' },
+                    { name: 'kanban_type', type: 'text', position: { x: 7, y: 7 }, width: 35, height: 6, fontSize: 10, fontColor: '#ffffff', content: '📦 KANBAN PICKING' },
+                    { name: 'priority_badge', type: 'rectangle', position: { x: 70, y: 7 }, width: 22, height: 8, color: '#dc2626' },
+                    { name: 'priority_text', type: 'text', position: { x: 72, y: 9 }, width: 18, height: 5, fontSize: 8, fontColor: '#ffffff', content: 'URGENT' },
+                    { name: 'company_name', type: 'text', position: { x: 7, y: 16 }, width: 50, height: 4, fontSize: 7, fontColor: '#93c5fd', content: 'PT MAVI INDUSTRIAL MANUFACTURING' },
+
+                    // Part Information Section
+                    { name: 'part_label', type: 'text', position: { x: 6, y: 26 }, width: 40, height: 4, fontSize: 7, fontColor: '#64748b', content: 'PART NUMBER' },
+                    { name: 'part_number', type: 'text', position: { x: 6, y: 30 }, width: 55, height: 8, fontSize: 14, fontColor: '#000000', content: 'BRG-6204-SS-2RS' },
+                    { name: 'part_name', type: 'text', position: { x: 6, y: 39 }, width: 60, height: 5, fontSize: 9, fontColor: '#1f2937', content: 'Deep Groove Ball Bearing SS304' },
+
+                    // QR Code - Right Side
+                    { name: 'part_qr', type: 'qrcode', position: { x: 72, y: 26 }, width: 22, height: 22 },
+                    { name: 'qr_label', type: 'text', position: { x: 72, y: 49 }, width: 22, height: 3, fontSize: 5, fontColor: '#64748b', content: 'SCAN QR' },
+
+                    // Divider
+                    { name: 'divider_1', type: 'line', position: { x: 5, y: 55 }, width: 90, height: 0.5, color: '#374151' },
+
+                    // Quantity Section
+                    { name: 'qty_label', type: 'text', position: { x: 6, y: 58 }, width: 25, height: 3, fontSize: 6, fontColor: '#64748b', content: 'QUANTITY' },
+                    { name: 'qty_box', type: 'rectangle', position: { x: 6, y: 62 }, width: 28, height: 14, borderColor: '#000000', borderWidth: 1, color: '#fef3c7' },
+                    { name: 'qty_value', type: 'text', position: { x: 8, y: 64 }, width: 24, height: 10, fontSize: 18, fontColor: '#000000', content: '50' },
+                    { name: 'qty_unit', type: 'text', position: { x: 8, y: 74 }, width: 24, height: 3, fontSize: 6, fontColor: '#64748b', content: 'PCS' },
+
+                    // Location Section
+                    { name: 'loc_label', type: 'text', position: { x: 38, y: 58 }, width: 25, height: 3, fontSize: 6, fontColor: '#64748b', content: 'LOCATION' },
+                    { name: 'loc_box', type: 'rectangle', position: { x: 38, y: 62 }, width: 30, height: 14, borderColor: '#000000', borderWidth: 1, color: '#dbeafe' },
+                    { name: 'loc_value', type: 'text', position: { x: 40, y: 65 }, width: 26, height: 9, fontSize: 14, fontColor: '#000000', content: 'A-12-03' },
+
+                    // Barcode - Bottom
+                    { name: 'barcode', type: 'code128', position: { x: 6, y: 82 }, width: 55, height: 14 },
+                    { name: 'barcode_num', type: 'text', position: { x: 6, y: 97 }, width: 55, height: 4, fontSize: 7, fontColor: '#000000', content: 'BRG-6204-SS-2RS-50PCS-A12' },
+
+                    // Additional Info Box
+                    { name: 'info_bg', type: 'rectangle', position: { x: 65, y: 78 }, width: 30, height: 24, borderColor: '#374151', borderWidth: 0.5, color: '#f9fafb' },
+                    { name: 'wo_label', type: 'text', position: { x: 67, y: 80 }, width: 26, height: 3, fontSize: 6, fontColor: '#64748b', content: 'WO #' },
+                    { name: 'wo_value', type: 'text', position: { x: 67, y: 83 }, width: 26, height: 4, fontSize: 7, fontColor: '#000000', content: 'WO-2026-0819' },
+                    { name: 'date_label', type: 'text', position: { x: 67, y: 89 }, width: 26, height: 3, fontSize: 6, fontColor: '#64748b', content: 'DUE DATE' },
+                    { name: 'date_value', type: 'text', position: { x: 67, y: 92 }, width: 26, height: 4, fontSize: 7, fontColor: '#000000', content: '2026-08-22' },
+                    { name: 'shift_label', type: 'text', position: { x: 67, y: 97 }, width: 26, height: 3, fontSize: 6, fontColor: '#64748b', content: 'SHIFT' },
+                    { name: 'shift_value', type: 'text', position: { x: 67, y: 100 }, width: 26, height: 3, fontSize: 7, fontColor: '#000000', content: 'ALL SHIFT' },
+
+                    // Footer
+                    { name: 'footer_bg', type: 'rectangle', position: { x: 5, y: 105 }, width: 90, height: 8, color: '#1e40af' },
+                    { name: 'footer_text', type: 'text', position: { x: 7, y: 107 }, width: 60, height: 4, fontSize: 6, fontColor: '#ffffff', content: 'PICKING INSTRUCTION: Scan barcode → Collect parts → Deliver to station' },
+                    { name: 'pic_label', type: 'text', position: { x: 70, y: 107 }, width: 23, height: 4, fontSize: 6, fontColor: '#ffffff', content: 'PIC: Warehouse' }
+                ]
+            ]
+        },
+        sampleInputs: [
+            {
+                kanban_type: '📦 KANBAN PICKING',
+                priority_text: 'URGENT',
+                company_name: 'PT MAVI INDUSTRIAL MANUFACTURING',
+                part_number: 'BRG-6204-SS-2RS',
+                part_name: 'Deep Groove Ball Bearing SS304',
+                part_qr: 'https://mavi.io/part/BRG-6204-SS-2RS',
+                qty_value: '50',
+                loc_value: 'A-12-03',
+                barcode: 'BRG-6204-SS-2RS-50PCS-A12',
+                barcode_num: 'BRG-6204-SS-2RS-50PCS-A12',
+                wo_value: 'WO-2026-0819',
+                date_value: '2026-08-22',
+                shift_value: 'ALL SHIFT'
+            }
+        ]
+    },
+    {
+        id: 'kanban-wip',
+        name: 'Kanban WIP - Work In Process (100 × 150 mm)',
+        category: 'Kanban & Manufacturing',
+        paperPresetId: 'SH-100x150',
+        description: 'Label Kanban WIP untuk proses produksi - tracking flow, process step, quantity, dan real-time status barcode.',
+        template: {
+            basePdf: { width: 100, height: 150, padding: [4, 4, 4, 4] },
+            schemas: [
+                [
+                    // Header - Process Flow Badge
+                    { name: 'header_bg', type: 'rectangle', position: { x: 5, y: 5 }, width: 90, height: 18, color: '#7c3aed' },
+                    { name: 'kanban_type', type: 'text', position: { x: 7, y: 7 }, width: 50, height: 6, fontSize: 11, fontColor: '#ffffff', content: '⚙️ KANBAN WIP' },
+                    { name: 'process_step', type: 'text', position: { x: 7, y: 14 }, width: 60, height: 5, fontSize: 8, fontColor: '#ddd6fe', content: 'WORK IN PROCESS - ASSEMBLY LINE B' },
+                    { name: 'status_badge', type: 'rectangle', position: { x: 70, y: 9 }, width: 22, height: 10, color: '#22c55e' },
+                    { name: 'status_text', type: 'text', position: { x: 72, y: 12 }, width: 18, height: 5, fontSize: 8, fontColor: '#ffffff', content: 'IN PROGRESS' },
+
+                    // Process Flow Indicator
+                    { name: 'flow_bg', type: 'rectangle', position: { x: 5, y: 26 }, width: 90, height: 12, color: '#f3f4f6' },
+                    { name: 'step_1', type: 'rectangle', position: { x: 8, y: 28 }, width: 20, height: 8, color: '#22c55e' },
+                    { name: 'step_1_text', type: 'text', position: { x: 10, y: 30 }, width: 16, height: 5, fontSize: 6, fontColor: '#ffffff', content: 'CUTTING ✓' },
+                    { name: 'arrow_1', type: 'text', position: { x: 30, y: 30 }, width: 8, height: 5, fontSize: 8, fontColor: '#374151', content: '→' },
+                    { name: 'step_2', type: 'rectangle', position: { x: 40, y: 28 }, width: 20, height: 8, color: '#22c55e' },
+                    { name: 'step_2_text', type: 'text', position: { x: 42, y: 30 }, width: 16, height: 5, fontSize: 6, fontColor: '#ffffff', content: 'WELDING ✓' },
+                    { name: 'arrow_2', type: 'text', position: { x: 62, y: 30 }, width: 8, height: 5, fontSize: 8, fontColor: '#374151', content: '→' },
+                    { name: 'step_3', type: 'rectangle', position: { x: 72, y: 28 }, width: 20, height: 8, color: '#f59e0b' },
+                    { name: 'step_3_text', type: 'text', position: { x: 74, y: 30 }, width: 16, height: 5, fontSize: 6, fontColor: '#ffffff', content: 'ASSEMBLY' },
+
+                    // Part & Operation Info
+                    { name: 'part_label', type: 'text', position: { x: 6, y: 42 }, width: 35, height: 3, fontSize: 6, fontColor: '#64748b', content: 'PART NUMBER' },
+                    { name: 'part_value', type: 'text', position: { x: 6, y: 45 }, width: 55, height: 6, fontSize: 11, fontColor: '#000000', content: 'ASY-HYD-CYL-125' },
+                    { name: 'op_label', type: 'text', position: { x: 6, y: 53 }, width: 35, height: 3, fontSize: 6, fontColor: '#64748b', content: 'OPERATION' },
+                    { name: 'op_value', type: 'text', position: { x: 6, y: 56 }, width: 55, height: 4, fontSize: 9, fontColor: '#000000', content: 'Hydraulic Cylinder Assembly - Step 3 of 5' },
+
+                    // QR Code
+                    { name: 'wip_qr', type: 'qrcode', position: { x: 72, y: 40 }, width: 22, height: 22 },
+                    { name: 'qr_label', type: 'text', position: { x: 72, y: 63 }, width: 22, height: 3, fontSize: 5, fontColor: '#64748b', content: 'TRACK ID' },
+
+                    // Divider
+                    { name: 'divider_1', type: 'line', position: { x: 5, y: 68 }, width: 90, height: 0.5, color: '#7c3aed' },
+
+                    // Quantity & Cycle Info
+                    { name: 'qty_box', type: 'rectangle', position: { x: 6, y: 72 }, width: 28, height: 18, borderColor: '#7c3aed', borderWidth: 1, color: '#ede9fe' },
+                    { name: 'qty_label', type: 'text', position: { x: 8, y: 74 }, width: 24, height: 3, fontSize: 6, fontColor: '#7c3aed', content: 'BATCH QTY' },
+                    { name: 'qty_value', type: 'text', position: { x: 8, y: 78 }, width: 24, height: 10, fontSize: 16, fontColor: '#7c3aed', content: '25' },
+
+                    { name: 'cycle_box', type: 'rectangle', position: { x: 38, y: 72 }, width: 28, height: 18, borderColor: '#374151', borderWidth: 0.5, color: '#f9fafb' },
+                    { name: 'cycle_label', type: 'text', position: { x: 40, y: 74 }, width: 24, height: 3, fontSize: 6, fontColor: '#64748b', content: 'CYCLE TIME' },
+                    { name: 'cycle_value', type: 'text', position: { x: 40, y: 78 }, width: 24, height: 10, fontSize: 14, fontColor: '#000000', content: '45 min' },
+
+                    // Progress Bar
+                    { name: 'progress_label', type: 'text', position: { x: 70, y: 74 }, width: 26, height: 3, fontSize: 6, fontColor: '#64748b', content: 'PROGRESS' },
+                    { name: 'progress_bar_bg', type: 'rectangle', position: { x: 70, y: 78 }, width: 26, height: 6, color: '#e5e7eb' },
+                    { name: 'progress_bar_fill', type: 'rectangle', position: { x: 70, y: 78 }, width: 18, height: 6, color: '#22c55e' },
+                    { name: 'progress_pct', type: 'text', position: { x: 70, y: 85 }, width: 26, height: 4, fontSize: 8, fontColor: '#22c55e', content: '68% COMPLETE' },
+
+                    // Barcode
+                    { name: 'wip_barcode', type: 'code128', position: { x: 6, y: 95 }, width: 88, height: 14 },
+                    { name: 'wip_barcode_num', type: 'text', position: { x: 6, y: 110 }, width: 88, height: 4, fontSize: 7, fontColor: '#000000', content: 'WIP-ASY-HYD-125-B25-2026-08-22-ASSY3' },
+
+                    // Footer
+                    { name: 'footer_bg', type: 'rectangle', position: { x: 5, y: 118 }, width: 90, height: 8, color: '#7c3aed' },
+                    { name: 'footer_text', type: 'text', position: { x: 7, y: 120 }, width: 60, height: 4, fontSize: 6, fontColor: '#ffffff', content: 'Scan to track WIP status. Move to next station when complete.' },
+                    { name: 'operator_label', type: 'text', position: { x: 70, y: 120 }, width: 23, height: 4, fontSize: 6, fontColor: '#ffffff', content: 'OP: Operator-07' }
+                ]
+            ]
+        },
+        sampleInputs: [
+            {
+                kanban_type: '⚙️ KANBAN WIP',
+                process_step: 'WORK IN PROCESS - ASSEMBLY LINE B',
+                status_text: 'IN PROGRESS',
+                part_value: 'ASY-HYD-CYL-125',
+                op_value: 'Hydraulic Cylinder Assembly - Step 3 of 5',
+                wip_qr: 'https://mavi.io/wip/ASY-HYD-CYL-125-B25',
+                qty_value: '25',
+                cycle_value: '45 min',
+                wip_barcode: 'WIP-ASY-HYD-125-B25-2026-08-22-ASSY3',
+                wip_barcode_num: 'WIP-ASY-HYD-125-B25-2026-08-22-ASSY3'
+            }
+        ]
+    },
+    {
+        id: 'kanban-manufacture',
+        name: 'Kanban Manufacture (100 × 150 mm)',
+        category: 'Kanban & Manufacturing',
+        paperPresetId: 'SH-100x150',
+        description: 'Label Kanban Manufacture untuk production order - detail produk, routing, quantity, dan QR code untuk tracking.',
+        template: {
+            basePdf: { width: 100, height: 150, padding: [4, 4, 4, 4] },
+            schemas: [
+                [
+                    // Header - Production Badge
+                    { name: 'header_bg', type: 'rectangle', position: { x: 5, y: 5 }, width: 90, height: 20, color: '#dc2626' },
+                    { name: 'kanban_type', type: 'text', position: { x: 7, y: 7 }, width: 50, height: 7, fontSize: 12, fontColor: '#ffffff', content: '🏭 KANBAN MANUFACTURE' },
+                    { name: 'production_no', type: 'text', position: { x: 7, y: 15 }, width: 55, height: 5, fontSize: 8, fontColor: '#fecaca', content: 'PRODUCTION ORDER: MFG-2026-08-0042' },
+                    { name: 'priority_badge', type: 'rectangle', position: { x: 72, y: 7 }, width: 20, height: 8, color: '#fbbf24' },
+                    { name: 'priority_text', type: 'text', position: { x: 74, y: 9 }, width: 16, height: 5, fontSize: 7, fontColor: '#000000', content: 'HIGH PRIORITY' },
+
+                    // Product Information
+                    { name: 'product_label', type: 'text', position: { x: 6, y: 28 }, width: 30, height: 3, fontSize: 6, fontColor: '#64748b', content: 'PRODUCT / PART' },
+                    { name: 'product_name', type: 'text', position: { x: 6, y: 31 }, width: 60, height: 6, fontSize: 12, fontColor: '#000000', content: 'Pneumatic Valve Assembly Kit' },
+                    { name: 'product_code', type: 'text', position: { x: 6, y: 38 }, width: 50, height: 4, fontSize: 8, fontColor: '#374151', content: 'Code: PVAK-450X-N5 | Rev.03' },
+
+                    // QR Code
+                    { name: 'product_qr', type: 'qrcode', position: { x: 72, y: 26 }, width: 22, height: 22 },
+                    { name: 'qr_label', type: 'text', position: { x: 72, y: 49 }, width: 22, height: 3, fontSize: 5, fontColor: '#64748b', content: 'PRODUCT ID' },
+
+                    // Divider
+                    { name: 'divider_1', type: 'line', position: { x: 5, y: 55 }, width: 90, height: 0.5, color: '#dc2626' },
+
+                    // Production Info Grid
+                    { name: 'grid_bg', type: 'rectangle', position: { x: 5, y: 58 }, width: 90, height: 28, color: '#fef2f2' },
+
+                    // Row 1
+                    { name: 'qty_label', type: 'text', position: { x: 7, y: 60 }, width: 25, height: 3, fontSize: 6, fontColor: '#dc2626', content: 'ORDER QTY' },
+                    { name: 'qty_value', type: 'text', position: { x: 7, y: 63 }, width: 25, height: 6, fontSize: 14, fontColor: '#000000', content: '100 pcs' },
+
+                    { name: 'due_label', type: 'text', position: { x: 35, y: 60 }, width: 25, height: 3, fontSize: 6, fontColor: '#dc2626', content: 'DUE DATE' },
+                    { name: 'due_value', type: 'text', position: { x: 35, y: 63 }, width: 25, height: 6, fontSize: 11, fontColor: '#000000', content: '2026-08-25' },
+
+                    { name: 'shift_label', type: 'text', position: { x: 63, y: 60 }, width: 30, height: 3, fontSize: 6, fontColor: '#dc2626', content: 'TARGET SHIFT' },
+                    { name: 'shift_value', type: 'text', position: { x: 63, y: 63 }, width: 30, height: 6, fontSize: 10, fontColor: '#000000', content: 'SHIFT 1 & 2' },
+
+                    // Row 2
+                    { name: 'routing_label', type: 'text', position: { x: 7, y: 72 }, width: 25, height: 3, fontSize: 6, fontColor: '#64748b', content: 'ROUTING' },
+                    { name: 'routing_value', type: 'text', position: { x: 7, y: 75 }, width: 40, height: 5, fontSize: 8, fontColor: '#000000', content: 'ST100 → ST200 → ST300 → PK' },
+
+                    { name: 'station_label', type: 'text', position: { x: 63, y: 72 }, width: 30, height: 3, fontSize: 6, fontColor: '#64748b', content: 'CURRENT STATION' },
+                    { name: 'station_value', type: 'text', position: { x: 63, y: 75 }, width: 30, height: 5, fontSize: 10, fontColor: '#22c55e', content: 'ST200 - ASSY' },
+
+                    // BOM Reference
+                    { name: 'bom_label', type: 'text', position: { x: 7, y: 83 }, width: 40, height: 3, fontSize: 6, fontColor: '#64748b', content: 'BOM REF' },
+                    { name: 'bom_value', type: 'text', position: { x: 7, y: 86 }, width: 55, height: 4, fontSize: 8, fontColor: '#000000', content: 'BOM-PVAK-450X-R03 | 12 Components' },
+
+                    // Barcode
+                    { name: 'mfg_barcode', type: 'code128', position: { x: 6, y: 93 }, width: 88, height: 14 },
+                    { name: 'mfg_barcode_num', type: 'text', position: { x: 6, y: 108 }, width: 88, height: 4, fontSize: 7, fontColor: '#000000', content: 'MFG-PVAK-450X-N5-100PCS-20260825' },
+
+                    // Footer - Instructions
+                    { name: 'footer_bg', type: 'rectangle', position: { x: 5, y: 116 }, width: 90, height: 8, color: '#dc2626' },
+                    { name: 'footer_text', type: 'text', position: { x: 7, y: 118 }, width: 55, height: 4, fontSize: 6, fontColor: '#ffffff', content: '🔧 Assemble per BOM. QC check each unit. Pack in box of 10.' },
+                    { name: 'qc_label', type: 'text', position: { x: 65, y: 118 }, width: 28, height: 4, fontSize: 6, fontColor: '#ffffff', content: 'QC: 100% inspection' }
+                ]
+            ]
+        },
+        sampleInputs: [
+            {
+                kanban_type: '🏭 KANBAN MANUFACTURE',
+                production_no: 'PRODUCTION ORDER: MFG-2026-08-0042',
+                priority_text: 'HIGH PRIORITY',
+                product_name: 'Pneumatic Valve Assembly Kit',
+                product_code: 'Code: PVAK-450X-N5 | Rev.03',
+                product_qr: 'https://mavi.io/product/PVAK-450X-N5',
+                qty_value: '100 pcs',
+                due_value: '2026-08-25',
+                shift_value: 'SHIFT 1 & 2',
+                routing_value: 'ST100 → ST200 → ST300 → PK',
+                station_value: 'ST200 - ASSY',
+                bom_value: 'BOM-PVAK-450X-R03 | 12 Components',
+                mfg_barcode: 'MFG-PVAK-450X-N5-100PCS-20260825',
+                mfg_barcode_num: 'MFG-PVAK-450X-N5-100PCS-20260825'
+            }
+        ]
+    },
+    {
+        id: 'kanban-picking-small',
+        name: 'Kanban Picking Mini (75 × 50 mm)',
+        category: 'Kanban & Manufacturing',
+        paperPresetId: 'SH-75x100',
+        description: 'Label Kanban Picking ukuran kecil untuk rak atau container bin - barcode QR dan info penting.',
+        template: {
+            basePdf: { width: 75, height: 100, padding: [3, 3, 3, 3] },
+            schemas: [
+                [
+                    // Header
+                    { name: 'header_bg', type: 'rectangle', position: { x: 4, y: 4 }, width: 67, height: 10, color: '#1e40af' },
+                    { name: 'kanban_type', type: 'text', position: { x: 5, y: 6 }, width: 35, height: 5, fontSize: 8, fontColor: '#ffffff', content: '📦 PICKING' },
+                    { name: 'priority', type: 'text', position: { x: 45, y: 6 }, width: 24, height: 5, fontSize: 7, fontColor: '#fbbf24', content: '⚡ RUSH' },
+
+                    // Part Info
+                    { name: 'part_num', type: 'text', position: { x: 5, y: 17 }, width: 65, height: 5, fontSize: 10, fontColor: '#000000', content: 'BRG-6204-SS' },
+                    { name: 'part_name', type: 'text', position: { x: 5, y: 23 }, width: 65, height: 4, fontSize: 7, fontColor: '#374151', content: 'Ball Bearing SS304' },
+
+                    // QR Code
+                    { name: 'qr', type: 'qrcode', position: { x: 5, y: 30 }, width: 18, height: 18 },
+
+                    // Quantity & Location
+                    { name: 'qty_label', type: 'text', position: { x: 26, y: 30 }, width: 20, height: 3, fontSize: 5, fontColor: '#64748b', content: 'QTY' },
+                    { name: 'qty_val', type: 'text', position: { x: 26, y: 33 }, width: 20, height: 8, fontSize: 14, fontColor: '#1e40af', content: '50' },
+                    { name: 'loc_label', type: 'text', position: { x: 48, y: 30 }, width: 22, height: 3, fontSize: 5, fontColor: '#64748b', content: 'LOCATION' },
+                    { name: 'loc_val', type: 'text', position: { x: 48, y: 33 }, width: 22, height: 8, fontSize: 12, fontColor: '#000000', content: 'A-12' },
+
+                    // Barcode
+                    { name: 'barcode', type: 'code128', position: { x: 5, y: 52 }, width: 65, height: 10 },
+                    { name: 'barcode_num', type: 'text', position: { x: 5, y: 63 }, width: 65, height: 3, fontSize: 6, fontColor: '#000000', content: 'BRG-6204-50A12' },
+
+                    // WO & Date
+                    { name: 'wo_label', type: 'text', position: { x: 5, y: 68 }, width: 30, height: 3, fontSize: 5, fontColor: '#64748b', content: 'WO' },
+                    { name: 'wo_val', type: 'text', position: { x: 5, y: 71 }, width: 30, height: 3, fontSize: 6, fontColor: '#000000', content: 'WO-2026-0819' },
+                    { name: 'date_label', type: 'text', position: { x: 40, y: 68 }, width: 30, height: 3, fontSize: 5, fontColor: '#64748b', content: 'DATE' },
+                    { name: 'date_val', type: 'text', position: { x: 40, y: 71 }, width: 30, height: 3, fontSize: 6, fontColor: '#000000', content: '2026-08-22' },
+
+                    // Footer
+                    { name: 'footer_bg', type: 'rectangle', position: { x: 4, y: 80 }, width: 67, height: 6, color: '#1e40af' },
+                    { name: 'footer', type: 'text', position: { x: 5, y: 82 }, width: 65, height: 4, fontSize: 5, fontColor: '#ffffff', content: 'MAVI WAREHOUSE' }
+                ]
+            ]
+        },
+        sampleInputs: [
+            {
+                kanban_type: '📦 PICKING',
+                priority: '⚡ RUSH',
+                part_num: 'BRG-6204-SS',
+                part_name: 'Ball Bearing SS304',
+                qr: 'https://mavi.io/part/BRG-6204-SS',
+                qty_val: '50',
+                loc_val: 'A-12',
+                barcode: 'BRG-6204-50A12',
+                barcode_num: 'BRG-6204-50A12',
+                wo_val: 'WO-2026-0819',
+                date_val: '2026-08-22'
+            }
+        ]
     }
 ];
 
 export default function ReportDesigner() {
     const [templates, setTemplates] = useState(() => {
-        const saved = localStorage.getItem('mavi_pdf_templates_v4');
+        const saved = localStorage.getItem('mavi_pdf_templates_v5');
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
@@ -384,7 +690,7 @@ export default function ReportDesigner() {
 
     // Save templates to localStorage
     useEffect(() => {
-        localStorage.setItem('mavi_pdf_templates_v4', JSON.stringify(templates));
+        localStorage.setItem('mavi_pdf_templates_v5', JSON.stringify(templates));
     }, [templates]);
 
     // When switching template, update schema and sample data

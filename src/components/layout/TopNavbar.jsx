@@ -3,7 +3,7 @@ import {
   Settings, Zap, Camera, Cpu, Database, Link2, Variable,
   BarChart3, Monitor, MapPin, Radio, Tv, Activity, Eye, BrainCircuit,
   SlidersHorizontal, Users, ShoppingBag, AppWindow, Folder, Volume2,
-  FileCode, Webhook, Play, Layout, FileText, PieChart
+  FileCode, Webhook, Play, Layout, FileText, PieChart, Terminal
 } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 
@@ -45,12 +45,10 @@ export default function TopNavbar() {
     hasAccess('/stations') && { path: '/stations', icon: <MapPin size={16} />, label: 'Stations' },
     hasAccess('/display-devices') && { path: '/display-devices', icon: <Tv size={16} />, label: 'Interfaces' },
     hasAccess('/machines') && { path: '/machines', icon: <Cpu size={16} />, label: 'Machines' },
-    hasAccess('/predictive-maintenance') && { path: '/predictive-maintenance', icon: <Activity size={16} className="text-amber-500" />, label: 'Predictive Maintenance (RUL)' },
     hasAccess('/edge-devices') && { path: '/edge-devices', icon: <Activity size={16} />, label: 'Edge Devices' },
-    hasAccess('/voice-inspection') && { path: '/voice-inspection', icon: <Volume2 size={16} />, label: 'Voice Inspection' },
     { type: 'divider' },
-    hasAccess('/iot-hub') && { path: '/iot-hub', icon: <Radio size={16} className="text-violet-500" />, label: 'IoT Hub' },
-    hasAccess('/plc-settings') && { path: '/plc-settings', icon: <SlidersHorizontal size={16} />, label: 'PLC Settings' }
+    hasAccess('/plc-settings') && { path: '/plc-settings', icon: <SlidersHorizontal size={16} />, label: 'PLC Settings' },
+    { path: '/nodered', icon: <Terminal size={16} className="text-red-500" />, label: 'Node-RED Dashboard' }
   ].filter(Boolean);
 
   const visionItems = [
@@ -123,7 +121,7 @@ export default function TopNavbar() {
 
           {appItems.length > 0 && <NavDropdown title="Apps" pathMatches={['/builder', '/file-explorer', '/app-management', '/tables', '/connectors', '/variables', '/mcp-server']} items={appItems} />}
           {drawingItems.length > 0 && <NavDropdown title="Drawings" pathMatches={['/drawings', '/drawings/files']} items={drawingItems} />}
-          {shopFloorItems.length > 0 && <NavDropdown title="Shop Floor" pathMatches={['/stations', '/display-devices', '/machines', '/edge-devices', '/iot-hub', '/plc-settings', '/voice-inspection']} items={shopFloorItems} />}
+          {shopFloorItems.length > 0 && <NavDropdown title="Shop Floor" pathMatches={['/stations', '/display-devices', '/machines', '/edge-devices', '/plc-settings', '/nodered']} items={shopFloorItems} />}
           {visionItems.length > 0 && <NavDropdown title="Vision" pathMatches={['/vision', '/vision/calibration', '/vision/quickbuild']} items={visionItems} />}
           {analyticsItems.length > 0 && <NavDropdown title="Analytics" pathMatches={['/bi', '/reports']} items={analyticsItems} />}
           {logicItems.length > 0 && <NavDropdown title="Logic" pathMatches={['/automations', '/functions']} items={logicItems} />}

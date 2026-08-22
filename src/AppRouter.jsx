@@ -48,6 +48,7 @@ const MachineActivityYieldTracker = lazy(() => import('./components/MachineActiv
 const DigitalDrawingCheckSheet = lazy(() => import('./components/DigitalDrawingCheckSheet'));
 const ReportDesigner = lazy(() => import('./components/ReportDesigner'));
 const BiStudio = lazy(() => import('./components/BiStudio'));
+const NodeREDDashboard = lazy(() => import('./components/NodeREDDashboard'));
 
 export default function AppRouter({ user, isOperator }) {
   const hasAccess = (path) => checkRoleAccess(user, path);
@@ -100,6 +101,7 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/bi-studio" element={<BiStudio />} />
               <Route path="/power-bi" element={<BiStudio />} />
               <Route path="/reports" element={hasAccess('/reports') ? <ReportDesigner /> : <Navigate to="/" replace />} />
+              <Route path="/nodered" element={hasAccess('/plc-settings') ? <NodeREDDashboard /> : <Navigate to="/" replace />} />
               <Route path="/users" element={hasAccess('/users') ? <UserManager /> : <Navigate to="/" replace />} />
               <Route path="/apps/data-entry-form-example" element={<DataEntryFormGuide />} />
               <Route path="/automations" element={hasAccess('/automations') ? <AutomationEditor /> : <Navigate to="/" replace />} />
