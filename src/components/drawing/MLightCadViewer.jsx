@@ -413,6 +413,7 @@ export default function MLightCadViewer({
 
                 let buffer;
                 if (fileData instanceof ArrayBuffer) {
+                    // Direct ArrayBuffer from DWG processing
                     buffer = fileData;
                 } else if (fileData instanceof Blob) {
                     buffer = await fileData.arrayBuffer();
@@ -423,34 +424,83 @@ export default function MLightCadViewer({
                         return;
                     }
                     if (fileData.startsWith('data:')) {
-                        try {
-                            const base64Part = fileData.split(',')[1];
-                            const binaryString = atob(base64Part);
-                            const len = binaryString.length;
-                            const bytes = new Uint8Array(len);
-                            for (let i = 0; i < len; i++) {
-                                bytes[i] = binaryString.charCodeAt(i);
+                        // Check for DWG/binary data URLs (including acad, dwg, octet-stream MIME types)
+                        const isBinaryMime = fileData.startsWith('data:application/') ||
+                                            fileData.startsWith('data:model/') ||
+                                            fileData.startsWith('data:;') ||
+                                            fileData.includes(';base64,') ||
+                                            fileData.includes(';charset=binary');
+
+                        if (isBinaryMime) {
+                            try {
+                                const base64Part = fileData.includes(',')
+                                    ? fileData.split(',')[1]
+                                    : fileData.substring(fileData.indexOf(':') + 1);
+
+                                if (base64Part) {
+                                    const binaryString = atob(base64Part);
+                                    const len = binaryString.length;
+                                    const bytes = new Uint8Array(len);
+                                    for (let i = 0; i < len; i++) {
+                                        bytes[i] = binaryString.charCodeAt(i);
+                                    }
+                                    buffer = bytes.buffer;
+                                }
+                            } catch (decodeErr) {
+                                console.error('[MLightCadViewer] Base64 Decode Error:', decodeErr);
+                                toast.error('Gagal mendekode file CAD. File mungkin korup.');
+                                return;
                             }
-                            buffer = bytes.buffer;
-                        } catch (decodeErr) {
-                            console.error('[MLightCadViewer] Base64 Decode Error:', decodeErr);
-                            // Fallback to fetch if manual decode fails
-                            const res = await fetch(fileData);
-                            buffer = await res.arrayBuffer();
+                        } else {
+                            const encoder = new TextEncoder();
+                            buffer = encoder.encode(fileData).buffer;
                         }
                     } else if (fileData.startsWith('blob:') || fileData.startsWith('http')) {
-                        const res = await fetch(fileData);
-                        buffer = await res.arrayBuffer();
+                        try {
+                            const res = await fetch(fileData);
+                            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                            buffer = await res.arrayBuffer();
+                        } catch (fetchErr) {
+                            console.error('[MLightCadViewer] Fetch Error:', fetchErr);
+                            toast.error('Gagal mengambil file CAD dari URL.');
+                            return;
+                        }
                     } else {
                         const encoder = new TextEncoder();
                         buffer = encoder.encode(fileData).buffer;
                     }
                 }
 
-                if (buffer && buffer.byteLength > 0) {
-                    await docManager.openDocument(fileName, buffer, { readHeaderOnly: false });
-                    docManager.curView?.zoomToFit?.();
+                if (!buffer || buffer.byteLength === 0) {
+                    console.error('[MLightCadViewer] Empty buffer after conversion');
+                    toast.error('Buffer file CAD kosong. File mungkin korup.');
+                    return;
                 }
+
+                // Verify DWG magic bytes for DWG files
+                if (fileName.toLowerCase().endsWith('.dwg')) {
+                    const headerView = new DataView(buffer, 0, Math.min(20, buffer.byteLength));
+                    const magic = String.fromCharCode(headerView.getUint8(0)) +
+                                  String.fromCharCode(headerView.getUint8(1)) +
+                                  String.fromCharCode(headerView.getUint8(2));
+
+                    // DWG files start with "AC" (AutoCAD)
+                    if (magic !== 'AC' && buffer.byteLength > 100) {
+                        console.warn('[MLightCadViewer] DWG file magic bytes not found, proceeding anyway:', magic);
+                    }
+                }
+
+                const loadOptions = {
+                    readHeaderOnly: false,
+                    enableEntities: true,
+                    enableLayers: true,
+                    enableText: true,
+                    enableDimensions: true
+                };
+
+                await docManager.openDocument(fileName, buffer, loadOptions);
+                docManager.curView?.zoomToFit?.();
+                toast.success(`File CAD "${fileName}" berhasil dimuat!`);
             } catch (err) {
                 console.error('[MLightCadViewer] File load error:', err);
                 toast.error('Gagal memparsing file CAD: ' + (err.message || 'Unknown error'));

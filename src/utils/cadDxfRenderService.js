@@ -634,22 +634,37 @@ export async function parseAndProcessCadFile(file) {
         });
     }
 
-    // 5. For DWG files
+    // 5. For DWG files - Read as ArrayBuffer for proper binary handling
     if (ext === 'dwg') {
-        // Return basic structure, letting the actual WebGL engine (MLightCAD) handle the raw DWG buffer natively
-        return new Promise((resolve) => {
+        // Return the raw ArrayBuffer for DWG files so MLightCadViewer can handle them properly
+        return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (e) => {
+                const arrayBuffer = e.target.result;
+
+                // Convert ArrayBuffer to base64 for persistent storage
+                const bytes = new Uint8Array(arrayBuffer);
+                let binary = '';
+                for (let i = 0; i < bytes.byteLength; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+                const base64Data = btoa(binary);
+
                 resolve({
                     success: true,
                     dimensions: [],
                     entities: [],
                     layers: ['DWG_NATIVE'],
-                    dataUrl: e.target.result, // The raw base64 data URI of the DWG
+                    // Use proper DWG MIME type for base64 encoding
+                    dataUrl: `data:application/acad;base64,${base64Data}`,
+                    rawBuffer: arrayBuffer, // Keep raw buffer for direct use
                     fileType: 'DWG'
                 });
             };
-            reader.readAsDataURL(file);
+            reader.onerror = (err) => {
+                reject(new Error('Gagal membaca file DWG: ' + (err.message || 'Unknown error')));
+            };
+            reader.readAsArrayBuffer(file);
         });
     }
 

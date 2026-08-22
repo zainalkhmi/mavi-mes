@@ -5229,19 +5229,24 @@ export default function DrawingManager() {
 
             const result = await parseAndProcessCadFile(file);
 
-            if (result.success && result.dimensions) {
+            if (result.success) {
                 setParseProgress(85);
                 setParseStatusText('Mengekstraksi anotasi GD&T & parameter toleransi...');
+
+                // For DWG files, use rawBuffer if available for better binary handling
+                const dwgData = extension === 'dwg' && result.rawBuffer
+                    ? { rawBuffer: result.rawBuffer, dataUrl: result.dataUrl || result.rendered_image || dataUrl }
+                    : { dataUrl: result.rendered_image || result.dataUrl || dataUrl };
 
                 const newDwg = {
                     name: file.name.split('.')[0].replace(/[-_]/g, ' ').toUpperCase() + ' Blueprint',
                     fileName: file.name,
                     fileType: extension.toUpperCase(),
                     uploadedAt: new Date().toISOString(),
-                    dimensions: result.dimensions,
+                    dimensions: result.dimensions || [],
                     entities: result.entities || [],
                     layers: result.layers || [],
-                    dataUrl: result.rendered_image || result.dataUrl || dataUrl
+                    ...dwgData
                 };
 
                 setParseProgress(100);
@@ -7173,7 +7178,7 @@ export default function DrawingManager() {
                                          <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8', fontSize: '0.8rem' }}>Memuat MLightCAD WebAssembly Engine...</div>}>
                                              <MLightCadViewer
                                                  fileName={selectedDwg?.fileName || (selectedDwg?.name ? selectedDwg.name + (selectedDwg?.fileType === 'DWG' ? '.dwg' : '.dxf') : 'drawing.dxf')}
-                                                 fileData={selectedDwg?.dataUrl || selectedDwg?.data_url || selectedDwg?.rawDxf || selectedDwg?.fileName}
+                                                 fileData={selectedDwg?.rawBuffer || selectedDwg?.dataUrl || selectedDwg?.data_url || selectedDwg?.rawDxf || selectedDwg?.fileName}
                                                  cadTool={cadTool}
                                                  onSelectCadTool={(t) => {
                                                      if (t === 'dim_linear') {
