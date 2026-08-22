@@ -74,7 +74,7 @@ export default function GlobalVoiceAssistant() {
         // Load custom user mappings from localStorage
         let bindings = DEFAULT_MAPPINGS;
         try {
-          const saved = localStorage.getItem('mavi_gamepad_bindings');
+          const saved = localStorage.getItem('mandor_gamepad_bindings');
           if (saved) bindings = JSON.parse(saved);
         } catch(e) {}
 
@@ -192,7 +192,7 @@ export default function GlobalVoiceAssistant() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
 
-    const savedLang = localStorage.getItem('mavi_voice_language') || 'id-ID';
+    const savedLang = localStorage.getItem('mandor_voice_language') || 'id-ID';
 
     const rec = new SpeechRecognition();
     rec.continuous = true;

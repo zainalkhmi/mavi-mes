@@ -26,7 +26,7 @@ import {
     multiVariableText
 } from '@pdfme/schemas';
 
-// MAVI Database Utilities
+// MANDOR Database Utilities
 import { getTables, getTableRecords } from '../utils/supabaseTablesDB';
 import { getSupabaseClient } from '../utils/supabaseManualDB';
 
@@ -127,7 +127,7 @@ const DEFAULT_TEMPLATES = [
             schemas: [
                 [
                     { name: 'header_bg', type: 'rectangle', position: { x: 15, y: 12 }, width: 180, height: 24, color: '#714B67', borderWidth: 0 },
-                    { name: 'company_title', type: 'text', position: { x: 20, y: 16 }, width: 110, height: 8, fontSize: 15, fontColor: '#ffffff', content: 'MAVI MES — QC INSPECTION CHECKSHEET' },
+                    { name: 'company_title', type: 'text', position: { x: 20, y: 16 }, width: 110, height: 8, fontSize: 15, fontColor: '#ffffff', content: 'MANDOR MES — QC INSPECTION CHECKSHEET' },
                     { name: 'company_subtitle', type: 'text', position: { x: 20, y: 24 }, width: 110, height: 6, fontSize: 8, fontColor: '#e2cfe0', content: 'Digital Quality Assurance & Dimensional Verification Report' },
                     { name: 'report_qr', type: 'qrcode', position: { x: 172, y: 14 }, width: 20, height: 20 },
                     { name: 'info_border', type: 'rectangle', position: { x: 15, y: 40 }, width: 180, height: 32, borderColor: '#dee2e6', borderWidth: 0.5, color: '#faf5f9' },
@@ -161,7 +161,7 @@ const DEFAULT_TEMPLATES = [
         },
         sampleInputs: [
             {
-                report_qr: 'https://mavi-core.online/wo/WO-2026-0819',
+                report_qr: 'https://mandor-core.online/wo/WO-2026-0819',
                 wo_number: 'WO: WO-2026-0819',
                 part_name: 'Part: FLANGE HOUSING 45MM',
                 lot_no: 'Lot: LOT-A-9902',
@@ -191,7 +191,7 @@ const DEFAULT_TEMPLATES = [
             schemas: [
                 [
                     { name: 'courier_header', type: 'rectangle', position: { x: 5, y: 5 }, width: 90, height: 14, color: '#000000' },
-                    { name: 'courier_name', type: 'text', position: { x: 8, y: 8 }, width: 45, height: 8, fontSize: 16, fontColor: '#ffffff', content: 'MAVI EXPRESS' },
+                    { name: 'courier_name', type: 'text', position: { x: 8, y: 8 }, width: 45, height: 8, fontSize: 16, fontColor: '#ffffff', content: 'MANDOR EXPRESS' },
                     { name: 'service_type', type: 'text', position: { x: 55, y: 9 }, width: 38, height: 6, fontSize: 11, fontColor: '#ffffff', content: 'REGULER (STD)' },
                     { name: 'tracking_barcode', type: 'code128', position: { x: 8, y: 22 }, width: 58, height: 18 },
                     { name: 'sorting_qr', type: 'qrcode', position: { x: 70, y: 21 }, width: 20, height: 20 },
@@ -232,12 +232,12 @@ const DEFAULT_TEMPLATES = [
         sampleInputs: [
             {
                 tracking_barcode: 'MV-88392019482ID',
-                sorting_qr: 'https://track.mavi.io/MV-88392019482ID',
+                sorting_qr: 'https://track.mandor.io/MV-88392019482ID',
                 tracking_no: 'No. Resi: MV-88392019482ID',
                 nama_penerima: 'Bpk. Hendra Gunawan',
                 telp_penerima: '0812-3456-7890',
                 alamat_penerima: 'Jl. Merdeka No. 45 RT 02/05, Kel. Gambir, Kec. Gambir, Kota Jakarta Pusat, DKI Jakarta 10110',
-                nama_pengirim: 'PT MAVI CORE FACTORY',
+                nama_pengirim: 'PT MANDOR CORE FACTORY',
                 telp_pengirim: '021-88997766',
                 kota_pengirim: 'Kawasan Industri GIIC Cikarang, Bekasi, Jawa Barat',
                 cod_val: 'NON-COD (LUNAS)',
@@ -259,7 +259,7 @@ const DEFAULT_TEMPLATES = [
             basePdf: { width: 50, height: 30, padding: [2, 2, 2, 2] },
             schemas: [
                 [
-                    { name: 'store_name', type: 'text', position: { x: 3, y: 2 }, width: 44, height: 4, fontSize: 7, fontColor: '#444444', content: 'MAVI INDUSTRIAL STORE' },
+                    { name: 'store_name', type: 'text', position: { x: 3, y: 2 }, width: 44, height: 4, fontSize: 7, fontColor: '#444444', content: 'MANDOR INDUSTRIAL STORE' },
                     { name: 'item_name', type: 'text', position: { x: 3, y: 6 }, width: 44, height: 5, fontSize: 9, fontColor: '#000000' },
                     { name: 'item_sku', type: 'text', position: { x: 3, y: 11 }, width: 44, height: 3.5, fontSize: 6, fontColor: '#666666' },
                     { name: 'product_barcode', type: 'code128', position: { x: 3, y: 15 }, width: 44, height: 8 },
@@ -317,7 +317,7 @@ const DEFAULT_TEMPLATES = [
                     { name: 'kanban_type', type: 'text', position: { x: 7, y: 7 }, width: 35, height: 6, fontSize: 10, fontColor: '#ffffff', content: '📦 KANBAN PICKING' },
                     { name: 'priority_badge', type: 'rectangle', position: { x: 70, y: 7 }, width: 22, height: 8, color: '#dc2626' },
                     { name: 'priority_text', type: 'text', position: { x: 72, y: 9 }, width: 18, height: 5, fontSize: 8, fontColor: '#ffffff', content: 'URGENT' },
-                    { name: 'company_name', type: 'text', position: { x: 7, y: 16 }, width: 50, height: 4, fontSize: 7, fontColor: '#93c5fd', content: 'PT MAVI INDUSTRIAL MANUFACTURING' },
+                    { name: 'company_name', type: 'text', position: { x: 7, y: 16 }, width: 50, height: 4, fontSize: 7, fontColor: '#93c5fd', content: 'PT MANDOR INDUSTRIAL MANUFACTURING' },
 
                     // Part Information Section
                     { name: 'part_label', type: 'text', position: { x: 6, y: 26 }, width: 40, height: 4, fontSize: 7, fontColor: '#64748b', content: 'PART NUMBER' },
@@ -366,10 +366,10 @@ const DEFAULT_TEMPLATES = [
             {
                 kanban_type: '📦 KANBAN PICKING',
                 priority_text: 'URGENT',
-                company_name: 'PT MAVI INDUSTRIAL MANUFACTURING',
+                company_name: 'PT MANDOR INDUSTRIAL MANUFACTURING',
                 part_number: 'BRG-6204-SS-2RS',
                 part_name: 'Deep Groove Ball Bearing SS304',
-                part_qr: 'https://mavi.io/part/BRG-6204-SS-2RS',
+                part_qr: 'https://mandor.io/part/BRG-6204-SS-2RS',
                 qty_value: '50',
                 loc_value: 'A-12-03',
                 barcode: 'BRG-6204-SS-2RS-50PCS-A12',
@@ -454,7 +454,7 @@ const DEFAULT_TEMPLATES = [
                 status_text: 'IN PROGRESS',
                 part_value: 'ASY-HYD-CYL-125',
                 op_value: 'Hydraulic Cylinder Assembly - Step 3 of 5',
-                wip_qr: 'https://mavi.io/wip/ASY-HYD-CYL-125-B25',
+                wip_qr: 'https://mandor.io/wip/ASY-HYD-CYL-125-B25',
                 qty_value: '25',
                 cycle_value: '45 min',
                 wip_barcode: 'WIP-ASY-HYD-125-B25-2026-08-22-ASSY3',
@@ -533,7 +533,7 @@ const DEFAULT_TEMPLATES = [
                 priority_text: 'HIGH PRIORITY',
                 product_name: 'Pneumatic Valve Assembly Kit',
                 product_code: 'Code: PVAK-450X-N5 | Rev.03',
-                product_qr: 'https://mavi.io/product/PVAK-450X-N5',
+                product_qr: 'https://mandor.io/product/PVAK-450X-N5',
                 qty_value: '100 pcs',
                 due_value: '2026-08-25',
                 shift_value: 'SHIFT 1 & 2',
@@ -585,7 +585,7 @@ const DEFAULT_TEMPLATES = [
 
                     // Footer
                     { name: 'footer_bg', type: 'rectangle', position: { x: 4, y: 80 }, width: 67, height: 6, color: '#1e40af' },
-                    { name: 'footer', type: 'text', position: { x: 5, y: 82 }, width: 65, height: 4, fontSize: 5, fontColor: '#ffffff', content: 'MAVI WAREHOUSE' }
+                    { name: 'footer', type: 'text', position: { x: 5, y: 82 }, width: 65, height: 4, fontSize: 5, fontColor: '#ffffff', content: 'MANDOR WAREHOUSE' }
                 ]
             ]
         },
@@ -595,7 +595,7 @@ const DEFAULT_TEMPLATES = [
                 priority: '⚡ RUSH',
                 part_num: 'BRG-6204-SS',
                 part_name: 'Ball Bearing SS304',
-                qr: 'https://mavi.io/part/BRG-6204-SS',
+                qr: 'https://mandor.io/part/BRG-6204-SS',
                 qty_val: '50',
                 loc_val: 'A-12',
                 barcode: 'BRG-6204-50A12',
@@ -609,7 +609,7 @@ const DEFAULT_TEMPLATES = [
 
 export default function ReportDesigner() {
     const [templates, setTemplates] = useState(() => {
-        const saved = localStorage.getItem('mavi_pdf_templates_v5');
+        const saved = localStorage.getItem('mandor_pdf_templates_v5');
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
@@ -690,7 +690,7 @@ export default function ReportDesigner() {
 
     // Save templates to localStorage
     useEffect(() => {
-        localStorage.setItem('mavi_pdf_templates_v5', JSON.stringify(templates));
+        localStorage.setItem('mandor_pdf_templates_v5', JSON.stringify(templates));
     }, [templates]);
 
     // When switching template, update schema and sample data
@@ -1398,7 +1398,7 @@ export default function ReportDesigner() {
                                         <Database size={16} color="#714B67" /> Konektor Sumber Data & Query (Live Data Binding)
                                     </h2>
                                     <p style={{ fontSize: '11px', color: '#6c757d', margin: '2px 0 0 0' }}>
-                                        Tautkan database MAVI, interactive table, atau query custom untuk mengisi data laporan/label secara otomatis.
+                                        Tautkan database MANDOR, interactive table, atau query custom untuk mengisi data laporan/label secara otomatis.
                                     </p>
                                 </div>
 

@@ -246,7 +246,7 @@ export default function ProductionPlantDashboard({ embedded = false }) {
               🌷
             </div>
             <span style={{ fontSize: '1.2rem', fontWeight: 900, letterSpacing: '0.04em', color: '#ffffff' }}>
-              TULIP <span style={{ color: '#38bdf8', fontWeight: 400, fontSize: '0.9rem' }}>| MAVI MES</span>
+              TULIP <span style={{ color: '#38bdf8', fontWeight: 400, fontSize: '0.9rem' }}>| MANDOR MES</span>
             </span>
           </div>
 

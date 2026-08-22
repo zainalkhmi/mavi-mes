@@ -456,7 +456,7 @@ const KonvaHmiDashboard = ({
           <Rect x={0} y={designHeight - 50} width={designWidth} height={50} fill="#0f172a" />
           <Text
             x={30} y={designHeight - 30}
-            text={`MAVI Industrial HMI | Konva.js Canvas Engine | ${dimensions.width}x${dimensions.height}`}
+            text={`MANDOR Industrial HMI | Konva.js Canvas Engine | ${dimensions.width}x${dimensions.height}`}
             fontSize={12}
             fill="#64748b"
           />

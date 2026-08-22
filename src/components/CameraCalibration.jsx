@@ -182,7 +182,7 @@ export default function CameraCalibration() {
     if (camType === 'DEVICE') {
       const getWebcam = async () => {
         try {
-          const savedCameraId = localStorage.getItem('mavi-selected-camera-id');
+          const savedCameraId = localStorage.getItem('mandor-selected-camera-id');
           const videoConstraints = savedCameraId 
               ? { width: { ideal: 1280 }, height: { ideal: 720 }, deviceId: { exact: savedCameraId } }
               : { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'environment' };
@@ -1377,7 +1377,7 @@ fps: "${cameraFps}"
             <Info size={14} /> About Vision System
           </button>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: '#4b5563' }}>
-            <span>Mavi MES Suite</span>
+            <span>Mandor MES Suite</span>
             <span>Ver. 1.0.0</span>
           </div>
         </div>
@@ -3167,7 +3167,7 @@ fps: "${cameraFps}"
               </div>
 
               <h2 style={{ margin: '0 0 6px 0', fontSize: '1.4rem', fontWeight: 800 }}>Camera Measuring Calibration</h2>
-              <p style={{ margin: 0, color: COLORS.blueAccent, fontSize: '0.85rem', fontWeight: 700 }}>MAVI Smart Factory Vision Suite</p>
+              <p style={{ margin: 0, color: COLORS.blueAccent, fontSize: '0.85rem', fontWeight: 700 }}>MANDOR Smart Factory Vision Suite</p>
               
               <p style={{ color: COLORS.textMuted, fontSize: '0.85rem', lineHeight: 1.6, margin: '24px 0' }}>
                 This module handles intrinsic camera matrix calibration (dist_coeff, camera_matrix) using patterns like Chessboards and Asymmetric Circles. It enables high-accuracy dimensional inspection (real-time length, width, area caliper measurement) converting image sensor pixels into standard industrial millimeters (mm/px scale calibration ratio).
@@ -3184,7 +3184,7 @@ fps: "${cameraFps}"
                 </div>
                 <div>
                   <div style={{ color: COLORS.textMuted, marginBottom: '4px' }}>COMPATIBILITY</div>
-                  <div style={{ fontWeight: 700 }}>Vite React / MAVI MES</div>
+                  <div style={{ fontWeight: 700 }}>Vite React / MANDOR MES</div>
                 </div>
               </div>
             </div>

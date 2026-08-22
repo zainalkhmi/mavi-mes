@@ -106,8 +106,8 @@ export default function PlcSettings() {
   const [activeTab, setActiveTab] = useState('overview');
 
   const saveToDb = async (ctrls, tagList) => {
-    if (ctrls) window.mavi_plc_controllers = ctrls;
-    if (tagList) window.mavi_plc_tags = tagList;
+    if (ctrls) window.mandor_plc_controllers = ctrls;
+    if (tagList) window.mandor_plc_tags = tagList;
     try {
       await savePlcSettingsToSupabase(ctrls, tagList);
     } catch (err) {
@@ -117,12 +117,12 @@ export default function PlcSettings() {
 
   // ─── PERSISTENCE STATES ──────────────────────────────────────────────────
   const [controllers, setControllers] = useState(() => {
-    if (Array.isArray(window.mavi_plc_controllers)) return window.mavi_plc_controllers;
+    if (Array.isArray(window.mandor_plc_controllers)) return window.mandor_plc_controllers;
     return [];
   });
 
   const [tags, setTags] = useState(() => {
-    if (Array.isArray(window.mavi_plc_tags)) return window.mavi_plc_tags;
+    if (Array.isArray(window.mandor_plc_tags)) return window.mandor_plc_tags;
     return [];
   });
 
@@ -140,7 +140,7 @@ export default function PlcSettings() {
   // Persistent settings save
   useEffect(() => {
     if (Array.isArray(controllers)) {
-      window.mavi_plc_controllers = controllers;
+      window.mandor_plc_controllers = controllers;
     }
   }, [controllers]);
 
@@ -228,7 +228,7 @@ export default function PlcSettings() {
 
   useEffect(() => {
     if (Array.isArray(tags)) {
-      window.mavi_plc_tags = tags;
+      window.mandor_plc_tags = tags;
       // Dynamic recalculate tag count on controllers
       setControllers(prev => (prev || []).map(c => ({
         ...c,
@@ -1378,7 +1378,7 @@ export default function PlcSettings() {
                       {ctrl.type === 'MQTT' && (
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                           <span style={{ color: '#64748b' }}>Port & Client ID</span>
-                          <span style={{ color: '#cbd5e1' }}>Port {ctrl.port || 1883} / {ctrl.clientId || 'mavi-client'}</span>
+                          <span style={{ color: '#cbd5e1' }}>Port {ctrl.port || 1883} / {ctrl.clientId || 'mandor-client'}</span>
                         </div>
                       )}
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -1845,7 +1845,7 @@ export default function PlcSettings() {
                       <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Client ID</label>
                       <input
                         type="text"
-                        value={ctrlForm.clientId || 'mavi-client'}
+                        value={ctrlForm.clientId || 'mandor-client'}
                         onChange={e => setCtrlForm({...ctrlForm, clientId: e.target.value})}
                         style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
                       />

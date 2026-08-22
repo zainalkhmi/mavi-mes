@@ -226,7 +226,7 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
         navigator.mediaDevices.enumerateDevices().then(devices => {
             const cameras = devices.filter(d => d.kind === 'videoinput');
             setAvailableCameras(cameras);
-            const saved = localStorage.getItem('mavi-selected-camera-id');
+            const saved = localStorage.getItem('mandor-selected-camera-id');
             if (saved && cameras.find(c => c.deviceId === saved)) {
                 setSelectedCameraId(saved);
             } else if (cameras.length > 0) {
@@ -239,7 +239,7 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
     const handleCameraChange = (e) => {
         const id = e.target.value;
         setSelectedCameraId(id);
-        localStorage.setItem('mavi-selected-camera-id', id);
+        localStorage.setItem('mandor-selected-camera-id', id);
     };
 
     // Track Image load for MJPEG
@@ -1893,7 +1893,7 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
                         const qbName = comp?.props?.quickbuildPipelineName;
                         if (qbName) {
                             // Find the pipeline nodes & links in localStorage
-                            const local = localStorage.getItem('mavi_quickbuild_pipelines') || '[]';
+                            const local = localStorage.getItem('mandor_quickbuild_pipelines') || '[]';
                             const customList = JSON.parse(local);
                             const foundPipeline = customList.find(p => p.name === qbName);
                             
@@ -2544,9 +2544,9 @@ export default function VisionCamera({ comp, syncInputDatasourceValue, onWidgetI
             }
         };
 
-        window.addEventListener('mavi-camera-method', handleCameraMethod);
+        window.addEventListener('mandor-camera-method', handleCameraMethod);
         return () => {
-            window.removeEventListener('mavi-camera-method', handleCameraMethod);
+            window.removeEventListener('mandor-camera-method', handleCameraMethod);
         };
     }, [comp, handleCapture, handleAsyncCapture]);
 

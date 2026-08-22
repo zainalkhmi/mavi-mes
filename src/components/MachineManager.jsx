@@ -70,7 +70,7 @@ const MachineManager = () => {
             const allMachines = await getMachines();
             if (!allMachines.length) return;
 
-            const livePlcTags = window.mavi_plc_tags || [];
+            const livePlcTags = window.mandor_plc_tags || [];
             const now = new Date().toISOString();
             
             await Promise.all(allMachines.map(async (machine) => {

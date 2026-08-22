@@ -71,7 +71,7 @@ const Login = ({ onLoginSuccess }) => {
                     }}>
                         <Settings size={28} color="white" />
                     </div>
-                    <span style={{ fontSize: '1.8rem', fontWeight: 900, color: 'white', letterSpacing: '2px' }}>MAVI-MES</span>
+                    <span style={{ fontSize: '1.8rem', fontWeight: 900, color: 'white', letterSpacing: '2px' }}>MANDOR</span>
                 </div>
 
                 <div style={{ textAlign: 'center', position: 'relative', zIndex: 10 }}>

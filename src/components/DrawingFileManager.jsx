@@ -121,7 +121,7 @@ export default function DrawingFileManager() {
     
     // Load Drawings with Auto Migration
     const [drawings, setDrawings] = useState(() => {
-        const saved = localStorage.getItem('mavi_drawings');
+        const saved = localStorage.getItem('mandor_drawings');
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
@@ -239,7 +239,7 @@ export default function DrawingFileManager() {
                 };
                 const saved = await saveDrawing(newDwg);
                 setDrawings(prev => [saved, ...prev]);
-                localStorage.setItem('mavi_selected_dwg_id', saved.id);
+                localStorage.setItem('mandor_selected_dwg_id', saved.id);
                 toast.success(`Geometri parametrik CadQuery berhasil dibuat! Terbentuk ${result.entity_count} entitas.`);
                 setShowCqModal(false);
             } else {
@@ -290,7 +290,7 @@ export default function DrawingFileManager() {
                 setParseProgress(100);
                 const saved = await saveDrawing(newDwg);
                 setDrawings(prev => [saved, ...prev]);
-                localStorage.setItem('mavi_selected_dwg_id', saved.id);
+                localStorage.setItem('mandor_selected_dwg_id', saved.id);
                 toast.success(`Konversi PDF ke DXF berhasil! Menghasilkan ${result.entity_count} entitas vector CAD.`);
             } else {
                 throw new Error(result.error || 'Gagal melakukan konversi PDF.');
@@ -346,7 +346,7 @@ export default function DrawingFileManager() {
             setParseProgress(100);
             const saved = await saveDrawing(newDwg);
             setDrawings(prev => [saved, ...prev]);
-            localStorage.setItem('mavi_selected_dwg_id', saved.id);
+            localStorage.setItem('mandor_selected_dwg_id', saved.id);
             toast.success(`PDF Blueprint "${file.name}" berhasil diunggah & visualisasi aktif!`);
         } catch (err) {
             console.error(err);
@@ -420,7 +420,7 @@ export default function DrawingFileManager() {
 
     // Navigation linking
     const handleViewInCanvas = (dwgId) => {
-        localStorage.setItem('mavi_selected_dwg_id', dwgId);
+        localStorage.setItem('mandor_selected_dwg_id', dwgId);
         navigate('/drawings');
         toast.success('Dialihkan ke kanvas gambar.');
     };
@@ -431,7 +431,7 @@ export default function DrawingFileManager() {
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dwg, null, 2));
         const downloadAnchor = document.createElement('a');
         downloadAnchor.setAttribute("href", dataStr);
-        downloadAnchor.setAttribute("download", `mavi_schema_${dwg.id}.json`);
+        downloadAnchor.setAttribute("download", `mandor_schema_${dwg.id}.json`);
         document.body.appendChild(downloadAnchor);
         downloadAnchor.click();
         downloadAnchor.remove();
@@ -443,7 +443,7 @@ export default function DrawingFileManager() {
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(drawings, null, 2));
         const downloadAnchor = document.createElement('a');
         downloadAnchor.setAttribute("href", dataStr);
-        downloadAnchor.setAttribute("download", "mavi_all_drawings_schema.json");
+        downloadAnchor.setAttribute("download", "mandor_all_drawings_schema.json");
         document.body.appendChild(downloadAnchor);
         downloadAnchor.click();
         downloadAnchor.remove();
@@ -466,7 +466,7 @@ export default function DrawingFileManager() {
                         const savedDrawings = await Promise.all(savePromises);
                         setDrawings(savedDrawings);
                         if (savedDrawings.length > 0) {
-                            localStorage.setItem('mavi_selected_dwg_id', savedDrawings[0].id);
+                            localStorage.setItem('mandor_selected_dwg_id', savedDrawings[0].id);
                         }
                         toast.success('Skema drawing berhasil diimpor ke database!');
                     } else {
@@ -482,7 +482,7 @@ export default function DrawingFileManager() {
                         }
                         return [saved, ...prev];
                     });
-                    localStorage.setItem('mavi_selected_dwg_id', saved.id);
+                    localStorage.setItem('mandor_selected_dwg_id', saved.id);
                     toast.success(`Skema drawing "${saved.name}" diimpor ke database.`);
                 } else {
                     toast.error('Format berkas tidak dikenali.');
@@ -507,12 +507,12 @@ export default function DrawingFileManager() {
                 setDrawings(updated);
                 
                 // Cleanup selected ID if deleted
-                const activeId = localStorage.getItem('mavi_selected_dwg_id');
+                const activeId = localStorage.getItem('mandor_selected_dwg_id');
                 if (activeId === dwgId) {
                     if (updated.length > 0) {
-                        localStorage.setItem('mavi_selected_dwg_id', updated[0].id);
+                        localStorage.setItem('mandor_selected_dwg_id', updated[0].id);
                     } else {
-                        localStorage.removeItem('mavi_selected_dwg_id');
+                        localStorage.removeItem('mandor_selected_dwg_id');
                     }
                 }
                 toast.success(`Blueprint "${dwgName}" berhasil dihapus dari database.`);
@@ -531,7 +531,7 @@ export default function DrawingFileManager() {
                 const savedList = await Promise.all(savePromises);
                 setDrawings(savedList);
                 if (savedList.length > 0) {
-                    localStorage.setItem('mavi_selected_dwg_id', savedList[0].id);
+                    localStorage.setItem('mandor_selected_dwg_id', savedList[0].id);
                 }
                 toast.success('Database blueprint berhasil direset.');
             } catch (err) {
@@ -549,7 +549,7 @@ export default function DrawingFileManager() {
                 const deletePromises = drawings.map(dwg => deleteDrawing(dwg.id));
                 await Promise.all(deletePromises);
                 setDrawings([]);
-                localStorage.removeItem('mavi_selected_dwg_id');
+                localStorage.removeItem('mandor_selected_dwg_id');
                 toast.success('Semua blueprint telah dihapus dari database.');
             } catch (err) {
                 console.error(err);
@@ -619,7 +619,7 @@ export default function DrawingFileManager() {
                 setParseProgress(100);
                 const saved = await saveDrawing(newDwg);
                 setDrawings(prev => [saved, ...prev]);
-                localStorage.setItem('mavi_selected_dwg_id', saved.id);
+                localStorage.setItem('mandor_selected_dwg_id', saved.id);
                 toast.success(`Parsing CAD berhasil! Ditemukan ${result.dimensions.length} parameter pada "${file.name}".`);
                 setIsParsing(false);
                 return;
@@ -678,7 +678,7 @@ export default function DrawingFileManager() {
 
                 saveDrawing(newDwg).then(saved => {
                     setDrawings(prev => [saved, ...prev]);
-                    localStorage.setItem('mavi_selected_dwg_id', saved.id);
+                    localStorage.setItem('mandor_selected_dwg_id', saved.id);
                     toast.success(`Unggah berhasil disimpan secara simulasi! Ditemukan ${extracted.length} parameter pada "${file.name}".`);
                 }).catch(saveErr => {
                     console.error(saveErr);

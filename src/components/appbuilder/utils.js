@@ -23,7 +23,7 @@ export const DEFAULT_IOT_CONFIG = {
     brokerUrl: 'wss://broker.emqx.io:8084/mqtt',
     topics: []
 };
-export const FRONTLINE_DRAFT_KEY_PREFIX = 'mavi_frontline_draft_';
+export const FRONTLINE_DRAFT_KEY_PREFIX = 'mandor_frontline_draft_';
 
 export const computeAppSignature = (payload = {}) => {
     try {

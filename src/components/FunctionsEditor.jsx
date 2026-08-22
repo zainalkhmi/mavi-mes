@@ -925,7 +925,7 @@ const FunctionsEditor = () => {
   const handleExportFunction = (targetFn = null) => {
     try {
       const exportData = targetFn ? {
-        maviVersion: '1.0',
+        mandorVersion: '1.0',
         type: 'function_logic',
         id: targetFn.id || `fn_${Date.now()}`,
         name: targetFn.name || 'Exported Function',
@@ -936,7 +936,7 @@ const FunctionsEditor = () => {
         nodes: targetFn.nodes || targetFn.draft?.nodes || [],
         edges: targetFn.edges || targetFn.draft?.edges || []
       } : {
-        maviVersion: '1.0',
+        mandorVersion: '1.0',
         type: 'function_logic',
         id: `fn_${Date.now()}`,
         name: functionName || 'Untitled Function',
@@ -954,7 +954,7 @@ const FunctionsEditor = () => {
         outputs: functionOutputs
       };
 
-      const fileName = `${(exportData.name || 'function').toLowerCase().replace(/[^a-z0-9]/gi, '_')}.mavi_fn.json`;
+      const fileName = `${(exportData.name || 'function').toLowerCase().replace(/[^a-z0-9]/gi, '_')}.mandor_fn.json`;
       const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(exportData, null, 2))}`;
       const downloadAnchor = document.createElement('a');
       downloadAnchor.setAttribute('href', jsonString);
@@ -978,7 +978,7 @@ const FunctionsEditor = () => {
 
         const importedNodes = parsed.nodes || parsed.draft?.nodes || parsed.published?.data?.nodes || [];
         const importedEdges = parsed.edges || parsed.draft?.edges || parsed.published?.data?.edges || [];
-        const name = parsed.name || file.name.replace(/\.(mavi_fn\.)?json$/i, '') || 'Imported Function';
+        const name = parsed.name || file.name.replace(/\.(mandor_fn\.)?json$/i, '') || 'Imported Function';
 
         if (!Array.isArray(importedNodes) || importedNodes.length === 0) {
           throw new Error('Invalid function JSON format. Could not find valid "nodes" array.');
@@ -1813,7 +1813,7 @@ const FunctionsEditor = () => {
                           <div style={{ display: 'flex', gap: '4px' }}>
                             <input 
                               readOnly
-                              value={`https://api.mavi-mes.com/hooks/${trigger.id}`}
+                              value={`https://api.mandor-mes.com/hooks/${trigger.id}`}
                               style={{ flex: 1, padding: '8px', backgroundColor: '#f1f5f9', border: 'none', borderRadius: '4px', fontSize: '0.65rem', color: '#64748b' }}
                             />
                             <button 

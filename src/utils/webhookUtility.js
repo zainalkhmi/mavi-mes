@@ -4,7 +4,7 @@
  */
 class WebhookUtility {
     constructor() {
-        this.endpoint = (localStorage.getItem('mavi_webhook_endpoint') || 'https://webhook.site/placeholder');
+        this.endpoint = (localStorage.getItem('mandor_webhook_endpoint') || 'https://webhook.site/placeholder');
     }
 
     /**
@@ -13,7 +13,7 @@ class WebhookUtility {
      */
     setEndpoint(url) {
         this.endpoint = url;
-        localStorage.setItem('mavi_webhook_endpoint', url);
+        localStorage.setItem('mandor_webhook_endpoint', url);
     }
 
     /**
@@ -29,7 +29,7 @@ class WebhookUtility {
         console.log(`Syncing production record to ${this.endpoint}...`);
 
         const payload = {
-            mavi_id: cycleData.mavi_id || 'N/A',
+            mandor_id: cycleData.mandor_id || 'N/A',
             timestamp: new Date().toISOString(),
             sop_id: cycleData.sop_id,
             manual_title: cycleData.manual_title,

@@ -1,6 +1,6 @@
 /**
  * supabaseMESDB.js
- * Read-only access to Mavi MES tables for BI Studio data source.
+ * Read-only access to Mandor MES tables for BI Studio data source.
  * Uses the same Supabase client as other modules.
  */
 import { getSupabaseClient } from './supabaseManualDB';

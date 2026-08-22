@@ -97,7 +97,7 @@ export function generateErrorTriggerOutput(errorObj = {}, lastNodeExecuted = 'HT
     {
       "execution": {
         "id": execId,
-        "url": `${typeof window !== 'undefined' ? window.location.origin : 'https://app.mavi.io'}/execution/${execId}`,
+        "url": `${typeof window !== 'undefined' ? window.location.origin : 'https://app.mandor.io'}/execution/${execId}`,
         "error": {
           "message": errorMessage,
           "stack": errorStack,
@@ -615,9 +615,9 @@ class AutomationEngine {
         // ── 4. SEND EMAIL (SMTP) NODE EXECUTION ───────────────────────────────
         try {
           const operation = currentNode.data.operation || 'Send';
-          const fromEmail = currentNode.data.fromEmail || 'Nathan Doe <nate@mavi.io>';
+          const fromEmail = currentNode.data.fromEmail || 'Nathan Doe <nate@mandor.io>';
           const toEmail = currentNode.data.toEmail || 'user@sample.com';
-          const subject = currentNode.data.subject || 'MAVI Workflow Notification';
+          const subject = currentNode.data.subject || 'MANDOR Workflow Notification';
           const format = currentNode.data.format || 'HTML';
           const body = currentNode.data.body || '<p>Automation workflow executed successfully.</p>';
           const cc = currentNode.data.ccEmail || '';
@@ -699,7 +699,7 @@ class AutomationEngine {
             }
           };
 
-          const systemPrompt = currentNode.data.systemPrompt || `You are an expert MAVI MES AI Agent (${currentNode.data.agentType || 'Tools Agent'}).`;
+          const systemPrompt = currentNode.data.systemPrompt || `You are an expert MANDOR MES AI Agent (${currentNode.data.agentType || 'Tools Agent'}).`;
           const userPrompt = `Input Context: ${JSON.stringify(eventData)}`;
 
           const messages = [
@@ -867,7 +867,7 @@ class AutomationEngine {
       }
 
       case 'MQTT_PUBLISH': {
-        const topic = action.topic || 'mavi/mes/alerts';
+        const topic = action.topic || 'mandor/mes/alerts';
         const payload = action.payload || { alert: 'ThresholdExceeded', timestamp: new Date().toISOString() };
         console.log(`[AutomationEngine] [MQTT Publish] Published to topic ${topic}:`, payload);
         return addTableRecord('SystemLogs', {

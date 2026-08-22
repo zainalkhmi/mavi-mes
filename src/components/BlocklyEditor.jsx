@@ -23,10 +23,10 @@ const BLOCK_COLORS = {
     COMPONENT_METHOD: '#5C3A8E', // Methods (call ...)
     COMPONENT_SET: '#2E7D32',   // set property
     COMPONENT_GET: '#66BB6A',   // get property
-    MAVI_TRIGGER: '#10b981',
-    MAVI_SCREEN: '#6366f1'
+    MANDOR_TRIGGER: '#10b981',
+    MANDOR_SCREEN: '#6366f1'
 };
-const BACKPACK_STORAGE_KEY = 'mavi_blockly_backpack_v1';
+const BACKPACK_STORAGE_KEY = 'mandor_blockly_backpack_v1';
 
 const BlocklyEditor = ({
     steps,
@@ -212,7 +212,7 @@ const BlocklyEditor = ({
                 ];
                 const text = lines.length > 0 ? lines.join('\n') : null;
                 try {
-                    block.setWarningText(text, 'mavi_validation');
+                    block.setWarningText(text, 'mandor_validation');
                 } catch (_) {
                     block.setWarningText(text);
                 }
@@ -286,7 +286,7 @@ const BlocklyEditor = ({
         });
 
         // Custom context menu: Add to Backpack
-        const menuId = 'mavi_add_to_backpack';
+        const menuId = 'mandor_add_to_backpack';
         try {
             const registry = Blockly.ContextMenuRegistry?.registry;
             if (registry && Blockly.ContextMenuRegistry?.ScopeType?.BLOCK) {
@@ -694,7 +694,7 @@ const BlocklyEditor = ({
                         }), "STEP");
                     this.setPreviousStatement(true, null);
                     this.setNextStatement(true, null);
-                    this.setColour(BLOCK_COLORS.MAVI_SCREEN);
+                    this.setColour(BLOCK_COLORS.MANDOR_SCREEN);
                 }
             };
         }
@@ -706,7 +706,7 @@ const BlocklyEditor = ({
                     this.appendDummyInput().appendField("Next Screen");
                     this.setPreviousStatement(true, null);
                     this.setNextStatement(true, null);
-                    this.setColour(BLOCK_COLORS.MAVI_SCREEN);
+                    this.setColour(BLOCK_COLORS.MANDOR_SCREEN);
                 }
             };
         }
@@ -1618,7 +1618,7 @@ const BlocklyEditor = ({
                     this.appendStatementInput("STACK")
                         .setCheck(null)
                         .appendField("do");
-                    this.setColour(BLOCK_COLORS.MAVI_TRIGGER);
+                    this.setColour(BLOCK_COLORS.MANDOR_TRIGGER);
                     this.setTooltip("Trigger logic when a hardware device sends data");
                     if (this.setHat) this.setHat(true);
                 }
@@ -1639,7 +1639,7 @@ const BlocklyEditor = ({
                     this.appendStatementInput("STACK")
                         .setCheck(null)
                         .appendField("do");
-                    this.setColour(BLOCK_COLORS.MAVI_TRIGGER);
+                    this.setColour(BLOCK_COLORS.MANDOR_TRIGGER);
                     this.setTooltip("Trigger logic based on IoT/Machine MQTT events");
                     if (this.setHat) this.setHat(true);
                 }
@@ -1655,7 +1655,7 @@ const BlocklyEditor = ({
                         .appendField(new Blockly.FieldNumber(5, 1), "SECONDS")
                         .appendField("seconds then");
                     this.appendStatementInput("STACK");
-                    this.setColour(BLOCK_COLORS.MAVI_TRIGGER);
+                    this.setColour(BLOCK_COLORS.MANDOR_TRIGGER);
                     if (this.setHat) this.setHat(true);
                 }
             };
@@ -1955,7 +1955,7 @@ const BlocklyEditor = ({
                             return steps.length > 0 ? steps.map(s => [s.title || s.id, s.id]) : [["No screens", "none"]];
                         }), "STEP");
                     this.setPreviousStatement(true, null);
-                    this.setColour(BLOCK_COLORS.MAVI_SCREEN);
+                    this.setColour(BLOCK_COLORS.MANDOR_SCREEN);
                 }
             };
         }
@@ -1965,7 +1965,7 @@ const BlocklyEditor = ({
                 init: function () {
                     this.appendDummyInput().appendField("Go To Next Screen");
                     this.setPreviousStatement(true, null);
-                    this.setColour(BLOCK_COLORS.MAVI_SCREEN);
+                    this.setColour(BLOCK_COLORS.MANDOR_SCREEN);
                 }
             };
         }
@@ -4192,7 +4192,7 @@ const BlocklyEditor = ({
             {
                 kind: 'category',
                 name: 'Screen Triggers',
-                colour: BLOCK_COLORS.MAVI_SCREEN,
+                colour: BLOCK_COLORS.MANDOR_SCREEN,
                 contents: [
                     { kind: 'block', type: 'step_initialize' },
                     { kind: 'block', type: 'step_back_pressed' },
@@ -4205,7 +4205,7 @@ const BlocklyEditor = ({
             {
                 kind: 'category',
                 name: 'Device Triggers',
-                colour: BLOCK_COLORS.MAVI_TRIGGER,
+                colour: BLOCK_COLORS.MANDOR_TRIGGER,
                 contents: [
                     { kind: 'block', type: 'trigger_when_device' },
                     { kind: 'block', type: 'trigger_when_machine' },

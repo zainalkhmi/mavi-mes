@@ -709,7 +709,7 @@ const ConnectorManager = () => {
                                                 />
                                             </div>
                                             <div style={{ padding: 10, backgroundColor: 'white', borderRadius: 8, border: '1px solid #d1fae5', fontSize: '0.75rem', color: '#065f46' }}>
-                                                <strong>💡 Setup:</strong> Jalankan <code style={{ backgroundColor: '#f0fdf4', padding: '1px 4px', borderRadius: 4 }}>node mavi-erp-bridge.js</code> di server database Anda.
+                                                <strong>💡 Setup:</strong> Jalankan <code style={{ backgroundColor: '#f0fdf4', padding: '1px 4px', borderRadius: 4 }}>node mandor-erp-bridge.js</code> di server database Anda.
                                                 Pastikan Base URL di atas menunjuk ke bridge (contoh: <code style={{ backgroundColor: '#f0fdf4', padding: '1px 4px', borderRadius: 4 }}>http://SERVER_IP:3099</code>).
                                             </div>
                                         </div>
@@ -779,7 +779,7 @@ const ConnectorManager = () => {
                                         <AlertCircle size={16} color="#3b82f6" style={{ flexShrink: 0, marginTop: 1 }} />
                                         <div style={{ fontSize: '0.78rem', color: '#1e40af' }}>
                                             {selectedConnector.type === 'SQL'
-                                                ? <><strong>PostgreSQL Note:</strong> Browser tidak bisa koneksi langsung ke PostgreSQL. Gunakan <strong>Mavi ERP Bridge</strong> yang berjalan di server database sebagai perantara.</>
+                                                ? <><strong>PostgreSQL Note:</strong> Browser tidak bisa koneksi langsung ke PostgreSQL. Gunakan <strong>Mandor ERP Bridge</strong> yang berjalan di server database sebagai perantara.</>
                                                 : <><strong>CORS Note:</strong> For on-premise systems (SAP ECC, Odoo on your server), you may need to configure a CORS proxy or use the Edge Agent to avoid browser restrictions.</>
                                             }
                                         </div>
@@ -824,7 +824,7 @@ const ConnectorManager = () => {
                 <div>
                     <h1 style={{ fontSize: '1.8rem', fontWeight: 900, margin: 0, color: '#001e3c' }}>Connectors</h1>
                     <p style={{ color: '#64748b', marginTop: 6, marginBottom: 0 }}>
-                        Integrate Mavi-MES with SAP, Odoo, FrePPLe, and any REST/SQL system.
+                        Integrate Mandor-MES with SAP, Odoo, FrePPLe, and any REST/SQL system.
                     </p>
                 </div>
                 <button onClick={() => setIsCreateModalOpen(true)} style={{
@@ -874,7 +874,7 @@ const ConnectorManager = () => {
                             <Link2 size={30} />
                         </div>
                         <h3 style={{ margin: '0 0 8px', fontWeight: 800 }}>No Connectors Yet</h3>
-                        <p style={{ color: '#64748b', margin: '0 0 18px' }}>Connect Mavi-MES to SAP, FrePPLe, or any REST API.</p>
+                        <p style={{ color: '#64748b', margin: '0 0 18px' }}>Connect Mandor-MES to SAP, FrePPLe, or any REST API.</p>
                         <button onClick={() => setIsCreateModalOpen(true)} style={{
                             color: '#2563eb', background: '#eff6ff', border: '1px solid #bfdbfe',
                             padding: '8px 18px', borderRadius: 8, fontWeight: 700, cursor: 'pointer'

@@ -1,6 +1,6 @@
 /**
  * weighDispenseTemplate.js
- * Generates a Weigh and Dispense application for MAVI-MES
+ * Generates a Weigh and Dispense application for MANDOR-MES
  * Modeled after Tulip's pharma weighing UI:
  *  - Left panel: Selected Material info + Instruction panel
  *  - Right panel: Material Dispense with barcode scan, weight input, scale button

@@ -69,7 +69,7 @@ export default function TableRelationDiagram({
 
     // ── 1. Initialize / Load Layout Coordinates ──
     useEffect(() => {
-        const savedRaw = localStorage.getItem('mavi_table_erd_positions');
+        const savedRaw = localStorage.getItem('mandor_table_erd_positions');
         let savedPositions = {};
         try {
             if (savedRaw) savedPositions = JSON.parse(savedRaw);
@@ -98,7 +98,7 @@ export default function TableRelationDiagram({
         setTablePositions(prev => {
             const next = { ...prev, [id]: { x, y } };
             try {
-                localStorage.setItem('mavi_table_erd_positions', JSON.stringify(next));
+                localStorage.setItem('mandor_table_erd_positions', JSON.stringify(next));
             } catch (e) {}
             return next;
         });
@@ -123,7 +123,7 @@ export default function TableRelationDiagram({
         setPan({ x: 40, y: 40 });
         setZoom(1);
         try {
-            localStorage.setItem('mavi_table_erd_positions', JSON.stringify(next));
+            localStorage.setItem('mandor_table_erd_positions', JSON.stringify(next));
         } catch (e) {}
         toast.success('Auto-layout arranged cleanly!', { position: 'bottom-right' });
     };

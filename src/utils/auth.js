@@ -1,13 +1,13 @@
 /**
  * auth.js
  * =====================================================
- * Frontend Authentication Utility for MAVI-MES
+ * Frontend Authentication Utility for MANDOR-MES
  * Uses localStorage for session management and user DB.
  * =====================================================
  */
 
-const AUTH_KEY = 'mavi_mes_auth_session';
-const USERS_STORAGE_KEY = 'mavi_mes_users_list';
+const AUTH_KEY = 'mandor_mes_auth_session';
+const USERS_STORAGE_KEY = 'mandor_mes_users_list';
 
 const ROLE_MAP = {
     'ADMIN': 'ADMINISTRATOR',

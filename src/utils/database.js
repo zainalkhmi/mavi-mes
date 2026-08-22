@@ -356,7 +356,7 @@ export async function getSmartDevices() {
     } catch (e) {
         console.warn('[Supabase] smart devices fetch failed, falling back to localStorage:', e);
     }
-    const local = localStorage.getItem('mavi_smart_devices');
+    const local = localStorage.getItem('mandor_smart_devices');
     return local ? JSON.parse(local) : [];
 }
 
@@ -391,7 +391,7 @@ export async function saveSmartDevice(device) {
 }
 
 function updateLocalSmartDevice(device) {
-    const local = localStorage.getItem('mavi_smart_devices');
+    const local = localStorage.getItem('mandor_smart_devices');
     let list = local ? JSON.parse(local) : [];
     const idx = list.findIndex(d => d.id === device.id);
     if (idx > -1) {
@@ -399,7 +399,7 @@ function updateLocalSmartDevice(device) {
     } else {
         list.push(device);
     }
-    localStorage.setItem('mavi_smart_devices', JSON.stringify(list));
+    localStorage.setItem('mandor_smart_devices', JSON.stringify(list));
 }
 
 export async function deleteSmartDevice(id) {
@@ -411,11 +411,11 @@ export async function deleteSmartDevice(id) {
         console.warn('[Supabase] deleteSmartDevice failed:', e);
     }
 
-    const local = localStorage.getItem('mavi_smart_devices');
+    const local = localStorage.getItem('mandor_smart_devices');
     if (local) {
         let list = JSON.parse(local);
         list = list.filter(d => d.id !== id);
-        localStorage.setItem('mavi_smart_devices', JSON.stringify(list));
+        localStorage.setItem('mandor_smart_devices', JSON.stringify(list));
     }
     return true;
 }
@@ -430,7 +430,7 @@ export async function getIotGateways() {
     } catch (e) {
         console.warn('[Supabase] gateways fetch failed, falling back to localStorage:', e);
     }
-    const local = localStorage.getItem('mavi_iot_gateways');
+    const local = localStorage.getItem('mandor_iot_gateways');
     return local ? JSON.parse(local) : [];
 }
 
@@ -465,7 +465,7 @@ export async function saveIotGateway(gateway) {
 }
 
 function updateLocalIotGateway(gateway) {
-    const local = localStorage.getItem('mavi_iot_gateways');
+    const local = localStorage.getItem('mandor_iot_gateways');
     let list = local ? JSON.parse(local) : [];
     const idx = list.findIndex(g => g.id === gateway.id);
     if (idx > -1) {
@@ -473,7 +473,7 @@ function updateLocalIotGateway(gateway) {
     } else {
         list.push(gateway);
     }
-    localStorage.setItem('mavi_iot_gateways', JSON.stringify(list));
+    localStorage.setItem('mandor_iot_gateways', JSON.stringify(list));
 }
 
 export async function deleteIotGateway(id) {
@@ -485,11 +485,11 @@ export async function deleteIotGateway(id) {
         console.warn('[Supabase] deleteIotGateway failed:', e);
     }
 
-    const local = localStorage.getItem('mavi_iot_gateways');
+    const local = localStorage.getItem('mandor_iot_gateways');
     if (local) {
         let list = JSON.parse(local);
         list = list.filter(g => g.id !== id);
-        localStorage.setItem('mavi_iot_gateways', JSON.stringify(list));
+        localStorage.setItem('mandor_iot_gateways', JSON.stringify(list));
     }
     return true;
 }

@@ -170,7 +170,7 @@ export const NODE_TYPES = {
             const mode = params?.mode || 'OCR Reading';
             if (mode === 'OCV Verification') return 'OCV: Match 100% [LOT-8924A]';
             if (mode === 'Anomaly Segmentation') return `Scratch Area: ${Math.floor(Math.random()*30)}px² [PASS]`;
-            if (mode === 'Barcode Code Scanning') return 'QR: https://mavi.vetaure.com [DECODED]';
+            if (mode === 'Barcode Code Scanning') return 'QR: https://mandor.vetaure.com [DECODED]';
             return 'OCR EXP: 12/28 [MATCH]';
         },
     },

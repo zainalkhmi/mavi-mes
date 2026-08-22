@@ -1024,10 +1024,10 @@ const initialEdges = [];
 
 const AUTOMATION_TEMPLATES = [
   {
-    id: 'temp_mavi_erp_workflow',
-    name: 'MAVI MES Full ERP-Stock-Purchase Workflow',
-    description: 'Workflow lengkap MAVI MES: Schedule Trigger -> HTTP ERP Order API -> IF (Cek Stok) -> [Ya: Buat MES WO + Supabase + Telegram] | [Tidak: Purchase Request + Email Supplier].',
-    category: 'MAVI MES Core',
+    id: 'temp_mandor_erp_workflow',
+    name: 'MANDOR MES Full ERP-Stock-Purchase Workflow',
+    description: 'Workflow lengkap MANDOR MES: Schedule Trigger -> HTTP ERP Order API -> IF (Cek Stok) -> [Ya: Buat MES WO + Supabase + Telegram] | [Tidak: Purchase Request + Email Supplier].',
+    category: 'MANDOR MES Core',
     nodes: [
       { id: 'start-node', type: 'event', position: { x: 60, y: 180 }, data: { triggerType: 'TIMER', label: 'Schedule Trigger (08:00)' } },
       { id: 'node_http_erp', type: 'action', position: { x: 260, y: 180 }, data: { type: 'HTTP_REQUEST', label: 'HTTP Request (Ambil Order ERP)' } },
@@ -1484,7 +1484,7 @@ const AutomationEditor = () => {
   const handleExportWorkflow = (targetAuto = null) => {
     try {
       const exportData = targetAuto ? {
-        maviVersion: '1.0',
+        mandorVersion: '1.0',
         type: 'automation_workflow',
         id: targetAuto.id || `auto_${Date.now()}`,
         name: targetAuto.name || 'Exported Automation',
@@ -1500,7 +1500,7 @@ const AutomationEditor = () => {
         nodes: targetAuto.nodes || targetAuto.development?.nodes || [],
         edges: targetAuto.edges || targetAuto.development?.edges || []
       } : {
-        maviVersion: '1.0',
+        mandorVersion: '1.0',
         type: 'automation_workflow',
         id: currentAuto?.id || `auto_${Date.now()}`,
         name: automationName || 'Untitled Automation',
@@ -1520,7 +1520,7 @@ const AutomationEditor = () => {
         edges
       };
 
-      const fileName = `${(exportData.name || 'workflow').toLowerCase().replace(/[^a-z0-9]/gi, '_')}.mavi.json`;
+      const fileName = `${(exportData.name || 'workflow').toLowerCase().replace(/[^a-z0-9]/gi, '_')}.mandor.json`;
       const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(exportData, null, 2))}`;
       const downloadAnchor = document.createElement('a');
       downloadAnchor.setAttribute('href', jsonString);
@@ -1544,7 +1544,7 @@ const AutomationEditor = () => {
 
         const importedNodes = parsed.nodes || parsed.development?.nodes || parsed.published?.nodes || [];
         const importedEdges = parsed.edges || parsed.development?.edges || parsed.published?.edges || [];
-        const name = parsed.name || file.name.replace(/\.(mavi\.)?json$/i, '') || 'Imported Workflow';
+        const name = parsed.name || file.name.replace(/\.(mandor\.)?json$/i, '') || 'Imported Workflow';
 
         if (!Array.isArray(importedNodes) || importedNodes.length === 0) {
           throw new Error('Invalid workflow JSON format. Could not find valid "nodes" array.');
@@ -2160,7 +2160,7 @@ const AutomationEditor = () => {
               alignItems: 'center',
               zIndex: 5
             }}>
-              <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700 }}>MAVI AI Workflow Engine</span>
+              <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700 }}>MANDOR AI Workflow Engine</span>
               <div style={{ width: '1px', height: '14px', backgroundColor: '#cbd5e1' }}></div>
               <span style={{ fontSize: '0.72rem', color: isActive ? '#00A09D' : '#ef4444', fontWeight: 800 }}>
                 {isActive ? 'LISTENING' : 'INACTIVE'}
@@ -2595,7 +2595,7 @@ const AutomationEditor = () => {
                           />
 
                           <div style={{ fontSize: '0.68rem', backgroundColor: '#f1f5f9', padding: '8px 10px', borderRadius: '6px', color: '#475569', fontFamily: 'monospace' }}>
-                            📍 URL: {typeof window !== 'undefined' ? window.location.origin : 'https://app.mavi.io'}/webhook/{selectedNode.data.webhookPath || 'my-webhook'}
+                            📍 URL: {typeof window !== 'undefined' ? window.location.origin : 'https://app.mandor.io'}/webhook/{selectedNode.data.webhookPath || 'my-webhook'}
                           </div>
 
                           <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Respond Strategy (Response Mode)</label>
@@ -2773,7 +2773,7 @@ const AutomationEditor = () => {
                           <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>IMAP Username / Folder</label>
                           <div style={{ display: 'flex', gap: '8px' }}>
                             <input
-                              placeholder="user@mavi.io"
+                              placeholder="user@mandor.io"
                               value={selectedNode.data.imapUser || ''}
                               onChange={(e) => {
                                 const imapUser = e.target.value;
@@ -3110,7 +3110,7 @@ const AutomationEditor = () => {
                         <>
                           <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>MQTT Topic</label>
                           <input
-                            placeholder="mavi/factory/line1/plc_command"
+                            placeholder="mandor/factory/line1/plc_command"
                             value={selectedNode.data.topic || ''}
                             onChange={(e) => {
                               const topic = e.target.value;
@@ -3419,7 +3419,7 @@ const AutomationEditor = () => {
                       <div>
                         <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>System Instructions / Prompt</label>
                         <textarea
-                          placeholder="You are an expert MAVI MES AI Assistant. Help optimize production work orders..."
+                          placeholder="You are an expert MANDOR MES AI Assistant. Help optimize production work orders..."
                           value={selectedNode.data.systemPrompt || ''}
                           onChange={(e) => {
                             const systemPrompt = e.target.value;
@@ -3653,7 +3653,7 @@ const AutomationEditor = () => {
                           }}
                           style={{ width: '100%', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
                         >
-                          <option value="SMTP_DEFAULT">SMTP Account Credential (smtp.mavi.id:465)</option>
+                          <option value="SMTP_DEFAULT">SMTP Account Credential (smtp.mandor.id:465)</option>
                           <option value="GMAIL_OAUTH2">Gmail OAuth2 Account</option>
                           <option value="CUSTOM_SMTP">Custom External SMTP Server</option>
                         </select>
@@ -3677,7 +3677,7 @@ const AutomationEditor = () => {
                       <div>
                         <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>From Email</label>
                         <input
-                          placeholder="Nathan Doe <nate@mavi.io>"
+                          placeholder="Nathan Doe <nate@mandor.io>"
                           value={selectedNode.data.fromEmail || ''}
                           onChange={(e) => {
                             const fromEmail = e.target.value;

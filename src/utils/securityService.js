@@ -8,7 +8,7 @@
 
 import Dexie from 'dexie';
 
-const DB_NAME = 'MaviSCADASecurity';
+const DB_NAME = 'MandorSCADASecurity';
 const DB_VERSION = 1;
 
 const db = new Dexie(DB_NAME);
@@ -189,7 +189,7 @@ class SecurityService {
     }
 
     async _restoreSession() {
-        const raw = localStorage.getItem('mavi_mes_auth_session');
+        const raw = localStorage.getItem('mandor_mes_auth_session');
         if (!raw) return;
         try {
             const session = JSON.parse(raw);

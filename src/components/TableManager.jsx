@@ -1362,7 +1362,7 @@ const TableManager = () => {
                         <div style={{ padding: '8px', backgroundColor: TOKENS.primary, borderRadius: '8px' }}>
                             <Layers size={20} color="white" />
                         </div>
-                        <span style={{ fontWeight: 800, fontSize: '1.2rem', letterSpacing: '0.5px', color: '#0f172a' }}>MES CORE</span>
+                        <span style={{ fontWeight: 800, fontSize: '1.2rem', letterSpacing: '0.5px', color: '#0f172a' }}>MANDOR</span>
                     </div>
 
                     <div style={{ padding: '0 24px 12px' }}>

@@ -338,7 +338,7 @@ const renderDrawingShape = (shape) => {
 
 const CADViewer2D = ({ fileUrl, appVariables, setAppVariables, compProps }) => {
   const [drawingsList, setDrawingsList] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('mavi_drawings') || '[]'); } catch { return []; }
+    try { return JSON.parse(localStorage.getItem('mandor_drawings') || '[]'); } catch { return []; }
   });
 
   useEffect(() => {
@@ -355,11 +355,11 @@ const CADViewer2D = ({ fileUrl, appVariables, setAppVariables, compProps }) => {
       }).catch(() => {});
     };
 
-    window.addEventListener('mavi_drawings_updated', handleSync);
+    window.addEventListener('mandor_drawings_updated', handleSync);
     window.addEventListener('storage', handleSync);
     return () => {
       mounted = false;
-      window.removeEventListener('mavi_drawings_updated', handleSync);
+      window.removeEventListener('mandor_drawings_updated', handleSync);
       window.removeEventListener('storage', handleSync);
     };
   }, []);
@@ -371,7 +371,7 @@ const CADViewer2D = ({ fileUrl, appVariables, setAppVariables, compProps }) => {
       const found = drawingsList.find(d => d.id === targetDrawingId || d.fileName === targetDrawingId || d.file_name === targetDrawingId || d.name === targetDrawingId);
       if (found) return found;
     }
-    const savedActive = typeof localStorage !== 'undefined' ? localStorage.getItem('mavi_selected_dwg_id') : null;
+    const savedActive = typeof localStorage !== 'undefined' ? localStorage.getItem('mandor_selected_dwg_id') : null;
     if (savedActive) {
       const activeMatch = drawingsList.find(d => d.id === savedActive);
       if (activeMatch) return activeMatch;
@@ -634,7 +634,7 @@ const getFirmwareCode = (connectionType, boardType, baudRate, mqttUrl, wifiIp) =
     
     if (conn === 'MQTT') {
         return `/*
-  Mavi Integration Sketch - MQTT Protocol
+  Mandor Integration Sketch - MQTT Protocol
   Device: ${board}
   MQTT Broker: ${mqttHost}
 */
@@ -711,7 +711,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
 void reconnect() {
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
-    if (client.connect("MaviArduinoClient")) {
+    if (client.connect("MandorArduinoClient")) {
       Serial.println("connected");
       client.subscribe("arduino/write/#");
     } else {
@@ -742,7 +742,7 @@ void loop() {
 
     if (conn === 'WIFI') {
         return `/*
-  Mavi Integration Sketch - WiFi HTTP API Server
+  Mandor Integration Sketch - WiFi HTTP API Server
   Device: ${board}
   Expected IP Address: ${wifiIp || '192.168.1.100'}
 */
@@ -808,7 +808,7 @@ void loop() {
     }
 
     return `/*
-  Mavi Integration Sketch - USB Serial Protocol
+  Mandor Integration Sketch - USB Serial Protocol
   Device: ${board}
   Baud Rate: ${baud}
 */
@@ -861,7 +861,7 @@ const ArduinoWidget = ({ comp, syncVariable, fireWidgetTriggers, isDark }) => {
     const [lastCardId, setLastCardId] = useState('');
     const [rfidStatus, setRfidStatus] = useState('Awaiting Card Scan...');
     const [lcdText1, setLcdText1] = useState(comp.props.line1 || 'Hello World');
-    const [lcdText2, setLcdText2] = useState(comp.props.line2 || 'Mavi MES System');
+    const [lcdText2, setLcdText2] = useState(comp.props.line2 || 'Mandor MES System');
     const [joyX, setJoyX] = useState(512);
     const [joyY, setJoyY] = useState(512);
     const [joyZ, setJoyZ] = useState(1);
@@ -2816,7 +2816,7 @@ const LiveTerminal = () => {
 
   const launchLayoutMode = launchParams.get('layoutMode') || (() => {
     try {
-      return localStorage.getItem('mavi_runtime_layout_mode') || 'PROPORTIONAL';
+      return localStorage.getItem('mandor_runtime_layout_mode') || 'PROPORTIONAL';
     } catch (e) {
       return 'PROPORTIONAL';
     }
@@ -2840,10 +2840,10 @@ const LiveTerminal = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [terminalTab, setTerminalTab] = useState('All'); // 'All' | 'Favorites' | 'Recent'
   const [favoriteApps, setFavoriteApps] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('mavi_terminal_favorites')) || []; } catch (e) { return []; }
+    try { return JSON.parse(localStorage.getItem('mandor_terminal_favorites')) || []; } catch (e) { return []; }
   });
   const [recentApps, setRecentApps] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('mavi_terminal_recent')) || []; } catch (e) { return []; }
+    try { return JSON.parse(localStorage.getItem('mandor_terminal_recent')) || []; } catch (e) { return []; }
   });
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [showOperatorMenu, setShowOperatorMenu] = useState(false);
@@ -2911,17 +2911,17 @@ const LiveTerminal = () => {
       let parsedCtrls = [];
       let parsedTags = [];
 
-      if (window.mavi_plc_controllers && window.mavi_plc_tags) {
-        parsedCtrls = window.mavi_plc_controllers;
-        parsedTags = window.mavi_plc_tags;
+      if (window.mandor_plc_controllers && window.mandor_plc_tags) {
+        parsedCtrls = window.mandor_plc_controllers;
+        parsedTags = window.mandor_plc_tags;
       } else {
         try {
           const { controllers: dbCtrls, tags: dbTags } = await loadPlcSettingsFromSupabase();
           if (dbCtrls && dbCtrls.length > 0) {
             parsedCtrls = dbCtrls;
             parsedTags = dbTags || [];
-            window.mavi_plc_controllers = dbCtrls;
-            window.mavi_plc_tags = dbTags || [];
+            window.mandor_plc_controllers = dbCtrls;
+            window.mandor_plc_tags = dbTags || [];
           } else {
             console.warn('LiveTerminal: No PLC settings found in Supabase.');
             return;
@@ -2952,7 +2952,7 @@ const LiveTerminal = () => {
 
             console.log(`LiveTerminal: Connecting to PLC MQTT Broker: ${brokerUrl}`);
             const mqttOptions = {
-              clientId: ctrl.clientId || `mavi-plc-${Math.random().toString(16).substr(2, 8)}`
+              clientId: ctrl.clientId || `mandor-plc-${Math.random().toString(16).substr(2, 8)}`
             };
             if (ctrl.username) mqttOptions.username = ctrl.username;
             if (ctrl.password) mqttOptions.password = ctrl.password;
@@ -2976,7 +2976,7 @@ const LiveTerminal = () => {
               if (!isMounted) return;
               const payload = message.toString();
               
-              let currentTags = window.mavi_plc_tags || parsedTags;
+              let currentTags = window.mandor_plc_tags || parsedTags;
 
               let tagUpdates = false;
               currentTags = currentTags.map(t => {
@@ -2992,7 +2992,7 @@ const LiveTerminal = () => {
 
               if (tagUpdates && isMounted) {
                 parsedTags = currentTags;
-                window.mavi_plc_tags = currentTags;
+                window.mandor_plc_tags = currentTags;
                 
                 const ctrlTags = currentTags.filter(t => t.controllerId === ctrl.id);
                 for (const tag of ctrlTags) {
@@ -3071,7 +3071,7 @@ const LiveTerminal = () => {
               }
 
               if (tagUpdates && isMounted) {
-                window.mavi_plc_tags = parsedTags;
+                window.mandor_plc_tags = parsedTags;
               }
             }, ctrl.pollingInterval || 2000);
 
@@ -3107,7 +3107,7 @@ const LiveTerminal = () => {
           });
 
           if (tagUpdates && isMounted) {
-            window.mavi_plc_tags = parsedTags;
+            window.mandor_plc_tags = parsedTags;
           }
         }, 3000);
 
@@ -3292,7 +3292,7 @@ const LiveTerminal = () => {
 
   useEffect(() => {
     const handleMsg = (e) => {
-      if (e.data?.type === 'MAVI_SET_DEVICE_PRESET') {
+      if (e.data?.type === 'MANDOR_SET_DEVICE_PRESET') {
         if (e.data.preset && DEVICE_PRESETS[e.data.preset]) setRuntimeDevicePreset(e.data.preset);
         if (e.data.orientation) setRuntimeOrientation(e.data.orientation);
         if (e.data.scaleMode) setRuntimeScaleMode(e.data.scaleMode);
@@ -3604,13 +3604,13 @@ const LiveTerminal = () => {
 
         // 2. Poll ONE slow PID per loop (Round-Robin) to prevent loop lag
         if (slowPids.length > 0 && active) {
-          if (!window._maviObd2SlowIndex || window._maviObd2SlowIndex >= slowPids.length) {
-              window._maviObd2SlowIndex = 0;
+          if (!window._mandorObd2SlowIndex || window._mandorObd2SlowIndex >= slowPids.length) {
+              window._mandorObd2SlowIndex = 0;
           }
           try {
-            await obd2Service.queryPID(slowPids[window._maviObd2SlowIndex]);
+            await obd2Service.queryPID(slowPids[window._mandorObd2SlowIndex]);
           } catch (err) {}
-          window._maviObd2SlowIndex++;
+          window._mandorObd2SlowIndex++;
         }
       }
       if (active) setTimeout(poll, 15); // Ultra-fast loop
@@ -4383,7 +4383,7 @@ const LiveTerminal = () => {
         let combinedApps = appData || [];
         try {
           // Check all known keys
-          const keys = ['mavi_offline_vault', 'offline_apps_cache', 'draft_frontline_apps'];
+          const keys = ['mandor_offline_vault', 'offline_apps_cache', 'draft_frontline_apps'];
           keys.forEach(key => {
             const raw = localStorage.getItem(key);
             if (raw) {
@@ -4513,7 +4513,7 @@ const LiveTerminal = () => {
     // Track Recent Apps
     const newRecent = [app.id, ...recentApps.filter(id => id !== app.id)].slice(0, 8);
     setRecentApps(newRecent);
-    localStorage.setItem('mavi_terminal_recent', JSON.stringify(newRecent));
+    localStorage.setItem('mandor_terminal_recent', JSON.stringify(newRecent));
 
     // Fetch the latest config from database in real-time
     let latestApp = app;
@@ -5614,7 +5614,7 @@ const LiveTerminal = () => {
                 else if (mapObj.value === 'STATION') resolvedInputs[tag] = currentStation || 'Station-01';
                 else if (mapObj.value === 'DATE_NOW') resolvedInputs[tag] = new Date().toISOString().split('T')[0];
                 else if (mapObj.value === 'TIME_NOW') resolvedInputs[tag] = new Date().toLocaleString();
-                else if (mapObj.value === 'APP_NAME') resolvedInputs[tag] = selectedApp?.name || 'MAVI App';
+                else if (mapObj.value === 'APP_NAME') resolvedInputs[tag] = selectedApp?.name || 'MANDOR App';
               } else {
                 const varName = typeof mapObj === 'string' ? mapObj : mapObj.value;
                 resolvedInputs[tag] = await resolveSourceValue('VARIABLE', varName, '', eventPayload);
@@ -6521,7 +6521,7 @@ const LiveTerminal = () => {
 
         if (comp && ['CAMERA', 'CAMCORDER', 'OPENCV_CAMERA', 'CAMERA_CAPTURE'].includes(comp.type)) {
           if (['TakePicture', 'RecordVideo', 'TakeSnapshot', 'StartImageCapture'].includes(methodId)) {
-            const evt = new CustomEvent('mavi-camera-method', {
+            const evt = new CustomEvent('mandor-camera-method', {
               detail: { compId, methodId, args }
             });
             window.dispatchEvent(evt);
@@ -7977,7 +7977,7 @@ const LiveTerminal = () => {
               fireWidgetTriggers(comp, 'ON_CHANGE');
             }}
             placeholder={resolvedProps.placeholder || 'Type here...'}
-            className="mavi-input"
+            className="mandor-input"
             style={{
               width: '100%',
               flex: 1,
@@ -8014,7 +8014,7 @@ const LiveTerminal = () => {
             }}
             placeholder={comp.props.placeholder || 'Type notes...'}
             rows={comp.props.rows || 4}
-            className="mavi-input"
+            className="mandor-input"
             style={{
               width: '100%',
               flex: 1,
@@ -8047,7 +8047,7 @@ const LiveTerminal = () => {
               syncVariable(val);
               fireWidgetTriggers(comp, 'ON_CHANGE');
             }}
-            className="mavi-input"
+            className="mandor-input"
             style={{
               width: '100%',
               flex: 1,
@@ -8325,7 +8325,7 @@ const LiveTerminal = () => {
                 }
                 handleButtonAction(comp.props, comp);
               }}
-              className="mavi-widget-btn"
+              className="mandor-widget-btn"
               style={{
                 width: '100%',
                 height: '100%',
@@ -8531,8 +8531,8 @@ const LiveTerminal = () => {
           const cleanVar = targetVar.startsWith('@') ? targetVar.substring(1) : targetVar;
           isAlarmActive = alarms.some(a => a.source === cleanVar && a.status === 'UNACK');
           try {
-            const parsedCtrls = window.mavi_plc_controllers;
-            const parsedTags = window.mavi_plc_tags;
+            const parsedCtrls = window.mandor_plc_controllers;
+            const parsedTags = window.mandor_plc_tags;
             if (parsedCtrls && parsedTags) {
               const cleanVar = targetVar.startsWith('@') ? targetVar.substring(1) : targetVar;
               const matchingTag = parsedTags.find(t => t.name === cleanVar);
@@ -8617,8 +8617,8 @@ const LiveTerminal = () => {
           const cleanVar = targetVar.startsWith('@') ? targetVar.substring(1) : targetVar;
           isAlarmActive = alarms.some(a => a.source === cleanVar && a.status === 'UNACK');
           try {
-            const parsedCtrls = window.mavi_plc_controllers;
-            const parsedTags = window.mavi_plc_tags;
+            const parsedCtrls = window.mandor_plc_controllers;
+            const parsedTags = window.mandor_plc_tags;
             if (parsedCtrls && parsedTags) {
               const cleanVar = targetVar.startsWith('@') ? targetVar.substring(1) : targetVar;
               const matchingTag = parsedTags.find(t => t.name === cleanVar);
@@ -8696,8 +8696,8 @@ const LiveTerminal = () => {
           const cleanVar = targetVar.startsWith('@') ? targetVar.substring(1) : targetVar;
           isAlarmActive = alarms.some(a => a.source === cleanVar && a.status === 'UNACK');
           try {
-            const parsedCtrls = window.mavi_plc_controllers;
-            const parsedTags = window.mavi_plc_tags;
+            const parsedCtrls = window.mandor_plc_controllers;
+            const parsedTags = window.mandor_plc_tags;
             if (parsedCtrls && parsedTags) {
               const cleanVar = targetVar.startsWith('@') ? targetVar.substring(1) : targetVar;
               const matchingTag = parsedTags.find(t => t.name === cleanVar);
@@ -8824,8 +8824,8 @@ const LiveTerminal = () => {
           const cleanVar = targetVar.startsWith('@') ? targetVar.substring(1) : targetVar;
           isAlarmActive = alarms.some(a => a.source === cleanVar && a.status === 'UNACK');
           try {
-            const parsedCtrls = window.mavi_plc_controllers;
-            const parsedTags = window.mavi_plc_tags;
+            const parsedCtrls = window.mandor_plc_controllers;
+            const parsedTags = window.mandor_plc_tags;
             if (parsedCtrls && parsedTags) {
               const cleanVar = targetVar.startsWith('@') ? targetVar.substring(1) : targetVar;
               const matchingTag = parsedTags.find(t => t.name === cleanVar);
@@ -9084,7 +9084,7 @@ const LiveTerminal = () => {
           if (props.dataSourceType === 'PLC_TAG') {
             const tagPath = String(props.varSource || '');
             if (!tagPath) return fallbackValue;
-            const tags = window.mavi_plc_tags || [];
+            const tags = window.mandor_plc_tags || [];
             const tag = tags.find(t => (t.controllerName + '/' + t.name) === tagPath || t.name === tagPath);
             return tag ? tag.value : fallbackValue;
           }
@@ -9104,12 +9104,12 @@ const LiveTerminal = () => {
 
           if (props.dataSourceType === 'PLC_TAG') {
             try {
-              const parsedTags = window.mavi_plc_tags || [];
-              const parsedCtrls = window.mavi_plc_controllers || [];
+              const parsedTags = window.mandor_plc_tags || [];
+              const parsedCtrls = window.mandor_plc_controllers || [];
               const tagIdx = parsedTags.findIndex(t => t.id === props.plcTagId || t.name === props.varSource);
               if (tagIdx > -1) {
                 parsedTags[tagIdx].value = String(nextValue);
-                window.mavi_plc_tags = parsedTags;
+                window.mandor_plc_tags = parsedTags;
 
                 if (window.__TAURI_INTERNALS__) {
                   const tag = parsedTags[tagIdx];
@@ -9187,7 +9187,7 @@ const LiveTerminal = () => {
                 syncVariable(newVal);
                 fireWidgetTriggers(comp, 'ON_CHANGE');
               }}
-              className="mavi-widget-btn"
+              className="mandor-widget-btn"
               style={{
                 width: '40px',
                 height: '100%',
@@ -9216,7 +9216,7 @@ const LiveTerminal = () => {
                 syncVariable(isNaN(parsedVal) ? 0 : parsedVal);
                 fireWidgetTriggers(comp, 'ON_CHANGE');
               }}
-              className="mavi-input"
+              className="mandor-input"
               style={{
                 flex: 1,
                 height: '100%',
@@ -9239,7 +9239,7 @@ const LiveTerminal = () => {
                 syncVariable(newVal);
                 fireWidgetTriggers(comp, 'ON_CHANGE');
               }}
-              className="mavi-widget-btn"
+              className="mandor-widget-btn"
               style={{
                 width: '40px',
                 height: '100%',
@@ -9956,7 +9956,7 @@ const LiveTerminal = () => {
         return (
           <div style={cardStyle}>
             <style>{`
-              @keyframes mavi-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+              @keyframes mandor-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
               @keyframes radar-sweep { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
             `}</style>
             {/* Header: Badge & Status */}
@@ -10114,7 +10114,7 @@ const LiveTerminal = () => {
                     {swOn && (
                       <>
                         <div style={{ position: 'absolute', top: '8px', left: '8px', display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: 'rgba(0,0,0,0.5)', padding: '2px 6px', borderRadius: '4px', zIndex: 2 }}>
-                          <span style={{ width: '6px', height: '6px', backgroundColor: '#ef4444', borderRadius: '50%', display: 'inline-block', animation: 'mavi-blink 1s infinite' }}></span>
+                          <span style={{ width: '6px', height: '6px', backgroundColor: '#ef4444', borderRadius: '50%', display: 'inline-block', animation: 'mandor-blink 1s infinite' }}></span>
                           <span style={{ fontSize: '0.55rem', color: '#ffffff', fontWeight: 'bold' }}>REC</span>
                         </div>
                         <div style={{ position: 'absolute', bottom: '8px', left: '8px', color: '#ffffff', fontSize: '0.55rem', fontFamily: 'monospace', backgroundColor: 'rgba(0,0,0,0.5)', padding: '2px 6px', borderRadius: '4px', zIndex: 2 }}>
@@ -11792,9 +11792,9 @@ const LiveTerminal = () => {
         <div style={{ padding: '40px', textAlign: 'center' }}>
           <div style={{
             width: '40px', height: '40px', border: '3px solid #e2e8f0', borderTop: '3px solid #3b82f6',
-            borderRadius: '50%', animation: 'mavi-spin 1s linear infinite', margin: '0 auto 20px'
+            borderRadius: '50%', animation: 'mandor-spin 1s linear infinite', margin: '0 auto 20px'
           }}></div>
-          <style>{`@keyframes mavi-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+          <style>{`@keyframes mandor-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
           <p style={{ color: '#64748b', fontSize: '0.9rem', fontWeight: 600 }}>Launching App...</p>
         </div>
       </div>
@@ -12162,7 +12162,7 @@ const LiveTerminal = () => {
                                   newFavs = [...favoriteApps, app.id];
                                 }
                                 setFavoriteApps(newFavs);
-                                localStorage.setItem('mavi_terminal_favorites', JSON.stringify(newFavs));
+                                localStorage.setItem('mandor_terminal_favorites', JSON.stringify(newFavs));
                               }}
                               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
                             >
@@ -12500,9 +12500,9 @@ const LiveTerminal = () => {
       flexDirection: 'column',
       fontFamily: "'Inter', sans-serif"
     }}>
-      {/* MAVI HEADER */}
+      {/* MANDOR HEADER */}
       {window.self === window.top && (
-        <div className="mavi-header" style={{ display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+        <div className="mandor-header" style={{ display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
           {/* Consolidated Header Bar */}
           <div style={{
             display: 'flex',
@@ -12521,7 +12521,7 @@ const LiveTerminal = () => {
             {/* Left side: Logo, App Title, Badge, Duration, Step, User/Station */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flexWrap: 'nowrap' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'white', fontWeight: 900, marginRight: '4px' }}>
-                <Zap size={14} fill="white" /> MAVI-M
+                <Zap size={14} fill="white" /> MANDOR-M
               </div>
               <span style={{ fontSize: '1.05rem', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {selectedApp ? selectedApp.name : (selectedManual ? selectedManual.title : 'Live Terminal')}
@@ -12761,7 +12761,7 @@ const LiveTerminal = () => {
                     const next = layoutMode === 'PROPORTIONAL' ? 'RESPONSIVE' : 'PROPORTIONAL';
                     setLayoutMode(next);
                     try {
-                      localStorage.setItem('mavi_runtime_layout_mode', next);
+                      localStorage.setItem('mandor_runtime_layout_mode', next);
                     } catch (e) {}
                   }}
                   title={layoutMode === 'PROPORTIONAL' ? 'Switch to Responsive Stack Layout' : 'Switch to Proportional Canvas Layout'}
@@ -12942,7 +12942,7 @@ const LiveTerminal = () => {
                       <AlertCircle size={13} color={activeAndon ? '#f87171' : '#fbbf24'} />
                     </div>
                     <span style={{ flex: 1 }}>{activeAndon ? 'Resolve Andon' : 'Pull Andon'}</span>
-                    {activeAndon && <div style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#ef4444', animation: 'maviPulse 1.5s ease-in-out infinite' }} />}
+                    {activeAndon && <div style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#ef4444', animation: 'mandorPulse 1.5s ease-in-out infinite' }} />}
                   </button>
 
                   <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.07)', margin: '6px 0' }} />
@@ -13359,7 +13359,7 @@ const LiveTerminal = () => {
                           inset: '-4px',
                           borderRadius: '14px',
                           border: '1px solid rgba(59,130,246,0.2)',
-                          animation: 'maviPulse 2s ease-in-out infinite',
+                          animation: 'mandorPulse 2s ease-in-out infinite',
                           pointerEvents: 'none'
                         }} />
                       )}
@@ -13507,7 +13507,7 @@ const LiveTerminal = () => {
                 onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(59,130,246,0.2)'; e.currentTarget.style.borderColor = 'rgba(59,130,246,0.4)'; e.currentTarget.style.transform = 'scale(1.1)'; }}
                 onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(59,130,246,0.1)'; e.currentTarget.style.borderColor = 'rgba(59,130,246,0.2)'; e.currentTarget.style.transform = 'scale(1)'; }}
               >
-                <SlidersHorizontal size={13} className="mavi-pulse-diag" style={{ animation: 'maviPulse 2s infinite' }} />
+                <SlidersHorizontal size={13} className="mandor-pulse-diag" style={{ animation: 'mandorPulse 2s infinite' }} />
               </button>
             </div>
           </div>
@@ -13800,8 +13800,8 @@ const LiveTerminal = () => {
                     }
 
                     // Check if variable is mapped to any real Modbus PLC
-                    const parsedCtrls = window.mavi_plc_controllers;
-                    const parsedTags = window.mavi_plc_tags;
+                    const parsedCtrls = window.mandor_plc_controllers;
+                    const parsedTags = window.mandor_plc_tags;
                     if (parsedCtrls && parsedTags) {
                       try {
                         const cleanVar = targetVar.startsWith('@') ? targetVar.substring(1) : targetVar;
@@ -13859,7 +13859,7 @@ const LiveTerminal = () => {
 
       {/* Old horizontal Work Sequence strip removed — now rendered as RIGHT SIDEBAR inside MAIN CONTENT AREA */}
 
-      {/* MAVI FOOTER BAR - Premium Tactile Navigation */}
+      {/* MANDOR FOOTER BAR - Premium Tactile Navigation */}
       <div style={{
         height: '56px',
         background: 'linear-gradient(90deg, #0a0f1e 0%, #111827 50%, #0a0f1e 100%)',
@@ -14261,7 +14261,7 @@ const LiveTerminal = () => {
         </div>
       )}
       <style>{`
-        @keyframes maviPulse {
+        @keyframes mandorPulse {
           0%, 100% { opacity: 1; transform: scale(1); }
           50% { opacity: 0.5; transform: scale(0.85); }
         }
@@ -14577,7 +14577,7 @@ const OpenCvCameraWidget = ({ comp, selectedApp, currentWorkOrder, appVariables 
     const startCamera = async () => {
       try {
         let videoConstraints = { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: { ideal: 'environment' } };
-        const savedCameraId = localStorage.getItem('mavi-selected-camera-id');
+        const savedCameraId = localStorage.getItem('mandor-selected-camera-id');
         const configuredCameraId = comp?.props?.cameraId;
         const targetCameraId = configuredCameraId || savedCameraId;
         

@@ -46,7 +46,7 @@ const DEFAULT_TEMPLATES = [
             schemas: [
                 [
                     { name: 'header_bg', type: 'rectangle', position: { x: 15, y: 12 }, width: 180, height: 24, color: '#714B67', borderWidth: 0 },
-                    { name: 'company_title', type: 'text', position: { x: 20, y: 16 }, width: 110, height: 8, fontSize: 15, fontColor: '#ffffff', content: 'MAVI MES — QC INSPECTION CHECKSHEET' },
+                    { name: 'company_title', type: 'text', position: { x: 20, y: 16 }, width: 110, height: 8, fontSize: 15, fontColor: '#ffffff', content: 'MANDOR MES — QC INSPECTION CHECKSHEET' },
                     { name: 'report_qr', type: 'qrcode', position: { x: 172, y: 14 }, width: 20, height: 20 },
                     { name: 'wo_number', type: 'text', position: { x: 20, y: 44 }, width: 40, height: 8, fontSize: 10, fontColor: '#212529' },
                     { name: 'part_name', type: 'text', position: { x: 65, y: 44 }, width: 50, height: 8, fontSize: 10, fontColor: '#212529' },
@@ -81,7 +81,7 @@ const DEFAULT_TEMPLATES = [
             schemas: [
                 [
                     { name: 'courier_header', type: 'rectangle', position: { x: 5, y: 5 }, width: 90, height: 14, color: '#000000' },
-                    { name: 'courier_name', type: 'text', position: { x: 8, y: 8 }, width: 45, height: 8, fontSize: 16, fontColor: '#ffffff', content: 'MAVI EXPRESS' },
+                    { name: 'courier_name', type: 'text', position: { x: 8, y: 8 }, width: 45, height: 8, fontSize: 16, fontColor: '#ffffff', content: 'MANDOR EXPRESS' },
                     { name: 'tracking_barcode', type: 'code128', position: { x: 8, y: 22 }, width: 58, height: 18 },
                     { name: 'sorting_qr', type: 'qrcode', position: { x: 70, y: 21 }, width: 20, height: 20 },
                     { name: 'tracking_no', type: 'text', position: { x: 8, y: 42 }, width: 84, height: 6, fontSize: 11, fontColor: '#000000' },
@@ -103,7 +103,7 @@ const DEFAULT_TEMPLATES = [
             basePdf: { width: 50, height: 30, padding: [2, 2, 2, 2] },
             schemas: [
                 [
-                    { name: 'store_name', type: 'text', position: { x: 3, y: 2 }, width: 44, height: 4, fontSize: 7, fontColor: '#444444', content: 'MAVI STORE' },
+                    { name: 'store_name', type: 'text', position: { x: 3, y: 2 }, width: 44, height: 4, fontSize: 7, fontColor: '#444444', content: 'MANDOR STORE' },
                     { name: 'item_name', type: 'text', position: { x: 3, y: 6 }, width: 44, height: 5, fontSize: 9, fontColor: '#000000' },
                     { name: 'item_sku', type: 'text', position: { x: 3, y: 11 }, width: 44, height: 3.5, fontSize: 6, fontColor: '#666666' },
                     { name: 'product_barcode', type: 'code128', position: { x: 3, y: 15 }, width: 44, height: 8 },
@@ -119,7 +119,7 @@ const DEFAULT_TEMPLATES = [
  */
 export function getSavedReportTemplates() {
     try {
-        const saved = localStorage.getItem('mavi_pdf_templates_v4') || localStorage.getItem('mavi_pdf_templates_v3');
+        const saved = localStorage.getItem('mandor_pdf_templates_v4') || localStorage.getItem('mandor_pdf_templates_v3');
         if (saved) {
             const parsed = JSON.parse(saved);
             if (Array.isArray(parsed) && parsed.length > 0) return parsed;

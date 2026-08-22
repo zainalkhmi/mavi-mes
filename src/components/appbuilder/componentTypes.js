@@ -932,7 +932,7 @@ export const COMPONENT_TYPES = {
     SERIAL: { id: 'SERIAL', label: 'Serial', icon: Cpu, defaultProps: { baudRate: 9600, bufferSize: 256, triggers: [], visibilityCondition: null, rotation: 0 } },
     WEB: { id: 'WEB', label: 'Web', icon: Globe, defaultProps: { url: '', allowCookies: false, timeout: 0, responseFileName: '', responseTextEncoding: 'UTF-8', saveResponse: false, triggers: [], visibilityCondition: null, rotation: 0 } },
 
-    // Advanced & Specialized (Mavi-MES custom)
+    // Advanced & Specialized (Mandor-MES custom)
     VISION_DETECTOR: { id: 'VISION_DETECTOR', label: 'Vision AI OCR', icon: Eye, defaultProps: { label: 'Scanner', triggers: [], visibilityCondition: null, rotation: 0 } },
     VISION_MEASUREMENT: {
         id: 'VISION_MEASUREMENT',
@@ -1605,7 +1605,7 @@ export const COMPONENT_TYPES = {
         defaultProps: {
             label: 'LCD Display 1602',
             pin: 'I2C',
-            line1: 'Mavi IoT System',
+            line1: 'Mandor IoT System',
             line2: 'Status: Ready',
             backlightColor: '#00979d',
             connectionType: 'SERIAL',

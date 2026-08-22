@@ -309,7 +309,7 @@ const getValidationStatusStyle = (status) => {
 export default function DrawingManager() {
     // Load and auto-migrate drawings
     const [drawings, setDrawings] = useState(() => {
-        const saved = localStorage.getItem('mavi_drawings');
+        const saved = localStorage.getItem('mandor_drawings');
         if (saved) {
             try {
                 const parsed = migrateDrawings(JSON.parse(saved));
@@ -337,7 +337,7 @@ export default function DrawingManager() {
                     setDrawings(migrated);
 
                     // Sync active selected ID with database drawings
-                    const savedActive = localStorage.getItem('mavi_selected_dwg_id');
+                    const savedActive = localStorage.getItem('mandor_selected_dwg_id');
                     if (savedActive && migrated.some(d => d.id === savedActive)) {
                         setSelectedDwgId(savedActive);
                     } else {
@@ -352,7 +352,7 @@ export default function DrawingManager() {
     }, []);
 
     const [selectedDwgId, setSelectedDwgId] = useState(() => {
-        const savedActive = localStorage.getItem('mavi_selected_dwg_id');
+        const savedActive = localStorage.getItem('mandor_selected_dwg_id');
         if (savedActive && drawings.some(d => d.id === savedActive)) {
             return savedActive;
         }
@@ -411,7 +411,7 @@ export default function DrawingManager() {
                 const saved = await saveDrawing(newDwg);
                 setDrawings(prev => [saved, ...prev]);
                 setSelectedDwgId(saved.id);
-                localStorage.setItem('mavi_selected_dwg_id', saved.id);
+                localStorage.setItem('mandor_selected_dwg_id', saved.id);
                 toast.success(`Geometri parametrik CadQuery berhasil dibuat dan dimuat! Terbentuk ${result.entity_count} entitas.`);
                 setShowCqModal(false);
             } else {
@@ -425,7 +425,7 @@ export default function DrawingManager() {
     };
 
     const [activeDimId, setActiveDimId] = useState(() => {
-        const savedActive = localStorage.getItem('mavi_selected_dwg_id');
+        const savedActive = localStorage.getItem('mandor_selected_dwg_id');
         const initialDwgId = (savedActive && drawings.some(d => d.id === savedActive))
             ? savedActive
             : (drawings.length > 0 ? drawings[0].id : '');
@@ -844,7 +844,7 @@ export default function DrawingManager() {
     const [ribbonTab, setRibbonTab] = useState('home');
     const [commandInput, setCommandInput] = useState('');
     const [commandHistory, setCommandHistory] = useState([
-        'MaviCAD 2026 [Version 1.0.0] - AutoCAD Style Interface',
+        'MandorCAD 2026 [Version 1.0.0] - AutoCAD Style Interface',
         'Type "help" to see available CAD commands. Press ENTER to execute.'
     ]);
     const [activeSpace, setActiveSpace] = useState('model'); // model, layout1, layout2
@@ -1233,7 +1233,7 @@ export default function DrawingManager() {
     // Save selected blueprint selection to localStorage for cross-dashboard syncing
     useEffect(() => {
         if (selectedDwg?.id) {
-            localStorage.setItem('mavi_selected_dwg_id', selectedDwg.id);
+            localStorage.setItem('mandor_selected_dwg_id', selectedDwg.id);
             if (selectedDwgId !== selectedDwg.id) {
                 setSelectedDwgId(selectedDwg.id);
             }
@@ -4376,7 +4376,7 @@ export default function DrawingManager() {
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(drawings, null, 2));
         const downloadAnchor = document.createElement('a');
         downloadAnchor.setAttribute("href", dataStr);
-        downloadAnchor.setAttribute("download", "mavi_drawings_schema.json");
+        downloadAnchor.setAttribute("download", "mandor_drawings_schema.json");
         document.body.appendChild(downloadAnchor);
         downloadAnchor.click();
         downloadAnchor.remove();
@@ -6198,7 +6198,7 @@ export default function DrawingManager() {
         });
     };
 
-    // ─── MAVI Enterprise Style helper ───
+    // ─── MANDOR Enterprise Style helper ───
     const inputStyle = { width: '100%', padding: '7px 10px', borderRadius: '5px', border: '1px solid #ced4da', fontSize: '0.78rem', outline: 'none', fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", color: '#212529', backgroundColor: '#ffffff', transition: 'border-color 0.15s, box-shadow 0.15s' };
     const selectStyle = { ...inputStyle, backgroundColor: '#ffffff', cursor: 'pointer' };
     const labelStyle = { display: 'block', fontSize: '0.65rem', color: '#495057', fontWeight: 700, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.04em' };
@@ -6947,7 +6947,7 @@ export default function DrawingManager() {
 
                             {/* Center: File name tab title */}
                             <div style={{ fontSize: '0.62rem', color: '#94a3b8', fontWeight: 600 }}>
-                                MaviCAD 2026 - [ {selectedDwg ? selectedDwg.fileName : 'New Drawing.dwg'} ]
+                                MandorCAD 2026 - [ {selectedDwg ? selectedDwg.fileName : 'New Drawing.dwg'} ]
                             </div>
 
                             {/* Right: Window control icons */}
@@ -7415,7 +7415,7 @@ export default function DrawingManager() {
                                                     }
                                                 }}
                                             >
-                                                {/* MAVI Quality & Blueprint Overlay Layer */}
+                                                {/* MANDOR Quality & Blueprint Overlay Layer */}
                                                 <svg
                                                     ref={svgRef}
                                                     viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}

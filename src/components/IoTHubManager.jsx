@@ -326,7 +326,7 @@ function GatewayConfigTab({ gateways, onSave, onDelete, onTest }) {
       <div style={{ padding: '14px 18px', backgroundColor: '#f0f9ff', borderRadius: '12px', border: '1px solid #bae6fd' }}>
         <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0369a1', marginBottom: '6px' }}>💡 Cara Kerja Gateway</div>
         <div style={{ fontSize: '0.78rem', color: '#0c4a6e', lineHeight: 1.6 }}>
-          Mavi terhubung ke <strong>MQTT broker</strong> untuk berkomunikasi dengan hardware gateway.
+          Mandor terhubung ke <strong>MQTT broker</strong> untuk berkomunikasi dengan hardware gateway.
           Zigbee2MQTT, Matter Bridge, dan BLE Gateway menjembatani protokol ke MQTT.
           Tanpa hardware, gunakan <strong>Simulation Mode</strong> untuk testing dan demo.
         </div>

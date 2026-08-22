@@ -38,9 +38,9 @@ export async function logEvent({ type, user, workstation, workOrder, details }) 
         if (error) {
             console.warn('[AuditLog] Failed to persist to database:', error.message);
             // Fallback: Store in localStorage if DB fails
-            const history = JSON.parse(localStorage.getItem('mavi_audit_fallback') || '[]');
+            const history = JSON.parse(localStorage.getItem('mandor_audit_fallback') || '[]');
             history.push(eventData);
-            localStorage.setItem('mavi_audit_fallback', JSON.stringify(history.slice(-100)));
+            localStorage.setItem('mandor_audit_fallback', JSON.stringify(history.slice(-100)));
         }
     } catch (err) {
         console.error('[AuditLog] Critical error:', err);
@@ -75,13 +75,13 @@ export async function logEvent({ type, user, workstation, workOrder, details }) 
         };
 
         // For current tab
-        window.dispatchEvent(new CustomEvent('MAVI_ANDON_EVENT', { detail: eventDetail }));
+        window.dispatchEvent(new CustomEvent('MANDOR_ANDON_EVENT', { detail: eventDetail }));
         
         // For other tabs
         try {
             if (typeof BroadcastChannel !== 'undefined') {
-                const channel = new BroadcastChannel('mavi_andon_channel');
-                channel.postMessage({ type: 'MAVI_ANDON_EVENT', detail: eventDetail });
+                const channel = new BroadcastChannel('mandor_andon_channel');
+                channel.postMessage({ type: 'MANDOR_ANDON_EVENT', detail: eventDetail });
                 // We don't close it immediately as it might prevent sending or we can just let garbage collection handle short-lived channels,
                 // but closing it is cleaner if we create it per event:
                 setTimeout(() => channel.close(), 100);

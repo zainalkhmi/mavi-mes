@@ -1085,7 +1085,7 @@ export default function AppBuilderRightPane({
                                                                 <option value="">-- No Drawing Bound --</option>
                                                                 {(() => {
                                                                     try {
-                                                                        return JSON.parse(localStorage.getItem('mavi_drawings') || '[]');
+                                                                        return JSON.parse(localStorage.getItem('mandor_drawings') || '[]');
                                                                     } catch(e) { return []; }
                                                                 })().map(d => (
                                                                     <option key={d.id} value={d.id}>{d.name} ({d.fileName})</option>
@@ -1103,7 +1103,7 @@ export default function AppBuilderRightPane({
                                                                     onChange={(e) => {
                                                                         const dimId = e.target.value;
                                                                         let drawings = [];
-                                                                        try { drawings = JSON.parse(localStorage.getItem('mavi_drawings') || '[]'); } catch(err) {}
+                                                                        try { drawings = JSON.parse(localStorage.getItem('mandor_drawings') || '[]'); } catch(err) {}
                                                                         const dwg = drawings.find(d => d.id === selectedComp.props.selectedDrawingId);
                                                                         const dim = dwg?.dimensions?.find(dm => dm.id === dimId);
                                                                         if (dim) {
@@ -1133,7 +1133,7 @@ export default function AppBuilderRightPane({
                                                                     <option value="">-- No Dimension Bound --</option>
                                                                     {(() => {
                                                                         let drawings = [];
-                                                                        try { drawings = JSON.parse(localStorage.getItem('mavi_drawings') || '[]'); } catch(err) {}
+                                                                        try { drawings = JSON.parse(localStorage.getItem('mandor_drawings') || '[]'); } catch(err) {}
                                                                         const dwg = drawings.find(d => d.id === selectedComp.props.selectedDrawingId);
                                                                         return dwg?.dimensions || [];
                                                                     })().map(dim => (
@@ -3295,7 +3295,7 @@ export default function AppBuilderRightPane({
                                                                                 </div>
                                                                                 {selectedComp.props.filterType === 'FULL_PIPELINE' && (() => {
                                                                                     // Load saved pipelines
-                                                                                    const saved = localStorage.getItem('mavi_quickbuild_pipelines');
+                                                                                    const saved = localStorage.getItem('mandor_quickbuild_pipelines');
                                                                                     const customList = saved ? JSON.parse(saved) : [];
                                                                                     return (
                                                                                         <>
@@ -4055,7 +4055,7 @@ export default function AppBuilderRightPane({
                                                             onChange={(e) => {
                                                                 const val = e.target.value;
                                                                 let drawings = [];
-                                                                try { drawings = JSON.parse(localStorage.getItem('mavi_drawings') || '[]'); } catch (err) {}
+                                                                try { drawings = JSON.parse(localStorage.getItem('mandor_drawings') || '[]'); } catch (err) {}
                                                                 const matched = drawings.find(d => d.id === val || d.fileName === val);
                                                                 const updates = { fileUrl: val, selectedDrawingId: val };
                                                                 if (matched?.fileType) updates.format = matched.fileType;
@@ -4068,7 +4068,7 @@ export default function AppBuilderRightPane({
                                                             <option value="interactive-3d-cad">Interactive 3D CAD Twin (Default Assembly)</option>
                                                             {(() => {
                                                                 try {
-                                                                    return JSON.parse(localStorage.getItem('mavi_drawings') || '[]');
+                                                                    return JSON.parse(localStorage.getItem('mandor_drawings') || '[]');
                                                                 } catch (e) {
                                                                     return [];
                                                                 }
@@ -4096,7 +4096,7 @@ export default function AppBuilderRightPane({
                                                             const fileUrl = selectedComp.props.fileUrl || '';
                                                             if (!fileUrl) return null;
                                                             let drawings = [];
-                                                            try { drawings = JSON.parse(localStorage.getItem('mavi_drawings') || '[]'); } catch(e) {}
+                                                            try { drawings = JSON.parse(localStorage.getItem('mandor_drawings') || '[]'); } catch(e) {}
                                                             const dwg = drawings.find(d => d.id === fileUrl || d.fileName === fileUrl);
                                                             if (!dwg || !dwg.dimensions || dwg.dimensions.length === 0) return null;
 

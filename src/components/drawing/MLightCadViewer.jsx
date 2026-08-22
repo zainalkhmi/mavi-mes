@@ -1530,11 +1530,11 @@ export default function MLightCadViewer({
                             <div className="flex justify-end p-2 pointer-events-auto">
                                 <div className="bg-white border-2 border-slate-900 p-2.5 text-slate-900 text-[11px] shadow-sm min-w-[300px] font-sans">
                                     <div className="flex justify-between items-center border-b border-slate-900 pb-1 mb-1.5 font-bold">
-                                        <span className="text-slate-900 tracking-wider text-xs font-mono font-extrabold">MAVI ENGINEERING & MES</span>
+                                        <span className="text-slate-900 tracking-wider text-xs font-mono font-extrabold">MANDOR ENGINEERING & MES</span>
                                         <span className="text-[9px] bg-emerald-100 text-emerald-800 border border-emerald-500 px-1.5 py-0.5 rounded font-mono font-bold">APPROVED</span>
                                     </div>
                                     <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px] text-slate-800 font-mono">
-                                        <div>PROYEK: <span className="font-bold text-slate-900">MAVI Core CAD</span></div>
+                                        <div>PROYEK: <span className="font-bold text-slate-900">MANDOR Core CAD</span></div>
                                         <div>SKALA: <span className="font-bold text-slate-900">1:1 ({paperSize})</span></div>
                                         <div>LEMBAR: <span className="font-bold text-slate-900">{activeLayoutTab.label}</span></div>
                                         <div>TANGGAL: <span className="font-bold text-slate-900">{new Date().toISOString().split('T')[0]}</span></div>

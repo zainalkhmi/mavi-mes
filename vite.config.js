@@ -12,8 +12,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
-        name: 'Mavi MES CORE',
-        short_name: 'MaviMES',
+        name: 'Mandor MES CORE',
+        short_name: 'MandorMES',
         description: 'Advanced Manufacturing Execution System',
         theme_color: '#2563eb',
         icons: [

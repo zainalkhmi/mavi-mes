@@ -66,8 +66,8 @@ export default function VoiceControlledCaliperInspection() {
 
   const handleSave = () => {
     try {
-      localStorage.setItem('mavi_gamepad_bindings', JSON.stringify(bindings));
-      localStorage.setItem('mavi_voice_language', language);
+      localStorage.setItem('mandor_gamepad_bindings', JSON.stringify(bindings));
+      localStorage.setItem('mandor_voice_language', language);
       toast.success('Konfigurasi berhasil disimpan!');
       setTimeout(() => {
         if (window.history.state && window.history.state.idx > 0) {
@@ -117,13 +117,13 @@ export default function VoiceControlledCaliperInspection() {
   // Load configs on mount
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('mavi_gamepad_bindings');
+      const saved = localStorage.getItem('mandor_gamepad_bindings');
       if (saved) {
         setBindings(JSON.parse(saved));
       }
     } catch(e) {}
 
-    const savedLang = localStorage.getItem('mavi_voice_language') || 'id-ID';
+    const savedLang = localStorage.getItem('mandor_voice_language') || 'id-ID';
     setLanguage(savedLang);
   }, []);
 

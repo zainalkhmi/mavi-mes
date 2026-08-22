@@ -15,7 +15,7 @@ export const translations = {
             initializing: 'Initializing Security...',
             trialActive: 'Trial Active: {{time}} left',
             productActivationTitle: 'Product Activation',
-            activationSubtitle: 'Enter your MAVI license key for lifetime access',
+            activationSubtitle: 'Enter your MANDOR license key for lifetime access',
             licenseKeyLabel: 'License Key',
             verifying: 'Verifying...',
             activateNow: 'Activate Now',
@@ -32,7 +32,7 @@ export const translations = {
         },
         header: {
             mainMenu: 'Main Menu',
-            maviClass: 'MAVi Class',
+            mandorClass: 'MAVi Class',
             studioModel: 'Studio Model',
             teachableMachine: 'Teachable Machine Studio',
             swcs: 'Standard Work Sheet (Dhyo-hyo-ka)',
@@ -207,7 +207,7 @@ export const translations = {
                 step5: 'Click nodes to edit Manual/Machine times.',
             },
             aiChat: {
-                title: 'Mavi Lean Assistant',
+                title: 'Mandor Lean Assistant',
                 subtitle: 'Toyota Production System Expert',
                 placeholder: 'Ask about layout optimization...',
                 systemPrompt: 'You are an expert in Toyota Production System (TPS). Help the user optimize their spaghetti diagram. Provide advice on reducing walking, operator balance, and cell layout.',
@@ -460,14 +460,14 @@ export const translations = {
                 newBadge: '✨ New: AI Manual Generation',
                 title: 'Optimize Motion with',
                 highlight: 'Intelligent Analysis',
-                subtitle: 'Mavi uses advanced computer vision to analyze workflows, calculating standard times and identifying waste automatically. Increase productivity by up to 40%.',
+                subtitle: 'Mandor uses advanced computer vision to analyze workflows, calculating standard times and identifying waste automatically. Increase productivity by up to 40%.',
                 ctaPrimary: 'Start Free Demo',
                 ctaSecondary: 'Learn More',
             },
             solutions: {
-                title: 'Why choose Mavi?',
+                title: 'Why choose Mandor?',
                 oldWay: 'The Old Way',
-                maviWay: 'The Mavi Solution',
+                mandorWay: 'The Mandor Solution',
                 old: {
                     stopwatch: {
                         title: 'Manual Stopwatch',
@@ -482,7 +482,7 @@ export const translations = {
                         desc: 'Different engineers produce different results for the same task.',
                     },
                 },
-                mavi: {
+                mandor: {
                     video: {
                         title: 'AI Video Analysis',
                         desc: 'Frame-perfect timing automatically extracted from video footage.',
@@ -495,7 +495,7 @@ export const translations = {
                         title: 'Standardized & Accurate',
                         desc: 'Consistent analysis every time, eliminating human error and bias.',
                     },
-                    cta: 'Switch to Mavi Today',
+                    cta: 'Switch to Mandor Today',
                 },
             },
             features: {
@@ -1155,7 +1155,7 @@ export const translations = {
             changeVideo: 'Change or upload new video',
         },
         how: {
-            title: 'How Mavi Works',
+            title: 'How Mandor Works',
             capture: {
                 title: 'Capture',
                 desc: 'Record your production line or upload an existing video file directly to the platform.',
@@ -1181,13 +1181,13 @@ export const translations = {
             },
             lc: {
                 title: 'Lean Consultants',
-                desc: 'Deliver value to your clients faster. Use Mavi to provide data-backed recommendations and impressive "Before/After" visual proof.',
+                desc: 'Deliver value to your clients faster. Use Mandor to provide data-backed recommendations and impressive "Before/After" visual proof.',
             },
             faq: {
                 title: 'Frequently Asked Questions',
                 q1: {
                     q: 'Is my video data secure?',
-                    a: 'Yes. Mavi uses enterprise-grade encryption. For Pro plans, data is stored securely in the cloud. For Starter plans, data never leaves your local device.',
+                    a: 'Yes. Mandor uses enterprise-grade encryption. For Pro plans, data is stored securely in the cloud. For Starter plans, data never leaves your local device.',
                 },
                 q2: {
                     q: 'Can I export reports to Excel?',
@@ -1195,12 +1195,12 @@ export const translations = {
                 },
                 q3: {
                     q: 'Do I need special hardware?',
-                    a: 'No. Mavi works with any standard video file (MP4, WEBM) or IP Camera input. No expensive sensors required.',
+                    a: 'No. Mandor works with any standard video file (MP4, WEBM) or IP Camera input. No expensive sensors required.',
                 },
             },
             cta: {
                 title: 'Ready to optimize your workflow?',
-                desc: 'Join thousands of engineers who are saving time and improving efficiency with Mavi.',
+                desc: 'Join thousands of engineers who are saving time and improving efficiency with Mandor.',
                 button: 'Start Free Trial',
             },
             footer: {
@@ -1208,7 +1208,7 @@ export const translations = {
                 company: 'Company',
                 resources: 'Resources',
                 legal: 'Legal',
-                rights: '© 2025 Mavi Systems Inc. All rights reserved.',
+                rights: '© 2025 Mandor Systems Inc. All rights reserved.',
             },
         },
         sensei: {
@@ -1223,7 +1223,7 @@ export const translations = {
             onlineStatus: 'Online & Ready to Help',
             errorTechnical: 'Sorry, there is a technical issue. Make sure the API Key is correct and your internet connection is stable.',
         },
-        maviClass: {
+        mandorClass: {
             title: 'MAVi Class',
             subtitle: 'Learn MAVi from beginner to expert',
             progress: 'Progress',
@@ -1625,7 +1625,7 @@ export const translations = {
                 autoArrow: 'Automatically creates arrow connection',
                 keyboardShortcuts: 'Keyboard Shortcuts',
                 saveLoadHeading: 'Save/Load Features',
-                saveDesc: 'Download VSM as .mavi-vsm file',
+                saveDesc: 'Download VSM as .mandor-vsm file',
                 loadDesc: 'Load VSM from file',
                 mergeReplace: 'Choose mode: Replace (clear all) or Merge (combine)',
                 advancedHeading: 'Advanced TPS Features',
@@ -1994,8 +1994,8 @@ export const translations = {
             analyzingVideo: 'Analyzing Video...',
             uploadingToAI: 'Uploading to AI...',
             analyzeFullVideo: 'Analyze Full Video',
-            hideMaviChat: 'Hide Mavi Chat',
-            openMaviChat: 'Open Mavi Chat',
+            hideMandorChat: 'Hide Mandor Chat',
+            openMandorChat: 'Open Mandor Chat',
             noVideoLoaded: 'No video loaded',
             uploadVideo: 'Upload Video',
         },
@@ -2249,7 +2249,7 @@ export const translations = {
                 '10. Keyboard shortcut Space to play/pause, S to start measurement'
             ],
         },
-        maviClassData: {
+        mandorClassData: {
             glossary: {
                 therblig: { term: 'Therblig', def: 'Basic unit of motion in motion study, consisting of 18 motion elements.' },
                 cycleTime: { term: 'Cycle Time', def: 'Time required to complete one cycle of operation.' },
@@ -3305,7 +3305,7 @@ export const translations = {
     id: {
         header: {
             mainMenu: 'Menu Utama',
-            maviClass: 'Kelas MAVi',
+            mandorClass: 'Kelas MAVi',
             studioModel: 'Studio Model',
             teachableMachine: 'Teachable Machine Studio',
             swcs: 'Lembar Kombinasi Kerja Standar (Dhyo-hyo-ka)',
@@ -3353,7 +3353,7 @@ export const translations = {
             initializing: 'Menginisialisasi keamanan...',
             trialActive: 'Trial Aktif: sisa {{time}}',
             productActivationTitle: 'Aktivasi Produk',
-            activationSubtitle: 'Masukkan license key MAVI Anda untuk akses seumur hidup',
+            activationSubtitle: 'Masukkan license key MANDOR Anda untuk akses seumur hidup',
             licenseKeyLabel: 'License Key',
             verifying: 'Memverifikasi...',
             activateNow: 'Aktifkan Sekarang',
@@ -4087,7 +4087,7 @@ export const translations = {
                 autoArrow: 'Otomatis membuat koneksi panah',
                 keyboardShortcuts: 'Pintasan Keyboard',
                 saveLoadHeading: 'Fitur Simpan/Muat',
-                saveDesc: 'Unduh VSM sebagai file .mavi-vsm',
+                saveDesc: 'Unduh VSM sebagai file .mandor-vsm',
                 loadDesc: 'Muat VSM dari file',
                 mergeReplace: 'Pilih mode: Ganti (hapus semua) atau Gabung (kombinasikan)',
                 advancedHeading: 'Fitur Lanjutan TPS',
@@ -4430,8 +4430,8 @@ export const translations = {
             analyzingVideo: 'Menganalisis Video...',
             uploadingToAI: 'Mengunggah ke AI...',
             analyzeFullVideo: 'Analisis Video Penuh',
-            hideMaviChat: 'Sembunyikan Chat Mavi',
-            openMaviChat: 'Buka Chat Mavi',
+            hideMandorChat: 'Sembunyikan Chat Mandor',
+            openMandorChat: 'Buka Chat Mandor',
             noVideoLoaded: 'Tidak ada video dimuat',
             uploadVideo: 'Unggah Video',
         },
@@ -4750,7 +4750,7 @@ export const translations = {
             initializing: 'セキュリティを初期化中...',
             trialActive: 'トライアル有効: 残り {{time}}',
             productActivationTitle: '製品アクティベーション',
-            activationSubtitle: 'MAVIライセンスキーを入力して無期限アクセスを有効化してください',
+            activationSubtitle: 'MANDORライセンスキーを入力して無期限アクセスを有効化してください',
             licenseKeyLabel: 'ライセンスキー',
             verifying: '検証中...',
             activateNow: '今すぐ有効化',
@@ -4803,7 +4803,7 @@ export const translations = {
         },
         header: {
             mainMenu: 'メインメニュー',
-            maviClass: 'MAViクラス',
+            mandorClass: 'MAViクラス',
             studioModel: 'スタジオモデル',
             teachableMachine: 'Teachable Machine Studio',
             swcs: '標準作業組合せ票 (Dhyo-hyo-ka)',
@@ -4978,7 +4978,7 @@ export const translations = {
                 step5: 'ノードをクリックして手作業/機械時間を編集。',
             },
             aiChat: {
-                title: 'Maviリーン・アシスタント',
+                title: 'Mandorリーン・アシスタント',
                 subtitle: 'トヨタ生産方式 (TPS) エキスパート',
                 placeholder: 'レイアウト最適化について質問...',
                 systemPrompt: 'あなたはトヨタ生産方式（TPS）のエキスパートです。ユーザーのスパゲッティ図の最適化を支援してください。歩行の削減、オペレーターのバランス、セルレイアウトについてアドバイスを提供してください。',
@@ -5127,7 +5127,7 @@ export const translations = {
                 autoArrow: '自動的に矢印接続が作成されます',
                 keyboardShortcuts: 'キーボードショートカット',
                 saveLoadHeading: '保存・読み込み機能',
-                saveDesc: 'VSMを.mavi-vsmファイルとして保存',
+                saveDesc: 'VSMを.mandor-vsmファイルとして保存',
                 loadDesc: 'ファイルからVSMを読み込み',
                 mergeReplace: 'モード選択：置換（すべてクリア）または統合（既存に追加）',
                 advancedHeading: '高度なTPS機能',
@@ -5437,7 +5437,7 @@ export const translations = {
             solutions: {
                 title: 'なぜMAViを選ぶのか？',
                 oldWay: '従来の方法',
-                maviWay: 'MAViソリューション',
+                mandorWay: 'MAViソリューション',
                 old: {
                     stopwatch: {
                         title: '手動ストップウォッチ',
@@ -5452,7 +5452,7 @@ export const translations = {
                         desc: '同じタスクでも、エンジニアによって結果が異なります。',
                     },
                 },
-                mavi: {
+                mandor: {
                     video: {
                         title: 'AIビデオ分析',
                         desc: 'ビデオ映像から自動的に抽出されたフレーム単位の正確なタイミング。',
@@ -5538,7 +5538,7 @@ export const translations = {
                 company: '会社',
                 resources: 'リソース',
                 legal: '法的情報',
-                rights: '© 2025 Mavi Systems Inc. 全著作権所有。',
+                rights: '© 2025 Mandor Systems Inc. 全著作権所有。',
             },
         },
         sensei: {
@@ -6120,7 +6120,7 @@ export const translations = {
                 },
             },
         },
-        maviClass: {
+        mandorClass: {
             title: 'MAViクラス',
             subtitle: '初心者からエキスパートまでMAViを学ぶ',
             progress: '進捗',
@@ -6499,8 +6499,8 @@ export const translations = {
             analyzingVideo: 'ビデオ分析中...',
             uploadingToAI: 'AIへアップロード中...',
             analyzeFullVideo: 'ビデオ全編を分析',
-            hideMaviChat: 'Maviチャットを隠す',
-            openMaviChat: 'Maviチャットを開く',
+            hideMandorChat: 'Mandorチャットを隠す',
+            openMandorChat: 'Mandorチャットを開く',
             noVideoLoaded: 'ビデオが読み込まれていません',
             uploadVideo: 'ビデオをアップロード',
         },
@@ -6674,7 +6674,7 @@ export const translations = {
                 '10. 再生/一時停止にはスペースキー、測定開始にはSキーを使用します'
             ],
         },
-        maviClassData: {
+        mandorClassData: {
             glossary: {
                 therblig: { term: 'サーブリッグ', def: '動作研究における基本動作単位（18種類）。' },
                 cycleTime: { term: 'サイクルタイム', def: '1サイクルの作業を完了するのに要する時間。' },
@@ -7692,7 +7692,7 @@ export const translations = {
                 autoArrow: '自動的に矢印接続が作成されます',
                 keyboardShortcuts: 'キーボードショートカット',
                 saveLoadHeading: '保存/読み込み機能',
-                saveDesc: 'VSMを.mavi-vsmファイルとしてダウンロードします',
+                saveDesc: 'VSMを.mandor-vsmファイルとしてダウンロードします',
                 loadDesc: 'ファイルからVSMを読み込みます',
                 mergeReplace: 'モード選択: 置換 (すべてクリア) または マージ (組み合わせ)',
                 advancedHeading: '高度なTPS機能',
@@ -8047,9 +8047,9 @@ export const translations = {
                 ctaTrial: '30分トライアル開始',
             },
             solutions: {
-                title: 'Maviを選ぶ理由',
+                title: 'Mandorを選ぶ理由',
                 oldWay: '従来の方法',
-                maviWay: 'Maviソリューション',
+                mandorWay: 'Mandorソリューション',
                 old: {
                     stopwatch: {
                         title: '手動ストップウォッチ',
@@ -8064,7 +8064,7 @@ export const translations = {
                         desc: '同じタスクでも、エンジニアによって結果が異なります。',
                     },
                 },
-                mavi: {
+                mandor: {
                     video: {
                         title: 'AIビデオ分析',
                         desc: 'ビデオ録画から自動的に非常に正確な時間を取得します。',
@@ -8095,7 +8095,7 @@ export const translations = {
                 },
             },
             how: {
-                title: 'Maviの仕組み',
+                title: 'Mandorの仕組み',
                 capture: {
                     title: '録画',
                     desc: '生産ラインを録画するか、既存のビデオファイルをプラットフォームに直接アップロードします。',
@@ -8121,14 +8121,14 @@ export const translations = {
                 },
                 lc: {
                     title: 'リーンコンサルタント',
-                    desc: 'クライアントにより早く価値を提供します。Maviを使用して、データに基づく推奨事項と印象的な「改善前/改善後」の視覚的証拠を提供します。',
+                    desc: 'クライアントにより早く価値を提供します。Mandorを使用して、データに基づく推奨事項と印象的な「改善前/改善後」の視覚的証拠を提供します。',
                 },
             },
             faq: {
                 title: 'よくある質問',
                 q1: {
                     q: 'ビデオデータは安全ですか？',
-                    a: 'はい。Maviはエンタープライズグレードの暗号化を使用しています。Proプランでは、データはクラウドに安全に保存されます。Starterプランでは、データはローカルデバイスから出ることはありません。',
+                    a: 'はい。Mandorはエンタープライズグレードの暗号化を使用しています。Proプランでは、データはクラウドに安全に保存されます。Starterプランでは、データはローカルデバイスから出ることはありません。',
                 },
                 q2: {
                     q: 'レポートをExcelにエクスポートできますか？',
@@ -8136,12 +8136,12 @@ export const translations = {
                 },
                 q3: {
                     q: '特別なハードウェアが必要ですか？',
-                    a: 'いいえ。Maviは標準的なビデオファイル（MP4、WEBM）またはIPカメラインプットで動作します。高価なセンサーは必要ありません。',
+                    a: 'いいえ。Mandorは標準的なビデオファイル（MP4、WEBM）またはIPカメラインプットで動作します。高価なセンサーは必要ありません。',
                 },
             },
             cta: {
                 title: 'ワークフローを最適化する準備はできましたか？',
-                desc: 'Maviで時間を節約し、効率を向上させている何千ものエンジニアに参加しましょう。',
+                desc: 'Mandorで時間を節約し、効率を向上させている何千ものエンジニアに参加しましょう。',
                 button: '無料トライアルを開始',
             },
             footer: {
@@ -8149,7 +8149,7 @@ export const translations = {
                 company: '会社',
                 resources: 'リソース',
                 legal: '法的情報',
-                rights: '© 2025 Mavi Systems Inc. All rights reserved.',
+                rights: '© 2025 Mandor Systems Inc. All rights reserved.',
             },
             request: {
                 title: 'ライセンスキーのリクエスト',

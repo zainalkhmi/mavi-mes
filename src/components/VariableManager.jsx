@@ -186,8 +186,8 @@ const VariableManager = () => {
     // Load from DB/local store on mount & listen to real-time events
     useEffect(() => {
         loadAllVars();
-        window.addEventListener('mavi_variables_updated', loadAllVars);
-        return () => window.removeEventListener('mavi_variables_updated', loadAllVars);
+        window.addEventListener('mandor_variables_updated', loadAllVars);
+        return () => window.removeEventListener('mandor_variables_updated', loadAllVars);
     }, []);
 
     // Filter and Sort

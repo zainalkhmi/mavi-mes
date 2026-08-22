@@ -16,7 +16,7 @@ import { getChatCompletion } from '../utils/aiService';
 // PRESETS & SIMULATOR LOGIC
 // ==========================================
 const SCL_CYLINDER_PRESET = `// ==========================================
-// MAVI MES PLC PROGRAM - HYDRAULIC CYLINDER
+// MANDOR MES PLC PROGRAM - HYDRAULIC CYLINDER
 // ==========================================
 
 VAR_INPUT
@@ -78,7 +78,7 @@ ELSE
 END_IF;`;
 
 const SCL_DOL_MOTOR_PRESET = `// ==========================================
-// MAVI MES PLC PROGRAM - DIRECT ONLINE MOTOR
+// MANDOR MES PLC PROGRAM - DIRECT ONLINE MOTOR
 // ==========================================
 
 VAR_INPUT
@@ -118,7 +118,7 @@ async function getTauriApi() {
 
 // Default System Prompt
 const SYSTEM_PROMPT = `
-Anda adalah Mavi PLC & Industrial Automation Expert (Senior Automation Engineer Agent).
+Anda adalah Mandor PLC & Industrial Automation Expert (Senior Automation Engineer Agent).
 Tugas Anda adalah membantu pengguna merancang, memprogram, menguji, mensimulasikan, dan melakukan troubleshooting program PLC (Siemens TIA Portal, Mitsubishi GX Works, Omron Sysmac, Codesys, Allen-Bradley Logix) serta protokol jaringan industri (Modbus RTU/TCP, OPC UA, MQTT, Ethernet/IP, Profinet).
 
 Gunakan keahlian Anda untuk:
@@ -139,7 +139,7 @@ export default function PlcHelpAssistant() {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: 'Halo! Saya **Mavi Industrial Automation AI Agent**. Saya siap membantu Anda dalam analisis kode SCL, simulasi PLC, monitoring Modbus, diagnosa root cause lapangan, hingga wiring safety relay. Silakan pilih tab di samping untuk mengakses alat bantu interaktif!'
+      content: 'Halo! Saya **Mandor Industrial Automation AI Agent**. Saya siap membantu Anda dalam analisis kode SCL, simulasi PLC, monitoring Modbus, diagnosa root cause lapangan, hingga wiring safety relay. Silakan pilih tab di samping untuk mengakses alat bantu interaktif!'
     }
   ]);
   const [input, setInput] = useState('');
@@ -180,7 +180,7 @@ export default function PlcHelpAssistant() {
   const [plcPort, setPlcPort] = useState('502');
   const [plcUnitId, setPlcUnitId] = useState('1');
   const [mqttBroker, setMqttBroker] = useState('wss://broker.emqx.io:8084/mqtt');
-  const [mqttTopic, setMqttTopic] = useState('mavi/factory/telemetry');
+  const [mqttTopic, setMqttTopic] = useState('mandor/factory/telemetry');
   const [iotStatus, setIotStatus] = useState('disconnected');
   const [modbusData, setModbusData] = useState([
     { register: 40001, name: 'Pump_Motor_Speed', value: 0, type: 'INT' },
@@ -199,7 +199,7 @@ export default function PlcHelpAssistant() {
 
   // Load uploaded files from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('mavi_plc_knowledge_files');
+    const saved = localStorage.getItem('mandor_plc_knowledge_files');
     if (saved) {
       try {
         setKnowledgeFiles(JSON.parse(saved));
@@ -229,7 +229,7 @@ export default function PlcHelpAssistant() {
       const cleanupModbus = async () => {
         const api = await getTauriApi();
         if (api.invoke) {
-          try { await api.invoke('modbus_disconnect', { id: 'mavi_studio_plc' }); } catch (e) {}
+          try { await api.invoke('modbus_disconnect', { id: 'mandor_studio_plc' }); } catch (e) {}
         }
       };
       cleanupModbus();
@@ -509,7 +509,7 @@ export default function PlcHelpAssistant() {
         const api = await getTauriApi();
         if (api.invoke) {
           try {
-            await api.invoke('modbus_disconnect', { id: 'mavi_studio_plc' });
+            await api.invoke('modbus_disconnect', { id: 'mandor_studio_plc' });
           } catch (e) {}
         }
       } else if (connectionType === 'mqtt') {
@@ -534,7 +534,7 @@ export default function PlcHelpAssistant() {
       }
       try {
         await api.invoke('modbus_connect', {
-          id: 'mavi_studio_plc',
+          id: 'mandor_studio_plc',
           ip: plcIp,
           port: parseInt(plcPort) || 502,
           unitId: parseInt(plcUnitId) || 1
@@ -612,7 +612,7 @@ export default function PlcHelpAssistant() {
         try {
           // Read holding registers 0-4
           const data = await api.invoke('modbus_read', {
-            id: 'mavi_studio_plc',
+            id: 'mandor_studio_plc',
             regType: 'HOLDING_REGISTER',
             address: 0,
             quantity: 5
@@ -683,7 +683,7 @@ export default function PlcHelpAssistant() {
       const newFiles = [...knowledgeFiles, newFile];
       setKnowledgeFiles(newFiles);
       try {
-        localStorage.setItem('mavi_plc_knowledge_files', JSON.stringify(newFiles));
+        localStorage.setItem('mandor_plc_knowledge_files', JSON.stringify(newFiles));
       } catch(err) {}
     };
     reader.readAsText(file);
@@ -693,7 +693,7 @@ export default function PlcHelpAssistant() {
   const handleDeleteFile = (id) => {
     const newFiles = knowledgeFiles.filter(f => f.id !== id);
     setKnowledgeFiles(newFiles);
-    localStorage.setItem('mavi_plc_knowledge_files', JSON.stringify(newFiles));
+    localStorage.setItem('mandor_plc_knowledge_files', JSON.stringify(newFiles));
   };
 
   const loadCodeToEditor = (code) => {
@@ -788,7 +788,7 @@ export default function PlcHelpAssistant() {
               <Cpu size={24} color="#3b82f6" />
             </div>
             <div>
-              <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>MAVI Industrial Automation Studio</h2>
+              <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>MANDOR Industrial Automation Studio</h2>
               <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>AI Automation Engineer Companion</span>
             </div>
           </div>

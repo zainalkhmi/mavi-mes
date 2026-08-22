@@ -152,7 +152,7 @@ const BuildManager = () => {
           </p>
 
           <div style={{ textAlign: 'left', backgroundColor: '#0f172a', padding: '16px', borderRadius: '8px', marginBottom: '24px', fontFamily: 'monospace', fontSize: '0.85rem' }}>
-            <span style={{ color: '#38bdf8' }}># Buka Terminal baru di folder proyek mavi-core lalu ketik:</span>
+            <span style={{ color: '#38bdf8' }}># Buka Terminal baru di folder proyek mandor-core lalu ketik:</span>
             <div style={{ color: '#f8fafc', marginTop: '8px', userSelect: 'all' }}>node build-bridge.js</div>
           </div>
 
@@ -205,7 +205,7 @@ const BuildManager = () => {
               <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '12px', fontSize: '0.8rem', color: '#475569', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span>App Identifier:</span>
-                  <strong style={{ fontFamily: 'monospace' }}>com.mavi.mes</strong>
+                  <strong style={{ fontFamily: 'monospace' }}>com.mandor.mes</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span>App Version:</span>

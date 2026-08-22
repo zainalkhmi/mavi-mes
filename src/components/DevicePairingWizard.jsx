@@ -17,7 +17,7 @@ const PROTOCOL_META = {
       'Pastikan Zigbee Gateway (Zigbee2MQTT / Coordinator) aktif dan terhubung.',
       'Tekan dan tahan tombol reset/pair pada perangkat selama 5-10 detik hingga LED berkedip.',
       'Lepaskan tombol — perangkat akan masuk mode pairing.',
-      'Mavi akan mendeteksi perangkat secara otomatis dalam 30 detik.',
+      'Mandor akan mendeteksi perangkat secara otomatis dalam 30 detik.',
     ],
     tip: 'Pastikan perangkat dalam jarak 10m dari coordinator/router Zigbee.'
   },
@@ -42,7 +42,7 @@ const PROTOCOL_META = {
     border: '#93c5fd',
     icon: Bluetooth,
     instructions: [
-      'Pastikan Bluetooth aktif di BLE Gateway yang terhubung ke Mavi.',
+      'Pastikan Bluetooth aktif di BLE Gateway yang terhubung ke Mandor.',
       'Nyalakan atau reset perangkat BLE ke mode advertising/pairing.',
       'LED biru berkedip cepat menandakan perangkat siap di-pair.',
       'Jaga jarak maksimum 10 meter dari BLE Gateway.',
@@ -59,7 +59,7 @@ const PROTOCOL_META = {
       'Pastikan perangkat sudah terhubung ke jaringan WiFi 2.4GHz yang sama.',
       'Untuk Tasmota: akses hotspot Tasmota-XXXX lalu masukkan SSID WiFi Anda.',
       'Untuk Tuya/SmartLife: gunakan aplikasi untuk initial pairing dulu.',
-      'Setelah terhubung ke WiFi, Mavi akan menemukannya via LAN scan.',
+      'Setelah terhubung ke WiFi, Mandor akan menemukannya via LAN scan.',
     ],
     tip: 'WiFi devices seperti Sonoff Tasmota, Gosund, dan Shelly tidak butuh hub khusus — langsung via LAN/MQTT.'
   },
@@ -73,7 +73,7 @@ const PROTOCOL_META = {
       'Nyalakan mesin mobil atau posisikan kunci kontak pada posisi ON.',
       'Colokkan OBD2 ELM327 WiFi adapter ke port OBDII mobil.',
       'Hubungkan laptop/device ini ke hotspot WiFi adapter (biasanya bernama OBDII, WiFi_OBDII, dll).',
-      'Mavi akan mendeteksi adapter dan membaca ECU secara real-time via TCP Port 35000.',
+      'Mandor akan mendeteksi adapter dan membaca ECU secara real-time via TCP Port 35000.',
     ],
     tip: 'OBD2 WiFi menggunakan koneksi TCP/IP langsung (WebSocket/Proxy) untuk membaca ECU mobil secara real-time.'
   }
@@ -272,7 +272,7 @@ function StepPairing({ device, pairing, paired }) {
       {pairing && !paired && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
           <Loader2 size={48} color="#3b82f6" style={{ animation: 'spin 1s linear infinite' }} />
-          <div style={{ fontSize: '0.85rem', color: '#64748b' }}>Menghubungkan perangkat ke Mavi...</div>
+          <div style={{ fontSize: '0.85rem', color: '#64748b' }}>Menghubungkan perangkat ke Mandor...</div>
           <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </div>
       )}

@@ -87,8 +87,8 @@ const AdminSettings = () => {
   // Load configuration on mount
   useEffect(() => {
     try {
-      const cats = localStorage.getItem('mavi_hidden_categories');
-      const wids = localStorage.getItem('mavi_hidden_widgets');
+      const cats = localStorage.getItem('mandor_hidden_categories');
+      const wids = localStorage.getItem('mandor_hidden_widgets');
       if (cats) setHiddenCategories(JSON.parse(cats));
       if (wids) setHiddenWidgets(JSON.parse(wids));
     } catch (e) {
@@ -100,8 +100,8 @@ const AdminSettings = () => {
   const handleSave = () => {
     setIsSaving(true);
     try {
-      localStorage.setItem('mavi_hidden_categories', JSON.stringify(hiddenCategories));
-      localStorage.setItem('mavi_hidden_widgets', JSON.stringify(hiddenWidgets));
+      localStorage.setItem('mandor_hidden_categories', JSON.stringify(hiddenCategories));
+      localStorage.setItem('mandor_hidden_widgets', JSON.stringify(hiddenWidgets));
       toast.success('Widget visibility settings saved successfully!');
     } catch (e) {
       toast.error('Failed to save settings: ' + e.message);

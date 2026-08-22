@@ -5,7 +5,7 @@ export const useAppBuilderState = () => {
     const [appName, setAppName] = useState(DEFAULT_FRONTLINE_APP_NAME);
     const [hiddenCategories, setHiddenCategories] = useState(() => {
         try {
-            const val = localStorage.getItem('mavi_hidden_categories');
+            const val = localStorage.getItem('mandor_hidden_categories');
             return val ? JSON.parse(val) : [];
         } catch {
             return [];
@@ -13,7 +13,7 @@ export const useAppBuilderState = () => {
     });
     const [hiddenWidgets, setHiddenWidgets] = useState(() => {
         try {
-            const val = localStorage.getItem('mavi_hidden_widgets');
+            const val = localStorage.getItem('mandor_hidden_widgets');
             return val ? JSON.parse(val) : [];
         } catch {
             return [];
@@ -50,11 +50,11 @@ export const useAppBuilderState = () => {
     const [clipboard, setClipboard] = useState(null);
     const [appBackgroundColor, setAppBackgroundColor] = useState('#ffffff');
     const [appThemeMode, setAppThemeMode] = useState('LIGHT');
-    const [builderTheme, setBuilderTheme] = useState(localStorage.getItem('mavi-builder-theme') || 'LIGHT');
+    const [builderTheme, setBuilderTheme] = useState(localStorage.getItem('mandor-builder-theme') || 'LIGHT');
     const [refreshKey, setRefreshKey] = useState(0);
 
     useEffect(() => {
-        localStorage.setItem('mavi-builder-theme', builderTheme);
+        localStorage.setItem('mandor-builder-theme', builderTheme);
     }, [builderTheme]);
 
     const [zoomScale, setZoomScale] = useState(1);

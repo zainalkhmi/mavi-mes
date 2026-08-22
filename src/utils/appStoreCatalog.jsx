@@ -1506,7 +1506,7 @@ export const rawTemplates = [
         name: 'MES Lot Number Generator',
         category: 'Quality',
         description: 'Penataan & pembuatan nomor Lot produksi standar manufaktur dengan penomoran sequence otomatis per Part & Bulan.',
-        longDescription: 'Aplikasi MES Lot Generator siap pakai untuk penomoran lot produksi manufaktur. Menyimpan master part, counter running number per bulan, dan history pembuatan lot secara persisten menggunakan Database Tables MAVI MES. Dilengkapi format tahun/bulan, sequence ganjil/genap/normal, copy lot, export CSV, serta preview & pencetakan label barcode thermal 50x30mm.',
+        longDescription: 'Aplikasi MES Lot Generator siap pakai untuk penomoran lot produksi manufaktur. Menyimpan master part, counter running number per bulan, dan history pembuatan lot secara persisten menggunakan Database Tables MANDOR MES. Dilengkapi format tahun/bulan, sequence ganjil/genap/normal, copy lot, export CSV, serta preview & pencetakan label barcode thermal 50x30mm.',
         icon: <Tag size={28} color="#2563eb" />,
         bg: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
         accent: '#2563eb',

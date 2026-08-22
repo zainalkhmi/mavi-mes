@@ -1,6 +1,6 @@
 /**
  * kanbanInventorySystemTemplate.js
- * Generates an End-to-End Kanban & Inventory System template for MAVI-MES
+ * Generates an End-to-End Kanban & Inventory System template for MANDOR-MES
  */
 
 export function createKanbanInventorySystemTemplate() {

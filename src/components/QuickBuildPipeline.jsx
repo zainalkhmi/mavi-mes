@@ -36,7 +36,7 @@ import {
 export default function QuickBuildPipeline({ appVariables = [], cameraConfigs = [] }) {
     // ═══ Workspace State ═══════════════════════════════════════
     const [workspace, setWorkspace] = useState(() => {
-        const saved = localStorage.getItem('mavi_quickbuild_workspace');
+        const saved = localStorage.getItem('mandor_quickbuild_workspace');
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
@@ -163,7 +163,7 @@ export default function QuickBuildPipeline({ appVariables = [], cameraConfigs = 
 
     // ═══ CAD Drawings ══════════════════════════════════════════
     const [drawingsList] = useState(() => {
-        const saved = localStorage.getItem('mavi_drawings');
+        const saved = localStorage.getItem('mandor_drawings');
         if (saved) { try { const p = JSON.parse(saved); if (Array.isArray(p) && p.length) return p; } catch (e) { /* */ } }
         return DEFAULT_DRAWINGS;
     });
@@ -322,7 +322,7 @@ export default function QuickBuildPipeline({ appVariables = [], cameraConfigs = 
     // ═══ Auto-save workspace ═══════════════════════════════════
     useEffect(() => {
         const timer = setTimeout(() => {
-            localStorage.setItem('mavi_quickbuild_workspace', JSON.stringify({
+            localStorage.setItem('mandor_quickbuild_workspace', JSON.stringify({
                 ...workspace,
                 activeJobIndex,
             }));
@@ -535,7 +535,7 @@ export default function QuickBuildPipeline({ appVariables = [], cameraConfigs = 
             onConfirm: (name) => {
                 if (!name?.trim()) return;
                 setWorkspace(prev => ({ ...prev, name: name.trim(), updatedAt: new Date().toISOString() }));
-                localStorage.setItem('mavi_quickbuild_workspace', JSON.stringify({ ...workspace, name: name.trim() }));
+                localStorage.setItem('mandor_quickbuild_workspace', JSON.stringify({ ...workspace, name: name.trim() }));
                 toast.success(`Workspace "${name.trim()}" saved!`);
             },
         });

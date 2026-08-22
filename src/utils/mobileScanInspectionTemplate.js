@@ -1,6 +1,6 @@
 /**
  * mobileScanInspectionTemplate.js
- * Generates a Mobile-optimized Scan & Vision Camera template for MAVI-MES
+ * Generates a Mobile-optimized Scan & Vision Camera template for MANDOR-MES
  */
 
 export function createMobileScanInspectionTemplate() {

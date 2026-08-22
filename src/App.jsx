@@ -36,10 +36,10 @@ export default function App() {
         const { loadPlcSettingsFromSupabase } = await import('./utils/supabaseFrontlineDB');
         const { controllers, tags } = await loadPlcSettingsFromSupabase();
         if (controllers) {
-          window.mavi_plc_controllers = controllers;
+          window.mandor_plc_controllers = controllers;
         }
         if (tags) {
-          window.mavi_plc_tags = tags;
+          window.mandor_plc_tags = tags;
         }
       } catch (err) {
         console.error('Failed to load global PLC settings from Supabase:', err);

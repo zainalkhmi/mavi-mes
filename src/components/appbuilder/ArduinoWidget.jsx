@@ -22,7 +22,7 @@ export const getFirmwareCode = (connectionType, boardType, baudRate, mqttUrl, wi
     
     if (conn === 'MQTT') {
         return `/*
-  Mavi Integration Sketch - MQTT Protocol
+  Mandor Integration Sketch - MQTT Protocol
   Device: ${board}
   MQTT Broker: ${mqttHost}
 */
@@ -99,7 +99,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
 void reconnect() {
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
-    if (client.connect("MaviArduinoClient")) {
+    if (client.connect("MandorArduinoClient")) {
       Serial.println("connected");
       client.subscribe("arduino/write/#");
     } else {
@@ -130,7 +130,7 @@ void loop() {
 
     if (conn === 'WIFI') {
         return `/*
-  Mavi Integration Sketch - WiFi HTTP API Server
+  Mandor Integration Sketch - WiFi HTTP API Server
   Device: ${board}
   Expected IP Address: ${wifiIp || '192.168.1.100'}
 */
@@ -196,7 +196,7 @@ void loop() {
     }
 
     return `/*
-  Mavi Integration Sketch - USB Serial Protocol
+  Mandor Integration Sketch - USB Serial Protocol
   Device: ${board}
   Baud Rate: ${baud}
 */
@@ -251,7 +251,7 @@ export const ArduinoWidget = ({ comp, viewMode, onWidgetInteraction, setPreviewF
     const [lastCardId, setLastCardId] = React.useState('');
     const [rfidStatus, setRfidStatus] = React.useState('Awaiting Card Scan...');
     const [lcdText1, setLcdText1] = React.useState(comp.props.line1 || 'Hello World');
-    const [lcdText2, setLcdText2] = React.useState(comp.props.line2 || 'Mavi MES System');
+    const [lcdText2, setLcdText2] = React.useState(comp.props.line2 || 'Mandor MES System');
     const [joyX, setJoyX] = React.useState(512);
     const [joyY, setJoyY] = React.useState(512);
     const [joyZ, setJoyZ] = React.useState(1);

@@ -1,6 +1,6 @@
 /**
  * incomingInspectionTemplate.js
- * Generates a professional Incoming Inspection application for MAVI-MES
+ * Generates a professional Incoming Inspection application for MANDOR-MES
  * Modeled after Tulip's Final Inspection UI with:
  *  - Left sidebar: Inspection Procedure list with thumbnails
  *  - Center: Inspection Guide image + spec limits + measurement input

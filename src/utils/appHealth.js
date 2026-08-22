@@ -1,5 +1,5 @@
 /**
- * Mavi App Health & Self-Healing Utility
+ * Mandor App Health & Self-Healing Utility
  * Scans the app state for inconsistencies and proposes fixes.
  */
 

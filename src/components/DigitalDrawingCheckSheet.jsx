@@ -202,7 +202,7 @@ const CASTING_HOUSING_SVG = (
       <line x1="145" y1="25" x2="145" y2="95" stroke="#cbd5e1" />
 
       <text x="10" y="18" fontSize="10" fontWeight="bold" fill="#0f172a">PART: ENGINE CASTING HOUSING</text>
-      <text x="10" y="40" fontSize="8" fill="#64748b">DWG NO: MAVI-QA-2026-08</text>
+      <text x="10" y="40" fontSize="8" fill="#64748b">DWG NO: MANDOR-QA-2026-08</text>
       <text x="155" y="40" fontSize="8" fill="#64748b">REV: 2.1 (RELEASED)</text>
       <text x="10" y="64" fontSize="8" fill="#64748b">MATERIAL: A380 DIE CAST AL</text>
       <text x="155" y="64" fontSize="8" fill="#64748b">TOL: ISO 2768-mK</text>
@@ -566,8 +566,8 @@ const DigitalDrawingCheckSheet = () => {
       }).catch(err => console.warn('WA alert error:', err));
 
       // 3. Save locally in QA logs
-      const localLogs = JSON.parse(localStorage.getItem('mavi_qa_checksheets') || '[]');
-      localStorage.setItem('mavi_qa_checksheets', JSON.stringify([inspectionPayload, ...localLogs]));
+      const localLogs = JSON.parse(localStorage.getItem('mandor_qa_checksheets') || '[]');
+      localStorage.setItem('mandor_qa_checksheets', JSON.stringify([inspectionPayload, ...localLogs]));
 
       toast.success(`Check Sheet berhasil disubmit! Status: ${stats.overallStatus}`);
     } catch (e) {
@@ -624,7 +624,7 @@ const DigitalDrawingCheckSheet = () => {
               M
             </div>
             <span style={{ fontWeight: 800, fontSize: '1.05rem', color: '#ffffff', letterSpacing: '-0.3px' }}>
-              Mavi-Core<span style={{ color: '#22c55e' }}>®</span>
+              Mandor<span style={{ color: '#22c55e' }}>®</span>
             </span>
           </div>
 
@@ -638,7 +638,7 @@ const DigitalDrawingCheckSheet = () => {
         {/* Center Title & Info */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#e2e8f0' }}>
-            QA Mavi-Core - Digital Check Sheet & Interactive Drawing Inspection
+            QA Mandor - Digital Check Sheet & Interactive Drawing Inspection
           </span>
           <span style={{ fontSize: '0.65rem', padding: '2px 8px', borderRadius: '10px', backgroundColor: stats.failed > 0 ? '#ef4444' : stats.passed === stats.total ? '#22c55e' : '#0284c7', color: 'white', fontWeight: 800 }}>
             {stats.overallStatus} ({stats.passed}/{stats.total})

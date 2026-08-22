@@ -1,6 +1,6 @@
 /**
  * projectManagement.js
- * Enhanced project management utilities for Mavi-MES
+ * Enhanced project management utilities for Mandor-MES
  * Features: Export, Import, Duplicate, Backup, Version History
  */
 

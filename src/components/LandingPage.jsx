@@ -82,7 +82,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
     }
   }, [initialTab]);
 
-  // Mavi Store States
+  // Mandor Store States
   const [storeSearchQuery, setStoreSearchQuery] = useState('');
   const [storeActiveCategory, setStoreActiveCategory] = useState('All');
   const [selectedTemplateModal, setSelectedTemplateModal] = useState(null);
@@ -90,7 +90,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
   const [storeActiveStepIndex, setStoreActiveStepIndex] = useState(0);
 
   // Pricing, FAQ, Modals & Demo Credentials States
-  const [selectedOverviewVideo, setSelectedOverviewVideo] = useState('mfg-solution'); // 'mfg-solution' | 'mavi-way' | 'mavi-ops' | 'overview' | 'checksheet' | 'wi'
+  const [selectedOverviewVideo, setSelectedOverviewVideo] = useState('mfg-solution'); // 'mfg-solution' | 'mandor-way' | 'mandor-ops' | 'overview' | 'checksheet' | 'wi'
   const [openFaqIndex, setOpenFaqIndex] = useState(0);
   const [copiedDemo, setCopiedDemo] = useState(false);
   const [isWalkthroughModalOpen, setIsWalkthroughModalOpen] = useState(false);
@@ -119,7 +119,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
   const [terminalFilter, setTerminalFilter] = useState('ALL');
   const [machineData, setMachineData] = useState({ temp: 42, speed: 1200, pressure: 6.2, vibration: 1.4, count: 1842 });
   const [terminalLogs, setTerminalLogs] = useState([
-    { type: 'MQTT', text: '[MQTT] Broker connected: tcp://broker.mavi-mes.local:1883' },
+    { type: 'MQTT', text: '[MQTT] Broker connected: tcp://broker.mandor-mes.local:1883' },
     { type: 'OPC-UA', text: '[OPC-UA] Subscribed to ns=2;s=Line1.PLC.SpindleSpeed (1200 RPM)' },
     { type: 'EDGE', text: '[EDGE] Station-01 Tablet session active: Operator Budi (Shift A)' },
     { type: 'VISION', text: '[VISION] Defect inspection result: PASS (Confidence: 99.4%)' },
@@ -204,13 +204,13 @@ const LandingPage = ({ initialTab = 'overview' }) => {
 
   const tabsList = [
     { key: 'overview', label: 'Overview', icon: <Sparkles size={15} /> },
-    { key: 'store', label: 'Mavi Store', icon: <ShoppingBag size={15} />, highlight: true },
+    { key: 'store', label: 'Mandor Store', icon: <ShoppingBag size={15} />, highlight: true },
     { key: 'builder', label: 'App Builder', icon: <Layout size={15} /> },
     { key: 'pricing', label: 'Pricing & Value', icon: <Flame size={15} /> },
     { key: 'faq', label: 'FAQ & Support', icon: <HelpCircle size={15} /> }
   ];
 
-  // Full Catalog of All Enterprise App Templates (Play Store style, matched 1:1 with Mavi Store)
+  // Full Catalog of All Enterprise App Templates (Play Store style, matched 1:1 with Mandor Store)
   const storeCategories = catalogCategories;
 
   const storeTemplates = catalogTemplates.map((t, idx) => {
@@ -398,7 +398,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent'
           }}>
-            MAVI-MES
+            MANDOR
           </span>
         </div>
 
@@ -628,10 +628,10 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                     <span style={{ color: '#e2e8f0', fontWeight: 800, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <Play size={14} fill="#38bdf8" color="#38bdf8" />
                       {selectedOverviewVideo === 'mfg-solution' && 'mfg solution.mp4'}
-                      {selectedOverviewVideo === 'mavi-way' && 'mavi way.mp4'}
-                      {selectedOverviewVideo === 'mavi-ops' && 'mavi-ops.mp4'}
-                      {selectedOverviewVideo === 'overview' && 'mavi-core overview 1.mp4'}
-                      {selectedOverviewVideo === 'checksheet' && 'mavi-core check sheet.mp4'}
+                      {selectedOverviewVideo === 'mandor-way' && 'mandor way.mp4'}
+                      {selectedOverviewVideo === 'mandor-ops' && 'mandor-ops.mp4'}
+                      {selectedOverviewVideo === 'overview' && 'mandor-core overview 1.mp4'}
+                      {selectedOverviewVideo === 'checksheet' && 'mandor-core check sheet.mp4'}
                       {selectedOverviewVideo === 'wi' && 'wi.mp4'}
                     </span>
                   </div>
@@ -661,11 +661,11 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                     </button>
 
                     <button
-                      onClick={() => setSelectedOverviewVideo('mavi-way')}
+                      onClick={() => setSelectedOverviewVideo('mandor-way')}
                       style={{
-                        background: selectedOverviewVideo === 'mavi-way' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'rgba(255, 255, 255, 0.06)',
-                        border: selectedOverviewVideo === 'mavi-way' ? '1px solid rgba(245, 158, 11, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
-                        color: selectedOverviewVideo === 'mavi-way' ? 'white' : '#94a3b8',
+                        background: selectedOverviewVideo === 'mandor-way' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'rgba(255, 255, 255, 0.06)',
+                        border: selectedOverviewVideo === 'mandor-way' ? '1px solid rgba(245, 158, 11, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
+                        color: selectedOverviewVideo === 'mandor-way' ? 'white' : '#94a3b8',
                         padding: '6px 14px',
                         borderRadius: '8px',
                         fontSize: '0.78rem',
@@ -675,19 +675,19 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                         alignItems: 'center',
                         gap: '6px',
                         transition: 'all 0.2s',
-                        boxShadow: selectedOverviewVideo === 'mavi-way' ? '0 4px 12px rgba(245, 158, 11, 0.3)' : 'none'
+                        boxShadow: selectedOverviewVideo === 'mandor-way' ? '0 4px 12px rgba(245, 158, 11, 0.3)' : 'none'
                       }}
                     >
-                      <Flame size={13} color={selectedOverviewVideo === 'mavi-way' ? '#fff' : '#94a3b8'} />
-                      Video 2: The MAVI Way
+                      <Flame size={13} color={selectedOverviewVideo === 'mandor-way' ? '#fff' : '#94a3b8'} />
+                      Video 2: The MANDOR Way
                     </button>
 
                     <button
-                      onClick={() => setSelectedOverviewVideo('mavi-ops')}
+                      onClick={() => setSelectedOverviewVideo('mandor-ops')}
                       style={{
-                        background: selectedOverviewVideo === 'mavi-ops' ? 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)' : 'rgba(255, 255, 255, 0.06)',
-                        border: selectedOverviewVideo === 'mavi-ops' ? '1px solid rgba(6, 182, 212, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
-                        color: selectedOverviewVideo === 'mavi-ops' ? 'white' : '#94a3b8',
+                        background: selectedOverviewVideo === 'mandor-ops' ? 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)' : 'rgba(255, 255, 255, 0.06)',
+                        border: selectedOverviewVideo === 'mandor-ops' ? '1px solid rgba(6, 182, 212, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
+                        color: selectedOverviewVideo === 'mandor-ops' ? 'white' : '#94a3b8',
                         padding: '6px 14px',
                         borderRadius: '8px',
                         fontSize: '0.78rem',
@@ -697,11 +697,11 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                         alignItems: 'center',
                         gap: '6px',
                         transition: 'all 0.2s',
-                        boxShadow: selectedOverviewVideo === 'mavi-ops' ? '0 4px 12px rgba(6, 182, 212, 0.3)' : 'none'
+                        boxShadow: selectedOverviewVideo === 'mandor-ops' ? '0 4px 12px rgba(6, 182, 212, 0.3)' : 'none'
                       }}
                     >
-                      <Activity size={13} color={selectedOverviewVideo === 'mavi-ops' ? '#fff' : '#94a3b8'} />
-                      Video 3: MAVI Ops
+                      <Activity size={13} color={selectedOverviewVideo === 'mandor-ops' ? '#fff' : '#94a3b8'} />
+                      Video 3: MANDOR Ops
                     </button>
 
                     <button
@@ -802,9 +802,9 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                     preload="metadata"
                     onEnded={() => {
                       setSelectedOverviewVideo(prev => {
-                        if (prev === 'mfg-solution') return 'mavi-way';
-                        if (prev === 'mavi-way') return 'mavi-ops';
-                        if (prev === 'mavi-ops') return 'overview';
+                        if (prev === 'mfg-solution') return 'mandor-way';
+                        if (prev === 'mandor-way') return 'mandor-ops';
+                        if (prev === 'mandor-ops') return 'overview';
                         if (prev === 'overview') return 'checksheet';
                         if (prev === 'checksheet') return 'wi';
                         return 'mfg-solution';
@@ -820,10 +820,10 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                     }}
                     src={
                       selectedOverviewVideo === 'mfg-solution' ? '/assets/mfg-solution.mp4' :
-                      selectedOverviewVideo === 'mavi-way' ? '/assets/mavi-way.mp4' :
-                      selectedOverviewVideo === 'mavi-ops' ? '/assets/mavi-ops.mp4' :
-                      selectedOverviewVideo === 'overview' ? '/assets/mavi-core-overview-1.mp4' :
-                      selectedOverviewVideo === 'checksheet' ? '/assets/mavi-core-check-sheet.mp4' :
+                      selectedOverviewVideo === 'mandor-way' ? '/assets/mandor-way.mp4' :
+                      selectedOverviewVideo === 'mandor-ops' ? '/assets/mandor-ops.mp4' :
+                      selectedOverviewVideo === 'overview' ? '/assets/mandor-core-overview-1.mp4' :
+                      selectedOverviewVideo === 'checksheet' ? '/assets/mandor-core-check-sheet.mp4' :
                       '/assets/wi.mp4'
                     }
                   >
@@ -846,14 +846,14 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                     {selectedOverviewVideo === 'mfg-solution' && (
                       <span><strong>Video 1 - MFG Solution:</strong> Solusi manufaktur modern end-to-end terintegrasi untuk meningkatkan efisiensi, produktivitas, dan kualitas lini pabrik.</span>
                     )}
-                    {selectedOverviewVideo === 'mavi-way' && (
-                      <span><strong>Video 2 - The MAVI Way:</strong> Filosofi manufaktur adaptif cerdas, integrasi frontline intelligence, dan transformasi digital menyeluruh.</span>
+                    {selectedOverviewVideo === 'mandor-way' && (
+                      <span><strong>Video 2 - The MANDOR Way:</strong> Filosofi manufaktur adaptif cerdas, integrasi frontline intelligence, dan transformasi digital menyeluruh.</span>
                     )}
-                    {selectedOverviewVideo === 'mavi-ops' && (
-                      <span><strong>Video 3 - MAVI Ops:</strong> Operasional lantai produksi real-time, koordinasi stasiun kerja, tracking live order, dan eksekusi frontline MES.</span>
+                    {selectedOverviewVideo === 'mandor-ops' && (
+                      <span><strong>Video 3 - MANDOR Ops:</strong> Operasional lantai produksi real-time, koordinasi stasiun kerja, tracking live order, dan eksekusi frontline MES.</span>
                     )}
                     {selectedOverviewVideo === 'overview' && (
-                      <span><strong>Video 4 - Platform Overview:</strong> Saksikan bagaimana MAVI menghubungkan aplikasi frontline, otomasi mesin PLC, dan OEE telemetry secara terpadu.</span>
+                      <span><strong>Video 4 - Platform Overview:</strong> Saksikan bagaimana MANDOR menghubungkan aplikasi frontline, otomasi mesin PLC, dan OEE telemetry secara terpadu.</span>
                     )}
                     {selectedOverviewVideo === 'checksheet' && (
                       <span><strong>Video 5 - Check Sheet:</strong> Demonstrasi pengisian <strong>Digital Check Sheet</strong> & inspeksi kualitas tanpa kertas di stasiun kerja operator.</span>
@@ -864,7 +864,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                   </div>
                   <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', fontSize: '0.8rem', color: '#cbd5e1', fontWeight: 700 }}>
                     <span style={{ color: '#818cf8' }}>✓ MFG Solution</span>
-                    <span style={{ color: '#fbbf24' }}>✓ The MAVI Way</span>
+                    <span style={{ color: '#fbbf24' }}>✓ The MANDOR Way</span>
                     <span style={{ color: '#22d3ee' }}>✓ Frontline MES Ops</span>
                     <span style={{ color: '#38bdf8' }}>✓ No-Code App Builder</span>
                     <span style={{ color: '#34d399' }}>✓ Paperless Inspection</span>
@@ -978,7 +978,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                     onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
                     onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; }}
                   >
-                    <ShoppingBag size={18} /> Jelajahi Mavi Store ({storeTemplates.length}+ Apps)
+                    <ShoppingBag size={18} /> Jelajahi Mandor Store ({storeTemplates.length}+ Apps)
                   </button>
 
                   <button
@@ -1382,7 +1382,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                     </div>
                     <div style={{ textAlign: 'center', color: '#64748b', fontSize: '0.75rem' }}>↓ MQTT / OPC-UA Telemetry Stream</div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(59, 130, 246, 0.1)', padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
-                      <span style={{ fontSize: '0.8rem', color: '#60a5fa', fontWeight: 700 }}>2. MAVI Common Data Model</span>
+                      <span style={{ fontSize: '0.8rem', color: '#60a5fa', fontWeight: 700 }}>2. MANDOR Common Data Model</span>
                       <span style={{ fontSize: '0.74rem', color: '#34d399', fontWeight: 700 }}>Centralized Tables & Triggers</span>
                     </div>
                     <div style={{ textAlign: 'center', color: '#64748b', fontSize: '0.75rem' }}>↓ Real-Time Event Broadcasting</div>
@@ -1538,7 +1538,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
                 {[
-                  { icon: <ShoppingBag size={22} color="#38bdf8" />, title: 'Mavi Store', desc: `${storeTemplates.length}+ Template industri siap pasang (Play Store style).`, tab: 'store', tag: 'Marketplace' },
+                  { icon: <ShoppingBag size={22} color="#38bdf8" />, title: 'Mandor Store', desc: `${storeTemplates.length}+ Template industri siap pasang (Play Store style).`, tab: 'store', tag: 'Marketplace' },
                   { icon: <Layout size={22} color="#3b82f6" />, title: 'App Builder', desc: 'No-Code visual drag-and-drop studio untuk SOP dan HMI operator.', tab: 'builder', tag: 'Visual Studio' },
                   { icon: <Flame size={22} color="#ec4899" />, title: 'Pricing & Value', desc: 'Harga transparan dan kalkulator ROI penghematan pabrik.', tab: 'pricing', tag: 'Investasi' },
                   { icon: <HelpCircle size={22} color="#c084fc" />, title: 'FAQ & Support', desc: 'Pertanyaan seputar migrasi cepat 2 minggu & dukungan teknis.', tab: 'faq', tag: 'Bantuan' }
@@ -1605,7 +1605,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB: MAVI STORE & TEMPLATES MARKETPLACE (GOOGLE PLAY STORE STYLE) */}
+        {/* TAB: MANDOR STORE & TEMPLATES MARKETPLACE (GOOGLE PLAY STORE STYLE) */}
         {/* ========================================================================= */}
         {activeTab === 'store' && (
           <div style={{ animation: 'fadeIn 0.3s ease', maxWidth: '1360px', margin: '0 auto', padding: '40px 30px' }}>
@@ -1648,7 +1648,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                     letterSpacing: '0.05em',
                     marginBottom: '12px'
                   }}>
-                    <ShoppingBag size={14} /> MAVI APP STORE & TEMPLATE MARKETPLACE
+                    <ShoppingBag size={14} /> MANDOR APP STORE & TEMPLATE MARKETPLACE
                   </div>
                   <h1 style={{ fontSize: '2.5rem', fontWeight: 900, color: 'white', margin: '0 0 12px 0', letterSpacing: '-0.02em' }}>
                     Siap Pakai untuk Shop Floor Pabrik Anda
@@ -2448,7 +2448,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                       gap: '8px'
                     }}
                   >
-                    <ShoppingBag size={18} color="#38bdf8" /> Pasang dari Mavi Store
+                    <ShoppingBag size={18} color="#38bdf8" /> Pasang dari Mandor Store
                   </button>
                 </div>
               </div>
@@ -2678,7 +2678,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                   3 WAYS TO CREATE APPS – NO CODING, NO DATABASE
                 </h2>
                 <p style={{ color: '#94a3b8', fontSize: '1.05rem', margin: 0 }}>
-                  Build your industrial apps easily with MES CORE
+                  Build your industrial apps easily with MANDOR
                 </p>
               </div>
 
@@ -2721,9 +2721,9 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                       <span style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#10b981', color: 'white', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>1</span>
                       <strong style={{ color: 'white', fontSize: '1.1rem' }}>DOWNLOAD TEMPLATE</strong>
                     </div>
-                    <span style={{ fontSize: '0.75rem', color: '#34d399', fontWeight: 700, display: 'block', marginBottom: '8px' }}>From MAVI App Store</span>
+                    <span style={{ fontSize: '0.75rem', color: '#34d399', fontWeight: 700, display: 'block', marginBottom: '8px' }}>From MANDOR App Store</span>
                     <p style={{ color: '#94a3b8', fontSize: '0.88rem', lineHeight: '1.6', margin: '0 0 16px 0' }}>
-                      Browse and download ready-to-use templates from MAVI App Store. Customize and deploy instantly for Quality, Manufacturing, Production & more.
+                      Browse and download ready-to-use templates from MANDOR App Store. Customize and deploy instantly for Quality, Manufacturing, Production & more.
                     </p>
                     <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '10px 14px', borderRadius: '10px', fontSize: '0.78rem', color: '#34d399', fontWeight: 700, marginBottom: '16px' }}>
                       DOWNLOAD ➔ CUSTOMIZE ➔ DEPLOY ➔ USE
@@ -2746,7 +2746,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                       cursor: 'pointer'
                     }}
                   >
-                    Buka Mavi Store Catalog
+                    Buka Mandor Store Catalog
                   </button>
                 </div>
 
@@ -3367,10 +3367,10 @@ const LandingPage = ({ initialTab = 'overview' }) => {
             <div style={{ marginBottom: '48px' }}>
               <div style={{ textAlign: 'center', marginBottom: '24px' }}>
                 <h3 style={{ fontSize: '1.8rem', fontWeight: 800, color: 'white', margin: '0 0 8px 0' }}>
-                  Why Indonesian Factories Choose MAVI-MES
+                  Why Indonesian Factories Choose MANDOR
                 </h3>
                 <p style={{ color: '#94a3b8', fontSize: '0.95rem', margin: 0 }}>
-                  Direct head-to-head comparison: Manual paper vs Legacy ERP/MES vs MAVI-MES
+                  Direct head-to-head comparison: Manual paper vs Legacy ERP/MES vs MANDOR
                 </p>
               </div>
 
@@ -3396,15 +3396,15 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                   <div>Capability / Metric</div>
                   <div>Paper & Excel (Status Quo)</div>
                   <div>Global MES (Legacy Class)</div>
-                  <div style={{ color: '#38bdf8' }}>MAVI-MES (Modern)</div>
+                  <div style={{ color: '#38bdf8' }}>MANDOR (Modern)</div>
                 </div>
 
                 {[
-                  { metric: 'Time to live', paper: '—', legacy: '6–18 months, big IT team', mavi: '⚡ 2 weeks' },
-                  { metric: 'Cost', paper: 'Hidden rework / downtime losses', legacy: '$100K–$1M+ deployment', mavi: 'Rp 3.5–30 juta/bulan' },
-                  { metric: 'Language', paper: '—', legacy: 'English-first', mavi: '🇮🇩 Bahasa-first' },
-                  { metric: 'Shop-floor fit', paper: 'Manual, error-prone', legacy: 'Built for multinationals', mavi: 'Built for Indonesian SMEs' },
-                  { metric: 'AI quality & IoT', paper: '—', legacy: 'Add-on modules, complex', mavi: 'Included in Growth/Enterprise' }
+                  { metric: 'Time to live', paper: '—', legacy: '6–18 months, big IT team', mandor: '⚡ 2 weeks' },
+                  { metric: 'Cost', paper: 'Hidden rework / downtime losses', legacy: '$100K–$1M+ deployment', mandor: 'Rp 3.5–30 juta/bulan' },
+                  { metric: 'Language', paper: '—', legacy: 'English-first', mandor: '🇮🇩 Bahasa-first' },
+                  { metric: 'Shop-floor fit', paper: 'Manual, error-prone', legacy: 'Built for multinationals', mandor: 'Built for Indonesian SMEs' },
+                  { metric: 'AI quality & IoT', paper: '—', legacy: 'Add-on modules, complex', mandor: 'Included in Growth/Enterprise' }
                 ].map((row, idx) => (
                   <div
                     key={idx}
@@ -3422,7 +3422,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                     <div style={{ color: '#94a3b8' }}>{row.paper}</div>
                     <div style={{ color: '#94a3b8' }}>{row.legacy}</div>
                     <div style={{ color: '#38bdf8', fontWeight: 700, background: 'rgba(56, 189, 248, 0.08)', padding: '6px 12px', borderRadius: '6px', width: 'fit-content' }}>
-                      {row.mavi}
+                      {row.mandor}
                     </div>
                   </div>
                 ))}
@@ -3841,18 +3841,18 @@ const LandingPage = ({ initialTab = 'overview' }) => {
         fontSize: '0.82rem'
       }}>
         <div style={{ display: 'flex', justifyContent: 'center', gap: '18px', marginBottom: '12px', flexWrap: 'wrap' }}>
-          <span style={{ fontWeight: 'bold', color: '#cbd5e1' }}>MAVI-MES Core Platform</span>
+          <span style={{ fontWeight: 'bold', color: '#cbd5e1' }}>MANDOR Core Platform</span>
           <span style={{ color: 'rgba(255,255,255,0.1)' }}>|</span>
           <span>Version 3.4.0 (Latest)</span>
           <span style={{ color: 'rgba(255,255,255,0.1)' }}>|</span>
-          <button onClick={() => switchTab('store')} style={{ background: 'none', border: 'none', color: '#38bdf8', cursor: 'pointer', fontSize: '0.82rem', padding: 0 }}>Mavi Store</button>
+          <button onClick={() => switchTab('store')} style={{ background: 'none', border: 'none', color: '#38bdf8', cursor: 'pointer', fontSize: '0.82rem', padding: 0 }}>Mandor Store</button>
           <span style={{ color: 'rgba(255,255,255,0.1)' }}>|</span>
           <button onClick={() => switchTab('pricing')} style={{ background: 'none', border: 'none', color: '#cbd5e1', cursor: 'pointer', fontSize: '0.82rem', padding: 0 }}>Transparent Pricing</button>
           <span style={{ color: 'rgba(255,255,255,0.1)' }}>|</span>
           <button onClick={() => switchTab('faq')} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.82rem', padding: 0 }}>FAQ</button>
         </div>
         <p style={{ margin: 0 }}>
-          &copy; {new Date().getFullYear()} zainalkhmi/mavi-mes. Built for Indonesian Frontline Manufacturing Operations. All rights reserved.
+          &copy; {new Date().getFullYear()} zainalkhmi/mandor-mes. Built for Indonesian Frontline Manufacturing Operations. All rights reserved.
         </p>
       </footer>
 
@@ -4030,7 +4030,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
               </h3>
             </div>
             <p style={{ color: '#94a3b8', fontSize: '0.88rem', margin: '0 0 20px 0' }}>
-              Deploy MAVI-MES on 1 production line for 30 days without commitment.
+              Deploy MANDOR on 1 production line for 30 days without commitment.
             </p>
 
             {modalSuccessMsg ? (
@@ -4185,14 +4185,14 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                     {selectedTemplateModal.category}
                   </span>
                   <span style={{ fontSize: '0.7rem', background: 'rgba(52, 211, 153, 0.15)', color: '#34d399', padding: '2px 8px', borderRadius: '100px', fontWeight: 700 }}>
-                    Verified by Mavi
+                    Verified by Mandor
                   </span>
                 </div>
                 <h2 style={{ fontSize: '1.6rem', fontWeight: 900, color: 'white', margin: '0 0 6px 0', lineHeight: 1.25 }}>
                   {selectedTemplateModal.name}
                 </h2>
                 <div style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
-                  Developer: <span style={{ color: '#e2e8f0', fontWeight: 600 }}>Mavi Core Engineering</span> · {selectedTemplateModal.version}
+                  Developer: <span style={{ color: '#e2e8f0', fontWeight: 600 }}>Mandor Core Engineering</span> · {selectedTemplateModal.version}
                 </div>
               </div>
             </div>

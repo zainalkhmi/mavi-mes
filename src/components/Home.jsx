@@ -191,7 +191,7 @@ const Home = () => {
               letterSpacing: '0.03em', textTransform: 'uppercase'
             }}>
               <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#00A09D' }} />
-              MAVI Manufacturing MES Live
+              MANDOR MES Live
             </span>
           </div>
           <h1 style={{ margin: 0, fontSize: '1.85rem', fontWeight: 800, color: '#212529', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '10px' }}>

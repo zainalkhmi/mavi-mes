@@ -1,5 +1,5 @@
 /**
- * AI Service for Mavi MES 
+ * AI Service for Mandor MES 
  * Supports Google Gemini, OpenAI, Anthropic, and Meta/Groq 
  */
 
@@ -257,8 +257,8 @@ export const getChatCompletion = async (messages, connector) => {
  * Specialized Advice for Blockly Logic
  */
 export const getLogicAdvice = async (userMessage, history, context, connector) => {
-    const systemPrompt = `You are the Mavi MES Code Advisor. Your job is to help users build automation logic using Blockly code blocks.
-You understand the Mavi MES MIT App Inventor-style environment.
+    const systemPrompt = `You are the Mandor MES Code Advisor. Your job is to help users build automation logic using Blockly code blocks.
+You understand the Mandor MES MIT App Inventor-style environment.
 
 CONTEXT:
 - Available Widgets: ${JSON.stringify(context.widgets || [])}
@@ -407,7 +407,7 @@ const getBuilderSystemPrompt = (context) => {
   let drawingsStr = '  - No drawings saved in Inspector Designer yet.';
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
-      const drawings = JSON.parse(window.localStorage.getItem('mavi_drawings') || '[]');
+      const drawings = JSON.parse(window.localStorage.getItem('mandor_drawings') || '[]');
       if (drawings.length > 0) {
         drawingsStr = drawings.map(d => `  - ID: "${d.id}", Name: "${d.name}", FileName: "${d.fileName}", Format: "${d.fileType}"
     Parameters (${(d.dimensions || []).length} total):
@@ -466,7 +466,7 @@ ${(d.dimensions || []).map(dim => `      * [${(dim.category || 'dimension').toUp
   }
 
   return `
-ROLE: You are "Mavi Enterprise & IoT Architect AI" — an elite multi-agent system for building world-class industrial MES and SmartHome IoT applications.
+ROLE: You are "Mandor Enterprise & IoT Architect AI" — an elite multi-agent system for building world-class industrial MES and SmartHome IoT applications.
 
 ════════════════════════════════════════════════
 📐 TARGET CANVAS CONFIGURATION (${previewDevice} - ${previewOrientation})
@@ -899,7 +899,7 @@ OUTPUT: Brief explanation (Indonesian if user writes Indonesian), then <ai_plan>
 };
 
 /**
- * Enhanced AI Architect Engine for Mavi-MES
+ * Enhanced AI Architect Engine for Mandor-MES
  * Includes Planning System, Session Memory, and Layout Intelligence
  */
 export const getBuilderCopilotAdvice = async (userInput, messageHistory, context, connector) => {
@@ -1046,7 +1046,7 @@ export const getBuilderVisionAdvice = async (file, context, connector) => {
     const previewDevice = context?.previewDevice || 'RESPONSIVE';
     const previewOrientation = context?.previewOrientation || 'PORTRAIT';
 
-    const systemPrompt = `You are the Mavi MES Vision Engineer. Analyze the provided image (mockup, whiteboard, or screenshot) and convert it into a Mavi MES application structure.
+    const systemPrompt = `You are the Mandor MES Vision Engineer. Analyze the provided image (mockup, whiteboard, or screenshot) and convert it into a Mandor MES application structure.
 
 VALID WIDGET TYPES (USE ONLY THESE):
 BUTTON, TEXT, TEXT_INPUT, TEXT_AREA, CHECKBOX, BOOLEAN_TOGGLE, SLIDER, DROPDOWN,
@@ -1166,7 +1166,7 @@ export const diagnoseApp = async (context, connector) => {
     };
 
     const systemPrompt = `You are a Senior MES Application Quality Assurance Engineer and Expert Reviewer.
-Analyze this Mavi MES application structure and provide a comprehensive diagnosis.
+Analyze this Mandor MES application structure and provide a comprehensive diagnosis.
 
 Your response MUST be structured in these sections:
 ## ✅ Yang Sudah Bagus

@@ -949,7 +949,7 @@ const LotGenerator = () => {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ width: '420px', backgroundColor: '#ffffff', color: '#000000', borderRadius: '12px', padding: '24px', boxShadow: '0 25px 50px rgba(0,0,0,0.8)' }}>
             <div style={{ textAlign: 'center', borderBottom: '2px solid #000', paddingBottom: '8px', marginBottom: '12px' }}>
-              <div style={{ fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase' }}>MAVI MES PRINT SYSTEM</div>
+              <div style={{ fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase' }}>MANDOR MES PRINT SYSTEM</div>
               <div style={{ fontSize: '0.6rem', color: '#64748b' }}>THERMAL BARCODE LABEL PREVIEW</div>
             </div>
 

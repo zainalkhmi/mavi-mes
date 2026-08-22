@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 
 export function useZoom() {
   const [zoomLevel, setZoomLevel] = useState(() => {
-    const saved = localStorage.getItem('mavi-zoom-level');
+    const saved = localStorage.getItem('mandor-zoom-level');
     return saved ? parseFloat(saved) : 1.0;
   });
   const [isZoomCollapsed, setIsZoomCollapsed] = useState(() => {
-    const saved = localStorage.getItem('mavi-zoom-collapsed');
+    const saved = localStorage.getItem('mandor-zoom-collapsed');
     return saved === 'true';
   });
 
@@ -25,11 +25,11 @@ export function useZoom() {
       }
     }
     document.body.style.zoom = '';
-    localStorage.setItem('mavi-zoom-level', zoomLevel.toFixed(2));
+    localStorage.setItem('mandor-zoom-level', zoomLevel.toFixed(2));
   }, [zoomLevel]);
 
   useEffect(() => {
-    localStorage.setItem('mavi-zoom-collapsed', isZoomCollapsed.toString());
+    localStorage.setItem('mandor-zoom-collapsed', isZoomCollapsed.toString());
   }, [isZoomCollapsed]);
 
   useEffect(() => {

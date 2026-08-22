@@ -20,7 +20,7 @@ const LoadingScreen = () => (
       textShadow: '0 0 20px rgba(59, 130, 246, 0.6)',
       marginBottom: '5px',
       animation: 'logoPulse 2s ease-in-out infinite'
-    }}>MAVI MES</div>
+    }}>MANDOR</div>
     <div style={{
       fontSize: '0.85rem',
       fontWeight: 600,

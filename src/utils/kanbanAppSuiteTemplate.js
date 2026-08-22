@@ -1,6 +1,6 @@
 /**
  * kanbanAppSuiteTemplate.js
- * Generates a Kanban App Suite template for MAVI-MES
+ * Generates a Kanban App Suite template for MANDOR-MES
  */
 
 export function createKanbanAppSuiteTemplate() {

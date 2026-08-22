@@ -185,7 +185,7 @@ class HardwareService {
 
         try {
             const connectOpts = {
-                clientId: `mavi_hw_mqtt_${Date.now()}`,
+                clientId: `mandor_hw_mqtt_${Date.now()}`,
                 ...options
             };
             if (!connectOpts.username) delete connectOpts.username;

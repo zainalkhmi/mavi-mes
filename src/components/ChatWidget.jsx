@@ -66,7 +66,7 @@ const ChatWidget = ({ currentStation, currentUser, onClose }) => {
         sender: currentUser || 'Operator',
         station: currentStation || 'Station-01',
         targetName: selectedContact?.name || 'Supervisor',
-        message: '🔔 Test Notification from MAVI MES Chat Widget!'
+        message: '🔔 Test Notification from MANDOR Chat Widget!'
       });
       if (res.success) {
         setWaStatusMsg('✅ Pesan Test WhatsApp Berhasil Terkirim!');

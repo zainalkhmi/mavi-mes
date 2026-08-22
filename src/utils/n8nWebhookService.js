@@ -1,5 +1,5 @@
 /**
- * n8n Webhook Service for Mavi MES
+ * n8n Webhook Service for Mandor MES
  * =================================
  * Central outgoing webhook engine that fires events to n8n
  * (or any webhook-compatible workflow automation tool).
@@ -17,8 +17,8 @@
  */
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
-const LS_CONFIG_KEY = 'mavi_n8n_webhook_config';
-const LS_LOG_KEY    = 'mavi_n8n_webhook_log';
+const LS_CONFIG_KEY = 'mandor_n8n_webhook_config';
+const LS_LOG_KEY    = 'mandor_n8n_webhook_log';
 const MAX_LOG_ENTRIES = 150;
 const MAX_RETRIES     = 3;
 const BASE_DELAY_MS   = 1000; // 1s, 2s, 4s exponential backoff
@@ -195,7 +195,7 @@ class N8nWebhookService {
         const payload = {
             event: eventType,
             timestamp: new Date().toISOString(),
-            source: 'mavi-mes',
+            source: 'mandor-mes',
             version: '1.0',
             data,
             ...(cfg.includeMetadata ? { metadata } : {})
@@ -206,14 +206,14 @@ class N8nWebhookService {
         // Build headers
         const headers = {
             'Content-Type': 'application/json',
-            'X-Mavi-Event': eventType,
-            'X-Mavi-Source': 'mavi-mes'
+            'X-Mandor-Event': eventType,
+            'X-Mandor-Source': 'mandor-mes'
         };
 
         // HMAC signature
         if (cfg.secretKey) {
             const sig = await generateSignature(bodyString, cfg.secretKey);
-            if (sig) headers['X-Mavi-Signature'] = `sha256=${sig}`;
+            if (sig) headers['X-Mandor-Signature'] = `sha256=${sig}`;
         }
 
         // Attempt delivery with retry
@@ -299,7 +299,7 @@ class N8nWebhookService {
         }
 
         const result = await this.fire('test.connection', {
-            message: 'This is a test event from Mavi MES',
+            message: 'This is a test event from Mandor MES',
             testId: crypto.randomUUID?.() || Date.now().toString()
         }, {
             station: 'Settings Panel',
@@ -353,7 +353,7 @@ class N8nWebhookService {
     // ── Convenience: Map audit event types to n8n event types ──────────────────
 
     /**
-     * Maps MAVI audit event types to n8n webhook event types.
+     * Maps MANDOR audit event types to n8n webhook event types.
      * Returns null if the audit event should not fire a webhook.
      */
     mapAuditEvent(auditEventType, details = {}) {

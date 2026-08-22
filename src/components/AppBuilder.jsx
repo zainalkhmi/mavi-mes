@@ -1995,7 +1995,7 @@ const AppBuilder = () => {
         }
 
         try {
-            const savedCameraId = localStorage.getItem('mavi-selected-camera-id');
+            const savedCameraId = localStorage.getItem('mandor-selected-camera-id');
             const videoConstraints = savedCameraId 
                 ? { deviceId: { exact: savedCameraId } }
                 : { facingMode: { ideal: 'environment' } };
@@ -3508,8 +3508,8 @@ const AppBuilder = () => {
         };
 
         syncGlobalVars();
-        window.addEventListener('mavi_variables_updated', syncGlobalVars);
-        return () => window.removeEventListener('mavi_variables_updated', syncGlobalVars);
+        window.addEventListener('mandor_variables_updated', syncGlobalVars);
+        return () => window.removeEventListener('mandor_variables_updated', syncGlobalVars);
     }, []);
 
     useEffect(() => {
@@ -4330,7 +4330,7 @@ const AppBuilder = () => {
         }
 
         if (props.dataSourceType === 'PLC_TAG') {
-            const parsedTags = window.mavi_plc_tags || [];
+            const parsedTags = window.mandor_plc_tags || [];
             const tag = parsedTags.find(t => t.id === props.plcTagId || t.name === props.varSource);
             if (tag) return tag.value;
             // Fallback to appVariables
@@ -4358,12 +4358,12 @@ const AppBuilder = () => {
 
         if (props.dataSourceType === 'PLC_TAG') {
             try {
-                const parsedTags = window.mavi_plc_tags || [];
-                const parsedCtrls = window.mavi_plc_controllers || [];
+                const parsedTags = window.mandor_plc_tags || [];
+                const parsedCtrls = window.mandor_plc_controllers || [];
                 const tagIdx = parsedTags.findIndex(t => t.id === props.plcTagId || t.name === props.varSource);
                 if (tagIdx > -1) {
                     parsedTags[tagIdx].value = String(nextValue);
-                    window.mavi_plc_tags = parsedTags;
+                    window.mandor_plc_tags = parsedTags;
 
                     // If Tauri is running and it's Modbus TCP, trigger write backend
                     if (window.__TAURI_INTERNALS__) {
@@ -4464,7 +4464,7 @@ const AppBuilder = () => {
                         
                         let classes = ['PASS', 'FAIL'];
                         try {
-                            const cachedRaw = localStorage.getItem('mavi_local_vision_models') || '[]';
+                            const cachedRaw = localStorage.getItem('mandor_local_vision_models') || '[]';
                             const list = JSON.parse(cachedRaw);
                             const model = list.find(m => m.id === modelId);
                             if (model && model.classes && model.classes.length > 0) {
@@ -5019,7 +5019,7 @@ const AppBuilder = () => {
                             else if (mapObj.value === 'STATION') resolvedInputs[tag] = appContext?.station || 'Station-A';
                             else if (mapObj.value === 'DATE_NOW') resolvedInputs[tag] = new Date().toISOString().split('T')[0];
                             else if (mapObj.value === 'TIME_NOW') resolvedInputs[tag] = new Date().toLocaleString();
-                            else if (mapObj.value === 'APP_NAME') resolvedInputs[tag] = appName || 'MAVI App';
+                            else if (mapObj.value === 'APP_NAME') resolvedInputs[tag] = appName || 'MANDOR App';
                         } else {
                             const varName = typeof mapObj === 'string' ? mapObj : mapObj.value;
                             const targetVar = appVariables.find(v => v.name === varName);
@@ -5336,7 +5336,7 @@ const AppBuilder = () => {
                 if (!s) return null;
                 if (prop === 'height') return window.innerHeight;
                 if (prop === 'width') return window.innerWidth;
-                if (prop === 'platform') return 'Web/Android (Mavi-MES)';
+                if (prop === 'platform') return 'Web/Android (Mandor-MES)';
                 if (prop === 'platformVersion') return '1.0.0';
 
                 const topLevelFields = ['title', 'backgroundColor', 'backgroundImage', 'aboutInfo'];
@@ -6128,7 +6128,7 @@ const AppBuilder = () => {
         // 1. Execute Blockly Logic (Granular Event)
         executeBlocklyLogic(`WIDGET_EVENT:${comp.id}:${eventId}`, payload);
 
-        // Handle Action property (e.g. for Mavi Template buttons)
+        // Handle Action property (e.g. for Mandor Template buttons)
         if (eventId === 'ON_CLICK' && comp.props.action) {
             enqueueTriggerEvent({
                 eventId,
@@ -9848,7 +9848,7 @@ const AppBuilder = () => {
                 return (
                     <div style={cardStyle}>
                         <style>{`
-                            @keyframes mavi-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+                            @keyframes mandor-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
                             @keyframes radar-sweep { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
                         `}</style>
                         {/* Header: Badge & Status */}
@@ -10018,7 +10018,7 @@ const AppBuilder = () => {
                                         {swOn && (
                                             <>
                                                 <div style={{ position: 'absolute', top: '8px', left: '8px', display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: 'rgba(0,0,0,0.5)', padding: '2px 6px', borderRadius: '4px', zIndex: 2 }}>
-                                                    <span style={{ width: '6px', height: '6px', backgroundColor: '#ef4444', borderRadius: '50%', display: 'inline-block', animation: 'mavi-blink 1s infinite' }}></span>
+                                                    <span style={{ width: '6px', height: '6px', backgroundColor: '#ef4444', borderRadius: '50%', display: 'inline-block', animation: 'mandor-blink 1s infinite' }}></span>
                                                     <span style={{ fontSize: '0.55rem', color: '#ffffff', fontWeight: 'bold' }}>REC</span>
                                                 </div>
                                                 <div style={{ position: 'absolute', bottom: '8px', left: '8px', color: '#ffffff', fontSize: '0.55rem', fontFamily: 'monospace', backgroundColor: 'rgba(0,0,0,0.5)', padding: '2px 6px', borderRadius: '4px', zIndex: 2 }}>
@@ -11563,7 +11563,7 @@ const AppBuilder = () => {
                 const fileUrl = comp.props.selectedDrawingId || comp.props.fileUrl || comp.props.source || '';
 
                 const drawings = (() => {
-                    try { return JSON.parse(localStorage.getItem('mavi_drawings') || '[]'); } catch (e) { return []; }
+                    try { return JSON.parse(localStorage.getItem('mandor_drawings') || '[]'); } catch (e) { return []; }
                 })();
                 const selectedDwg = fileUrl ? (drawings.find(d => d.id === fileUrl || d.fileName === fileUrl || d.name === fileUrl) || drawings[0] || null) : (drawings[0] || null);
                 const hasSource = !!(comp.props.source || comp.props.fileUrl || comp.props.selectedDrawingId || selectedDwg);
@@ -16148,7 +16148,7 @@ const AppBuilder = () => {
                                                                 <option value="">-- No Drawing Bound --</option>
                                                                 {(() => {
                                                                     try {
-                                                                        return JSON.parse(localStorage.getItem('mavi_drawings') || '[]');
+                                                                        return JSON.parse(localStorage.getItem('mandor_drawings') || '[]');
                                                                     } catch(e) { return []; }
                                                                 })().map(d => (
                                                                     <option key={d.id} value={d.id}>{d.name} ({d.fileName})</option>
@@ -16166,7 +16166,7 @@ const AppBuilder = () => {
                                                                     onChange={(e) => {
                                                                         const dimId = e.target.value;
                                                                         let drawings = [];
-                                                                        try { drawings = JSON.parse(localStorage.getItem('mavi_drawings') || '[]'); } catch(err) {}
+                                                                        try { drawings = JSON.parse(localStorage.getItem('mandor_drawings') || '[]'); } catch(err) {}
                                                                         const dwg = drawings.find(d => d.id === selectedComp.props.selectedDrawingId);
                                                                         const dim = dwg?.dimensions?.find(dm => dm.id === dimId);
                                                                         if (dim) {
@@ -16196,7 +16196,7 @@ const AppBuilder = () => {
                                                                     <option value="">-- No Dimension Bound --</option>
                                                                     {(() => {
                                                                         let drawings = [];
-                                                                        try { drawings = JSON.parse(localStorage.getItem('mavi_drawings') || '[]'); } catch(err) {}
+                                                                        try { drawings = JSON.parse(localStorage.getItem('mandor_drawings') || '[]'); } catch(err) {}
                                                                         const dwg = drawings.find(d => d.id === selectedComp.props.selectedDrawingId);
                                                                         return dwg?.dimensions || [];
                                                                     })().map(dim => (
@@ -18358,7 +18358,7 @@ const AppBuilder = () => {
                                                                                 </div>
                                                                                 {selectedComp.props.filterType === 'FULL_PIPELINE' && (() => {
                                                                                     // Load saved pipelines
-                                                                                    const saved = localStorage.getItem('mavi_quickbuild_pipelines');
+                                                                                    const saved = localStorage.getItem('mandor_quickbuild_pipelines');
                                                                                     const customList = saved ? JSON.parse(saved) : [];
                                                                                     return (
                                                                                         <>
@@ -19118,7 +19118,7 @@ const AppBuilder = () => {
                                                             onChange={(e) => {
                                                                 const val = e.target.value;
                                                                 let drawings = [];
-                                                                try { drawings = JSON.parse(localStorage.getItem('mavi_drawings') || '[]'); } catch (err) {}
+                                                                try { drawings = JSON.parse(localStorage.getItem('mandor_drawings') || '[]'); } catch (err) {}
                                                                 const matched = drawings.find(d => d.id === val || d.fileName === val);
                                                                 const updates = { fileUrl: val, selectedDrawingId: val };
                                                                 if (matched?.fileType) updates.format = matched.fileType;
@@ -19131,7 +19131,7 @@ const AppBuilder = () => {
                                                             <option value="interactive-3d-cad">Interactive 3D CAD Twin (Default Assembly)</option>
                                                             {(() => {
                                                                 try {
-                                                                    return JSON.parse(localStorage.getItem('mavi_drawings') || '[]');
+                                                                    return JSON.parse(localStorage.getItem('mandor_drawings') || '[]');
                                                                 } catch (e) {
                                                                     return [];
                                                                 }
@@ -19161,7 +19161,7 @@ const AppBuilder = () => {
                                                             const fileUrl = selectedComp.props.fileUrl || '';
                                                             if (!fileUrl) return null;
                                                             let drawings = [];
-                                                            try { drawings = JSON.parse(localStorage.getItem('mavi_drawings') || '[]'); } catch(e) {}
+                                                            try { drawings = JSON.parse(localStorage.getItem('mandor_drawings') || '[]'); } catch(e) {}
                                                             const dwg = drawings.find(d => d.id === fileUrl || d.fileName === fileUrl);
                                                             if (!dwg || !dwg.dimensions || dwg.dimensions.length === 0) return null;
 
@@ -25905,7 +25905,7 @@ D3:0
                                             case 'RUN_VISION_MODEL_INFERENCE':
                                                 const cachedModels = (() => {
                                                     try {
-                                                        const raw = localStorage.getItem('mavi_local_vision_models');
+                                                        const raw = localStorage.getItem('mandor_local_vision_models');
                                                         return raw ? JSON.parse(raw) : [];
                                                     } catch (e) {
                                                         return [];
@@ -28475,7 +28475,7 @@ D3:0
                         {/* Footer Info */}
                         <div style={{ padding: '16px 32px', borderTop: '1px solid var(--border-secondary)', backgroundColor: 'var(--bg-secondary)', display: 'flex', justifyContent: 'center' }}>
                             <div style={{ fontSize: '0.8rem', color: 'var(--text-quaternary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <ShieldCheck size={14} /> Powered by Mavi AI v2.4 • Enterprise Grade
+                                <ShieldCheck size={14} /> Powered by Mandor AI v2.4 • Enterprise Grade
                             </div>
                         </div>
                     </div>

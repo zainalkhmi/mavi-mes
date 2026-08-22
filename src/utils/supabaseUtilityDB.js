@@ -8,7 +8,7 @@ import { getSupabaseClient } from './supabaseManualDB.js';
 import Dexie from 'dexie';
 
 // Dedicated IndexedDB for Full Blueprint Drawings & Large CAD/PDF DataURLs
-export const drawingsLocalDB = typeof window !== 'undefined' ? new Dexie('mavi_drawings_local_db') : null;
+export const drawingsLocalDB = typeof window !== 'undefined' ? new Dexie('mandor_drawings_local_db') : null;
 if (drawingsLocalDB) {
     drawingsLocalDB.version(1).stores({
         drawings: 'id, fileName, fileType, name, updated_at'
@@ -27,14 +27,14 @@ export async function getAllCameras() {
         if (error) throw error;
         // Sync local storage cache for offline/fallback use
         if (typeof window !== 'undefined') {
-            localStorage.setItem('mavi_local_cameras', JSON.stringify(data || []));
+            localStorage.setItem('mandor_local_cameras', JSON.stringify(data || []));
         }
         return data || [];
     } catch (err) {
         console.warn('[Supabase Fallback] Failed to fetch cameras from database, loading from localStorage:', err);
         if (typeof window !== 'undefined') {
             try {
-                const cached = localStorage.getItem('mavi_local_cameras');
+                const cached = localStorage.getItem('mandor_local_cameras');
                 if (cached) return JSON.parse(cached);
             } catch (e) {
                 console.error('[Supabase Fallback] Failed to parse local cameras cache:', e);
@@ -71,7 +71,7 @@ export async function saveCamera(camera) {
         // Sync local cache
         if (typeof window !== 'undefined') {
             try {
-                const cachedRaw = localStorage.getItem('mavi_local_cameras') || '[]';
+                const cachedRaw = localStorage.getItem('mandor_local_cameras') || '[]';
                 let list = JSON.parse(cachedRaw);
                 const index = list.findIndex(c => c.id === camera.id || c.id === result.data.id);
                 if (index !== -1) {
@@ -79,7 +79,7 @@ export async function saveCamera(camera) {
                 } else {
                     list.push(result.data);
                 }
-                localStorage.setItem('mavi_local_cameras', JSON.stringify(list));
+                localStorage.setItem('mandor_local_cameras', JSON.stringify(list));
             } catch (e) {
                 console.error('[Supabase Fallback] Failed to update local cache on save:', e);
             }
@@ -89,7 +89,7 @@ export async function saveCamera(camera) {
         console.warn('[Supabase Fallback] Failed to save camera to database, saving to localStorage:', err);
         if (typeof window !== 'undefined') {
             try {
-                const cachedRaw = localStorage.getItem('mavi_local_cameras') || '[]';
+                const cachedRaw = localStorage.getItem('mandor_local_cameras') || '[]';
                 const list = JSON.parse(cachedRaw);
                 let savedItem;
                 
@@ -116,7 +116,7 @@ export async function saveCamera(camera) {
                     list.push(savedItem);
                 }
                 
-                localStorage.setItem('mavi_local_cameras', JSON.stringify(list));
+                localStorage.setItem('mandor_local_cameras', JSON.stringify(list));
                 return savedItem;
             } catch (e) {
                 console.error('[Supabase Fallback] Failed to save camera locally:', e);
@@ -136,20 +136,20 @@ export async function deleteCamera(id) {
         }
         
         if (typeof window !== 'undefined') {
-            const cachedRaw = localStorage.getItem('mavi_local_cameras') || '[]';
+            const cachedRaw = localStorage.getItem('mandor_local_cameras') || '[]';
             const list = JSON.parse(cachedRaw);
             const newList = list.filter(c => c.id !== id);
-            localStorage.setItem('mavi_local_cameras', JSON.stringify(newList));
+            localStorage.setItem('mandor_local_cameras', JSON.stringify(newList));
         }
         return true;
     } catch (err) {
         console.warn('[Supabase Fallback] Failed to delete camera from database, deleting from localStorage:', err);
         if (typeof window !== 'undefined') {
             try {
-                const cachedRaw = localStorage.getItem('mavi_local_cameras') || '[]';
+                const cachedRaw = localStorage.getItem('mandor_local_cameras') || '[]';
                 const list = JSON.parse(cachedRaw);
                 const newList = list.filter(c => c.id !== id);
-                localStorage.setItem('mavi_local_cameras', JSON.stringify(newList));
+                localStorage.setItem('mandor_local_cameras', JSON.stringify(newList));
                 return true;
             } catch (e) {
                 console.error('[Supabase Fallback] Failed to delete camera locally:', e);
@@ -171,14 +171,14 @@ export async function getAllDatasets() {
             .order('created_at', { ascending: false });
         if (error) throw error;
         if (typeof window !== 'undefined') {
-            localStorage.setItem('mavi_local_datasets', JSON.stringify(data || []));
+            localStorage.setItem('mandor_local_datasets', JSON.stringify(data || []));
         }
         return data || [];
     } catch (err) {
         console.warn('[Supabase Fallback] Failed to fetch datasets from database, loading from localStorage:', err);
         if (typeof window !== 'undefined') {
             try {
-                const cached = localStorage.getItem('mavi_local_datasets');
+                const cached = localStorage.getItem('mandor_local_datasets');
                 if (cached) return JSON.parse(cached);
             } catch (e) {
                 console.error('[Supabase Fallback] Failed to parse local datasets cache:', e);
@@ -216,7 +216,7 @@ export async function saveDataset(dataset) {
         // Sync local cache
         if (typeof window !== 'undefined') {
             try {
-                const cachedRaw = localStorage.getItem('mavi_local_datasets') || '[]';
+                const cachedRaw = localStorage.getItem('mandor_local_datasets') || '[]';
                 let list = JSON.parse(cachedRaw);
                 const index = list.findIndex(d => d.id === dataset.id || d.id === result.data.id);
                 if (index !== -1) {
@@ -224,7 +224,7 @@ export async function saveDataset(dataset) {
                 } else {
                     list.push(result.data);
                 }
-                localStorage.setItem('mavi_local_datasets', JSON.stringify(list));
+                localStorage.setItem('mandor_local_datasets', JSON.stringify(list));
             } catch (e) {
                 console.error('[Supabase Fallback] Failed to update local datasets cache on save:', e);
             }
@@ -234,7 +234,7 @@ export async function saveDataset(dataset) {
         console.warn('[Supabase Fallback] Failed to save dataset to database, saving to localStorage:', err);
         if (typeof window !== 'undefined') {
             try {
-                const cachedRaw = localStorage.getItem('mavi_local_datasets') || '[]';
+                const cachedRaw = localStorage.getItem('mandor_local_datasets') || '[]';
                 const list = JSON.parse(cachedRaw);
                 let savedItem;
                 
@@ -259,7 +259,7 @@ export async function saveDataset(dataset) {
                     list.push(savedItem);
                 }
                 
-                localStorage.setItem('mavi_local_datasets', JSON.stringify(list));
+                localStorage.setItem('mandor_local_datasets', JSON.stringify(list));
                 return savedItem;
             } catch (e) {
                 console.error('[Supabase Fallback] Failed to save dataset locally:', e);
@@ -279,20 +279,20 @@ export async function deleteDataset(id) {
         }
         
         if (typeof window !== 'undefined') {
-            const cachedRaw = localStorage.getItem('mavi_local_datasets') || '[]';
+            const cachedRaw = localStorage.getItem('mandor_local_datasets') || '[]';
             const list = JSON.parse(cachedRaw);
             const newList = list.filter(d => d.id !== id);
-            localStorage.setItem('mavi_local_datasets', JSON.stringify(newList));
+            localStorage.setItem('mandor_local_datasets', JSON.stringify(newList));
         }
         return true;
     } catch (err) {
         console.warn('[Supabase Fallback] Failed to delete dataset from database, deleting from localStorage:', err);
         if (typeof window !== 'undefined') {
             try {
-                const cachedRaw = localStorage.getItem('mavi_local_datasets') || '[]';
+                const cachedRaw = localStorage.getItem('mandor_local_datasets') || '[]';
                 const list = JSON.parse(cachedRaw);
                 const newList = list.filter(d => d.id !== id);
-                localStorage.setItem('mavi_local_datasets', JSON.stringify(newList));
+                localStorage.setItem('mandor_local_datasets', JSON.stringify(newList));
                 return true;
             } catch (e) {
                 console.error('[Supabase Fallback] Failed to delete dataset locally:', e);
@@ -314,14 +314,14 @@ export async function getAllVisionModels() {
             .order('created_at', { ascending: false });
         if (error) throw error;
         if (typeof window !== 'undefined') {
-            localStorage.setItem('mavi_local_vision_models', JSON.stringify(data || []));
+            localStorage.setItem('mandor_local_vision_models', JSON.stringify(data || []));
         }
         return data || [];
     } catch (err) {
         console.warn('[Supabase Fallback] Failed to fetch vision models from database, loading from localStorage:', err);
         if (typeof window !== 'undefined') {
             try {
-                const cached = localStorage.getItem('mavi_local_vision_models');
+                const cached = localStorage.getItem('mandor_local_vision_models');
                 if (cached) return JSON.parse(cached);
             } catch (e) {
                 console.error('[Supabase Fallback] Failed to parse local vision models cache:', e);
@@ -362,7 +362,7 @@ export async function saveVisionModel(model) {
         // Sync local cache
         if (typeof window !== 'undefined') {
             try {
-                const cachedRaw = localStorage.getItem('mavi_local_vision_models') || '[]';
+                const cachedRaw = localStorage.getItem('mandor_local_vision_models') || '[]';
                 let list = JSON.parse(cachedRaw);
                 const index = list.findIndex(m => m.id === model.id || m.id === result.data.id);
                 if (index !== -1) {
@@ -370,7 +370,7 @@ export async function saveVisionModel(model) {
                 } else {
                     list.push(result.data);
                 }
-                localStorage.setItem('mavi_local_vision_models', JSON.stringify(list));
+                localStorage.setItem('mandor_local_vision_models', JSON.stringify(list));
             } catch (e) {
                 console.error('[Supabase Fallback] Failed to update local vision models cache on save:', e);
             }
@@ -380,7 +380,7 @@ export async function saveVisionModel(model) {
         console.warn('[Supabase Fallback] Failed to save vision model to database, saving to localStorage:', err);
         if (typeof window !== 'undefined') {
             try {
-                const cachedRaw = localStorage.getItem('mavi_local_vision_models') || '[]';
+                const cachedRaw = localStorage.getItem('mandor_local_vision_models') || '[]';
                 const list = JSON.parse(cachedRaw);
                 let savedItem;
                 
@@ -405,7 +405,7 @@ export async function saveVisionModel(model) {
                     list.push(savedItem);
                 }
                 
-                localStorage.setItem('mavi_local_vision_models', JSON.stringify(list));
+                localStorage.setItem('mandor_local_vision_models', JSON.stringify(list));
                 return savedItem;
             } catch (e) {
                 console.error('[Supabase Fallback] Failed to save vision model locally:', e);
@@ -425,20 +425,20 @@ export async function deleteVisionModel(id) {
         }
         
         if (typeof window !== 'undefined') {
-            const cachedRaw = localStorage.getItem('mavi_local_vision_models') || '[]';
+            const cachedRaw = localStorage.getItem('mandor_local_vision_models') || '[]';
             const list = JSON.parse(cachedRaw);
             const newList = list.filter(m => m.id !== id);
-            localStorage.setItem('mavi_local_vision_models', JSON.stringify(newList));
+            localStorage.setItem('mandor_local_vision_models', JSON.stringify(newList));
         }
         return true;
     } catch (err) {
         console.warn('[Supabase Fallback] Failed to delete vision model from database, deleting from localStorage:', err);
         if (typeof window !== 'undefined') {
             try {
-                const cachedRaw = localStorage.getItem('mavi_local_vision_models') || '[]';
+                const cachedRaw = localStorage.getItem('mandor_local_vision_models') || '[]';
                 const list = JSON.parse(cachedRaw);
                 const newList = list.filter(m => m.id !== id);
-                localStorage.setItem('mavi_local_vision_models', JSON.stringify(newList));
+                localStorage.setItem('mandor_local_vision_models', JSON.stringify(newList));
                 return true;
             } catch (e) {
                 console.error('[Supabase Fallback] Failed to delete vision model locally:', e);
@@ -520,11 +520,11 @@ export function safeSaveDrawingsToLocalStorage(drawingsList) {
             hasDataUrl: !!(dwg.dataUrl || dwg.data_url),
             updated_at: dwg.updated_at
         }));
-        localStorage.setItem('mavi_drawings', JSON.stringify(minimalList));
+        localStorage.setItem('mandor_drawings', JSON.stringify(minimalList));
     } catch (e) {
         // If even minimal data doesn't fit, skip LocalStorage entirely - IndexedDB has full data
         console.warn('[Storage Quota] LocalStorage full, relying on IndexedDB only:', e);
-        try { localStorage.removeItem('mavi_drawings'); } catch {}
+        try { localStorage.removeItem('mandor_drawings'); } catch {}
     }
 }
 
@@ -539,10 +539,10 @@ export async function getAllDrawings() {
     }
 
     // If Supabase drawings table failed in this session, merge indexedDB + local storage directly
-    if (typeof window !== 'undefined' && sessionStorage.getItem('mavi_drawings_offline') === 'true') {
+    if (typeof window !== 'undefined' && sessionStorage.getItem('mandor_drawings_offline') === 'true') {
         let cached = [];
         try {
-            const raw = localStorage.getItem('mavi_drawings');
+            const raw = localStorage.getItem('mandor_drawings');
             if (raw) cached = JSON.parse(raw);
         } catch (e) {}
 
@@ -590,10 +590,10 @@ export async function getAllDrawings() {
         return mappedData;
     } catch (err) {
         if (typeof window !== 'undefined') {
-            sessionStorage.setItem('mavi_drawings_offline', 'true');
+            sessionStorage.setItem('mandor_drawings_offline', 'true');
             let cached = [];
             try {
-                const raw = localStorage.getItem('mavi_drawings');
+                const raw = localStorage.getItem('mandor_drawings');
                 if (raw) cached = JSON.parse(raw);
             } catch (e) {}
 
@@ -660,13 +660,13 @@ export async function saveDrawing(drawing) {
 
     // 2. Broadcast update event so AppBuilder, LiveTerminal, AppPlayer react immediately
     if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('mavi_drawings_updated', { detail: savedFullItem }));
+        window.dispatchEvent(new CustomEvent('mandor_drawings_updated', { detail: savedFullItem }));
     }
 
     // 3. If Supabase table is offline/missing column, save locally directly to avoid network 400 error
-    if (typeof window !== 'undefined' && sessionStorage.getItem('mavi_drawings_offline') === 'true') {
+    if (typeof window !== 'undefined' && sessionStorage.getItem('mandor_drawings_offline') === 'true') {
         try {
-            const cachedRaw = localStorage.getItem('mavi_drawings') || '[]';
+            const cachedRaw = localStorage.getItem('mandor_drawings') || '[]';
             const list = JSON.parse(cachedRaw);
             const index = list.findIndex(d => d.id === dwgId);
             // Create clean version without ArrayBuffer for localStorage
@@ -699,7 +699,7 @@ export async function saveDrawing(drawing) {
         // Sync local cache (strip ArrayBuffer for JSON storage)
         if (typeof window !== 'undefined') {
             try {
-                const cachedRaw = localStorage.getItem('mavi_drawings') || '[]';
+                const cachedRaw = localStorage.getItem('mandor_drawings') || '[]';
                 let list = JSON.parse(cachedRaw);
                 const mappedData = {
                     ...savedFullItem,
@@ -722,9 +722,9 @@ export async function saveDrawing(drawing) {
         return savedFullItem;
     } catch (err) {
         if (typeof window !== 'undefined') {
-            sessionStorage.setItem('mavi_drawings_offline', 'true');
+            sessionStorage.setItem('mandor_drawings_offline', 'true');
             try {
-                const cachedRaw = localStorage.getItem('mavi_drawings') || '[]';
+                const cachedRaw = localStorage.getItem('mandor_drawings') || '[]';
                 const list = JSON.parse(cachedRaw);
                 // Strip ArrayBuffer before storing
                 const dbSafeItem = { ...savedFullItem };
@@ -762,21 +762,21 @@ export async function deleteDrawing(id) {
         }
         
         if (typeof window !== 'undefined') {
-            const cachedRaw = localStorage.getItem('mavi_drawings') || '[]';
+            const cachedRaw = localStorage.getItem('mandor_drawings') || '[]';
             const list = JSON.parse(cachedRaw);
             const newList = list.filter(d => d.id !== id);
             safeSaveDrawingsToLocalStorage(newList);
-            window.dispatchEvent(new CustomEvent('mavi_drawings_updated', { detail: { id, deleted: true } }));
+            window.dispatchEvent(new CustomEvent('mandor_drawings_updated', { detail: { id, deleted: true } }));
         }
         return true;
     } catch (err) {
         console.warn('[Supabase Fallback] Delete drawing fallback:', err);
         if (typeof window !== 'undefined') {
-            const cachedRaw = localStorage.getItem('mavi_drawings') || '[]';
+            const cachedRaw = localStorage.getItem('mandor_drawings') || '[]';
             const list = JSON.parse(cachedRaw);
             const newList = list.filter(d => d.id !== id);
             safeSaveDrawingsToLocalStorage(newList);
-            window.dispatchEvent(new CustomEvent('mavi_drawings_updated', { detail: { id, deleted: true } }));
+            window.dispatchEvent(new CustomEvent('mandor_drawings_updated', { detail: { id, deleted: true } }));
         }
         return true;
     }
@@ -794,14 +794,14 @@ export async function renameDrawing(id, newName) {
 
         // Update local storage
         if (typeof window !== 'undefined') {
-            const cachedRaw = localStorage.getItem('mavi_drawings') || '[]';
+            const cachedRaw = localStorage.getItem('mandor_drawings') || '[]';
             const list = JSON.parse(cachedRaw);
             const index = list.findIndex(d => d.id === id);
             if (index !== -1) {
                 list[index] = { ...list[index], name: newName };
                 safeSaveDrawingsToLocalStorage(list);
             }
-            window.dispatchEvent(new CustomEvent('mavi_drawings_updated', { detail: { id, renamed: true, newName } }));
+            window.dispatchEvent(new CustomEvent('mandor_drawings_updated', { detail: { id, renamed: true, newName } }));
         }
         return true;
     } catch (err) {
@@ -809,7 +809,7 @@ export async function renameDrawing(id, newName) {
         // Even if DB fails, update local
         if (typeof window !== 'undefined') {
             try {
-                const cachedRaw = localStorage.getItem('mavi_drawings') || '[]';
+                const cachedRaw = localStorage.getItem('mandor_drawings') || '[]';
                 const list = JSON.parse(cachedRaw);
                 const index = list.findIndex(d => d.id === id);
                 if (index !== -1) {
@@ -834,14 +834,14 @@ export async function getAllCalibrationLogs() {
         if (error) throw error;
         // Sync local storage cache for offline/fallback use
         if (typeof window !== 'undefined') {
-            localStorage.setItem('mavi_local_calibration_logs', JSON.stringify(data || []));
+            localStorage.setItem('mandor_local_calibration_logs', JSON.stringify(data || []));
         }
         return data || [];
     } catch (err) {
         console.warn('[Supabase Fallback] Failed to fetch calibration logs from database, loading from localStorage:', err);
         if (typeof window !== 'undefined') {
             try {
-                const cached = localStorage.getItem('mavi_local_calibration_logs');
+                const cached = localStorage.getItem('mandor_local_calibration_logs');
                 if (cached) return JSON.parse(cached);
             } catch (e) {
                 console.error('[Supabase Fallback] Failed to parse local calibration logs cache:', e);
@@ -873,7 +873,7 @@ export async function addCalibrationLog(log) {
         // Sync to local storage
         if (typeof window !== 'undefined') {
             try {
-                const cachedRaw = localStorage.getItem('mavi_local_calibration_logs') || '[]';
+                const cachedRaw = localStorage.getItem('mandor_local_calibration_logs') || '[]';
                 const list = JSON.parse(cachedRaw);
                 const updatedList = list.map(item => {
                   if (item.camera === payload.camera && item.status === 'VALID') {
@@ -882,7 +882,7 @@ export async function addCalibrationLog(log) {
                   return item;
                 });
                 updatedList.unshift(data);
-                localStorage.setItem('mavi_local_calibration_logs', JSON.stringify(updatedList));
+                localStorage.setItem('mandor_local_calibration_logs', JSON.stringify(updatedList));
             } catch (e) {
                 console.error('[Supabase Fallback] Failed to sync local storage on insert:', e);
             }
@@ -893,7 +893,7 @@ export async function addCalibrationLog(log) {
         console.warn('[Supabase Fallback] Failed to add calibration log to database, saving to localStorage:', err);
         if (typeof window !== 'undefined') {
             try {
-                const cachedRaw = localStorage.getItem('mavi_local_calibration_logs') || '[]';
+                const cachedRaw = localStorage.getItem('mandor_local_calibration_logs') || '[]';
                 const list = JSON.parse(cachedRaw);
                 const localData = { ...payload, id: 'local-' + Date.now() };
                 
@@ -906,7 +906,7 @@ export async function addCalibrationLog(log) {
                 });
                 
                 updatedList.unshift(localData);
-                localStorage.setItem('mavi_local_calibration_logs', JSON.stringify(updatedList));
+                localStorage.setItem('mandor_local_calibration_logs', JSON.stringify(updatedList));
                 return localData;
             } catch (e) {
                 console.error('[Supabase Fallback] Failed to save calibration log locally:', e);

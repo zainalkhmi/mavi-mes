@@ -1,11 +1,11 @@
 /**
  * iotProtocolGateway.js
  * =====================================================
- * Mavi IoT Protocol Gateway Engine
+ * Mandor IoT Protocol Gateway Engine
  * Supports: Zigbee (via Zigbee2MQTT), Matter, BLE Mesh
  *
  * Architecture:
- *   Browser (Mavi) <--MQTT/WebSocket--> MQTT Broker <---> Hardware Gateway
+ *   Browser (Mandor) <--MQTT/WebSocket--> MQTT Broker <---> Hardware Gateway
  *                                                         (Zigbee2MQTT / Matter Bridge / BLE GW)
  *
  * In simulation mode (no hardware), realistic device discovery and
@@ -192,7 +192,7 @@ class IoTProtocolGateway {
 
     try {
       this.mqttClient = mqtt.connect(brokerUrl, {
-        clientId: `mavi_iot_gw_${Date.now()}`,
+        clientId: `mandor_iot_gw_${Date.now()}`,
         ...options
       });
 

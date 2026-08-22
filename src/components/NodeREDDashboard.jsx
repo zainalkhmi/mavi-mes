@@ -1,7 +1,7 @@
 /**
  * NodeREDDashboard.jsx
  *
- * Node-RED UI Integration for MAVI MES
+ * Node-RED UI Integration for MANDOR MES
  * Embeds Node-RED dashboard via iframe
  *
  * Usage:
@@ -24,7 +24,7 @@ export default function NodeREDDashboard() {
 
   // Load saved URL from localStorage
   useEffect(() => {
-    const savedUrl = localStorage.getItem('mavi_nodered_url');
+    const savedUrl = localStorage.getItem('mandor_nodered_url');
     if (savedUrl) {
       setNodeRedUrl(savedUrl);
       setEditUrl(savedUrl);
@@ -59,7 +59,7 @@ export default function NodeREDDashboard() {
     }
 
     setIsLoading(true);
-    localStorage.setItem('mavi_nodered_url', editUrl.trim());
+    localStorage.setItem('mandor_nodered_url', editUrl.trim());
     setNodeRedUrl(editUrl.trim());
 
     const connected = await testConnection(editUrl.trim());

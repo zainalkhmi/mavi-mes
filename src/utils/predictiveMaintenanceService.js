@@ -7,7 +7,7 @@
 import { getMachines, getStations, getPrimaryAiConnector, saveMachine } from './database';
 import { getChatCompletion } from './aiService';
 
-const CONFIG_STORAGE_KEY = 'mavi_predictive_machine_configs';
+const CONFIG_STORAGE_KEY = 'mandor_predictive_machine_configs';
 
 /**
  * Loads real machines from database and evaluates their live health & RUL
@@ -17,7 +17,7 @@ export const getLivePredictiveMachines = async () => {
     const dbMachines = await getMachines();
     const dbStations = await getStations();
     const rawConfigs = JSON.parse(localStorage.getItem(CONFIG_STORAGE_KEY) || '{}');
-    const livePlcTags = window.mavi_plc_tags || [];
+    const livePlcTags = window.mandor_plc_tags || [];
 
     if (!dbMachines || dbMachines.length === 0) {
       return [];
@@ -334,9 +334,9 @@ export const createPredictiveWorkOrder = async (machine) => {
   };
 
   try {
-    const existingOrders = JSON.parse(localStorage.getItem('mavi_maintenance_work_orders') || '[]');
+    const existingOrders = JSON.parse(localStorage.getItem('mandor_maintenance_work_orders') || '[]');
     existingOrders.unshift(workOrder);
-    localStorage.setItem('mavi_maintenance_work_orders', JSON.stringify(existingOrders));
+    localStorage.setItem('mandor_maintenance_work_orders', JSON.stringify(existingOrders));
   } catch (e) {
     console.error('[PredictiveService] Failed to save maintenance work order:', e);
   }

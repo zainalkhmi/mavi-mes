@@ -1,6 +1,6 @@
 /**
  * lotGeneratorTemplate.js
- * Generates an App Builder Template for MES Lot Generator in MAVI-MES
+ * Generates an App Builder Template for MES Lot Generator in MANDOR-MES
  */
 export function createLotGeneratorTemplate() {
     const ts = Date.now();

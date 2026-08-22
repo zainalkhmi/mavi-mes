@@ -1,5 +1,5 @@
 /**
- * Mavi Connector Hub
+ * Mandor Connector Hub
  * ==================
  * Universal ERP/system integration engine inspired by Tulip Connectors.
  * Supports: HTTP REST, Odoo JSON-RPC, SAP OData, FrePPLe REST, SQL (via proxy)
@@ -13,13 +13,13 @@
  */
 
 // ─── Storage Keys ─────────────────────────────────────────────────────────────
-const LS_CALL_LOG = 'mavi_connector_call_log';
+const LS_CALL_LOG = 'mandor_connector_call_log';
 const MAX_LOG_ENTRIES = 200;
 
 // ─── Utility ──────────────────────────────────────────────────────────────────
 function getConnectors() {
   try {
-    return JSON.parse(localStorage.getItem('mavi_integration_connectors') || '[]');
+    return JSON.parse(localStorage.getItem('mandor_integration_connectors') || '[]');
   } catch { return []; }
 }
 
@@ -288,7 +288,7 @@ async function sapOdataAdapter(connector, fn, inputs) {
 }
 
 /**
- * SQL / PostgreSQL Adapter — via Mavi ERP Bridge
+ * SQL / PostgreSQL Adapter — via Mandor ERP Bridge
  * Mengirim query ke bridge proxy yang punya akses ke PostgreSQL.
  * Bridge URL: http://localhost:3099/sql/query
  *
@@ -300,7 +300,7 @@ async function sqlAdapter(connector, fn, inputs) {
   const envConfig = connector.environments?.[env] || {};
   const bridgeUrl = (envConfig.baseUrl || connector.baseUrl || '').replace(/\/$/, '');
 
-  if (!bridgeUrl) throw new Error(`SQL Connector "${connector.name}": Bridge URL not configured. Set Base URL to your Mavi ERP Bridge (e.g. http://localhost:3099).`);
+  if (!bridgeUrl) throw new Error(`SQL Connector "${connector.name}": Bridge URL not configured. Set Base URL to your Mandor ERP Bridge (e.g. http://localhost:3099).`);
 
   // Build connection config dari connector settings
   const pgConnection = {
@@ -336,7 +336,7 @@ async function sqlAdapter(connector, fn, inputs) {
 
   const headers = { 'Content-Type': 'application/json' };
   if (connector.bridgeApiKey || envConfig.bridgeApiKey) {
-    headers['X-Mavi-Bridge-Key'] = connector.bridgeApiKey || envConfig.bridgeApiKey;
+    headers['X-Mandor-Bridge-Key'] = connector.bridgeApiKey || envConfig.bridgeApiKey;
   }
 
   const response = await fetch(endpoint, {
@@ -500,7 +500,7 @@ export async function testConnection(connector) {
         return { ok: true, latencyMs: Date.now() - startTime, message: 'FrePPLe connection successful' };
       }
       case 'SQL': {
-        // Test via Mavi ERP Bridge /sql/connect-test
+        // Test via Mandor ERP Bridge /sql/connect-test
         const pgConn = {
           host:     envConfig.pgHost     || connector.pgHost     || 'localhost',
           port:     parseInt(envConfig.pgPort || connector.pgPort || '5432'),
@@ -510,7 +510,7 @@ export async function testConnection(connector) {
           ssl:      connector.pgSsl || false
         };
         const headers = { 'Content-Type': 'application/json' };
-        if (connector.bridgeApiKey) headers['X-Mavi-Bridge-Key'] = connector.bridgeApiKey;
+        if (connector.bridgeApiKey) headers['X-Mandor-Bridge-Key'] = connector.bridgeApiKey;
         const resp = await fetch(`${baseUrl.replace(/\/$/, '')}/sql/connect-test`, {
           method: 'POST',
           headers,
@@ -874,7 +874,7 @@ export const CONNECTOR_TYPES = [
   { value: 'ODOO',     label: 'Odoo ERP',           icon: 'Package',  color: '#714b67', description: 'Odoo v14/v16/v17 via JSON-RPC' },
   { value: 'SAP_ODATA',label: 'SAP S/4HANA',        icon: 'Building2',color: '#0070f3', description: 'SAP S/4HANA Cloud via OData V2/V4' },
   { value: 'FREPPLE',  label: 'FrePPLe',            icon: 'BarChart3',color: '#059669', description: 'FrePPLe planning via REST API' },
-  { value: 'SQL',      label: 'SQL / PostgreSQL',    icon: 'Database', color: '#10b981', description: 'Query PostgreSQL, MySQL, atau database apapun via Mavi ERP Bridge' },
+  { value: 'SQL',      label: 'SQL / PostgreSQL',    icon: 'Database', color: '#10b981', description: 'Query PostgreSQL, MySQL, atau database apapun via Mandor ERP Bridge' },
   { value: 'MQTT',     label: 'MQTT / IoT',          icon: 'Zap',      color: '#f59e0b', description: 'MQTT broker for IoT devices' },
   { value: 'SUPABASE', label: 'Supabase',            icon: 'HardDrive',color: '#3ecf8e', description: 'Direct Supabase integration' },
   { value: 'CANVA',    label: 'Canva Connect',      icon: 'Palette',  color: '#00c4cc', description: 'Connect to Canva API to dynamically pull mockups or asset designs' },

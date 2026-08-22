@@ -10,7 +10,7 @@
 
 import Dexie from 'dexie';
 
-const DB_NAME = 'MaviSCADAHistorian';
+const DB_NAME = 'MandorSCADAHistorian';
 const DB_VERSION = 1;
 
 const db = new Dexie(DB_NAME);

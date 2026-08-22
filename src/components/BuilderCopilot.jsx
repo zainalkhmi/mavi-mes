@@ -304,7 +304,7 @@ const BuilderCopilot = ({
   selectedWidget,
   onOpenCopilot,
 }) => {
-  const STORAGE_KEY = 'mavi_copilot_history';
+  const STORAGE_KEY = 'mandor_copilot_history';
 
   const loadMessages = () => {
     try {
@@ -318,7 +318,7 @@ const BuilderCopilot = ({
     } catch (e) { /* ignore */ }
     return [{
       role: 'assistant',
-      content: 'Halo! Saya **Mavi Builder Copilot** — AI Architect untuk aplikasi MES industrial.\n\nSaya bisa:\n• 🏗️ Generate full app dari deskripsi\n• 📊 Buat dashboard KPI & monitoring\n• 📋 Buat form input & quality inspection\n• 🔧 Tambah widget spesifik ke screen\n• 🤖 Buat trigger & automation\n\nApa yang ingin Anda buat hari ini?',
+      content: 'Halo! Saya **Mandor Builder Copilot** — AI Architect untuk aplikasi MES industrial.\n\nSaya bisa:\n• 🏗️ Generate full app dari deskripsi\n• 📊 Buat dashboard KPI & monitoring\n• 📋 Buat form input & quality inspection\n• 🔧 Tambah widget spesifik ke screen\n• 🤖 Buat trigger & automation\n\nApa yang ingin Anda buat hari ini?',
       timestamp: new Date()
     }];
   };
@@ -576,7 +576,7 @@ const BuilderCopilot = ({
       if (sessionSummary && messages.length < 30) return;
       try {
         const toSummarize = messages.slice(0, messages.length - 8);
-        const summaryPrompt = `Ringkas percakapan Mavi Builder Copilot berikut dalam 5 poin bullet singkat (max 300 kata total). Fokus pada: widget apa yang dibuat, tabel apa yang ada, screen apa yang ada, dan masalah apa yang sudah diselesaikan:\n\n${toSummarize.map(m => `${m.role}: ${String(m.content).slice(0, 300)}`).join('\n')}`;
+        const summaryPrompt = `Ringkas percakapan Mandor Builder Copilot berikut dalam 5 poin bullet singkat (max 300 kata total). Fokus pada: widget apa yang dibuat, tabel apa yang ada, screen apa yang ada, dan masalah apa yang sudah diselesaikan:\n\n${toSummarize.map(m => `${m.role}: ${String(m.content).slice(0, 300)}`).join('\n')}`;
         const { getChatCompletion } = await import('../utils/aiService');
         // We use the connector directly for a quick summary
         const summaryResult = await getChatCompletion([{ role: 'user', content: summaryPrompt }], aiConnector);
@@ -817,7 +817,7 @@ Apa yang bisa kamu bantu untuk widget ini?`;
   // Enterprise Feature: Export Audit Trail Log
   const handleExportAuditTrail = () => {
     let content = `==================================================\n`;
-    content += `       MAVI BUILDER COPILOT - AUDIT TRAIL LOG      \n`;
+    content += `       MANDOR BUILDER COPILOT - AUDIT TRAIL LOG      \n`;
     content += `==================================================\n`;
     content += `Export Date  : ${new Date().toLocaleString('id-ID')}\n`;
     content += `App Name     : ${context?.appName || 'Unnamed App'}\n`;
@@ -851,7 +851,7 @@ Apa yang bisa kamu bantu untuk widget ini?`;
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `mavi_copilot_audit_trail_${new Date().toISOString().slice(0, 10)}.txt`);
+    link.setAttribute('download', `mandor_copilot_audit_trail_${new Date().toISOString().slice(0, 10)}.txt`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -878,7 +878,7 @@ Apa yang bisa kamu bantu untuk widget ini?`;
 
     const newMessage = {
       sender_id: 'copilot',
-      sender_name: 'Mavi Builder Copilot',
+      sender_name: 'Mandor Builder Copilot',
       station_id: 'AppBuilder',
       target_station_id: 'antigravity',
       content: JSON.stringify(payload),
@@ -920,7 +920,7 @@ Apa yang bisa kamu bantu untuk widget ini?`;
 
     const newMessage = {
       sender_id: 'copilot_direct',
-      sender_name: 'Mavi Copilot Direct Input',
+      sender_name: 'Mandor Copilot Direct Input',
       station_id: 'AppBuilder',
       target_station_id: 'antigravity',
       content: JSON.stringify(payload),
@@ -2444,7 +2444,7 @@ Apa yang bisa kamu bantu untuk widget ini?`;
         <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', color: '#94a3b8', fontSize: '0.65rem' }}>
           <Zap size={9} />
           <span>
-            {aiConnector?.aiSettings?.provider || aiConnector?.config?.provider || 'Mavi Brain'} • Enter kirim, Shift+Enter baris baru
+            {aiConnector?.aiSettings?.provider || aiConnector?.config?.provider || 'Mandor Brain'} • Enter kirim, Shift+Enter baris baru
           </span>
         </div>
       </div>

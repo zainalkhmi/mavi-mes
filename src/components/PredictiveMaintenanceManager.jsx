@@ -244,7 +244,7 @@ const PredictiveMaintenanceManager = () => {
       }}>
         <div>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#714B67', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>
-            <Cpu size={14} /> MAVI MES · PREDICTIVE MAINTENANCE & RUL ENGINE
+            <Cpu size={14} /> MANDOR MES · PREDICTIVE MAINTENANCE & RUL ENGINE
           </div>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 900, color: '#212529', margin: 0 }}>
             Equipment Health & Remaining Useful Life

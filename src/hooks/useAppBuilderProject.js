@@ -161,7 +161,7 @@ export default function useAppBuilderProject({ state, utils }) {
                 await deleteFrontlineApp(id);    
     
                 // Purge from all localStorage caches so LiveTerminal doesn't show ghost entries    
-                const cacheKeys = ['mavi_offline_vault', 'offline_apps_cache', 'draft_frontline_apps'];    
+                const cacheKeys = ['mandor_offline_vault', 'offline_apps_cache', 'draft_frontline_apps'];    
                 cacheKeys.forEach(key => {    
                     try {    
                         const raw = localStorage.getItem(key);    

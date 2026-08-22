@@ -1,6 +1,6 @@
 /**
  * workInstructionsTemplate.js
- * Generates a professional, Tulip-style Work Instructions / Work Order Execution application for MAVI-MES
+ * Generates a professional, Tulip-style Work Instructions / Work Order Execution application for MANDOR-MES
  */
 
 export function createWorkInstructionsTemplate() {

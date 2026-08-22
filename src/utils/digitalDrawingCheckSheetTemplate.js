@@ -43,7 +43,7 @@ export function createDigitalDrawingCheckSheetTemplate() {
             {
                 id: `cs_logo_${ts}`, type: 'HEADING',
                 x: 16, y: 10, w: 300, h: 30,
-                props: { text: 'Mavi-Core® QA Check Sheet', fontSize: 16, fontWeight: 'bold', color: '#22c55e' }
+                props: { text: 'Mandor® QA Check Sheet', fontSize: 16, fontWeight: 'bold', color: '#22c55e' }
             },
             {
                 id: `cs_info_${ts}`, type: 'TEXT',
@@ -71,7 +71,7 @@ export function createDigitalDrawingCheckSheetTemplate() {
         category: 'Quality Management',
         icon: 'FileCode',
         version: '2.0.0',
-        author: 'MAVI Engineering',
+        author: 'MANDOR Engineering',
         tags: ['QA', 'Drawing', 'Check Sheet', 'Blueprint', 'Tolerance', 'CAD'],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),

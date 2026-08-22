@@ -786,7 +786,7 @@ const AppNodeEditor = ({
   // ─── BLUEPRINT EXPORT & IMPORT (JSON SHARE) ─────────────────────────────────
   const handleExportBlueprint = useCallback(() => {
     const blueprint = {
-      appName: 'Mavi Low-Code App Flow',
+      appName: 'Mandor Low-Code App Flow',
       version: '2.0.0',
       exportedAt: new Date().toISOString(),
       screenId: activeStepId,

@@ -239,10 +239,10 @@ const StationManager = () => {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                             <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>Stations</h2>
                             <div style={{ display: 'flex', gap: '8px' }}>
-                                <button onClick={() => setIsCreateGroupModalOpen(true)} className="mavi-widget-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 12px', backgroundColor: 'white', color: '#3b82f6', border: '1px solid #e2e8f0', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
+                                <button onClick={() => setIsCreateGroupModalOpen(true)} className="mandor-widget-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 12px', backgroundColor: 'white', color: '#3b82f6', border: '1px solid #e2e8f0', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
                                     <Layers size={14} /> Group
                                 </button>
-                                <button onClick={() => setIsCreateModalOpen(true)} className="mavi-widget-btn" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
+                                <button onClick={() => setIsCreateModalOpen(true)} className="mandor-widget-btn" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
                                     <Plus size={16} /> Station
                                 </button>
                             </div>
@@ -254,7 +254,7 @@ const StationManager = () => {
                                 placeholder="Search site, area, group, station..." 
                                 value={searchTerm} 
                                 onChange={(e) => setSearchTerm(e.target.value)} 
-                                className="mavi-input"
+                                className="mandor-input"
                                 style={{ 
                                     width: '100%', 
                                     padding: '10px 10px 10px 40px', 

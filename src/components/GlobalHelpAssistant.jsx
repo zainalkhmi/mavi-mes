@@ -19,22 +19,22 @@ import { getTableRecords, addTableRecord } from '../utils/supabaseTablesDB'; // 
 import { getSupabaseClient } from '../utils/supabaseManualDB';
 
 const SYSTEM_PROMPT = `
-Anda adalah **Mavi Global AI Assistant**, pakar utama dari platform **Mavi MES (Manufacturing Execution System)**.
-Tugas Anda adalah membantu pengguna memahami cara kerja Mavi, mulai dari konfigurasi hardware hingga pembuatan aplikasi industri.
-Pengetahuan dasar Mavi meliputi:
+Anda adalah **Mandor Global AI Assistant**, pakar utama dari platform **Mandor MES (Manufacturing Execution System)**.
+Tugas Anda adalah membantu pengguna memahami cara kerja Mandor, mulai dari konfigurasi hardware hingga pembuatan aplikasi industri.
+Pengetahuan dasar Mandor meliputi:
 1. **Apps (App Builder & Copilot):** Pengguna dapat membuat aplikasi operator/HMI secara drag-and-drop, mengatur tag PLC ke variabel UI, dan mempublish aplikasi. **PENTING:** Jika pengguna bertanya tentang cara membuat aplikasi (app), Anda WAJIB memberikan langkah-langkah dasar dan menyertakan tautan ini: [Buka Copilot App Builder](#/builder?copilot=true)
-2. **Widget List (Daftar Widget HMI):** Mavi memiliki banyak widget untuk mendesain antarmuka operator:
+2. **Widget List (Daftar Widget HMI):** Mandor memiliki banyak widget untuk mendesain antarmuka operator:
    - **Kontrol & Input UI**: Button (memicu aksi/trigger click), Slider (input nilai kontinu/rentang), Switch (boolean toggle ON/OFF), TextBox (input teks/angka manual).
-   - **Visualisasi & Data**: Gauge/Circular Gauge (indikator analog/speedometer real-time), Chart (tren grafik Line/Bar/Pie), Data Table (tabel interaktif untuk list Work Order/inspeksi QC dari database Mavi), Live Analysis (analytics).
+   - **Visualisasi & Data**: Gauge/Circular Gauge (indikator analog/speedometer real-time), Chart (tren grafik Line/Bar/Pie), Data Table (tabel interaktif untuk list Work Order/inspeksi QC dari database Mandor), Live Analysis (analytics).
    - **Industri & Sensor**: Machine Status (indikator status Merah/Hijau/Kuning), Camera Scanner (scan QR/Barcode), Measurement (mengambil data dari Caliper/Micrometer via Serial COM/USB).
    - **Media & Dokumen**: PDF Viewer (menampilkan SOP di stasiun kerja), Webpage (integrasi web eksternal/CCTV).
    Jika ditanya cara menggunakannya, jelaskan fungsi, cara pakai, dan parameter konfigurasinya (seperti 'value', 'min', 'max', 'on', 'trackColorActive', 'tableId', 'connectionType', 'baudRate', dll.).
-3. **Shop Floor (Hardware & Station):** Mavi menghubungkan hardware via Edge Devices, IoT Hub, dan PLC Settings (Modbus TCP/RTU, OPC UA, MQTT). Pengguna dapat memanajemen jalur produksi di Station Manager dan Assign App ke operator.
-4. **Analytics:** Mavi memiliki Dashboard dan Analysis Manager untuk visualisasi data produksi (OEE, Downtime, dll).
-5. **Logic & Automations:** Mavi mendukung otomatisasi berbasis node logic (Event-Condition-Action) dan Functions/API eksternal.
+3. **Shop Floor (Hardware & Station):** Mandor menghubungkan hardware via Edge Devices, IoT Hub, dan PLC Settings (Modbus TCP/RTU, OPC UA, MQTT). Pengguna dapat memanajemen jalur produksi di Station Manager dan Assign App ke operator.
+4. **Analytics:** Mandor memiliki Dashboard dan Analysis Manager untuk visualisasi data produksi (OEE, Downtime, dll).
+5. **Logic & Automations:** Mandor mendukung otomatisasi berbasis node logic (Event-Condition-Action) dan Functions/API eksternal.
 6. **Node Canvas (Visual Logic Flow):** Menu **Node Canvas** di App Builder memungkinkan pengguna memvisualisasikan dan mengkonfigurasi logic UI aplikasi secara visual berbasis node-graph. Canvas ini MEMBACA semua widget (komponen) yang ada di setiap screen (step) maupun global (baseComponents) beserta properti dan logicnya, lalu menampilkannya sebagai node yang bisa dihubungkan dengan wire (edge). Jelaskan cara membuka palette (tab Widgets/Events/Vars/Tables), cara klik node widget untuk inspect props dan logic, cara mengatur WHEN-IF-THEN logic, dan cara menjalankan Play/Test Run Flow.
 7. **Console:** Aplikasi dijalankan oleh operator melalui Live Terminal atau App Player.
-8. **Mavi Vision & AI Detector Integrations (AI Deep Learning + Rule-Based CV):**
+8. **Mandor Vision & AI Detector Integrations (AI Deep Learning + Rule-Based CV):**
    - **Visual Inspection Datasets (Pengumpulan Data):** Tab khusus untuk membuat dataset lokal dan mengambil gambar sampel langsung dari kamera kerja. Operator melabeli gambar tersebut sebagai PASS, FAIL, atau label defect kustom. Rekomendasi minimal 30-50 sampel gambar per kategori.
    - **AI Models & Inspection (Pelatihan & Pengujian):** Tab untuk melatih model secara lokal di server. Jenis model meliputi:
      - *Anomaly Detection (PatchCore)*: Deteksi anomali tanpa pengawasan (hanya melatih gambar OK/Normal). Menghasilkan heatmap anomali.
@@ -63,16 +63,16 @@ Berikan panduan yang komprehensif, langkah demi langkah, dan mudah dipahami.
 Gunakan format markdown yang rapi (bullet points, bold, code block).
 `;
 
-const MAVI_GUIDES = [
+const MANDOR_GUIDES = [
   {
     id: 'workflow-roadmap',
     title: 'Workflow & Roadmap',
     icon: Route,
     color: '#6366f1', // Indigo
     content: `
-**Roadmap Alur Pembuatan Aplikasi di Mavi**
+**Roadmap Alur Pembuatan Aplikasi di Mandor**
 
-![Mavi App Workflow](/assets/workflow-roadmap.png)
+![Mandor App Workflow](/assets/workflow-roadmap.png)
 
 Berikut adalah panduan langkah demi langkah (workflow) untuk merancang, membangun, dan menyebarkan aplikasi HMI/Operator dari awal hingga berjalan di lantai produksi:
 
@@ -91,7 +91,7 @@ Berikut adalah panduan langkah demi langkah (workflow) untuk merancang, membangu
 
 4. **Fase 4: Uji Coba & Deployment**
    - **Langkah 4.1: Simulasi Lokal (Simulate/Preview):** Gunakan tombol Preview di App Builder untuk mensimulasikan alur kerja aplikasi secara lokal.
-   - **Langkah 4.2: Publikasikan Aplikasi (Publish):** Jika sudah siap, klik **Publish** untuk mengirim versi aplikasi ke **App Store** internal Mavi.
+   - **Langkah 4.2: Publikasikan Aplikasi (Publish):** Jika sudah siap, klik **Publish** untuk mengirim versi aplikasi ke **App Store** internal Mandor.
    - **Langkah 4.3: Tetapkan Aplikasi ke Stasiun Kerja (Assign to Station):** Masuk ke menu **Shop Floor -> Stations**, pilih stasiun kerja fisik (contoh: "Assembly Line 1"), dan tetapkan aplikasi yang baru dipublikasikan tersebut. Operator yang login di stasiun kerja tersebut akan otomatis melihat aplikasi Anda berjalan di layar mereka.
 
 ---
@@ -100,7 +100,7 @@ Berikut adalah panduan langkah demi langkah (workflow) untuk merancang, membangu
 - **Tag:** Alamat memori di PLC (sensor/mesin) untuk membaca/menulis data.
 - **Trigger:** Aturan sebab-akibat (Jika tombol diklik, maka simpan data).
 - **Record Placeholder:** Wadah sementara di memori aplikasi untuk menyimpan satu baris data dari Tabel Database.
-- **Edge Device:** Komputer mini di pabrik yang menjembatani mesin fisik ke sistem Mavi.
+- **Edge Device:** Komputer mini di pabrik yang menjembatani mesin fisik ke sistem Mandor.
     `
   },
   {
@@ -142,7 +142,7 @@ Mari kita buat aplikasi "Hello World" sederhana untuk memahami cara kerja App Bu
     content: `
 **Cara Membuat Prompt AI yang Akurat**
 
-Mavi dilengkapi dengan **AI Copilot** yang bisa men-generate aplikasi (UI dan tabel) secara otomatis. Kunci untuk mendapatkan hasil yang bagus adalah memberikan perintah (*prompt*) yang spesifik.
+Mandor dilengkapi dengan **AI Copilot** yang bisa men-generate aplikasi (UI dan tabel) secara otomatis. Kunci untuk mendapatkan hasil yang bagus adalah memberikan perintah (*prompt*) yang spesifik.
 
 ### Contoh Prompt yang Buruk ❌
 > *"Buatkan aplikasi untuk inspeksi."*
@@ -164,11 +164,11 @@ Jika hasil pertama dari AI kurang pas, Anda tidak perlu mengulang dari nol! Cuku
     icon: AppWindow,
     color: '#14b8a6',
     content: `
-**3 Cara Membuat Aplikasi di Mavi — Tanpa Coding, Tanpa Database Manual**
+**3 Cara Membuat Aplikasi di Mandor — Tanpa Coding, Tanpa Database Manual**
 
 ![3 Ways to Create Apps](/assets/create-app-ways.jpg)
 
-Mavi menyediakan **tiga cara** untuk membuat aplikasi industri (HMI/Operator) sesuai kebutuhan dan tingkat kenyamanan Anda:
+Mandor menyediakan **tiga cara** untuk membuat aplikasi industri (HMI/Operator) sesuai kebutuhan dan tingkat kenyamanan Anda:
 
 ---
 
@@ -196,7 +196,7 @@ Bangun aplikasi dari nol dengan kendali penuh. Buka **App Builder**, lalu tarik 
 
 ### 3. Generate dengan Copilot (AI-Powered)
 
-Deskripsikan apa yang Anda butuhkan, dan **Mavi Builder Copilot** (AI) akan membuatkan aplikasi lengkap untuk Anda — termasuk form, tabel, logic, dan chart.
+Deskripsikan apa yang Anda butuhkan, dan **Mandor Builder Copilot** (AI) akan membuatkan aplikasi lengkap untuk Anda — termasuk form, tabel, logic, dan chart.
 
 - AI membuat app, forms, tables, logic & charts secara otomatis
 - Hemat waktu dan kurangi pekerjaan manual
@@ -225,11 +225,11 @@ Setelah aplikasi selesai dibuat (dengan cara apapun di atas), langkah terakhir a
 
 ![App Builder & Copilot](/assets/app-builder-copilot.png)
 
-Mavi menyediakan **App Builder** yang memungkinkan Anda membuat antarmuka aplikasi industri (HMI) secara *drag-and-drop* tanpa perlu coding.
+Mandor menyediakan **App Builder** yang memungkinkan Anda membuat antarmuka aplikasi industri (HMI) secara *drag-and-drop* tanpa perlu coding.
 
 1. **Membuat UI:** Buka menu **Apps -> App Builder**. Anda dapat menambahkan Widget seperti Tombol, Indikator Angka, Grafik, maupun Input Teks.
 2. **Koneksi Variabel:** Setiap Widget dapat dikaitkan dengan *Variables* yang mana nilainya bisa bersumber dari PLC (Tag), Database (Tables), atau Input Operator.
-3. **AI Copilot:** Anda bisa meminta Mavi AI Copilot untuk meng-*generate* layout UI berdasarkan prompt (contoh: "Buatkan form inspeksi quality control").
+3. **AI Copilot:** Anda bisa meminta Mandor AI Copilot untuk meng-*generate* layout UI berdasarkan prompt (contoh: "Buatkan form inspeksi quality control").
 4. **Publishing:** Setelah selesai, aplikasi dapat di-Publish ke **App Store** internal untuk nantinya ditugaskan (assigned) ke *Station* tertentu di area Shop Floor.
     `
   },
@@ -241,13 +241,13 @@ Mavi menyediakan **App Builder** yang memungkinkan Anda membuat antarmuka aplika
     content: `
 **Manajemen Pabrik & Hardware**
 
-![Mavi Shop Floor & Konektivitas](/assets/shop-floor-connectivity.png)
+![Mandor Shop Floor & Konektivitas](/assets/shop-floor-connectivity.png)
 
-Mavi mengatur hierarki lantai produksi dan mengumpulkan data dari mesin.
+Mandor mengatur hierarki lantai produksi dan mengumpulkan data dari mesin.
 
 1. **Stations:** Titik kerja operator (misal: "Assembly Line 1"). Aplikasi (App) ditugaskan pada setiap Station, sehingga operator yang login di Station tersebut akan melihat App yang relevan.
 2. **Machines & Edge Devices:** Repositori untuk mendaftarkan aset fisik pabrik. Edge Devices digunakan untuk memproses data komputasi di area lokal sebelum dikirim ke server.
-3. **PLC Settings:** Untuk mengonfigurasi konektivitas Mavi ke PLC industri via protokol **Modbus TCP, Modbus RTU (Serial), OPC UA**, atau platform mikrokontroler seperti Arduino. Di sini Anda bisa memetakan memori register PLC menjadi Tag agar bisa dibaca oleh App.
+3. **PLC Settings:** Untuk mengonfigurasi konektivitas Mandor ke PLC industri via protokol **Modbus TCP, Modbus RTU (Serial), OPC UA**, atau platform mikrokontroler seperti Arduino. Di sini Anda bisa memetakan memori register PLC menjadi Tag agar bisa dibaca oleh App.
 4. **IoT Hub:** Menerima *streaming* data real-time via MQTT or HTTP dari perangkat IoT.
     `
   },
@@ -259,9 +259,9 @@ Mavi mengatur hierarki lantai produksi dan mengumpulkan data dari mesin.
     content: `
 **Automasi & Pengolahan Data**
 
-![Mavi Logic & Automation](/assets/logic-automation.png)
+![Mandor Logic & Automation](/assets/logic-automation.png)
 
-Sistem automasi Mavi memproses data dari perangkat keras (PLC/IoT) dan tingkat operator untuk mengeksekusi logika backend tanpa perlu menulis kode yang rumit.
+Sistem automasi Mandor memproses data dari perangkat keras (PLC/IoT) dan tingkat operator untuk mengeksekusi logika backend tanpa perlu menulis kode yang rumit.
 
 1. **Triggers (Pemicu):**
    - Merupakan kejadian (*events*) yang memulai alur logika dalam aplikasi HMI maupun automasi visual.
@@ -269,7 +269,7 @@ Sistem automasi Mavi memproses data dari perangkat keras (PLC/IoT) dan tingkat o
    - *Tingkat Automasi:* Nilai memori PLC berubah (Tag change), interval waktu berkala (Timer), atau data baru yang masuk dari MQTT Broker/HTTP API.
 
 2. **Connectors (Konektor):**
-   - Jembatan integrasi untuk menghubungkan Mavi dengan sistem luar, database relasional pihak ketiga, atau REST API eksternal.
+   - Jembatan integrasi untuk menghubungkan Mandor dengan sistem luar, database relasional pihak ketiga, atau REST API eksternal.
    - Mendukung integrasi dengan ERP Enterprise (seperti **SAP, Dynamics 365**), database SQL (PostgreSQL, MSSQL, MySQL), serta web service eksternal (Webhook).
 
 3. **Functions (Fungsi):**
@@ -278,7 +278,7 @@ Sistem automasi Mavi memproses data dari perangkat keras (PLC/IoT) dan tingkat o
 
 4. **Automations (Automasi):**
    - Aturan logika visual berbasis node dengan pola *Event-Condition-Action* (ECA) yang berjalan di latar belakang (*background*).
-   - Digunakan untuk memonitor fault mesin secara terus-menerus, memicu sirine alarm jika parameter melebihi batas aman, mengirimkan email peringatan ke departemen maintenance, atau menulis log Downtime secara otomatis ke Tabel Database Mavi.
+   - Digunakan untuk memonitor fault mesin secara terus-menerus, memicu sirine alarm jika parameter melebihi batas aman, mengirimkan email peringatan ke departemen maintenance, atau menulis log Downtime secara otomatis ke Tabel Database Mandor.
     `
   },
   {
@@ -289,12 +289,12 @@ Sistem automasi Mavi memproses data dari perangkat keras (PLC/IoT) dan tingkat o
     content: `
 **Visualisasi & Manajemen Data Produksi**
 
-![Mavi Analytics & Dashboards](/assets/analytics-dashboards.png)
+![Mandor Analytics & Dashboards](/assets/analytics-dashboards.png)
 
 Kelola database produksi Anda dan bangun visualisasi visual (*real-time chart*) untuk memantau produktivitas pabrik Anda secara langsung.
 
 1. **Tables (Tabel Database):**
-   - Sistem database relasional internal terintegrasi di Mavi (mirip *Tulip Tables*) untuk menyimpan data master dan log operasional pabrik.
+   - Sistem database relasional internal terintegrasi di Mandor (mirip *Tulip Tables*) untuk menyimpan data master dan log operasional pabrik.
    - Digunakan untuk mencatat daftar Mesin, Work Order (Perintah Kerja), data Inventaris Bahan Baku, riwayat Cacat Produk (Quality Defect), serta Log Operator.
 
 2. **Record Placeholder (Penampung Rekam):**
@@ -316,11 +316,11 @@ Kelola database produksi Anda dan bangun visualisasi visual (*real-time chart*) 
     icon: Link2,
     color: '#3b82f6', // Blue
     content: `
-**Panduan Konfigurasi & Integrasi Connector MAVI**
+**Panduan Konfigurasi & Integrasi Connector MANDOR**
 
-Connector adalah jembatan penghubung antara platform MAVI-MES dengan sistem eksternal, baik berupa REST API, database SQL, broker IoT (MQTT), standar industri (OPC UA & Modbus), asisten AI (LLM), maupun alat desain (Canva).
+Connector adalah jembatan penghubung antara platform MANDOR-MES dengan sistem eksternal, baik berupa REST API, database SQL, broker IoT (MQTT), standar industri (OPC UA & Modbus), asisten AI (LLM), maupun alat desain (Canva).
 
-Berikut adalah panduan konfigurasi (*caranya*) dan contoh penggunaan (*contohnya*) untuk masing-masing **9 tipe connector** yang tersedia di MAVI:
+Berikut adalah panduan konfigurasi (*caranya*) dan contoh penggunaan (*contohnya*) untuk masing-masing **9 tipe connector** yang tersedia di MANDOR:
 
 ---
 
@@ -357,7 +357,7 @@ Berikut adalah panduan konfigurasi (*caranya*) dan contoh penggunaan (*contohnya
 ---
 
 ### 2. SQL Database (Postgres, MySQL, MSSQL)
-* **Tujuan**: Menghubungkan MAVI langsung ke database relasional eksternal perusahaan untuk pertukaran data operasional.
+* **Tujuan**: Menghubungkan MANDOR langsung ke database relasional eksternal perusahaan untuk pertukaran data operasional.
 * **Cara Konfigurasi**:
   1. Pilih tipe **SQL**.
   2. Isi **Server Address** dengan IP/Domain server database (misal: \`192.168.1.100\`).
@@ -381,7 +381,7 @@ Berikut adalah panduan konfigurasi (*caranya*) dan contoh penggunaan (*contohnya
 ---
 
 ### 3. Supabase (Backend-as-a-Service)
-* **Tujuan**: Mengintegrasikan MAVI secara native ke layanan Supabase cloud database Anda untuk membaca/menulis data secara real-time.
+* **Tujuan**: Mengintegrasikan MANDOR secara native ke layanan Supabase cloud database Anda untuk membaca/menulis data secara real-time.
 * **Cara Konfigurasi**:
   1. Pilih tipe **Supabase**.
   2. Masukkan **Supabase Project URL** (format: \`https://[project-id].supabase.co\`).
@@ -426,7 +426,7 @@ Berikut adalah panduan konfigurasi (*caranya*) dan contoh penggunaan (*contohnya
 ---
 
 ### 5. MQTT (Machine Telemetry Broker)
-* **Tujuan**: Menghubungkan MAVI ke broker MQTT untuk mengirim atau menerima aliran data sensor dan parameter mesin (telemetri) secara real-time.
+* **Tujuan**: Menghubungkan MANDOR ke broker MQTT untuk mengirim atau menerima aliran data sensor dan parameter mesin (telemetri) secara real-time.
 * **Cara Konfigurasi**:
   1. Pilih tipe **MQTT**.
   2. Isi **Server Address** broker MQTT (misal: \`broker.emqx.io\` atau \`192.168.1.15\`).
@@ -451,7 +451,7 @@ Berikut adalah panduan konfigurasi (*caranya*) dan contoh penggunaan (*contohnya
 ---
 
 ### 6. OPC UA (Industrial Standard)
-* **Tujuan**: Menghubungkan MAVI ke server OPC UA untuk memetakan variabel PLC secara aman dan terstruktur.
+* **Tujuan**: Menghubungkan MANDOR ke server OPC UA untuk memetakan variabel PLC secara aman dan terstruktur.
 * **Cara Konfigurasi**:
   1. Pilih tipe **OPC UA**.
   2. Masukkan **Endpoint URL** server OPC UA (contoh: \`opc.tcp://192.168.1.10:4840\`).
@@ -491,18 +491,18 @@ Berikut adalah panduan konfigurasi (*caranya*) dan contoh penggunaan (*contohnya
   4. Masukkan **Model ID** (contoh: \`gpt-4o\`, \`gemini-1.5-pro\`, atau \`claude-3-5-sonnet\`).
   5. Masukkan **Base System Prompt** untuk memberikan konteks perilaku AI.
 * **Contoh Skenario Chat Asisten**:
-  * **System Prompt**: *"Anda adalah asisten operator lini manufaktur MAVI. Jawablah pertanyaan operator mengenai error mesin secara singkat, aman, dan ikuti standar keselamatan industri."*
+  * **System Prompt**: *"Anda adalah asisten operator lini manufaktur MANDOR. Jawablah pertanyaan operator mengenai error mesin secara singkat, aman, dan ikuti standar keselamatan industri."*
   * **Input Operator**: *"Mesin Press hidrolik mengeluarkan bunyi mendengung keras dan jarum tekanan bergoyang."*
   * **Respon AI**:
     > **Tindakan Darurat:**
     > 1. Segera hentikan operasi mesin dengan menekan tombol **E-Stop** fisik di stasiun Anda.
     > 2. Jangan mencoba menyentuh pipa hidrolik selagi mesin dalam kondisi panas.
-    > 3. Laporkan kegagalan sistem melalui tombol **Buat Tiket Perbaikan** di menu MAVI HMI.
+    > 3. Laporkan kegagalan sistem melalui tombol **Buat Tiket Perbaikan** di menu MANDOR HMI.
 
 ---
 
 ### 9. Canva Connect (Mockups & SOP Visual)
-* **Tujuan**: Menghubungkan MAVI secara dinamis ke Canva API untuk menarik dokumen instruksi kerja (SOP), mockup kemasan, atau aset visual stasiun kerja secara real-time.
+* **Tujuan**: Menghubungkan MANDOR secara dinamis ke Canva API untuk menarik dokumen instruksi kerja (SOP), mockup kemasan, atau aset visual stasiun kerja secara real-time.
 * **Cara Konfigurasi**:
   1. Pilih tipe **Canva Connect**.
   2. Masukkan **Canva API Key / Access Token** dari portal developer Canva.
@@ -510,7 +510,7 @@ Berikut adalah panduan konfigurasi (*caranya*) dan contoh penggunaan (*contohnya
   4. Tentukan **Export Format** (\`PNG\`, \`JPG\`, atau \`PDF\`).
 * **Contoh Penggunaan**:
   * Menampilkan gambar panduan perakitan visual terbaru di layar operator:
-    * Setiap kali model produk berganti (misal dari model A ke B), HMI MAVI memanggil Canva Connector dengan mengirimkan Design ID spesifik (\`DAG12345XYZ\`).
+    * Setiap kali model produk berganti (misal dari model A ke B), HMI MANDOR memanggil Canva Connector dengan mengirimkan Design ID spesifik (\`DAG12345XYZ\`).
     * Connector akan menarik versi ekspor PNG terbaru langsung dari project Canva desainer produk dan menampilkannya di stasiun kerja operator secara instan.
 `
   },
@@ -520,16 +520,16 @@ Berikut adalah panduan konfigurasi (*caranya*) dan contoh penggunaan (*contohnya
     icon: BrainCircuit,
     color: '#8b5cf6', // Violet
     content: `
-**Panduan Integrasi Mavi MCP Server dengan Claude Desktop & Antigravity**
+**Panduan Integrasi Mandor MCP Server dengan Claude Desktop & Antigravity**
 
-Model Context Protocol (MCP) adalah standar terbuka yang memungkinkan asisten AI (LLM) terhubung secara aman ke repositori data lokal Anda. Mavi dilengkapi dengan MCP Server mandiri yang mengekspos data operasional pabrik sebagai *tools* bagi asisten AI seperti **Claude Desktop** dan **Antigravity**.
+Model Context Protocol (MCP) adalah standar terbuka yang memungkinkan asisten AI (LLM) terhubung secara aman ke repositori data lokal Anda. Mandor dilengkapi dengan MCP Server mandiri yang mengekspos data operasional pabrik sebagai *tools* bagi asisten AI seperti **Claude Desktop** dan **Antigravity**.
 
 ---
 
-### 1. Daftar Toolset Mavi MCP
+### 1. Daftar Toolset Mandor MCP
 Saat terhubung, asisten AI akan mendapatkan akses ke 6 tool berikut:
-1. \`read_mavi_table\`: Membaca baris data dari tabel kualitas, stasiun, dll.
-2. \`write_mavi_table\`: Menambahkan data log baru ke database.
+1. \`read_mandor_table\`: Membaca baris data dari tabel kualitas, stasiun, dll.
+2. \`write_mandor_table\`: Menambahkan data log baru ke database.
 3. \`get_station_status\`: Mengambil status real-time dari stasiun kerja.
 4. \`set_station_status\`: Memperbarui status operasional stasiun kerja.
 5. \`get_machine_info\`: Membaca telemetri sensor & vibrasi mesin.
@@ -538,7 +538,7 @@ Saat terhubung, asisten AI akan mendapatkan akses ke 6 tool berikut:
 ---
 
 ### 2. Panduan Koneksi ke Claude Desktop
-Untuk menghubungkan Mavi ke Claude Desktop:
+Untuk menghubungkan Mandor ke Claude Desktop:
 1. Pastikan Anda memiliki Node.js terinstal (versi 18+ direkomendasikan).
 2. Buka berkas konfigurasi Claude Desktop di Windows pada path:
    \`%APPDATA%\\Claude\\claude_desktop_config.json\`
@@ -546,10 +546,10 @@ Untuk menghubungkan Mavi ke Claude Desktop:
    \`\`\`json
    {
      "mcpServers": {
-       "mavi-mes-mcp": {
+       "mandor-mes-mcp": {
          "command": "node",
          "args": [
-           "C:\\\\Users\\\\ndens\\\\mavi-core\\\\mavi-mcp-server.js"
+           "C:\\\\Users\\\\ndens\\\\mandor-core\\\\mandor-mcp-server.js"
          ],
          "env": {
            "SUPABASE_URL": "https://pypjnzvsolxsddsqworw.supabase.co",
@@ -564,15 +564,15 @@ Untuk menghubungkan Mavi ke Claude Desktop:
 ---
 
 ### 3. Panduan Koneksi ke Antigravity
-Untuk menghubungkan Mavi ke asisten coding Antigravity Anda:
-1. Di workspace proyek Anda, pastikan terdapat berkas konfigurasi \`mavi-mcp-server.js\`.
+Untuk menghubungkan Mandor ke asisten coding Antigravity Anda:
+1. Di workspace proyek Anda, pastikan terdapat berkas konfigurasi \`mandor-mcp-server.js\`.
 2. Daftarkan skrip ini ke konfigurasi client Antigravity/Gemini Anda di bawah setelan \`mcpServers\` pada berkas konfigurasi IDE Anda:
    \`\`\`json
    {
      "mcpServers": {
-       "mavi-mes-mcp": {
+       "mandor-mes-mcp": {
          "command": "node",
-         "args": ["C:/Users/ndens/mavi-core/mavi-mcp-server.js"]
+         "args": ["C:/Users/ndens/mandor-core/mandor-mcp-server.js"]
        }
      }
    }
@@ -741,21 +741,21 @@ python yolo_server.py
 
 ---
 
-#### 5. Menghubungkan ke App Builder Mavi
+#### 5. Menghubungkan ke App Builder Mandor
 1. Di **App Builder**, tambahkan atau pilih widget **OpenCV Camera**.
 2. Pada panel properti sebelah kanan, ganti **YOLO Run Mode** menjadi **Local Python API (localhost:8000)**.
 3. Masukkan URL Endpoint: \`http://localhost:8000/detect\`.
 `
   },
   {
-    id: 'mavi-vision',
-    title: 'Mavi Vision & AI Detector',
+    id: 'mandor-vision',
+    title: 'Mandor Vision & AI Detector',
     icon: Eye,
     color: '#3b82f6', // Blue
     content: `
-### Panduan Mavi Vision & AI Detector (Hybrid AI & Rule-Based CV)
+### Panduan Mandor Vision & AI Detector (Hybrid AI & Rule-Based CV)
 
-Modul **MAVI Vision** dirancang untuk mengotomatisasi inspeksi kualitas produk dengan menggabungkan kekuatan **AI Deep Learning** (Anomaly Detection, Classification, Segmentation) dan **Rule-Based Computer Vision** (Color, Change, Jig, Dimension, Barcode/QR, OCR) secara real-time.
+Modul **MANDOR Vision** dirancang untuk mengotomatisasi inspeksi kualitas produk dengan menggabungkan kekuatan **AI Deep Learning** (Anomaly Detection, Classification, Segmentation) dan **Rule-Based Computer Vision** (Color, Change, Jig, Dimension, Barcode/QR, OCR) secara real-time.
 
 Berikut adalah panduan lengkap langkah demi langkah mulai dari pengumpulan data hingga referensi konfigurasi untuk **10 Jenis Detektor Visual** yang tersedia.
 
@@ -904,7 +904,7 @@ Fitur **Drawing / Inspection Designer** (disebut juga **Drawing Manager**) menje
 #### LANGKAH 1: Unggah & Pemetaan Gambar Teknik (Drawing Manager)
 Sebelum diintegrasikan ke aplikasi, berkas gambar harus disiapkan dan dimensi spesifiknya dipetakan ke variabel penampung data.
 
-1. **Akses Menu**: Buka menu **Apps** \u2192 **Drawing Manager** dari bar navigasi atas platform MAVI.
+1. **Akses Menu**: Buka menu **Apps** \u2192 **Drawing Manager** dari bar navigasi atas platform MANDOR.
 2. **Unggah Berkas**: Seret (*drag & drop*) berkas gambar teknik Anda (.svg, .dxf, atau .pdf) pada zona pengunggahan. Sistem akan secara otomatis membedah entitas geometri, koordinat garis, lingkaran, dan teks dimensi yang ada pada file.
 3. **Buka Kanvas Interaktif**: Pilih nama berkas gambar dari daftar di sebelah kiri untuk membuka lembar kerja di bagian tengah.
 4. **Petakan Dimensi Spesifik (Dimension SPEC Mapping)**:
@@ -952,7 +952,7 @@ Ketika operator menjalankan aplikasi di stasiun kerja (**Live Terminal** / **App
    - Operator melakukan pengukuran produk fisik menggunakan jangka sorong (caliper/micrometer).
    - Angka hasil pengukuran dimasukkan ke dalam input box (diketik manual atau dikirim otomatis dari alat ukur jika terhubung via USB/Bluetooth menggunakan widget *Measurement*).
 3. **Pencocokan Nilai & Feedback Visual**:
-   - Begitu nilai dimasukkan ke variabel \`Meas_Diameter\`, engine MAVI langsung mengevaluasi angka tersebut terhadap batas toleransi LSL (\`79.9\`) dan USL (\`80.1\`).
+   - Begitu nilai dimasukkan ke variabel \`Meas_Diameter\`, engine MANDOR langsung mengevaluasi angka tersebut terhadap batas toleransi LSL (\`79.9\`) dan USL (\`80.1\`).
    - Garis dimensi pada gambar cetak biru CAD akan berubah warna secara instan:
      * **HIJAU (PASS)**: Jika hasil ukur operator masuk dalam batas toleransi (\`LSL <= Nilai <= USL\`, misal: \`80.05\`).
      * **MERAH (FAIL/NG)**: Jika hasil ukur menyimpang dari toleransi (\`Nilai < LSL\` atau \`Nilai > USL\`, misal: \`79.85\`).
@@ -975,14 +975,14 @@ Ketika operator menjalankan aplikasi di stasiun kerja (**Live Terminal** / **App
     icon: BookOpen,
     color: '#0ea5e9', // Sky
     content: `
-**Panduan Lengkap MAVI MES untuk Pemula**
+**Panduan Lengkap MANDOR MES untuk Pemula**
 *Tables → App Builder → Triggers → Dashboard*
 
 ---
 
 ## 1. Overview Sistem
 
-MAVI MES adalah platform **no-code** untuk membuat aplikasi manufaktur. Alur kerja utama:
+MANDOR MES adalah platform **no-code** untuk membuat aplikasi manufaktur. Alur kerja utama:
 
 \`\`\`
 Tabel Database → App Builder → Triggers → Dashboard → Deploy
@@ -1005,7 +1005,7 @@ Tabel Database → App Builder → Triggers → Dashboard → Deploy
 ## 2. Membuat Tabel Database
 
 ### 2.1 Membuka Tables Manager
-1. Login ke MAVI MES
+1. Login ke MANDOR MES
 2. Klik menu **Tables** di navigation bar
 3. Klik tombol **"+ Create New Table"**
 
@@ -1379,7 +1379,7 @@ Step 4: Tambah widget/logika bertahap
     content: `
 # 🔷 Node Canvas — Enterprise Visual Logic Flow Builder
 
-Menu **Node Canvas** adalah lingkungan pemrograman visual (Visual Logic Flow Editor) tingkat enterprise di Mavi MES untuk **memvisualisasikan, membaca, dan merancang logika aplikasi industri** berbasis node-graph.
+Menu **Node Canvas** adalah lingkungan pemrograman visual (Visual Logic Flow Editor) tingkat enterprise di Mandor MES untuk **memvisualisasikan, membaca, dan merancang logika aplikasi industri** berbasis node-graph.
 
 ---
 
@@ -1445,13 +1445,13 @@ export default function GlobalHelpAssistant() {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: 'Halo! Saya Mavi Global AI Assistant. Saya siap menjawab pertanyaan Anda mengenai platform Mavi, mulai dari App Builder, Manajemen Station, hingga konfigurasi PLC dan IoT. Ada yang ingin Anda pelajari hari ini?'
+      content: 'Halo! Saya Mandor Global AI Assistant. Saya siap menjawab pertanyaan Anda mengenai platform Mandor, mulai dari App Builder, Manajemen Station, hingga konfigurasi PLC dan IoT. Ada yang ingin Anda pelajari hari ini?'
     }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [aiConnector, setAiConnector] = useState(null);
-  const [activeGuide, setActiveGuide] = useState(MAVI_GUIDES[0].id);
+  const [activeGuide, setActiveGuide] = useState(MANDOR_GUIDES[0].id);
   const [knowledgeFiles, setKnowledgeFiles] = useState([]);
   const [fullscreenImg, setFullscreenImg] = useState(null);
   const fileInputRef = useRef(null);
@@ -1486,7 +1486,7 @@ export default function GlobalHelpAssistant() {
   };
 
   useEffect(() => {
-    const saved = localStorage.getItem('mavi_global_knowledge_files');
+    const saved = localStorage.getItem('mandor_global_knowledge_files');
     if (saved) {
       try {
         setKnowledgeFiles(JSON.parse(saved));
@@ -1513,7 +1513,7 @@ export default function GlobalHelpAssistant() {
       const newFiles = [...knowledgeFiles, newFile];
       setKnowledgeFiles(newFiles);
       try {
-        localStorage.setItem('mavi_global_knowledge_files', JSON.stringify(newFiles));
+        localStorage.setItem('mandor_global_knowledge_files', JSON.stringify(newFiles));
         toast.success(`File ${file.name} berhasil diunggah.`);
       } catch(err) {
         toast.error('Gagal menyimpan file ke penyimpanan lokal (melebihi batas kuota browser).');
@@ -1526,7 +1526,7 @@ export default function GlobalHelpAssistant() {
   const handleDeleteFile = (id) => {
     const newFiles = knowledgeFiles.filter(f => f.id !== id);
     setKnowledgeFiles(newFiles);
-    localStorage.setItem('mavi_global_knowledge_files', JSON.stringify(newFiles));
+    localStorage.setItem('mandor_global_knowledge_files', JSON.stringify(newFiles));
   };
 
   useEffect(() => {
@@ -1625,15 +1625,15 @@ export default function GlobalHelpAssistant() {
       const history = mcpMessages.slice(-10).map(m => ({ role: m.role, content: m.content }));
       
       const systemPrompt = `
-Anda adalah **Antigravity Live MCP Agent** yang terintegrasi di dalam dashboard Mavi MES.
+Anda adalah **Antigravity Live MCP Agent** yang terintegrasi di dalam dashboard Mandor MES.
 Tugas Anda adalah memantau dan mengendalikan stasiun kerja, membaca database, dan mengambil telemetri sensor lokal.
 Anda memiliki akses ke 5 tools lokal. Jika pengguna meminta informasi yang memerlukan tools tersebut, Anda WAJIB merespons dengan menyertakan tag XML \`<mcp_call tool="tool_name" params='{"key": "val"}' />\` di akhir pesan Anda dan jangan menulis apapun setelah tag tersebut agar sistem dapat mengeksekusinya.
 
 Daftar tools:
 1. **get_station_status**: Membaca status stasiun manufaktur saat ini. Params: \`{"stationId": "string"}\`.
 2. **set_station_status**: Memperbarui status stasiun manufaktur (RUNNING / IDLE / STOPPED / SETUP). Params: \`{"stationId": "string", "status": "string"}\`.
-3. **read_mavi_table**: Membaca baris data dari tabel kualitas/produksi. Params: \`{"tableName": "string"}\`.
-4. **write_mavi_table**: Menambahkan baris log/downtime baru ke database. Params: \`{"tableName": "string", "row": object}\`.
+3. **read_mandor_table**: Membaca baris data dari tabel kualitas/produksi. Params: \`{"tableName": "string"}\`.
+4. **write_mandor_table**: Menambahkan baris log/downtime baru ke database. Params: \`{"tableName": "string", "row": object}\`.
 5. **get_machine_info**: Mengambil telemetri sensor (suhu, getaran, rpm) mesin pabrik. Params: \`{"machineId": "string"}\`.
 
 Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kontaktor stasiun telah di-update secara fisik.
@@ -1731,7 +1731,7 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
               }
             }
           } 
-          else if (toolName === 'read_mavi_table') {
+          else if (toolName === 'read_mandor_table') {
             const tables = await getTables();
             const table = tables.find(t => t.name?.toLowerCase() === params.tableName?.toLowerCase());
             if (table) {
@@ -1741,7 +1741,7 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
               toolOutput = JSON.stringify({ error: `Tabel '${params.tableName}' tidak ditemukan.` });
             }
           } 
-          else if (toolName === 'write_mavi_table') {
+          else if (toolName === 'write_mandor_table') {
             const tables = await getTables();
             const table = tables.find(t => t.name?.toLowerCase() === params.tableName?.toLowerCase());
             if (table) {
@@ -1828,7 +1828,7 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
           }}
         >
           <BookOpen size={16} />
-          Mavi Guide Assistant
+          Mandor Guide Assistant
         </button>
         <button
           onClick={() => setActiveTab('mcp_console')}
@@ -1856,14 +1856,14 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
                 <BookOpen size={24} color="#3b82f6" />
               </div>
               <div>
-                <h2 style={{ margin: 0, fontSize: '1.2rem', color: '#0f172a' }}>Panduan Aplikasi Mavi</h2>
-                <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>Pilih topik untuk melihat dokumentasi fungsional Mavi.</p>
+                <h2 style={{ margin: 0, fontSize: '1.2rem', color: '#0f172a' }}>Panduan Aplikasi Mandor</h2>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>Pilih topik untuk melihat dokumentasi fungsional Mandor.</p>
               </div>
             </div>
 
             {/* Protocol Selector Tabs/Pills */}
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              {MAVI_GUIDES.map(guide => {
+              {MANDOR_GUIDES.map(guide => {
                 const isActive = activeGuide === guide.id;
                 const Icon = guide.icon;
                 return (
@@ -1908,7 +1908,7 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
               {activeGuide === 'widgets' ? (
                 <WidgetDirectory onImageClick={setFullscreenImg} />
               ) : (
-                MAVI_GUIDES.map(guide => guide.id === activeGuide && (
+                MANDOR_GUIDES.map(guide => guide.id === activeGuide && (
                   <div key={guide.id} className="markdown-body" style={{ color: '#334155', fontSize: '0.9rem', lineHeight: '1.6' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px' }}>
                       <guide.icon size={28} color={guide.color} />
@@ -2006,7 +2006,7 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
                 <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#38bdf8' }}>console@antigravity-mcp-server:~</span>
                 <span style={{ fontSize: '0.65rem', color: '#475569' }}>v1.0.0 (Localhost)</span>
               </div>
-              <div className="mavi-chat-scroll" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.7rem' }}>
+              <div className="mandor-chat-scroll" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.7rem' }}>
                 <div style={{ color: '#64748b' }}>[System] Initializing Antigravity local collaboration pipeline...</div>
                 <div style={{ color: '#10b981' }}>[Success] Connection established with Supabase Frontline DB.</div>
                 <div style={{ color: '#a855f7' }}>[Ready] Listening to AI Agent tool calls via Model Context Protocol.</div>
@@ -2059,15 +2059,15 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
               0% { background-position: -200% 0; }
               100% { background-position: 200% 0; }
             }
-            .mavi-chat-msg { animation: chatFadeSlideIn 0.3s ease-out forwards; }
-            .mavi-chat-input:focus { border-color: #6366f1 !important; box-shadow: 0 0 0 3px rgba(99,102,241,0.15) !important; }
-            .mavi-chat-suggestion:hover { background: rgba(99,102,241,0.15) !important; border-color: #6366f1 !important; transform: translateY(-1px); }
-            .mavi-chat-send:hover:not(:disabled) { transform: scale(1.05); box-shadow: 0 4px 15px rgba(99,102,241,0.4); }
-            .mavi-chat-attach:hover { background: rgba(255,255,255,0.1) !important; border-color: rgba(148,163,184,0.4) !important; color: #a5b4fc !important; }
-            .mavi-chat-scroll::-webkit-scrollbar { width: 4px; }
-            .mavi-chat-scroll::-webkit-scrollbar-track { background: transparent; }
-            .mavi-chat-scroll::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.25); border-radius: 4px; }
-            .mavi-chat-scroll::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,0.4); }
+            .mandor-chat-msg { animation: chatFadeSlideIn 0.3s ease-out forwards; }
+            .mandor-chat-input:focus { border-color: #6366f1 !important; box-shadow: 0 0 0 3px rgba(99,102,241,0.15) !important; }
+            .mandor-chat-suggestion:hover { background: rgba(99,102,241,0.15) !important; border-color: #6366f1 !important; transform: translateY(-1px); }
+            .mandor-chat-send:hover:not(:disabled) { transform: scale(1.05); box-shadow: 0 4px 15px rgba(99,102,241,0.4); }
+            .mandor-chat-attach:hover { background: rgba(255,255,255,0.1) !important; border-color: rgba(148,163,184,0.4) !important; color: #a5b4fc !important; }
+            .mandor-chat-scroll::-webkit-scrollbar { width: 4px; }
+            .mandor-chat-scroll::-webkit-scrollbar-track { background: transparent; }
+            .mandor-chat-scroll::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.25); border-radius: 4px; }
+            .mandor-chat-scroll::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,0.4); }
           `}</style>
 
           {/* ── Chat Header ── */}
@@ -2095,11 +2095,11 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
               </div>
               <div>
                 <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#ffffff', letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  {activeTab === 'mcp_console' ? 'Antigravity MCP Agent' : 'Mavi AI Assistant'}
+                  {activeTab === 'mcp_console' ? 'Antigravity MCP Agent' : 'Mandor AI Assistant'}
                   <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', animation: 'chatPulseGlow 2s infinite' }} />
                 </div>
                 <div style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: '1px' }}>
-                  {activeTab === 'mcp_console' ? 'Interactive local tool calls active' : 'Panduan instan & tanya jawab sistem Mavi'}
+                  {activeTab === 'mcp_console' ? 'Interactive local tool calls active' : 'Panduan instan & tanya jawab sistem Mandor'}
                 </div>
               </div>
             </div>
@@ -2108,7 +2108,7 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
           {/* ── Chat Message List View ── */}
           <div 
             ref={scrollRef}
-            className="mavi-chat-scroll"
+            className="mandor-chat-scroll"
             style={{ 
               flex: 1, 
               padding: '24px 20px', 
@@ -2139,7 +2139,7 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
                 ).map((sug, idx) => (
                   <button 
                     key={idx}
-                    className="mavi-chat-suggestion"
+                    className="mandor-chat-suggestion"
                     onClick={() => {
                       if (activeTab === 'mcp_console') {
                         handleMcpSend(sug);
@@ -2166,7 +2166,7 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
               const isUser = msg.role === 'user';
               if (idx === 0 && (activeTab === 'assistant' ? messages.length : mcpMessages.length) <= 1 && !(activeTab === 'assistant' ? isLoading : isMcpLoading)) return null;
               return (
-                <div key={idx} className="mavi-chat-msg" style={{ 
+                <div key={idx} className="mandor-chat-msg" style={{ 
                   display: 'flex', 
                   gap: '10px', 
                   alignSelf: isUser ? 'flex-end' : 'flex-start',
@@ -2253,7 +2253,7 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
             
             {/* Typing Indicator */}
             {(activeTab === 'assistant' ? isLoading : isMcpLoading) && (
-              <div className="mavi-chat-msg" style={{ display: 'flex', gap: '10px', alignSelf: 'flex-start', position: 'relative', zIndex: 1 }}>
+              <div className="mandor-chat-msg" style={{ display: 'flex', gap: '10px', alignSelf: 'flex-start', position: 'relative', zIndex: 1 }}>
                 <div style={{ 
                   width: '30px', height: '30px', borderRadius: '10px', 
                   background: activeTab === 'mcp_console'
@@ -2327,7 +2327,7 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
             )}
 
             <div 
-              className="mavi-chat-input"
+              className="mandor-chat-input"
               style={{ 
                 display: 'flex', 
                 alignItems: 'flex-end', 
@@ -2344,7 +2344,7 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={activeTab === 'mcp_console' ? "Perintahkan pencarian status, log, atau set PLC..." : "Tanya apapun tentang cara kerja Mavi..."}
+                placeholder={activeTab === 'mcp_console' ? "Perintahkan pencarian status, log, atau set PLC..." : "Tanya apapun tentang cara kerja Mandor..."}
                 rows={1}
                 style={{
                   flex: 1,
@@ -2368,7 +2368,7 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
                 <>
                   <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".txt,.csv,.json,.md,.js" style={{ display: 'none' }} />
                   <button
-                    className="mavi-chat-attach"
+                    className="mandor-chat-attach"
                     onClick={() => fileInputRef.current?.click()}
                     title="Unggah Dokumen Referensi"
                     style={{
@@ -2384,7 +2384,7 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
                 </>
               )}
               <button
-                className="mavi-chat-send"
+                className="mandor-chat-send"
                 onClick={activeTab === 'mcp_console' ? () => handleMcpSend() : handleSend}
                 disabled={(activeTab === 'assistant' ? isLoading : isMcpLoading) || !input.trim()}
                 style={{
@@ -2411,7 +2411,7 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
               fontSize: '0.62rem', color: '#475569', fontWeight: 500,
               letterSpacing: '0.03em'
             }}>
-              Powered by Mavi AI Engine & Antigravity MCP
+              Powered by Mandor AI Engine & Antigravity MCP
             </div>
           </div>
         </div>
@@ -2435,7 +2435,7 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
             zIndex: 99999,
             cursor: 'zoom-out',
             backdropFilter: 'blur(8px)',
-            animation: 'maviHelpFadeIn 0.2s ease-out'
+            animation: 'mandorHelpFadeIn 0.2s ease-out'
           }}
         >
           <button
@@ -2473,15 +2473,15 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
               borderRadius: '12px',
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
               border: '1px solid rgba(255, 255, 255, 0.15)',
-              animation: 'maviHelpZoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)'
+              animation: 'mandorHelpZoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)'
             }}
           />
           <style>{`
-            @keyframes maviHelpFadeIn {
+            @keyframes mandorHelpFadeIn {
               from { opacity: 0; }
               to { opacity: 1; }
             }
-            @keyframes maviHelpZoomIn {
+            @keyframes mandorHelpZoomIn {
               from { transform: scale(0.95); opacity: 0; }
               to { transform: scale(1); opacity: 1; }
             }
@@ -2750,7 +2750,7 @@ const WIDGET_DATABASE = [
     fungsi: 'Tabel data interaktif yang mendukung pencarian, filter, dan export Excel.',
     caraPakai: 'Gunakan untuk list antrean Work Order stasiun kerja operator. Bind properti "tableId".',
     konfigurasi: [
-      { properti: 'tableId', deskripsi: 'ID tabel database Mavi sumber data.' },
+      { properti: 'tableId', deskripsi: 'ID tabel database Mandor sumber data.' },
       { properti: 'pageSize', deskripsi: 'Jumlah baris data per halaman.' }
     ]
   },
@@ -2890,7 +2890,7 @@ const WIDGET_DATABASE = [
     category: 'IoT & Sensor Perangkat',
     icon: Globe,
     color: '#f59e0b',
-    fungsi: 'Menghubungkan HMI Mavi ke broker MQTT industri secara dua arah.',
+    fungsi: 'Menghubungkan HMI Mandor ke broker MQTT industri secara dua arah.',
     caraPakai: 'Gunakan untuk integrasi node IoT kustom (ESP32/Raspberry Pi) di lantai produksi.',
     konfigurasi: [
       { properti: 'topic', deskripsi: 'Topik MQTT broker tempat data dibaca atau ditulis.' }
@@ -3364,7 +3364,7 @@ const WIDGET_DATABASE = [
     category: 'Media & Dokumen',
     icon: Globe,
     color: '#f59e0b',
-    fungsi: 'Menampilkan halaman web luar atau aplikasi eksternal di dalam aplikasi Mavi.',
+    fungsi: 'Menampilkan halaman web luar atau aplikasi eksternal di dalam aplikasi Mandor.',
     caraPakai: 'Gunakan jika ingin mengintegrasikan dashboard eksternal atau monitoring CCTV.',
     konfigurasi: [
       { properti: 'url', deskripsi: 'Tautan web lengkap tujuan.' }
@@ -3502,7 +3502,7 @@ const WIDGET_DATABASE = [
     icon: Globe,
     color: '#a855f7',
     fungsi: 'Mengirim dan menerima request data HTTP (GET, POST, PUT, DELETE) ke web service luar.',
-    caraPakai: 'Gunakan jika HMI Mavi ingin memanggil API eksternal (misal: memanggil data ERP SAP).',
+    caraPakai: 'Gunakan jika HMI Mandor ingin memanggil API eksternal (misal: memanggil data ERP SAP).',
     konfigurasi: [
       { properti: 'url', deskripsi: 'URL endpoint API tujuan.' }
     ]
@@ -3526,7 +3526,7 @@ const WIDGET_DATABASE = [
     icon: Code,
     color: '#a855f7',
     fungsi: 'Membuat widget sendiri menggunakan custom code HTML, CSS, dan Javascript.',
-    caraPakai: 'Gunakan jika Mavi tidak memiliki widget yang Anda butuhkan.',
+    caraPakai: 'Gunakan jika Mandor tidak memiliki widget yang Anda butuhkan.',
     konfigurasi: [
       { properti: 'htmlTemplate', deskripsi: 'Struktur kode HTML widget.' },
       { properti: 'jsTemplate', deskripsi: 'Logika Javascript interaktif.' }
@@ -3551,7 +3551,7 @@ const WIDGET_DATABASE = [
     category: 'Konektivitas & Storage',
     icon: Bluetooth,
     color: '#a855f7',
-    fungsi: 'Menghubungkan aplikasi HMI Mavi ke perangkat Bluetooth luar (sensor, printer label).',
+    fungsi: 'Menghubungkan aplikasi HMI Mandor ke perangkat Bluetooth luar (sensor, printer label).',
     caraPakai: 'Gunakan untuk mengirimkan perintah cetak label ke printer bluetooth.',
     konfigurasi: [
       { properti: 'secure', deskripsi: 'Gunakan protokol pairing aman (true/false).' }
@@ -3595,7 +3595,7 @@ function WidgetDirectory({ onImageClick }) {
           <h3 style={{ margin: 0, fontSize: '1.4rem', color: '#0f172a' }}>Daftar Widget Aplikasi</h3>
         </div>
         <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b', lineHeight: 1.5 }}>
-          Mavi menyediakan beragam komponen visual (Widget) siap pakai mulai dari UI kontrol, IoT, sensor perangkat, QC industri, media, hingga konektivitas dan penyimpanan data.
+          Mandor menyediakan beragam komponen visual (Widget) siap pakai mulai dari UI kontrol, IoT, sensor perangkat, QC industri, media, hingga konektivitas dan penyimpanan data.
           Klik kartu widget untuk melihat fungsi detail, cara penggunaan, dan konfigurasinya.
         </p>
         <img 

@@ -113,7 +113,7 @@ export default function BiStudio() {
     // ─── CANVAS STUDIO STATE (POWER BI STYLE) ───────────────────────
     const [canvasElements, setCanvasElements] = useState(() => {
         try {
-            const saved = localStorage.getItem('mavi_bi_canvas_elements_v1');
+            const saved = localStorage.getItem('mandor_bi_canvas_elements_v1');
             if (saved) return JSON.parse(saved);
         } catch (e) { }
         return [
@@ -139,7 +139,7 @@ export default function BiStudio() {
     // Save Canvas Elements
     useEffect(() => {
         try {
-            localStorage.setItem('mavi_bi_canvas_elements_v1', JSON.stringify(canvasElements));
+            localStorage.setItem('mandor_bi_canvas_elements_v1', JSON.stringify(canvasElements));
         } catch (e) { }
     }, [canvasElements]);
 
@@ -149,7 +149,7 @@ export default function BiStudio() {
             try {
                 const tbls = await getTables();
                 if (Array.isArray(tbls)) setInteractiveTables(tbls);
-                const conns = JSON.parse(localStorage.getItem('mavi_integration_connectors') || '[]');
+                const conns = JSON.parse(localStorage.getItem('mandor_integration_connectors') || '[]');
                 setAvailableConnectors(conns);
                 if (conns.length > 0) {
                     setSelectedConnectorId(conns[0].id);
@@ -646,12 +646,12 @@ export default function BiStudio() {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%', backgroundColor: '#f1f5f9', fontFamily: "'Inter', 'Segoe UI', sans-serif", color: '#1e293b', overflow: 'hidden' }}>
 
-            {/* ─── 1. TOP HEADER (MAVI & POWER BI STYLE) ────────────────── */}
+            {/* ─── 1. TOP HEADER (MANDOR & POWER BI STYLE) ────────────────── */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px', backgroundColor: '#714B67', color: '#ffffff', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', zIndex: 30 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{ backgroundColor: 'rgba(255,255,255,0.18)', padding: '6px 10px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <BarChart3 size={18} color="#ffffff" />
-                        <span style={{ fontWeight: 800, fontSize: '0.98rem', letterSpacing: '0.3px' }}>MAVI BI Studio</span>
+                        <span style={{ fontWeight: 800, fontSize: '0.98rem', letterSpacing: '0.3px' }}>MANDOR BI Studio</span>
                     </div>
 
                     <div style={{ display: 'flex', gap: '4px', backgroundColor: 'rgba(0,0,0,0.2)', padding: '3px', borderRadius: '6px' }}>
@@ -961,7 +961,7 @@ export default function BiStudio() {
                             </div>
                             <button
                                 onClick={() => {
-                                    localStorage.removeItem('mavi_bi_canvas_elements_v1');
+                                    localStorage.removeItem('mandor_bi_canvas_elements_v1');
                                     toast.success('Canvas di-reset!');
                                     window.location.reload();
                                 }}
@@ -1195,7 +1195,7 @@ export default function BiStudio() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <div style={{ backgroundColor: '#eff6ff', padding: '6px', borderRadius: '6px', color: '#3b82f6' }}><Database size={18} /></div>
                             <div>
-                                <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 700 }}>Interactive App Tables (MAVI Core)</h4>
+                                <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 700 }}>Interactive App Tables (MANDOR Core)</h4>
                                 <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Tabel data dinamis dari AppBuilder</span>
                             </div>
                         </div>

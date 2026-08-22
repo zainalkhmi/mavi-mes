@@ -214,7 +214,7 @@ const N8nWebhookSettings = () => {
           </div>
           <div style={{ padding: '0 24px', fontSize: '0.8rem', color: '#64748b', lineHeight: 1.6 }}>
             <p style={{ margin: '0 0 12px 0' }}>
-              Connect Mavi MES to external workflow automation platforms for real-time event notifications.
+              Connect Mandor MES to external workflow automation platforms for real-time event notifications.
             </p>
             <p style={{ margin: '0 0 12px 0', fontWeight: 600 }}>
               Events: {subscribedCount}/{N8N_EVENT_TYPES.length} active
@@ -352,7 +352,7 @@ const N8nWebhookSettings = () => {
                       </button>
                     </div>
                     <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '4px' }}>
-                      If set, every webhook request includes an <code style={{ backgroundColor: '#f3f4f6', padding: '1px 4px', borderRadius: '3px' }}>X-Mavi-Signature</code> header for verification.
+                      If set, every webhook request includes an <code style={{ backgroundColor: '#f3f4f6', padding: '1px 4px', borderRadius: '3px' }}>X-Mandor-Signature</code> header for verification.
                     </p>
                   </div>
 
@@ -537,7 +537,7 @@ const N8nWebhookSettings = () => {
 {JSON.stringify({
   event: "work_order.completed",
   timestamp: "2026-07-08T20:30:00.000Z",
-  source: "mavi-mes",
+  source: "mandor-mes",
   version: "1.0",
   data: {
     job_id: "uuid-xxx",
@@ -551,7 +551,7 @@ const N8nWebhookSettings = () => {
 }, null, 2)}
                 </pre>
                 <div style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  {['Content-Type: application/json', 'X-Mavi-Event: <event_type>', 'X-Mavi-Source: mavi-mes', config.secretKey ? 'X-Mavi-Signature: sha256=...' : null].filter(Boolean).map((h, i) => (
+                  {['Content-Type: application/json', 'X-Mandor-Event: <event_type>', 'X-Mandor-Source: mandor-mes', config.secretKey ? 'X-Mandor-Signature: sha256=...' : null].filter(Boolean).map((h, i) => (
                     <span key={i} style={{
                       padding: '3px 8px', borderRadius: '4px', backgroundColor: '#f3f4f6',
                       fontSize: '0.72rem', fontFamily: 'monospace', color: '#4b5563', border: '1px solid #e5e7eb'

@@ -1,6 +1,6 @@
 /**
  * visionInspectionTemplate.js
- * Generates a Cognitive Vision HMI HML Quality Control template for MAVI-MES
+ * Generates a Cognitive Vision HMI HML Quality Control template for MANDOR-MES
  */
 
 export function createVisionInspectionTemplate() {

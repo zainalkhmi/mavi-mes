@@ -71,11 +71,11 @@ const VisionManager = ({ initialTab = 'cameras' }) => {
     }, [initialTab]);
 
     // Privacy & Security States
-    const [privacyMode, setPrivacyMode] = useState(localStorage.getItem('mavi-vision-privacy-access') || 'ASK');
+    const [privacyMode, setPrivacyMode] = useState(localStorage.getItem('mandor-vision-privacy-access') || 'ASK');
     const [simulatedAccessRequest, setSimulatedAccessRequest] = useState(null);
 
     useEffect(() => {
-        localStorage.setItem('mavi-vision-privacy-access', privacyMode);
+        localStorage.setItem('mandor-vision-privacy-access', privacyMode);
     }, [privacyMode]);
 
     // Camera Config State
@@ -764,7 +764,7 @@ const VisionManager = ({ initialTab = 'cameras' }) => {
         stopCameraStream();
         setCameraError('');
 
-        const savedCameraId = localStorage.getItem('mavi-selected-camera-id');
+        const savedCameraId = localStorage.getItem('mandor-selected-camera-id');
         const videoConstraints = savedCameraId 
             ? { width: { ideal: 640 }, height: { ideal: 480 }, deviceId: { exact: savedCameraId } }
             : { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'environment' };
@@ -2781,7 +2781,7 @@ function CameraPreviewer({ camera }) {
                 if (isScreenCapture) {
                     stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
                 } else {
-                    const savedCameraId = localStorage.getItem('mavi-selected-camera-id');
+                    const savedCameraId = localStorage.getItem('mandor-selected-camera-id');
                     const videoConstraints = savedCameraId 
                         ? { width: { ideal: 640 }, height: { ideal: 480 }, deviceId: { exact: savedCameraId } }
                         : { width: { ideal: 640 }, height: { ideal: 480 } };
@@ -3129,7 +3129,7 @@ function CameraRegionEditor({
         navigator.mediaDevices.enumerateDevices().then(devices => {
             const cameras = devices.filter(d => d.kind === 'videoinput');
             setAvailableCameras(cameras);
-            const saved = localStorage.getItem('mavi-selected-camera-id');
+            const saved = localStorage.getItem('mandor-selected-camera-id');
             if (saved && cameras.find(c => c.deviceId === saved)) {
                 setSelectedCameraId(saved);
             } else if (cameras.length > 0) {
@@ -3142,7 +3142,7 @@ function CameraRegionEditor({
     const handleCameraChange = (e) => {
         const id = e.target.value;
         setSelectedCameraId(id);
-        localStorage.setItem('mavi-selected-camera-id', id);
+        localStorage.setItem('mandor-selected-camera-id', id);
     };
 
     // Configure Offline toggle
@@ -3394,7 +3394,7 @@ function CameraRegionEditor({
         setCameraLoading(true);
         let activeStream = null;
         
-        const savedCameraId = localStorage.getItem('mavi-selected-camera-id');
+        const savedCameraId = localStorage.getItem('mandor-selected-camera-id');
         const videoConstraints = savedCameraId 
             ? { width: { ideal: 1280 }, height: { ideal: 720 }, deviceId: { exact: savedCameraId } }
             : { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'environment' };

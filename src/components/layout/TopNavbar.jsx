@@ -32,7 +32,7 @@ export default function TopNavbar() {
     hasAccess('/app-management') && { path: '/app-management', icon: <AppWindow size={16} />, label: 'App Management' },
     hasAccess('/tables') && { path: '/tables', icon: <Database size={16} />, label: 'Tables' },
     hasAccess('/connectors') && { path: '/connectors', icon: <Link2 size={16} />, label: 'Connectors' },
-    hasAccess('/mcp-server') && { path: '/mcp-server', icon: <BrainCircuit size={16} />, label: 'Mavi MCP Server' },
+    hasAccess('/mcp-server') && { path: '/mcp-server', icon: <BrainCircuit size={16} />, label: 'Mandor MCP Server' },
     hasAccess('/variables') && { path: '/variables', icon: <Variable size={16} />, label: 'Variables' }
   ].filter(Boolean);
 
@@ -94,7 +94,7 @@ export default function TopNavbar() {
           <div className="bg-blue-600 p-1.5 rounded-md flex items-center">
             <Settings size={18} className="text-white" />
           </div>
-          <span className="font-extrabold tracking-wide text-[1.1rem] text-slate-900">MES CORE</span>
+          <span className="font-extrabold tracking-wide text-[1.1rem] text-slate-900">MANDOR</span>
         </Link>
 
         {/* MAIN NAVIGATION */}

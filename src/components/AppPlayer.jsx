@@ -19,10 +19,10 @@ import { logout } from '../utils/auth';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-const LS_FAVORITES = 'mavi_player_favorites';
-const LS_RECENT = 'mavi_player_recent';
-const LS_DEV_MODE = 'mavi_player_dev_mode';
-const LS_APP_SCALE_MODE = 'mavi_player_app_scale_mode_v2';
+const LS_FAVORITES = 'mandor_player_favorites';
+const LS_RECENT = 'mandor_player_recent';
+const LS_DEV_MODE = 'mandor_player_dev_mode';
+const LS_APP_SCALE_MODE = 'mandor_player_app_scale_mode_v2';
 const RECENT_MAX = 5;
 
 function loadLS(key, fallback) {
@@ -1181,7 +1181,7 @@ const AppPlayer = () => {
     const [appScaleMode, setAppScaleMode] = useState(() => loadLS(LS_APP_SCALE_MODE, 'FIT_SCREEN'));
     const [appLayoutMode, setAppLayoutMode] = useState(() => {
         try {
-            return localStorage.getItem('mavi_runtime_layout_mode') || 'PROPORTIONAL';
+            return localStorage.getItem('mandor_runtime_layout_mode') || 'PROPORTIONAL';
         } catch (e) {
             return 'PROPORTIONAL';
         }
@@ -1216,8 +1216,8 @@ const AppPlayer = () => {
 
     // Advanced Enterprise Features
     const { changeLanguage, currentLanguage } = useLanguage();
-    const [themeColor, setThemeColor] = useState(() => loadLS('mavi_theme_color', '#1e293b'));
-    const [companyLogo, setCompanyLogo] = useState(() => loadLS('mavi_company_logo', ''));
+    const [themeColor, setThemeColor] = useState(() => loadLS('mandor_theme_color', '#1e293b'));
+    const [companyLogo, setCompanyLogo] = useState(() => loadLS('mandor_company_logo', ''));
     
     // Modals
     const [showCameraModal, setShowCameraModal] = useState(false);
@@ -1354,7 +1354,7 @@ const AppPlayer = () => {
 
     useEffect(() => {
         try {
-            localStorage.setItem('mavi_runtime_layout_mode', appLayoutMode);
+            localStorage.setItem('mandor_runtime_layout_mode', appLayoutMode);
         } catch (e) {}
     }, [appLayoutMode]);
 
@@ -1787,10 +1787,10 @@ const AppPlayer = () => {
             {isCreating && (
                 <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.4)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', textAlign: 'center' }}>
-                        <div style={{ width: '40px', height: '40px', border: '3px solid #f1f5f9', borderTopColor: '#3b82f6', borderRadius: '50%', animation: 'mavi-spin 1s linear infinite', margin: '0 auto 16px' }} />
+                        <div style={{ width: '40px', height: '40px', border: '3px solid #f1f5f9', borderTopColor: '#3b82f6', borderRadius: '50%', animation: 'mandor-spin 1s linear infinite', margin: '0 auto 16px' }} />
                         <div style={{ fontWeight: 800, color: '#0f172a' }}>Creating Your App...</div>
                         <p style={{ margin: '8px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>Initializing tables and workflow structure</p>
-                        <style>{`@keyframes mavi-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+                        <style>{`@keyframes mandor-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
                     </div>
                 </div>
             )}

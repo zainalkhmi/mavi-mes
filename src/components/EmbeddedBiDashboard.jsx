@@ -3,8 +3,8 @@ import ReactECharts from 'echarts-for-react';
 import { BarChart3, PieChart, Activity, TrendingUp, Gauge, Layout, Hash, Type, RefreshCw, Maximize2, AlertCircle, Database } from 'lucide-react';
 
 // ─── SAVED DASHBOARDS STORAGE KEY ────────────────────────────────────
-const STORAGE_KEY = 'mavi_bi_saved_dashboards';
-const CANVAS_KEY = 'mavi_bi_canvas_elements_v1';
+const STORAGE_KEY = 'mandor_bi_saved_dashboards';
+const CANVAS_KEY = 'mandor_bi_canvas_elements_v1';
 
 // ─── SAMPLE DATA (fallback if no data source connected) ─────────────
 const SAMPLE_PRODUCTION_DATA = [

@@ -1,5 +1,5 @@
 /**
- * Mavi-MES Validation Engine
+ * Mandor-MES Validation Engine
  * Enforces variable rules (Regex, Required, Options) during App Runtime.
  */
 

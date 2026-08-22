@@ -580,7 +580,7 @@ export async function getAllVariables() {
     // 1. Read local global variables
     let localVars = [];
     try {
-        const raw = localStorage.getItem('mavi_global_variables');
+        const raw = localStorage.getItem('mandor_global_variables');
         if (raw) localVars = JSON.parse(raw);
     } catch (e) {
         console.warn('[getAllVariables] Failed to parse local variables:', e);
@@ -642,7 +642,7 @@ export async function getAllVariables() {
 
     const merged = Array.from(varMap.values());
     try {
-        localStorage.setItem('mavi_global_variables', JSON.stringify(merged));
+        localStorage.setItem('mandor_global_variables', JSON.stringify(merged));
     } catch (e) {}
 
     return merged;
@@ -667,7 +667,7 @@ export async function saveVariable(variable) {
 
     // 1. Save to local storage
     try {
-        const raw = localStorage.getItem('mavi_global_variables') || '[]';
+        const raw = localStorage.getItem('mandor_global_variables') || '[]';
         const list = JSON.parse(raw);
         const existingIdx = list.findIndex(v => String(v.name || '').trim().toUpperCase() === normName.toUpperCase() || (variable.id && v.id === variable.id));
         if (existingIdx !== -1) {
@@ -675,14 +675,14 @@ export async function saveVariable(variable) {
         } else {
             list.push(normalizedVar);
         }
-        localStorage.setItem('mavi_global_variables', JSON.stringify(list));
+        localStorage.setItem('mandor_global_variables', JSON.stringify(list));
     } catch (e) {
         console.warn('[saveVariable] localStorage save failed:', e);
     }
 
     // 2. Broadcast update event so AppBuilder & other tabs stay in sync
     try {
-        window.dispatchEvent(new CustomEvent('mavi_variables_updated', { detail: normalizedVar }));
+        window.dispatchEvent(new CustomEvent('mandor_variables_updated', { detail: normalizedVar }));
     } catch (e) {}
 
     // 3. Save to Supabase if ready
@@ -728,11 +728,11 @@ export async function saveVariable(variable) {
 
 export async function deleteVariable(idOrName) {
     try {
-        const raw = localStorage.getItem('mavi_global_variables') || '[]';
+        const raw = localStorage.getItem('mandor_global_variables') || '[]';
         const list = JSON.parse(raw);
         const filtered = list.filter(v => v.id !== idOrName && String(v.name || '').toUpperCase() !== String(idOrName).toUpperCase());
-        localStorage.setItem('mavi_global_variables', JSON.stringify(filtered));
-        window.dispatchEvent(new CustomEvent('mavi_variables_updated'));
+        localStorage.setItem('mandor_global_variables', JSON.stringify(filtered));
+        window.dispatchEvent(new CustomEvent('mandor_variables_updated'));
     } catch (e) {}
 
     try {
@@ -876,7 +876,7 @@ export async function logPlayerSession(session) {
 
     // Always store locally as audit trail
     try {
-        const key = 'mavi_player_sessions';
+        const key = 'mandor_player_sessions';
         const raw = localStorage.getItem(key);
         let sessions = [];
         try { sessions = raw ? JSON.parse(raw) : []; } catch { sessions = []; }

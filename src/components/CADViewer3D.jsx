@@ -379,7 +379,7 @@ export function HousingCoverDrawingSheet({ isDark = false }) {
                 <text x="320" y="100" fontSize="8" fontWeight="bold" fill="#0f172a" textAnchor="middle">HC-12527</text>
 
                 <text x="222" y="118" fontSize="7.5" fill="#64748b" textAnchor="middle">DRAWN BY</text>
-                <text x="285" y="118" fontSize="7.5" fill="#0f172a" textAnchor="middle">MAVI-CORE</text>
+                <text x="285" y="118" fontSize="7.5" fill="#0f172a" textAnchor="middle">MANDOR</text>
                 <text x="350" y="118" fontSize="7.5" fill="#64748b" textAnchor="middle">15/08/2026</text>
             </g>
 
@@ -462,7 +462,7 @@ export function CADBlueprintViewer({
     // List of drawings from database / LocalStorage
     const [drawingsList, setDrawingsList] = useState(() => {
         try {
-            const saved = localStorage.getItem('mavi_drawings');
+            const saved = localStorage.getItem('mandor_drawings');
             return saved ? JSON.parse(saved) : [];
         } catch {
             return [];
@@ -483,18 +483,18 @@ export function CADBlueprintViewer({
                 if (mounted && Array.isArray(dbDrawings)) setDrawingsList(dbDrawings);
             }).catch(() => {});
         };
-        window.addEventListener('mavi_drawings_updated', handleSync);
+        window.addEventListener('mandor_drawings_updated', handleSync);
         window.addEventListener('storage', handleSync);
         return () => {
             mounted = false;
-            window.removeEventListener('mavi_drawings_updated', handleSync);
+            window.removeEventListener('mandor_drawings_updated', handleSync);
             window.removeEventListener('storage', handleSync);
         };
     }, []);
 
     // Selected drawing resolution
     const [activeDrawingId, setActiveDrawingId] = useState(() => {
-        return fileUrl || localStorage.getItem('mavi_selected_dwg_id') || 'dwg_housing_cover';
+        return fileUrl || localStorage.getItem('mandor_selected_dwg_id') || 'dwg_housing_cover';
     });
 
     useEffect(() => {

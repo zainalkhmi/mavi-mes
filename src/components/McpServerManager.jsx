@@ -25,7 +25,7 @@ import {
 export default function McpServerManager() {
     const [serverPort, setServerPort] = useState(3011);
     const [isRunning, setIsRunning] = useState(true);
-    const [apiToken, setApiToken] = useState('mavi_mcp_live_pk_8849201974');
+    const [apiToken, setApiToken] = useState('mandor_mcp_live_pk_8849201974');
     const [showToken, setShowToken] = useState(false);
     
     // Quick Integration State
@@ -34,9 +34,9 @@ export default function McpServerManager() {
 
     const claudeConfig = {
         mcpServers: {
-            "mavi-mes-mcp": {
+            "mandor-mes-mcp": {
                 command: "node",
-                args: ["C:\\Users\\ndens\\mavi-core\\mavi-mcp-server.js"],
+                args: ["C:\\Users\\ndens\\mandor-core\\mandor-mcp-server.js"],
                 env: {
                     SUPABASE_URL: "https://pypjnzvsolxsddsqworw.supabase.co",
                     SUPABASE_KEY: apiToken
@@ -47,9 +47,9 @@ export default function McpServerManager() {
 
     const antigravityConfig = {
         mcpServers: {
-            "mavi-mes-mcp": {
+            "mandor-mes-mcp": {
                 command: "node",
-                args: ["C:\\Users\\ndens\\mavi-core\\mavi-mcp-server.js"],
+                args: ["C:\\Users\\ndens\\mandor-core\\mandor-mcp-server.js"],
                 env: {
                     SUPABASE_URL: "https://pypjnzvsolxsddsqworw.supabase.co",
                     SUPABASE_KEY: apiToken
@@ -65,11 +65,11 @@ export default function McpServerManager() {
     };
 
     const downloadClaudeSetupScript = () => {
-        const scriptContent = `# PowerShell script to register Mavi MCP Server to Claude Desktop
-$mcpScriptPath = Join-Path $PSScriptRoot "mavi-mcp-server.js"
+        const scriptContent = `# PowerShell script to register Mandor MCP Server to Claude Desktop
+$mcpScriptPath = Join-Path $PSScriptRoot "mandor-mcp-server.js"
 if (!(Test-Path $mcpScriptPath)) {
-    Write-Host "Error: mavi-mcp-server.js not found in this folder." -ForegroundColor Red
-    Write-Host "Please place this script inside your mavi-core folder and run it again." -ForegroundColor Yellow
+    Write-Host "Error: mandor-mcp-server.js not found in this folder." -ForegroundColor Red
+    Write-Host "Please place this script inside your mandor-core folder and run it again." -ForegroundColor Yellow
     Read-Host "Press Enter to exit..."
     exit
 }
@@ -95,16 +95,16 @@ if (Test-Path $configPath) {
         $config | Add-Member -MemberType NoteProperty -Name "mcpServers" -Value @{}
     }
     # Add or update property
-    if ($config.mcpServers.PSObject.Properties["mavi-mes-mcp"]) {
-        $config.mcpServers.PSObject.Properties.Remove("mavi-mes-mcp")
+    if ($config.mcpServers.PSObject.Properties["mandor-mes-mcp"]) {
+        $config.mcpServers.PSObject.Properties.Remove("mandor-mes-mcp")
     }
-    $config.mcpServers | Add-Member -MemberType NoteProperty -Name "mavi-mes-mcp" -Value $newMcp -Force
+    $config.mcpServers | Add-Member -MemberType NoteProperty -Name "mandor-mes-mcp" -Value $newMcp -Force
 } else {
-    $config = @{ "mcpServers" = @{ "mavi-mes-mcp" = $newMcp } }
+    $config = @{ "mcpServers" = @{ "mandor-mes-mcp" = $newMcp } }
 }
 
 $config | ConvertTo-Json -Depth 10 | Set-Content $configPath -Force
-Write-Host "Mavi MCP Server successfully registered to Claude Desktop!" -ForegroundColor Green
+Write-Host "Mandor MCP Server successfully registered to Claude Desktop!" -ForegroundColor Green
 Read-Host "Press Enter to exit..."
 `;
         const blob = new Blob([scriptContent], { type: 'text/plain' });
@@ -119,11 +119,11 @@ Read-Host "Press Enter to exit..."
     };
 
     const downloadAntigravitySetupScript = () => {
-        const scriptContent = `# PowerShell script to register Mavi MCP Server to Antigravity IDE
-$mcpScriptPath = Join-Path $PSScriptRoot "mavi-mcp-server.js"
+        const scriptContent = `# PowerShell script to register Mandor MCP Server to Antigravity IDE
+$mcpScriptPath = Join-Path $PSScriptRoot "mandor-mcp-server.js"
 if (!(Test-Path $mcpScriptPath)) {
-    Write-Host "Error: mavi-mcp-server.js not found in this folder." -ForegroundColor Red
-    Write-Host "Please place this script inside your mavi-core folder and run it again." -ForegroundColor Yellow
+    Write-Host "Error: mandor-mcp-server.js not found in this folder." -ForegroundColor Red
+    Write-Host "Please place this script inside your mandor-core folder and run it again." -ForegroundColor Yellow
     Read-Host "Press Enter to exit..."
     exit
 }
@@ -149,16 +149,16 @@ if (Test-Path $configPath) {
         $config | Add-Member -MemberType NoteProperty -Name "mcpServers" -Value @{}
     }
     # Add or update property
-    if ( $config.mcpServers.PSObject.Properties["mavi-mes-mcp"] ) {
-        $config.mcpServers.PSObject.Properties.Remove("mavi-mes-mcp")
+    if ( $config.mcpServers.PSObject.Properties["mandor-mes-mcp"] ) {
+        $config.mcpServers.PSObject.Properties.Remove("mandor-mes-mcp")
     }
-    $config.mcpServers | Add-Member -MemberType NoteProperty -Name "mavi-mes-mcp" -Value $newMcp -Force
+    $config.mcpServers | Add-Member -MemberType NoteProperty -Name "mandor-mes-mcp" -Value $newMcp -Force
 } else {
-    $config = @{ "mcpServers" = @{ "mavi-mes-mcp" = $newMcp } }
+    $config = @{ "mcpServers" = @{ "mandor-mes-mcp" = $newMcp } }
 }
 
 $config | ConvertTo-Json -Depth 10 | Set-Content $configPath -Force
-Write-Host "Mavi MCP Server successfully registered to Antigravity IDE!" -ForegroundColor Green
+Write-Host "Mandor MCP Server successfully registered to Antigravity IDE!" -ForegroundColor Green
 Read-Host "Press Enter to exit..."
 `;
         const blob = new Blob([scriptContent], { type: 'text/plain' });
@@ -174,10 +174,10 @@ Read-Host "Press Enter to exit..."
     
     // Live logs simulation
     const [logs, setLogs] = useState([
-        { id: 1, time: '13:42:01', type: 'system', msg: 'Mavi MCP Server initialized on port 3011' },
-        { id: 2, time: '13:42:03', type: 'system', msg: 'Successfully registered 6 default Mavi tools' },
+        { id: 1, time: '13:42:01', type: 'system', msg: 'Mandor MCP Server initialized on port 3011' },
+        { id: 2, time: '13:42:03', type: 'system', msg: 'Successfully registered 6 default Mandor tools' },
         { id: 3, time: '13:42:15', type: 'info', msg: 'Authorized client connection established (Claude 3.5 Sonnet)' },
-        { id: 4, time: '13:43:02', type: 'tool_call', msg: 'Tool call: [read_mavi_table] with args: { tableId: "quality_log", limit: 5 }' },
+        { id: 4, time: '13:43:02', type: 'tool_call', msg: 'Tool call: [read_mandor_table] with args: { tableId: "quality_log", limit: 5 }' },
         { id: 5, time: '13:43:03', type: 'tool_resp', msg: 'Tool response: returned 5 records, size: 1.2KB' }
     ]);
     
@@ -193,16 +193,16 @@ Read-Host "Press Enter to exit..."
         }
     }, [logs]);
 
-    // Expose 6 default Mavi tools definitions
+    // Expose 6 default Mandor tools definitions
     const exposedTools = [
         {
-            name: 'read_mavi_table',
-            desc: 'Membaca record data dari tabel kualitas, inventori, atau log produksi di Mavi.',
+            name: 'read_mandor_table',
+            desc: 'Membaca record data dari tabel kualitas, inventori, atau log produksi di Mandor.',
             params: { tableId: 'string (e.g. quality_log)', limit: 'number (opsional)' },
             impact: 'READ'
         },
         {
-            name: 'write_mavi_table',
+            name: 'write_mandor_table',
             desc: 'Menulis record baru atau memperbarui entri tabel produksi secara langsung.',
             params: { tableId: 'string', recordData: 'object' },
             impact: 'WRITE'
@@ -250,7 +250,7 @@ Read-Host "Press Enter to exit..."
 
         // Simulate MCP Tool call generation and response
         setTimeout(() => {
-            let selectedTool = 'read_mavi_table';
+            let selectedTool = 'read_mandor_table';
             let toolArgs = {};
             let toolResponse = '';
             let aiText = '';
@@ -276,10 +276,10 @@ Read-Host "Press Enter to exit..."
                 aiText = 'Saya telah memanggil tool [get_machine_info]. CNC Mill (MCH-559) saat ini dalam kondisi NORMAL dengan temperatur 72.4°C.';
             } else {
                 // Default table read
-                selectedTool = 'read_mavi_table';
+                selectedTool = 'read_mandor_table';
                 toolArgs = { tableId: 'quality_log', limit: 2 };
                 toolResponse = '[ { "id": "rec_01", "defect_type": "Scratched", "status": "REJECTED" }, { "id": "rec_02", "defect_type": "None", "status": "PASSED" } ]';
-                aiText = 'Saya telah membaca data tabel log kualitas [read_mavi_table]. Ditemukan 2 record terbaru, termasuk 1 defect goresan (Scratched) yang ditolak.';
+                aiText = 'Saya telah membaca data tabel log kualitas [read_mandor_table]. Ditemukan 2 record terbaru, termasuk 1 defect goresan (Scratched) yang ditolak.';
             }
 
             // Append response logs
@@ -319,7 +319,7 @@ Read-Host "Press Enter to exit..."
         const timestamp = new Date().toLocaleTimeString();
         setLogs(prev => [
             ...prev,
-            { id: Date.now(), time: timestamp, type: 'system', msg: nextState ? 'Mavi MCP Server restarted' : 'Mavi MCP Server stopped' }
+            { id: Date.now(), time: timestamp, type: 'system', msg: nextState ? 'Mandor MCP Server restarted' : 'Mandor MCP Server stopped' }
         ]);
     };
 
@@ -330,7 +330,7 @@ Read-Host "Press Enter to exit..."
                 <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <BrainCircuit size={28} color="#8b5cf6" />
-                        <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 900, color: '#0f172a' }}>Mavi Model Context Protocol (MCP) Server</h2>
+                        <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 900, color: '#0f172a' }}>Mandor Model Context Protocol (MCP) Server</h2>
                         <span style={{
                             backgroundColor: isRunning ? '#dcfce7' : '#fee2e2',
                             color: isRunning ? '#166534' : '#991b1b',
@@ -378,9 +378,9 @@ Read-Host "Press Enter to exit..."
                             <Shield size={24} />
                         </div>
                         <div>
-                            <h3 style={{ margin: '0 0 6px 0', fontSize: '1rem', fontWeight: 800, color: '#1e293b' }}>Bagaimana MCP Bekerja di Mavi?</h3>
+                            <h3 style={{ margin: '0 0 6px 0', fontSize: '1rem', fontWeight: 800, color: '#1e293b' }}>Bagaimana MCP Bekerja di Mandor?</h3>
                             <p style={{ margin: 0, color: '#475569', fontSize: '0.82rem', lineHeight: 1.5 }}>
-                                Mavi MCP Server bertindak sebagai jembatan real-time aman antara Large Language Models (LLMs) dan instance Mavi Anda. Alih-alih menulis custom code untuk setiap API secara individual, MCP mengekspos stasiun kerja, mesin, tabel log kualitas, dan telemetri IoT sebagai **"tools"** terstruktur. LLM dapat menganalisis deskripsi tool ini, memutuskan parameter data yang dibutuhkan, dan memicunya secara aman tanpa black-box.
+                                Mandor MCP Server bertindak sebagai jembatan real-time aman antara Large Language Models (LLMs) dan instance Mandor Anda. Alih-alih menulis custom code untuk setiap API secara individual, MCP mengekspos stasiun kerja, mesin, tabel log kualitas, dan telemetri IoT sebagai **"tools"** terstruktur. LLM dapat menganalisis deskripsi tool ini, memutuskan parameter data yang dibutuhkan, dan memicunya secara aman tanpa black-box.
                             </p>
                         </div>
                     </div>
@@ -400,14 +400,14 @@ Read-Host "Press Enter to exit..."
 
                             {/* MCP Server */}
                             <div style={{ width: '140px', padding: '10px', backgroundColor: '#f5f3ff', border: '2px solid #a78bfa', borderRadius: '8px', textAlign: 'center', fontSize: '0.75rem', fontWeight: 700, color: '#5b21b6', position: 'relative' }}>
-                                Mavi MCP Server
+                                Mandor MCP Server
                                 <div style={{ fontSize: '0.6rem', color: '#8b5cf6', marginTop: '2px' }}>Port {serverPort}</div>
                                 <span style={{ position: 'absolute', top: '-6px', right: '-6px', backgroundColor: '#10b981', color: 'white', padding: '1px 5px', borderRadius: '6px', fontSize: '0.5rem', fontWeight: 800 }}>ACTIVE</span>
                             </div>
 
                             <ArrowRight size={20} color="#94a3b8" />
 
-                            {/* Mavi Instance */}
+                            {/* Mandor Instance */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                 <div style={{ display: 'flex', gap: '6px' }}>
                                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', padding: '4px 8px', backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: 600 }}><Database size={10} /> Tables</span>
@@ -499,7 +499,7 @@ Read-Host "Press Enter to exit..."
                     {/* Plug and Play Integration Card */}
                     <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '20px' }}>
                         <h3 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', fontWeight: 800, color: '#1e293b' }}>Integrasi Kilat AI Client</h3>
-                        <p style={{ margin: '0 0 16px 0', color: '#64748b', fontSize: '0.75rem' }}>Hubungkan Mavi MCP Server ini ke client AI Anda secara Plug-and-Play.</p>
+                        <p style={{ margin: '0 0 16px 0', color: '#64748b', fontSize: '0.75rem' }}>Hubungkan Mandor MCP Server ini ke client AI Anda secara Plug-and-Play.</p>
 
                         <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px', marginBottom: '16px' }}>
                             <button 

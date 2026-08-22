@@ -1,5 +1,5 @@
 /**
- * WhatsApp Integration Service for MAVI MES
+ * WhatsApp Integration Service for MANDOR MES
  * ==========================================
  * Connects the in-app ChatWidget and LiveTerminal to WhatsApp.
  *
@@ -13,8 +13,8 @@
 
 import n8nWebhook from './n8nWebhookService';
 
-const LS_WA_CONFIG = 'mavi_whatsapp_config';
-const LS_WA_LOGS = 'mavi_whatsapp_logs';
+const LS_WA_CONFIG = 'mandor_whatsapp_config';
+const LS_WA_LOGS = 'mandor_whatsapp_logs';
 const MAX_LOGS = 100;
 
 export const WA_PROVIDERS = [
@@ -142,7 +142,7 @@ class WhatsAppService {
    */
   formatMessage({ sender, station, targetName, message, mediaUrl }) {
     const time = new Date().toLocaleTimeString();
-    let text = `🏭 *[MAVI MES - Chat Notification]*\n`;
+    let text = `🏭 *[MANDOR MES - Chat Notification]*\n`;
     text += `📍 *Dari:* ${sender || 'Operator'} (Station: ${station || 'Live Terminal'})\n`;
     if (targetName) text += `🎯 *Kepada:* ${targetName}\n`;
     text += `🕒 *Waktu:* ${time}\n\n`;
@@ -176,7 +176,7 @@ class WhatsAppService {
       url = this.generateDirectUrl({ phone, message, sender, station, targetName, mediaUrl });
     }
     const windowFeatures = 'width=1150,height=800,top=80,left=120,resizable=yes,scrollbars=yes,status=no,toolbar=no,menubar=no,location=no';
-    const popup = window.open(url, 'MaviWhatsAppWeb', windowFeatures);
+    const popup = window.open(url, 'MandorWhatsAppWeb', windowFeatures);
     if (popup) {
       popup.focus();
     }

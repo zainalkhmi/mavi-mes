@@ -189,7 +189,7 @@ export function createKonvaTerminalTemplate() {
                 type: 'KONVA_FOOTER',
                 x: 0, y: 1030, w: 1920, h: 50,
                 props: {
-                    text: 'MAVI Industrial HMI | Konva.js Canvas Engine',
+                    text: 'MANDOR Industrial HMI | Konva.js Canvas Engine',
                     showFps: true
                 }
             }
