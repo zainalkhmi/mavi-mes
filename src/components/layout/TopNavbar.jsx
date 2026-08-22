@@ -3,7 +3,7 @@ import {
   Settings, Zap, Camera, Cpu, Database, Link2, Variable,
   BarChart3, Monitor, MapPin, Radio, Tv, Activity, Eye, BrainCircuit,
   SlidersHorizontal, Users, ShoppingBag, AppWindow, Folder, Volume2,
-  FileCode, Webhook, Play, Layout, FileText
+  FileCode, Webhook, Play, Layout, FileText, PieChart
 } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 
@@ -60,7 +60,7 @@ export default function TopNavbar() {
   ].filter(Boolean);
 
   const analyticsItems = [
-    { path: '/bi', icon: <BarChart3 size={16} className="text-purple-600" />, label: 'Dashboard' },
+    { path: '/bi', icon: <PieChart size={16} className="text-purple-600" />, label: 'Dashboard' },
     hasAccess('/reports') && { path: '/reports', icon: <FileText size={16} className="text-emerald-400" />, label: 'Report Designer (PDF)' }
   ].filter(Boolean);
 
