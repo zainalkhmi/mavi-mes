@@ -197,7 +197,9 @@ export default function InspectorDesigner() {
             { name: 'station_label', type: 'text', position: { x: isLandscape ? 85 : 70, y: 50 }, width: 35, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'STATION ID' },
             { name: 'station_value', type: 'text', position: { x: isLandscape ? 85 : 70, y: 54 }, width: 40, height: 5, fontSize: 8, fontColor: '#334155' },
             { name: 'inspector_label', type: 'text', position: { x: isLandscape ? 170 : 140, y: 50 }, width: 35, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'INSPECTOR' },
-            { name: 'inspector_value', type: 'text', position: { x: isLandscape ? 170 : 140, y: 54 }, width: 50, height: 5, fontSize: 8, fontColor: '#334155' },
+            { name: 'inspector_value', type: 'text', position: { x: isLandscape ? 170 : 140, y: 54 }, width: 40, height: 5, fontSize: 8, fontColor: '#334155' },
+            { name: 'date_time_label', type: 'text', position: { x: isLandscape ? 230 : 140, y: isLandscape ? 38 : 50 }, width: 40, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'TGL PENGUKURAN' },
+            { name: 'date_time_value', type: 'text', position: { x: isLandscape ? 230 : 140, y: isLandscape ? 42 : 54 }, width: 50, height: 5, fontSize: 7.5, fontColor: '#0f172a' },
 
             // Table
             {
@@ -228,6 +230,7 @@ export default function InspectorDesigner() {
           process_value: processName || 'Quality Inspection',
           station_value: stationId || 'ST-QC-01',
           inspector_value: inspectorName || 'Inspector QA',
+          date_time_value: new Date().toLocaleString(),
           inspection_table: JSON.stringify(
             (checkPoints || []).map((p, idx) => [
               String(p.pointNumber || idx + 1),
@@ -2907,7 +2910,7 @@ export default function InspectorDesigner() {
                 {/* 2. Master Info Grid */}
                 <div style={{
                   display: 'grid',
-                  gridTemplateColumns: reportOrientation === 'landscape' ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)',
+                  gridTemplateColumns: reportOrientation === 'landscape' ? 'repeat(4, 1fr)' : 'repeat(4, 1fr)',
                   gap: '8px',
                   backgroundColor: '#f8fafc',
                   border: '1px solid #e2e8f0',
@@ -2929,16 +2932,24 @@ export default function InspectorDesigner() {
                     <span style={{ color: '#0f172a' }}>{customer || 'AeroTech Dynamics Ltd.'}</span>
                   </div>
                   <div>
+                    <span style={{ color: '#64748b', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Tanggal Pengukuran</span>
+                    <strong style={{ color: '#0284c7', fontSize: '0.75rem' }}>{new Date().toLocaleString()}</strong>
+                  </div>
+                  <div>
                     <span style={{ color: '#64748b', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Station / Process</span>
                     <span style={{ color: '#0f172a' }}>{stationId} ({processName || 'CNC Line 2'})</span>
                   </div>
                   <div>
                     <span style={{ color: '#64748b', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>QC Inspector</span>
-                    <span style={{ color: '#0f172a' }}>{inspectorName || 'Budi Santoso'}</span>
+                    <span style={{ color: '#0f172a' }}>{inspectorName || 'admin'}</span>
                   </div>
                   <div>
                     <span style={{ color: '#64748b', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Approval Lead</span>
                     <span style={{ color: '#0f172a' }}>{approvedBy || 'Ahmad Setiawan'}</span>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Standar Mutu</span>
+                    <span style={{ color: '#059669', fontWeight: 700 }}>{qualityStandard || 'ISO 9001:2015'}</span>
                   </div>
                 </div>
 
@@ -3268,6 +3279,7 @@ export default function InspectorDesigner() {
                     { key: 'part_no_value', label: 'Part Number', val: partNo || '-' },
                     { key: 'part_name_value', label: 'Part Name', val: partName || '-' },
                     { key: 'customer_value', label: 'Customer', val: customer || '-' },
+                    { key: 'date_time_value', label: 'Tanggal Ukur', val: new Date().toLocaleString() },
                     { key: 'station_value', label: 'Station ID', val: stationId },
                     { key: 'inspector_value', label: 'Inspector', val: inspectorName || 'QA Lead' },
                     { key: 'inspection_table', label: 'Table Matrix', val: `${checkPoints.length} baris parameter` }
