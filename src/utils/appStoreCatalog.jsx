@@ -2,7 +2,7 @@ import React from 'react';
 import {
     Award, Sparkles, Activity, Search, ClipboardList, Package, Cpu,
     Boxes, Wrench, ArrowRight, FileText, Truck, PlayCircle, HeartPulse,
-    Settings, Layout, Zap, Sliders, BarChart3, ShieldCheck, ShieldAlert, Tag, Smartphone
+    Settings, Layout, Zap, Sliders, BarChart3, ShieldCheck, ShieldAlert, Tag, Smartphone, FolderArchive
 } from 'lucide-react';
 
 export const categories = [
@@ -22,6 +22,27 @@ export const categories = [
 ];
 
 export const rawTemplates = [
+    {
+        id: 'checksheet-management-suite',
+        name: 'Checksheet Management (ISO 9001 / IATF 16949)',
+        category: 'Drawing/Check Sheet',
+        description: 'Sistem tata kelola dokumen kendali mutu checksheet terintegrasi ISO 9001:2015. Dilengkapi penomoran dokumen, riwayat revisi (DCR), approval workflow, dan integrasi drawing inspeksi.',
+        longDescription: 'Pusat kontrol dokumen checksheet resmi pabrik. Memudahkan QA Lead dan Engineer dalam mendokumentasikan spesifikasi toleransi dimensi, approval status, log audit perubahan (DCR), serta langsung menjalankan inspeksi di shopfloor melalui Digital Checksheet Player.',
+        icon: <FolderArchive size={28} color="#8b5cf6" />,
+        bg: 'linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)',
+        accent: '#8b5cf6',
+        rating: 5.0,
+        installs: '4.2k',
+        targetRoute: '/checksheets',
+        features: [
+            'Penomoran Dokumen & Versioning Sesuai Standar ISO 9001:2015',
+            'Manajemen Kategori: IQC, IPQC, FQC/OQA, Drawing & GD&T, Kalibrasi',
+            'Audit Trail & Riwayat Perubahan Dokumen (Document Change Request)',
+            'Status Approval Lifecycle: APPROVED, IN_REVIEW, DRAFT, OBSOLETE',
+            'Integrasi 1-Klik ke Inspector Designer Studio & Digital Checksheet Player',
+            'Ekspor & Cetak Sertifikat Checksheet Mutu PDF'
+        ]
+    },
     {
         id: 'qc-checksheet-app',
         name: 'QC Inspection Check Sheet',

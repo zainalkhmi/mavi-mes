@@ -74,6 +74,7 @@ const NodeREDDashboard = lazy(() => import('./components/NodeREDDashboard'));
 const ShiftHandoffDashboard = lazy(() => import('./components/ShiftHandoffDashboard'));
 const ShiftHandoffSettings = lazy(() => import('./components/ShiftHandoffSettings'));
 const InspectorDesigner = lazy(() => import('./components/InspectorDesigner'));
+const CheckSheetManager = lazy(() => import('./components/CheckSheetManager'));
 
 export default function AppRouter({ user, isOperator }) {
   const hasAccess = (path) => checkRoleAccess(user, path);
@@ -90,6 +91,9 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/player" element={<AppPlayer />} />
               <Route path="/drawing-checksheet" element={<DigitalDrawingCheckSheet />} />
               <Route path="/qa-checksheet" element={<DigitalDrawingCheckSheet />} />
+              <Route path="/checksheets" element={<CheckSheetManager />} />
+              <Route path="/checksheet-management" element={<CheckSheetManager />} />
+              <Route path="/checksheet-manager" element={<CheckSheetManager />} />
               <Route path="/inspector-designer" element={<InspectorDesigner />} />
               <Route path="*" element={<Navigate to="/terminal" replace />} />
             </>
@@ -110,6 +114,9 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/builder" element={hasAccess('/builder') ? <AppBuilder /> : <Navigate to="/" replace />} />
               <Route path="/file-explorer" element={hasAccess('/file-explorer') ? <FileExplorer /> : <Navigate to="/" replace />} />
               <Route path="/store" element={hasAccess('/store') ? <AppStore /> : <Navigate to="/" replace />} />
+              <Route path="/checksheets" element={<CheckSheetManager />} />
+              <Route path="/checksheet-management" element={<CheckSheetManager />} />
+              <Route path="/checksheet-manager" element={<CheckSheetManager />} />
               <Route path="/inspector-designer" element={<InspectorDesigner />} />
               <Route path="/drawing-checksheet" element={<DigitalDrawingCheckSheet />} />
               <Route path="/qa-checksheet" element={<DigitalDrawingCheckSheet />} />

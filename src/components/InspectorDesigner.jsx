@@ -9,7 +9,7 @@ import {
   Info, Square, Circle, Triangle, Hexagon, PlusCircle, MinusCircle, Camera,
   List, Grid3x3, PlayCircle, Send, EyeOff, CheckSquare, FolderOpen,
   HardDrive, Table as TableIcon, Settings2, ExternalLink, User, Clock,
-  BarChart2, FileCheck, SlidersHorizontal, Smartphone as DeviceIcon, Sparkles
+  BarChart2, FileCheck, SlidersHorizontal, Smartphone as DeviceIcon, Sparkles, FolderArchive
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast, { Toaster } from 'react-hot-toast';
@@ -929,6 +929,27 @@ export default function InspectorDesigner() {
              checkSheetStatus === 'approved' ? 'APPROVED' :
              checkSheetStatus === 'released' ? 'RELEASED' : 'ARCHIVED'}
           </div>
+
+          {/* Checksheet Management ISO 9001 */}
+          <button
+            onClick={() => navigate('/checksheets')}
+            style={{
+              padding: '6px 12px',
+              backgroundColor: '#1e293b',
+              color: '#38bdf8',
+              border: '1px solid #0284c7',
+              borderRadius: '6px',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+            title="Buka Checksheet Management ISO 9001"
+          >
+            <FolderArchive size={14} /> Dokumen ISO
+          </button>
 
           {/* Template Library Button */}
           <button

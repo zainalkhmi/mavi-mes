@@ -33,6 +33,7 @@ import {
   Award,
   Clock,
   User,
+  FolderArchive,
   Wrench,
   BarChart2,
   FileCheck,
@@ -1330,6 +1331,26 @@ export default function DigitalDrawingCheckSheet() {
           <button onClick={() => setShowRuler(!showRuler)} style={{ background: showRuler ? 'rgba(56, 189, 248, 0.2)' : '#1e293b', border: '1px solid #334155', color: showRuler ? '#38bdf8' : '#94a3b8', borderRadius: '6px', padding: '6px 8px', cursor: 'pointer' }} title="Toggle Grid / Rulers"><Grid size={14} /></button>
           <button onClick={() => setDarkModeBlueprint(!darkModeBlueprint)} style={{ background: darkModeBlueprint ? 'rgba(34, 197, 94, 0.2)' : '#1e293b', border: '1px solid #334155', color: darkModeBlueprint ? '#22c55e' : '#94a3b8', borderRadius: '6px', padding: '6px 8px', cursor: 'pointer' }} title="Invert Theme"><Eye size={14} /></button>
           <button onClick={handlePrintQCReport} style={{ background: '#1e293b', border: '1px solid #334155', color: '#94a3b8', borderRadius: '6px', padding: '6px 8px', cursor: 'pointer' }} title="Print / PDF ISO Certificate"><Printer size={14} /></button>
+
+          <button
+            onClick={() => navigate('/checksheets')}
+            style={{
+              padding: '6px 12px',
+              backgroundColor: '#1e293b',
+              color: '#38bdf8',
+              border: '1px solid #0284c7',
+              borderRadius: '6px',
+              fontSize: '0.74rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+            title="Kelola Dokumen Checksheet ISO 9001"
+          >
+            <FolderArchive size={14} /> Dokumen ISO
+          </button>
 
           <button
             onClick={() => navigate('/inspector-designer')}

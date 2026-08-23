@@ -4,7 +4,7 @@ import {
   BarChart3, BarChart2, Monitor, MapPin, Radio, Tv, Activity, Eye, BrainCircuit,
   SlidersHorizontal, Users, ShoppingBag, AppWindow, Folder, Volume2,
   FileCode, Webhook, Play, Layout, FileText, PieChart, Terminal, Bot, Clock,
-  ClipboardCheck, FileSpreadsheet, Boxes, LayoutDashboard
+  ClipboardCheck, FileSpreadsheet, Boxes, LayoutDashboard, FolderArchive
 } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 
@@ -38,7 +38,8 @@ export default function TopNavbar() {
   ].filter(Boolean);
 
   const drawingItems = [
-    hasAccess('/inspector-designer') && { path: '/inspector-designer', icon: <FileCode size={16} className="text-purple-500" />, label: 'Inspector Designer Studio' },
+    hasAccess('/checksheets') && { path: '/checksheets', icon: <FolderArchive size={16} className="text-purple-500" />, label: 'Checksheet Management (ISO 9001)' },
+    hasAccess('/inspector-designer') && { path: '/inspector-designer', icon: <FileCode size={16} className="text-indigo-500" />, label: 'Inspector Designer Studio' },
     hasAccess('/drawing-checksheet') && { path: '/drawing-checksheet', icon: <ClipboardCheck size={16} className="text-emerald-500" />, label: 'Digital Check Sheet' }
   ].filter(Boolean);
 
@@ -124,7 +125,7 @@ export default function TopNavbar() {
             )}
 
             {appItems.length > 0 && <NavDropdown title="Apps" pathMatches={['/builder', '/file-explorer', '/app-management', '/tables', '/connectors', '/variables', '/mcp-server']} items={appItems} />}
-            {drawingItems.length > 0 && <NavDropdown title="Drawings & QA" pathMatches={['/drawing-checksheet', '/qa-checksheet', '/inspector-designer']} items={drawingItems} />}
+            {drawingItems.length > 0 && <NavDropdown title="Drawings & QA" pathMatches={['/checksheets', '/checksheet-management', '/checksheet-manager', '/drawing-checksheet', '/qa-checksheet', '/inspector-designer']} items={drawingItems} />}
           {shopFloorItems.length > 0 && <NavDropdown title="Shop Floor" pathMatches={['/stations', '/display-devices', '/machines', '/edge-devices', '/plc-settings', '/nodered']} items={shopFloorItems} />}
           {visionItems.length > 0 && <NavDropdown title="Vision" pathMatches={['/vision', '/vision/calibration', '/vision/quickbuild']} items={visionItems} />}
           {analyticsItems.length > 0 && <NavDropdown title="Analytics" pathMatches={['/bi', '/reports', '/shift-handoff']} items={analyticsItems} />}
