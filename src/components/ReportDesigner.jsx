@@ -117,65 +117,124 @@ const getPresetById = (id) => PAPER_PRESETS.find(p => p.id === id) || PAPER_PRES
 // ── Built-in Default Templates ──
 const DEFAULT_TEMPLATES = [
     {
-        id: 'qc-checksheet',
-        name: 'QC Inspection Checksheet',
+        id: 'qc-inspection-checksheet-a4',
+        name: 'QC Inspection Checksheet (A4)',
         category: 'Quality Control',
         paperPresetId: 'A4',
-        description: 'Laporan dimensi QC pabrik standar A4 dengan detail part, tabel toleransi, QR code & tanda tangan.',
+        description: 'Laporan inspeksi QC ISO 9001 terintegrasi penuh dengan Drawing & Inspector Designer — memuat Document Control, Header Part, GD&T Matrix, Hasil Ukur, Status, dan Digital Signature.',
         template: {
             basePdf: { width: 210, height: 297, padding: [10, 10, 10, 10] },
             schemas: [
                 [
-                    { name: 'header_bg', type: 'rectangle', position: { x: 15, y: 12 }, width: 180, height: 24, color: '#714B67', borderWidth: 0 },
-                    { name: 'company_title', type: 'text', position: { x: 20, y: 16 }, width: 110, height: 8, fontSize: 15, fontColor: '#ffffff', content: 'MANDOR MES — QC INSPECTION CHECKSHEET' },
-                    { name: 'company_subtitle', type: 'text', position: { x: 20, y: 24 }, width: 110, height: 6, fontSize: 8, fontColor: '#e2cfe0', content: 'Digital Quality Assurance & Dimensional Verification Report' },
-                    { name: 'report_qr', type: 'qrcode', position: { x: 172, y: 14 }, width: 20, height: 20 },
-                    { name: 'info_border', type: 'rectangle', position: { x: 15, y: 40 }, width: 180, height: 32, borderColor: '#dee2e6', borderWidth: 0.5, color: '#faf5f9' },
-                    { name: 'wo_number', type: 'text', position: { x: 20, y: 44 }, width: 40, height: 8, fontSize: 10, fontColor: '#212529' },
-                    { name: 'part_name', type: 'text', position: { x: 65, y: 44 }, width: 50, height: 8, fontSize: 10, fontColor: '#212529' },
-                    { name: 'lot_no', type: 'text', position: { x: 120, y: 44 }, width: 40, height: 8, fontSize: 10, fontColor: '#212529' },
-                    { name: 'inspector_name', type: 'text', position: { x: 20, y: 57 }, width: 40, height: 8, fontSize: 10, fontColor: '#212529' },
-                    { name: 'inspection_date', type: 'text', position: { x: 65, y: 57 }, width: 50, height: 8, fontSize: 10, fontColor: '#212529' },
-                    { name: 'overall_status', type: 'text', position: { x: 120, y: 57 }, width: 40, height: 8, fontSize: 11, fontColor: '#16a34a' },
-                    { name: 'table_title', type: 'text', position: { x: 15, y: 77 }, width: 180, height: 6, fontSize: 10, fontColor: '#714B67', content: 'DIMENSION & MEASUREMENT RESULTS' },
+                    // 1. Header Banner
+                    { name: 'header_bg', type: 'rectangle', position: { x: 12, y: 10 }, width: 186, height: 22, color: '#4c1d95', borderWidth: 0 },
+                    { name: 'report_title', type: 'text', position: { x: 16, y: 13 }, width: 120, height: 7, fontSize: 12.5, fontColor: '#ffffff', content: 'QC INSPECTION CHECKSHEET' },
+                    { name: 'company_subtitle', type: 'text', position: { x: 16, y: 21 }, width: 120, height: 4, fontSize: 6, fontColor: '#ddd6fe', content: 'MANDOR MES — ISO 9001:2015 QUALITY ASSURANCE VERIFICATION' },
+                    { name: 'doc_id', type: 'text', position: { x: 135, y: 13 }, width: 38, height: 4, fontSize: 6, fontColor: '#ffffff', content: 'DOC: QA-CS-2026-08' },
+                    { name: 'doc_control_val', type: 'text', position: { x: 135, y: 18 }, width: 38, height: 6, fontSize: 5.5, fontColor: '#ffffff', content: 'REV: A | 2026-08-23' },
+                    { name: 'report_qr', type: 'qrcode', position: { x: 176, y: 11 }, width: 18, height: 18 },
+
+                    // 2. Master Info Grid (4 columns)
+                    { name: 'info_border', type: 'rectangle', position: { x: 12, y: 35 }, width: 186, height: 26, borderColor: '#cbd5e1', borderWidth: 0.5, color: '#f8fafc' },
+                    
+                    { name: 'part_no_label', type: 'text', position: { x: 15, y: 37 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'PART NUMBER' },
+                    { name: 'part_no_value', type: 'text', position: { x: 15, y: 41 }, width: 42, height: 5, fontSize: 8.5, fontColor: '#0f172a' },
+                    { name: 'station_label', type: 'text', position: { x: 15, y: 47 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'STATION / PROCESS' },
+                    { name: 'station_value', type: 'text', position: { x: 15, y: 51 }, width: 42, height: 5, fontSize: 7.5, fontColor: '#0f172a' },
+
+                    { name: 'part_name_label', type: 'text', position: { x: 60, y: 37 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'PART NAME' },
+                    { name: 'part_name_value', type: 'text', position: { x: 60, y: 41 }, width: 42, height: 5, fontSize: 8, fontColor: '#0f172a' },
+                    { name: 'inspector_label', type: 'text', position: { x: 60, y: 47 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'QC INSPECTOR' },
+                    { name: 'inspector_value', type: 'text', position: { x: 60, y: 51 }, width: 42, height: 5, fontSize: 7.5, fontColor: '#0f172a' },
+
+                    { name: 'customer_label', type: 'text', position: { x: 105, y: 37 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'CUSTOMER' },
+                    { name: 'customer_value', type: 'text', position: { x: 105, y: 41 }, width: 42, height: 5, fontSize: 8, fontColor: '#0f172a' },
+                    { name: 'approver_label', type: 'text', position: { x: 105, y: 47 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'APPROVAL LEAD' },
+                    { name: 'approver_value', type: 'text', position: { x: 105, y: 51 }, width: 42, height: 5, fontSize: 7.5, fontColor: '#0f172a' },
+
+                    { name: 'date_time_label', type: 'text', position: { x: 150, y: 37 }, width: 45, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'TANGGAL PENGUKURAN' },
+                    { name: 'date_time_value', type: 'text', position: { x: 150, y: 41 }, width: 45, height: 5, fontSize: 7, fontColor: '#0284c7' },
+                    { name: 'standard_label', type: 'text', position: { x: 150, y: 47 }, width: 45, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'STANDAR MUTU' },
+                    { name: 'standard_value', type: 'text', position: { x: 150, y: 51 }, width: 45, height: 5, fontSize: 7.5, fontColor: '#059669', content: 'ISO 9001:2015' },
+
+                    // 3. Summary Statistics Bar (4 Cards)
+                    { name: 'stat_box_1', type: 'rectangle', position: { x: 12, y: 64 }, width: 44, height: 15, borderColor: '#cbd5e1', borderWidth: 0.5, color: '#f1f5f9' },
+                    { name: 'stat_lbl_1', type: 'text', position: { x: 13, y: 66 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'TOTAL TITIK UKUR' },
+                    { name: 'total_value', type: 'text', position: { x: 13, y: 70 }, width: 42, height: 6, fontSize: 9.5, fontColor: '#0f172a' },
+
+                    { name: 'stat_box_2', type: 'rectangle', position: { x: 59, y: 64 }, width: 44, height: 15, borderColor: '#a7f3d0', borderWidth: 0.5, color: '#ecfdf5' },
+                    { name: 'stat_lbl_2', type: 'text', position: { x: 60, y: 66 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#047857', content: 'STATUS DISPOSISI' },
+                    { name: 'status_value', type: 'text', position: { x: 60, y: 70 }, width: 42, height: 6, fontSize: 9, fontColor: '#059669' },
+
+                    { name: 'stat_box_3', type: 'rectangle', position: { x: 106, y: 64 }, width: 44, height: 15, borderColor: '#ddd6fe', borderWidth: 0.5, color: '#f5f3ff' },
+                    { name: 'stat_lbl_3', type: 'text', position: { x: 107, y: 66 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'TARGET CPK' },
+                    { name: 'cpk_value', type: 'text', position: { x: 107, y: 70 }, width: 42, height: 6, fontSize: 9.5, fontColor: '#7c3aed' },
+
+                    { name: 'stat_box_4', type: 'rectangle', position: { x: 153, y: 64 }, width: 45, height: 15, borderColor: '#bae6fd', borderWidth: 0.5, color: '#f0f9ff' },
+                    { name: 'stat_lbl_4', type: 'text', position: { x: 154, y: 66 }, width: 43, height: 3, fontSize: 5.5, fontColor: '#0369a1', content: 'PASS RATE' },
+                    { name: 'rate_value', type: 'text', position: { x: 154, y: 70 }, width: 43, height: 6, fontSize: 9.5, fontColor: '#0284c7' },
+
+                    // 4. Parameter Matrix Table
                     {
-                        name: 'qc_measurement_table',
+                        name: 'inspection_table',
                         type: 'table',
-                        position: { x: 15, y: 85 },
-                        width: 180,
-                        height: 80,
+                        position: { x: 12, y: 82 },
+                        width: 186,
+                        height: 138,
                         showHead: true,
-                        head: ['Item #', 'Parameter', 'Nominal', 'Tolerance', 'Actual', 'Status'],
-                        headWidthPercentages: [10, 30, 15, 15, 15, 15],
-                        tableStyles: STD_TABLE_STYLES,
-                        headStyles: { ...STD_HEAD_STYLES },
-                        bodyStyles: { ...STD_BODY_STYLES },
+                        head: ['#', 'PARAMETER UKUR', 'KATEGORI', 'NOMINAL', 'TOLERANSI (MIN / MAX)', 'HASIL UKUR', 'CRITICALITY', 'STATUS'],
+                        headWidthPercentages: [5, 26, 14, 12, 16, 12, 9, 6],
+                        tableStyles: { borderColor: '#4c1d95', borderWidth: 0.3 },
+                        headStyles: { alignment: 'center', verticalAlignment: 'middle', fontSize: 7, fontColor: '#ffffff', backgroundColor: '#4c1d95', padding: { top: 2.5, right: 2, bottom: 2.5, left: 2 } },
+                        bodyStyles: { alignment: 'center', verticalAlignment: 'middle', fontSize: 6.5, fontColor: '#0f172a', padding: { top: 2.5, right: 2, bottom: 2.5, left: 2 }, alternateBackgroundColor: '#f8fafc' },
                         columnStyles: {}
                     },
-                    { name: 'remarks', type: 'text', position: { x: 15, y: 196 }, width: 110, height: 25, fontSize: 9, fontColor: '#212529' },
-                    { name: 'sign_box', type: 'rectangle', position: { x: 135, y: 190 }, width: 60, height: 35, borderColor: '#dee2e6', borderWidth: 0.5, color: '#faf5f9' },
-                    { name: 'sign_lbl', type: 'text', position: { x: 138, y: 193 }, width: 54, height: 5, fontSize: 8, fontColor: '#714B67', content: 'AUTHORIZED SIGNATURE' },
-                    { name: 'sign_date', type: 'text', position: { x: 138, y: 220 }, width: 54, height: 4, fontSize: 7, fontColor: '#94a3b8' }
+
+                    // 5. ISO Signature Blocks (3 Columns)
+                    { name: 'sign_box1', type: 'rectangle', position: { x: 12, y: 225 }, width: 59, height: 26, borderColor: '#cbd5e1', borderWidth: 0.5, color: '#ffffff' },
+                    { name: 'sign_lbl1', type: 'text', position: { x: 14, y: 227 }, width: 55, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'INSPECTOR (OPERATOR)' },
+                    { name: 'sign_val1', type: 'text', position: { x: 14, y: 233 }, width: 55, height: 6, fontSize: 8, fontColor: '#059669', content: '✓ admin' },
+                    { name: 'sign_sub1', type: 'text', position: { x: 14, y: 243 }, width: 55, height: 3, fontSize: 5, fontColor: '#94a3b8', content: 'Tanda Tangan & Tanggal' },
+
+                    { name: 'sign_box2', type: 'rectangle', position: { x: 75, y: 225 }, width: 59, height: 26, borderColor: '#cbd5e1', borderWidth: 0.5, color: '#ffffff' },
+                    { name: 'sign_lbl2', type: 'text', position: { x: 77, y: 227 }, width: 55, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'QA / QC SUPERVISOR' },
+                    { name: 'sign_val2', type: 'text', position: { x: 77, y: 233 }, width: 55, height: 6, fontSize: 8, fontColor: '#4338ca', content: '✓ Ahmad Setiawan' },
+                    { name: 'sign_sub2', type: 'text', position: { x: 77, y: 243 }, width: 55, height: 3, fontSize: 5, fontColor: '#94a3b8', content: 'Disetujui QA Management' },
+
+                    { name: 'sign_box3', type: 'rectangle', position: { x: 139, y: 225 }, width: 59, height: 26, borderColor: '#cbd5e1', borderWidth: 0.5, color: '#ffffff' },
+                    { name: 'sign_lbl3', type: 'text', position: { x: 141, y: 227 }, width: 55, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'PRODUCTION LEADER' },
+                    { name: 'sign_val3', type: 'text', position: { x: 141, y: 233 }, width: 55, height: 6, fontSize: 8, fontColor: '#64748b', content: '✓ Handover Verified' },
+                    { name: 'sign_sub3', type: 'text', position: { x: 141, y: 243 }, width: 55, height: 3, fontSize: 5, fontColor: '#94a3b8', content: 'Diterima Line Produksi' },
+
+                    // 6. ISO Watermark Footer
+                    { name: 'footer_line', type: 'line', position: { x: 12, y: 255 }, width: 186, height: 0.2, color: '#cbd5e1' },
+                    { name: 'footer_text', type: 'text', position: { x: 12, y: 257 }, width: 186, height: 4, fontSize: 5.5, fontColor: '#94a3b8', content: 'MANDOR MES QUALITY REPORT ENGINE • ISO 9001:2015 AUDITED CHECKSHEET • DIGITAL GENERATED' }
                 ]
             ]
         },
         sampleInputs: [
             {
-                report_qr: 'https://mandor-core.online/wo/WO-2026-0819',
-                wo_number: 'WO: WO-2026-0819',
-                part_name: 'Part: FLANGE HOUSING 45MM',
-                lot_no: 'Lot: LOT-A-9902',
-                inspector_name: 'Inspector: Budi Santoso',
-                inspection_date: 'Date: 2026-08-18',
-                overall_status: 'PASSED (100% OK)',
-                remarks: 'All 5 critical dimensions within ±0.05mm tolerance. Surface finish clean.',
-                sign_date: 'Approved 2026-08-18 16:45',
-                qc_measurement_table: JSON.stringify([
-                    ['1', 'Outer Diameter A', '45.00 mm', '± 0.05', '45.02 mm', 'PASS'],
-                    ['2', 'Inner Bore Dia', '20.00 mm', '+0.03/-0.00', '20.01 mm', 'PASS'],
-                    ['3', 'Total Height', '32.50 mm', '± 0.10', '32.48 mm', 'PASS'],
-                    ['4', 'Bolt Hole PCD', '65.00 mm', '± 0.05', '65.00 mm', 'PASS'],
-                    ['5', 'Perpendicularity', '0.02 mm', 'Max 0.03', '0.015 mm', 'PASS']
+                report_qr: 'https://mandor-core.online/doc/PRT-FLG-450X',
+                doc_id: 'DOC: QA-CS-2026-08',
+                doc_control_val: 'REV: A | 2026-08-23',
+                part_no_value: 'PRT-FLG-450X',
+                part_name_value: 'Hydraulic Flange',
+                customer_value: 'AeroTech Dynamics Ltd.',
+                station_value: 'ST-01 (CNC Line 2)',
+                inspector_value: 'admin',
+                approver_value: 'Ahmad Setiawan',
+                date_time_value: '2026-08-23 22:15:00',
+                standard_value: 'ISO 9001:2015',
+                total_value: '10 Poin',
+                status_value: 'APPROVED (PASS)',
+                cpk_value: '1.67 (Min 1.33)',
+                rate_value: '100.0%',
+                inspection_table: JSON.stringify([
+                    ['1', 'Internal Bore Diameter', 'Linear Dimension', '25.00 mm', '24.95 - 25.05', '25.01 mm', 'Critical', 'OK'],
+                    ['2', 'Outer Flange Diameter', 'Linear Dimension', '45.00 mm', '44.95 - 45.05', '45.02 mm', 'Major', 'OK'],
+                    ['3', 'Seal Face Flatness', 'Flatness (GD&T)', '0.02 mm', 'Max 0.03', '0.018 mm', 'Major', 'OK'],
+                    ['4', 'Bolt Hole PCD', 'Position (GD&T)', '65.00 mm', '64.95 - 65.05', '65.00 mm', 'Minor', 'OK'],
+                    ['5', 'Perpendicularity Datum A', 'Perpendicularity', '0.015 mm', 'Max 0.025', '0.012 mm', 'Critical', 'OK']
                 ])
             }
         ]
@@ -920,15 +979,21 @@ export default function ReportDesigner() {
             return dt;
         });
 
-        // Add user custom templates (not in DEFAULT_TEMPLATES)
+        // Add user custom templates (not in DEFAULT_TEMPLATES) at the top so newest ones are immediately visible
         const customTemplates = savedTemplates.filter(st => !DEFAULT_TEMPLATES.some(dt => dt.id === st.id));
-        const finalMerged = [...updatedList, ...customTemplates];
+        const finalMerged = [...customTemplates, ...updatedList];
         localStorage.setItem('mandor_pdf_templates_v6', JSON.stringify(finalMerged));
         return finalMerged;
     };
 
-    const [templates, setTemplates] = useState(getMergedTemplates);
-    const [selectedTemplateId, setSelectedTemplateId] = useState(DEFAULT_TEMPLATES[0].id);
+    const initialMergedTemplates = getMergedTemplates();
+    const activeStoredId = localStorage.getItem('mandor_active_report_template_id');
+    const initialSelectedId = (activeStoredId && initialMergedTemplates.some(t => t.id === activeStoredId))
+        ? activeStoredId
+        : (initialMergedTemplates[0]?.id || DEFAULT_TEMPLATES[0].id);
+
+    const [templates, setTemplates] = useState(initialMergedTemplates);
+    const [selectedTemplateId, setSelectedTemplateId] = useState(initialSelectedId);
     const [activeTab, setActiveTab] = useState('designer'); // 'designer' | 'preview' | 'datasource'
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
@@ -974,32 +1039,24 @@ export default function ReportDesigner() {
         paddingLeft: 10
     });
 
-    const currentTemplateObj = templates.find(t => t.id === selectedTemplateId) || templates[0];
+    const currentTemplateObj = templates.find(t => t.id === selectedTemplateId) || templates[0] || DEFAULT_TEMPLATES[0];
     const [templateSchema, setTemplateSchema] = useState(currentTemplateObj.template);
     const [sampleInputData, setSampleInputData] = useState(currentTemplateObj.sampleInputs || [{}]);
 
     const designerRef = useRef(null);
     const designerInstance = useRef(null);
 
-    // Fetch App Tables on mount
+    // Check for active template id on mount
     useEffect(() => {
-        const fetchAvailableTables = async () => {
-            try {
-                const tables = await getTables();
-                setDbTables(tables || []);
-                if (tables && tables.length > 0) {
-                    setSelectedAppTableId(tables[0].id);
-                }
-            } catch (err) {
-                console.warn('[ReportDesigner] Could not fetch app tables:', err);
-            }
-        };
-        fetchAvailableTables();
+        const activeId = localStorage.getItem('mandor_active_report_template_id');
+        if (activeId && templates.some(t => t.id === activeId) && selectedTemplateId !== activeId) {
+            setSelectedTemplateId(activeId);
+        }
     }, []);
 
     // Save templates to localStorage
     useEffect(() => {
-        localStorage.setItem('mandor_pdf_templates_v5', JSON.stringify(templates));
+        localStorage.setItem('mandor_pdf_templates_v6', JSON.stringify(templates));
     }, [templates]);
 
     // When switching template, update schema and sample data

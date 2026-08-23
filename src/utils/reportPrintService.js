@@ -209,92 +209,89 @@ const DEFAULT_TEMPLATES = [
             basePdf: { width: 210, height: 297, padding: [10, 10, 10, 10] },
             schemas: [
                 [
-                    // ── HEADER & ISO 9001 DOCUMENT CONTROL ──
-                    { name: 'header_bg', type: 'rectangle', position: { x: 15, y: 10 }, width: 180, height: 24, color: '#4c1d95', borderWidth: 0 },
-                    { name: 'report_title', type: 'text', position: { x: 20, y: 14 }, width: 110, height: 7, fontSize: 13, fontColor: '#ffffff', content: 'QC INSPECTION CHECKSHEET' },
-                    { name: 'company_subtitle', type: 'text', position: { x: 20, y: 22 }, width: 115, height: 4, fontSize: 6.5, fontColor: '#ddd6fe', content: 'MANDOR MES — ISO 9001:2015 / IATF 16949 Quality Assurance' },
-                    { name: 'report_qr', type: 'qrcode', position: { x: 172, y: 12 }, width: 20, height: 20 },
-                    { name: 'doc_id', type: 'text', position: { x: 142, y: 13 }, width: 28, height: 4, fontSize: 6, fontColor: '#f5d0fe', content: 'ISO 9001 CONTROL' },
-                    { name: 'doc_control_val', type: 'text', position: { x: 140, y: 18 }, width: 30, height: 7, fontSize: 5.5, fontColor: '#ffffff', content: 'Doc: QA-CS-2026\nRev: 2.1 | Std: ISO' },
+                    // 1. Header Banner
+                    { name: 'header_bg', type: 'rectangle', position: { x: 12, y: 10 }, width: 186, height: 22, color: '#4c1d95', borderWidth: 0 },
+                    { name: 'report_title', type: 'text', position: { x: 16, y: 13 }, width: 120, height: 7, fontSize: 12.5, fontColor: '#ffffff', content: 'QC INSPECTION CHECKSHEET' },
+                    { name: 'company_subtitle', type: 'text', position: { x: 16, y: 21 }, width: 120, height: 4, fontSize: 6, fontColor: '#ddd6fe', content: 'MANDOR MES — ISO 9001:2015 QUALITY ASSURANCE VERIFICATION' },
+                    { name: 'doc_id', type: 'text', position: { x: 135, y: 13 }, width: 38, height: 4, fontSize: 6, fontColor: '#ffffff', content: 'DOC: QA-CS-2026-08' },
+                    { name: 'doc_control_val', type: 'text', position: { x: 135, y: 18 }, width: 38, height: 6, fontSize: 5.5, fontColor: '#ffffff', content: 'REV: A | 2026-08-23' },
+                    { name: 'report_qr', type: 'qrcode', position: { x: 176, y: 11 }, width: 18, height: 18 },
 
-                    // ── MASTER DATA & PART ATTRIBUTES GRID ──
-                    { name: 'info_border', type: 'rectangle', position: { x: 15, y: 36 }, width: 180, height: 42, borderColor: '#cbd5e1', borderWidth: 0.5, color: '#f8fafc' },
+                    // 2. Master Info Grid (4 columns)
+                    { name: 'info_border', type: 'rectangle', position: { x: 12, y: 35 }, width: 186, height: 26, borderColor: '#cbd5e1', borderWidth: 0.5, color: '#f8fafc' },
                     
-                    // Row 1: WO, Part No, Part Name
-                    { name: 'wo_label', type: 'text', position: { x: 18, y: 39 }, width: 40, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'WORK ORDER NO' },
-                    { name: 'wo_value', type: 'text', position: { x: 18, y: 43 }, width: 50, height: 5, fontSize: 9.5, fontColor: '#0f172a' },
-                    { name: 'part_no_label', type: 'text', position: { x: 74, y: 39 }, width: 40, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'PART NUMBER' },
-                    { name: 'part_no_value', type: 'text', position: { x: 74, y: 43 }, width: 55, height: 5, fontSize: 9.5, fontColor: '#0f172a' },
-                    { name: 'part_name_label', type: 'text', position: { x: 134, y: 39 }, width: 40, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'PART NAME / DESC' },
-                    { name: 'part_name_value', type: 'text', position: { x: 134, y: 43 }, width: 58, height: 5, fontSize: 9, fontColor: '#0f172a' },
+                    { name: 'part_no_label', type: 'text', position: { x: 15, y: 37 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'PART NUMBER' },
+                    { name: 'part_no_value', type: 'text', position: { x: 15, y: 41 }, width: 42, height: 5, fontSize: 8.5, fontColor: '#0f172a' },
+                    { name: 'station_label', type: 'text', position: { x: 15, y: 47 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'STATION / PROCESS' },
+                    { name: 'station_value', type: 'text', position: { x: 15, y: 51 }, width: 42, height: 5, fontSize: 7.5, fontColor: '#0f172a' },
 
-                    // Row 2: Customer, Process, Station
-                    { name: 'customer_label', type: 'text', position: { x: 18, y: 50 }, width: 40, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'CUSTOMER' },
-                    { name: 'customer_value', type: 'text', position: { x: 18, y: 54 }, width: 50, height: 5, fontSize: 8.5, fontColor: '#334155' },
-                    { name: 'process_label', type: 'text', position: { x: 74, y: 50 }, width: 40, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'PROCESS / OPERATION' },
-                    { name: 'process_value', type: 'text', position: { x: 74, y: 54 }, width: 55, height: 5, fontSize: 8.5, fontColor: '#334155' },
-                    { name: 'station_label', type: 'text', position: { x: 134, y: 50 }, width: 40, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'STATION ID' },
-                    { name: 'station_value', type: 'text', position: { x: 134, y: 54 }, width: 58, height: 5, fontSize: 8.5, fontColor: '#334155' },
+                    { name: 'part_name_label', type: 'text', position: { x: 60, y: 37 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'PART NAME' },
+                    { name: 'part_name_value', type: 'text', position: { x: 60, y: 41 }, width: 42, height: 5, fontSize: 8, fontColor: '#0f172a' },
+                    { name: 'inspector_label', type: 'text', position: { x: 60, y: 47 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'QC INSPECTOR' },
+                    { name: 'inspector_value', type: 'text', position: { x: 60, y: 51 }, width: 42, height: 5, fontSize: 7.5, fontColor: '#0f172a' },
 
-                    // Row 3: Inspector, Approver, Date Time, Status
-                    { name: 'inspector_label', type: 'text', position: { x: 18, y: 61 }, width: 35, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'INSPECTOR' },
-                    { name: 'inspector_value', type: 'text', position: { x: 18, y: 65 }, width: 35, height: 5, fontSize: 8, fontColor: '#0f172a' },
-                    { name: 'approver_label', type: 'text', position: { x: 58, y: 61 }, width: 35, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'QC APPROVER' },
-                    { name: 'approver_value', type: 'text', position: { x: 58, y: 65 }, width: 35, height: 5, fontSize: 8, fontColor: '#0f172a' },
-                    { name: 'date_time_label', type: 'text', position: { x: 98, y: 61 }, width: 45, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'DATE & TIME (WAKTU)' },
-                    { name: 'date_time_value', type: 'text', position: { x: 98, y: 65 }, width: 45, height: 5, fontSize: 7.5, fontColor: '#0f172a' },
-                    { name: 'status_label', type: 'text', position: { x: 148, y: 61 }, width: 35, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'OVERALL RESULT' },
-                    { name: 'status_value', type: 'text', position: { x: 148, y: 65 }, width: 44, height: 6, fontSize: 9.5, fontColor: '#16a34a' },
+                    { name: 'customer_label', type: 'text', position: { x: 105, y: 37 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'CUSTOMER' },
+                    { name: 'customer_value', type: 'text', position: { x: 105, y: 41 }, width: 42, height: 5, fontSize: 8, fontColor: '#0f172a' },
+                    { name: 'approver_label', type: 'text', position: { x: 105, y: 47 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'APPROVAL LEAD' },
+                    { name: 'approver_value', type: 'text', position: { x: 105, y: 51 }, width: 42, height: 5, fontSize: 7.5, fontColor: '#0f172a' },
 
-                    // ── SUMMARY STATS BAR ──
-                    { name: 'summary_bg', type: 'rectangle', position: { x: 15, y: 80 }, width: 180, height: 18, borderColor: '#8b5cf6', borderWidth: 0.5, color: '#f5f3ff' },
-                    { name: 'total_label', type: 'text', position: { x: 18, y: 82 }, width: 22, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'TOTAL CHECKS' },
-                    { name: 'total_value', type: 'text', position: { x: 18, y: 86 }, width: 20, height: 8, fontSize: 13, fontColor: '#1f2937' },
-                    { name: 'passed_label', type: 'text', position: { x: 46, y: 82 }, width: 22, height: 3, fontSize: 5.5, fontColor: '#16a34a', content: 'PASSED (OK)' },
-                    { name: 'passed_value', type: 'text', position: { x: 46, y: 86 }, width: 20, height: 8, fontSize: 13, fontColor: '#16a34a' },
-                    { name: 'failed_label', type: 'text', position: { x: 74, y: 82 }, width: 22, height: 3, fontSize: 5.5, fontColor: '#dc2626', content: 'FAILED (NG)' },
-                    { name: 'failed_value', type: 'text', position: { x: 74, y: 86 }, width: 20, height: 8, fontSize: 13, fontColor: '#dc2626' },
-                    { name: 'pending_label', type: 'text', position: { x: 102, y: 82 }, width: 22, height: 3, fontSize: 5.5, fontColor: '#d97706', content: 'PENDING' },
-                    { name: 'pending_value', type: 'text', position: { x: 102, y: 86 }, width: 20, height: 8, fontSize: 13, fontColor: '#d97706' },
-                    { name: 'cpk_label', type: 'text', position: { x: 130, y: 82 }, width: 22, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'CPK INDEX' },
-                    { name: 'cpk_value', type: 'text', position: { x: 130, y: 86 }, width: 22, height: 8, fontSize: 12, fontColor: '#4338ca' },
-                    { name: 'rate_label', type: 'text', position: { x: 158, y: 82 }, width: 30, height: 3, fontSize: 5.5, fontColor: '#4c1d95', content: 'PASS RATE' },
-                    { name: 'rate_value', type: 'text', position: { x: 158, y: 86 }, width: 34, height: 8, fontSize: 14, fontColor: '#4c1d95' },
+                    { name: 'date_time_label', type: 'text', position: { x: 150, y: 37 }, width: 45, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'TANGGAL PENGUKURAN' },
+                    { name: 'date_time_value', type: 'text', position: { x: 150, y: 41 }, width: 45, height: 5, fontSize: 7, fontColor: '#0284c7' },
+                    { name: 'standard_label', type: 'text', position: { x: 150, y: 47 }, width: 45, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'STANDAR MUTU' },
+                    { name: 'standard_value', type: 'text', position: { x: 150, y: 51 }, width: 45, height: 5, fontSize: 7.5, fontColor: '#059669', content: 'ISO 9001:2015' },
 
-                    // ── INSPECTION RESULTS TABLE ──
-                    { name: 'table_title', type: 'text', position: { x: 15, y: 101 }, width: 180, height: 4, fontSize: 7.5, fontColor: '#4c1d95', content: '📐 PARAMETER & GD&T DIMENSIONAL INSPECTION MATRIX' },
+                    // 3. Summary Statistics Bar (4 Cards)
+                    { name: 'stat_box_1', type: 'rectangle', position: { x: 12, y: 64 }, width: 44, height: 15, borderColor: '#cbd5e1', borderWidth: 0.5, color: '#f1f5f9' },
+                    { name: 'stat_lbl_1', type: 'text', position: { x: 13, y: 66 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'TOTAL TITIK UKUR' },
+                    { name: 'total_value', type: 'text', position: { x: 13, y: 70 }, width: 42, height: 6, fontSize: 9.5, fontColor: '#0f172a' },
+
+                    { name: 'stat_box_2', type: 'rectangle', position: { x: 59, y: 64 }, width: 44, height: 15, borderColor: '#a7f3d0', borderWidth: 0.5, color: '#ecfdf5' },
+                    { name: 'stat_lbl_2', type: 'text', position: { x: 60, y: 66 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#047857', content: 'STATUS DISPOSISI' },
+                    { name: 'status_value', type: 'text', position: { x: 60, y: 70 }, width: 42, height: 6, fontSize: 9, fontColor: '#059669' },
+
+                    { name: 'stat_box_3', type: 'rectangle', position: { x: 106, y: 64 }, width: 44, height: 15, borderColor: '#ddd6fe', borderWidth: 0.5, color: '#f5f3ff' },
+                    { name: 'stat_lbl_3', type: 'text', position: { x: 107, y: 66 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#6d28d9', content: 'TARGET CPK' },
+                    { name: 'cpk_value', type: 'text', position: { x: 107, y: 70 }, width: 42, height: 6, fontSize: 9.5, fontColor: '#7c3aed' },
+
+                    { name: 'stat_box_4', type: 'rectangle', position: { x: 153, y: 64 }, width: 45, height: 15, borderColor: '#bae6fd', borderWidth: 0.5, color: '#f0f9ff' },
+                    { name: 'stat_lbl_4', type: 'text', position: { x: 154, y: 66 }, width: 43, height: 3, fontSize: 5.5, fontColor: '#0369a1', content: 'PASS RATE' },
+                    { name: 'rate_value', type: 'text', position: { x: 154, y: 70 }, width: 43, height: 6, fontSize: 9.5, fontColor: '#0284c7' },
+
+                    // 4. Parameter Matrix Table
                     {
                         name: 'inspection_table',
                         type: 'table',
-                        position: { x: 15, y: 107 },
-                        width: 180,
-                        height: 112,
+                        position: { x: 12, y: 82 },
+                        width: 186,
+                        height: 138,
                         showHead: true,
-                        head: ['#', 'Parameter / Dimension Title', 'Category', 'Nominal', 'Tolerance', 'Measured', 'Criticality', 'Status'],
-                        headWidthPercentages: [5, 27, 14, 12, 14, 12, 10, 6],
+                        head: ['#', 'PARAMETER UKUR', 'KATEGORI', 'NOMINAL', 'TOLERANSI (MIN / MAX)', 'HASIL UKUR', 'CRITICALITY', 'STATUS'],
+                        headWidthPercentages: [5, 26, 14, 12, 16, 12, 9, 6],
                         tableStyles: { borderColor: '#4c1d95', borderWidth: 0.3 },
-                        headStyles: { alignment: 'center', verticalAlignment: 'middle', fontSize: 7.5, fontColor: '#ffffff', backgroundColor: '#4c1d95', borderColor: '', borderWidth: { top: 0, right: 0, bottom: 0, left: 0 }, padding: { top: 2.5, right: 2, bottom: 2.5, left: 2 } },
-                        bodyStyles: { alignment: 'center', verticalAlignment: 'middle', fontSize: 7, fontColor: '#000000', backgroundColor: '', borderColor: '#888888', borderWidth: { top: 0.1, right: 0.1, bottom: 0.1, left: 0.1 }, padding: { top: 2.5, right: 2, bottom: 2.5, left: 2 }, alternateBackgroundColor: '#fdfbfd' },
+                        headStyles: { alignment: 'center', verticalAlignment: 'middle', fontSize: 7, fontColor: '#ffffff', backgroundColor: '#4c1d95', padding: { top: 2.5, right: 2, bottom: 2.5, left: 2 } },
+                        bodyStyles: { alignment: 'center', verticalAlignment: 'middle', fontSize: 6.5, fontColor: '#0f172a', padding: { top: 2.5, right: 2, bottom: 2.5, left: 2 }, alternateBackgroundColor: '#f8fafc' },
                         columnStyles: {}
                     },
 
-                    // ── NOTES & SIGNATURES ──
-                    { name: 'notes_title', type: 'text', position: { x: 15, y: 224 }, width: 60, height: 4, fontSize: 7, fontColor: '#4c1d95', content: '📝 QC INSPECTION NOTES' },
-                    { name: 'notes_bg', type: 'rectangle', position: { x: 15, y: 229 }, width: 110, height: 28, borderColor: '#cbd5e1', borderWidth: 0.5, color: '#ffffff' },
-                    { name: 'notes_value', type: 'text', position: { x: 18, y: 232 }, width: 104, height: 23, fontSize: 7.5, fontColor: '#334155' },
+                    // 5. ISO Signature Blocks (3 Columns)
+                    { name: 'sign_box1', type: 'rectangle', position: { x: 12, y: 225 }, width: 59, height: 26, borderColor: '#cbd5e1', borderWidth: 0.5, color: '#ffffff' },
+                    { name: 'sign_lbl1', type: 'text', position: { x: 14, y: 227 }, width: 55, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'INSPECTOR (OPERATOR)' },
+                    { name: 'sign_val1', type: 'text', position: { x: 14, y: 233 }, width: 55, height: 6, fontSize: 8, fontColor: '#059669', content: '✓ admin' },
+                    { name: 'sign_sub1', type: 'text', position: { x: 14, y: 243 }, width: 55, height: 3, fontSize: 5, fontColor: '#94a3b8', content: 'Tanda Tangan & Tanggal' },
 
-                    // Signatures
-                    { name: 'sign_box', type: 'rectangle', position: { x: 130, y: 229 }, width: 65, height: 13, borderColor: '#cbd5e1', borderWidth: 0.5, color: '#f8fafc' },
-                    { name: 'sign_lbl1', type: 'text', position: { x: 133, y: 231 }, width: 59, height: 3, fontSize: 5.5, fontColor: '#4c1d95', content: 'QC INSPECTOR (OPERATOR)' },
-                    { name: 'sign_line1', type: 'text', position: { x: 133, y: 238 }, width: 59, height: 3, fontSize: 5.5, fontColor: '#94a3b8', content: 'Sign & Date: ________________' },
-                    { name: 'sign_box2', type: 'rectangle', position: { x: 130, y: 244 }, width: 65, height: 13, borderColor: '#cbd5e1', borderWidth: 0.5, color: '#f8fafc' },
-                    { name: 'sign_lbl2', type: 'text', position: { x: 133, y: 246 }, width: 59, height: 3, fontSize: 5.5, fontColor: '#4c1d95', content: 'QC SUPERVISOR / APPROVER' },
-                    { name: 'sign_line2', type: 'text', position: { x: 133, y: 253 }, width: 59, height: 3, fontSize: 5.5, fontColor: '#94a3b8', content: 'Sign & Stamp: _______________' },
+                    { name: 'sign_box2', type: 'rectangle', position: { x: 75, y: 225 }, width: 59, height: 26, borderColor: '#cbd5e1', borderWidth: 0.5, color: '#ffffff' },
+                    { name: 'sign_lbl2', type: 'text', position: { x: 77, y: 227 }, width: 55, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'QA / QC SUPERVISOR' },
+                    { name: 'sign_val2', type: 'text', position: { x: 77, y: 233 }, width: 55, height: 6, fontSize: 8, fontColor: '#4338ca', content: '✓ Ahmad Setiawan' },
+                    { name: 'sign_sub2', type: 'text', position: { x: 77, y: 243 }, width: 55, height: 3, fontSize: 5, fontColor: '#94a3b8', content: 'Disetujui QA Management' },
 
-                    // ── FOOTER ──
-                    { name: 'footer_line', type: 'line', position: { x: 15, y: 261 }, width: 180, height: 0.3, color: '#4c1d95' },
-                    { name: 'footer_text', type: 'text', position: { x: 15, y: 263 }, width: 120, height: 3.5, fontSize: 5.5, fontColor: '#64748b', content: 'MANDOR MES • Digital Quality Assurance • Generated from Drawing Inspector Designer' },
-                    { name: 'footer_timestamp', type: 'text', position: { x: 140, y: 263 }, width: 55, height: 3.5, fontSize: 5.5, fontColor: '#64748b' }
+                    { name: 'sign_box3', type: 'rectangle', position: { x: 139, y: 225 }, width: 59, height: 26, borderColor: '#cbd5e1', borderWidth: 0.5, color: '#ffffff' },
+                    { name: 'sign_lbl3', type: 'text', position: { x: 141, y: 227 }, width: 55, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'PRODUCTION LEADER' },
+                    { name: 'sign_val3', type: 'text', position: { x: 141, y: 233 }, width: 55, height: 6, fontSize: 8, fontColor: '#64748b', content: '✓ Handover Verified' },
+                    { name: 'sign_sub3', type: 'text', position: { x: 141, y: 243 }, width: 55, height: 3, fontSize: 5, fontColor: '#94a3b8', content: 'Diterima Line Produksi' },
+
+                    // 6. ISO Watermark Footer
+                    { name: 'footer_line', type: 'line', position: { x: 12, y: 255 }, width: 186, height: 0.2, color: '#cbd5e1' },
+                    { name: 'footer_text', type: 'text', position: { x: 12, y: 257 }, width: 186, height: 4, fontSize: 5.5, fontColor: '#94a3b8', content: 'MANDOR MES QUALITY REPORT ENGINE • ISO 9001:2015 AUDITED CHECKSHEET • DIGITAL GENERATED' }
                 ]
             ]
         }
