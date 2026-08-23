@@ -17,7 +17,7 @@ export const categories = [
     'Warehouse',
     'Automotive',
     'Analytic',
-    'SmartHome / IoT'
+    'Industrial / IoT'
 ];
 
 export const rawTemplates = [
@@ -1447,36 +1447,9 @@ export const rawTemplates = [
         }
     },
     {
-        id: 'smarthome-iot',
-        name: 'SmartHome Control Center',
-        category: 'SmartHome / IoT',
-        description: 'Command and monitor smart switches, lighting, thermostats, cameras, locks, and vacuums in real-time.',
-        longDescription: 'A premium smart home dashboard template featuring full integrations with Tuya, Bardi, and Sonoff devices. Allows toggling power, setting temperature and brightness levels, monitoring sensors, and securing your home.',
-        icon: <Cpu size={28} color="#ff5f00" />,
-        bg: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
-        accent: '#ff5f00',
-        rating: 4.9,
-        installs: 'New',
-        features: ['Multi-brand Compatibility', 'MQTT Real-time Sync', 'Security Arming'],
-        guide: {
-            operation: '1. View active device status\n2. Toggle smart switch power outlets\n3. Adjust lighting brightness/color\n4. Set AC temperature\n5. Arm/Disarm home security system',
-            widgets: ['SmartHome Controller', 'Tuya Smart IoT Product', 'Interactive Gauge', 'Action Buttons'],
-            components: ['Living Room Control Panel', 'Security & Sensors Panel', 'System Logs & Metrics Gauge'],
-            tables: [],
-            triggers: [
-                { event: 'ARM_SECURITY', function: 'Sets Security_Status variable to ARMED and sends notification.' },
-                { event: 'DISARM_SECURITY', function: 'Sets Security_Status variable to DISARMED and logs time.' }
-            ],
-            mechanism: 'Binds UI components to MQTT topics for real-time publishing and updates.',
-            steps: [
-                { name: 'SmartHome Panel', description: 'Consolidated dashboard for all active smart home and security IoT devices.' }
-            ]
-        }
-    },
-    {
         id: 'plc-hmi-terminal',
         name: 'PLC HMI Control Terminal',
-        category: 'SmartHome / IoT',
+        category: 'Industrial / IoT',
         description: 'Interactive HMI dashboard for PLC monitoring and control, featuring gauges, speed setpoint slider, motor controls, and signal telemetry.',
         longDescription: 'A premium industrial HMI dashboard template designed for real-time PLC interaction. Includes dual analog gauges (level, pressure), speed setpoint control slider, start/stop action triggers, and telemetry status widgets.',
         icon: <Cpu size={28} color="#0284c7" />,

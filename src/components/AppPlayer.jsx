@@ -1256,9 +1256,30 @@ const AppPlayer = () => {
     const activeApp = useMemo(() => apps.find((a) => a.id === activeAppId) || null, [apps, activeAppId]);
     const activeStationName = useMemo(() => stations.find(s => s.id === stationIdFilter)?.name || stationIdFilter, [stations, stationIdFilter]);
 
+    useEffect(() => {
+        if (!activeApp) return;
+        const cfgPreset = activeApp.config?.devicePreset || activeApp.config?.previewDevice;
+        const cfgOrient = activeApp.config?.previewOrientation;
+        const cfgScale = activeApp.config?.scalingMode;
+
+        if (cfgPreset && DEVICE_PRESETS[cfgPreset]) {
+            setPlayerDevicePreset(cfgPreset);
+        } else {
+            setPlayerDevicePreset(null);
+        }
+        if (cfgOrient) {
+            setPlayerOrientation(cfgOrient);
+        } else {
+            setPlayerOrientation(null);
+        }
+        if (cfgScale) {
+            setAppScaleMode(cfgScale);
+        }
+    }, [activeApp?.id, activeApp?.config?.devicePreset, activeApp?.config?.previewDevice, activeApp?.config?.previewOrientation, activeApp?.config?.scalingMode]);
+
     const activeDevicePresetKey = useMemo(() => {
         if (playerDevicePreset && DEVICE_PRESETS[playerDevicePreset]) return playerDevicePreset;
-        return activeApp?.config?.devicePreset || 'RESPONSIVE';
+        return activeApp?.config?.devicePreset || activeApp?.config?.previewDevice || 'RESPONSIVE';
     }, [playerDevicePreset, activeApp]);
 
     const activeOrientation = useMemo(() => {

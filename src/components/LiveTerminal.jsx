@@ -3270,25 +3270,37 @@ const LiveTerminal = () => {
   }, [showDeviceMenu]);
 
   useEffect(() => {
+    if (!selectedApp) return;
     const urlPreset = launchParams.get('devicePreset');
+    const urlOrient = launchParams.get('orientation');
+    const urlScale = launchParams.get('scaleMode');
+
+    const configuredPreset = selectedApp.config?.devicePreset || selectedApp.config?.previewDevice;
+    const configuredOrient = selectedApp.config?.previewOrientation;
+    const configuredScale = selectedApp.config?.scalingMode;
+
     if (urlPreset && DEVICE_PRESETS[urlPreset]) {
       setRuntimeDevicePreset(urlPreset);
+    } else if (configuredPreset && DEVICE_PRESETS[configuredPreset]) {
+      setRuntimeDevicePreset(configuredPreset);
+    } else {
+      setRuntimeDevicePreset(null);
     }
-  }, [launchParams]);
 
-  useEffect(() => {
-    const urlOrient = launchParams.get('orientation');
     if (urlOrient) {
       setRuntimeOrientation(urlOrient);
+    } else if (configuredOrient) {
+      setRuntimeOrientation(configuredOrient);
+    } else {
+      setRuntimeOrientation(null);
     }
-  }, [launchParams]);
 
-  useEffect(() => {
-    const urlScale = launchParams.get('scaleMode');
     if (urlScale) {
       setRuntimeScaleMode(urlScale);
+    } else if (configuredScale) {
+      setRuntimeScaleMode(configuredScale);
     }
-  }, [launchParams]);
+  }, [selectedApp?.id, selectedApp?.config?.devicePreset, selectedApp?.config?.previewDevice, selectedApp?.config?.previewOrientation, selectedApp?.config?.scalingMode]);
 
   useEffect(() => {
     const handleMsg = (e) => {
@@ -3306,19 +3318,11 @@ const LiveTerminal = () => {
     if (runtimeDevicePreset && DEVICE_PRESETS[runtimeDevicePreset]) {
       return runtimeDevicePreset;
     }
-    const configuredPreset = selectedApp?.config?.devicePreset;
-    if (configuredPreset && DEVICE_PRESETS[configuredPreset] && configuredPreset !== 'RESPONSIVE') {
+    const configuredPreset = selectedApp?.config?.devicePreset || selectedApp?.config?.previewDevice;
+    if (configuredPreset && DEVICE_PRESETS[configuredPreset]) {
       return configuredPreset;
     }
-    // Auto-detect mobile apps by category, name, or narrow component bounds
-    const isMobileCategory = selectedApp?.category === 'Mobile' || selectedApp?.name?.toLowerCase().includes('mobile');
-    const allComps = (selectedApp?.config?.steps || []).flatMap(s => s.components || []);
-    const hasOnlyNarrowComps = allComps.length > 0 && allComps.every(c => c.x == null || (c.x + (c.w || 0)) <= 480);
-    
-    if (isMobileCategory || (hasOnlyNarrowComps && allComps.length > 0)) {
-      return 'PHONE_APP_INVENTOR';
-    }
-    return configuredPreset || 'RESPONSIVE';
+    return 'RESPONSIVE';
   }, [selectedApp, runtimeDevicePreset]);
 
   const effectiveOrientation = useMemo(() => {
@@ -3342,7 +3346,7 @@ const LiveTerminal = () => {
 
   const designBaseSize = useMemo(() => {
     // 1. If the app saved a configured preset (other than RESPONSIVE), use that
-    const origPresetKey = selectedApp?.config?.devicePreset;
+    const origPresetKey = selectedApp?.config?.devicePreset || selectedApp?.config?.previewDevice;
     const origOrientation = selectedApp?.config?.previewOrientation || 'PORTRAIT';
     if (origPresetKey && origPresetKey !== 'RESPONSIVE' && DEVICE_PRESETS[origPresetKey]) {
       const p = DEVICE_PRESETS[origPresetKey];
@@ -3352,15 +3356,7 @@ const LiveTerminal = () => {
       };
     }
     
-    // 2. If the app is categorized as Mobile or has mobile width components
-    const isMobileCategory = selectedApp?.category === 'Mobile' || selectedApp?.name?.toLowerCase().includes('mobile');
-    const allComps = (selectedApp?.config?.steps || []).flatMap(s => s.components || []);
-    const hasOnlyNarrowComps = allComps.length > 0 && allComps.every(c => c.x == null || (c.x + (c.w || 0)) <= 480);
-    if (isMobileCategory || (hasOnlyNarrowComps && allComps.length > 0)) {
-      return { width: 420, height: 750 };
-    }
-    
-    // 3. Standard Responsive / Desktop canvas default
+    // 2. Standard Responsive / Desktop canvas default (1000x625)
     return { width: 1000, height: 625 };
   }, [selectedApp]);
 
@@ -13031,7 +13027,6 @@ const LiveTerminal = () => {
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                justifyContent: 'center',
                 justifyContent: (effectiveScalingMode === 'FIT_WIDTH') ? 'flex-start' : 'center',
                 position: 'relative',
                 overflowX: (effectiveScalingMode === 'FIT_WIDTH') ? 'auto' : 'hidden',

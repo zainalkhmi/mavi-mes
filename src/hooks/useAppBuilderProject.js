@@ -108,6 +108,7 @@ export default function useAppBuilderProject({ state, utils }) {
                     stepListEnabled,    
                     isLocked: isCanvasLocked,    
                     devicePreset: previewDevice,    
+                    previewDevice: previewDevice,
                     previewOrientation: previewOrientation,    
                     scalingMode    
                 },    

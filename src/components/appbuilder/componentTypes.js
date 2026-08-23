@@ -715,61 +715,6 @@ export const COMPONENT_TYPES = {
             rotation: 0
         }
     },
-    SMARTHOME_DEVICE: {
-        id: 'SMARTHOME_DEVICE',
-        label: 'SmartHome Controller',
-        icon: Home,
-        defaultSize: { w: 220, h: 140 },
-        defaultProps: {
-            deviceName: 'Smart Switch',
-            deviceBrand: 'TUYA', // 'TUYA', 'BARDI', 'SONOFF', 'CUSTOM'
-            deviceType: 'SWITCH', // 'SWITCH', 'BULB', 'THERMOSTAT', 'AIR_CON'
-            on: false,
-            brightness: 100,
-            temperature: 24,
-            mqttTopic: 'tuya/device/state',
-            mqttPublishTopic: 'tuya/device/set',
-            visible: true,
-            enabled: true,
-            textColor: 'var(--text-primary)',
-            backgroundColor: 'var(--bg-panel)',
-            triggers: [],
-            rotation: 0
-        }
-    },
-    TUYA_PRODUCT: {
-        id: 'TUYA_PRODUCT',
-        label: 'Tuya Smart IoT Product',
-        icon: Cpu,
-        defaultSize: { w: 320, h: 420 },
-        defaultProps: {
-            deviceName: 'Tuya Smart Light',
-            productCase: 'LIGHTING', // 'LIGHTING', 'CAMERA', 'THERMOSTAT', 'AIR_PURIFIER', 'ROBOT_VACUUM', 'LOCK', 'SENSOR', 'PLUG'
-            on: false,
-            brightness: 80,
-            colorTemp: 50,
-            colorHex: '#ff5f00',
-            temperature: 24,
-            targetTemperature: 22,
-            fanSpeed: 'AUTO',
-            mode: 'AUTO',
-            batteryLevel: 85,
-            aqiValue: 12,
-            filterLife: 92,
-            locked: true,
-            usbOn: false,
-            powerConsumption: 12.5,
-            totalEnergy: 4.8,
-            mqttTopic: 'tuya/iot/state',
-            mqttPublishTopic: 'tuya/iot/set',
-            visible: true,
-            enabled: true,
-            textColor: 'var(--text-primary)',
-            backgroundColor: 'var(--bg-panel)',
-            triggers: [],
-            rotation: 0
-        }
-    },
     TEXT_INPUT: {
         id: 'TEXT_INPUT',
         label: 'TextBox',
