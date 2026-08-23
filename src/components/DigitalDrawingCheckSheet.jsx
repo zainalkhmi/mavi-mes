@@ -499,12 +499,8 @@ export default function DigitalDrawingCheckSheet() {
   const [searchParams] = useSearchParams();
   const currentUser = getCurrentUser();
 
-  // State
-  const [drawingsList, setDrawingsList] = useState([]);
+  // Check sheet items state
   const [selectedDrawingId, setSelectedDrawingId] = useState('dwg_cast_housing');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFolder, setSelectedFolder] = useState('casting');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   // Check sheet items state
   const [checkPoints, setCheckPoints] = useState(INITIAL_CHECK_POINTS);
@@ -1175,24 +1171,6 @@ export default function DigitalDrawingCheckSheet() {
       >
         {/* Left: Branding & Drawing Info */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            style={{
-              padding: '6px 8px',
-              backgroundColor: '#1e293b',
-              border: '1px solid #334155',
-              borderRadius: '6px',
-              color: '#94a3b8',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-            title={isSidebarOpen ? 'Sembunyikan Sidebar Explorer' : 'Buka Sidebar Explorer'}
-          >
-            {isSidebarOpen ? <ChevronLeft size={16} /> : <FolderOpen size={16} color="#38bdf8" />}
-          </button>
-
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{ width: '28px', height: '28px', backgroundColor: '#22c55e', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0f172a', fontWeight: 900, fontSize: '0.9rem' }}>
               M
@@ -1376,109 +1354,15 @@ export default function DigitalDrawingCheckSheet() {
         </div>
       </div>
 
-      {/* ─── 2. MAIN 3-PANEL WORKSPACE (RESPONSIVE & COLLAPSIBLE) ───────────────── */}
+      {/* ─── 2. MAIN 2-PANEL WORKSPACE (BLUEPRINT CANVAS & RIGHT ATTRIBUTES INSPECTOR) ─── */}
       <div
         style={{
           flex: 1,
           display: 'grid',
-          gridTemplateColumns: isSidebarOpen ? '250px 1fr 370px' : '0px 1fr 370px',
-          transition: 'grid-template-columns 0.2s ease',
+          gridTemplateColumns: '1fr 380px',
           overflow: 'hidden'
         }}
       >
-
-        {/* ─── LEFT PANEL: DRAWING EXPLORER (COLLAPSIBLE) ────────────────────── */}
-        <div style={{ backgroundColor: '#0f172a', borderRight: '1px solid #1e293b', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {/* Header */}
-          <div style={{ padding: '12px', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <FolderOpen size={16} color="#38bdf8" />
-              <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#f1f5f9' }}>Drawing Explorer</span>
-            </div>
-            <span style={{ fontSize: '0.62rem', backgroundColor: '#1e293b', padding: '2px 6px', borderRadius: '4px', color: '#94a3b8' }}>ISO Drawings</span>
-          </div>
-
-          {/* Search Bar */}
-          <div style={{ padding: '8px 12px', borderBottom: '1px solid #1e293b' }}>
-            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#1e293b', borderRadius: '6px', padding: '4px 8px', gap: '6px' }}>
-              <Search size={14} color="#64748b" />
-              <input
-                placeholder="Cari part / drawing..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                style={{ background: 'none', border: 'none', color: 'white', fontSize: '0.75rem', outline: 'none', width: '100%' }}
-              />
-            </div>
-          </div>
-
-          {/* Tree Hierarchy */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '8px 6px' }}>
-            {/* Folder 1: Casting & Housings */}
-            <div style={{ marginBottom: '6px' }}>
-              <div
-                onClick={() => setSelectedFolder(selectedFolder === 'casting' ? null : 'casting')}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 8px', borderRadius: '6px', cursor: 'pointer', backgroundColor: selectedFolder === 'casting' ? 'rgba(56, 189, 248, 0.1)' : 'transparent', color: '#cbd5e1', fontSize: '0.78rem', fontWeight: 700 }}
-              >
-                {selectedFolder === 'casting' ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                <Folder size={15} color="#38bdf8" />
-                <span>Casting Parts & Housings</span>
-              </div>
-
-              {selectedFolder === 'casting' && (
-                <div style={{ marginLeft: '22px', display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '2px' }}>
-                  <div
-                    onClick={() => setSelectedDrawingId('dwg_cast_housing')}
-                    style={{
-                      padding: '6px 8px',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      backgroundColor: selectedDrawingId === 'dwg_cast_housing' ? '#22c55e' : '#1e293b',
-                      color: selectedDrawingId === 'dwg_cast_housing' ? '#0f172a' : '#f8fafc',
-                      fontSize: '0.74rem',
-                      fontWeight: selectedDrawingId === 'dwg_cast_housing' ? 800 : 500,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between'
-                    }}
-                  >
-                    <span>📄 Engine Casting (Rev 2.1)</span>
-                    <span style={{ fontSize: '0.62rem', opacity: 0.8 }}>12 pts</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Custom drawings from Database */}
-            {drawingsList.length > 0 && (
-              <div>
-                <div style={{ padding: '6px 8px', fontSize: '0.68rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Database Drawings</div>
-                {drawingsList.map(dwg => (
-                  <div key={dwg.id} style={{ padding: '6px 8px', color: '#cbd5e1', fontSize: '0.74rem', cursor: 'pointer' }}>
-                    📄 {dwg.name || dwg.fileName}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* ISO 9001 Work Order & Traceability Card */}
-          <div style={{ padding: '12px', borderTop: '1px solid #1e293b', backgroundColor: '#090d16', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <div style={{ fontSize: '0.68rem', color: '#38bdf8', fontWeight: 800, letterSpacing: '0.5px' }}>ISO TRACEABILITY INFO</div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem' }}>
-              <span style={{ color: '#64748b' }}>WO No:</span>
-              <input value={workOrderNo} onChange={e => setWorkOrderNo(e.target.value)} style={{ background: 'none', border: 'none', color: '#38bdf8', fontWeight: 700, textAlign: 'right', outline: 'none', width: '130px' }} />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem' }}>
-              <span style={{ color: '#64748b' }}>Serial / Lot:</span>
-              <input value={partSerial} onChange={e => setPartSerial(e.target.value)} style={{ background: 'none', border: 'none', color: '#f8fafc', fontWeight: 600, textAlign: 'right', outline: 'none', width: '130px' }} />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem' }}>
-              <span style={{ color: '#64748b' }}>Inspector:</span>
-              <input value={inspectorName} onChange={e => setInspectorName(e.target.value)} style={{ background: 'none', border: 'none', color: '#22c55e', fontWeight: 600, textAlign: 'right', outline: 'none', width: '130px' }} />
-            </div>
-          </div>
-        </div>
-
         {/* ─── CENTER PANEL: SYMMETRICAL INTERACTIVE BLUEPRINT CANVAS ────────── */}
         <div
           ref={containerRef}
