@@ -37,7 +37,7 @@ export default function NavDropdown({ title, pathMatches, items, children }) {
       </button>
 
       {isOpen && (
-        <div className="absolute top-[calc(100%+8px)] left-0 min-w-[200px] bg-white border border-slate-200 rounded-lg shadow-md py-2 flex flex-col z-[1001] overflow-hidden">
+        <div className="absolute top-[calc(100%+8px)] left-0 min-w-[200px] bg-white border border-slate-200 rounded-lg shadow-md py-2 flex flex-col z-[999999] overflow-hidden">
           {items && items.map((item, idx) => {
             if (item.type === 'divider') {
               return <div key={idx} className="h-px bg-slate-200 my-1" />;

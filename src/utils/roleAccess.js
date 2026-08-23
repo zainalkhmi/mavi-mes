@@ -18,8 +18,9 @@ export const hasAccess = (user, path) => {
   // Connector Supervisor: Build apps, manage connectors/functions, logic, analytics, console
   if (role === 'CONNECTOR_SUPERVISOR') {
     const allowed = [
-      '/', '/builder', '/file-explorer', '/store', '/app-management', '/variables',
+      '/', '/builder', '/flutter-builder','/file-explorer', '/store', '/app-management', '/variables',
       '/connectors', '/functions', '/automations', '/analytics', '/dashboards', '/reports', '/mcp-server',
+      '/inspector-designer', '/drawing-checksheet', '/qa-checksheet',
       '/player', '/terminal', '/plc-settings', '/voice-inspection', '/predictive-maintenance'
     ];
     return allowed.some(p => path === p || path.startsWith(p + '/'));
@@ -28,8 +29,9 @@ export const hasAccess = (user, path) => {
   // Station Supervisor: Build apps, manage stations/machines/devices/IoT/vision/analytics/console
   if (role === 'STATION_SUPERVISOR') {
     const allowed = [
-      '/', '/builder', '/file-explorer', '/store', '/app-management', '/variables',
+      '/', '/builder', '/flutter-builder','/file-explorer', '/store', '/app-management', '/variables',
       '/stations', '/display-devices', '/machines', '/edge-devices', '/iot-hub', '/vision', '/mcp-server',
+      '/inspector-designer', '/drawing-checksheet', '/qa-checksheet',
       '/analytics', '/dashboards', '/reports', '/player', '/terminal', '/plc-settings', '/voice-inspection', '/predictive-maintenance'
     ];
     return allowed.some(p => path === p || path.startsWith(p + '/'));
@@ -38,8 +40,9 @@ export const hasAccess = (user, path) => {
   // Tulip Tables Supervisor: Build apps, manage Tables, analytics, console
   if (role === 'TABLES_SUPERVISOR') {
     const allowed = [
-      '/', '/builder', '/file-explorer', '/store', '/app-management', '/variables',
-      '/tables', '/analytics', '/dashboards', '/reports', '/player', '/terminal', '/voice-inspection', '/predictive-maintenance'
+      '/', '/builder', '/flutter-builder','/file-explorer', '/store', '/app-management', '/variables',
+      '/tables', '/inspector-designer', '/drawing-checksheet', '/qa-checksheet',
+      '/analytics', '/dashboards', '/reports', '/player', '/terminal', '/voice-inspection', '/predictive-maintenance'
     ];
     return allowed.some(p => path === p || path.startsWith(p + '/'));
   }
@@ -47,16 +50,18 @@ export const hasAccess = (user, path) => {
   // Application Engineer: Build apps, variables, store, analytics, console
   if (role === 'APPLICATION_ENGINEER' || role === 'ENGINEER') {
     const allowed = [
-      '/', '/builder', '/file-explorer', '/store', '/app-management', '/variables',
+      '/', '/builder', '/flutter-builder','/file-explorer', '/store', '/app-management', '/variables',
+      '/inspector-designer', '/drawing-checksheet', '/qa-checksheet',
       '/analytics', '/dashboards', '/reports', '/player', '/terminal', '/voice-inspection', '/predictive-maintenance'
     ];
     return allowed.some(p => path === p || path.startsWith(p + '/'));
   }
-  
+
   // Viewer: App Store, Analytics, Dashboards, Console
   if (role === 'VIEWER') {
     const allowed = [
-      '/', '/store', '/analytics', '/dashboards', '/reports', '/player', '/terminal', '/voice-inspection', '/predictive-maintenance'
+      '/', '/store', '/inspector-designer', '/drawing-checksheet', '/qa-checksheet',
+      '/analytics', '/dashboards', '/reports', '/player', '/terminal', '/voice-inspection', '/predictive-maintenance'
     ];
     return allowed.some(p => path === p || path.startsWith(p + '/'));
   }

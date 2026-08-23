@@ -7149,6 +7149,234 @@ const AppBuilder = () => {
         }
     };
 
+    const handleGenerateTulipBaseLayout = (mode = 'BOTH') => {
+        saveHistory();
+        const cW = canvasBaseSize.width || 1000;
+        const cH = canvasBaseSize.height || 625;
+        const headerH = 56;
+        const footerH = 56;
+
+        let newComps = [...baseComponents];
+
+        if (mode === 'BOTH' || mode === 'HEADER_ONLY') {
+            newComps = newComps.filter(c => !c.id.startsWith('base_hdr_'));
+
+            // 1. Header Background (At TOP: y=0)
+            newComps.push({
+                id: `base_hdr_bg_${Date.now()}`,
+                name: 'base_header_bar',
+                displayName: 'Header Bar',
+                type: 'SHAPE_RECTANGLE',
+                x: 0,
+                y: 0,
+                w: cW,
+                h: headerH,
+                props: {
+                    shapeVariant: 'rectangle',
+                    backgroundColor: '#1e293b',
+                    borderColor: '#334155',
+                    borderWidth: 1,
+                    borderRadius: 0,
+                    locked: false
+                }
+            });
+
+            // 2. Menu Button (Top Left)
+            newComps.push({
+                id: `base_hdr_menu_${Date.now() + 1}`,
+                name: 'base_menu_btn',
+                displayName: 'Menu Button',
+                type: 'BUTTON',
+                x: 16,
+                y: 10,
+                w: 110,
+                h: 36,
+                props: {
+                    label: '☰ Menu',
+                    text: '☰ Menu',
+                    backgroundColor: '#334155',
+                    textColor: '#ffffff',
+                    borderRadius: 6,
+                    fontWeight: '600',
+                    fontSize: 14,
+                    triggers: [{
+                        id: `trig_menu_${Date.now()}`,
+                        name: 'Cancel / Open Menu',
+                        event: 'CLICK',
+                        enabled: true,
+                        clauses: [{
+                            id: `cl_${Date.now()}`,
+                            match: 'ALL',
+                            conditions: [],
+                            actions: [{ type: 'CANCEL_APP', payload: {} }]
+                        }],
+                        elseActions: []
+                    }]
+                }
+            });
+
+            // 3. Header Title (Top Center)
+            const titleW = 380;
+            newComps.push({
+                id: `base_hdr_title_${Date.now() + 2}`,
+                name: 'base_app_title',
+                displayName: 'Step / App Title',
+                type: 'TEXT',
+                x: Math.max(130, Math.round((cW - titleW) / 2)),
+                y: 14,
+                w: titleW,
+                h: 28,
+                props: {
+                    text: appName || 'App Title',
+                    fontSize: 18,
+                    fontBold: true,
+                    textAlign: 'center',
+                    textColor: '#ffffff'
+                }
+            });
+
+            // 4. Header Logo / Branding (Top Right)
+            newComps.push({
+                id: `base_hdr_logo_${Date.now() + 3}`,
+                name: 'base_logo_text',
+                displayName: 'Company Logo',
+                type: 'TEXT',
+                x: Math.max(0, cW - 150),
+                y: 16,
+                w: 130,
+                h: 24,
+                props: {
+                    text: '⚡ TULIP APP',
+                    fontSize: 13,
+                    fontBold: true,
+                    textAlign: 'right',
+                    textColor: '#94a3b8'
+                }
+            });
+        }
+
+        if (mode === 'BOTH' || mode === 'FOOTER_ONLY') {
+            newComps = newComps.filter(c => !c.id.startsWith('base_ftr_'));
+
+            // 5. Footer Background (At BOTTOM: y=cH - footerH)
+            newComps.push({
+                id: `base_ftr_bg_${Date.now() + 4}`,
+                name: 'base_footer_bar',
+                displayName: 'Footer Bar',
+                type: 'SHAPE_RECTANGLE',
+                x: 0,
+                y: cH - footerH,
+                w: cW,
+                h: footerH,
+                props: {
+                    shapeVariant: 'rectangle',
+                    backgroundColor: '#ffffff',
+                    borderColor: '#e2e8f0',
+                    borderWidth: 1,
+                    borderRadius: 0,
+                    locked: false
+                }
+            });
+
+            // 6. Previous Step Button (Bottom Left)
+            newComps.push({
+                id: `base_ftr_prev_${Date.now() + 5}`,
+                name: 'base_prev_btn',
+                displayName: 'Previous Button',
+                type: 'BUTTON',
+                x: 16,
+                y: cH - footerH + 10,
+                w: 120,
+                h: 36,
+                props: {
+                    label: '← Previous',
+                    text: '← Previous',
+                    backgroundColor: '#ffffff',
+                    textColor: '#1e293b',
+                    borderColor: '#cbd5e1',
+                    borderWidth: 1,
+                    borderRadius: 6,
+                    fontWeight: '600',
+                    fontSize: 14,
+                    triggers: [{
+                        id: `trig_prev_${Date.now()}`,
+                        name: 'Go to Previous Screen',
+                        event: 'CLICK',
+                        enabled: true,
+                        clauses: [{
+                            id: `cl_${Date.now()}`,
+                            match: 'ALL',
+                            conditions: [],
+                            actions: [{ type: 'PREV_STEP', payload: {} }]
+                        }],
+                        elseActions: []
+                    }]
+                }
+            });
+
+            // 7. Step Navigation Info (Bottom Center)
+            const infoW = 220;
+            newComps.push({
+                id: `base_ftr_info_${Date.now() + 6}`,
+                name: 'base_step_info',
+                displayName: 'Navigation Info',
+                type: 'TEXT',
+                x: Math.max(140, Math.round((cW - infoW) / 2)),
+                y: cH - footerH + 16,
+                w: infoW,
+                h: 24,
+                props: {
+                    text: 'Frontline Step Flow',
+                    fontSize: 12,
+                    textAlign: 'center',
+                    textColor: '#94a3b8'
+                }
+            });
+
+            // 8. Next Step Button (Bottom Right)
+            newComps.push({
+                id: `base_ftr_next_${Date.now() + 7}`,
+                name: 'base_next_btn',
+                displayName: 'Next Button',
+                type: 'BUTTON',
+                x: Math.max(0, cW - 136),
+                y: cH - footerH + 10,
+                w: 120,
+                h: 36,
+                props: {
+                    label: 'Next →',
+                    text: 'Next →',
+                    backgroundColor: '#2563eb',
+                    textColor: '#ffffff',
+                    borderRadius: 6,
+                    fontWeight: '600',
+                    fontSize: 14,
+                    triggers: [{
+                        id: `trig_next_${Date.now()}`,
+                        name: 'Go to Next Screen',
+                        event: 'CLICK',
+                        enabled: true,
+                        clauses: [{
+                            id: `cl_${Date.now()}`,
+                            match: 'ALL',
+                            conditions: [],
+                            actions: [{ type: 'NEXT_STEP', payload: {} }]
+                        }],
+                        elseActions: []
+                    }]
+                }
+            });
+        }
+
+        setBaseComponents(newComps);
+        setCurrentStepId('BASE');
+        toast.success(
+            mode === 'BOTH'
+                ? '✨ Base Layout Header (Atas) & Footer (Bawah) berhasil diperbarui!'
+                : (mode === 'HEADER_ONLY' ? '✨ Header Bar (Atas) berhasil ditambahkan ke Base Layout!' : '✨ Footer Bar (Bawah) berhasil ditambahkan ke Base Layout!')
+        );
+    };
+
     const {
         handleCreateTemplateApp, handleCreateTuneUpTemplate, handleSave, handleDeleteApp, handlePublish, handleRequestApproval, handleApproveApp, handleImportProject, handleDuplicateProject, handleAutoSave, handleRecoverDraft, getCurrentApp, handleCopyUrl, loadApp
     } = useAppBuilderProject({
@@ -14351,6 +14579,188 @@ const AppBuilder = () => {
                                                     )}
 
                                                 </div>
+
+                                                {/* Tulip-style BASE LAYOUT section pinned at the bottom of the screens pane */}
+                                                <div style={{
+                                                    borderTop: currentStepId === 'BASE' ? '2px solid #0284c7' : '1px solid #e2e8f0',
+                                                    backgroundColor: currentStepId === 'BASE' ? '#f0f9ff' : '#ffffff',
+                                                    boxShadow: currentStepId === 'BASE' ? 'inset 0 2px 4px rgba(2, 132, 199, 0.08)' : '0 -1px 3px rgba(0,0,0,0.03)',
+                                                    flexShrink: 0
+                                                }}>
+                                                    {/* Base Layout Header Row */}
+                                                    <div
+                                                        onClick={() => {
+                                                            setCurrentStepId('BASE');
+                                                            setSelectedCompIds([]);
+                                                            setActiveTab('SCREEN');
+                                                            setExpandedSteps(prev => ({ ...prev, BASE: true }));
+                                                        }}
+                                                        style={{
+                                                            padding: '10px 12px',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'space-between',
+                                                            transition: 'all 0.15s ease'
+                                                        }}
+                                                        onMouseEnter={(e) => {
+                                                            if (currentStepId !== 'BASE') e.currentTarget.style.backgroundColor = '#f8fafc';
+                                                        }}
+                                                        onMouseLeave={(e) => {
+                                                            if (currentStepId !== 'BASE') e.currentTarget.style.backgroundColor = 'transparent';
+                                                        }}
+                                                    >
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setExpandedSteps(prev => ({ ...prev, BASE: !prev.BASE }));
+                                                                }}
+                                                                style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: currentStepId === 'BASE' ? '#0284c7' : 'var(--text-quaternary)' }}
+                                                                title="Toggle Base Layout Components"
+                                                            >
+                                                                <ChevronRight size={14} style={{ transform: expandedSteps.BASE ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }} />
+                                                            </button>
+
+                                                            <div style={{
+                                                                width: '24px',
+                                                                height: '24px',
+                                                                borderRadius: '6px',
+                                                                backgroundColor: currentStepId === 'BASE' ? '#0284c7' : '#f1f5f9',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                color: currentStepId === 'BASE' ? '#ffffff' : '#0369a1',
+                                                                flexShrink: 0
+                                                            }}>
+                                                                <Layers size={13} strokeWidth={currentStepId === 'BASE' ? 2.5 : 2} />
+                                                            </div>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                                                                <span style={{
+                                                                    fontSize: '0.82rem',
+                                                                    fontWeight: 800,
+                                                                    color: currentStepId === 'BASE' ? '#0369a1' : '#1e293b',
+                                                                    letterSpacing: '0.04em',
+                                                                    textTransform: 'uppercase',
+                                                                    lineHeight: 1.2
+                                                                }}>
+                                                                    BASE LAYOUT
+                                                                </span>
+                                                                <span style={{
+                                                                    fontSize: '0.64rem',
+                                                                    color: currentStepId === 'BASE' ? '#0284c7' : '#94a3b8',
+                                                                    fontWeight: 500
+                                                                }}>
+                                                                    Master App Template
+                                                                </span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                            {baseComponents.length > 0 && (
+                                                                <span style={{
+                                                                    fontSize: '0.68rem',
+                                                                    backgroundColor: currentStepId === 'BASE' ? '#0284c7' : '#e2e8f0',
+                                                                    color: currentStepId === 'BASE' ? '#ffffff' : '#475569',
+                                                                    padding: '1px 7px',
+                                                                    borderRadius: '999px',
+                                                                    fontWeight: 700
+                                                                }}>
+                                                                    {baseComponents.length}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Expanded Base Layout Components / Children Tree */}
+                                                    {expandedSteps.BASE && (
+                                                        <div style={{
+                                                            paddingLeft: '28px',
+                                                            paddingRight: '10px',
+                                                            paddingBottom: '8px',
+                                                            display: 'flex',
+                                                            flexDirection: 'column',
+                                                            gap: '2px',
+                                                            maxHeight: '180px',
+                                                            overflowY: 'auto'
+                                                        }}>
+                                                            {baseComponents.length === 0 ? (
+                                                                <div style={{ fontSize: '0.72rem', color: 'var(--text-quaternary)', fontStyle: 'italic', padding: '6px 4px' }}>
+                                                                    Belum ada komponen di Base Layout.
+                                                                </div>
+                                                            ) : (
+                                                                baseComponents.map((comp) => {
+                                                                    const isSelected = currentStepId === 'BASE' && selectedCompIds.includes(comp.id);
+                                                                    const compConfig = COMPONENT_TYPES[comp.type] || { label: comp.type, icon: Square };
+                                                                    const CompIcon = compConfig.icon || Square;
+                                                                    const isChild = !!comp.parentId;
+                                                                    return (
+                                                                        <div
+                                                                            key={comp.id}
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setCurrentStepId('BASE');
+                                                                                setSelectedCompIds([comp.id]);
+                                                                                setActiveTab('WIDGET');
+                                                                            }}
+                                                                            style={{
+                                                                                display: 'flex',
+                                                                                alignItems: 'center',
+                                                                                justifyContent: 'space-between',
+                                                                                padding: '5px 8px',
+                                                                                paddingLeft: isChild ? '16px' : '8px',
+                                                                                borderRadius: '4px',
+                                                                                cursor: 'pointer',
+                                                                                backgroundColor: isSelected ? '#0284c7' : 'transparent',
+                                                                                color: isSelected ? '#ffffff' : '#334155',
+                                                                                transition: 'background-color 0.1s ease'
+                                                                            }}
+                                                                            onMouseEnter={(e) => {
+                                                                                if (!isSelected) e.currentTarget.style.backgroundColor = '#e0f2fe';
+                                                                            }}
+                                                                            onMouseLeave={(e) => {
+                                                                                if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
+                                                                            }}
+                                                                        >
+                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
+                                                                                <CompIcon size={12} color={isSelected ? '#ffffff' : '#0284c7'} />
+                                                                                <span style={{
+                                                                                    fontSize: '0.75rem',
+                                                                                    fontWeight: isSelected ? 700 : 500,
+                                                                                    whiteSpace: 'nowrap',
+                                                                                    overflow: 'hidden',
+                                                                                    textOverflow: 'ellipsis'
+                                                                                }}>
+                                                                                    {comp.displayName || comp.name || comp.props?.label || comp.props?.text || comp.type}
+                                                                                </span>
+                                                                            </div>
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    deleteComponent(comp.id);
+                                                                                }}
+                                                                                title="Hapus Komponen"
+                                                                                style={{
+                                                                                    border: 'none',
+                                                                                    background: 'transparent',
+                                                                                    padding: 0,
+                                                                                    cursor: 'pointer',
+                                                                                    display: 'flex',
+                                                                                    alignItems: 'center',
+                                                                                    color: isSelected ? 'rgba(255,255,255,0.8)' : '#94a3b8'
+                                                                                }}
+                                                                                onMouseEnter={(e) => e.currentTarget.style.color = isSelected ? '#ffffff' : '#ef4444'}
+                                                                                onMouseLeave={(e) => e.currentTarget.style.color = isSelected ? 'rgba(255,255,255,0.8)' : '#94a3b8'}
+                                                                            >
+                                                                                <Trash2 size={11} />
+                                                                            </button>
+                                                                        </div>
+                                                                    );
+                                                                })
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </>
                                         ) : (
                                             <div style={{ padding: '14px', flex: 1, overflowY: 'auto', backgroundColor: 'var(--bg-secondary)' }}>
@@ -14895,7 +15305,6 @@ const AppBuilder = () => {
                                                 }}>
                                                     <Layers size={32} color="#059669" strokeWidth={1.5} />
                                                 </div>
-
                                                 <p style={{
                                                     fontSize: '1.25rem',
                                                     fontWeight: 800,
@@ -14939,24 +15348,127 @@ const AppBuilder = () => {
                                         </>
                                     )}
 
-                                    {/* Konva Canvas Rendering Mode */}
-                                    {konvaCanvasMode && viewMode === 'PREVIEW' && (
-                                        <div style={{ width: '100%', height: '100%', position: 'absolute', inset: 0, zIndex: 100 }}>
-                                            <DevicePreviewCanvas
-                                                devicePreset={previewDevice !== 'RESPONSIVE' ? previewDevice : 'desktop-1080p'}
-                                                scaleMode="FIT"
-                                                showDeviceFrame={true}
-                                                backgroundColor={appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc'}
-                                            >
-                                                <KonvaHmiDashboard
-                                                    deviceWidth={canvasBaseSize.width}
-                                                    deviceHeight={canvasBaseSize.height}
-                                                />
-                                            </DevicePreviewCanvas>
-                                        </div>
-                                    )}
 
-                                    {/* Removed Base Layout Layer */}
+                                     {/* Base Layout Components Layer */}
+                                     {baseComponents.filter(comp => !CHROMELESS_COMPONENT_TYPES.includes(comp.type) && !comp.parentId).map((comp, idx) => {
+                                         const isSelected = selectedCompIds.includes(comp.id) && currentStepId === 'BASE';
+                                         const isBaseEditing = currentStepId === 'BASE';
+                                         const isChromeless = CHROMELESS_COMPONENT_TYPES.includes(comp.type);
+                                         const baseZIndex = isBaseEditing ? (1000 + idx + 1) : (2000 + idx + 1);
+
+                                         return (
+                                             <div
+                                                 key={`base_${comp.id}`}
+                                                 className={`${comp.props?.isBlinking ? 'animate-blink' : ''}`}
+                                                 onContextMenu={(e) => {
+                                                     if (!isBaseEditing || viewMode === 'PREVIEW') return;
+                                                     e.preventDefault();
+                                                     e.stopPropagation();
+                                                     if (!selectedCompIds.includes(comp.id)) {
+                                                         setSelectedCompIds([comp.id]);
+                                                     }
+                                                     setContextMenu({ isOpen: true, x: e.clientX, y: e.clientY, compId: comp.id });
+                                                 }}
+                                                 onMouseDown={(e) => {
+                                                     if (viewMode === 'PREVIEW') return;
+                                                     if (!isBaseEditing) return;
+
+                                                     const handle = e.target.closest('.resize-handle');
+                                                     if (handle) return;
+
+                                                     e.stopPropagation();
+                                                     if (e.shiftKey) {
+                                                         toggleSelection(comp.id, true);
+                                                     } else {
+                                                         if (!selectedCompIds.includes(comp.id)) {
+                                                             setSelectedCompIds([comp.id]);
+                                                         }
+                                                     }
+
+                                                     if (!isCanvasLocked) {
+                                                         setTimeout(() => {
+                                                             const currentSelection = e.shiftKey
+                                                                 ? (selectedCompIds.includes(comp.id) ? selectedCompIds.filter(i => i !== comp.id) : [...selectedCompIds, comp.id])
+                                                                 : (selectedCompIds.includes(comp.id) ? selectedCompIds : [comp.id]);
+                                                             const dragIds = currentSelection.filter(id => baseComponents.some(bc => bc.id === id));
+                                                             if (dragIds.length > 0) {
+                                                                 setDragState({
+                                                                     ids: dragIds,
+                                                                     startX: e.clientX,
+                                                                     startY: e.clientY,
+                                                                     initialPositions: dragIds.reduce((acc, id) => {
+                                                                         const c = baseComponents.find(item => item.id === id);
+                                                                         if (c) acc[id] = { x: c.x, y: c.y };
+                                                                         return acc;
+                                                                     }, {})
+                                                                 });
+                                                             }
+                                                         }, 0);
+                                                     }
+                                                 }}
+                                                 style={{
+                                                     position: 'absolute',
+                                                     left: comp.x + 'px',
+                                                     top: comp.y + 'px',
+                                                     width: comp.w + 'px',
+                                                     height: comp.h + 'px',
+                                                     transform: `rotate(${comp.props.rotation || 0}deg)`,
+                                                     willChange: (dragState?.ids?.includes(comp.id) || resizeState?.id === comp.id) ? 'left, top, width, height' : 'auto',
+                                                     backgroundColor: viewMode === 'PREVIEW' ? 'transparent' : ((isChromeless || comp.type === 'PRINT_AREA') ? 'transparent' : (isSelected ? 'rgba(2, 132, 199, 0.05)' : 'white')),
+                                                     borderRadius: (isChromeless || comp.type === 'PRINT_AREA') || viewMode === 'PREVIEW' ? '0' : '8px',
+                                                     border: viewMode === 'PREVIEW'
+                                                         ? 'none'
+                                                         : (isSelected ? '2px solid #0284c7' : (isBaseEditing ? '1px dashed #7dd3fc' : 'none')),
+                                                     boxSizing: 'border-box',
+                                                     cursor: isBaseEditing ? (isCanvasLocked ? 'default' : (dragState?.ids?.includes(comp.id) ? 'grabbing' : 'grab')) : 'default',
+                                                     display: 'flex',
+                                                     flexDirection: 'column',
+                                                     justifyContent: 'center',
+                                                     boxShadow: isSelected && viewMode === 'DESIGN' ? '0 4px 12px rgba(2, 132, 199, 0.15)' : 'none',
+                                                     zIndex: baseZIndex,
+                                                     userSelect: 'none',
+                                                     pointerEvents: isBaseEditing || viewMode === 'PREVIEW' ? 'auto' : 'none',
+                                                     opacity: 1,
+                                                     transition: dragState ? 'none' : 'all 0.1s'
+                                                 }}
+                                             >
+                                                 {isSelected && isBaseEditing && viewMode === 'DESIGN' && (
+                                                     <>
+                                                         <button
+                                                             onClick={(e) => { e.stopPropagation(); deleteComponent(comp.id); }}
+                                                             style={{ position: 'absolute', top: '-10px', right: '-10px', backgroundColor: '#ef4444', border: 'none', color: '#fff', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 11, cursor: 'pointer' }}
+                                                         >
+                                                             <Trash2 size={12} />
+                                                         </button>
+                                                         {!isCanvasLocked && (
+                                                             <div
+                                                                 className="resize-handle"
+                                                                 onMouseDown={(e) => {
+                                                                     e.stopPropagation();
+                                                                     setResizeState({ id: comp.id, startX: e.clientX, startY: e.clientY, initialW: comp.w, initialH: comp.h });
+                                                                 }}
+                                                                 style={{
+                                                                     position: 'absolute',
+                                                                     bottom: '0',
+                                                                     right: '0',
+                                                                     width: '15px',
+                                                                     height: '15px',
+                                                                     cursor: 'nwse-resize',
+                                                                     backgroundColor: '#0284c7',
+                                                                     borderRadius: '4px 0 6px 0',
+                                                                     zIndex: 21
+                                                                 }}
+                                                             />
+                                                         )}
+                                                     </>
+                                                 )}
+
+                                                 <div style={{ pointerEvents: viewMode === 'PREVIEW' ? 'auto' : 'none', height: '100%' }}>
+                                                     {renderComponent(comp)}
+                                                 </div>
+                                             </div>
+                                         );
+                                     })}
 
 
                                     {/* Active Step Components Layer */}
@@ -24624,6 +25136,188 @@ D3:0
                                                             </div>
                                                         );
                                                     })}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {activeTab === 'SCREEN' && currentStepId === 'BASE' && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                            {/* Base Layout Master Header Card */}
+                                            <div style={{
+                                                padding: '16px',
+                                                backgroundColor: '#e0f2fe',
+                                                borderRadius: '12px',
+                                                border: '1px solid #7dd3fc',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: '10px'
+                                            }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                    <div style={{
+                                                        width: '34px',
+                                                        height: '34px',
+                                                        borderRadius: '8px',
+                                                        backgroundColor: '#0284c7',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        color: '#ffffff'
+                                                    }}>
+                                                        <Layers size={18} />
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0369a1' }}>Base Layout</div>
+                                                        <div style={{ fontSize: '0.72rem', color: '#0284c7' }}>Master Application Template</div>
+                                                    </div>
+                                                </div>
+                                                <div style={{ fontSize: '0.78rem', color: '#0369a1', lineHeight: '1.45' }}>
+                                                    Komponen di Base Layout (Header, Footer, Logo, Navigasi) otomatis diterapkan ke <strong>seluruh screen/step</strong> di aplikasi ini.
+                                                </div>
+                                            </div>
+
+                                            {/* Quick Layout Generators - Only visible when base layout is empty */}
+                                            {baseComponents.length === 0 && (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                                    <label style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                        Quick Layout Generators
+                                                    </label>
+                                                    <button
+                                                        onClick={() => handleGenerateTulipBaseLayout('BOTH')}
+                                                        style={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            gap: '8px',
+                                                            padding: '12px 14px',
+                                                            backgroundColor: '#0284c7',
+                                                            color: '#ffffff',
+                                                            border: 'none',
+                                                            borderRadius: '8px',
+                                                            cursor: 'pointer',
+                                                            fontWeight: 700,
+                                                            fontSize: '0.85rem',
+                                                            boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)'
+                                                        }}
+                                                    >
+                                                        <Sparkles size={16} />
+                                                        <span>✨ Buat Tulip Header & Footer</span>
+                                                    </button>
+                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                                        <button
+                                                            onClick={() => handleGenerateTulipBaseLayout('HEADER_ONLY')}
+                                                            style={{
+                                                                padding: '9px',
+                                                                backgroundColor: '#f8fafc',
+                                                                border: '1px solid #cbd5e1',
+                                                                borderRadius: '6px',
+                                                                fontSize: '0.78rem',
+                                                                fontWeight: 600,
+                                                                color: '#334155',
+                                                                cursor: 'pointer'
+                                                            }}
+                                                        >
+                                                            + Header Bar
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleGenerateTulipBaseLayout('FOOTER_ONLY')}
+                                                            style={{
+                                                                padding: '9px',
+                                                                backgroundColor: '#f8fafc',
+                                                                border: '1px solid #cbd5e1',
+                                                                borderRadius: '6px',
+                                                                fontSize: '0.78rem',
+                                                                fontWeight: 600,
+                                                                color: '#334155',
+                                                                cursor: 'pointer'
+                                                            }}
+                                                        >
+                                                            + Footer Bar
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Widgets on Base Layout */}
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <label style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                        Widgets on Base Layout ({baseComponents.length})
+                                                    </label>
+                                                    {baseComponents.length > 0 && (
+                                                        <button
+                                                            onClick={() => {
+                                                                if (window.confirm('Kosongkan semua widget di Base Layout?')) {
+                                                                    saveHistory();
+                                                                    setBaseComponents([]);
+                                                                }
+                                                            }}
+                                                            style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}
+                                                        >
+                                                            Hapus Semua
+                                                        </button>
+                                                    )}
+                                                </div>
+
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '220px', overflowY: 'auto' }}>
+                                                    {baseComponents.length === 0 ? (
+                                                        <div style={{ padding: '16px', textAlign: 'center', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', color: '#94a3b8', fontSize: '0.78rem' }}>
+                                                            Belum ada widget di Base Layout. Tambahkan widget atau klik tombol template di atas.
+                                                        </div>
+                                                    ) : (
+                                                        baseComponents.map((comp) => {
+                                                            const isSelected = selectedCompIds.includes(comp.id);
+                                                            const compConfig = COMPONENT_TYPES[comp.type] || { label: comp.type, icon: Square };
+                                                            const CompIcon = compConfig.icon || Square;
+                                                            return (
+                                                                <div
+                                                                    key={comp.id}
+                                                                    onClick={() => {
+                                                                        setSelectedCompIds([comp.id]);
+                                                                        setActiveTab('WIDGET');
+                                                                    }}
+                                                                    style={{
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        justifyContent: 'space-between',
+                                                                        padding: '8px 10px',
+                                                                        borderRadius: '6px',
+                                                                        backgroundColor: isSelected ? '#e0f2fe' : '#ffffff',
+                                                                        border: isSelected ? '1px solid #7dd3fc' : '1px solid #e2e8f0',
+                                                                        cursor: 'pointer'
+                                                                    }}
+                                                                >
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                                                                        <CompIcon size={14} color="#0284c7" />
+                                                                        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                            {comp.displayName || comp.name || comp.props?.label || comp.props?.text || comp.type}
+                                                                        </span>
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            deleteComponent(comp.id);
+                                                                        }}
+                                                                        style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                                                        onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
+                                                                        onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
+                                                                    >
+                                                                        <Trash2 size={13} />
+                                                                    </button>
+                                                                </div>
+                                                            );
+                                                        })
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Global Triggers Info */}
+                                            <div style={{ padding: '14px', backgroundColor: 'var(--bg-secondary)', borderRadius: '10px', border: '1px solid var(--border-primary)' }}>
+                                                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                                                    ⚡ Global App Triggers
+                                                </div>
+                                                <div style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', lineHeight: '1.4' }}>
+                                                    Trigger pada widget Base Layout aktif di seluruh Step dan dieksekusi secara otomatis saat diklik di Live Terminal.
                                                 </div>
                                             </div>
                                         </div>

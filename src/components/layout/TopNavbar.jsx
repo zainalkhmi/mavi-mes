@@ -1,9 +1,10 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
   Settings, Zap, Camera, Cpu, Database, Link2, Variable,
-  BarChart3, Monitor, MapPin, Radio, Tv, Activity, Eye, BrainCircuit,
+  BarChart3, BarChart2, Monitor, MapPin, Radio, Tv, Activity, Eye, BrainCircuit,
   SlidersHorizontal, Users, ShoppingBag, AppWindow, Folder, Volume2,
-  FileCode, Webhook, Play, Layout, FileText, PieChart, Terminal, Bot, Clock
+  FileCode, Webhook, Play, Layout, FileText, PieChart, Terminal, Bot, Clock,
+  ClipboardCheck, FileSpreadsheet, Boxes, LayoutDashboard
 } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 
@@ -37,8 +38,8 @@ export default function TopNavbar() {
   ].filter(Boolean);
 
   const drawingItems = [
-    hasAccess('/drawings') && { path: '/drawings', icon: <Layout size={16} />, label: 'Inspector Designer' },
-    hasAccess('/drawings/files') && { path: '/drawings/files', icon: <FileCode size={16} />, label: 'Drawing File Management' }
+    hasAccess('/inspector-designer') && { path: '/inspector-designer', icon: <FileCode size={16} className="text-purple-500" />, label: 'Inspector Designer Studio' },
+    hasAccess('/drawing-checksheet') && { path: '/drawing-checksheet', icon: <ClipboardCheck size={16} className="text-emerald-500" />, label: 'Digital Check Sheet' }
   ].filter(Boolean);
 
   const shopFloorItems = [
@@ -58,14 +59,14 @@ export default function TopNavbar() {
   ].filter(Boolean);
 
   const analyticsItems = [
-    { path: '/bi', icon: <PieChart size={16} className="text-purple-600" />, label: 'Dashboard' },
-    hasAccess('/reports') && { path: '/reports', icon: <FileText size={16} className="text-emerald-400" />, label: 'Report Designer (PDF)' },
-    { path: '/shift-handoff', icon: <Clock size={16} className="text-cyan-400" />, label: 'Shift Handoff' }
+    hasAccess('/bi') && { path: '/bi', icon: <BarChart2 size={16} className="text-blue-500" />, label: 'BI Studio' },
+    hasAccess('/reports') && { path: '/reports', icon: <FileSpreadsheet size={16} className="text-emerald-500" />, label: 'Report Designer' },
+    hasAccess('/shift-handoff') && { path: '/shift-handoff', icon: <Clock size={16} className="text-amber-500" />, label: 'Shift Handoff' }
   ].filter(Boolean);
 
   const logicItems = [
-    hasAccess('/automations') && { path: '/automations', icon: <Zap size={16} />, label: 'Automations' },
-    hasAccess('/functions') && { path: '/functions', icon: <Cpu size={16} />, label: 'Functions' }
+    hasAccess('/automations') && { path: '/automations', icon: <Cpu size={16} />, label: 'Automations' },
+    hasAccess('/functions') && { path: '/functions', icon: <Boxes size={16} />, label: 'Functions' }
   ].filter(Boolean);
 
   const consoleItems = [
@@ -89,40 +90,41 @@ export default function TopNavbar() {
   ].filter(Boolean);
 
   return (
-    <nav className="flex items-center justify-between px-6 h-14 bg-white border-b border-slate-200 z-[1000]">
-      {/* LEFT SECTION */}
-      <div className="flex items-center gap-8">
-        <Link to="/" className="flex items-center gap-2.5 no-underline">
-          <div className="bg-blue-600 p-1.5 rounded-md flex items-center">
-            <Settings size={18} className="text-white" />
-          </div>
-          <span className="font-extrabold tracking-wide text-[1.1rem] text-slate-900">MANDOR</span>
-        </Link>
-
-        {/* MAIN NAVIGATION */}
-        <div className="flex items-center gap-1">
-          <Link
-            to="/help"
-            className={`px-3 py-1.5 text-[0.9rem] font-semibold rounded transition-colors ${
-              location.pathname === '/help' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-            }`}
-          >
-            Help
+    <nav className="border-b border-slate-200 bg-white sticky top-0 z-[99998]">
+      <div className="flex h-12 items-center justify-between px-4 sm:px-6">
+        <div className="flex items-center gap-8">
+          <Link to="/" className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white font-bold text-lg shadow-sm">
+              M
+            </div>
+            <span className="font-bold text-lg text-slate-900 tracking-tight">MANDOR</span>
           </Link>
 
-          {hasAccess('/store') && (
+          {/* Core App Navigation Tabs */}
+          <div className="hidden lg:flex items-center gap-1">
             <Link
-              to="/store"
-              className={`px-3 py-1.5 text-[0.9rem] font-semibold rounded transition-colors ${
-                location.pathname === '/store' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              to="/"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                location.pathname === '/' ? 'bg-emerald-50 text-emerald-600' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
               }`}
             >
-              App Store
+              <LayoutDashboard size={16} />
+              Home
             </Link>
-          )}
 
-          {appItems.length > 0 && <NavDropdown title="Apps" pathMatches={['/builder', '/file-explorer', '/app-management', '/tables', '/connectors', '/variables', '/mcp-server']} items={appItems} />}
-          {drawingItems.length > 0 && <NavDropdown title="Drawings" pathMatches={['/drawings', '/drawings/files']} items={drawingItems} />}
+            {hasAccess('/store') && (
+              <Link
+                to="/store"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                  location.pathname === '/store' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                }`}
+              >
+                App Store
+              </Link>
+            )}
+
+            {appItems.length > 0 && <NavDropdown title="Apps" pathMatches={['/builder', '/file-explorer', '/app-management', '/tables', '/connectors', '/variables', '/mcp-server']} items={appItems} />}
+            {drawingItems.length > 0 && <NavDropdown title="Drawings & QA" pathMatches={['/drawing-checksheet', '/qa-checksheet', '/inspector-designer']} items={drawingItems} />}
           {shopFloorItems.length > 0 && <NavDropdown title="Shop Floor" pathMatches={['/stations', '/display-devices', '/machines', '/edge-devices', '/plc-settings', '/nodered']} items={shopFloorItems} />}
           {visionItems.length > 0 && <NavDropdown title="Vision" pathMatches={['/vision', '/vision/calibration', '/vision/quickbuild']} items={visionItems} />}
           {analyticsItems.length > 0 && <NavDropdown title="Analytics" pathMatches={['/bi', '/reports', '/shift-handoff']} items={analyticsItems} />}
@@ -160,6 +162,7 @@ export default function TopNavbar() {
           </button>
         </div>
       </div>
-    </nav>
-  );
+    </div>
+  </nav>
+);
 }

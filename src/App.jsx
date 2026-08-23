@@ -17,6 +17,7 @@ const ProductionPlantDashboard = lazy(() => import('./components/ProductionPlant
 const MachineActivityYieldTracker = lazy(() => import('./components/MachineActivityYieldTracker'));
 const AgentManager = lazy(() => import('./components/AgentManager'));
 const ShiftHandoffDashboard = lazy(() => import('./components/ShiftHandoffDashboard'));
+const DigitalDrawingCheckSheet = lazy(() => import('./components/DigitalDrawingCheckSheet'));
 
 export default function App() {
   const user = useGlobalStore((state) => state.user);
@@ -76,6 +77,8 @@ export default function App() {
             <Route path="/yield-tracker" element={<MachineActivityYieldTracker />} />
             <Route path="/ai-agents" element={<AgentManager />} />
             <Route path="/shift-handoff" element={<ShiftHandoffDashboard />} />
+            <Route path="/drawing-checksheet" element={<DigitalDrawingCheckSheet />} />
+            <Route path="/qa-checksheet" element={<DigitalDrawingCheckSheet />} />
             <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -96,12 +99,14 @@ export default function App() {
       
       <AppRouter user={user} isOperator={isOperator} />
 
-      <ZoomWidget 
-        zoomLevel={zoomLevel} 
-        setZoomLevel={setZoomLevel} 
-        isZoomCollapsed={isZoomCollapsed} 
-        setIsZoomCollapsed={setIsZoomCollapsed} 
-      />
+      {!location.pathname.startsWith('/drawing-checksheet') && !location.pathname.startsWith('/qa-checksheet') && (
+        <ZoomWidget 
+          zoomLevel={zoomLevel} 
+          setZoomLevel={setZoomLevel} 
+          isZoomCollapsed={isZoomCollapsed} 
+          setIsZoomCollapsed={setIsZoomCollapsed} 
+        />
+      )}
     </div>
   );
 }

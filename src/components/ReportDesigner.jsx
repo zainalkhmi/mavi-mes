@@ -6,7 +6,7 @@ import {
     Upload, FileDown, ArrowLeft, Sliders, Settings2, X, Maximize2,
     Check, Tag, ShoppingBag, Truck, Shirt, Mail, Box, LayoutGrid,
     Database, Filter, Play, CheckSquare, Search, FileSpreadsheet,
-    ArrowRight, ChevronLeft, ListFilter, Cpu, HardDrive
+    ArrowRight, ChevronLeft, ListFilter, Cpu, HardDrive, ClipboardList
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Designer } from '@pdfme/ui';
@@ -604,21 +604,330 @@ const DEFAULT_TEMPLATES = [
                 date_val: '2026-08-22'
             }
         ]
+    },
+    // ─────────────────────────────────────────────────────────────────────
+    // SHIFT HANDOFF REPORT TEMPLATE
+    // ─────────────────────────────────────────────────────────────────────
+    {
+        id: 'shift-handoff-report-a4',
+        name: 'Shift Handoff Report (A4)',
+        category: 'Shift Reports',
+        paperPresetId: 'A4',
+        description: 'Laporan handover shift produksi A4 - berisi ringkasan produksi, OEE, downtime, defect, dan tanda tangan operator.',
+        template: {
+            basePdf: { width: 210, height: 297, padding: [10, 10, 10, 10] },
+            schemas: [
+                [
+                    // ── HEADER ──
+                    { name: 'header_bg', type: 'rectangle', position: { x: 15, y: 12 }, width: 180, height: 22, color: '#714B67', borderWidth: 0 },
+                    { name: 'report_title', type: 'text', position: { x: 20, y: 16 }, width: 100, height: 7, fontSize: 14, fontColor: '#ffffff', content: 'SHIFT HANDOFF REPORT' },
+                    { name: 'company_name', type: 'text', position: { x: 20, y: 24 }, width: 80, height: 5, fontSize: 7, fontColor: '#e2cfe0', content: 'MANDOR MES — Manufacturing Execution System' },
+                    { name: 'report_qr', type: 'qrcode', position: { x: 172, y: 14 }, width: 18, height: 18 },
+                    { name: 'doc_id', type: 'text', position: { x: 172, y: 34 }, width: 23, height: 4, fontSize: 6, fontColor: '#64748b' },
+
+                    // ── SHIFT INFO BOX ──
+                    { name: 'info_border', type: 'rectangle', position: { x: 15, y: 40 }, width: 180, height: 28, borderColor: '#dee2e6', borderWidth: 0.5, color: '#faf5f9' },
+                    { name: 'shift_label', type: 'text', position: { x: 20, y: 44 }, width: 30, height: 5, fontSize: 7, fontColor: '#64748b', content: 'SHIFT' },
+                    { name: 'shift_value', type: 'text', position: { x: 20, y: 49 }, width: 40, height: 6, fontSize: 11, fontColor: '#1f2937' },
+                    { name: 'date_label', type: 'text', position: { x: 65, y: 44 }, width: 30, height: 5, fontSize: 7, fontColor: '#64748b', content: 'DATE' },
+                    { name: 'date_value', type: 'text', position: { x: 65, y: 49 }, width: 45, height: 6, fontSize: 11, fontColor: '#1f2937' },
+                    { name: 'time_label', type: 'text', position: { x: 115, y: 44 }, width: 30, height: 5, fontSize: 7, fontColor: '#64748b', content: 'TIME RANGE' },
+                    { name: 'time_value', type: 'text', position: { x: 115, y: 49 }, width: 40, height: 6, fontSize: 11, fontColor: '#1f2937' },
+                    { name: 'operator_label', type: 'text', position: { x: 160, y: 44 }, width: 30, height: 5, fontSize: 7, fontColor: '#64748b', content: 'OPERATOR' },
+                    { name: 'operator_value', type: 'text', position: { x: 160, y: 49 }, width: 32, height: 6, fontSize: 10, fontColor: '#1f2937' },
+
+                    // ── PRODUCTION SUMMARY ──
+                    { name: 'section1_title', type: 'text', position: { x: 15, y: 74 }, width: 85, height: 6, fontSize: 9, fontColor: '#714B67', content: '📦 PRODUCTION SUMMARY' },
+                    { name: 'prod_bg', type: 'rectangle', position: { x: 15, y: 82 }, width: 85, height: 40, borderColor: '#e2e8f0', borderWidth: 0.5, color: '#ffffff' },
+                    { name: 'target_label', type: 'text', position: { x: 20, y: 86 }, width: 30, height: 4, fontSize: 7, fontColor: '#64748b', content: 'TARGET' },
+                    { name: 'target_value', type: 'text', position: { x: 20, y: 91 }, width: 35, height: 8, fontSize: 18, fontColor: '#1f2937' },
+                    { name: 'actual_label', type: 'text', position: { x: 20, y: 102 }, width: 30, height: 4, fontSize: 7, fontColor: '#64748b', content: 'ACTUAL' },
+                    { name: 'actual_value', type: 'text', position: { x: 20, y: 107 }, width: 35, height: 8, fontSize: 18, fontColor: '#1f2937' },
+                    { name: 'completion_label', type: 'text', position: { x: 55, y: 86 }, width: 40, height: 4, fontSize: 7, fontColor: '#64748b', content: 'COMPLETION RATE' },
+                    { name: 'completion_value', type: 'text', position: { x: 55, y: 91 }, width: 40, height: 8, fontSize: 18, fontColor: '#16a34a' },
+
+                    // ── QUALITY SUMMARY ──
+                    { name: 'section2_title', type: 'text', position: { x: 110, y: 74 }, width: 85, height: 6, fontSize: 9, fontColor: '#714B67', content: '✓ QUALITY SUMMARY' },
+                    { name: 'quality_bg', type: 'rectangle', position: { x: 110, y: 82 }, width: 85, height: 40, borderColor: '#e2e8f0', borderWidth: 0.5, color: '#ffffff' },
+                    { name: 'good_label', type: 'text', position: { x: 115, y: 86 }, width: 30, height: 4, fontSize: 7, fontColor: '#64748b', content: 'GOOD (PASS)' },
+                    { name: 'good_value', type: 'text', position: { x: 115, y: 91 }, width: 35, height: 8, fontSize: 18, fontColor: '#16a34a' },
+                    { name: 'reject_label', type: 'text', position: { x: 115, y: 102 }, width: 30, height: 4, fontSize: 7, fontColor: '#64748b', content: 'REJECT' },
+                    { name: 'reject_value', type: 'text', position: { x: 115, y: 107 }, width: 35, height: 8, fontSize: 18, fontColor: '#dc2626' },
+                    { name: 'fpy_label', type: 'text', position: { x: 155, y: 86 }, width: 35, height: 4, fontSize: 7, fontColor: '#64748b', content: 'FIRST PASS YIELD' },
+                    { name: 'fpy_value', type: 'text', position: { x: 155, y: 91 }, width: 35, height: 8, fontSize: 18, fontColor: '#16a34a' },
+
+                    // ── OEE METRICS ──
+                    { name: 'section3_title', type: 'text', position: { x: 15, y: 128 }, width: 180, height: 6, fontSize: 9, fontColor: '#714B67', content: '📊 OEE METRICS' },
+                    { name: 'oee_bg', type: 'rectangle', position: { x: 15, y: 136 }, width: 180, height: 28, borderColor: '#e2e8f0', borderWidth: 0.5, color: '#ffffff' },
+                    { name: 'avail_label', type: 'text', position: { x: 20, y: 140 }, width: 35, height: 4, fontSize: 7, fontColor: '#64748b', content: 'AVAILABILITY' },
+                    { name: 'avail_value', type: 'text', position: { x: 20, y: 146 }, width: 35, height: 8, fontSize: 16, fontColor: '#2563eb' },
+                    { name: 'perf_label', type: 'text', position: { x: 62, y: 140 }, width: 35, height: 4, fontSize: 7, fontColor: '#64748b', content: 'PERFORMANCE' },
+                    { name: 'perf_value', type: 'text', position: { x: 62, y: 146 }, width: 35, height: 8, fontSize: 16, fontColor: '#2563eb' },
+                    { name: 'qual_label', type: 'text', position: { x: 104, y: 140 }, width: 35, height: 4, fontSize: 7, fontColor: '#64748b', content: 'QUALITY' },
+                    { name: 'qual_value', type: 'text', position: { x: 104, y: 146 }, width: 35, height: 8, fontSize: 16, fontColor: '#2563eb' },
+                    { name: 'oee_label', type: 'text', position: { x: 146, y: 140 }, width: 30, height: 4, fontSize: 7, fontColor: '#64748b', content: 'OEE' },
+                    { name: 'oee_value', type: 'text', position: { x: 146, y: 146 }, width: 44, height: 12, fontSize: 24, fontColor: '#714B67' },
+
+                    // ── DOWNTIME TABLE ──
+                    { name: 'section4_title', type: 'text', position: { x: 15, y: 170 }, width: 85, height: 6, fontSize: 9, fontColor: '#714B67', content: '⏱️ DOWNTIME LOG' },
+                    {
+                        name: 'downtime_table',
+                        type: 'table',
+                        position: { x: 15, y: 178 },
+                        width: 180,
+                        height: 30,
+                        showHead: true,
+                        head: ['#', 'Station', 'Start Time', 'End Time', 'Duration', 'Reason'],
+                        headWidthPercentages: [5, 20, 15, 15, 15, 30],
+                        tableStyles: { borderColor: '#714B67', borderWidth: 0.3 },
+                        headStyles: { ...STD_HEAD_STYLES },
+                        bodyStyles: { ...STD_BODY_STYLES },
+                        columnStyles: {}
+                    },
+
+                    // ── DEFECTS TABLE ──
+                    { name: 'section5_title', type: 'text', position: { x: 15, y: 213 }, width: 85, height: 6, fontSize: 9, fontColor: '#714B67', content: '⚠️ DEFECTS & ISSUES' },
+                    {
+                        name: 'defects_table',
+                        type: 'table',
+                        position: { x: 15, y: 221 },
+                        width: 180,
+                        height: 24,
+                        showHead: true,
+                        head: ['#', 'Type', 'Severity', 'Location', 'Status'],
+                        headWidthPercentages: [5, 30, 15, 25, 25],
+                        tableStyles: { borderColor: '#714B67', borderWidth: 0.3 },
+                        headStyles: { ...STD_HEAD_STYLES },
+                        bodyStyles: { ...STD_BODY_STYLES },
+                        columnStyles: {}
+                    },
+
+                    // ── NOTES ──
+                    { name: 'section6_title', type: 'text', position: { x: 15, y: 250 }, width: 85, height: 6, fontSize: 9, fontColor: '#714B67', content: '📝 HANDOFF NOTES' },
+                    { name: 'notes_bg', type: 'rectangle', position: { x: 15, y: 258 }, width: 120, height: 25, borderColor: '#e2e8f0', borderWidth: 0.5, color: '#ffffff' },
+                    { name: 'notes_value', type: 'text', position: { x: 18, y: 261 }, width: 115, height: 20, fontSize: 8, fontColor: '#374151' },
+
+                    // ── SIGNATURES ──
+                    { name: 'sign_box', type: 'rectangle', position: { x: 140, y: 258 }, width: 55, height: 25, borderColor: '#dee2e6', borderWidth: 0.5, color: '#faf5f9' },
+                    { name: 'sign_lbl', type: 'text', position: { x: 143, y: 260 }, width: 49, height: 4, fontSize: 7, fontColor: '#714B67', content: 'OUTGOING OPERATOR' },
+                    { name: 'sign_out', type: 'text', position: { x: 143, y: 278 }, width: 49, height: 4, fontSize: 7, fontColor: '#94a3b8', content: 'Date: ________________' },
+                    { name: 'sign_box2', type: 'rectangle', position: { x: 140, y: 285 }, width: 55, height: 8, borderColor: '#dee2e6', borderWidth: 0.5, color: '#faf5f9' },
+                    { name: 'sign_lbl2', type: 'text', position: { x: 143, y: 286 }, width: 49, height: 4, fontSize: 7, fontColor: '#714B67', content: 'INCOMING OPERATOR' },
+
+                    // ── FOOTER ──
+                    { name: 'footer_line', type: 'line', position: { x: 15, y: 295 }, width: 180, height: 0.3, color: '#714B67' },
+                    { name: 'footer_text', type: 'text', position: { x: 15, y: 296 }, width: 120, height: 4, fontSize: 6, fontColor: '#94a3b8', content: 'Generated by MANDOR MES • Shift Handoff System' },
+                    { name: 'footer_timestamp', type: 'text', position: { x: 150, y: 296 }, width: 45, height: 4, fontSize: 6, fontColor: '#94a3b8' }
+                ]
+            ]
+        },
+        sampleInputs: [
+            {
+                report_qr: 'https://mandor-core.online/shift-handoff',
+                doc_id: 'SHR-2026-0823-M01',
+                shift_value: 'Morning Shift',
+                date_value: '2026-08-23',
+                time_value: '06:00 - 14:00',
+                operator_value: 'Budi Santoso',
+                target_value: '400 units',
+                actual_value: '385 units',
+                completion_value: '96.3%',
+                good_value: '380 units',
+                reject_value: '5 units',
+                fpy_value: '98.7%',
+                avail_value: '92.5%',
+                perf_value: '88.3%',
+                qual_value: '98.7%',
+                oee_value: '80.8%',
+                notes_value: 'All targets achieved. Minor station 3 downtime (15 min). Materials replenished. Station 2 preventive maintenance scheduled for next shift.',
+                footer_timestamp: 'Generated: 2026-08-23 13:55',
+                downtime_table: JSON.stringify([
+                    ['1', 'Station 3 - CNC Lathe', '08:30', '08:45', '15 min', 'Tool change required'],
+                    ['2', 'Station 1 - Assembly', '10:15', '10:22', '7 min', 'Material jam'],
+                    ['3', 'Station 2 - QC', '12:00', '12:05', '5 min', 'Calibration check']
+                ]),
+                defects_table: JSON.stringify([
+                    ['1', 'Surface scratch', 'MINOR', 'Station 3', 'OPEN'],
+                    ['2', 'Dimensional out of tolerance', 'MAJOR', 'Station 2', 'RESOLVED'],
+                    ['3', 'Missing component', 'MINOR', 'Station 1', 'OPEN']
+                ])
+            }
+        ]
+    },
+    // ─────────────────────────────────────────────────────────────────────
+    // QC INSPECTION CHECKSHEET REPORT (Integrated with Drawing/Inspector Designer)
+    // ─────────────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────
+    // QC INSPECTION CHECKSHEET REPORT (Integrated with Drawing/Inspector Designer)
+    // ─────────────────────────────────────────────────────────────────────
+    {
+        id: 'qc-inspection-checksheet-a4',
+        name: 'QC Inspection Checksheet (A4)',
+        category: 'Quality Control',
+        paperPresetId: 'A4',
+        description: 'Laporan inspeksi QC ISO 9001 terintegrasi penuh dengan Drawing & Inspector Designer — memuat Document Control, Header Part, GD&T Matrix, Hasil Ukur, Status, dan Digital Signature.',
+        template: {
+            basePdf: { width: 210, height: 297, padding: [10, 10, 10, 10] },
+            schemas: [
+                [
+                    // ── HEADER & ISO 9001 DOCUMENT CONTROL ──
+                    { name: 'header_bg', type: 'rectangle', position: { x: 15, y: 10 }, width: 180, height: 24, color: '#4c1d95', borderWidth: 0 },
+                    { name: 'report_title', type: 'text', position: { x: 20, y: 14 }, width: 110, height: 7, fontSize: 13, fontColor: '#ffffff', content: 'QC INSPECTION CHECKSHEET' },
+                    { name: 'company_subtitle', type: 'text', position: { x: 20, y: 22 }, width: 115, height: 4, fontSize: 6.5, fontColor: '#ddd6fe', content: 'MANDOR MES — ISO 9001:2015 / IATF 16949 Quality Assurance' },
+                    { name: 'report_qr', type: 'qrcode', position: { x: 172, y: 12 }, width: 20, height: 20 },
+                    { name: 'doc_id', type: 'text', position: { x: 142, y: 13 }, width: 28, height: 4, fontSize: 6, fontColor: '#f5d0fe', content: 'ISO 9001 CONTROL' },
+                    { name: 'doc_control_val', type: 'text', position: { x: 140, y: 18 }, width: 30, height: 7, fontSize: 5.5, fontColor: '#ffffff', content: 'Doc: QA-CS-2026\nRev: 2.1 | Std: ISO' },
+
+                    // ── MASTER DATA & PART ATTRIBUTES GRID ──
+                    { name: 'info_border', type: 'rectangle', position: { x: 15, y: 36 }, width: 180, height: 42, borderColor: '#cbd5e1', borderWidth: 0.5, color: '#f8fafc' },
+                    
+                    // Row 1: WO, Part No, Part Name
+                    { name: 'wo_label', type: 'text', position: { x: 18, y: 39 }, width: 40, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'WORK ORDER NO' },
+                    { name: 'wo_value', type: 'text', position: { x: 18, y: 43 }, width: 50, height: 5, fontSize: 9.5, fontColor: '#0f172a' },
+                    { name: 'part_no_label', type: 'text', position: { x: 74, y: 39 }, width: 40, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'PART NUMBER' },
+                    { name: 'part_no_value', type: 'text', position: { x: 74, y: 43 }, width: 55, height: 5, fontSize: 9.5, fontColor: '#0f172a' },
+                    { name: 'part_name_label', type: 'text', position: { x: 134, y: 39 }, width: 40, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'PART NAME / DESC' },
+                    { name: 'part_name_value', type: 'text', position: { x: 134, y: 43 }, width: 58, height: 5, fontSize: 9, fontColor: '#0f172a' },
+
+                    // Row 2: Customer, Process, Station
+                    { name: 'customer_label', type: 'text', position: { x: 18, y: 50 }, width: 40, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'CUSTOMER' },
+                    { name: 'customer_value', type: 'text', position: { x: 18, y: 54 }, width: 50, height: 5, fontSize: 8.5, fontColor: '#334155' },
+                    { name: 'process_label', type: 'text', position: { x: 74, y: 50 }, width: 40, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'PROCESS / OPERATION' },
+                    { name: 'process_value', type: 'text', position: { x: 74, y: 54 }, width: 55, height: 5, fontSize: 8.5, fontColor: '#334155' },
+                    { name: 'station_label', type: 'text', position: { x: 134, y: 50 }, width: 40, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'STATION ID' },
+                    { name: 'station_value', type: 'text', position: { x: 134, y: 54 }, width: 58, height: 5, fontSize: 8.5, fontColor: '#334155' },
+
+                    // Row 3: Inspector, Approver, Date Time, Status
+                    { name: 'inspector_label', type: 'text', position: { x: 18, y: 61 }, width: 35, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'INSPECTOR' },
+                    { name: 'inspector_value', type: 'text', position: { x: 18, y: 65 }, width: 35, height: 5, fontSize: 8, fontColor: '#0f172a' },
+                    { name: 'approver_label', type: 'text', position: { x: 58, y: 61 }, width: 35, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'QC APPROVER' },
+                    { name: 'approver_value', type: 'text', position: { x: 58, y: 65 }, width: 35, height: 5, fontSize: 8, fontColor: '#0f172a' },
+                    { name: 'date_time_label', type: 'text', position: { x: 98, y: 61 }, width: 45, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'DATE & TIME (WAKTU)' },
+                    { name: 'date_time_value', type: 'text', position: { x: 98, y: 65 }, width: 45, height: 5, fontSize: 7.5, fontColor: '#0f172a' },
+                    { name: 'status_label', type: 'text', position: { x: 148, y: 61 }, width: 35, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'OVERALL RESULT' },
+                    { name: 'status_value', type: 'text', position: { x: 148, y: 65 }, width: 44, height: 6, fontSize: 9.5, fontColor: '#16a34a' },
+
+                    // ── SUMMARY STATS BAR ──
+                    { name: 'summary_bg', type: 'rectangle', position: { x: 15, y: 80 }, width: 180, height: 18, borderColor: '#8b5cf6', borderWidth: 0.5, color: '#f5f3ff' },
+                    { name: 'total_label', type: 'text', position: { x: 18, y: 82 }, width: 22, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'TOTAL CHECKS' },
+                    { name: 'total_value', type: 'text', position: { x: 18, y: 86 }, width: 20, height: 8, fontSize: 13, fontColor: '#1f2937' },
+                    { name: 'passed_label', type: 'text', position: { x: 46, y: 82 }, width: 22, height: 3, fontSize: 5.5, fontColor: '#16a34a', content: 'PASSED (OK)' },
+                    { name: 'passed_value', type: 'text', position: { x: 46, y: 86 }, width: 20, height: 8, fontSize: 13, fontColor: '#16a34a' },
+                    { name: 'failed_label', type: 'text', position: { x: 74, y: 82 }, width: 22, height: 3, fontSize: 5.5, fontColor: '#dc2626', content: 'FAILED (NG)' },
+                    { name: 'failed_value', type: 'text', position: { x: 74, y: 86 }, width: 20, height: 8, fontSize: 13, fontColor: '#dc2626' },
+                    { name: 'pending_label', type: 'text', position: { x: 102, y: 82 }, width: 22, height: 3, fontSize: 5.5, fontColor: '#d97706', content: 'PENDING' },
+                    { name: 'pending_value', type: 'text', position: { x: 102, y: 86 }, width: 20, height: 8, fontSize: 13, fontColor: '#d97706' },
+                    { name: 'cpk_label', type: 'text', position: { x: 130, y: 82 }, width: 22, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'CPK INDEX' },
+                    { name: 'cpk_value', type: 'text', position: { x: 130, y: 86 }, width: 22, height: 8, fontSize: 12, fontColor: '#4338ca' },
+                    { name: 'rate_label', type: 'text', position: { x: 158, y: 82 }, width: 30, height: 3, fontSize: 5.5, fontColor: '#4c1d95', content: 'PASS RATE' },
+                    { name: 'rate_value', type: 'text', position: { x: 158, y: 86 }, width: 34, height: 8, fontSize: 14, fontColor: '#4c1d95' },
+
+                    // ── INSPECTION RESULTS TABLE ──
+                    { name: 'table_title', type: 'text', position: { x: 15, y: 101 }, width: 180, height: 4, fontSize: 7.5, fontColor: '#4c1d95', content: '📐 PARAMETER & GD&T DIMENSIONAL INSPECTION MATRIX' },
+                    {
+                        name: 'inspection_table',
+                        type: 'table',
+                        position: { x: 15, y: 107 },
+                        width: 180,
+                        height: 112,
+                        showHead: true,
+                        head: ['#', 'Parameter / Dimension Title', 'Category', 'Nominal', 'Tolerance', 'Measured', 'Criticality', 'Status'],
+                        headWidthPercentages: [5, 27, 14, 12, 14, 12, 10, 6],
+                        tableStyles: { borderColor: '#4c1d95', borderWidth: 0.3 },
+                        headStyles: { ...STD_HEAD_STYLES, backgroundColor: '#4c1d95', fontSize: 7.5, padding: { top: 2.5, right: 2, bottom: 2.5, left: 2 } },
+                        bodyStyles: { ...STD_BODY_STYLES, fontSize: 7, padding: { top: 2.5, right: 2, bottom: 2.5, left: 2 } },
+                        columnStyles: {}
+                    },
+
+                    // ── NOTES & SIGNATURES ──
+                    { name: 'notes_title', type: 'text', position: { x: 15, y: 224 }, width: 60, height: 4, fontSize: 7, fontColor: '#4c1d95', content: '📝 QC INSPECTION NOTES' },
+                    { name: 'notes_bg', type: 'rectangle', position: { x: 15, y: 229 }, width: 110, height: 28, borderColor: '#cbd5e1', borderWidth: 0.5, color: '#ffffff' },
+                    { name: 'notes_value', type: 'text', position: { x: 18, y: 232 }, width: 104, height: 23, fontSize: 7.5, fontColor: '#334155' },
+
+                    // Signatures
+                    { name: 'sign_box', type: 'rectangle', position: { x: 130, y: 229 }, width: 65, height: 13, borderColor: '#cbd5e1', borderWidth: 0.5, color: '#f8fafc' },
+                    { name: 'sign_lbl1', type: 'text', position: { x: 133, y: 231 }, width: 59, height: 3, fontSize: 5.5, fontColor: '#4c1d95', content: 'QC INSPECTOR (OPERATOR)' },
+                    { name: 'sign_line1', type: 'text', position: { x: 133, y: 238 }, width: 59, height: 3, fontSize: 5.5, fontColor: '#94a3b8', content: 'Sign & Date: ________________' },
+                    { name: 'sign_box2', type: 'rectangle', position: { x: 130, y: 244 }, width: 65, height: 13, borderColor: '#cbd5e1', borderWidth: 0.5, color: '#f8fafc' },
+                    { name: 'sign_lbl2', type: 'text', position: { x: 133, y: 246 }, width: 59, height: 3, fontSize: 5.5, fontColor: '#4c1d95', content: 'QC SUPERVISOR / APPROVER' },
+                    { name: 'sign_line2', type: 'text', position: { x: 133, y: 253 }, width: 59, height: 3, fontSize: 5.5, fontColor: '#94a3b8', content: 'Sign & Stamp: _______________' },
+
+                    // ── FOOTER ──
+                    { name: 'footer_line', type: 'line', position: { x: 15, y: 261 }, width: 180, height: 0.3, color: '#4c1d95' },
+                    { name: 'footer_text', type: 'text', position: { x: 15, y: 263 }, width: 120, height: 3.5, fontSize: 5.5, fontColor: '#64748b', content: 'MANDOR MES • Digital Quality Assurance • Generated from Drawing Inspector Designer' },
+                    { name: 'footer_timestamp', type: 'text', position: { x: 140, y: 263 }, width: 55, height: 3.5, fontSize: 5.5, fontColor: '#64748b' }
+                ]
+            ]
+        },
+        sampleInputs: [
+            {
+                report_qr: 'https://mandor-core.online/inspection/WO-2026-CAST-042',
+                doc_id: 'ISO 9001:2015',
+                doc_control_val: 'Doc: QA-CS-2026\nRev: 2.1 | Std: ISO 9001',
+                wo_value: 'WO-2026-CAST-042',
+                part_no_value: 'PRT-FLG-450X',
+                part_name_value: 'Precision Hydraulic Flange Housing',
+                customer_value: 'AeroTech Dynamics Ltd.',
+                process_value: 'CNC Turning & Milling Line 2',
+                station_value: 'ST-QC-04',
+                inspector_value: 'Budi Santoso',
+                approver_value: 'Ahmad Setiawan (QA Lead)',
+                date_time_value: '2026-08-23 14:30:00 WIB',
+                status_value: 'APPROVED (PASS)',
+                total_value: '10',
+                passed_value: '10',
+                failed_value: '0',
+                pending_value: '0',
+                cpk_value: '1.67',
+                rate_value: '100%',
+                notes_value: 'Semua dimensi kritis (CC) dan GD&T berada dalam rentang batas toleransi ISO 9001. Hasil visual dan surface roughness memenuhi standar IATF 16949.',
+                footer_timestamp: 'Generated: 2026-08-23 21:35 WIB',
+                inspection_table: JSON.stringify([
+                    ['1', 'Internal Bore Diameter', 'Linear Dimension', '25.000 mm', '24.900 - 25.100', '24.980 mm', 'Critical (CC)', 'OK'],
+                    ['2', 'Outer Flange Diameter', 'Linear Dimension', '45.000 mm', '44.950 - 45.100', '45.020 mm', 'Major', 'OK'],
+                    ['3', 'Seal Face Flatness', 'Flatness (GD&T)', '0.020 mm', 'Max 0.030', '0.018 mm', 'Major', 'OK'],
+                    ['4', 'Bolt Hole PCD', 'Position (GD&T)', '65.000 mm', '64.950 - 65.100', '65.000 mm', 'Minor', 'OK'],
+                    ['5', 'Perpendicularity Datum A', 'Perpendicularity', '0.015 mm', 'Max 0.025', '0.012 mm', 'Critical (CC)', 'OK'],
+                    ['6', 'Counter Bore Depth', 'Depth', '12.000 mm', '11.900 - 12.100', '12.040 mm', 'Minor', 'OK'],
+                    ['7', 'Surface Roughness Ra', 'Surface Finish', '1.600 μm', 'Max 3.200', '1.420 μm', 'Major', 'OK'],
+                    ['8', 'Keyway Width', 'Slot Dimension', '10.000 mm', '9.970 - 10.060', '10.020 mm', 'Major', 'OK'],
+                    ['9', 'Keyway Depth', 'Depth', '5.000 mm', '4.950 - 5.100', '5.030 mm', 'Major', 'OK'],
+                    ['10', 'Pilot Bore Diameter', 'Diameter', '20.000 mm', '19.980 - 20.050', '20.010 mm', 'Critical (CC)', 'OK']
+                ])
+            }
+        ]
     }
 ];
 
 export default function ReportDesigner() {
-    const [templates, setTemplates] = useState(() => {
-        const saved = localStorage.getItem('mandor_pdf_templates_v5');
+    // Merge saved templates with DEFAULT_TEMPLATES to ensure new templates are added
+    const getMergedTemplates = () => {
+        const saved = localStorage.getItem('mandor_pdf_templates_v6');
+        let savedTemplates = [];
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    savedTemplates = parsed;
+                }
             } catch (e) { /* ignore */ }
         }
-        return DEFAULT_TEMPLATES;
-    });
 
+        // Add any missing DEFAULT_TEMPLATES or update existing built-ins
+        const updatedList = DEFAULT_TEMPLATES.map(dt => {
+            const existing = savedTemplates.find(st => st.id === dt.id);
+            // If it's a default template, make sure it has latest schema
+            return dt;
+        });
+
+        // Add user custom templates (not in DEFAULT_TEMPLATES)
+        const customTemplates = savedTemplates.filter(st => !DEFAULT_TEMPLATES.some(dt => dt.id === st.id));
+        const finalMerged = [...updatedList, ...customTemplates];
+        localStorage.setItem('mandor_pdf_templates_v6', JSON.stringify(finalMerged));
+        return finalMerged;
+    };
+
+    const [templates, setTemplates] = useState(getMergedTemplates);
     const [selectedTemplateId, setSelectedTemplateId] = useState(DEFAULT_TEMPLATES[0].id);
     const [activeTab, setActiveTab] = useState('designer'); // 'designer' | 'preview' | 'datasource'
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -802,6 +1111,99 @@ export default function ReportDesigner() {
                         cols.forEach((col, idx) => { obj[col] = vals[idx] || ''; });
                         return obj;
                     });
+                }
+            } else if (selectedSourceType === 'checksheet') {
+                // Fetch from drawing checksheet logs / inspector designer templates
+                const rawChecksheets = JSON.parse(localStorage.getItem('mandor_qa_checksheets') || '[]');
+                const savedTemplates = JSON.parse(localStorage.getItem('mandor_inspector_templates') || '[]');
+                let combined = [];
+
+                if (rawChecksheets.length > 0) {
+                    rawChecksheets.forEach((cs) => {
+                        const pts = cs.details || cs.checkPoints || [];
+                        const rows = pts.map((p, idx) => [
+                            String(p.pointNumber || idx + 1),
+                            p.title || `Point #${idx + 1}`,
+                            p.category || 'Linear Dimension',
+                            `${p.nominal || '0'} ${p.unit || 'mm'}`,
+                            `±${p.tolMin || '0.1'} - ${p.tolMax || '0.1'}`,
+                            p.measuredValue !== undefined && p.measuredValue !== '' ? `${p.measuredValue} ${p.unit || 'mm'}` : '-',
+                            p.criticality || 'Major',
+                            p.status || 'OK'
+                        ]);
+
+                        combined.push({
+                            report_qr: `https://mandor-core.online/inspection/${cs.workOrderNo || 'WO-LIVE'}`,
+                            doc_id: 'ISO 9001:2015',
+                            doc_control_val: `Doc: ${cs.docNo || 'QA-CS-2026'}\nRev: ${cs.revNo || '2.1'} | Std: ISO 9001`,
+                            wo_value: cs.workOrderNo || 'WO-2026-0819',
+                            part_no_value: cs.partSerial || cs.partNo || 'PRT-FLG-450X',
+                            part_name_value: cs.partName || 'Precision Part',
+                            customer_value: cs.customer || 'General Customer',
+                            process_value: cs.process || 'Final Inspection',
+                            station_value: cs.stationId || 'ST-QC-01',
+                            inspector_value: cs.inspectorName || 'Inspector QA',
+                            approver_value: cs.approver || 'QC Lead',
+                            date_time_value: cs.timestamp || new Date().toLocaleString(),
+                            status_value: cs.overallStatus || 'APPROVED (PASS)',
+                            total_value: String(pts.length || cs.totalPoints || 0),
+                            passed_value: String(cs.passedPoints || pts.filter(p => p.status === 'OK' || p.status === 'PASSED').length),
+                            failed_value: String(cs.failedPoints || pts.filter(p => p.status === 'NG' || p.status === 'FAILED').length),
+                            pending_value: String(pts.filter(p => !p.status || p.status === 'PENDING').length),
+                            cpk_value: String(cs.cpkEstimate || '1.67'),
+                            rate_value: cs.passRate || '100%',
+                            notes_value: cs.notes || 'Pemeriksaan checksheet dimensi ISO 9001 drawing inspeksi selesai dan terverifikasi.',
+                            footer_timestamp: `Generated: ${new Date().toLocaleString()}`,
+                            inspection_table: JSON.stringify(rows)
+                        });
+                    });
+                }
+
+                if (savedTemplates.length > 0) {
+                    savedTemplates.forEach((tpl) => {
+                        const pts = tpl.checkPoints || [];
+                        const rows = pts.map((p, idx) => [
+                            String(p.pointNumber || idx + 1),
+                            p.title || `Point #${idx + 1}`,
+                            p.category || 'Dimension',
+                            `${p.nominal || '0'} ${p.unit || 'mm'}`,
+                            `±${p.tolMin || '0.1'} - ${p.tolMax || '0.1'}`,
+                            p.nominal ? `${p.nominal} ${p.unit || 'mm'}` : '-',
+                            p.criticality || 'Major',
+                            'OK'
+                        ]);
+
+                        combined.push({
+                            report_qr: `https://mandor-core.online/inspection/${tpl.partNo || 'TEMPLATE'}`,
+                            doc_id: 'ISO 9001:2015',
+                            doc_control_val: `Doc: ${tpl.docNo || 'QA-CS-2026'}\nRev: ${tpl.revisionNo || '1.0'} | Std: ISO 9001`,
+                            wo_value: tpl.woPrefix ? `${tpl.woPrefix}-001` : 'WO-TEMPLATE-001',
+                            part_no_value: tpl.partNo || 'PRT-TEMPLATE',
+                            part_name_value: tpl.partName || tpl.name || 'Checksheet Template',
+                            customer_value: tpl.customer || 'General Customer',
+                            process_value: tpl.process || 'Machining',
+                            station_value: tpl.stationId || 'ST-QC-01',
+                            inspector_value: tpl.inspectorName || 'Operator QC',
+                            approver_value: tpl.approverName || 'QC Lead',
+                            date_time_value: new Date().toLocaleString(),
+                            status_value: 'TEMPLATE (READY)',
+                            total_value: String(pts.length),
+                            passed_value: String(pts.length),
+                            failed_value: '0',
+                            pending_value: '0',
+                            cpk_value: '1.67',
+                            rate_value: '100%',
+                            notes_value: `Template Checksheet: ${tpl.name || 'Drawing Inspection'}. Parameter & GD&T bounds loaded.`,
+                            footer_timestamp: `Generated: ${new Date().toLocaleString()}`,
+                            inspection_table: JSON.stringify(rows)
+                        });
+                    });
+                }
+
+                if (combined.length === 0) {
+                    records = currentTemplateObj.sampleInputs || [{}];
+                } else {
+                    records = combined;
                 }
             } else if (selectedSourceType === 'sample') {
                 records = currentTemplateObj.sampleInputs || [{}];
@@ -1430,6 +1832,7 @@ export default function ReportDesigner() {
                                         </label>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                             {[
+                                                { id: 'checksheet', label: 'Drawing & QC Checksheet', icon: ClipboardList, desc: 'Ambil data checksheet & attribute drawing otomatis' },
                                                 { id: 'app_table', label: 'Interactive App Table', icon: LayoutGrid, desc: 'Tabel interaktif dari AppBuilder' },
                                                 { id: 'supabase_table', label: 'Supabase Database Table', icon: HardDrive, desc: 'Tabel sistem (measurements, work_orders)' },
                                                 { id: 'csv', label: 'Import File CSV / Excel', icon: FileSpreadsheet, desc: 'Upload file spreadsheet atau paste teks CSV' },
@@ -1460,6 +1863,14 @@ export default function ReportDesigner() {
                                     </div>
 
                                     {/* Config Options based on Source Type */}
+                                    {selectedSourceType === 'checksheet' && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                            <div style={{ padding: '10px', backgroundColor: '#f5f3ff', border: '1px solid #8b5cf6', borderRadius: '6px', fontSize: '11px', color: '#4c1d95', lineHeight: 1.5 }}>
+                                                <strong>⚡ Terhubung ke Inspector Designer & Checksheet:</strong><br />
+                                                Menarik parameter ISO 9001 (Doc No, Part No, Customer, Process, Inspector, Date/Time, Status) dan seluruh matriks titik ukur drawing langsung ke template laporan QC.
+                                            </div>
+                                        </div>
+                                    )}
                                     {selectedSourceType === 'app_table' && (
                                         <div>
                                             <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#212529', marginBottom: '6px' }}>

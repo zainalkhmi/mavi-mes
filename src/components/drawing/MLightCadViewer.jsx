@@ -393,77 +393,106 @@ export default function MLightCadViewer({
                     // Load Official MLightCAD Ecosystem Plugins
                     const loadPlugins = async () => {
                         const pluginResults = { pdf: null, html: null, svg: null, ui: null, agent: null };
+                        const pm = docManager.pluginManager;
+                        if (!pm) return pluginResults;
 
                         // 1. PDF Plugin
                         try {
-                            const { createPdfPlugin } = await import('@mlightcad/cad-pdf-plugin');
-                            const pdfPlugin = await createPdfPlugin();
-                            if (pdfPlugin && docManager.pluginManager) {
-                                await docManager.pluginManager.loadPlugin(pdfPlugin);
+                            if (!pm.getPlugin?.('PdfPlugin') && !pm.hasPlugin?.('PdfPlugin')) {
+                                const { createPdfPlugin } = await import('@mlightcad/cad-pdf-plugin');
+                                const pdfPlugin = await createPdfPlugin();
+                                if (pdfPlugin) {
+                                    await pm.loadPlugin(pdfPlugin);
+                                    console.log('[MLightCadViewer] ✅ PDF Plugin loaded');
+                                }
+                            }
+                            pluginResults.pdf = true;
+                            setPluginStatus(prev => ({ ...prev, pdf: true }));
+                        } catch (err) {
+                            if (err.message && err.message.includes('already loaded')) {
                                 pluginResults.pdf = true;
                                 setPluginStatus(prev => ({ ...prev, pdf: true }));
-                                console.log('[MLightCadViewer] ✅ PDF Plugin loaded');
+                            } else {
+                                console.warn('[MLightCadViewer] ⚠️ PDF Plugin notice:', err.message);
                             }
-                        } catch (err) {
-                            console.warn('[MLightCadViewer] ⚠️ PDF Plugin failed:', err.message);
                         }
 
                         // 2. HTML Plugin (with viewer runtime URL)
                         try {
-                            const { createHtmlPlugin } = await import('@mlightcad/cad-html-plugin');
-                            const htmlPlugin = await createHtmlPlugin({
-                                viewerRuntimeUrl: '/viewer-runtime.iife.js'
-                            });
-                            if (htmlPlugin && docManager.pluginManager) {
-                                await docManager.pluginManager.loadPlugin(htmlPlugin);
+                            if (!pm.getPlugin?.('HtmlPlugin') && !pm.hasPlugin?.('HtmlPlugin')) {
+                                const { createHtmlPlugin } = await import('@mlightcad/cad-html-plugin');
+                                const htmlPlugin = await createHtmlPlugin({
+                                    viewerRuntimeUrl: '/viewer-runtime.iife.js'
+                                });
+                                if (htmlPlugin) {
+                                    await pm.loadPlugin(htmlPlugin);
+                                    console.log('[MLightCadViewer] ✅ HTML Plugin loaded');
+                                }
+                            }
+                            pluginResults.html = true;
+                            setPluginStatus(prev => ({ ...prev, html: true }));
+                        } catch (err) {
+                            if (err.message && err.message.includes('already loaded')) {
                                 pluginResults.html = true;
                                 setPluginStatus(prev => ({ ...prev, html: true }));
-                                console.log('[MLightCadViewer] ✅ HTML Plugin loaded');
+                            } else {
+                                console.warn('[MLightCadViewer] ⚠️ HTML Plugin notice:', err.message);
                             }
-                        } catch (err) {
-                            console.warn('[MLightCadViewer] ⚠️ HTML Plugin failed:', err.message);
                         }
 
                         // 3. SVG Plugin
                         try {
-                            const { createSvgPlugin } = await import('@mlightcad/cad-svg-plugin');
-                            const svgPlugin = await createSvgPlugin();
-                            if (svgPlugin && docManager.pluginManager) {
-                                await docManager.pluginManager.loadPlugin(svgPlugin);
+                            if (!pm.getPlugin?.('SvgPlugin') && !pm.hasPlugin?.('SvgPlugin')) {
+                                const { createSvgPlugin } = await import('@mlightcad/cad-svg-plugin');
+                                const svgPlugin = await createSvgPlugin();
+                                if (svgPlugin) {
+                                    await pm.loadPlugin(svgPlugin);
+                                    console.log('[MLightCadViewer] ✅ SVG Plugin loaded');
+                                }
+                            }
+                            pluginResults.svg = true;
+                            setPluginStatus(prev => ({ ...prev, svg: true }));
+                        } catch (err) {
+                            if (err.message && err.message.includes('already loaded')) {
                                 pluginResults.svg = true;
                                 setPluginStatus(prev => ({ ...prev, svg: true }));
-                                console.log('[MLightCadViewer] ✅ SVG Plugin loaded');
+                            } else {
+                                console.warn('[MLightCadViewer] ⚠️ SVG Plugin notice:', err.message);
                             }
-                        } catch (err) {
-                            console.warn('[MLightCadViewer] ⚠️ SVG Plugin failed:', err.message);
                         }
 
                         // 4. Simple UI Plugin (Toolbar & Layer Manager)
                         try {
-                            const { createSimpleUiPlugin } = await import('@mlightcad/cad-simple-ui-plugin');
-                            const uiPlugin = await createSimpleUiPlugin();
-                            if (uiPlugin && docManager.pluginManager) {
-                                await docManager.pluginManager.loadPlugin(uiPlugin);
+                            if (!pm.getPlugin?.('SimpleUiPlugin') && !pm.hasPlugin?.('SimpleUiPlugin')) {
+                                const { createSimpleUiPlugin } = await import('@mlightcad/cad-simple-ui-plugin');
+                                const uiPlugin = await createSimpleUiPlugin();
+                                if (uiPlugin) {
+                                    await pm.loadPlugin(uiPlugin);
+                                    console.log('[MLightCadViewer] ✅ UI Plugin loaded');
+                                }
+                            }
+                            pluginResults.ui = true;
+                            setPluginStatus(prev => ({ ...prev, ui: true }));
+                        } catch (err) {
+                            if (err.message && err.message.includes('already loaded')) {
                                 pluginResults.ui = true;
                                 setPluginStatus(prev => ({ ...prev, ui: true }));
-                                console.log('[MLightCadViewer] ✅ UI Plugin loaded');
+                            } else {
+                                console.warn('[MLightCadViewer] ⚠️ UI Plugin notice:', err.message);
                             }
-                        } catch (err) {
-                            console.warn('[MLightCadViewer] ⚠️ UI Plugin failed:', err.message);
                         }
 
                         // 5. CAD Agent Plugin (Natural Language)
                         try {
-                            const { createAgentPlugin } = await import('@mlightcad/cad-agent-plugin');
-                            const agentPlugin = await createAgentPlugin();
-                            if (agentPlugin && docManager.pluginManager) {
-                                await docManager.pluginManager.loadPlugin(agentPlugin);
+                            const { registerAgentPlugin } = await import('@mlightcad/cad-agent-plugin/register');
+                            if (typeof registerAgentPlugin === 'function') {
+                                registerAgentPlugin(pm);
                                 pluginResults.agent = true;
                                 setPluginStatus(prev => ({ ...prev, agent: true }));
-                                console.log('[MLightCadViewer] ✅ Agent Plugin loaded');
+                                console.log('[MLightCadViewer] ✅ Agent Plugin registered');
                             }
-                        } catch (err) {
-                            console.warn('[MLightCadViewer] ⚠️ Agent Plugin failed:', err.message);
+                        } catch {
+                            // Non-critical plugin fallback
                         }
 
                         return pluginResults;
@@ -490,7 +519,15 @@ export default function MLightCadViewer({
         if (!fileData || !docManagerRef.current) return;
         const isDwg = fileName.toLowerCase().endsWith('.dwg');
         const isDxf = fileName.toLowerCase().endsWith('.dxf');
+        const isPdf = fileName.toLowerCase().endsWith('.pdf') || (typeof fileData === 'string' && (fileData.startsWith('data:application/pdf') || fileData.includes('application/pdf')));
         const isNativeCad = isDwg || isDxf || (typeof fileData === 'string' && fileData.includes('SECTION') && fileData.includes('ENTITIES'));
+
+        // For PDF blueprint files, they are rendered sharply by the Canvas Backdrop layer
+        if (isPdf) {
+            console.log('[MLightCadViewer] 📄 PDF Drawing active, rendered via Canvas Backdrop Layer');
+            return;
+        }
+
         if (!isNativeCad) return;
 
         // Mark as attempted for DWG files

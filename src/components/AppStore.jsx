@@ -54,6 +54,7 @@ import { createSkillManagerTemplate } from '../utils/skillManagerTemplate';
 import { createMachineActivityYieldTrackerTemplate } from '../utils/machineActivityYieldTrackerTemplate';
 import { createProductionPlantDashboardTemplate } from '../utils/productionPlantDashboardTemplate';
 import { createDigitalDrawingCheckSheetTemplate } from '../utils/digitalDrawingCheckSheetTemplate';
+import { createQCCheckSheetTemplate } from '../utils/qcCheckSheetTemplate';
 import { categories, rawTemplates } from '../utils/appStoreCatalog';
 
 import { saveFrontlineApp, deleteFrontlineApp, getAllFrontlineApps } from '../utils/supabaseFrontlineDB';
@@ -3023,6 +3024,52 @@ const AppStore = () => {
                     templateApp.config.appTables = tIds;
                 } catch (err) {
                     console.warn('Could not create QA check sheet tables:', err);
+                }
+            } else if (templateId === 'qc-checksheet-app') {
+                // QC Check Sheet App with Drawing, Inspector Designer, and Report Designer integration
+                templateApp = createQCCheckSheetTemplate();
+                try {
+                    const qaRecordTable = await getOrCreateTableAndSeed(allTables, {
+                        name: 'QA_Drawing_Checksheets',
+                        fields: [
+                            { name: 'work_order_no', type: 'text' },
+                            { name: 'part_number', type: 'text' },
+                            { name: 'serial_number', type: 'text' },
+                            { name: 'drawing_id', type: 'text' },
+                            { name: 'drawing_name', type: 'text' },
+                            { name: 'inspector_name', type: 'text' },
+                            { name: 'pic_name', type: 'text' },
+                            { name: 'overall_status', type: 'text' },
+                            { name: 'inspection_date', type: 'datetime' },
+                            { name: 'notes', type: 'text' },
+                            { name: 'pass_rate', type: 'text' }
+                        ]
+                    });
+                    const qaItemsTable = await getOrCreateTableAndSeed(allTables, {
+                        name: 'QA_Check_Items',
+                        fields: [
+                            { name: 'point_number', type: 'number' },
+                            { name: 'title', type: 'text' },
+                            { name: 'nominal', type: 'text' },
+                            { name: 'tolerance_min', type: 'text' },
+                            { name: 'tolerance_max', type: 'text' },
+                            { name: 'actual_value', type: 'text' },
+                            { name: 'status', type: 'text' }
+                        ]
+                    });
+
+                    let appStr = JSON.stringify(templateApp);
+                    const tIds = [];
+                    if (qaRecordTable?.id) { appStr = appStr.replace(/tbl_qa_drawing_checksheets/g, qaRecordTable.id); tIds.push(qaRecordTable.id); }
+                    if (qaItemsTable?.id) { appStr = appStr.replace(/tbl_qa_drawing_check_items/g, qaItemsTable.id); tIds.push(qaItemsTable.id); }
+
+                    templateApp = JSON.parse(appStr);
+                    // Ensure config.tables and config.appTables are set
+                    if (!templateApp.config) templateApp.config = {};
+                    templateApp.config.tables = tIds;
+                    templateApp.config.appTables = tIds;
+                } catch (err) {
+                    console.warn('Could not create QC Check Sheet tables:', err);
                 }
             } else {
                 toast.error('Template not found', { id: loadingToast });

@@ -13151,27 +13151,40 @@ const LiveTerminal = () => {
                         width: '100%',
                         height: '100%'
                       }}>
-                        {[...appComponents]
-                          .filter(c => visibilityMap[c.id] !== false)
-                          .sort((a, b) => (a.props?.zIndex || 0) - (b.props?.zIndex || 0))
-                          .map((comp, idx) => {
-                            const isAbsolute = comp.x != null && comp.y != null;
+                        {(() => {
+                          const baseIds = new Set((baseComponents || []).map(c => c.id));
+                          return [...appComponents]
+                            .filter(c => visibilityMap[c.id] !== false)
+                            .sort((a, b) => {
+                              const isBaseA = baseIds.has(a.id);
+                              const isBaseB = baseIds.has(b.id);
+                              const zA = a.props?.zIndex != null ? a.props.zIndex : (isBaseA ? 2000 : 100);
+                              const zB = b.props?.zIndex != null ? b.props.zIndex : (isBaseB ? 2000 : 100);
+                              return zA - zB;
+                            })
+                            .map((comp, idx) => {
+                              const isAbsolute = comp.x != null && comp.y != null;
+                              const isBase = baseIds.has(comp.id);
+                              const resolvedZIndex = comp.props?.zIndex != null 
+                                ? comp.props.zIndex 
+                                : (isBase ? (2000 + idx) : (100 + idx));
 
-                            const containerStyle = isAbsolute ? {
-                              position: 'absolute',
-                              left: `${comp.x}px`,
-                              top: `${comp.y}px`,
-                              width: comp.w ? `${comp.w}px` : 'auto',
-                              height: comp.h ? `${comp.h}px` : 'auto',
-                              zIndex: comp.props?.zIndex || 100,
-                              transform: `rotate(${comp.props?.rotation || 0}deg)`,
-                              overflow: 'visible'
-                            } : {
-                              width: '100%',
-                              transform: `rotate(${comp.props?.rotation || 0}deg)`,
-                              marginBottom: '20px',
-                              position: 'relative'
-                            };
+                              const containerStyle = isAbsolute ? {
+                                position: 'absolute',
+                                left: `${comp.x}px`,
+                                top: `${comp.y}px`,
+                                width: comp.w ? `${comp.w}px` : 'auto',
+                                height: comp.h ? `${comp.h}px` : 'auto',
+                                zIndex: resolvedZIndex,
+                                transform: `rotate(${comp.props?.rotation || 0}deg)`,
+                                overflow: 'visible'
+                              } : {
+                                width: '100%',
+                                transform: `rotate(${comp.props?.rotation || 0}deg)`,
+                                marginBottom: '20px',
+                                position: 'relative',
+                                zIndex: resolvedZIndex
+                              };
 
                             const err = validationErrors[comp.id];
                             return (
@@ -13200,7 +13213,8 @@ const LiveTerminal = () => {
                                 )}
                               </div>
                             );
-                          })}
+                          })
+                        })()}
                       </div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '30px', marginTop: '40px' }}>

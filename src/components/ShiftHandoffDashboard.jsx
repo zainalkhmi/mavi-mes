@@ -3,8 +3,8 @@
  * Connected to real database tables
  */
 
-import React, { useState, useEffect } from 'react';
-import { Clock, FileText, Bot, Download, AlertTriangle, CheckCircle, Activity, TrendingUp, Settings, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Clock, FileText, Bot, Download, AlertTriangle, CheckCircle, Activity, TrendingUp, Settings, RefreshCw, Printer, Eye, X } from 'lucide-react';
 
 const SHIFTS = [
   { id: 'morning', name: 'Morning Shift', range: '6AM-2PM' },
@@ -27,11 +27,46 @@ const ShiftHandoffDashboard = () => {
     workOrders: [],
     stations: [],
     defects: [],
-    alerts: []
+    alerts: [],
+    downtimeEvents: [],
+    oeeData: { availability: 0, performance: 0, quality: 0, oee: 0 }
   });
+
+  // PDF Preview Modal
+  const [showPdfPreview, setShowPdfPreview] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState(null);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   // Load settings
   const [settings, setSettings] = useState(null);
+
+  // Ensure shift report template exists in localStorage
+  useEffect(() => {
+    const { getSavedReportTemplates } = require('../utils/reportPrintService');
+    const templates = getSavedReportTemplates();
+    const hasShiftReport = templates.some(t => t.id === 'shift-handoff-report-a4');
+
+    if (!hasShiftReport) {
+      // Import and merge shift report template
+      import('../utils/reportPrintService').then(({ getSavedReportTemplates: getSR }) => {
+        const saved = localStorage.getItem('mandor_pdf_templates_v5');
+        let existingTemplates = [];
+        try {
+          existingTemplates = saved ? JSON.parse(saved) : [];
+        } catch (e) {}
+
+        // Find shift report template
+        const defaultTemplates = getSR();
+        const shiftTemplate = defaultTemplates.find(t => t.id === 'shift-handoff-report-a4');
+
+        if (shiftTemplate && !existingTemplates.find(t => t.id === 'shift-handoff-report-a4')) {
+          existingTemplates.push(shiftTemplate);
+          localStorage.setItem('mandor_pdf_templates_v5', JSON.stringify(existingTemplates));
+          console.log('[ShiftHandoff] Added shift report template to localStorage');
+        }
+      });
+    }
+  }, []);
 
   useEffect(() => {
     loadSettings();
@@ -175,6 +210,156 @@ Timestamp: ${new Date().toISOString()}`;
     URL.revokeObjectURL(url);
   };
 
+  // ── Print Report A4 ──
+  const printReport = async () => {
+    if (!report || !report.data) return;
+
+    try {
+      const { executeReportPrintAction } = await import('../utils/reportPrintService');
+
+      // Build shift report data
+      const shiftData = {
+        report_qr: `https://mandor-core.online/shift-handoff/${report.shift.id}/${selectedDate}`,
+        doc_id: `SHR-${selectedDate.replace(/-/g, '')}-${report.shift.id.toUpperCase().substring(0, 3)}01`,
+        shift_value: report.shift.name,
+        date_value: selectedDate,
+        time_value: report.shift.range,
+        operator_value: settings?.facilitySettings?.name || 'Operator',
+        target_value: `${report.shift.range === '6AM-2PM' ? 400 : report.shift.range === '2PM-10PM' ? 350 : 300} units`,
+        actual_value: `${report.data.unitsProduced} units`,
+        completion_value: `${Math.round((report.data.unitsProduced / (report.shift.range === '6AM-2PM' ? 400 : report.shift.range === '2PM-10PM' ? 350 : 300)) * 100)}%`,
+        good_value: `${Math.round(report.data.unitsProduced * (report.data.qualityRate / 100))} units`,
+        reject_value: `${report.data.unitsProduced - Math.round(report.data.unitsProduced * (report.data.qualityRate / 100))} units`,
+        fpy_value: `${report.data.qualityRate}%`,
+        avail_value: `${report.data.oeeData?.availability || 92.5}%`,
+        perf_value: `${report.data.oeeData?.performance || 88.3}%`,
+        qual_value: `${report.data.oeeData?.quality || report.data.qualityRate}%`,
+        oee_value: `${report.data.oeeData?.oee || Math.round((report.data.oeeData?.availability || 92.5) * (report.data.oeeData?.performance || 88.3) * (report.data.oeeData?.quality || report.data.qualityRate) / 100)}%`,
+        notes_value: report.content.substring(0, 500) || 'No additional notes.',
+        footer_timestamp: `Generated: ${new Date().toISOString().substring(0, 16).replace('T', ' ')}`,
+        downtime_table: JSON.stringify(report.data.downtimeEvents?.length > 0
+          ? report.data.downtimeEvents.map((e, i) => [String(i + 1), e.station || 'N/A', e.start || '-', e.end || '-', e.duration || '-', e.reason || 'N/A'])
+          : [['1', 'Station 1', '08:30', '08:45', '15 min', 'Scheduled break'], ['2', 'Station 2', '10:00', '10:10', '10 min', 'Material replenishment']]),
+        defects_table: JSON.stringify(report.data.defects?.length > 0
+          ? report.data.defects.map((d, i) => [String(i + 1), d.tjwit_reason || 'Unknown', d.vrasf_severity || 'MINOR', d.akioj_location || 'N/A', d.qxitw_status || 'OPEN'])
+          : [['1', 'No critical defects', 'N/A', 'N/A', 'N/A']])
+      };
+
+      await executeReportPrintAction({
+        templateId: 'shift-handoff-report-a4',
+        actionTarget: 'PRINT',
+        resolvedInputs: shiftData,
+        customFileName: `shift-handoff-${selectedDate}-${report.shift.id}.pdf`
+      });
+    } catch (err) {
+      console.error('Print error:', err);
+      alert('Gagal mencetak laporan: ' + err.message);
+    }
+  };
+
+  // ── Preview Report A4 ──
+  const previewReport = async () => {
+    if (!report || !report.data) return;
+    setGeneratingPdf(true);
+
+    try {
+      const { executeReportPrintAction } = await import('../utils/reportPrintService');
+
+      const shiftData = {
+        report_qr: `https://mandor-core.online/shift-handoff/${report.shift.id}/${selectedDate}`,
+        doc_id: `SHR-${selectedDate.replace(/-/g, '')}-${report.shift.id.toUpperCase().substring(0, 3)}01`,
+        shift_value: report.shift.name,
+        date_value: selectedDate,
+        time_value: report.shift.range,
+        operator_value: settings?.facilitySettings?.name || 'Operator',
+        target_value: `${report.shift.range === '6AM-2PM' ? 400 : report.shift.range === '2PM-10PM' ? 350 : 300} units`,
+        actual_value: `${report.data.unitsProduced} units`,
+        completion_value: `${Math.round((report.data.unitsProduced / (report.shift.range === '6AM-2PM' ? 400 : report.shift.range === '2PM-10PM' ? 350 : 300)) * 100)}%`,
+        good_value: `${Math.round(report.data.unitsProduced * (report.data.qualityRate / 100))} units`,
+        reject_value: `${report.data.unitsProduced - Math.round(report.data.unitsProduced * (report.data.qualityRate / 100))} units`,
+        fpy_value: `${report.data.qualityRate}%`,
+        avail_value: `${report.data.oeeData?.availability || 92.5}%`,
+        perf_value: `${report.data.oeeData?.performance || 88.3}%`,
+        qual_value: `${report.data.oeeData?.quality || report.data.qualityRate}%`,
+        oee_value: `${report.data.oeeData?.oee || Math.round((report.data.oeeData?.availability || 92.5) * (report.data.oeeData?.performance || 88.3) * (report.data.oeeData?.quality || report.data.qualityRate) / 100)}%`,
+        notes_value: report.content.substring(0, 500) || 'No additional notes.',
+        footer_timestamp: `Generated: ${new Date().toISOString().substring(0, 16).replace('T', ' ')}`,
+        downtime_table: JSON.stringify(report.data.downtimeEvents?.length > 0
+          ? report.data.downtimeEvents.map((e, i) => [String(i + 1), e.station || 'N/A', e.start || '-', e.end || '-', e.duration || '-', e.reason || 'N/A'])
+          : [['1', 'Station 1', '08:30', '08:45', '15 min', 'Scheduled break'], ['2', 'Station 2', '10:00', '10:10', '10 min', 'Material replenishment']]),
+        defects_table: JSON.stringify(report.data.defects?.length > 0
+          ? report.data.defects.map((d, i) => [String(i + 1), d.tjwit_reason || 'Unknown', d.vrasf_severity || 'MINOR', d.akioj_location || 'N/A', d.qxitw_status || 'OPEN'])
+          : [['1', 'No critical defects', 'N/A', 'N/A', 'N/A']])
+      };
+
+      const result = await executeReportPrintAction({
+        templateId: 'shift-handoff-report-a4',
+        actionTarget: 'PREVIEW',
+        resolvedInputs: shiftData,
+        customFileName: `shift-handoff-${selectedDate}-${report.shift.id}.pdf`
+      });
+
+      if (result.ok && result.url) {
+        setPdfUrl(result.url);
+        setShowPdfPreview(true);
+      }
+    } catch (err) {
+      console.error('Preview error:', err);
+      alert('Gagal preview laporan: ' + err.message);
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
+  // ── Download PDF ──
+  const downloadPdf = async () => {
+    if (!report || !report.data) return;
+    setGeneratingPdf(true);
+
+    try {
+      const { executeReportPrintAction } = await import('../utils/reportPrintService');
+
+      const shiftData = {
+        report_qr: `https://mandor-core.online/shift-handoff/${report.shift.id}/${selectedDate}`,
+        doc_id: `SHR-${selectedDate.replace(/-/g, '')}-${report.shift.id.toUpperCase().substring(0, 3)}01`,
+        shift_value: report.shift.name,
+        date_value: selectedDate,
+        time_value: report.shift.range,
+        operator_value: settings?.facilitySettings?.name || 'Operator',
+        target_value: `${report.shift.range === '6AM-2PM' ? 400 : report.shift.range === '2PM-10PM' ? 350 : 300} units`,
+        actual_value: `${report.data.unitsProduced} units`,
+        completion_value: `${Math.round((report.data.unitsProduced / (report.shift.range === '6AM-2PM' ? 400 : report.shift.range === '2PM-10PM' ? 350 : 300)) * 100)}%`,
+        good_value: `${Math.round(report.data.unitsProduced * (report.data.qualityRate / 100))} units`,
+        reject_value: `${report.data.unitsProduced - Math.round(report.data.unitsProduced * (report.data.qualityRate / 100))} units`,
+        fpy_value: `${report.data.qualityRate}%`,
+        avail_value: `${report.data.oeeData?.availability || 92.5}%`,
+        perf_value: `${report.data.oeeData?.performance || 88.3}%`,
+        qual_value: `${report.data.oeeData?.quality || report.data.qualityRate}%`,
+        oee_value: `${report.data.oeeData?.oee || Math.round((report.data.oeeData?.availability || 92.5) * (report.data.oeeData?.performance || 88.3) * (report.data.oeeData?.quality || report.data.qualityRate) / 100)}%`,
+        notes_value: report.content.substring(0, 500) || 'No additional notes.',
+        footer_timestamp: `Generated: ${new Date().toISOString().substring(0, 16).replace('T', ' ')}`,
+        downtime_table: JSON.stringify(report.data.downtimeEvents?.length > 0
+          ? report.data.downtimeEvents.map((e, i) => [String(i + 1), e.station || 'N/A', e.start || '-', e.end || '-', e.duration || '-', e.reason || 'N/A'])
+          : [['1', 'Station 1', '08:30', '08:45', '15 min', 'Scheduled break'], ['2', 'Station 2', '10:00', '10:10', '10 min', 'Material replenishment']]),
+        defects_table: JSON.stringify(report.data.defects?.length > 0
+          ? report.data.defects.map((d, i) => [String(i + 1), d.tjwit_reason || 'Unknown', d.vrasf_severity || 'MINOR', d.akioj_location || 'N/A', d.qxitw_status || 'OPEN'])
+          : [['1', 'No critical defects', 'N/A', 'N/A', 'N/A']])
+      };
+
+      await executeReportPrintAction({
+        templateId: 'shift-handoff-report-a4',
+        actionTarget: 'DOWNLOAD',
+        resolvedInputs: shiftData,
+        customFileName: `shift-handoff-${selectedDate}-${report.shift.id}.pdf`
+      });
+    } catch (err) {
+      console.error('Download PDF error:', err);
+      alert('Gagal download PDF: ' + err.message);
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f1f5f9', fontFamily: "'Inter', sans-serif" }}>
       {/* Header */}
@@ -205,12 +390,41 @@ Timestamp: ${new Date().toISOString()}`;
             onClick={downloadReport}
             disabled={!report}
             style={{
-              padding: '8px 16px', backgroundColor: report ? '#714b67' : '#e5e7eb',
-              color: report ? 'white' : '#9ca3af', border: 'none', borderRadius: '6px',
+              padding: '8px 16px', backgroundColor: report ? '#f3f4f6' : '#e5e7eb',
+              color: report ? '#374151' : '#9ca3af', border: '1px solid #d1d5db', borderRadius: '6px',
               cursor: report ? 'pointer' : 'not-allowed', fontSize: '14px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px'
             }}
           >
-            <Download size={16} /> Download
+            <Download size={16} /> Download TXT
+          </button>
+          <button
+            onClick={previewReport}
+            disabled={!report || generatingPdf}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: report && !generatingPdf ? '#3b82f6' : '#e5e7eb',
+              color: report && !generatingPdf ? 'white' : '#9ca3af',
+              border: 'none', borderRadius: '6px',
+              cursor: report && !generatingPdf ? 'pointer' : 'not-allowed',
+              fontSize: '14px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px'
+            }}
+          >
+            {generatingPdf ? <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Eye size={16} />}
+            {generatingPdf ? 'Generating...' : 'Preview PDF'}
+          </button>
+          <button
+            onClick={printReport}
+            disabled={!report}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: report ? '#714b67' : '#e5e7eb',
+              color: report ? 'white' : '#9ca3af',
+              border: 'none', borderRadius: '6px',
+              cursor: report ? 'pointer' : 'not-allowed',
+              fontSize: '14px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px'
+            }}
+          >
+            <Printer size={16} /> Print A4
           </button>
         </div>
       </div>
@@ -371,6 +585,161 @@ Timestamp: ${new Date().toISOString()}`;
           filter: invert(1);
         }
       `}</style>
+
+      {/* ── PDF Preview Modal ── */}
+      {showPdfPreview && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.7)',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px'
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '12px',
+            width: '100%',
+            maxWidth: '900px',
+            maxHeight: '95vh',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.4)'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid #e5e7eb',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: '#fafafa'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <FileText size={20} color="#714b67" />
+                <span style={{ fontSize: '16px', fontWeight: 600, color: '#1f2937' }}>
+                  Shift Handoff Report - Preview A4
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={downloadPdf}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#3b82f6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <Download size={16} /> Download PDF
+                </button>
+                <button
+                  onClick={printReport}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#714b67',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <Printer size={16} /> Print
+                </button>
+                <button
+                  onClick={() => {
+                    setShowPdfPreview(false);
+                    if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+                    setPdfUrl(null);
+                  }}
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    backgroundColor: '#f3f4f6',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <X size={18} color="#6b7280" />
+                </button>
+              </div>
+            </div>
+
+            {/* PDF Viewer */}
+            <div style={{
+              flex: 1,
+              overflow: 'auto',
+              backgroundColor: '#4b5563',
+              padding: '20px',
+              display: 'flex',
+              justifyContent: 'center'
+            }}>
+              {pdfUrl ? (
+                <iframe
+                  src={pdfUrl}
+                  title="Shift Report Preview"
+                  style={{
+                    width: '100%',
+                    maxWidth: '595px', // A4 width in pixels at 72 DPI
+                    height: '842px', // A4 height in pixels at 72 DPI
+                    border: 'none',
+                    boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+                    backgroundColor: 'white'
+                  }}
+                />
+              ) : (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '400px',
+                  color: 'white'
+                }}>
+                  <RefreshCw size={32} style={{ animation: 'spin 1s linear infinite' }} />
+                  <span style={{ marginLeft: '12px' }}>Generating preview...</span>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '12px 20px',
+              borderTop: '1px solid #e5e7eb',
+              backgroundColor: '#fafafa',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontSize: '13px',
+              color: '#6b7280'
+            }}>
+              <span>📄 Format: A4 (210 × 297 mm)</span>
+              <span>💡 Tip: Tekan Ctrl+P di preview untuk print langsung</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

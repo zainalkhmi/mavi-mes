@@ -10,6 +10,7 @@ export const categories = [
     'Mobile',
     'App Management',
     'Quality',
+    'Drawing/Check Sheet',
     'Manufacturing',
     'Production',
     'MES Production Suite',
@@ -22,9 +23,49 @@ export const categories = [
 
 export const rawTemplates = [
     {
+        id: 'qc-checksheet-app',
+        name: 'QC Inspection Check Sheet',
+        category: 'Drawing/Check Sheet',
+        description: 'App QC Inspection Check Sheet terintegrasi dengan Drawing Designer, Inspector Designer, dan Report Designer. Input hasil pengukuran, date, PIC, dan generate PDF report.',
+        longDescription: 'Complete QC Inspection Check Sheet app yang terintegrasi penuh dengan Drawing Manager untuk menampilkan blueprint, Inspector Designer untuk parameter QC, dan Report Designer untuk print/generate PDF report. Cocok untuk inspeksi quality control dengan multiple check points.',
+        icon: <FileText size={28} color="#714B67" />,
+        bg: 'linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)',
+        accent: '#714B67',
+        rating: 5.0,
+        installs: '1.2k',
+        targetRoute: '/player',
+        features: [
+            'Integrasi dengan Drawing Designer (CAD Viewer)',
+            'Inspector Designer untuk QC Parameters',
+            'Input Date, PIC, Inspector',
+            '5 Check Points dengan tolerance validation',
+            'Summary PASS/FAIL dengan decision',
+            'Integrasi Report Designer untuk PDF'
+        ],
+        guide: {
+            operation: '1. Input Product ID (WO, Part Number, Serial).\n2. View Drawing dengan CAD Viewer.\n3. Input hasil pengukuran untuk setiap check point.\n4. Lihat summary dan tentukan PASS/FAIL.\n5. Print PDF Report dari Report Designer.',
+            widgets: ['Product ID Form', 'CAD Viewer', 'Measurement Input', 'Summary Dashboard', 'Print Button'],
+            components: ['Form Inputs', 'CAD_VIEWER Component', 'NUMBER_INPUT Components', 'BUTTON with triggers'],
+            tables: [
+                {
+                    name: 'QA_Drawing_Checksheets',
+                    description: 'Stores inspection session headers: WO, Part, Serial, Drawing, Inspector, PIC, Date, Status.'
+                },
+                {
+                    name: 'QA_Check_Items',
+                    description: 'Stores point-by-point measured values, tolerance specs, and OK/NG results.'
+                }
+            ],
+            triggers: [
+                { event: 'ON_STEP_ENTER', function: 'Auto-loads inspector name from user info.' },
+                { event: 'ON_CLICK', function: 'Navigates to next step.' }
+            ]
+        }
+    },
+    {
         id: 'digital-drawing-checksheet',
         name: 'Digital Drawing Check Sheet (QA Interactive)',
-        category: 'Quality',
+        category: 'Drawing/Check Sheet',
         description: 'Interactive QA Digital Check Sheet linked to 2D engineering blueprints & CAD drawings from Menu Drawing with numbered hotspot inspection pins, real-time tolerance validation, and digital caliper inputs.',
         longDescription: 'A complete manufacturing digital check sheet suite that pulls engineering drawings from the Drawing Manager, overlays interactive inspection pins on key dimensions (diameters, hole depths, tolerances, PCD), and allows inspectors to validate actual measurements against specs with instant OK/NG evaluation and PDF reporting.',
         icon: <FileText size={28} color="#22c55e" />,
@@ -211,7 +252,7 @@ export const rawTemplates = [
     {
         id: 'vision-inspection-suite',
         name: 'Cognitive Vision & QC Suite',
-        category: 'Quality',
+        category: 'Drawing/Check Sheet',
         description: 'Automated vision inspection system utilizing edge detection, dial gauge needles, digital calipers (OCR), part counting, and barcode scanning in real-time.',
         longDescription: 'Deploy computer vision algorithms to automate quality control checks. Features pre-configured steps for caliper OCR reading, dial gauge pointer angle analysis, part counting, laser scanner barcode verification, and green/red quality pass/fail overlays. Automatically commits inspection records to database logs.',
         icon: <Activity size={28} color="#7c3aed" />,
@@ -242,7 +283,7 @@ export const rawTemplates = [
     {
         id: 'mobile-scan-vision',
         name: 'Mobile Scan & Vision QC',
-        category: 'Quality',
+        category: 'Drawing/Check Sheet',
         description: 'Mobile-optimized barcode scanning and OpenCV camera inspection for quick stock routing and quality verification.',
         longDescription: 'Optimize scanning and QC workflows on mobile devices. Features pre-configured layouts for vertical stacking, custom mobile barcode reader widget, and live OpenCV camera PASS/FAIL overlays. Integrates with the mobile_scan_logs database.',
         icon: <Activity size={28} color="#059669" />,
@@ -272,7 +313,7 @@ export const rawTemplates = [
     {
         id: 'incoming-inspection',
         name: 'Incoming Quality Inspection',
-        category: 'Quality',
+        category: 'Drawing/Check Sheet',
         description: 'Professional incoming material inspection with dimensional checks, visual inspection, equipment tracking, and spec limit validation.',
         longDescription: 'Digitize your receiving inspection process. Each inspection step features a measurement guide image, calibrated equipment info, spec limits (LSL/USL), and real-time pass/fail judgment. Supports both dimensional and visual inspections.',
         icon: <Search size={28} color="#0284c7" />,
@@ -305,7 +346,7 @@ export const rawTemplates = [
     {
         id: 'quickbuild-cad-vision',
         name: 'QuickBuild CAD & Vision QC',
-        category: 'Quality',
+        category: 'Drawing/Check Sheet',
         description: 'Advanced vision inspection system powered by QuickBuild sequential pipelines, dynamically linked to AutoCAD/CAD specifications.',
         longDescription: 'Deploy drawing-integrated caliper measurement pipelines. This template links CAD blueprints directly to the QuickBuild vision tools, enabling automatic spec limit checks, live canvas overlay displays, and database log syncs.',
         icon: <Activity size={28} color="#2563eb" />,
@@ -1254,7 +1295,7 @@ export const rawTemplates = [
     {
         id: 'quality-inspection-suite',
         name: 'Quality Inspection Suite',
-        category: 'Quality',
+        category: 'Drawing/Check Sheet',
         description: 'Compare dynamic testing apps vs composed quality inspection apps with guided visual instructions.',
         longDescription: 'Explore the two primary options when digitizing quality processes: generic Dynamic testing runs (configured via table-driven inspection plans) and highly customized Composed guided inspection apps with cylinder alignment reference instructions.',
         icon: <Sparkles size={28} color="#06b6d4" />,
@@ -1315,7 +1356,7 @@ export const rawTemplates = [
     {
         id: 'hc-cylinder-inspection',
         name: 'HC Cylinder Inspection',
-        category: 'Quality',
+        category: 'Drawing/Check Sheet',
         description: 'Template inspeksi lengkap hydraulic cylinder: 2D/3D drawing dimensi, Function Test, Pressure Test, Visual Rod & Piston, Stroke Check dengan animasi.',
         longDescription: 'Standarisasi proses inspeksi quality control hydraulic cylinder di shopfloor. Operator dibimbing langkah demi langkah: identifikasi komponen, pengukuran 10 dimensi pada 2D blueprint interaktif, verifikasi GD&T 7 karakteristik pada view isometrik 3D, function test 8 pengujian fungsional, pressure test 4 fase (Proof/Burst/Working/Min), visual inspection rod & piston, hingga stroke measurement dengan diagram animasi. Hasil tersimpan ke database dan dapat dicetak sebagai laporan QC.',
         icon: <Wrench size={28} color="#2563eb" />,
@@ -1350,7 +1391,7 @@ export const rawTemplates = [
     {
         id: 'product-drawing-inspection',
         name: 'Product Drawing QC Terminal',
-        category: 'Quality',
+        category: 'Drawing/Check Sheet',
         description: 'Pengecekan kualitas presisi produk menggunakan blueprint 2D interaktif dan 3D CAD digital twin.',
         longDescription: 'Standardisasikan proses pengecekan kualitas produk manufaktur secara visual dan dimensional. Operator dapat mengklik bagian dimensi langsung pada blueprint teknik 2D untuk memasukkan nilai ukur aktual, serta memutar/zoom model 3D CAD untuk memverifikasi detail perakitan.',
         icon: <Sparkles size={28} color="#2563eb" />,

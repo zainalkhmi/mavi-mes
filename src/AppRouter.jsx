@@ -42,7 +42,6 @@ const AnalysisEditor = lazy(() => import('./components/AnalysisEditor'));
 const DashboardEditor = lazy(() => import('./components/DashboardEditor'));
 const AppStore = lazy(() => import('./components/AppStore'));
 const GlobalHelpAssistant = lazy(() => import('./components/GlobalHelpAssistant'));
-const DrawingManager = lazy(() => import('./components/DrawingManager'));
 const WorkOrderDashboard = lazy(() => import('./components/WorkOrderDashboard'));
 const FunctionsEditor = lazy(() => import('./components/FunctionsEditor'));
 const StationManager = lazy(() => import('./components/StationManager'));
@@ -64,7 +63,6 @@ const AppManagement = lazy(() => import('./components/AppManagement'));
 const FileExplorer = lazy(() => import('./components/FileExplorer'));
 const BuildManager = lazy(() => import('./components/BuildManager'));
 const VoiceControlledCaliperInspection = lazy(() => import('./components/VoiceControlledCaliperInspection'));
-const DrawingFileManager = lazy(() => import('./components/DrawingFileManager'));
 const PredictiveMaintenanceManager = lazy(() => import('./components/PredictiveMaintenanceManager'));
 const SkillManager = lazy(() => import('./components/SkillManager'));
 const ProductionPlantDashboard = lazy(() => import('./components/ProductionPlantDashboard'));
@@ -75,12 +73,13 @@ const BiStudio = lazy(() => import('./components/BiStudio'));
 const NodeREDDashboard = lazy(() => import('./components/NodeREDDashboard'));
 const ShiftHandoffDashboard = lazy(() => import('./components/ShiftHandoffDashboard'));
 const ShiftHandoffSettings = lazy(() => import('./components/ShiftHandoffSettings'));
+const InspectorDesigner = lazy(() => import('./components/InspectorDesigner'));
 
 export default function AppRouter({ user, isOperator }) {
   const hasAccess = (path) => checkRoleAccess(user, path);
 
   return (
-    <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ flex: 1, width: '100%', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <Suspense fallback={null}>
         <Routes>
           {isOperator ? (
@@ -89,6 +88,9 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/terminal" element={<LiveTerminal />} />
               <Route path="/terminal/:appId" element={<LiveTerminal />} />
               <Route path="/player" element={<AppPlayer />} />
+              <Route path="/drawing-checksheet" element={<DigitalDrawingCheckSheet />} />
+              <Route path="/qa-checksheet" element={<DigitalDrawingCheckSheet />} />
+              <Route path="/inspector-designer" element={<InspectorDesigner />} />
               <Route path="*" element={<Navigate to="/terminal" replace />} />
             </>
           ) : (
@@ -108,8 +110,7 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/builder" element={hasAccess('/builder') ? <AppBuilder /> : <Navigate to="/" replace />} />
               <Route path="/file-explorer" element={hasAccess('/file-explorer') ? <FileExplorer /> : <Navigate to="/" replace />} />
               <Route path="/store" element={hasAccess('/store') ? <AppStore /> : <Navigate to="/" replace />} />
-              <Route path="/drawings" element={hasAccess('/builder') ? <DrawingManager /> : <Navigate to="/" replace />} />
-              <Route path="/drawings/files" element={hasAccess('/builder') ? <DrawingFileManager /> : <Navigate to="/" replace />} />
+              <Route path="/inspector-designer" element={<InspectorDesigner />} />
               <Route path="/drawing-checksheet" element={<DigitalDrawingCheckSheet />} />
               <Route path="/qa-checksheet" element={<DigitalDrawingCheckSheet />} />
               <Route path="/app-management" element={hasAccess('/app-management') ? <AppManagement /> : <Navigate to="/" replace />} />
