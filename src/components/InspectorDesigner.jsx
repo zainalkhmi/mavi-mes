@@ -9,7 +9,8 @@ import {
   Info, Square, Circle, Triangle, Hexagon, PlusCircle, MinusCircle, Camera,
   List, Grid3x3, PlayCircle, Send, EyeOff, CheckSquare, FolderOpen,
   HardDrive, Table as TableIcon, Settings2, ExternalLink, User, Clock,
-  BarChart2, FileCheck, SlidersHorizontal, Smartphone as DeviceIcon, Sparkles, FolderArchive
+  BarChart2, FileCheck, SlidersHorizontal, Smartphone as DeviceIcon, Sparkles, FolderArchive,
+  FileSpreadsheet, FileSliders
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast, { Toaster } from 'react-hot-toast';
@@ -19,6 +20,7 @@ import { convertPdfToImageDataUrl } from '../utils/pdfRenderService';
 import { parseDxfContent } from '../utils/cadDxfRenderService';
 import { getTables, addTableRecord, createTable } from '../utils/supabaseTablesDB';
 import { getCurrentUser } from '../utils/auth';
+import { executeReportPrintAction } from '../utils/reportPrintService';
 
 // GD&T Parameter Categories
 const PARAM_CATEGORIES = [
@@ -140,6 +142,169 @@ export default function InspectorDesigner() {
   const [showRevisionModal, setShowRevisionModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+
+  // ─── STEP 6: Report Designer & Physical Print States ───
+  const [reportPaperSize, setReportPaperSize] = useState('A4'); // A4, A3, Letter, Legal, Label_100x150
+  const [reportOrientation, setReportOrientation] = useState('portrait'); // portrait, landscape
+  const [reportTheme, setReportTheme] = useState('mandor_purple'); // mandor_purple, navy_modern, emerald_qa, monochrome
+  const [reportMargin, setReportMargin] = useState('10mm');
+  const [includeIsoHeader, setIncludeIsoHeader] = useState(true);
+  const [includeStatsBar, setIncludeStatsBar] = useState(true);
+  const [includeGdtTable, setIncludeGdtTable] = useState(true);
+  const [includeSignatures, setIncludeSignatures] = useState(true);
+  const [includeQrCode, setIncludeQrCode] = useState(true);
+
+  // ─── Report Generator & Deep Link ───
+  const handleOpenInReportDesigner = () => {
+    const isLandscape = reportOrientation === 'landscape';
+    const paperWidth = reportPaperSize === 'A3' ? (isLandscape ? 420 : 297) : reportPaperSize === 'Letter' ? (isLandscape ? 279 : 216) : (isLandscape ? 297 : 210);
+    const paperHeight = reportPaperSize === 'A3' ? (isLandscape ? 297 : 420) : reportPaperSize === 'Letter' ? (isLandscape ? 216 : 279) : (isLandscape ? 210 : 297);
+
+    const templateId = `custom-cs-${partNo ? partNo.toLowerCase().replace(/[^a-z0-9]/g, '-') : 'cs'}-${Date.now().toString().slice(-4)}`;
+    
+    const themeBg = reportTheme === 'navy_modern' ? '#1e3a8a' : reportTheme === 'emerald_qa' ? '#065f46' : reportTheme === 'monochrome' ? '#1f2937' : '#4c1d95';
+    const themeSubtitle = reportTheme === 'navy_modern' ? '#bfdbfe' : reportTheme === 'emerald_qa' ? '#a7f3d0' : reportTheme === 'monochrome' ? '#9ca3af' : '#e9d5ff';
+
+    const customTemplate = {
+      id: templateId,
+      name: `${checkSheetName || partName || 'Checksheet'} (${reportPaperSize} ${reportOrientation.toUpperCase()})`,
+      category: 'Quality Control',
+      paperPresetId: reportPaperSize,
+      description: `Format cetak fisik checksheet ${partNo || ''} standar ISO 9001 orientasi ${reportOrientation}.`,
+      template: {
+        basePdf: { width: paperWidth, height: paperHeight, padding: [10, 10, 10, 10] },
+        schemas: [
+          [
+            // Header
+            { name: 'header_bg', type: 'rectangle', position: { x: 10, y: 10 }, width: paperWidth - 20, height: 22, color: themeBg, borderWidth: 0 },
+            { name: 'report_title', type: 'text', position: { x: 15, y: 14 }, width: isLandscape ? 180 : 120, height: 7, fontSize: 13, fontColor: '#ffffff', content: (checkSheetName || 'QC INSPECTION CHECKSHEET').toUpperCase() },
+            { name: 'company_subtitle', type: 'text', position: { x: 15, y: 22 }, width: 140, height: 4, fontSize: 6.5, fontColor: themeSubtitle, content: `MANDOR MES — ${qualityStandard} Quality Assurance System` },
+            { name: 'report_qr', type: 'qrcode', position: { x: paperWidth - 32, y: 11 }, width: 20, height: 20 },
+            { name: 'doc_id', type: 'text', position: { x: paperWidth - 70, y: 13 }, width: 35, height: 4, fontSize: 6, fontColor: '#ffffff', content: `Doc: ${drawingNo || 'QA-CS-2026'}` },
+            { name: 'doc_control_val', type: 'text', position: { x: paperWidth - 70, y: 18 }, width: 35, height: 7, fontSize: 5.5, fontColor: '#ffffff', content: `Rev: ${revisionNo || '1.0'} | Std: ${qualityStandard}` },
+
+            // Master Info Grid
+            { name: 'info_border', type: 'rectangle', position: { x: 10, y: 35 }, width: paperWidth - 20, height: 35, borderColor: '#cbd5e1', borderWidth: 0.5, color: '#f8fafc' },
+            { name: 'part_no_label', type: 'text', position: { x: 14, y: 38 }, width: 35, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'PART NUMBER' },
+            { name: 'part_no_value', type: 'text', position: { x: 14, y: 42 }, width: 50, height: 5, fontSize: 9, fontColor: '#0f172a' },
+            { name: 'part_name_label', type: 'text', position: { x: isLandscape ? 85 : 70, y: 38 }, width: 40, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'PART NAME' },
+            { name: 'part_name_value', type: 'text', position: { x: isLandscape ? 85 : 70, y: 42 }, width: 65, height: 5, fontSize: 8.5, fontColor: '#0f172a' },
+            { name: 'customer_label', type: 'text', position: { x: isLandscape ? 170 : 140, y: 38 }, width: 35, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'CUSTOMER' },
+            { name: 'customer_value', type: 'text', position: { x: isLandscape ? 170 : 140, y: 42 }, width: 50, height: 5, fontSize: 8.5, fontColor: '#0f172a' },
+
+            { name: 'process_label', type: 'text', position: { x: 14, y: 50 }, width: 35, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'PROCESS' },
+            { name: 'process_value', type: 'text', position: { x: 14, y: 54 }, width: 50, height: 5, fontSize: 8, fontColor: '#334155' },
+            { name: 'station_label', type: 'text', position: { x: isLandscape ? 85 : 70, y: 50 }, width: 35, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'STATION ID' },
+            { name: 'station_value', type: 'text', position: { x: isLandscape ? 85 : 70, y: 54 }, width: 40, height: 5, fontSize: 8, fontColor: '#334155' },
+            { name: 'inspector_label', type: 'text', position: { x: isLandscape ? 170 : 140, y: 50 }, width: 35, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'INSPECTOR' },
+            { name: 'inspector_value', type: 'text', position: { x: isLandscape ? 170 : 140, y: 54 }, width: 50, height: 5, fontSize: 8, fontColor: '#334155' },
+
+            // Table
+            {
+              name: 'inspection_table',
+              type: 'table',
+              position: { x: 10, y: 74 },
+              width: paperWidth - 20,
+              height: paperHeight - 120,
+              showHead: true,
+              head: ['#', 'Parameter Title', 'Category', 'Nominal', 'Tolerance', 'Measured', 'Criticality', 'Status'],
+              headWidthPercentages: [5, 27, 14, 12, 14, 12, 10, 6],
+              tableStyles: { borderColor: themeBg, borderWidth: 0.3 },
+              headStyles: { alignment: 'center', verticalAlignment: 'middle', fontSize: 7.5, fontColor: '#ffffff', backgroundColor: themeBg, padding: { top: 2.5, right: 2, bottom: 2.5, left: 2 } },
+              bodyStyles: { alignment: 'center', verticalAlignment: 'middle', fontSize: 7, fontColor: '#000000', padding: { top: 2.5, right: 2, bottom: 2.5, left: 2 }, alternateBackgroundColor: '#fdfbfd' },
+              columnStyles: {}
+            }
+          ]
+        ]
+      },
+      sampleInputs: [
+        {
+          report_qr: `https://mandor-core.online/inspection/${partNo || 'WO-LIVE'}`,
+          doc_id: `Doc: ${drawingNo || 'QA-CS-2026'}`,
+          doc_control_val: `Rev: ${revisionNo || '1.0'} | Std: ${qualityStandard}`,
+          part_no_value: partNo || 'PRT-DEMO-01',
+          part_name_value: partName || checkSheetName || 'Precision Part',
+          customer_value: customer || 'General Customer',
+          process_value: processName || 'Quality Inspection',
+          station_value: stationId || 'ST-QC-01',
+          inspector_value: inspectorName || 'Inspector QA',
+          inspection_table: JSON.stringify(
+            (checkPoints || []).map((p, idx) => [
+              String(p.pointNumber || idx + 1),
+              p.title || `Param #${idx + 1}`,
+              p.category || 'Dimension',
+              `${p.nominal || '0'} ${p.unit || 'mm'}`,
+              `±${p.tolMin || '0.1'} - ${p.tolMax || '0.1'}`,
+              p.nominal ? `${p.nominal} ${p.unit || 'mm'}` : '-',
+              p.criticality || 'Major',
+              'OK'
+            ])
+          )
+        }
+      ]
+    };
+
+    try {
+      const existing = JSON.parse(localStorage.getItem('mandor_pdf_templates_v6') || '[]');
+      const filtered = existing.filter(t => t.id !== templateId);
+      localStorage.setItem('mandor_pdf_templates_v6', JSON.stringify([customTemplate, ...filtered]));
+      localStorage.setItem('mandor_active_report_template_id', templateId);
+      toast.success(`Template ${customTemplate.name} berhasil dibuat & diimpor ke Report Designer!`);
+      navigate('/reports');
+    } catch (e) {
+      toast.error('Gagal membuka Report Designer: ' + e.message);
+    }
+  };
+
+  const handlePrintSamplePDF = async () => {
+    try {
+      const reportData = {
+        report_qr: `https://mandor-core.online/inspection/${partNo || 'WO-LIVE'}`,
+        doc_id: `Doc: ${drawingNo || 'QA-CS-2026'}`,
+        doc_control_val: `Rev: ${revisionNo || '1.0'} | Std: ${qualityStandard}`,
+        wo_value: workOrderPrefix ? `${workOrderPrefix}-01` : 'WO-ISO-2026',
+        part_no_value: partNo || '-',
+        part_name_value: partName || checkSheetName || '-',
+        customer_value: customer || 'AeroTech Dynamics Ltd.',
+        process_value: processName || 'Quality Inspection',
+        station_value: stationId || 'ST-QC-01',
+        inspector_value: inspectorName || currentUser?.username || 'QC Inspector',
+        approver_value: approvedBy || 'QA Lead',
+        date_time_value: new Date().toLocaleString(),
+        status_value: checkSheetStatus.toUpperCase(),
+        total_value: String(checkPoints.length),
+        passed_value: String(checkPoints.length),
+        failed_value: '0',
+        pending_value: '0',
+        cpk_value: '1.67',
+        rate_value: '100%',
+        notes_value: `Dokumen Checksheet Fisik resmi standar ${qualityStandard}.`,
+        footer_timestamp: `Generated: ${new Date().toLocaleString()}`,
+        inspection_table: JSON.stringify(
+          checkPoints.map((p, idx) => [
+            String(p.pointNumber || idx + 1),
+            p.title || `Param #${idx + 1}`,
+            p.category || 'Dimension',
+            `${p.nominal || '0'} ${p.unit || 'mm'}`,
+            `±${p.tolMin || '0.1'} - ${p.tolMax || '0.1'}`,
+            `${p.nominal || '0'} ${p.unit || 'mm'}`,
+            p.criticality || 'Major',
+            'OK'
+          ])
+        )
+      };
+
+      await executeReportPrintAction({
+        templateId: 'qc-inspection-checksheet-a4',
+        data: reportData,
+        silent: false
+      });
+      toast.success('Membuka pratinjau cetak PDF...');
+    } catch (err) {
+      console.error(err);
+      toast.error('Gagal mencetak: ' + err.message);
+    }
+  };
 
   // Interaction Modes
   const [isAddPinMode, setIsAddPinMode] = useState(false);
@@ -843,7 +1008,7 @@ export default function InspectorDesigner() {
           </div>
         </div>
         
-        {/* Top Step Indicator (6-Step Process) */}
+        {/* Top Step Indicator (7-Step Process) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           {[
             { num: 1, label: 'Header', icon: ClipboardList, color: '#38bdf8' },
@@ -851,7 +1016,8 @@ export default function InspectorDesigner() {
             { num: 3, label: 'Parameters', icon: Ruler, color: '#f59e0b' },
             { num: 4, label: 'Data', icon: Database, color: '#10b981' },
             { num: 5, label: 'Workflow', icon: SlidersHorizontal, color: '#ec4899' },
-            { num: 6, label: 'Deploy', icon: Sparkles, color: '#06b6d4' }
+            { num: 6, label: 'Report & Print', icon: FileSpreadsheet, color: '#8b5cf6' },
+            { num: 7, label: 'Deploy', icon: Sparkles, color: '#06b6d4' }
           ].map((s, idx) => {
             const IconCmp = s.icon;
             const isActive = currentStep === s.num;
@@ -895,7 +1061,7 @@ export default function InspectorDesigner() {
                   </div>
                   <span>{s.label}</span>
                 </button>
-                {idx < 5 && (
+                {idx < 6 && (
                   <div style={{
                     width: '8px',
                     height: '2px',
@@ -1058,22 +1224,24 @@ export default function InspectorDesigner() {
               {currentStep === 3 && <Ruler size={16} color="#f59e0b" />}
               {currentStep === 4 && <Database size={16} color="#10b981" />}
               {currentStep === 5 && <SlidersHorizontal size={16} color="#ec4899" />}
-              {currentStep === 6 && <Sparkles size={16} color="#06b6d4" />}
+              {currentStep === 6 && <FileSpreadsheet size={16} color="#8b5cf6" />}
+              {currentStep === 7 && <Sparkles size={16} color="#06b6d4" />}
               <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#f8fafc' }}>
                 {currentStep === 1 ? '1. Parameter Header & Info' :
                  currentStep === 2 ? '2. Upload Drawing / CAD' :
                  currentStep === 3 ? '3. Inspection Parameters' :
                  currentStep === 4 ? '4. Data & Auto-Table' :
                  currentStep === 5 ? '5. Workflow Step & Rules' :
-                 '6. Deploy & Export'}
+                 currentStep === 6 ? '6. Report & Physical Print' :
+                 '7. Deploy & Export'}
               </span>
             </div>
             
             {/* Step Navigation Bar with Pro Icons */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(6, 1fr)',
-              gap: '4px',
+              gridTemplateColumns: 'repeat(7, 1fr)',
+              gap: '3px',
               backgroundColor: '#050811',
               padding: '4px',
               borderRadius: '8px',
@@ -1085,7 +1253,8 @@ export default function InspectorDesigner() {
                 { num: 3, label: 'Param', icon: Ruler, color: '#f59e0b' },
                 { num: 4, label: 'Data', icon: Database, color: '#10b981' },
                 { num: 5, label: 'Flow', icon: SlidersHorizontal, color: '#ec4899' },
-                { num: 6, label: 'Deploy', icon: Sparkles, color: '#06b6d4' }
+                { num: 6, label: 'Report', icon: FileSpreadsheet, color: '#8b5cf6' },
+                { num: 7, label: 'Deploy', icon: Sparkles, color: '#06b6d4' }
               ].map(s => {
                 const IconComponent = s.icon;
                 const isActive = currentStep === s.num;
@@ -2178,13 +2347,264 @@ export default function InspectorDesigner() {
                   boxShadow: '0 4px 12px rgba(139, 92, 246, 0.35)'
                 }}
               >
-                Lanjut ke Step 6: Deploy & Export <ChevronRight size={16} />
+                Lanjut ke Step 6: Report & Print Layout <ChevronRight size={16} />
               </button>
             </div>
           )}
 
-          {/* ─── STEP 6: Export & Deploy ─── */}
+          {/* ─── STEP 6: Report Designer & Physical Checksheet ─── */}
           {currentStep === 6 && (
+            <div style={{ flex: 1, overflow: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {/* Paper Format & Orientation Settings */}
+              <div style={{
+                backgroundColor: '#1e293b',
+                borderRadius: '10px',
+                padding: '14px',
+                border: '1px solid #334155'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
+                  <FileSpreadsheet size={16} color="#8b5cf6" />
+                  <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#f8fafc' }}>
+                    Pengaturan Kertas & Orientasi Fisik
+                  </span>
+                </div>
+
+                {/* Paper Size Selector */}
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                    Jenis Kertas Cetak (Paper Size):
+                  </label>
+                  <select
+                    value={reportPaperSize}
+                    onChange={e => setReportPaperSize(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      backgroundColor: '#0f172a',
+                      border: '1px solid #475569',
+                      borderRadius: '6px',
+                      color: 'white',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      outline: 'none'
+                    }}
+                  >
+                    <option value="A4">A4 (210 × 297 mm) — Standar ISO Pabrik</option>
+                    <option value="A3">A3 (297 × 420 mm) — Format Lebar Drawing</option>
+                    <option value="Letter">Letter (8.5 × 11 in) — Standar US</option>
+                    <option value="Legal">Legal (8.5 × 14 in)</option>
+                    <option value="Label_100x150">Thermal Label (100 × 150 mm)</option>
+                  </select>
+                </div>
+
+                {/* Orientation Buttons */}
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '6px' }}>
+                    Orientasi Cetak (Orientation):
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setReportOrientation('portrait')}
+                      style={{
+                        padding: '8px',
+                        backgroundColor: reportOrientation === 'portrait' ? 'rgba(139, 92, 246, 0.25)' : '#0f172a',
+                        border: reportOrientation === 'portrait' ? '1.5px solid #8b5cf6' : '1px solid #334155',
+                        borderRadius: '6px',
+                        color: reportOrientation === 'portrait' ? '#c084fc' : '#94a3b8',
+                        fontSize: '0.72rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <div style={{ width: '12px', height: '16px', border: '1.5px solid currentColor', borderRadius: '2px' }} />
+                      Portrait (Tegak)
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setReportOrientation('landscape')}
+                      style={{
+                        padding: '8px',
+                        backgroundColor: reportOrientation === 'landscape' ? 'rgba(139, 92, 246, 0.25)' : '#0f172a',
+                        border: reportOrientation === 'landscape' ? '1.5px solid #8b5cf6' : '1px solid #334155',
+                        borderRadius: '6px',
+                        color: reportOrientation === 'landscape' ? '#c084fc' : '#94a3b8',
+                        fontSize: '0.72rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <div style={{ width: '16px', height: '12px', border: '1.5px solid currentColor', borderRadius: '2px' }} />
+                      Landscape (Melebar)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Theme Style */}
+                <div>
+                  <label style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                    Tema Warna Cetak ISO:
+                  </label>
+                  <select
+                    value={reportTheme}
+                    onChange={e => setReportTheme(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      backgroundColor: '#0f172a',
+                      border: '1px solid #475569',
+                      borderRadius: '6px',
+                      color: 'white',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      outline: 'none'
+                    }}
+                  >
+                    <option value="mandor_purple">Mandor Classic Purple (ISO Premium)</option>
+                    <option value="navy_modern">Industrial Modern Navy Blue</option>
+                    <option value="emerald_qa">Emerald Quality Green</option>
+                    <option value="monochrome">Monochrome High-Contrast (B&W)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Physical Checksheet ISO Sections Toggle */}
+              <div style={{
+                backgroundColor: '#1e293b',
+                borderRadius: '10px',
+                padding: '14px',
+                border: '1px solid #334155'
+              }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#a78bfa', display: 'block', marginBottom: '8px' }}>
+                  Atribut Dokumen Fisik ISO 9001
+                </span>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.72rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#f8fafc' }}>
+                    <input
+                      type="checkbox"
+                      checked={includeIsoHeader}
+                      onChange={e => setIncludeIsoHeader(e.target.checked)}
+                      style={{ accentColor: '#8b5cf6' }}
+                    />
+                    Header Kontrol Dokumen ISO (Doc No & Rev)
+                  </label>
+                  
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#f8fafc' }}>
+                    <input
+                      type="checkbox"
+                      checked={includeStatsBar}
+                      onChange={e => setIncludeStatsBar(e.target.checked)}
+                      style={{ accentColor: '#8b5cf6' }}
+                    />
+                    Ringkasan KPI, Pass Rate & Cpk Target
+                  </label>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#f8fafc' }}>
+                    <input
+                      type="checkbox"
+                      checked={includeGdtTable}
+                      onChange={e => setIncludeGdtTable(e.target.checked)}
+                      style={{ accentColor: '#8b5cf6' }}
+                    />
+                    Tabel Matriks Titik Ukur GD&T ({checkPoints.length} Poin)
+                  </label>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#f8fafc' }}>
+                    <input
+                      type="checkbox"
+                      checked={includeSignatures}
+                      onChange={e => setIncludeSignatures(e.target.checked)}
+                      style={{ accentColor: '#8b5cf6' }}
+                    />
+                    Kolom Tanda Tangan Digital & Verifikasi QA
+                  </label>
+                </div>
+              </div>
+
+              {/* Action Buttons to Report Designer & PDF Sample */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <button
+                  onClick={handleOpenInReportDesigner}
+                  style={{
+                    width: '100%',
+                    padding: '11px',
+                    backgroundColor: '#8b5cf6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '0.78rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    boxShadow: '0 4px 14px rgba(139, 92, 246, 0.4)'
+                  }}
+                  title="Otomatis buat template PDF & buka di Report Designer Studio"
+                >
+                  <ExternalLink size={15} /> Buka & Desain di Report Designer
+                </button>
+
+                <button
+                  onClick={handlePrintSamplePDF}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    backgroundColor: '#1e293b',
+                    color: '#38bdf8',
+                    border: '1px solid #0284c7',
+                    borderRadius: '8px',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  <Printer size={15} /> Cetak / Download Sample PDF
+                </button>
+
+                <button
+                  onClick={() => setCurrentStep(7)}
+                  style={{
+                    width: '100%',
+                    padding: '11px',
+                    backgroundColor: '#10b981',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '0.78rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.4)',
+                    marginTop: '4px'
+                  }}
+                >
+                  Lanjut ke Step 7: Deploy & Export <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ─── STEP 7: Export & Deploy ─── */}
+          {currentStep === 7 && (
             <div style={{ flex: 1, overflow: 'auto', padding: '12px' }}>
               <div style={{
                 padding: '16px',
@@ -2213,8 +2633,8 @@ export default function InspectorDesigner() {
                     <div style={{ fontWeight: 700, color: '#f8fafc' }}>{selectedDrawing?.name || 'Uploaded'}</div>
                   </div>
                   <div>
-                    <span style={{ color: '#64748b' }}>Workflow:</span>
-                    <div style={{ fontWeight: 700, color: '#f8fafc' }}>{guidedMode ? 'Guided' : 'Free'}</div>
+                    <span style={{ color: '#64748b' }}>Format Cetak:</span>
+                    <div style={{ fontWeight: 700, color: '#8b5cf6' }}>{reportPaperSize} ({reportOrientation})</div>
                   </div>
                   <div>
                     <span style={{ color: '#64748b' }}>Target Table:</span>
@@ -2317,215 +2737,487 @@ export default function InspectorDesigner() {
           )}
         </div>        
         {/* ─── CENTER PANEL: Canvas ─── */}
+        {/* ─── CENTER PANEL: Canvas / Physical Checksheet Mockup ─── */}
         <div
           ref={containerRef}
-          onMouseDown={handleCanvasMouseDown}
-          onMouseMove={handleCanvasMouseMove}
-          onMouseUp={handleCanvasMouseUp}
-          onMouseLeave={handleCanvasMouseUp}
+          onMouseDown={currentStep !== 6 ? handleCanvasMouseDown : undefined}
+          onMouseMove={currentStep !== 6 ? handleCanvasMouseMove : undefined}
+          onMouseUp={currentStep !== 6 ? handleCanvasMouseUp : undefined}
+          onMouseLeave={currentStep !== 6 ? handleCanvasMouseUp : undefined}
           style={{
             position: 'relative',
-            backgroundColor: '#e2e8f0',
-            overflow: 'hidden',
-            cursor: isPanning ? 'grabbing' : isDragging ? 'move' : 'crosshair'
+            backgroundColor: currentStep === 6 ? '#0b1120' : '#e2e8f0',
+            overflow: 'auto',
+            cursor: currentStep === 6 ? 'default' : isPanning ? 'grabbing' : isDragging ? 'move' : 'crosshair',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            padding: currentStep === 6 ? '30px 20px' : '0'
           }}
         >
-          {/* HUD Compact */}
-          <div style={{
-            position: 'absolute',
-            top: '10px',
-            left: '12px',
-            zIndex: 30,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px'
-          }}>
+          {/* HUD Compact for CAD Editor */}
+          {currentStep !== 6 && (
             <div style={{
-              backgroundColor: 'rgba(15, 23, 42, 0.85)',
-              padding: '4px 10px',
-              borderRadius: '6px',
+              position: 'absolute',
+              top: '10px',
+              left: '12px',
+              zIndex: 30,
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
-              border: '1px solid rgba(255,255,255,0.1)'
+              gap: '6px'
             }}>
-              <Target size={14} color="#8b5cf6" />
-              <span style={{ fontSize: '0.74rem', fontWeight: 800, color: 'white' }}>
-                {checkPoints.length} Poin
-              </span>
-            </div>
-
-            {/* Add Pin Mode Toggle */}
-            <button
-              onClick={() => setIsAddPinMode(!isAddPinMode)}
-              style={{
+              <div style={{
+                backgroundColor: 'rgba(15, 23, 42, 0.85)',
                 padding: '4px 10px',
-                backgroundColor: isAddPinMode ? '#22c55e' : 'rgba(15, 23, 42, 0.85)',
-                color: isAddPinMode ? '#0f172a' : '#f8fafc',
-                border: isAddPinMode ? '1px solid #22c55e' : '1px solid #8b5cf6',
                 borderRadius: '6px',
-                fontSize: '0.72rem',
-                fontWeight: 800,
-                cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '5px',
-                boxShadow: isAddPinMode ? '0 0 10px rgba(34, 197, 94, 0.4)' : 'none'
-              }}
-              title="Klik canvas untuk meletakkan titik ukur baru"
-            >
-              <PlusCircle size={13} />
-              {isAddPinMode ? 'Klik Canvas untuk Pin' : '+ Pin'}
-            </button>
-            
-            {/* Zoom Controls */}
-            <div style={{
-              backgroundColor: 'rgba(15, 23, 42, 0.85)',
-              padding: '2px 6px',
-              borderRadius: '6px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '3px',
-              border: '1px solid rgba(255,255,255,0.1)'
-            }}>
+                gap: '6px',
+                border: '1px solid rgba(255,255,255,0.1)'
+              }}>
+                <Target size={14} color="#8b5cf6" />
+                <span style={{ fontSize: '0.74rem', fontWeight: 800, color: 'white' }}>
+                  {checkPoints.length} Poin
+                </span>
+              </div>
+
+              {/* Add Pin Mode Toggle */}
               <button
-                onClick={() => setZoom(z => Math.max(0.3, z - 0.1))}
-                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px 4px' }}
+                onClick={() => setIsAddPinMode(!isAddPinMode)}
+                style={{
+                  padding: '4px 10px',
+                  backgroundColor: isAddPinMode ? '#22c55e' : 'rgba(15, 23, 42, 0.85)',
+                  color: isAddPinMode ? '#0f172a' : '#f8fafc',
+                  border: isAddPinMode ? '1px solid #22c55e' : '1px solid #8b5cf6',
+                  borderRadius: '6px',
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  boxShadow: isAddPinMode ? '0 0 10px rgba(34, 197, 94, 0.4)' : 'none'
+                }}
+                title="Klik canvas untuk meletakkan titik ukur baru"
               >
-                <ZoomOut size={14} />
+                <PlusCircle size={13} />
+                {isAddPinMode ? 'Klik Canvas untuk Pin' : '+ Pin'}
               </button>
-              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#8b5cf6', minWidth: '38px', textAlign: 'center' }}>
-                {Math.round(zoom * 100)}%
-              </span>
-              <button
-                onClick={() => setZoom(z => Math.min(3, z + 0.1))}
-                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px 4px' }}
-              >
-                <ZoomIn size={14} />
-              </button>
-            </div>
-          </div>
-          
-          {/* Canvas Content */}
-          <div
-            ref={canvasContentRef}
-            onDoubleClick={handleCanvasDoubleClick}
-            style={{
-              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-              transformOrigin: 'center center',
-              position: 'relative',
-              width: '1000px',
-              height: '700px',
-              backgroundColor: 'white',
-              boxShadow: '0 25px 50px rgba(0,0,0,0.2)',
-              margin: '50px auto',
-              cursor: isAddPinMode ? 'crosshair' : 'default'
-            }}
-          >
-            {/* Grid Background */}
-            <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-              <defs>
-                <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                  <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(203, 213, 225, 0.3)" strokeWidth="0.5" />
-                </pattern>
-              </defs>
-              <rect width="100%" height="100%" fill="url(#grid)" />
-            </svg>
-            
-            {/* Drawing Preview */}
-            {drawingPreview && (
-              <div
-                style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-                dangerouslySetInnerHTML={{ __html: drawingPreview }}
-              />
-            )}
-            
-            {/* Check Point Pins */}
-            {checkPoints.map(point => {
-              const isActive = point.id === activePointId;
-              const isBeingDragged = isDragging && draggedPointId === point.id;
-              return (
-                <div
-                  key={point.id}
-                  onMouseDown={(e) => handlePinMouseDown(e, point.id)}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setActivePointId(point.id);
-                  }}
-                  style={{
-                    position: 'absolute',
-                    left: `${point.x}px`,
-                    top: `${point.y}px`,
-                    transform: 'translate(-50%, -50%)',
-                    cursor: isBeingDragged ? 'grabbing' : 'grab',
-                    zIndex: isActive ? 25 : 15,
-                    userSelect: 'none',
-                    touchAction: 'none'
-                  }}
+              
+              {/* Zoom Controls */}
+              <div style={{
+                backgroundColor: 'rgba(15, 23, 42, 0.85)',
+                padding: '2px 6px',
+                borderRadius: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '3px',
+                border: '1px solid rgba(255,255,255,0.1)'
+              }}>
+                <button
+                  onClick={() => setZoom(z => Math.max(0.3, z - 0.1))}
+                  style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px 4px' }}
                 >
-                  {/* Pulse Ring */}
+                  <ZoomOut size={14} />
+                </button>
+                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#8b5cf6', minWidth: '38px', textAlign: 'center' }}>
+                  {Math.round(zoom * 100)}%
+                </span>
+                <button
+                  onClick={() => setZoom(z => Math.min(3, z + 0.1))}
+                  style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px 4px' }}
+                >
+                  <ZoomIn size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ─── STEP 6: LIVE INTERACTIVE PHYSICAL CHECKSHEET PAPER MOCKUP ─── */}
+          {currentStep === 6 ? (
+            <div style={{
+              width: reportOrientation === 'landscape' ? '920px' : '720px',
+              minHeight: reportOrientation === 'landscape' ? '650px' : '980px',
+              backgroundColor: '#ffffff',
+              color: '#0f172a',
+              borderRadius: '6px',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.1)',
+              padding: reportMargin === '5mm' ? '18px' : reportMargin === '15mm' ? '36px' : '26px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              fontFamily: 'Inter, system-ui, sans-serif',
+              position: 'relative',
+              transition: 'all 0.3s ease'
+            }}>
+              {/* Paper Badge Indicator Top Right */}
+              <div style={{
+                position: 'absolute',
+                top: '-24px',
+                right: '4px',
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                color: '#94a3b8',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}>
+                <span style={{ backgroundColor: '#1e293b', color: '#38bdf8', padding: '2px 8px', borderRadius: '4px', border: '1px solid #334155' }}>
+                  {reportPaperSize} • {reportOrientation.toUpperCase()}
+                </span>
+                <span>Standar ISO 9001:2015</span>
+              </div>
+
+              <div>
+                {/* 1. ISO 9001 Header Banner */}
+                {includeIsoHeader && (
                   <div style={{
-                    position: 'absolute',
-                    inset: '-10px',
-                    borderRadius: '50%',
-                    backgroundColor: getCategoryColor(point.category),
-                    opacity: isActive ? 0.4 : 0.2,
-                    animation: 'pulse 2s infinite',
-                    pointerEvents: 'none'
-                  }} />
-                  
-                  {/* Pin Circle */}
-                  <div style={{
-                    width: isActive ? '36px' : '28px',
-                    height: isActive ? '36px' : '28px',
-                    borderRadius: '50%',
-                    backgroundColor: getCategoryColor(point.category),
-                    color: 'white',
-                    border: '3px solid white',
-                    boxShadow: isBeingDragged ? '0 10px 25px rgba(0,0,0,0.5)' : '0 4px 12px rgba(0,0,0,0.3)',
+                    backgroundColor: reportTheme === 'navy_modern' ? '#1e3a8a' : reportTheme === 'emerald_qa' ? '#065f46' : reportTheme === 'monochrome' ? '#1f2937' : '#4c1d95',
+                    color: '#ffffff',
+                    borderRadius: '4px',
+                    padding: '12px 16px',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    fontWeight: 900,
-                    fontSize: isActive ? '0.9rem' : '0.75rem',
-                    transition: isBeingDragged ? 'none' : 'transform 0.15s, box-shadow 0.15s',
-                    transform: isBeingDragged ? 'scale(1.15)' : 'scale(1)'
+                    justifyContent: 'space-between',
+                    marginBottom: '14px'
                   }}>
-                    {point.pointNumber}
-                  </div>
-                  
-                  {/* Tooltip Label */}
-                  {isActive && (
-                    <div style={{
-                      position: 'absolute',
-                      top: '42px',
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      backgroundColor: '#0f172a',
-                      color: 'white',
-                      padding: '6px 10px',
-                      borderRadius: '6px',
-                      fontSize: '0.7rem',
-                      fontWeight: 700,
-                      whiteSpace: 'nowrap',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                      border: '1px solid #334155',
-                      pointerEvents: 'none',
-                      zIndex: 30
-                    }}>
-                      {point.title}
-                      <div style={{ fontSize: '0.6rem', color: '#94a3b8', marginTop: '2px' }}>
-                        {point.nominal} {point.unit}
+                    <div>
+                      <h2 style={{ fontSize: '1.05rem', fontWeight: 900, margin: 0, letterSpacing: '-0.02em' }}>
+                        {(checkSheetName || partName || 'QC INSPECTION CHECKSHEET').toUpperCase()}
+                      </h2>
+                      <div style={{ fontSize: '0.68rem', opacity: 0.9, marginTop: '2px', fontWeight: 500 }}>
+                        MANDOR MES — {qualityStandard} QUALITY ASSURANCE VERIFICATION
                       </div>
                     </div>
-                  )}
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', textAlign: 'right' }}>
+                      <div style={{ fontSize: '0.65rem', lineHeight: 1.3 }}>
+                        <div style={{ fontWeight: 800 }}>DOC: {drawingNo || 'QA-CS-2026-08'}</div>
+                        <div style={{ opacity: 0.85 }}>REV: {revisionNo || '1.0'} | {effectiveDate || '2026-08-23'}</div>
+                      </div>
+                      {includeQrCode && (
+                        <div style={{ backgroundColor: '#ffffff', padding: '4px', borderRadius: '4px' }}>
+                          <QRCode value={`https://mandor.online/doc/${partNo || 'ISO9001'}`} size={38} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Master Info Grid */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: reportOrientation === 'landscape' ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)',
+                  gap: '8px',
+                  backgroundColor: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '4px',
+                  padding: '10px 12px',
+                  fontSize: '0.72rem',
+                  marginBottom: '14px'
+                }}>
+                  <div>
+                    <span style={{ color: '#64748b', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Part Number</span>
+                    <strong style={{ color: '#0f172a', fontSize: '0.8rem' }}>{partNo || 'PRT-FLG-450X'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Part Name</span>
+                    <span style={{ color: '#0f172a', fontWeight: 600 }}>{partName || checkSheetName || 'Hydraulic Flange'}</span>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Customer</span>
+                    <span style={{ color: '#0f172a' }}>{customer || 'AeroTech Dynamics Ltd.'}</span>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Station / Process</span>
+                    <span style={{ color: '#0f172a' }}>{stationId} ({processName || 'CNC Line 2'})</span>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>QC Inspector</span>
+                    <span style={{ color: '#0f172a' }}>{inspectorName || 'Budi Santoso'}</span>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Approval Lead</span>
+                    <span style={{ color: '#0f172a' }}>{approvedBy || 'Ahmad Setiawan'}</span>
+                  </div>
                 </div>
-              );
-            })}
-          </div>
+
+                {/* 3. Summary Statistics Bar */}
+                {includeStatsBar && (
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gap: '6px',
+                    marginBottom: '14px'
+                  }}>
+                    <div style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', padding: '6px 8px', borderRadius: '4px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.58rem', color: '#64748b', fontWeight: 700 }}>TOTAL TITIK UKUR</div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 900, color: '#0f172a' }}>{checkPoints.length} Poin</div>
+                    </div>
+                    <div style={{ backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', padding: '6px 8px', borderRadius: '4px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.58rem', color: '#047857', fontWeight: 700 }}>STATUS DISPOSISI</div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 900, color: '#059669' }}>APPROVED (PASS)</div>
+                    </div>
+                    <div style={{ backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', padding: '6px 8px', borderRadius: '4px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.58rem', color: '#6d28d9', fontWeight: 700 }}>TARGET CPK</div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 900, color: '#7c3aed' }}>1.67 (Min 1.33)</div>
+                    </div>
+                    <div style={{ backgroundColor: '#f0f9ff', border: '1px solid #bae6fd', padding: '6px 8px', borderRadius: '4px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.58rem', color: '#0369a1', fontWeight: 700 }}>PASS RATE</div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 900, color: '#0284c7' }}>100.0%</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. Dynamic Parameter & GD&T Inspection Matrix Table */}
+                {includeGdtTable && (
+                  <div style={{ marginBottom: '14px', border: '1px solid #cbd5e1', borderRadius: '4px', overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.68rem', textAlign: 'left' }}>
+                      <thead>
+                        <tr style={{
+                          backgroundColor: reportTheme === 'navy_modern' ? '#1e3a8a' : reportTheme === 'emerald_qa' ? '#065f46' : reportTheme === 'monochrome' ? '#1f2937' : '#4c1d95',
+                          color: '#ffffff',
+                          fontWeight: 700,
+                          fontSize: '0.62rem',
+                          textTransform: 'uppercase'
+                        }}>
+                          <th style={{ padding: '6px 8px', width: '30px' }}>#</th>
+                          <th style={{ padding: '6px 8px' }}>Parameter Ukur</th>
+                          <th style={{ padding: '6px 8px' }}>Kategori</th>
+                          <th style={{ padding: '6px 8px' }}>Nominal</th>
+                          <th style={{ padding: '6px 8px' }}>Toleransi (Min / Max)</th>
+                          <th style={{ padding: '6px 8px' }}>Hasil Ukur</th>
+                          <th style={{ padding: '6px 8px' }}>Criticality</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'center' }}>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {checkPoints.length === 0 ? (
+                          <tr>
+                            <td colSpan={8} style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>
+                              Belum ada parameter titik ukur yang ditambahkan di Step 3.
+                            </td>
+                          </tr>
+                        ) : (
+                          checkPoints.map((pt, idx) => (
+                            <tr key={idx} style={{
+                              backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc',
+                              borderBottom: '1px solid #e2e8f0'
+                            }}>
+                              <td style={{ padding: '6px 8px', fontWeight: 800, color: '#475569' }}>{pt.pointNumber || idx + 1}</td>
+                              <td style={{ padding: '6px 8px', fontWeight: 700, color: '#0f172a' }}>{pt.title}</td>
+                              <td style={{ padding: '6px 8px', color: '#64748b' }}>{pt.category || 'Linear Dimension'}</td>
+                              <td style={{ padding: '6px 8px', fontWeight: 700, color: '#0f172a', fontFamily: 'monospace' }}>
+                                {pt.nominal} {pt.unit || 'mm'}
+                              </td>
+                              <td style={{ padding: '6px 8px', color: '#4338ca', fontFamily: 'monospace' }}>
+                                {pt.tolMin !== undefined ? `${pt.tolMin} - ${pt.tolMax}` : '±0.05'}
+                              </td>
+                              <td style={{ padding: '6px 8px', fontWeight: 800, color: '#059669', fontFamily: 'monospace' }}>
+                                {pt.nominal ? `${pt.nominal} ${pt.unit || 'mm'}` : '-'}
+                              </td>
+                              <td style={{ padding: '6px 8px' }}>
+                                <span style={{
+                                  fontSize: '0.58rem',
+                                  fontWeight: 800,
+                                  padding: '1px 5px',
+                                  borderRadius: '3px',
+                                  backgroundColor: pt.criticality?.includes('Critical') ? '#fee2e2' : '#f1f5f9',
+                                  color: pt.criticality?.includes('Critical') ? '#dc2626' : '#475569'
+                                }}>
+                                  {pt.criticality || 'Major'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                                <span style={{ backgroundColor: '#dcfce7', color: '#166534', fontWeight: 900, fontSize: '0.62rem', padding: '1px 6px', borderRadius: '3px' }}>
+                                  OK
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* 5. ISO Signature & Approval Blocks */}
+              {includeSignatures && (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: '12px',
+                  borderTop: '1px solid #cbd5e1',
+                  paddingTop: '12px',
+                  marginTop: '12px'
+                }}>
+                  <div style={{ border: '1px dashed #cbd5e1', borderRadius: '4px', padding: '8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 700 }}>INSPECTOR (OPERATOR)</div>
+                    <div style={{ height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#059669', fontWeight: 800, fontSize: '0.75rem' }}>
+                      ✓ {inspectorName || 'Budi Santoso'}
+                    </div>
+                    <div style={{ fontSize: '0.55rem', color: '#94a3b8', borderTop: '1px solid #f1f5f9', paddingTop: '2px' }}>
+                      Tanda Tangan & Tanggal
+                    </div>
+                  </div>
+
+                  <div style={{ border: '1px dashed #cbd5e1', borderRadius: '4px', padding: '8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 700 }}>QA / QC SUPERVISOR</div>
+                    <div style={{ height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4338ca', fontWeight: 800, fontSize: '0.75rem' }}>
+                      ✓ {approvedBy || 'Ahmad Setiawan'}
+                    </div>
+                    <div style={{ fontSize: '0.55rem', color: '#94a3b8', borderTop: '1px solid #f1f5f9', paddingTop: '2px' }}>
+                      Disetujui QA Management
+                    </div>
+                  </div>
+
+                  <div style={{ border: '1px dashed #cbd5e1', borderRadius: '4px', padding: '8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 700 }}>PRODUCTION LEADER</div>
+                    <div style={{ height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontWeight: 800, fontSize: '0.75rem' }}>
+                      ✓ Handover Verified
+                    </div>
+                    <div style={{ fontSize: '0.55rem', color: '#94a3b8', borderTop: '1px solid #f1f5f9', paddingTop: '2px' }}>
+                      Diterima Line Produksi
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 6. Footer ISO Watermark */}
+              <div style={{
+                textAlign: 'center',
+                fontSize: '0.55rem',
+                color: '#94a3b8',
+                marginTop: '10px',
+                borderTop: '1px solid #f1f5f9',
+                paddingTop: '4px'
+              }}>
+                MANDOR MES QUALITY REPORT ENGINE • ISO 9001:2015 AUDITED CHECKSHEET • GENERATED {new Date().toLocaleDateString()}
+              </div>
+            </div>
+          ) : (
+            /* Standard CAD Blueprint Canvas for Steps 1-5 & 7 */
+            <div
+              ref={canvasContentRef}
+              onDoubleClick={handleCanvasDoubleClick}
+              style={{
+                transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                transformOrigin: 'center center',
+                position: 'relative',
+                width: '1000px',
+                height: '700px',
+                backgroundColor: 'white',
+                boxShadow: '0 25px 50px rgba(0,0,0,0.2)',
+                margin: '50px auto',
+                cursor: isAddPinMode ? 'crosshair' : 'default'
+              }}
+            >
+              {/* Grid Background */}
+              <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+                <defs>
+                  <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                    <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(203, 213, 225, 0.3)" strokeWidth="0.5" />
+                  </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#grid)" />
+              </svg>
+              
+              {/* Drawing Preview */}
+              {drawingPreview && (
+                <div
+                  style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+                  dangerouslySetInnerHTML={{ __html: drawingPreview }}
+                />
+              )}
+              
+              {/* Check Point Pins */}
+              {checkPoints.map(point => {
+                const isActive = point.id === activePointId;
+                const isBeingDragged = isDragging && draggedPointId === point.id;
+                return (
+                  <div
+                    key={point.id}
+                    onMouseDown={(e) => handlePinMouseDown(e, point.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActivePointId(point.id);
+                    }}
+                    style={{
+                      position: 'absolute',
+                      left: `${point.x}px`,
+                      top: `${point.y}px`,
+                      transform: 'translate(-50%, -50%)',
+                      cursor: isBeingDragged ? 'grabbing' : 'grab',
+                      zIndex: isActive ? 25 : 15,
+                      userSelect: 'none',
+                      touchAction: 'none'
+                    }}
+                  >
+                    {/* Pulse Ring */}
+                    <div style={{
+                      position: 'absolute',
+                      inset: '-10px',
+                      borderRadius: '50%',
+                      backgroundColor: getCategoryColor(point.category),
+                      opacity: isActive ? 0.4 : 0.2,
+                      animation: 'pulse 2s infinite',
+                      pointerEvents: 'none'
+                    }} />
+                    
+                    {/* Pin Circle */}
+                    <div style={{
+                      width: isActive ? '36px' : '28px',
+                      height: isActive ? '36px' : '28px',
+                      borderRadius: '50%',
+                      backgroundColor: getCategoryColor(point.category),
+                      color: 'white',
+                      border: '3px solid white',
+                      boxShadow: isBeingDragged ? '0 10px 25px rgba(0,0,0,0.5)' : '0 4px 12px rgba(0,0,0,0.3)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 900,
+                      fontSize: isActive ? '0.9rem' : '0.75rem',
+                      transition: isBeingDragged ? 'none' : 'transform 0.15s, box-shadow 0.15s',
+                      transform: isBeingDragged ? 'scale(1.15)' : 'scale(1)'
+                    }}>
+                      {point.pointNumber}
+                    </div>
+                    
+                    {/* Tooltip Label */}
+                    {isActive && (
+                      <div style={{
+                        position: 'absolute',
+                        top: '42px',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        backgroundColor: '#0f172a',
+                        color: 'white',
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        whiteSpace: 'nowrap',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                        border: '1px solid #334155',
+                        pointerEvents: 'none',
+                        zIndex: 30
+                      }}>
+                        {point.title}
+                        <div style={{ fontSize: '0.6rem', color: '#94a3b8', marginTop: '2px' }}>
+                          {point.nominal} {point.unit}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        {/* ─── RIGHT PANEL: Properties Editor ─── */}
+        {/* ─── RIGHT PANEL: Properties Editor / Report Schema Inspector ─── */}
         <div style={{
           backgroundColor: '#0f172a',
           borderLeft: '1px solid #1e293b',
@@ -2539,11 +3231,89 @@ export default function InspectorDesigner() {
             backgroundColor: '#090d16'
           }}>
             <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#8b5cf6' }}>
-              {activePoint ? 'Edit Point #' + activePoint.pointNumber : 'Point Properties'}
+              {currentStep === 6 ? 'Report Schema & Data Binding' : activePoint ? 'Edit Point #' + activePoint.pointNumber : 'Point Properties'}
             </span>
           </div>
           
-          {activePoint ? (
+          {currentStep === 6 ? (
+            <div style={{ flex: 1, overflow: 'auto', padding: '14px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {/* PDFME Engine Schema Status */}
+              <div style={{
+                backgroundColor: '#1e293b',
+                borderRadius: '8px',
+                padding: '12px',
+                border: '1px solid #334155'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'between', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <CheckCircle2 size={13} /> Schema Ready
+                  </span>
+                  <span style={{ fontSize: '0.65rem', color: '#94a3b8', backgroundColor: '#0f172a', padding: '2px 6px', borderRadius: '4px' }}>
+                    PDFME Engine v5.2
+                  </span>
+                </div>
+                <p style={{ fontSize: '0.68rem', color: '#cbd5e1', margin: 0 }}>
+                  Semua parameter drawing, toleransi GD&T, dan master data part telah terikat otomatis ke schema PDF Report Designer.
+                </p>
+              </div>
+
+              {/* Data Binding Variable Attributes */}
+              <div>
+                <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#a78bfa', display: 'block', marginBottom: '8px' }}>
+                  Variabel Terhubung (Bound Variables):
+                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.7rem' }}>
+                  {[
+                    { key: 'doc_id', label: 'Document Number', val: drawingNo || 'QA-CS-2026' },
+                    { key: 'part_no_value', label: 'Part Number', val: partNo || '-' },
+                    { key: 'part_name_value', label: 'Part Name', val: partName || '-' },
+                    { key: 'customer_value', label: 'Customer', val: customer || '-' },
+                    { key: 'station_value', label: 'Station ID', val: stationId },
+                    { key: 'inspector_value', label: 'Inspector', val: inspectorName || 'QA Lead' },
+                    { key: 'inspection_table', label: 'Table Matrix', val: `${checkPoints.length} baris parameter` }
+                  ].map(v => (
+                    <div key={v.key} style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      backgroundColor: '#090d16',
+                      padding: '6px 8px',
+                      borderRadius: '4px',
+                      border: '1px solid #1e293b'
+                    }}>
+                      <span style={{ color: '#94a3b8', fontFamily: 'monospace' }}>{v.key}</span>
+                      <strong style={{ color: '#38bdf8' }}>{v.val}</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Deep Link Button to Studio */}
+              <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <button
+                  onClick={handleOpenInReportDesigner}
+                  style={{
+                    width: '100%',
+                    padding: '11px',
+                    backgroundColor: '#8b5cf6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '0.76rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    boxShadow: '0 4px 12px rgba(139, 92, 246, 0.4)'
+                  }}
+                >
+                  <ExternalLink size={14} /> Buka di Report Designer Studio
+                </button>
+              </div>
+            </div>
+          ) : activePoint ? (
             <div style={{ flex: 1, overflow: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {/* Title */}
               <div>
