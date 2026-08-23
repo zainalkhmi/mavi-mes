@@ -101,6 +101,7 @@ export default function InspectorDesigner() {
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [draggedPointId, setDraggedPointId] = useState(null);
+  const [hoverCoords, setHoverCoords] = useState(null); // { x: number, y: number }
   
   // Workflow settings
   const [guidedMode, setGuidedMode] = useState(true);
@@ -836,15 +837,23 @@ export default function InspectorDesigner() {
     toast.success('Point duplicated');
   };
   
-  // ─── Precise Canvas Coordinate Conversion ───
+  // ─── Precise Canvas Coordinate Conversion (Exact Subpixel Mapping) ───
   const getCanvasCoords = (clientX, clientY) => {
     if (!canvasContentRef.current) return { x: 200, y: 200 };
     const rect = canvasContentRef.current.getBoundingClientRect();
-    const x = Math.round((clientX - rect.left) / zoom);
-    const y = Math.round((clientY - rect.top) / zoom);
+    if (!rect.width || !rect.height) return { x: 200, y: 200 };
+    
+    // Normalized 0 to 1 position across the rendered canvas rectangle
+    const normX = (clientX - rect.left) / rect.width;
+    const normY = (clientY - rect.top) / rect.height;
+    
+    // Canvas blueprint dimensions are 1000 x 700
+    const canvasX = Math.round(normX * 1000);
+    const canvasY = Math.round(normY * 700);
+    
     return {
-      x: Math.max(15, Math.min(985, x)),
-      y: Math.max(15, Math.min(685, y))
+      x: Math.max(5, Math.min(995, canvasX)),
+      y: Math.max(5, Math.min(695, canvasY))
     };
   };
 
@@ -3259,6 +3268,32 @@ export default function InspectorDesigner() {
             <div
               ref={canvasContentRef}
               onDoubleClick={handleCanvasDoubleClick}
+              onMouseMove={(e) => {
+                if (isAddPinMode) {
+                  const coords = getCanvasCoords(e.clientX, e.clientY);
+                  setHoverCoords(coords);
+                }
+              }}
+              onMouseLeave={() => {
+                if (hoverCoords) setHoverCoords(null);
+              }}
+              onClick={(e) => {
+                if (isAddPinMode) {
+                  e.stopPropagation();
+                  const coords = getCanvasCoords(e.clientX, e.clientY);
+                  const newPoint = createDefaultCheckPoint(
+                    checkPoints.length + 1,
+                    coords.x,
+                    coords.y
+                  );
+                  setCheckPoints(prev => [...prev, newPoint]);
+                  setActivePointId(newPoint.id);
+                  setCurrentStep(3);
+                  toast.success(`Titik ukur #${newPoint.pointNumber} diletakkan presisi di (${coords.x}, ${coords.y})`);
+                  setIsAddPinMode(false);
+                  setHoverCoords(null);
+                }
+              }}
               style={{
                 transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
                 transformOrigin: 'center center',
@@ -3288,11 +3323,104 @@ export default function InspectorDesigner() {
                   dangerouslySetInnerHTML={{ __html: drawingPreview }}
                 />
               )}
+
+              {/* ─── REAL-TIME PRECISION LASER CROSSHAIR & TARGET RETICLE OVERLAY ─── */}
+              {isAddPinMode && hoverCoords && (
+                <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 40 }}>
+                  {/* Vertical Guide Line */}
+                  <div style={{
+                    position: 'absolute',
+                    left: `${hoverCoords.x}px`,
+                    top: 0,
+                    bottom: 0,
+                    width: '1px',
+                    backgroundColor: '#2563eb',
+                    boxShadow: '0 0 8px #38bdf8',
+                    opacity: 0.85
+                  }} />
+                  {/* Horizontal Guide Line */}
+                  <div style={{
+                    position: 'absolute',
+                    top: `${hoverCoords.y}px`,
+                    left: 0,
+                    right: 0,
+                    height: '1px',
+                    backgroundColor: '#2563eb',
+                    boxShadow: '0 0 8px #38bdf8',
+                    opacity: 0.85
+                  }} />
+                  {/* Target Reticle Ring */}
+                  <div style={{
+                    position: 'absolute',
+                    left: `${hoverCoords.x}px`,
+                    top: `${hoverCoords.y}px`,
+                    transform: 'translate(-50%, -50%)',
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '50%',
+                    border: '2px dashed #2563eb',
+                    boxShadow: '0 0 14px rgba(37, 99, 235, 0.6), inset 0 0 8px rgba(37, 99, 235, 0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    {/* Center Laser Dot */}
+                    <div style={{
+                      width: '4px',
+                      height: '4px',
+                      borderRadius: '50%',
+                      backgroundColor: '#ef4444',
+                      boxShadow: '0 0 6px #ef4444'
+                    }} />
+                  </div>
+                  {/* Ghost Next Pin Preview */}
+                  <div style={{
+                    position: 'absolute',
+                    left: `${hoverCoords.x}px`,
+                    top: `${hoverCoords.y}px`,
+                    transform: 'translate(-50%, -50%)',
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '50%',
+                    backgroundColor: '#3b82f6',
+                    color: 'white',
+                    border: '2px solid white',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 900,
+                    fontSize: '0.75rem',
+                    opacity: 0.65,
+                    boxShadow: '0 4px 10px rgba(0,0,0,0.3)'
+                  }}>
+                    {checkPoints.length + 1}
+                  </div>
+                  {/* Real-time Coordinates HUD Tag */}
+                  <div style={{
+                    position: 'absolute',
+                    left: `${Math.min(hoverCoords.x + 22, 860)}px`,
+                    top: `${Math.max(hoverCoords.y - 28, 10)}px`,
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                    color: '#38bdf8',
+                    padding: '3px 8px',
+                    borderRadius: '4px',
+                    fontSize: '0.65rem',
+                    fontWeight: 800,
+                    fontFamily: 'monospace',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                    border: '1px solid rgba(56, 189, 248, 0.4)',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    X: {hoverCoords.x}px • Y: {hoverCoords.y}px
+                  </div>
+                </div>
+              )}
               
               {/* Check Point Pins */}
               {checkPoints.map(point => {
                 const isActive = point.id === activePointId;
                 const isBeingDragged = isDragging && draggedPointId === point.id;
+                const pinSize = isActive ? 36 : 28;
                 return (
                   <div
                     key={point.id}
@@ -3305,11 +3433,16 @@ export default function InspectorDesigner() {
                       position: 'absolute',
                       left: `${point.x}px`,
                       top: `${point.y}px`,
+                      width: `${pinSize}px`,
+                      height: `${pinSize}px`,
                       transform: 'translate(-50%, -50%)',
                       cursor: isBeingDragged ? 'grabbing' : 'grab',
                       zIndex: isActive ? 25 : 15,
                       userSelect: 'none',
-                      touchAction: 'none'
+                      touchAction: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
                     }}
                   >
                     {/* Pulse Ring */}
@@ -3325,8 +3458,8 @@ export default function InspectorDesigner() {
                     
                     {/* Pin Circle */}
                     <div style={{
-                      width: isActive ? '36px' : '28px',
-                      height: isActive ? '36px' : '28px',
+                      width: '100%',
+                      height: '100%',
                       borderRadius: '50%',
                       backgroundColor: getCategoryColor(point.category),
                       color: 'white',
@@ -3347,7 +3480,7 @@ export default function InspectorDesigner() {
                     {isActive && (
                       <div style={{
                         position: 'absolute',
-                        top: '42px',
+                        top: `${pinSize + 6}px`,
                         left: '50%',
                         transform: 'translateX(-50%)',
                         backgroundColor: '#0f172a',
