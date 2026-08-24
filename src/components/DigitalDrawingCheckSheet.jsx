@@ -71,6 +71,7 @@ import {
 } from 'lucide-react';
 import NumpadInput from './NumpadInput';
 import CameraInput from './CameraInput';
+import CheckTabContent from './CheckTabContent';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import toast, { Toaster } from 'react-hot-toast';
 import QRCode from 'react-qr-code';
@@ -514,12 +515,45 @@ export default function DigitalDrawingCheckSheet() {
   const [searchParams] = useSearchParams();
   const currentUser = getCurrentUser();
 
-  // Check sheet items state
+  // Helper: load checkPoints from saved templates
+  const loadCheckPoints = () => {
+    try {
+      const saved = localStorage.getItem('mandor_inspector_templates');
+      if (saved) {
+        const templates = JSON.parse(saved);
+        if (Array.isArray(templates) && templates.length > 0) {
+          const firstTemplate = templates[0];
+          if (firstTemplate.checkPoints?.length > 0) {
+            return firstTemplate.checkPoints.map((p, i) => ({
+              id: `cp_${i + 1}`,
+              pointNumber: p.pointNumber || i + 1,
+              title: p.title || `Point ${i + 1}`,
+              category: p.category || 'Dimension',
+              nominal: parseFloat(p.nominal) || 0,
+              tolMin: parseFloat(p.tolMin || p.toleranceMin || 0),
+              tolMax: parseFloat(p.tolMax || p.toleranceMax || 0),
+              unit: p.unit || 'mm',
+              measuredVal: '',
+              status: 'PENDING',
+              tool: p.tool || 'Gauge',
+              criticality: p.criticality || 'Major',
+              notes: p.notes || '',
+              disposition: 'Pending Inspection'
+            }));
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load templates:', e);
+    }
+    return INITIAL_CHECK_POINTS;
+  };
+
   const [selectedDrawingId, setSelectedDrawingId] = useState('dwg_cast_housing');
   const [drawingsList, setDrawingsList] = useState([]);
 
   // Check sheet items state
-  const [checkPoints, setCheckPoints] = useState(INITIAL_CHECK_POINTS);
+  const [checkPoints, setCheckPoints] = useState(loadCheckPoints);
   const [activePointId, setActivePointId] = useState('cp_1');
   const [activeTab, setActiveTab] = useState('Checkers'); // Checkers | Check | Calibration | Summary
   const [filterCriticality, setFilterCriticality] = useState('ALL');
@@ -2915,38 +2949,16 @@ export default function DigitalDrawingCheckSheet() {
             </>
           )}
 
-          {/* TAB 2: FOCUS SINGLE POINT INSPECTION (GUIDED AUTO-ADVANCE FLOW) */}
-          
+          {/* TAB 2: FOCUS CHECK */}
+
           {/* Check Tab with Numpad */}
           {activeTab === 'Check' && (
-            <div style={{ flex: 1, padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto' }}>
-              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#38bdf8', textAlign: 'center' }}>
-                #{activePt.pointNumber} {activePt.title} [{activePt.status}]
-              </div>
-              <div style={{ fontSize: '0.75rem', color: '#94a3b8', textAlign: 'center' }}>
-                {activePt.toolId} • Tol: {activePt.tolMin} ~ {activePt.tolMax} {activePt.unit}
-              </div>
-              <div style={{ backgroundColor: '#020617', border: '2px solid #38bdf8', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
-                <input
-                  type='number'
-                  step='0.001'
-                  value={activePt.measuredVal}
-                  onChange={(e) => handleMeasurementChange(activePt.id, e.target.value)}
-                  style={{ background: 'transparent', border: 'none', outline: 'none', color: '#38bdf8', fontSize: '2.5rem', fontFamily: "'Orbitron'", fontWeight: 900, textAlign: 'center', width: '200px' }}
-                />
-                <span style={{ fontSize: '1rem', color: '#94a3b8', fontWeight: 700 }}>{activePt.unit}</span>
-              </div>
-              <NumpadInput
-                value={activePt.measuredVal}
-                onChange={(val) => handleMeasurementChange(activePt.id, val)}
-                onSubmit={() => handleCommitAndAdvance(activePt.id, activePt.measuredVal)}
-              />
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button onClick={() => handleToggleStatus(activePt.id, 'OK')} style={{ flex: 1, padding: '12px', backgroundColor: activePt.status === 'OK' ? '#22c55e' : '#1e293b', color: activePt.status === 'OK' ? '#0f172a' : '#94a3b8', border: '1px solid #334155', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>OK</button>
-                <button onClick={() => handleCommitAndAdvance(activePt.id, activePt.measuredVal)} style={{ flex: 2, padding: '12px', backgroundColor: '#22c55e', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>SIMPAN</button>
-                <button onClick={() => handleToggleStatus(activePt.id, 'NG')} style={{ flex: 1, padding: '12px', backgroundColor: activePt.status === 'NG' ? '#ef4444' : '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>NG</button>
-              </div>
-            </div>
+            <CheckTabContent
+              activePt={activePt}
+              onChange={handleMeasurementChange}
+              onCommit={handleCommitAndAdvance}
+              onToggleStatus={handleToggleStatus}
+            />
           )}
 
           {/* TAB 3: CALIBRATION & GAUGE LOG TABLE */}

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { executeReportPrintAction } from '../utils/reportPrintService';
+import { getTemplates, saveTemplates } from '../utils/supabaseTemplateDB';
 
 // Standard ISO 9001 Default Checksheet Templates
 const DEFAULT_ISO_CHECKSHEETS = [
@@ -116,26 +117,8 @@ const DEFAULT_ISO_CHECKSHEETS = [
 export default function CheckSheetManager() {
     const navigate = useNavigate();
 
-    // ── Local Storage Persistence ──
-    const getStoredChecksheets = () => {
-        try {
-            const saved = localStorage.getItem('mandor_inspector_templates');
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                    // Merge with default ISO checksheets to ensure complete listing
-                    const savedIds = new Set(parsed.map(p => p.id));
-                    const missingDefaults = DEFAULT_ISO_CHECKSHEETS.filter(d => !savedIds.has(d.id));
-                    return [...parsed, ...missingDefaults];
-                }
-            }
-        } catch (e) {
-            console.error('Failed to load checksheets:', e);
-        }
-        return DEFAULT_ISO_CHECKSHEETS;
-    };
-
-    const [checksheets, setChecksheets] = useState(getStoredChecksheets);
+    const [checksheets, setChecksheets] = useState([]);
+    const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('ALL');
     const [selectedStatus, setSelectedStatus] = useState('ALL');
@@ -149,10 +132,58 @@ export default function CheckSheetManager() {
     const [revisionReason, setRevisionReason] = useState('');
     const [newRevisionNo, setNewRevisionNo] = useState('');
 
-    // Save to LocalStorage whenever checksheets change
-    const saveChecksheets = (newArr) => {
+    // ── Load dari Supabase on mount ──
+    const getStoredChecksheets = () => {
+        try {
+            const saved = localStorage.getItem('mandor_inspector_templates');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    const savedIds = new Set(parsed.map(p => p.id));
+                    const missingDefaults = DEFAULT_ISO_CHECKSHEETS.filter(d => !savedIds.has(d.id));
+                    return [...parsed, ...missingDefaults];
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load checksheets:', e);
+        }
+        return DEFAULT_ISO_CHECKSHEETS;
+    };
+
+    useEffect(() => {
+        const loadTemplates = async () => {
+            try {
+                const remote = await getTemplates();
+                if (remote && remote.length > 0) {
+                    // Remote wins — use Supabase data, merge missing defaults
+                    const savedIds = new Set(remote.map(p => p.id));
+                    const missingDefaults = DEFAULT_ISO_CHECKSHEETS.filter(d => !savedIds.has(d.id));
+                    setChecksheets([...remote, ...missingDefaults]);
+                } else {
+                    // No remote data — fall back to localStorage
+                    setChecksheets(getStoredChecksheets());
+                }
+            } catch (e) {
+                console.warn('[CheckSheetManager] getTemplates failed, using localStorage fallback', e);
+                setChecksheets(getStoredChecksheets());
+            } finally {
+                setIsLoadingTemplates(false);
+            }
+        };
+        loadTemplates();
+    }, []);
+
+    // ── Save Checksheets (cloud + localStorage) ──
+    const saveChecksheets = async (newArr) => {
         setChecksheets(newArr);
         localStorage.setItem('mandor_inspector_templates', JSON.stringify(newArr));
+        try {
+            await saveTemplates(newArr);
+            toast.success('✓ Checksheet disimpan ke cloud & lokal!');
+        } catch (e) {
+            console.warn('[CheckSheetManager] saveTemplates failed, data saved locally only', e);
+            // localStorage sudah disimpan di atas — tidak ada data yang hilang
+        }
     };
 
     // Category options
@@ -501,7 +532,13 @@ export default function CheckSheetManager() {
 
             {/* ─── 4. MAIN CONTENT AREA ─── */}
             <div className="flex-1 overflow-y-auto px-6 pb-6">
-                {filteredChecksheets.length === 0 ? (
+                {isLoadingTemplates && (
+                    <div className="flex items-center justify-center py-16 gap-2 text-slate-400">
+                        <RefreshCw size={16} className="animate-spin" />
+                        <span className="text-xs">Memuat template dari cloud...</span>
+                    </div>
+                )}
+                {!isLoadingTemplates && filteredChecksheets.length === 0 ? (
                     <div className="h-64 border border-dashed border-slate-800 rounded-2xl flex flex-col items-center justify-center text-center p-6 mt-4">
                         <FolderArchive size={40} className="text-slate-600 mb-2" />
                         <h3 className="text-sm font-bold text-slate-300">Tidak ada dokumen checksheet yang sesuai filter</h3>

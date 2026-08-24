@@ -19,6 +19,7 @@ import { getAllDrawings, saveDrawing } from '../utils/supabaseUtilityDB';
 import { convertPdfToImageDataUrl } from '../utils/pdfRenderService';
 import { parseDxfContent } from '../utils/cadDxfRenderService';
 import { getTables, addTableRecord, createTable } from '../utils/supabaseTablesDB';
+import { getTemplates, saveTemplates } from '../utils/supabaseTemplateDB';
 import { getCurrentUser } from '../utils/auth';
 import { executeReportPrintAction } from '../utils/reportPrintService';
 
@@ -494,9 +495,21 @@ export default function InspectorDesigner() {
         console.warn('Could not load tables:', err);
       }
 
-      // Load saved templates from localStorage
-      const templates = JSON.parse(localStorage.getItem('mandor_inspector_templates') || '[]');
-      setSavedTemplates(templates);
+      // Load saved templates from Supabase (fallback to localStorage)
+      try {
+        const remoteTemplates = await getTemplates();
+        if (remoteTemplates && remoteTemplates.length > 0) {
+          setSavedTemplates(remoteTemplates);
+          localStorage.setItem('mandor_inspector_templates', JSON.stringify(remoteTemplates));
+        } else {
+          const local = JSON.parse(localStorage.getItem('mandor_inspector_templates') || '[]');
+          setSavedTemplates(local);
+        }
+      } catch (e) {
+        console.warn('[InspectorDesigner] getTemplates failed, using localStorage fallback', e);
+        const local = JSON.parse(localStorage.getItem('mandor_inspector_templates') || '[]');
+        setSavedTemplates(local);
+      }
     };
     loadData();
   }, []);
@@ -973,7 +986,7 @@ export default function InspectorDesigner() {
         docNo: `CS-${partNo || 'PART'}-${revisionNo}`,
         status: checkSheetStatus,
         qualityStandard,
-        revision: revisionNo,
+        revisionNo: revisionNo,
         effectiveDate,
         nextReviewDate,
         updatedAt: new Date().toISOString(),
@@ -1011,16 +1024,40 @@ export default function InspectorDesigner() {
         version: '1.0'
       };
 
-      // Save to localStorage
-      const templates = JSON.parse(localStorage.getItem('mandor_inspector_templates') || '[]');
-      templates.push(templateData);
-      setSavedTemplates(templates);
-      localStorage.setItem('mandor_inspector_templates', JSON.stringify(templates));
-      
-      toast.success('Check Sheet template saved!');
+      const toastId = toast.loading('Menyimpan template ke cloud...');
+      let updatedTemplates;
+      try {
+        // Build the full templates array: replace if exists, otherwise prepend
+        const existingTemplates = JSON.parse(localStorage.getItem('mandor_inspector_templates') || '[]');
+        const existingIndex = existingTemplates.findIndex(t => t.id === templateData.id);
+        if (existingIndex >= 0) {
+          updatedTemplates = existingTemplates.map((t, i) => i === existingIndex ? templateData : t);
+        } else {
+          updatedTemplates = [templateData, ...existingTemplates];
+        }
+
+        await saveTemplates(updatedTemplates);
+        setSavedTemplates(updatedTemplates);
+        localStorage.setItem('mandor_inspector_templates', JSON.stringify(updatedTemplates));
+        toast.success(`✓ Template "${templateData.name}" disimpan ke cloud!`, { id: toastId });
+      } catch (e) {
+        console.warn('[InspectorDesigner] saveTemplates failed, saving locally only', e);
+        // Fallback: save to localStorage anyway
+        const existingTemplates = JSON.parse(localStorage.getItem('mandor_inspector_templates') || '[]');
+        const existingIndex = existingTemplates.findIndex(t => t.id === templateData.id);
+        if (existingIndex >= 0) {
+          updatedTemplates = existingTemplates.map((t, i) => i === existingIndex ? templateData : t);
+        } else {
+          updatedTemplates = [templateData, ...existingTemplates];
+        }
+        setSavedTemplates(updatedTemplates);
+        localStorage.setItem('mandor_inspector_templates', JSON.stringify(updatedTemplates));
+        toast.error('⚠ Cloud save gagal — disimpan secara lokal saja.', { id: toastId });
+      } finally {
+        setIsSaving(false);
+      }
     } catch (err) {
       toast.error('Failed to save: ' + err.message);
-    } finally {
       setIsSaving(false);
     }
   };
@@ -1101,8 +1138,24 @@ export default function InspectorDesigner() {
     localStorage.setItem('mandor_published_checksheet', JSON.stringify(checkSheetData));
     localStorage.setItem('mandor_checksheet_published', 'true');
     localStorage.setItem('mandor_checksheet_publish_id', publishId);
-    
-    toast.success('Exported to Digital Check Sheet! ID: ' + publishId);
+
+    // ── Sync published checksheet ke Supabase (fire-and-forget) ──
+    try {
+      const existingTemplates = JSON.parse(localStorage.getItem('mandor_inspector_templates') || '[]');
+      const existingIndex = existingTemplates.findIndex(t => t.id === checkSheetData.id);
+      let updatedTemplates;
+      if (existingIndex >= 0) {
+        updatedTemplates = existingTemplates.map((t, i) => i === existingIndex ? checkSheetData : t);
+      } else {
+        updatedTemplates = [checkSheetData, ...existingTemplates];
+      }
+      saveTemplates(updatedTemplates); // fire-and-forget
+      setSavedTemplates(updatedTemplates);
+    } catch (e) {
+      console.warn('[InspectorDesigner] Failed to sync published checksheet to Supabase:', e);
+    }
+
+    toast.success('✓ Exported to Digital Check Sheet & synced to cloud! ID: ' + publishId);
     navigate('/qa-checksheet');
   };
   
@@ -4382,7 +4435,7 @@ export default function InspectorDesigner() {
                           setCustomer(template.customer || '');
                           setProcessName(template.processName || '');
                           setDrawingNo(template.drawingNo || '');
-                          setRevisionNo(template.revision || 'A');
+                          setRevisionNo(template.revisionNo || template.revision || 'A');
                           setEffectiveDate(template.effectiveDate || '');
                           setNextReviewDate(template.nextReviewDate || '');
                           setInspectorName(template.inspectorName || '');
@@ -4453,7 +4506,7 @@ export default function InspectorDesigner() {
                             <span style={{ marginLeft: '12px' }}>Customer: <strong>{template.customer || '-'}</strong></span>
                           </div>
                           <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '4px' }}>
-                            {template.checkPoints?.length || 0} parameters • Rev {template.revision || 'A'} • Updated {template.updatedAt ? new Date(template.updatedAt).toLocaleDateString() : '-'}
+                            {template.checkPoints?.length || 0} parameters • Rev {template.revisionNo || template.revision || 'A'} • Updated {template.updatedAt ? new Date(template.updatedAt).toLocaleDateString() : '-'}
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: '4px' }}>
@@ -4464,6 +4517,10 @@ export default function InspectorDesigner() {
                                 const updated = savedTemplates.filter(t => t.id !== template.id);
                                 setSavedTemplates(updated);
                                 localStorage.setItem('mandor_inspector_templates', JSON.stringify(updated));
+                                // Sync delete to Supabase
+                                import('../utils/supabaseTemplateDB').then(({ deleteTemplate }) => {
+                                  deleteTemplate(template.id).catch(e => console.warn('[InspectorDesigner] deleteTemplate failed:', e));
+                                });
                                 toast.success('Template deleted');
                               }
                             }}
@@ -4606,7 +4663,7 @@ export default function InspectorDesigner() {
               <button
                 onClick={() => {
                   const newRevision = {
-                    revision: revisionNo,
+                    revisionNo: revisionNo,
                     date: effectiveDate,
                     description: `Document revision ${revisionNo} - ${qualityStandard}`,
                     by: approvedBy || currentUser?.username || 'Unknown'
