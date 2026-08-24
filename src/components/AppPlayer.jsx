@@ -17,6 +17,11 @@ import { createProductDrawingInspectionTemplate } from '../utils/productDrawingI
 import { createQuickBuildCadVisionTemplate } from '../utils/quickbuildVisionDrawingTemplate';
 import { logout } from '../utils/auth';
 
+// ─── Performance: Cache apps in memory to avoid re-fetching ─────────────────────
+let _cachedApps = null;
+let _cachedAppsTime = 0;
+const CACHE_TTL = 30000; // 30 seconds cache
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 const LS_FAVORITES = 'mandor_player_favorites';
@@ -1301,17 +1306,35 @@ const AppPlayer = () => {
         return `/#/terminal/${activeAppId}?${params.toString()}`;
     }, [activeAppId, stationIdFilter, operator, devMode, appScaleMode, appLayoutMode, activeDevicePresetKey, activeOrientation]);
 
-    // ── Load data ────────────────────────────────────────────────────────────
+    // ── Load data with caching ────────────────────────────────────────────────
     const loadData = async () => {
         setLoading(true);
         setError('');
         try {
+            // Use cached apps if available and fresh (within 30 seconds)
+            const now = Date.now();
+            const useCachedApps = _cachedApps && (now - _cachedAppsTime) < CACHE_TTL;
+
             const [appRows, queueRows, stationRows] = await Promise.all([
-                getAllFrontlineApps(),
+                useCachedApps
+                    ? Promise.resolve(_cachedApps) // Return cached data synchronously
+                    : getAllFrontlineApps().then(apps => {
+                        _cachedApps = apps;
+                        _cachedAppsTime = now;
+                        return apps;
+                    }),
                 getProductionQueue().catch(() => []),
                 getStations().catch(() => [])
             ]);
-            setApps(appRows || []);
+
+            // Only update state if not using cached apps (to avoid extra renders)
+            if (!useCachedApps) {
+                setApps(appRows || []);
+            } else if (apps.length === 0) {
+                // If state is empty but we have cached data, use it
+                setApps(_cachedApps || []);
+            }
+
             setQueue(queueRows || []);
             setStations(stationRows || []);
             
@@ -1959,7 +1982,48 @@ const AppPlayer = () => {
 
                     <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
                         {loading ? (
-                            <div style={{ fontSize: '0.85rem', color: '#64748b', padding: '12px 0' }}>Loading apps…</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {/* Loading skeleton */}
+                                {[1,2,3].map(i => (
+                                    <div key={i} style={{
+                                        padding: '12px',
+                                        backgroundColor: '#f1f5f9',
+                                        borderRadius: '12px',
+                                        display: 'flex',
+                                        gap: '12px',
+                                        alignItems: 'center',
+                                        animation: 'pulse 1.5s infinite'
+                                    }}>
+                                        <div style={{
+                                            width: '48px',
+                                            height: '48px',
+                                            borderRadius: '8px',
+                                            backgroundColor: '#e2e8f0'
+                                        }} />
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{
+                                                width: '60%',
+                                                height: '16px',
+                                                backgroundColor: '#e2e8f0',
+                                                borderRadius: '4px',
+                                                marginBottom: '6px'
+                                            }} />
+                                            <div style={{
+                                                width: '40%',
+                                                height: '12px',
+                                                backgroundColor: '#e2e8f0',
+                                                borderRadius: '4px'
+                                            }} />
+                                        </div>
+                                    </div>
+                                ))}
+                                <style>{`
+                                    @keyframes pulse {
+                                        0%, 100% { opacity: 1; }
+                                        50% { opacity: 0.5; }
+                                    }
+                                `}</style>
+                            </div>
                         ) : error ? (
                             <div style={{ fontSize: '0.85rem', color: '#dc2626' }}>{error}</div>
                         ) : filteredApps.length === 0 ? (

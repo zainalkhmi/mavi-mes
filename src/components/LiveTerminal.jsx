@@ -1,15 +1,23 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense, memo } from 'react';
 import QRCode from 'react-qr-code';
 import ReactMarkdown from 'react-markdown';
 import { Wallet } from 'lucide-react';
 const CADViewer3D = lazy(() => import('./CADViewer3D').then(m => ({ default: m.CADViewer3D })));
+
+// Lazy load heavy Recharts components - only Line, Bar, Area charts
+const LazyLineChart = lazy(() => import('recharts').then(m => ({ default: m.LineChart })));
+const LazyBarChart = lazy(() => import('recharts').then(m => ({ default: m.BarChart })));
+const LazyAreaChart = lazy(() => import('recharts').then(m => ({ default: m.AreaChart })));
+const LazyPieChart = lazy(() => import('recharts').then(m => ({ default: m.PieChart })));
+
+// Eager imports for responsive container (needed for layout)
 import {
   ResponsiveContainer,
   ComposedChart,
-  LineChart, Line,
-  BarChart, Bar,
-  AreaChart, Area,
-  PieChart as RechartsPieChart, Pie,
+  Line,
+  Bar,
+  Area,
+  Pie,
   XAxis, YAxis,
   CartesianGrid,
   Tooltip as RechartsTooltip,

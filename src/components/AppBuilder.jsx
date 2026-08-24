@@ -3108,7 +3108,7 @@ const AppBuilder = () => {
     useEffect(() => {
         if (['DESIGN', 'PREVIEW'].includes(viewMode) && canvasWrapperRef.current) {
             const wrapper = canvasWrapperRef.current;
-            const padding = 80; // Total padding (frame + breathing room)
+            const padding = 40; // Reduced padding for better fit
             const availableW = wrapper.clientWidth - padding;
             const availableH = wrapper.clientHeight - padding;
 
@@ -3117,9 +3117,12 @@ const AppBuilder = () => {
 
             const scaleW = availableW / targetW;
             const scaleH = availableH / targetH;
-            const fitScale = Math.min(scaleW, scaleH, previewDevice === 'RESPONSIVE' ? 1.5 : 1.0);
+            // Tulip-style: always fit to available space, no cap for RESPONSIVE
+            const fitScale = Math.min(scaleW, scaleH);
+            // Ensure minimum scale of 0.1 and maximum of 2.0
+            const clampedScale = Math.min(2.0, Math.max(0.1, fitScale));
 
-            setZoomScale(Number(fitScale.toFixed(2)));
+            setZoomScale(Number(clampedScale.toFixed(2)));
             setPanOffset({ x: 0, y: 0 }); // Reset pan
         }
     }, [previewDevice, previewOrientation, viewMode, canvasBaseSize.width, canvasBaseSize.height]);
@@ -3586,7 +3589,7 @@ const AppBuilder = () => {
             const zoomSpeed = 0.08;
             setZoomScale(prev => {
                 const delta = e.deltaY < 0 ? zoomSpeed : -zoomSpeed;
-                return Math.max(0.1, Math.min(prev + delta, 3));
+                return Math.max(0.1, Math.min(prev + delta, 2.0));
             });
         };
         el.addEventListener('wheel', handleWheel, { passive: false });
@@ -3596,7 +3599,7 @@ const AppBuilder = () => {
     const handleFitToScreen = () => {
         if (!canvasWrapperRef.current) return;
         const wrapper = canvasWrapperRef.current;
-        const padding = 60; // Total padding (30px on each side)
+        const padding = 40; // Reduced padding for better fit
         const availableWidth = wrapper.clientWidth - padding;
         const availableHeight = wrapper.clientHeight - padding;
 
@@ -3605,9 +3608,12 @@ const AppBuilder = () => {
 
         const scaleX = availableWidth / baseWidth;
         const scaleY = availableHeight / baseHeight;
-        const newScale = Math.min(scaleX, scaleY, previewDevice === 'RESPONSIVE' ? 1.5 : 1); // Cap for quality
+        // Tulip-style: always fit to available space, no artificial cap
+        const newScale = Math.min(scaleX, scaleY);
+        // Clamp between reasonable bounds
+        const clampedScale = Math.min(2.0, Math.max(0.1, newScale));
 
-        setZoomScale(newScale);
+        setZoomScale(clampedScale);
         setPanOffset({ x: 0, y: 0 });
     };
 
@@ -15101,7 +15107,7 @@ const AppBuilder = () => {
                             `}</style>
                             <div
                                 ref={canvasWrapperRef}
-                                style={{ flex: 1, backgroundColor: viewMode === 'PREVIEW' ? 'var(--bg-primary)' : '#eef1f6', padding: viewMode === 'PREVIEW' ? '12px' : '20px', overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}
+                                style={{ flex: 1, backgroundColor: viewMode === 'PREVIEW' ? 'var(--bg-primary)' : '#eef1f6', padding: viewMode === 'PREVIEW' ? '8px' : '16px', overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}
                                 onMouseMove={handleCanvasMouseMove}
                                 onMouseUp={handleCanvasMouseUp}
                                 onMouseLeave={handleCanvasMouseUp}
@@ -15111,10 +15117,10 @@ const AppBuilder = () => {
 
 
                                 {/* Floating Toolbar for Zoom/Pan — Pro Pill Glass Style */}
-                                <div data-app-floating-ui onMouseDown={(e) => e.stopPropagation()} className="pro-float-pill" style={{ position: 'absolute', bottom: '18px', right: '18px', zIndex: 9000 }}>
+                                <div data-app-floating-ui onMouseDown={(e) => e.stopPropagation()} className="pro-float-pill" style={{ position: 'absolute', bottom: '12px', right: '12px', zIndex: 9000 }}>
                                     <button onClick={() => setZoomScale(Math.max(0.1, zoomScale - 0.1))} title="Zoom Out">−</button>
                                     <span style={{ fontSize: '0.78rem', fontWeight: 700, minWidth: '38px', textAlign: 'center', color: 'var(--text-tertiary)', letterSpacing: '-0.01em' }}>{Math.round(zoomScale * 100)}%</span>
-                                    <button onClick={() => setZoomScale(Math.min(3, zoomScale + 0.1))} title="Zoom In">+</button>
+                                    <button onClick={() => setZoomScale(Math.min(2.0, zoomScale + 0.1))} title="Zoom In">+</button>
                                     <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(148,163,184,0.4)', margin: '0 2px' }} />
                                     <button onClick={handleFitToScreen} title="Fit to Screen" style={{ color: '#3b82f6' }}><LayoutGrid size={14} /></button>
                                     <button onClick={toggleFullscreen} title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'} style={{ color: '#3b82f6' }}>

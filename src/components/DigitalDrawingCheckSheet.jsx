@@ -55,8 +55,21 @@ import {
   Link,
   Smartphone,
   Copy,
-  CheckCircle
+  CheckCircle,
+  Pencil,
+  Square,
+  Circle,
+  ArrowUpRight,
+  Type,
+  Eraser,
+  Undo2,
+  Redo2,
+  Trash2,
+  Highlighter,
+  MousePointer,
+  Pen // Handwriting input icon
 } from 'lucide-react';
+import HandwritingInput from './HandwritingInput';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import toast, { Toaster } from 'react-hot-toast';
 import QRCode from 'react-qr-code';
@@ -502,6 +515,7 @@ export default function DigitalDrawingCheckSheet() {
 
   // Check sheet items state
   const [selectedDrawingId, setSelectedDrawingId] = useState('dwg_cast_housing');
+  const [drawingsList, setDrawingsList] = useState([]);
 
   // Check sheet items state
   const [checkPoints, setCheckPoints] = useState(INITIAL_CHECK_POINTS);
@@ -539,6 +553,108 @@ export default function DigitalDrawingCheckSheet() {
   const [companionLink, setCompanionLink] = useState('');
   const [linkCopied, setLinkCopied] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+
+  // ─── Handwriting Input State ───
+  const [showHandwritingInput, setShowHandwritingInput] = useState(false);
+  const [handwritingTargetPointId, setHandwritingTargetPointId] = useState(null);
+
+  // Open handwriting input for a specific point
+  const handleOpenHandwriting = (pointId) => {
+    setHandwritingTargetPointId(pointId);
+    setShowHandwritingInput(true);
+  };
+
+  // Handle recognition result
+  const handleHandwritingRecognize = (value) => {
+    if (handwritingTargetPointId && value) {
+      handleMeasurementChange(handwritingTargetPointId, value);
+      toast.success(`Nilai "${value}" berhasil dimasukkan!`);
+    }
+    setShowHandwritingInput(false);
+    setHandwritingTargetPointId(null);
+  };
+
+  // ─── Drawing Tools State ───
+  const [isDrawingMode, setIsDrawingMode] = useState(true);
+  const [drawingTool, setDrawingTool] = useState('pen'); // pen, marker, highlighter, arrow, rect, circle, text, eraser, stamp
+  const [drawingColor, setDrawingColor] = useState('#ef4444');
+  const [drawingSize, setDrawingSize] = useState(1.8);
+  const [drawings, setDrawings] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('mandor_checksheet_drawings') || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const [currentStroke, setCurrentStroke] = useState([]);
+  const [shapeStart, setShapeStart] = useState(null);
+  const [shapeCurrent, setShapeCurrent] = useState(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [redoStack, setRedoStack] = useState([]);
+  const [showStampModal, setShowStampModal] = useState(false);
+  const [selectedStamp, setSelectedStamp] = useState('approve');
+  const [stamps, setStamps] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('mandor_checksheet_stamps') || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const [showTextModal, setShowTextModal] = useState(false);
+  const [textInputPosition, setTextInputPosition] = useState(null);
+  const [textInputValue, setTextInputValue] = useState('');
+  const drawingCanvasRef = useRef(null);
+  const drawingCtxRef = useRef(null);
+
+  // Synchronize drawings and stamps to local storage
+  useEffect(() => {
+    try {
+      localStorage.setItem('mandor_checksheet_drawings', JSON.stringify(drawings));
+    } catch (err) {
+      console.warn('Failed to persist drawings:', err);
+    }
+  }, [drawings]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('mandor_checksheet_stamps', JSON.stringify(stamps));
+    } catch (err) {
+      console.warn('Failed to persist stamps:', err);
+    }
+  }, [stamps]);
+
+  // Drawing colors palette
+  const DRAWING_COLORS = [
+    { color: '#ef4444', name: 'Merah' },
+    { color: '#f59e0b', name: 'Kuning' },
+    { color: '#22c55e', name: 'Hijau' },
+    { color: '#3b82f6', name: 'Biru' },
+    { color: '#8b5cf6', name: 'Ungu' },
+    { color: '#0f172a', name: 'Hitam' },
+    { color: '#ffffff', name: 'Putih' },
+  ];
+
+  // Drawing sizes
+  const DRAWING_SIZES = [
+    { size: 1, label: 'Halus (1px)' },
+    { size: 1.8, label: 'Normal (1.8px)' },
+    { size: 3, label: 'Tebal (3px)' },
+    { size: 5, label: 'Ekstra (5px)' },
+  ];
+
+  // Stamp definitions
+  const STAMPS = [
+    { id: 'approve', label: 'APPROVED', icon: '✓', color: '#22c55e', bg: 'rgba(34, 197, 94, 0.15)', border: '#22c55e' },
+    { id: 'reject', label: 'REJECTED', icon: '✗', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.15)', border: '#ef4444' },
+    { id: 'hold', label: 'HOLD', icon: '⏸', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)', border: '#f59e0b' },
+    { id: 'review', label: 'REVIEW', icon: '👁', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.15)', border: '#3b82f6' },
+    { id: 'absolute', label: 'ABSOLUTE', icon: '◎', color: '#0f172a', bg: 'rgba(15, 23, 42, 0.1)', border: '#0f172a' },
+    { id: 'ncr', label: 'NCR', icon: '⚠', color: '#dc2626', bg: 'rgba(220, 38, 38, 0.15)', border: '#dc2626' },
+    { id: 'qa', label: 'QA PASS', icon: '★', color: '#16a34a', bg: 'rgba(22, 163, 74, 0.15)', border: '#16a34a' },
+    { id: 'witness', label: 'WITNESS', icon: '👁', color: '#7c3aed', bg: 'rgba(124, 58, 237, 0.15)', border: '#7c3aed' },
+    { id: 'date', label: 'DATE', icon: '📅', color: '#64748b', bg: 'rgba(100, 116, 139, 0.1)', border: '#64748b' },
+    { id: 'init', label: 'INITIAL', icon: '✍', color: '#0891b2', bg: 'rgba(8, 145, 178, 0.15)', border: '#0891b2' },
+  ];
 
   const containerRef = useRef(null);
 
@@ -720,6 +836,265 @@ export default function DigitalDrawingCheckSheet() {
     setActivePointId(target.id);
     setActiveTab('Check');
     toast.success(`🔍 Mode Inspeksi Terpandu: Poin #${target.pointNumber} [${target.title}]`, { icon: '📐' });
+  };
+
+  // ─── Drawing Canvas Handlers ───
+  const getCanvasCoords = (e) => {
+    if (!drawingCanvasRef.current) return { x: 0, y: 0 };
+    const rect = drawingCanvasRef.current.getBoundingClientRect();
+    const clientX = e.clientX ?? e.touches?.[0]?.clientX ?? e.changedTouches?.[0]?.clientX ?? 0;
+    const clientY = e.clientY ?? e.touches?.[0]?.clientY ?? e.changedTouches?.[0]?.clientY ?? 0;
+    const scaleX = 1000 / (rect.width || 1000);
+    const scaleY = 680 / (rect.height || 680);
+    return {
+      x: Math.max(0, Math.min(1000, Math.round((clientX - rect.left) * scaleX))),
+      y: Math.max(0, Math.min(680, Math.round((clientY - rect.top) * scaleY)))
+    };
+  };
+
+  // Erase annotations near coords
+  const eraseAtPoint = (coords) => {
+    const threshold = 20;
+    let erasedAny = false;
+
+    setDrawings(prev => {
+      const next = prev.filter(d => {
+        if (!d.type || d.type === 'path') {
+          const hit = (d.points || []).some(p => Math.hypot(p.x - coords.x, p.y - coords.y) < threshold + (d.size || 3));
+          if (hit) erasedAny = true;
+          return !hit;
+        }
+        if (d.type === 'arrow') {
+          const d1 = Math.hypot((d.start?.x || 0) - coords.x, (d.start?.y || 0) - coords.y);
+          const d2 = Math.hypot((d.end?.x || 0) - coords.x, (d.end?.y || 0) - coords.y);
+          const hit = d1 < threshold || d2 < threshold;
+          if (hit) erasedAny = true;
+          return !hit;
+        }
+        if (d.type === 'rect') {
+          const xMin = Math.min(d.start?.x || 0, d.end?.x || 0);
+          const xMax = Math.max(d.start?.x || 0, d.end?.x || 0);
+          const yMin = Math.min(d.start?.y || 0, d.end?.y || 0);
+          const yMax = Math.max(d.start?.y || 0, d.end?.y || 0);
+          const hit = (coords.x >= xMin - threshold && coords.x <= xMax + threshold && coords.y >= yMin - threshold && coords.y <= yMax + threshold);
+          if (hit) erasedAny = true;
+          return !hit;
+        }
+        if (d.type === 'circle') {
+          const cx = ((d.start?.x || 0) + (d.end?.x || 0)) / 2;
+          const cy = ((d.start?.y || 0) + (d.end?.y || 0)) / 2;
+          const r = Math.hypot((d.end?.x || 0) - (d.start?.x || 0), (d.end?.y || 0) - (d.start?.y || 0)) / 2;
+          const dist = Math.hypot(coords.x - cx, coords.y - cy);
+          const hit = Math.abs(dist - r) < threshold;
+          if (hit) erasedAny = true;
+          return !hit;
+        }
+        if (d.type === 'text') {
+          const hit = Math.hypot((d.x || 0) - coords.x, (d.y || 0) - coords.y) < threshold + 30;
+          if (hit) erasedAny = true;
+          return !hit;
+        }
+        return true;
+      });
+      return next;
+    });
+
+    setStamps(prev => {
+      const next = prev.filter(s => {
+        const hit = Math.hypot(s.x - coords.x, s.y - coords.y) < 35;
+        if (hit) erasedAny = true;
+        return !hit;
+      });
+      return next;
+    });
+  };
+
+  const handleDrawStart = (e) => {
+    if (!isDrawingMode) return;
+    if (e.type === 'mousedown' && e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const coords = getCanvasCoords(e);
+
+    if (drawingTool === 'eraser') {
+      setIsDrawing(true);
+      eraseAtPoint(coords);
+      return;
+    }
+
+    if (drawingTool === 'stamp') {
+      const stamp = STAMPS.find(s => s.id === selectedStamp) || STAMPS[0];
+      const newStamp = {
+        id: Date.now() + Math.random(),
+        stampId: stamp.id,
+        label: stamp.label,
+        icon: stamp.icon,
+        color: stamp.color,
+        bg: stamp.bg,
+        border: stamp.border,
+        x: coords.x,
+        y: coords.y,
+        createdAt: new Date().toISOString(),
+        createdBy: inspectorName
+      };
+      setStamps(prev => [...prev, newStamp]);
+      setRedoStack([]);
+      toast.success(`Stamp "${stamp.label}" ditempelkan!`, { icon: '🏷️' });
+      return;
+    }
+
+    if (drawingTool === 'text') {
+      setTextInputPosition(coords);
+      setTextInputValue('');
+      setShowTextModal(true);
+      return;
+    }
+
+    setIsDrawing(true);
+    if (['arrow', 'rect', 'circle'].includes(drawingTool)) {
+      setShapeStart(coords);
+      setShapeCurrent(coords);
+    } else {
+      setCurrentStroke([coords]);
+    }
+  };
+
+  const handleDrawMove = (e) => {
+    if (!isDrawing || !isDrawingMode) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const coords = getCanvasCoords(e);
+
+    if (drawingTool === 'eraser') {
+      eraseAtPoint(coords);
+      return;
+    }
+
+    if (['arrow', 'rect', 'circle'].includes(drawingTool)) {
+      setShapeCurrent(coords);
+    } else {
+      setCurrentStroke(prev => [...prev, coords]);
+    }
+  };
+
+  const handleDrawEnd = () => {
+    if (!isDrawing || !isDrawingMode) return;
+    setIsDrawing(false);
+
+    if (drawingTool === 'eraser') {
+      return;
+    }
+
+    if (['arrow', 'rect', 'circle'].includes(drawingTool)) {
+      if (shapeStart && shapeCurrent) {
+        const dist = Math.hypot(shapeCurrent.x - shapeStart.x, shapeCurrent.y - shapeStart.y);
+        if (dist > 4) {
+          const newShape = {
+            id: Date.now() + Math.random(),
+            type: drawingTool,
+            tool: drawingTool,
+            color: drawingColor,
+            size: drawingSize,
+            start: shapeStart,
+            end: shapeCurrent
+          };
+          setDrawings(prev => [...prev, newShape]);
+          setRedoStack([]);
+        }
+      }
+      setShapeStart(null);
+      setShapeCurrent(null);
+    } else if (['pen', 'marker', 'highlighter'].includes(drawingTool)) {
+      if (currentStroke.length > 0) {
+        // If single point (dot click), duplicate with tiny offset to form visible point
+        const points = currentStroke.length === 1
+          ? [currentStroke[0], { x: currentStroke[0].x + 0.1, y: currentStroke[0].y + 0.1 }]
+          : currentStroke;
+
+        const newStroke = {
+          id: Date.now() + Math.random(),
+          type: 'path',
+          tool: drawingTool,
+          color: drawingColor,
+          size: drawingTool === 'marker' ? Math.max(3.5, drawingSize * 1.8) : drawingTool === 'highlighter' ? Math.max(8, drawingSize * 4) : drawingSize,
+          points
+        };
+        setDrawings(prev => [...prev, newStroke]);
+        setRedoStack([]);
+      }
+      setCurrentStroke([]);
+    }
+  };
+
+  const handleAddTextAnnotation = (text) => {
+    if (!text?.trim() || !textInputPosition) return;
+    const newTextItem = {
+      id: Date.now() + Math.random(),
+      type: 'text',
+      text: text.trim(),
+      color: drawingColor,
+      x: textInputPosition.x,
+      y: textInputPosition.y,
+      createdAt: new Date().toISOString()
+    };
+    setDrawings(prev => [...prev, newTextItem]);
+    setRedoStack([]);
+    setShowTextModal(false);
+    setTextInputPosition(null);
+    toast.success('Catatan teks ditambahkan!');
+  };
+
+  const handleUndo = () => {
+    if (drawings.length > 0) {
+      const last = drawings[drawings.length - 1];
+      setDrawings(prev => prev.slice(0, -1));
+      setRedoStack(prev => [...prev, { itemType: 'drawing', data: last }]);
+    } else if (stamps.length > 0) {
+      const last = stamps[stamps.length - 1];
+      setStamps(prev => prev.slice(0, -1));
+      setRedoStack(prev => [...prev, { itemType: 'stamp', data: last }]);
+    }
+  };
+
+  const handleRedo = () => {
+    if (redoStack.length === 0) return;
+    const last = redoStack[redoStack.length - 1];
+    setRedoStack(prev => prev.slice(0, -1));
+    if (last.itemType === 'drawing') {
+      setDrawings(prev => [...prev, last.data]);
+    } else if (last.itemType === 'stamp') {
+      setStamps(prev => [...prev, last.data]);
+    }
+  };
+
+  const handleClearDrawings = () => {
+    if (drawings.length === 0 && stamps.length === 0) {
+      toast('Belum ada coretan/stamp', { icon: 'ℹ️' });
+      return;
+    }
+    if (window.confirm('Hapus semua anotasi & stamp pada drawing ini?')) {
+      setDrawings([]);
+      setStamps([]);
+      setRedoStack([]);
+      localStorage.removeItem('mandor_checksheet_drawings');
+      localStorage.removeItem('mandor_checksheet_stamps');
+      toast.success('Drawing & annotations cleared');
+    }
+  };
+
+  const handleDeleteSpecificStamp = (id, e) => {
+    if (e) e.stopPropagation();
+    setStamps(prev => prev.filter(s => s.id !== id));
+  };
+
+  const toggleDrawingMode = () => {
+    setIsDrawingMode(prev => !prev);
+    if (!isDrawingMode) {
+      toast.success('Mode Gambar & Anotasi AKTIF', { icon: '✏️' });
+    } else {
+      toast('Mode Gambar Nonaktif', { icon: '👁️' });
+    }
   };
 
   // Commit Current Point & Auto-Advance to Next Point
@@ -1320,6 +1695,7 @@ export default function DigitalDrawingCheckSheet() {
             </button>
           )}
 
+
           {/* Zoom Controller */}
           <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#1e293b', borderRadius: '6px', padding: '2px 6px', gap: '4px' }}>
             <button onClick={() => handleZoom(-0.15)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }} title="Zoom Out"><ZoomOut size={14} /></button>
@@ -1403,10 +1779,22 @@ export default function DigitalDrawingCheckSheet() {
         >
           {/* Top Canvas HUD Overlay */}
           <div style={{ position: 'absolute', top: '12px', left: '16px', zIndex: 10, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ backgroundColor: 'rgba(15, 23, 42, 0.9)', backdropFilter: 'blur(8px)', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Crosshair size={15} color="#22c55e" />
-              <span style={{ fontSize: '0.78rem', fontWeight: 800 }}>Check Sheet Canvas</span>
-              <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Klik pin untuk mengukur</span>
+            <div
+              style={{
+                backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                backdropFilter: 'blur(8px)',
+                padding: '8px',
+                borderRadius: '8px',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+              }}
+              title="Check Sheet Canvas (Klik pin untuk mengukur)"
+            >
+              <Crosshair size={16} color="#22c55e" />
             </div>
 
             {/* 🔍 Guided Inspect Trigger Button */}
@@ -1416,40 +1804,430 @@ export default function DigitalDrawingCheckSheet() {
                 backgroundColor: '#0284c7',
                 color: 'white',
                 border: 'none',
-                padding: '6px 14px',
+                padding: '8px',
                 borderRadius: '8px',
-                fontSize: '0.75rem',
-                fontWeight: 800,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
-                boxShadow: '0 0 14px rgba(2, 132, 199, 0.5)'
+                justifyContent: 'center',
+                boxShadow: '0 0 14px rgba(2, 132, 199, 0.5)',
+                transition: 'transform 0.1s'
               }}
-              title="Mulai alur inspeksi otomatis terpandu poin demi poin"
+              title="Inspect (Guided Mode: Mulai alur inspeksi otomatis terpandu)"
             >
-              <Sparkles size={14} color="#38bdf8" /> Inspect (Guided Mode)
+              <Sparkles size={16} color="#ffffff" />
             </button>
 
+            {/* Pass All Dimensions Button */}
             <button
               onClick={handlePassAll}
               style={{
                 backgroundColor: 'rgba(34, 197, 94, 0.95)',
                 color: '#0f172a',
                 border: 'none',
-                padding: '6px 12px',
+                padding: '8px',
                 borderRadius: '8px',
-                fontSize: '0.75rem',
-                fontWeight: 800,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px'
+                justifyContent: 'center',
+                boxShadow: '0 0 14px rgba(34, 197, 94, 0.4)',
+                transition: 'transform 0.1s'
               }}
+              title="Pass All Dimensions (Luluskan semua dimensi sekaligus)"
             >
-              <CheckCircle2 size={14} /> Pass All Dimensions
+              <CheckCircle2 size={16} color="#0f172a" />
             </button>
           </div>
+
+          {/* ─── LEFT SIDEBAR: DRAWING TOOLS FLOATING PALETTE ─── */}
+          {isDrawingMode ? (
+            <div
+              style={{
+                position: 'absolute',
+                left: '16px',
+                top: '56px',
+                bottom: '16px',
+                zIndex: 35,
+                width: '102px',
+                backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                backdropFilter: 'blur(12px)',
+                borderRadius: '12px',
+                border: '1.5px solid #334155',
+                boxShadow: '0 16px 36px rgba(0,0,0,0.65)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '6px',
+                padding: '8px 6px',
+                overflowY: 'auto',
+                userSelect: 'none'
+              }}
+            >
+              {/* Sidebar Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px 6px', borderBottom: '1px solid #334155' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#f59e0b', fontSize: '0.66rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <Pencil size={11} /> Draw Tools
+                </div>
+                <button
+                  onClick={toggleDrawingMode}
+                  style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0', fontSize: '11px', lineHeight: 1 }}
+                  title="Tutup Toolbar"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Tools List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                {/* Pen */}
+                <button
+                  onClick={() => setDrawingTool('pen')}
+                  style={{
+                    padding: '6px 6px',
+                    backgroundColor: drawingTool === 'pen' ? '#22c55e' : 'transparent',
+                    color: drawingTool === 'pen' ? '#ffffff' : '#94a3b8',
+                    border: drawingTool === 'pen' ? '1px solid #22c55e' : '1px solid transparent',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.15s'
+                  }}
+                  title="Pen Coretan Bebas"
+                >
+                  <Pencil size={13} />
+                  <span>Pen</span>
+                </button>
+
+                {/* Marker */}
+                <button
+                  onClick={() => setDrawingTool('marker')}
+                  style={{
+                    padding: '6px 6px',
+                    backgroundColor: drawingTool === 'marker' ? '#f59e0b' : 'transparent',
+                    color: drawingTool === 'marker' ? '#0f172a' : '#94a3b8',
+                    border: drawingTool === 'marker' ? '1px solid #f59e0b' : '1px solid transparent',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                  title="Marker Garis Tebal"
+                >
+                  <span style={{ fontSize: '12px' }}>🖍️</span>
+                  <span>Marker</span>
+                </button>
+
+                {/* Highlighter */}
+                <button
+                  onClick={() => setDrawingTool('highlighter')}
+                  style={{
+                    padding: '6px 6px',
+                    backgroundColor: drawingTool === 'highlighter' ? '#fcd34d' : 'transparent',
+                    color: drawingTool === 'highlighter' ? '#0f172a' : '#94a3b8',
+                    border: drawingTool === 'highlighter' ? '1px solid #fcd34d' : '1px solid transparent',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                  title="Stabilo Transparan"
+                >
+                  <Highlighter size={13} />
+                  <span>Stabilo</span>
+                </button>
+
+                {/* Arrow */}
+                <button
+                  onClick={() => setDrawingTool('arrow')}
+                  style={{
+                    padding: '6px 6px',
+                    backgroundColor: drawingTool === 'arrow' ? '#38bdf8' : 'transparent',
+                    color: drawingTool === 'arrow' ? '#0f172a' : '#94a3b8',
+                    border: drawingTool === 'arrow' ? '1px solid #38bdf8' : '1px solid transparent',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                  title="Panah Petunjuk"
+                >
+                  <ArrowUpRight size={13} />
+                  <span>Panah</span>
+                </button>
+
+                {/* Rectangle Box */}
+                <button
+                  onClick={() => setDrawingTool('rect')}
+                  style={{
+                    padding: '6px 6px',
+                    backgroundColor: drawingTool === 'rect' ? '#38bdf8' : 'transparent',
+                    color: drawingTool === 'rect' ? '#0f172a' : '#94a3b8',
+                    border: drawingTool === 'rect' ? '1px solid #38bdf8' : '1px solid transparent',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                  title="Kotak Area"
+                >
+                  <Square size={13} />
+                  <span>Kotak</span>
+                </button>
+
+                {/* Circle */}
+                <button
+                  onClick={() => setDrawingTool('circle')}
+                  style={{
+                    padding: '6px 6px',
+                    backgroundColor: drawingTool === 'circle' ? '#38bdf8' : 'transparent',
+                    color: drawingTool === 'circle' ? '#0f172a' : '#94a3b8',
+                    border: drawingTool === 'circle' ? '1px solid #38bdf8' : '1px solid transparent',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                  title="Lingkaran Defect"
+                >
+                  <Circle size={13} />
+                  <span>Lingkaran</span>
+                </button>
+
+                {/* Text Note */}
+                <button
+                  onClick={() => {
+                    setDrawingTool('text');
+                    toast('Klik canvas untuk meletakkan teks catatan', { icon: '✍️' });
+                  }}
+                  style={{
+                    padding: '6px 6px',
+                    backgroundColor: drawingTool === 'text' ? '#a855f7' : 'transparent',
+                    color: drawingTool === 'text' ? '#ffffff' : '#94a3b8',
+                    border: drawingTool === 'text' ? '1px solid #a855f7' : '1px solid transparent',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                  title="Teks Catatan"
+                >
+                  <Type size={13} />
+                  <span>Teks</span>
+                </button>
+
+                {/* Stamp Tool */}
+                <button
+                  onClick={() => { setDrawingTool('stamp'); setShowStampModal(true); }}
+                  style={{
+                    padding: '6px 6px',
+                    backgroundColor: drawingTool === 'stamp' ? '#8b5cf6' : 'transparent',
+                    color: drawingTool === 'stamp' ? '#ffffff' : '#94a3b8',
+                    border: drawingTool === 'stamp' ? '1px solid #8b5cf6' : '1px solid transparent',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                  title="Cap / Stamp QA"
+                >
+                  <span style={{ fontSize: '12px' }}>🏷️</span>
+                  <span>Stamp</span>
+                </button>
+
+                {/* Eraser */}
+                <button
+                  onClick={() => setDrawingTool('eraser')}
+                  style={{
+                    padding: '6px 6px',
+                    backgroundColor: drawingTool === 'eraser' ? '#ef4444' : 'transparent',
+                    color: drawingTool === 'eraser' ? '#ffffff' : '#94a3b8',
+                    border: drawingTool === 'eraser' ? '1px solid #ef4444' : '1px solid transparent',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                  title="Penghapus (Klik/drag goresan untuk hapus)"
+                >
+                  <Eraser size={13} />
+                  <span>Hapus</span>
+                </button>
+              </div>
+
+              {/* Divider */}
+              <div style={{ width: '100%', height: '1px', backgroundColor: '#334155', margin: '2px 0' }} />
+
+              {/* Line Width */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%' }}>
+                <span style={{ fontSize: '0.58rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Tebal</span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '3px' }}>
+                  {DRAWING_SIZES.map(s => (
+                    <button
+                      key={s.size}
+                      onClick={() => setDrawingSize(s.size)}
+                      style={{
+                        padding: '3px 0',
+                        backgroundColor: drawingSize === s.size ? '#0284c7' : '#1e293b',
+                        color: drawingSize === s.size ? '#ffffff' : '#94a3b8',
+                        border: '1px solid #334155',
+                        borderRadius: '4px',
+                        fontSize: '0.62rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        textAlign: 'center'
+                      }}
+                    >
+                      {s.size}px
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div style={{ width: '100%', height: '1px', backgroundColor: '#334155', margin: '2px 0' }} />
+
+              {/* Color Dots */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '100%' }}>
+                <span style={{ fontSize: '0.58rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Warna</span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', justifyItems: 'center' }}>
+                  {DRAWING_COLORS.map(c => (
+                    <button
+                      key={c.color}
+                      onClick={() => setDrawingColor(c.color)}
+                      title={c.name}
+                      style={{
+                        width: '16px',
+                        height: '16px',
+                        borderRadius: '50%',
+                        backgroundColor: c.color,
+                        border: drawingColor === c.color ? '2px solid white' : '1px solid #475569',
+                        cursor: 'pointer',
+                        transform: drawingColor === c.color ? 'scale(1.2)' : 'scale(1)',
+                        transition: 'transform 0.1s'
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div style={{ width: '100%', height: '1px', backgroundColor: '#334155', margin: '2px 0' }} />
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: '3px', width: '100%' }}>
+                <button
+                  onClick={handleUndo}
+                  disabled={drawings.length === 0 && stamps.length === 0}
+                  style={{
+                    flex: 1,
+                    padding: '5px 0',
+                    backgroundColor: '#1e293b',
+                    color: (drawings.length > 0 || stamps.length > 0) ? '#cbd5e1' : '#475569',
+                    border: '1px solid #334155',
+                    borderRadius: '4px',
+                    cursor: (drawings.length > 0 || stamps.length > 0) ? 'pointer' : 'not-allowed',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  title="Undo"
+                >
+                  <Undo2 size={12} />
+                </button>
+                <button
+                  onClick={handleRedo}
+                  disabled={redoStack.length === 0}
+                  style={{
+                    flex: 1,
+                    padding: '5px 0',
+                    backgroundColor: '#1e293b',
+                    color: redoStack.length > 0 ? '#cbd5e1' : '#475569',
+                    border: '1px solid #334155',
+                    borderRadius: '4px',
+                    cursor: redoStack.length > 0 ? 'pointer' : 'not-allowed',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  title="Redo"
+                >
+                  <Redo2 size={12} />
+                </button>
+                <button
+                  onClick={handleClearDrawings}
+                  style={{
+                    flex: 1,
+                    padding: '5px 0',
+                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                    color: '#ef4444',
+                    border: '1px solid rgba(239, 68, 68, 0.4)',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  title="Hapus Semua Coretan"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={toggleDrawingMode}
+              style={{
+                position: 'absolute',
+                left: '16px',
+                top: '56px',
+                zIndex: 35,
+                width: '36px',
+                height: '36px',
+                borderRadius: '8px',
+                backgroundColor: 'rgba(15, 23, 42, 0.92)',
+                backdropFilter: 'blur(8px)',
+                border: '1px solid #334155',
+                color: '#f59e0b',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 14px rgba(0,0,0,0.45)',
+                transition: 'all 0.15s'
+              }}
+              title="Buka Toolbar Gambar (Draw Tools)"
+            >
+              <Pencil size={15} />
+            </button>
+          )}
 
           {/* Zoomable & Pannable Blueprint Wrapper */}
           <div
@@ -1558,6 +2336,280 @@ export default function DigitalDrawingCheckSheet() {
                 </div>
               );
             })}
+
+            {/* Drawing Canvas Layer - Annotation Overlay */}
+            <svg
+              ref={drawingCanvasRef}
+              viewBox="0 0 1000 680"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                pointerEvents: isDrawingMode ? 'all' : 'none',
+                cursor: isDrawingMode
+                  ? drawingTool === 'eraser'
+                    ? 'cell'
+                    : drawingTool === 'text'
+                    ? 'text'
+                    : drawingTool === 'stamp'
+                    ? 'copy'
+                    : 'crosshair'
+                  : 'default',
+                zIndex: 50,
+                touchAction: 'none'
+              }}
+              onMouseDown={handleDrawStart}
+              onMouseMove={handleDrawMove}
+              onMouseUp={handleDrawEnd}
+              onMouseLeave={handleDrawEnd}
+              onTouchStart={handleDrawStart}
+              onTouchMove={handleDrawMove}
+              onTouchEnd={handleDrawEnd}
+            >
+              <defs>
+                {/* Fixed-size Arrow markers using userSpaceOnUse to prevent strokeWidth scaling */}
+                <marker
+                  id="arrowhead"
+                  markerUnits="userSpaceOnUse"
+                  markerWidth="12"
+                  markerHeight="8"
+                  refX="10"
+                  refY="4"
+                  orient="auto"
+                >
+                  <polygon points="0 1, 10 4, 0 7" fill={drawingColor} />
+                </marker>
+                {DRAWING_COLORS.map(c => (
+                  <marker
+                    key={`arrow-${c.color}`}
+                    id={`arrow-${c.color.replace('#', '')}`}
+                    markerUnits="userSpaceOnUse"
+                    markerWidth="12"
+                    markerHeight="8"
+                    refX="10"
+                    refY="4"
+                    orient="auto"
+                  >
+                    <polygon points="0 1, 10 4, 0 7" fill={c.color} />
+                  </marker>
+                ))}
+              </defs>
+
+              {/* Existing drawings & shapes */}
+              {drawings.map(d => {
+                if (!d.type || d.type === 'path') {
+                  return (
+                    <polyline
+                      key={d.id}
+                      points={(d.points || []).map(p => `${p.x},${p.y}`).join(' ')}
+                      fill="none"
+                      stroke={d.color}
+                      strokeWidth={d.size || 1.8}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      opacity={d.tool === 'highlighter' ? 0.35 : 1}
+                    />
+                  );
+                }
+                if (d.type === 'arrow' && d.start && d.end) {
+                  const colorKey = (d.color || '#ef4444').replace('#', '');
+                  return (
+                    <g key={d.id}>
+                      <line
+                        x1={d.start.x}
+                        y1={d.start.y}
+                        x2={d.end.x}
+                        y2={d.end.y}
+                        stroke={d.color}
+                        strokeWidth={Math.min(2.5, d.size || 1.8)}
+                        strokeLinecap="round"
+                        markerEnd={`url(#arrow-${colorKey})`}
+                      />
+                    </g>
+                  );
+                }
+                if (d.type === 'rect' && d.start && d.end) {
+                  const x = Math.min(d.start.x, d.end.x);
+                  const y = Math.min(d.start.y, d.end.y);
+                  const w = Math.abs(d.end.x - d.start.x);
+                  const h = Math.abs(d.end.y - d.start.y);
+                  return (
+                    <rect
+                      key={d.id}
+                      x={x}
+                      y={y}
+                      width={w}
+                      height={h}
+                      fill={d.color + '15'}
+                      stroke={d.color}
+                      strokeWidth={Math.min(2, d.size || 1.8)}
+                      rx="3"
+                    />
+                  );
+                }
+                if (d.type === 'circle' && d.start && d.end) {
+                  const cx = (d.start.x + d.end.x) / 2;
+                  const cy = (d.start.y + d.end.y) / 2;
+                  const rx = Math.abs(d.end.x - d.start.x) / 2;
+                  const ry = Math.abs(d.end.y - d.start.y) / 2;
+                  return (
+                    <ellipse
+                      key={d.id}
+                      cx={cx}
+                      cy={cy}
+                      rx={rx}
+                      ry={ry}
+                      fill={d.color + '15'}
+                      stroke={d.color}
+                      strokeWidth={Math.min(2, d.size || 1.8)}
+                    />
+                  );
+                }
+                if (d.type === 'text') {
+                  return (
+                    <g key={d.id} transform={`translate(${d.x}, ${d.y})`}>
+                      <rect
+                        x="-4"
+                        y="-16"
+                        width={Math.max(60, d.text.length * 7.5 + 12)}
+                        height="20"
+                        rx="4"
+                        fill="rgba(15, 23, 42, 0.92)"
+                        stroke={d.color || '#38bdf8'}
+                        strokeWidth="1.2"
+                      />
+                      <text
+                        x="4"
+                        y="-2"
+                        fill="#ffffff"
+                        fontSize="10"
+                        fontWeight="bold"
+                        fontFamily="sans-serif"
+                      >
+                        {d.text}
+                      </text>
+                    </g>
+                  );
+                }
+                return null;
+              })}
+
+              {/* Current stroke (in progress) */}
+              {currentStroke.length > 0 && (
+                <polyline
+                  points={currentStroke.map(p => `${p.x},${p.y}`).join(' ')}
+                  fill="none"
+                  stroke={drawingColor}
+                  strokeWidth={drawingTool === 'marker' ? Math.max(3.5, drawingSize * 1.8) : drawingTool === 'highlighter' ? Math.max(8, drawingSize * 4) : (drawingSize || 1.8)}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity={drawingTool === 'highlighter' ? 0.35 : 1}
+                />
+              )}
+
+              {/* Current shape (in progress) */}
+              {shapeStart && shapeCurrent && drawingTool === 'arrow' && (
+                <line
+                  x1={shapeStart.x}
+                  y1={shapeStart.y}
+                  x2={shapeCurrent.x}
+                  y2={shapeCurrent.y}
+                  stroke={drawingColor}
+                  strokeWidth={Math.min(2.5, drawingSize || 1.8)}
+                  strokeLinecap="round"
+                  markerEnd={`url(#arrow-${drawingColor.replace('#', '')})`}
+                />
+              )}
+
+              {shapeStart && shapeCurrent && drawingTool === 'rect' && (
+                <rect
+                  x={Math.min(shapeStart.x, shapeCurrent.x)}
+                  y={Math.min(shapeStart.y, shapeCurrent.y)}
+                  width={Math.abs(shapeCurrent.x - shapeStart.x)}
+                  height={Math.abs(shapeCurrent.y - shapeStart.y)}
+                  fill={drawingColor + '15'}
+                  stroke={drawingColor}
+                  strokeWidth={Math.min(2, drawingSize || 1.8)}
+                  rx="3"
+                />
+              )}
+
+              {shapeStart && shapeCurrent && drawingTool === 'circle' && (
+                <ellipse
+                  cx={(shapeStart.x + shapeCurrent.x) / 2}
+                  cy={(shapeStart.y + shapeCurrent.y) / 2}
+                  rx={Math.abs(shapeCurrent.x - shapeStart.x) / 2}
+                  ry={Math.abs(shapeCurrent.y - shapeStart.y) / 2}
+                  fill={drawingColor + '15'}
+                  stroke={drawingColor}
+                  strokeWidth={Math.min(2, drawingSize || 1.8)}
+                />
+              )}
+            </svg>
+
+            {/* Stamp Layer - Prominent, professional QA Badges */}
+            {stamps.map(stamp => (
+              <div
+                key={stamp.id}
+                style={{
+                  position: 'absolute',
+                  left: `${stamp.x}px`,
+                  top: `${stamp.y}px`,
+                  transform: 'translate(-50%, -50%)',
+                  zIndex: 55,
+                  backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                  border: `2.5px solid ${stamp.border || stamp.color}`,
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  color: stamp.color,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.55)',
+                  cursor: isDrawingMode ? (drawingTool === 'eraser' ? 'pointer' : 'default') : 'default',
+                  userSelect: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  minWidth: '125px'
+                }}
+                onClick={(e) => {
+                  if (isDrawingMode && drawingTool === 'eraser') {
+                    handleDeleteSpecificStamp(stamp.id, e);
+                    toast.success('Stamp dihapus');
+                  }
+                }}
+              >
+                <span style={{ fontSize: '20px', lineHeight: 1 }}>{stamp.icon}</span>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 900, letterSpacing: '0.8px', textTransform: 'uppercase', lineHeight: 1.2 }}>
+                    {stamp.label}
+                  </div>
+                  <div style={{ fontSize: '8.5px', color: '#cbd5e1', fontWeight: 600, marginTop: '2px' }}>
+                    {stamp.createdBy || inspectorName}
+                  </div>
+                </div>
+                {isDrawingMode && (
+                  <button
+                    onClick={(e) => handleDeleteSpecificStamp(stamp.id, e)}
+                    style={{
+                      background: 'rgba(239, 68, 68, 0.25)',
+                      border: '1px solid #ef4444',
+                      color: '#ef4444',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      padding: '2px 6px',
+                      marginLeft: '6px',
+                      fontSize: '10px',
+                      fontWeight: 800,
+                      lineHeight: 1
+                    }}
+                    title="Hapus Stamp Ini"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
         </div>
 
@@ -1814,6 +2866,30 @@ export default function DigitalDrawingCheckSheet() {
                               {pt.unit}
                             </span>
                           </div>
+
+                          {/* Handwriting Input Button */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenHandwriting(pt.id);
+                            }}
+                            style={{
+                              padding: '4px 6px',
+                              borderRadius: '4px',
+                              border: '1px solid #7c3aed',
+                              backgroundColor: 'rgba(124, 58, 237, 0.2)',
+                              color: '#a855f7',
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                            title="✍️ Input tulisan tangan"
+                          >
+                            <Pen size={12} />
+                          </button>
 
                           {/* Micro-adjust +0.01 */}
                           <button
@@ -2629,6 +3705,184 @@ export default function DigitalDrawingCheckSheet() {
           </div>
         </div>
       )}
+
+      {/* Stamp Selection Modal */}
+      {showStampModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0,0,0,0.75)',
+          backdropFilter: 'blur(6px)',
+          zIndex: 99999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <div style={{
+            backgroundColor: '#0f172a',
+            border: '2px solid #8b5cf6',
+            borderRadius: '16px',
+            width: '520px',
+            maxWidth: '95vw',
+            padding: '20px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div>
+                <h3 style={{ margin: 0, color: '#f8fafc', fontSize: '1rem', fontWeight: 800 }}>🏷️ Pilih Stamp</h3>
+                <p style={{ margin: '4px 0 0', color: '#94a3b8', fontSize: '0.75rem' }}>Klik stamp untuk memilih, lalu klik di canvas untuk menempatkan</p>
+              </div>
+              <button onClick={() => setShowStampModal(false)} style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 16px', fontWeight: 700, cursor: 'pointer' }}>✕</button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', maxHeight: '320px', overflowY: 'auto' }}>
+              {STAMPS.map(stamp => (
+                <button
+                  key={stamp.id}
+                  onClick={() => {
+                    setSelectedStamp(stamp.id);
+                    setDrawingTool('stamp');
+                    setShowStampModal(false);
+                    toast.success(`Stamp "${stamp.label}" siap ditempelkan - klik canvas untuk menempatkan`);
+                  }}
+                  style={{
+                    padding: '12px 8px',
+                    backgroundColor: stamp.bg,
+                    border: `2px solid ${stamp.border}`,
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '4px',
+                    transition: 'all 0.15s'
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+                >
+                  <div style={{ fontSize: '1.5rem' }}>{stamp.icon}</div>
+                  <div style={{
+                    fontSize: '0.65rem',
+                    fontWeight: 900,
+                    color: stamp.color,
+                    textAlign: 'center',
+                    letterSpacing: '0.5px'
+                  }}>{stamp.label}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Text Note Annotation Modal */}
+      {showTextModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0,0,0,0.75)',
+          backdropFilter: 'blur(6px)',
+          zIndex: 99999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <div style={{
+            backgroundColor: '#0f172a',
+            border: '2px solid #a855f7',
+            borderRadius: '16px',
+            width: '440px',
+            maxWidth: '92vw',
+            padding: '20px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.6)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Type size={18} color="#c084fc" />
+                <h3 style={{ margin: 0, color: '#f8fafc', fontSize: '0.95rem', fontWeight: 800 }}>Tambah Catatan / Label Drawing</h3>
+              </div>
+              <button
+                onClick={() => { setShowTextModal(false); setTextInputPosition(null); }}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '18px', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ margin: '0 0 12px', color: '#94a3b8', fontSize: '0.75rem' }}>
+              Masukkan teks anotasi yang ingin ditampilkan pada titik posisi ({textInputPosition?.x}, {textInputPosition?.y}):
+            </p>
+
+            <input
+              type="text"
+              autoFocus
+              value={textInputValue}
+              onChange={(e) => setTextInputValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleAddTextAnnotation(textInputValue);
+                if (e.key === 'Escape') { setShowTextModal(false); setTextInputPosition(null); }
+              }}
+              placeholder="Contoh: Permukaan baret 0.2mm / Burr pada radius..."
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                backgroundColor: '#1e293b',
+                color: '#ffffff',
+                border: '1px solid #475569',
+                borderRadius: '8px',
+                padding: '10px 14px',
+                fontSize: '0.85rem',
+                marginBottom: '16px',
+                outline: 'none'
+              }}
+            />
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button
+                onClick={() => { setShowTextModal(false); setTextInputPosition(null); }}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#334155',
+                  color: '#cbd5e1',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => handleAddTextAnnotation(textInputValue)}
+                style={{
+                  padding: '8px 18px',
+                  backgroundColor: '#a855f7',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '0.78rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  boxShadow: '0 0 12px rgba(168, 85, 247, 0.4)'
+                }}
+              >
+                Tambahkan Teks
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Handwriting Input Modal ─── */}
+      <HandwritingInput
+        isOpen={showHandwritingInput}
+        onClose={() => {
+          setShowHandwritingInput(false);
+          setHandwritingTargetPointId(null);
+        }}
+        onRecognize={handleHandwritingRecognize}
+        title="✍️ Tulis Nilai Pengukuran"
+      />
     </div>
   );
 }
