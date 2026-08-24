@@ -69,7 +69,8 @@ import {
   MousePointer,
   Pen // Handwriting input icon
 } from 'lucide-react';
-import HandwritingInput from './HandwritingInput';
+import NumpadInput from './NumpadInput';
+import CameraInput from './CameraInput';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import toast, { Toaster } from 'react-hot-toast';
 import QRCode from 'react-qr-code';
@@ -555,14 +556,7 @@ export default function DigitalDrawingCheckSheet() {
   const [isPublishing, setIsPublishing] = useState(false);
 
   // ─── Handwriting Input State ───
-  const [showHandwritingInput, setShowHandwritingInput] = useState(false);
-  const [handwritingTargetPointId, setHandwritingTargetPointId] = useState(null);
-
-  // Open handwriting input for a specific point
-  const handleOpenHandwriting = (pointId) => {
-    setHandwritingTargetPointId(pointId);
-    setShowHandwritingInput(true);
-  };
+  
 
   // Handle recognition result
   const handleHandwritingRecognize = (value) => {
@@ -570,8 +564,8 @@ export default function DigitalDrawingCheckSheet() {
       handleMeasurementChange(handwritingTargetPointId, value);
       toast.success(`Nilai "${value}" berhasil dimasukkan!`);
     }
-    setShowHandwritingInput(false);
-    setHandwritingTargetPointId(null);
+    (false);
+    ;
   };
 
   // ─── Drawing Tools State ───
@@ -1756,7 +1750,7 @@ export default function DigitalDrawingCheckSheet() {
         style={{
           flex: 1,
           display: 'grid',
-          gridTemplateColumns: '1fr 380px',
+          gridTemplateColumns: '1fr 320px',
           overflow: 'hidden'
         }}
       >
@@ -2922,233 +2916,38 @@ export default function DigitalDrawingCheckSheet() {
           )}
 
           {/* TAB 2: FOCUS SINGLE POINT INSPECTION (GUIDED AUTO-ADVANCE FLOW) */}
-          {activeTab === 'Check' && (() => {
-            const currIdx = checkPoints.findIndex(p => p.id === activePt.id);
-            const prevPt = currIdx > 0 ? checkPoints[currIdx - 1] : null;
-            const nextPt = currIdx + 1 < checkPoints.length ? checkPoints[currIdx + 1] : null;
-
-            return (
-              <div style={{ flex: 1, padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto' }}>
-                {/* Guided Navigation Top Bar */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#090d16', padding: '6px 10px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-                  <button
-                    disabled={!prevPt}
-                    onClick={() => prevPt && setActivePointId(prevPt.id)}
-                    style={{
-                      padding: '4px 8px',
-                      backgroundColor: prevPt ? '#1e293b' : 'transparent',
-                      color: prevPt ? '#cbd5e1' : '#475569',
-                      border: '1px solid #334155',
-                      borderRadius: '4px',
-                      fontSize: '0.7rem',
-                      fontWeight: 700,
-                      cursor: prevPt ? 'pointer' : 'not-allowed'
-                    }}
-                  >
-                    ← Poin Sebelumnya
-                  </button>
-
-                  <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#38bdf8', fontFamily: "'Orbitron', monospace" }}>
-                    POIN {currIdx + 1} / {checkPoints.length}
-                  </span>
-
-                  <button
-                    disabled={!nextPt}
-                    onClick={() => nextPt && setActivePointId(nextPt.id)}
-                    style={{
-                      padding: '4px 8px',
-                      backgroundColor: nextPt ? '#1e293b' : 'transparent',
-                      color: nextPt ? '#cbd5e1' : '#475569',
-                      border: '1px solid #334155',
-                      borderRadius: '4px',
-                      fontSize: '0.7rem',
-                      fontWeight: 700,
-                      cursor: nextPt ? 'pointer' : 'not-allowed'
-                    }}
-                  >
-                    Poin Berikutnya →
-                  </button>
-                </div>
-
-                <div style={{ backgroundColor: '#1e293b', borderRadius: '10px', padding: '12px', border: '1px solid #334155' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <span style={{ fontSize: '0.7rem', color: '#38bdf8', fontWeight: 800, fontFamily: "'Orbitron', monospace" }}>FITUR GEOMETRI #{activePt.pointNumber}</span>
-                    <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', backgroundColor: activePt.status === 'OK' ? '#22c55e' : activePt.status === 'NG' ? '#ef4444' : '#64748b', color: 'white', fontWeight: 800 }}>
-                      {activePt.status}
-                    </span>
-                  </div>
-                  <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#f8fafc', margin: '0 0 2px 0' }}>{activePt.title}</h3>
-                  <p style={{ fontSize: '0.7rem', color: '#94a3b8', margin: 0 }}>{activePt.notes}</p>
-                </div>
-
-                {/* Large 7-Segment LCD CMM / Caliper Display Unit */}
-                <div
-                  style={{
-                    backgroundColor: '#020617',
-                    border: activePt.status === 'NG' ? '2.5px solid #ef4444' : activePt.status === 'OK' ? '2.5px solid #22c55e' : '2px solid #38bdf8',
-                    borderRadius: '12px',
-                    padding: '14px 16px',
-                    boxShadow: activePt.status === 'NG' ? '0 0 20px rgba(239, 68, 68, 0.4), inset 0 3px 6px rgba(0,0,0,0.9)' : activePt.status === 'OK' ? '0 0 20px rgba(34, 197, 94, 0.4), inset 0 3px 6px rgba(0,0,0,0.9)' : '0 0 16px rgba(56, 189, 248, 0.3), inset 0 3px 6px rgba(0,0,0,0.9)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '6px'
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', fontSize: '0.7rem', color: '#64748b', fontFamily: "'Orbitron', monospace", fontWeight: 700 }}>
-                    <span>DIGITAL READOUT [{activePt.toolId}]</span>
-                    <span style={{ color: activePt.status === 'OK' ? '#22c55e' : activePt.status === 'NG' ? '#ef4444' : '#38bdf8' }}>{activePt.status}</span>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', width: '100%', justifyContent: 'center' }}>
-                    <input
-                      type="number"
-                      step="0.001"
-                      placeholder="00.000"
-                      value={activePt.measuredVal}
-                      onChange={(e) => handleMeasurementChange(activePt.id, e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          handleCommitAndAdvance(activePt.id, e.target.value);
-                        }
-                      }}
-                      autoFocus
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: activePt.status === 'OK' ? '#22c55e' : activePt.status === 'NG' ? '#ef4444' : '#38bdf8',
-                        fontSize: '2.4rem',
-                        fontFamily: "'Orbitron', 'Share Tech Mono', monospace",
-                        fontWeight: 900,
-                        letterSpacing: '3px',
-                        textAlign: 'center',
-                        outline: 'none',
-                        width: '240px',
-                        textShadow: activePt.status === 'OK' ? '0 0 12px rgba(34, 197, 94, 0.8)' : activePt.status === 'NG' ? '0 0 12px rgba(239, 68, 68, 0.8)' : '0 0 12px rgba(56, 189, 248, 0.8)'
-                      }}
-                    />
-                    <span style={{ fontSize: '1.2rem', fontWeight: 900, color: '#94a3b8', fontFamily: "'Orbitron', monospace" }}>{activePt.unit}</span>
-                  </div>
-
-                  {/* Quick Step Adjustments */}
-                  <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
-                    {[-0.05, -0.01, -0.001, 0.001, 0.01, 0.05].map(step => (
-                      <button
-                        key={step}
-                        onClick={() => {
-                          const curr = parseFloat(activePt.measuredVal) || activePt.nominal;
-                          handleMeasurementChange(activePt.id, (curr + step).toFixed(3));
-                        }}
-                        style={{
-                          padding: '3px 7px',
-                          backgroundColor: '#1e293b',
-                          border: '1px solid #334155',
-                          borderRadius: '4px',
-                          color: step > 0 ? '#38bdf8' : '#cbd5e1',
-                          fontSize: '0.66rem',
-                          fontWeight: 700,
-                          fontFamily: 'monospace',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {step > 0 ? `+${step}` : step}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Specification Card */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                  <div style={{ backgroundColor: '#090d16', padding: '8px 10px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-                    <div style={{ fontSize: '0.65rem', color: '#64748b' }}>Nominal Spec:</div>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#38bdf8', fontFamily: "'Orbitron', monospace" }}>{activePt.nominal} {activePt.unit}</div>
-                  </div>
-                  <div style={{ backgroundColor: '#090d16', padding: '8px 10px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-                    <div style={{ fontSize: '0.65rem', color: '#64748b' }}>Tolerance Band:</div>
-                    <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#e2e8f0', fontFamily: "'Orbitron', monospace" }}>{activePt.tolMin} ~ {activePt.tolMax}</div>
-                  </div>
-                </div>
-
-                {/* Primary Auto-Advance Buttons */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <button
-                    onClick={() => handleCommitAndAdvance(activePt.id, activePt.measuredVal)}
-                    style={{
-                      width: '100%',
-                      padding: '11px',
-                      backgroundColor: '#0284c7',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
-                      fontWeight: 900,
-                      fontSize: '0.85rem',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      boxShadow: '0 2px 8px rgba(2, 132, 199, 0.4)'
-                    }}
-                  >
-                    <span>Simpan & Lanjut (Enter ➔)</span>
-                  </button>
-
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <button
-                      onClick={() => handleCommitAndAdvance(activePt.id, activePt.nominal.toString(), 'OK')}
-                      style={{
-                        flex: 1,
-                        padding: '10px',
-                        backgroundColor: '#22c55e',
-                        color: '#0f172a',
-                        border: 'none',
-                        borderRadius: '8px',
-                        fontWeight: 900,
-                        fontSize: '0.8rem',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px'
-                      }}
-                    >
-                      <Check size={16} strokeWidth={3} /> SET PASS & LANJUT
-                    </button>
-                    <button
-                      onClick={() => handleCommitAndAdvance(activePt.id, activePt.measuredVal || (activePt.tolMax + 0.05).toFixed(3), 'NG')}
-                      style={{
-                        flex: 1,
-                        padding: '10px',
-                        backgroundColor: '#ef4444',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        fontWeight: 900,
-                        fontSize: '0.8rem',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px'
-                      }}
-                    >
-                      <X size={16} strokeWidth={3} /> SET REJECT & LANJUT
-                    </button>
-                  </div>
-                </div>
-
-                {/* Non-Conformance Disposition */}
-                {activePt.status === 'NG' && (
-                  <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', padding: '10px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#f87171', fontSize: '0.72rem', fontWeight: 800, marginBottom: '6px' }}>
-                      <AlertTriangle size={14} /> ISO 9001: 8.7 NON-CONFORMANCE DISPOSITION
-                    </div>
-                    <div style={{ fontSize: '0.7rem', color: '#cbd5e1' }}>Disposition Action: <strong style={{ color: '#fca5a5' }}>{activePt.disposition}</strong></div>
-                  </div>
-                )}
+          
+          {/* Check Tab with Numpad */}
+          {activeTab === 'Check' && (
+            <div style={{ flex: 1, padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto' }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#38bdf8', textAlign: 'center' }}>
+                #{activePt.pointNumber} {activePt.title} [{activePt.status}]
               </div>
-            );
-          })()}
+              <div style={{ fontSize: '0.75rem', color: '#94a3b8', textAlign: 'center' }}>
+                {activePt.toolId} • Tol: {activePt.tolMin} ~ {activePt.tolMax} {activePt.unit}
+              </div>
+              <div style={{ backgroundColor: '#020617', border: '2px solid #38bdf8', borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
+                <input
+                  type='number'
+                  step='0.001'
+                  value={activePt.measuredVal}
+                  onChange={(e) => handleMeasurementChange(activePt.id, e.target.value)}
+                  style={{ background: 'transparent', border: 'none', outline: 'none', color: '#38bdf8', fontSize: '2.5rem', fontFamily: "'Orbitron'", fontWeight: 900, textAlign: 'center', width: '200px' }}
+                />
+                <span style={{ fontSize: '1rem', color: '#94a3b8', fontWeight: 700 }}>{activePt.unit}</span>
+              </div>
+              <NumpadInput
+                value={activePt.measuredVal}
+                onChange={(val) => handleMeasurementChange(activePt.id, val)}
+                onSubmit={() => handleCommitAndAdvance(activePt.id, activePt.measuredVal)}
+              />
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={() => handleToggleStatus(activePt.id, 'OK')} style={{ flex: 1, padding: '12px', backgroundColor: activePt.status === 'OK' ? '#22c55e' : '#1e293b', color: activePt.status === 'OK' ? '#0f172a' : '#94a3b8', border: '1px solid #334155', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>OK</button>
+                <button onClick={() => handleCommitAndAdvance(activePt.id, activePt.measuredVal)} style={{ flex: 2, padding: '12px', backgroundColor: '#22c55e', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>SIMPAN</button>
+                <button onClick={() => handleToggleStatus(activePt.id, 'NG')} style={{ flex: 1, padding: '12px', backgroundColor: activePt.status === 'NG' ? '#ef4444' : '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>NG</button>
+              </div>
+            </div>
+          )}
 
           {/* TAB 3: CALIBRATION & GAUGE LOG TABLE */}
           {activeTab === 'Calibration' && (
@@ -3874,15 +3673,7 @@ export default function DigitalDrawingCheckSheet() {
       )}
 
       {/* ─── Handwriting Input Modal ─── */}
-      <HandwritingInput
-        isOpen={showHandwritingInput}
-        onClose={() => {
-          setShowHandwritingInput(false);
-          setHandwritingTargetPointId(null);
-        }}
-        onRecognize={handleHandwritingRecognize}
-        title="✍️ Tulis Nilai Pengukuran"
-      />
+      
     </div>
   );
 }
