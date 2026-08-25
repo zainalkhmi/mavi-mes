@@ -299,16 +299,32 @@ const DEFAULT_TEMPLATES = [
 ];
 
 /**
- * Get all available report templates
+ * Get all available report templates (default + user-created from ReportDesigner)
  */
 export function getSavedReportTemplates() {
     try {
-        const saved = localStorage.getItem('mandor_pdf_templates_v5') ||
-                      localStorage.getItem('mandor_pdf_templates_v4') ||
-                      localStorage.getItem('mandor_pdf_templates_v3');
-        if (saved) {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        // Check all localStorage versions (v6 = ReportDesigner, v5/v4/v3 = legacy)
+        const v6 = localStorage.getItem('mandor_pdf_templates_v6');
+        const v5 = localStorage.getItem('mandor_pdf_templates_v5');
+        const v4 = localStorage.getItem('mandor_pdf_templates_v4');
+        const v3 = localStorage.getItem('mandor_pdf_templates_v3');
+        const savedRaw = v6 || v5 || v4 || v3;
+        if (savedRaw) {
+            const parsed = JSON.parse(savedRaw);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                // Merge saved user templates with defaults — saved templates win on duplicate ID
+                const defaultIds = new Set(DEFAULT_TEMPLATES.map(t => t.id));
+                const merged = [...DEFAULT_TEMPLATES];
+                parsed.forEach(userT => {
+                    const idx = merged.findIndex(m => m.id === userT.id);
+                    if (idx >= 0) {
+                        merged[idx] = userT; // user template overwrites default
+                    } else {
+                        merged.push(userT);    // new user template
+                    }
+                });
+                return merged;
+            }
         }
     } catch (e) {
         console.warn('[ReportPrintService] Failed to read saved templates:', e);

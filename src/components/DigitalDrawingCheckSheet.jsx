@@ -576,11 +576,25 @@ export default function DigitalDrawingCheckSheet() {
   const [inspectionNotes, setInspectionNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // ── Part & Document Metadata (loaded from published checksheet) ──
+  const [partNo, setPartNo] = useState('');
+  const [partName, setPartName] = useState('');
+  const [customer, setCustomer] = useState('');
+  const [processName, setProcessName] = useState('');
+  const [docNo, setDocNo] = useState('');
+  const [revisionNo, setRevisionNo] = useState('1.0');
+  const [approverName, setApproverName] = useState('');
+
   // Data Source / Target Table State
   const [availableTables, setAvailableTables] = useState([]);
   const [targetTableId, setTargetTableId] = useState(() => localStorage.getItem('mandor_checksheet_target_table_id') || '');
   const [showTableConfigModal, setShowTableConfigModal] = useState(false);
   const [isCreatingTable, setIsCreatingTable] = useState(false);
+  const [showPrintTemplateModal, setShowPrintTemplateModal] = useState(false);
+  const [selectedPrintTemplateId, setSelectedPrintTemplateId] = useState('qc-inspection-checksheet-a4');
+  const [availablePrintTemplates, setAvailablePrintTemplates] = useState([]);
+  // ── Blueprint Drawing Preview (loaded from published checksheet) ──
+  const [drawingPreview, setDrawingPreview] = useState(null);
 
   // Publish & Companion State
   const [isPublished, setIsPublished] = useState(() => localStorage.getItem('mandor_checksheet_published') === 'true');
@@ -728,6 +742,88 @@ export default function DigitalDrawingCheckSheet() {
     }
   }, [searchParams, location]);
 
+  // ── Load part/document metadata from published checksheet ──
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('mandor_published_checksheet');
+      if (saved) {
+        const cs = JSON.parse(saved);
+        if (cs.partNo) setPartNo(cs.partNo);
+        if (cs.partName) setPartName(cs.partName);
+        if (cs.name && !cs.partName) setPartName(cs.name);
+        if (cs.customer) setCustomer(cs.customer);
+        if (cs.process) setProcessName(cs.process);
+        if (cs.processName && !cs.process) setProcessName(cs.processName);
+        if (cs.docNo) setDocNo(cs.docNo);
+        if (cs.revisionNo) setRevisionNo(cs.revisionNo);
+        if (cs.revision && !cs.revisionNo) setRevisionNo(cs.revision);
+        if (cs.approver) setApproverName(cs.approver);
+        if (cs.approverName && !cs.approver) setApproverName(cs.approverName);
+
+        // ── Load blueprint drawing preview ──
+        if (cs.drawingSvg) {
+          // SVG/DXF data stored directly in template
+          setDrawingPreview(cs.drawingSvg);
+        } else if (cs.drawingId) {
+          // Try to find drawing from drawingsList by ID
+          setSelectedDrawingId(cs.drawingId);
+          const found = drawingsList.find(d => d.id === cs.drawingId);
+          if (found) {
+            setDrawingPreview(found.svgData || found.dataUrl || found.url || null);
+          }
+        }
+
+        // Also load checkPoints from published checksheet if available
+        if (cs.checkPoints && Array.isArray(cs.checkPoints) && cs.checkPoints.length > 0) {
+          setCheckPoints(cs.checkPoints.map((p, i) => ({
+            ...p,
+            id: p.id || `cp_${i + 1}`,
+            pointNumber: p.pointNumber || i + 1,
+            nominal: parseFloat(p.nominal) || 0,
+            tolMin: parseFloat(p.tolMin || p.toleranceMin || 0),
+            tolMax: parseFloat(p.tolMax || p.toleranceMax || 0),
+            unit: p.unit || 'mm',
+            measuredVal: p.measuredValue || '',
+            status: p.status || 'PENDING',
+            criticality: p.criticality || 'Major',
+            notes: p.notes || '',
+            disposition: p.disposition || 'Pending Inspection'
+          })));
+        }
+      }
+    } catch (e) {
+      console.warn('[DigitalCheckSheet] Failed to load published checksheet metadata:', e);
+    }
+  }, [drawingsList]);
+
+  // ── Load blueprint drawing when drawingsList becomes available ──
+  useEffect(() => {
+    if (!drawingPreview && selectedDrawingId && drawingsList.length > 0) {
+      const found = drawingsList.find(d => d.id === selectedDrawingId);
+      if (found) {
+        setDrawingPreview(found.svgData || found.dataUrl || found.url || null);
+      }
+    }
+  }, [drawingsList, selectedDrawingId, drawingPreview]);
+
+  // ── Load available print templates from ReportDesigner ──
+  useEffect(() => {
+    const loadPrintTemplates = async () => {
+      try {
+        const { getSavedReportTemplates } = await import('../utils/reportPrintService');
+        const allTemplates = getSavedReportTemplates();
+        // Filter to QC-related templates only
+        const qcTemplates = allTemplates.filter(t =>
+          (t.category === 'Quality Control' || t.id.includes('checksheet') || t.id.includes('inspection'))
+        );
+        setAvailablePrintTemplates(qcTemplates);
+      } catch (e) {
+        console.warn('[DigitalCheckSheet] Failed to load print templates:', e);
+      }
+    };
+    loadPrintTemplates();
+  }, []);
+
   // Load drawings and available tables from database
   useEffect(() => {
     const fetchData = async () => {
@@ -813,7 +909,7 @@ export default function DigitalDrawingCheckSheet() {
     // Simple Cpk estimation for in-spec points
     const cpkEstimated = failed > 0 ? '0.82 (Poor)' : passed === total ? '1.54 (Capable)' : 'N/A';
 
-    return { total, passed, failed, pending, criticalFailed, progress, overallStatus, cpkEstimated };
+    return { total, passed, failed, pending, criticalFailed, progress, overallStatus, cpkEstimated, passRate: total > 0 ? `${Math.round((passed / total) * 100)}%` : '0%' };
   }, [checkPoints]);
 
   // Handle Measurement Input Change with real-time tolerancing
@@ -1469,30 +1565,65 @@ export default function DigitalDrawingCheckSheet() {
     try {
       const { executeReportPrintAction } = await import('../utils/reportPrintService');
 
+      // ── Build complete reportData with all fields ──
       const reportData = {
+        // QR & Document Control
         report_qr: `https://mandor-core.online/inspection/${workOrderNo}`,
         doc_id: `ISO9001-QIC-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now().toString().slice(-3)}`,
-        wo_value: workOrderNo,
-        serial_value: partSerial,
-        drawing_value: 'MANDOR-QA-2026-08 (Rev. 2.1)',
-        part_name_value: 'Engine Casting Housing Base Plate',
+        doc_control_val: `Doc: ${docNo || 'QA-CS-2026'}\nRev: ${revisionNo || '1.0'} | Std: ISO 9001`,
+
+        // Master data from state (loaded from published checksheet)
+        wo_value: workOrderNo || 'WO-UNDEFINED',
+        part_no_value: partNo || partSerial || 'PRT-UNKNOWN',
+        part_name_value: partName || 'Precision Part',
+        customer_value: customer || 'General Customer',
+        process_value: processName || 'Quality Inspection',
+        station_value: stationId || 'ST-QC-01',
+
+        // Personnel & Timestamp
         inspector_value: inspectorName,
-        date_value: new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }),
+        approver_value: approverName || 'QC Lead',
+        date_time_value: new Date().toLocaleString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }),
         status_value: stats.overallStatus,
-        pass_count_value: `${stats.passed} / ${stats.total}`,
-        defect_count_value: `${stats.failed}`,
-        notes_value: inspectionNotes || 'All primary geometric features verified against calibrated standards.'
+
+        // Summary Statistics
+        total_value: String(stats.total),
+        passed_value: String(stats.passed),
+        failed_value: String(stats.failed),
+        pending_value: String(stats.pending),
+        cpk_value: String(stats.cpkEstimated || '1.67'),
+        rate_value: stats.passRate || '100%',
+
+        // Notes & Footer
+        notes_value: inspectionNotes || 'Semua dimensi terverifikasi sesuai toleransi ISO 9001:2015.',
+        footer_timestamp: `Generated: ${new Date().toLocaleString('id-ID')}`,
+
+        // ── GD&T Inspection Table (PREVIOUSLY MISSING) ──
+        inspection_table: JSON.stringify(
+          checkPoints.map((p, idx) => [
+            String(p.pointNumber || idx + 1),
+            p.title || `Parameter #${idx + 1}`,
+            p.category || 'Dimension',
+            `${p.nominal || '0'} ${p.unit || 'mm'}`,
+            `±${p.tolMin || '0.1'} - ${p.tolMax || '0.1'}`,
+            p.measuredVal !== undefined && p.measuredVal !== '' && p.measuredVal !== null
+              ? `${p.measuredVal} ${p.unit || 'mm'}`
+              : '-',
+            p.criticality || 'Major',
+            p.status || (p.measuredVal ? 'MEASURED' : 'PENDING')
+          ])
+        )
       };
 
       await executeReportPrintAction({
-        reportId: 'ISO_9001_INSPECTION_CERT',
+        reportId: selectedPrintTemplateId,
         data: reportData,
         silent: false
       });
       toast.success('Membuka dialog cetak sertifikat QC ISO 9001...');
     } catch (err) {
-      console.warn('Fallback print:', err);
-      window.print();
+      console.error('[DigitalCheckSheet] Print error:', err);
+      toast.error('Gagal membuka dialog cetak: ' + err.message);
     }
   };
 
@@ -1734,7 +1865,8 @@ export default function DigitalDrawingCheckSheet() {
 
           <button onClick={() => setShowRuler(!showRuler)} style={{ background: showRuler ? 'rgba(56, 189, 248, 0.2)' : '#1e293b', border: '1px solid #334155', color: showRuler ? '#38bdf8' : '#94a3b8', borderRadius: '6px', padding: '6px 8px', cursor: 'pointer' }} title="Toggle Grid / Rulers"><Grid size={14} /></button>
           <button onClick={() => setDarkModeBlueprint(!darkModeBlueprint)} style={{ background: darkModeBlueprint ? 'rgba(34, 197, 94, 0.2)' : '#1e293b', border: '1px solid #334155', color: darkModeBlueprint ? '#22c55e' : '#94a3b8', borderRadius: '6px', padding: '6px 8px', cursor: 'pointer' }} title="Invert Theme"><Eye size={14} /></button>
-          <button onClick={handlePrintQCReport} style={{ background: '#1e293b', border: '1px solid #334155', color: '#94a3b8', borderRadius: '6px', padding: '6px 8px', cursor: 'pointer' }} title="Print / PDF ISO Certificate"><Printer size={14} /></button>
+          <button onClick={() => setShowPrintTemplateModal(true)} style={{ background: '#1e293b', border: '1px solid #334155', color: '#94a3b8', borderRadius: '6px', padding: '6px 8px', cursor: 'pointer' }} title="Pilih Template Cetak"><Printer size={14} /><span style={{ fontSize: '9px', marginLeft: '3px' }}>▾</span></button>
+          <button onClick={handlePrintQCReport} style={{ background: '#4c1d95', border: 'none', color: '#fff', borderRadius: '6px', padding: '6px 8px', cursor: 'pointer', boxShadow: '0 2px 8px rgba(76,29,149,0.4)' }} title="Cetak Certificate ISO 9001"><Printer size={14} /></button>
 
           <button
             onClick={() => navigate('/checksheets')}
@@ -2271,8 +2403,20 @@ export default function DigitalDrawingCheckSheet() {
               overflow: 'hidden'
             }}
           >
-            {/* 2D SVG Blueprint */}
-            {CASTING_HOUSING_SVG}
+            {/* 2D SVG Blueprint — show uploaded drawing if available, else default */}
+            {drawingPreview ? (
+              <div
+                style={{
+                  width: '100%', height: '100%',
+                  position: 'absolute', top: 0, left: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  overflow: 'hidden'
+                }}
+                dangerouslySetInnerHTML={{ __html: drawingPreview }}
+              />
+            ) : (
+              CASTING_HOUSING_SVG
+            )}
 
             {/* Interactive Hotspot Pins (Precisely Aligned on Drawing Features) */}
             {checkPoints.map((pt) => {
@@ -3257,6 +3401,147 @@ export default function DigitalDrawingCheckSheet() {
                 }}
               >
                 Selesai & Simpan Konfigurasi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── PRINT TEMPLATE SELECTOR MODAL ───────────────────────────────────── */}
+      {showPrintTemplateModal && (
+        <div style={{
+          position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)',
+          backdropFilter: 'blur(6px)', zIndex: 99999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowPrintTemplateModal(false); }}
+        >
+          <div style={{
+            backgroundColor: '#0f172a', border: '1px solid #334155',
+            borderRadius: '16px', width: '520px', maxWidth: '95vw',
+            boxShadow: '0 25px 60px rgba(0,0,0,0.8)', overflow: 'hidden'
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '16px 20px', borderBottom: '1px solid #1e293b',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '36px', height: '36px', backgroundColor: '#4c1d95',
+                  borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  <Printer size={18} color="white" />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#fff' }}>
+                    Pilih Template Cetak
+                  </div>
+                  <div style={{ fontSize: '0.65rem', color: '#64748b' }}>
+                    Template laporan QC untuk certificate ISO 9001
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPrintTemplateModal(false)}
+                style={{
+                  width: '32px', height: '32px', backgroundColor: '#1e293b',
+                  border: '1px solid #334155', borderRadius: '8px',
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#94a3b8'
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Template List */}
+            <div style={{ maxHeight: '360px', overflowY: 'auto', padding: '12px 20px' }}>
+              {availablePrintTemplates.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '30px 0', color: '#475569' }}>
+                  <Printer size={32} color="#334155" style={{ marginBottom: '8px' }} />
+                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569' }}>
+                    Tidak ada template QC ditemukan
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#334155', marginTop: '4px' }}>
+                    Buat template di Report Designer Studio
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {availablePrintTemplates.map(tpl => (
+                    <div
+                      key={tpl.id}
+                      onClick={() => {
+                        setSelectedPrintTemplateId(tpl.id);
+                        setShowPrintTemplateModal(false);
+                        toast.success(`Template "${tpl.name}" dipilih. Siap cetak!`);
+                      }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '12px',
+                        padding: '12px 14px',
+                        backgroundColor: selectedPrintTemplateId === tpl.id ? 'rgba(76,29,149,0.2)' : '#0f172a',
+                        border: `1.5px solid ${selectedPrintTemplateId === tpl.id ? '#7c3aed' : '#1e293b'}`,
+                        borderRadius: '10px', cursor: 'pointer',
+                        transition: 'all 0.15s'
+                      }}
+                      onMouseEnter={e => {
+                        if (selectedPrintTemplateId !== tpl.id) {
+                          e.currentTarget.style.backgroundColor = '#1e293b';
+                          e.currentTarget.style.borderColor = '#334155';
+                        }
+                      }}
+                      onMouseLeave={e => {
+                        if (selectedPrintTemplateId !== tpl.id) {
+                          e.currentTarget.style.backgroundColor = '#0f172a';
+                          e.currentTarget.style.borderColor = '#1e293b';
+                        }
+                      }}
+                    >
+                      <div style={{
+                        width: '32px', height: '32px',
+                        backgroundColor: '#4c1d95',
+                        borderRadius: '8px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <Printer size={16} color="white" />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {tpl.name}
+                        </div>
+                        <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '2px' }}>
+                          {tpl.category || 'Quality Control'} • {tpl.paperPresetId || 'A4'}
+                        </div>
+                      </div>
+                      {selectedPrintTemplateId === tpl.id && (
+                        <div style={{
+                          width: '22px', height: '22px', backgroundColor: '#4c1d95',
+                          borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          <Check size={12} color="white" />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '12px 20px', borderTop: '1px solid #1e293b' }}>
+              <button
+                onClick={() => setShowPrintTemplateModal(false)}
+                style={{
+                  padding: '8px 16px', backgroundColor: '#1e293b',
+                  color: '#94a3b8', border: '1px solid #334155',
+                  borderRadius: '8px', fontSize: '0.75rem', fontWeight: 600,
+                  cursor: 'pointer', width: '100%'
+                }}
+              >
+                Batal
               </button>
             </div>
           </div>

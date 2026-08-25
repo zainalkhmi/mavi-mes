@@ -10,7 +10,7 @@ import {
   List, Grid3x3, PlayCircle, Send, EyeOff, CheckSquare, FolderOpen,
   HardDrive, Table as TableIcon, Settings2, ExternalLink, User, Clock,
   BarChart2, FileCheck, SlidersHorizontal, Smartphone as DeviceIcon, Sparkles, FolderArchive,
-  FileSpreadsheet, FileSliders
+  FileSpreadsheet, FileSliders, Hash
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast, { Toaster } from 'react-hot-toast';
@@ -142,6 +142,7 @@ export default function InspectorDesigner() {
   const [selectedTemplateId, setSelectedTemplateId] = useState(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showRevisionModal, setShowRevisionModal] = useState(false);
+  const [showOpenProjectModal, setShowOpenProjectModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
 
@@ -1284,7 +1285,61 @@ export default function InspectorDesigner() {
             );
           })}
         </div>
-        
+
+        {/* ── Project Actions: Save & Open ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {/* Open Project */}
+          <button
+            onClick={() => setShowOpenProjectModal(true)}
+            style={{
+              padding: '6px 10px',
+              backgroundColor: '#1e293b',
+              color: '#38bdf8',
+              border: '1px solid #0284c7',
+              borderRadius: '8px',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              transition: 'all 0.15s'
+            }}
+            title="Buka Project"
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#0c1a2e'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#1e293b'}
+          >
+            <FolderOpen size={14} />
+            Open
+          </button>
+
+          {/* Save Project */}
+          <button
+            onClick={handleSaveTemplate}
+            style={{
+              padding: '6px 10px',
+              backgroundColor: '#10b981',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '0.72rem',
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)',
+              transition: 'all 0.15s'
+            }}
+            title="Simpan Project"
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#059669'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#10b981'}
+          >
+            <Save size={14} />
+            Save
+          </button>
+        </div>
+
         {/* ISO 9001 Status Badge */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <div style={{
@@ -4294,7 +4349,269 @@ export default function InspectorDesigner() {
         </div>
       )}
 
-      {/* ─── TEMPLATE MANAGEMENT MODAL ─── */}
+      {/* ─── OPEN PROJECT MODAL ─── */}
+      {showOpenProjectModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0,0,0,0.85)',
+          zIndex: 99999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backdropFilter: 'blur(4px)'
+        }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowOpenProjectModal(false); }}
+        >
+          <div style={{
+            backgroundColor: '#0f172a',
+            border: '1px solid #334155',
+            borderRadius: '16px',
+            width: '720px',
+            maxHeight: '80vh',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            boxShadow: '0 25px 60px rgba(0,0,0,0.8)'
+          }}>
+            {/* Header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '16px 20px',
+              borderBottom: '1px solid #1e293b'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '36px', height: '36px',
+                  backgroundColor: '#0ea5e9',
+                  borderRadius: '8px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  <FolderOpen size={18} color="white" />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#fff' }}>
+                    Open Project
+                  </div>
+                  <div style={{ fontSize: '0.65rem', color: '#64748b' }}>
+                    Pilih template checksheet untuk dimuat
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowOpenProjectModal(false)}
+                style={{
+                  width: '32px', height: '32px',
+                  backgroundColor: '#1e293b',
+                  border: '1px solid #334155',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#94a3b8'
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Search */}
+            <div style={{ padding: '12px 20px', borderBottom: '1px solid #1e293b' }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                backgroundColor: '#1e293b',
+                border: '1px solid #334155',
+                borderRadius: '8px',
+                padding: '8px 12px'
+              }}>
+                <Search size={14} color="#64748b" />
+                <input
+                  type="text"
+                  placeholder="Cari nama template, part no, atau customer..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    backgroundColor: 'transparent',
+                    border: 'none', outline: 'none',
+                    color: '#f8fafc', fontSize: '0.8rem',
+                    flex: 1
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Project List */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px' }}>
+              {savedTemplates.length === 0 ? (
+                <div style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  padding: '40px 20px', color: '#64748b', textAlign: 'center'
+                }}>
+                  <FileSpreadsheet size={40} color="#334155" />
+                  <div style={{ marginTop: '12px', fontWeight: 700, color: '#475569' }}>
+                    Tidak ada project tersimpan
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#334155', marginTop: '4px' }}>
+                    Simpan template terlebih dahulu menggunakan tombol Save
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {savedTemplates
+                    .filter(t => {
+                      if (!searchQuery) return true;
+                      const q = searchQuery.toLowerCase();
+                      return (t.name || '').toLowerCase().includes(q) ||
+                             (t.partNo || '').toLowerCase().includes(q) ||
+                             (t.customer || '').toLowerCase().includes(q) ||
+                             (t.docNo || '').toLowerCase().includes(q);
+                    })
+                    .map(template => (
+                      <div
+                        key={template.id}
+                        onClick={() => {
+                          // Load template into editor state
+                          setCheckSheetName(template.name || '');
+                          setPartNo(template.partNo || '');
+                          setPartName(template.partName || '');
+                          setCustomer(template.customer || '');
+                          setProcessName(template.processName || '');
+                          setDrawingNo(template.drawingNo || '');
+                          setRevisionNo(template.revisionNo || template.revision || 'A');
+                          setEffectiveDate(template.effectiveDate || '');
+                          setNextReviewDate(template.nextReviewDate || '');
+                          setInspectorName(template.inspectorName || '');
+                          setApprovedBy(template.approvedBy || '');
+                          setQualityStandard(template.qualityStandard || 'ISO 9001:2015');
+                          setCheckSheetStatus(template.status || 'draft');
+                          setCheckPoints(template.checkPoints || []);
+                          setCheckSheetDescription(template.description || '');
+                          if (template.drawingSvg) setDrawingPreview(template.drawingSvg);
+                          setSelectedDrawing(template.drawingId ? { id: template.drawingId, name: template.drawingName } : null);
+                          setShowOpenProjectModal(false);
+                          setSearchQuery('');
+                          toast.success(`Project "${template.name}" dimuat!`);
+                        }}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '12px',
+                          padding: '12px 14px',
+                          backgroundColor: selectedTemplateId === template.id ? '#1e293b' : '#0f172a',
+                          border: `1px solid ${selectedTemplateId === template.id ? '#6366f1' : '#1e293b'}`,
+                          borderRadius: '10px',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s'
+                        }}
+                        onMouseEnter={e => {
+                          if (selectedTemplateId !== template.id) {
+                            e.currentTarget.style.backgroundColor = '#1e293b';
+                            e.currentTarget.style.borderColor = '#334155';
+                          }
+                        }}
+                        onMouseLeave={e => {
+                          if (selectedTemplateId !== template.id) {
+                            e.currentTarget.style.backgroundColor = '#0f172a';
+                            e.currentTarget.style.borderColor = '#1e293b';
+                          }
+                        }}
+                      >
+                        {/* Status dot */}
+                        <div style={{
+                          width: '10px', height: '10px',
+                          borderRadius: '50%',
+                          backgroundColor:
+                            template.status === 'approved' || template.status === 'APPROVED' ? '#22c55e' :
+                            template.status === 'released' || template.status === 'RELEASED' ? '#3b82f6' :
+                            template.status === 'pending_approval' || template.status === 'IN_REVIEW' ? '#f59e0b' : '#64748b',
+                          flexShrink: 0
+                        }} />
+
+                        {/* Info */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{
+                            fontWeight: 700, fontSize: '0.82rem', color: '#f8fafc',
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                          }}>
+                            {template.name || 'Untitled Template'}
+                          </div>
+                          <div style={{
+                            fontSize: '0.65rem', color: '#64748b', marginTop: '2px',
+                            display: 'flex', gap: '8px', flexWrap: 'wrap'
+                          }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                              <Hash size={10} /> {template.partNo || '-'}
+                            </span>
+                            <span>{template.customer || '-'}</span>
+                            <span style={{ color: '#475569' }}>•</span>
+                            <span>{template.checkPoints?.length || 0} pts</span>
+                            <span style={{ color: '#475569' }}>•</span>
+                            <span>Rev {template.revisionNo || template.revision || 'A'}</span>
+                          </div>
+                        </div>
+
+                        {/* Status badge */}
+                        <div style={{
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          fontSize: '0.6rem',
+                          fontWeight: 800,
+                          backgroundColor:
+                            template.status === 'approved' || template.status === 'APPROVED' ? 'rgba(34,197,94,0.15)' :
+                            template.status === 'released' || template.status === 'RELEASED' ? 'rgba(59,130,246,0.15)' :
+                            template.status === 'pending_approval' || template.status === 'IN_REVIEW' ? 'rgba(245,158,11,0.15)' : 'rgba(100,116,139,0.15)',
+                          color:
+                            template.status === 'approved' || template.status === 'APPROVED' ? '#4ade80' :
+                            template.status === 'released' || template.status === 'RELEASED' ? '#60a5fa' :
+                            template.status === 'pending_approval' || template.status === 'IN_REVIEW' ? '#fbbf24' : '#94a3b8',
+                          flexShrink: 0
+                        }}>
+                          {(template.status || 'DRAFT').toUpperCase()}
+                        </div>
+
+                        {/* Load icon */}
+                        <div style={{
+                          width: '28px', height: '28px',
+                          backgroundColor: '#10b981',
+                          borderRadius: '6px',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          <Check size={14} color="white" />
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '12px 20px',
+              borderTop: '1px solid #1e293b'
+            }}>
+              <div style={{ fontSize: '0.7rem', color: '#475569' }}>
+                {savedTemplates.length} project tersimpan
+              </div>
+              <button
+                onClick={() => setShowOpenProjectModal(false)}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#1e293b',
+                  color: '#94a3b8',
+                  border: '1px solid #334155',
+                  borderRadius: '8px',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showTemplateModal && (
         <div style={{
           position: 'fixed',

@@ -117,8 +117,8 @@ const getPresetById = (id) => PAPER_PRESETS.find(p => p.id === id) || PAPER_PRES
 // ── Built-in Default Templates ──
 const DEFAULT_TEMPLATES = [
     {
-        id: 'qc-inspection-checksheet-a4',
-        name: 'QC Inspection Checksheet (A4)',
+        id: 'qc-checksheet-a4-basic',
+        name: 'QC Checksheet Basic (A4)',
         category: 'Quality Control',
         paperPresetId: 'A4',
         description: 'Laporan inspeksi QC ISO 9001 terintegrasi penuh dengan Drawing & Inspector Designer — memuat Document Control, Header Part, GD&T Matrix, Hasil Ukur, Status, dan Digital Signature.',
@@ -1008,6 +1008,7 @@ export default function ReportDesigner() {
     const [selectedAppTableId, setSelectedAppTableId] = useState('');
     const [customTableName, setCustomTableName] = useState('measurements');
     const [customFilterQuery, setCustomFilterQuery] = useState('');
+    const [checksheetSearch, setCheckSheetSearch] = useState('');
     const [customLimit, setCustomLimit] = useState(50);
     const [csvInputText, setCsvInputText] = useState('');
 
@@ -1173,10 +1174,26 @@ export default function ReportDesigner() {
                 // Fetch from drawing checksheet logs / inspector designer templates
                 const rawChecksheets = JSON.parse(localStorage.getItem('mandor_qa_checksheets') || '[]');
                 const savedTemplates = JSON.parse(localStorage.getItem('mandor_inspector_templates') || '[]');
+
+                // ── Apply search filter ──
+                const filterChecksheet = (records) => {
+                    if (!checksheetSearch) return records;
+                    const q = checksheetSearch.toLowerCase();
+                    return records.filter(cs =>
+                        (cs.workOrderNo || '').toLowerCase().includes(q) ||
+                        (cs.partSerial || cs.partNo || '').toLowerCase().includes(q) ||
+                        (cs.partName || '').toLowerCase().includes(q) ||
+                        (cs.inspectorName || '').toLowerCase().includes(q) ||
+                        (cs.customer || '').toLowerCase().includes(q) ||
+                        (cs.docNo || '').toLowerCase().includes(q)
+                    );
+                };
+
+                const filteredChecksheets = filterChecksheet(rawChecksheets);
                 let combined = [];
 
-                if (rawChecksheets.length > 0) {
-                    rawChecksheets.forEach((cs) => {
+                if (filteredChecksheets.length > 0) {
+                    filteredChecksheets.forEach((cs) => {
                         const pts = cs.details || cs.checkPoints || [];
                         const rows = pts.map((p, idx) => [
                             String(p.pointNumber || idx + 1),
@@ -1925,6 +1942,26 @@ export default function ReportDesigner() {
                                             <div style={{ padding: '10px', backgroundColor: '#f5f3ff', border: '1px solid #8b5cf6', borderRadius: '6px', fontSize: '11px', color: '#4c1d95', lineHeight: 1.5 }}>
                                                 <strong>⚡ Terhubung ke Inspector Designer & Checksheet:</strong><br />
                                                 Menarik parameter ISO 9001 (Doc No, Part No, Customer, Process, Inspector, Date/Time, Status) dan seluruh matriks titik ukur drawing langsung ke template laporan QC.
+                                            </div>
+                                            {/* Search/Filter for checksheet records */}
+                                            <div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <input
+                                                        type="text"
+                                                        value={checksheetSearch}
+                                                        onChange={e => setCheckSheetSearch(e.target.value)}
+                                                        placeholder="🔍 Filter: WO, Part No, Serial, Inspector, Customer..."
+                                                        style={{
+                                                            flex: 1,
+                                                            padding: '7px 10px',
+                                                            borderRadius: '6px',
+                                                            border: '1px solid #c4b5fd',
+                                                            fontSize: '11px',
+                                                            backgroundColor: '#fff',
+                                                            color: '#1e1b4b'
+                                                        }}
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
                                     )}
