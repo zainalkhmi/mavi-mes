@@ -369,14 +369,27 @@ export async function executeReportPrintAction({
 
         const inputData = Array.isArray(resolvedInputs) ? resolvedInputs : [resolvedInputs];
 
-        // Format any table fields if passed as arrays or objects
+        // ── Format inputs: keep arrays as-is (table data), parse JSON strings ──
         const formattedInputs = inputData.map(row => {
-            const cleanRow = { ...row };
-            Object.keys(cleanRow).forEach(k => {
-                if (typeof cleanRow[k] === 'object' && cleanRow[k] !== null) {
-                    cleanRow[k] = JSON.stringify(cleanRow[k]);
-                } else if (cleanRow[k] != null) {
-                    cleanRow[k] = String(cleanRow[k]);
+            const cleanRow = {};
+            Object.entries(row).forEach(([key, value]) => {
+                if (value === undefined || value === null) {
+                    cleanRow[key] = '';
+                } else if (Array.isArray(value)) {
+                    // Table data (inspection_table etc.) — keep as array for pdfme
+                    cleanRow[key] = value;
+                } else if (typeof value === 'object') {
+                    // Objects → deep clone to avoid mutation
+                    try { cleanRow[key] = JSON.parse(JSON.stringify(value)); } catch { cleanRow[key] = String(value); }
+                } else if (typeof value === 'string') {
+                    const trimmed = value.trim();
+                    if ((trimmed.startsWith('[') || trimmed.startsWith('{')) && trimmed.includes('"')) {
+                        try { cleanRow[key] = JSON.parse(trimmed); } catch { cleanRow[key] = trimmed; }
+                    } else {
+                        cleanRow[key] = trimmed;
+                    }
+                } else {
+                    cleanRow[key] = String(value);
                 }
             });
             return cleanRow;

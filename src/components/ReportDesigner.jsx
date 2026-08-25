@@ -5,7 +5,7 @@ import {
     Layers, QrCode, Barcode, Table, Image, PenTool, Type, HelpCircle,
     Upload, FileDown, ArrowLeft, Sliders, Settings2, X, Maximize2,
     Check, Tag, ShoppingBag, Truck, Shirt, Mail, Box, LayoutGrid,
-    Database, Filter, Play, CheckSquare, Search, FileSpreadsheet,
+    Database, Filter, Play, PlayCircle, CheckSquare, Search, FileSpreadsheet,
     ArrowRight, ChevronLeft, ListFilter, Cpu, HardDrive, ClipboardList
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -1345,9 +1345,40 @@ export default function ReportDesigner() {
     const handleGeneratePdf = async (action = 'preview') => {
         setIsGeneratingPdf(true);
         try {
+            // ── Validasi: template schema harus ada ──
+            if (!templateSchema || !templateSchema.schemas || !Array.isArray(templateSchema.schemas) || templateSchema.schemas.length === 0) {
+                throw new Error('Template schema belum dimuat. Pilih template terlebih dahulu.');
+            }
+            // ── Validasi: sample input data harus ada ──
+            if (!sampleInputData || !Array.isArray(sampleInputData) || sampleInputData.length === 0) {
+                throw new Error('Belum ada data. Klik "Ambil Data Checksheet" lalu "Terapkan ke Template" terlebih dahulu.');
+            }
+            // ── Transformasi: parse JSON strings (inspection_table dll) ──
+            const sanitizeRow = (row) => {
+                const clean = {};
+                Object.entries(row).forEach(([key, value]) => {
+                    if (value === undefined || value === null) {
+                        clean[key] = '';
+                    } else if (typeof value === 'string') {
+                        try {
+                            if ((value.startsWith('[') || value.startsWith('{')) && value.includes('"')) {
+                                clean[key] = JSON.parse(value);
+                            } else {
+                                clean[key] = value;
+                            }
+                        } catch {
+                            clean[key] = value;
+                        }
+                    } else {
+                        clean[key] = value;
+                    }
+                });
+                return clean;
+            };
+            const sanitizedInputs = sampleInputData.map(sanitizeRow);
             const pdfUint8 = await generate({
                 template: templateSchema,
-                inputs: sampleInputData,
+                inputs: sanitizedInputs,
                 plugins: PDF_PLUGINS
             });
 
@@ -1867,16 +1898,33 @@ export default function ReportDesigner() {
                             {/* Toolbar Banner */}
                             <div style={{
                                 padding: '10px 20px', backgroundColor: '#fff', borderBottom: '1px solid #dee2e6',
-                                display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                                display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexDirection: 'column', gap: '10px'
                             }}>
-                                <div>
-                                    <h2 style={{ fontSize: '14px', fontWeight: 700, color: '#212529', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <Database size={16} color="#714B67" /> Konektor Sumber Data & Query (Live Data Binding)
-                                    </h2>
-                                    <p style={{ fontSize: '11px', color: '#6c757d', margin: '2px 0 0 0' }}>
-                                        Tautkan database MANDOR, interactive table, atau query custom untuk mengisi data laporan/label secara otomatis.
-                                    </p>
+                                {/* Step Indicator */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <div style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: '#714B67', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700 }}>1</div>
+                                        <span style={{ fontSize: '11px', color: '#495057', fontWeight: 600 }}>Pilih Sumber</span>
+                                    </div>
+                                    <span style={{ color: '#adb5bd', fontSize: '11px' }}>→</span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <div style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: isLoadingData || (loadedRecords.length > 0) ? '#22c55e' : '#e9ecef', color: isLoadingData || (loadedRecords.length > 0) ? '#fff' : '#adb5bd', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700 }}>2</div>
+                                        <span style={{ fontSize: '11px', color: isLoadingData || (loadedRecords.length > 0) ? '#22c55e' : '#adb5bd', fontWeight: 600 }}>Ambil Data</span>
+                                    </div>
+                                    <span style={{ color: '#adb5bd', fontSize: '11px' }}>→</span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <div style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: '#e9ecef', color: '#adb5bd', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700 }}>3</div>
+                                        <span style={{ fontSize: '11px', color: '#adb5bd', fontWeight: 600 }}>Terapkan ke Template</span>
+                                    </div>
                                 </div>
+
+                                {/* Source Description */}
+                                {selectedSourceType === 'checksheet' && (
+                                    <div style={{ padding: '8px 12px', backgroundColor: '#f5f3ff', border: '1.5px solid #8b5cf6', borderRadius: '8px', fontSize: '11px', color: '#4c1d95', lineHeight: 1.5 }}>
+                                        <strong>📋 Checksheet: </strong> Data diambil dari hasil inspeksi di <strong>Digital Check Sheet</strong> dan template dari <strong>Inspector Designer</strong>.
+                                        <strong>Setelah klik "Ambil Data", pilih record lalu "Terapkan ke Template".</strong>
+                                    </div>
+                                )}
 
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <button
@@ -1884,13 +1932,27 @@ export default function ReportDesigner() {
                                         disabled={isLoadingData}
                                         style={{
                                             display: 'flex', alignItems: 'center', gap: '6px',
-                                            padding: '6px 16px', borderRadius: '6px', fontSize: '12px', fontWeight: 600,
-                                            border: 'none', backgroundColor: '#714B67', color: '#fff', cursor: 'pointer'
+                                            padding: '8px 18px', borderRadius: '8px', fontSize: '13px', fontWeight: 700,
+                                            border: 'none',
+                                            backgroundColor: isLoadingData ? '#6c757d' : '#714B67',
+                                            color: '#fff', cursor: isLoadingData ? 'not-allowed' : 'pointer',
+                                            boxShadow: isLoadingData ? 'none' : '0 2px 8px rgba(113,75,103,0.4)',
+                                            transition: 'all 0.2s'
                                         }}
                                     >
-                                        <Play size={13} className={isLoadingData ? 'animate-spin' : ''} />
-                                        {isLoadingData ? 'Memuat Data...' : 'Jalankan Query & Ambil Data'}
+                                        {isLoadingData ? (
+                                            <><RefreshCw size={14} className="animate-spin" /> Memuat...</>
+                                        ) : loadedRecords.length > 0 ? (
+                                            <><CheckCircle2 size={14} /> Data Loaded ({loadedRecords.length})</>
+                                        ) : (
+                                            <><PlayCircle size={14} /> Ambil Data Checksheet</>
+                                        )}
                                     </button>
+                                    {loadedRecords.length > 0 && (
+                                        <span style={{ fontSize: '11px', color: '#22c55e', fontWeight: 600 }}>
+                                            ✓ {loadedRecords.length} records siap diterapkan ke template
+                                        </span>
+                                    )}
                                 </div>
                             </div>
 
@@ -2058,25 +2120,34 @@ export default function ReportDesigner() {
 
                                     {/* Action Buttons for Binding */}
                                     {loadedRecords.length > 0 && (
-                                        <div style={{ marginTop: 'auto', paddingTop: '14px', borderTop: '1px solid #dee2e6', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        <div style={{ marginTop: 'auto', paddingTop: '14px', borderTop: '2px solid #714B67', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            {/* Step 3 indicator */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', backgroundColor: '#f5f3ff', borderRadius: '6px', border: '1px solid #c4b5fd' }}>
+                                                <div style={{ width: '20px', height: '20px', borderRadius: '50%', backgroundColor: '#22c55e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700 }}>3</div>
+                                                <span style={{ fontSize: '11px', fontWeight: 700, color: '#4c1d95' }}>Terapkan ke Template</span>
+                                            </div>
+
                                             <button
                                                 onClick={() => { handleApplyLoadedDataToTemplate('single'); setActiveTab('designer'); }}
                                                 style={{
-                                                    padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: 600,
-                                                    border: '1px solid #714B67', backgroundColor: '#faf5f9', color: '#714B67', cursor: 'pointer'
+                                                    padding: '10px', borderRadius: '8px', fontSize: '13px', fontWeight: 700,
+                                                    border: 'none', backgroundColor: '#22c55e', color: '#fff', cursor: 'pointer',
+                                                    boxShadow: '0 2px 8px rgba(34,197,94,0.4)'
                                                 }}
                                             >
-                                                Terapkan Baris #{selectedRecordIndex + 1} ke Kanvas
+                                                ✅ Terapkan Baris #{selectedRecordIndex + 1} ke Template
                                             </button>
+                                            <div style={{ fontSize: '10px', color: '#6c757d', textAlign: 'center' }}>
+                                                atau gunakan navigasi ◀ ▶ untuk memilih record lain
+                                            </div>
                                             <button
                                                 onClick={() => { handleApplyLoadedDataToTemplate('batch'); handleGeneratePdf('preview'); }}
                                                 style={{
                                                     padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: 600,
-                                                    border: 'none', backgroundColor: '#714B67', color: '#fff', cursor: 'pointer',
-                                                    boxShadow: '0 1px 3px rgba(0,0,0,0.15)'
+                                                    border: '1.5px solid #714B67', backgroundColor: '#fff', color: '#714B67', cursor: 'pointer'
                                                 }}
                                             >
-                                                Cetak Massal Semua ({loadedRecords.length} Halaman)
+                                                📋 Cetak Massal ({loadedRecords.length} Halaman)
                                             </button>
                                         </div>
                                     )}
@@ -2167,8 +2238,13 @@ export default function ReportDesigner() {
                                                 </table>
                                             ) : (
                                                 <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#adb5bd' }}>
-                                                    <Database size={40} style={{ marginBottom: '8px' }} />
-                                                    <span style={{ fontSize: '13px', color: '#6c757d' }}>Belum ada data query. Klik tombol "Jalankan Query & Ambil Data" di atas.</span>
+                                                    <Database size={40} style={{ marginBottom: '12px' }} />
+                                                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#495057', marginBottom: '4px' }}>Belum ada data checksheet</span>
+                                                    <span style={{ fontSize: '12px', color: '#6c757d' }}>
+                                                        {selectedSourceType === 'checksheet'
+                                                            ? 'Klik tombol "Ambil Data Checksheet" untuk memuat data inspeksi.'
+                                                            : 'Klik tombol "Ambil Data" untuk memuat data dari database.'}
+                                                    </span>
                                                 </div>
                                             )}
                                         </div>

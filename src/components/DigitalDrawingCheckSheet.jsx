@@ -1598,8 +1598,8 @@ export default function DigitalDrawingCheckSheet() {
         notes_value: inspectionNotes || 'Semua dimensi terverifikasi sesuai toleransi ISO 9001:2015.',
         footer_timestamp: `Generated: ${new Date().toLocaleString('id-ID')}`,
 
-        // ── GD&T Inspection Table (PREVIOUSLY MISSING) ──
-        inspection_table: JSON.stringify(
+        // ── GD&T Inspection Table (array, not string) ──
+        inspection_table:
           checkPoints.map((p, idx) => [
             String(p.pointNumber || idx + 1),
             p.title || `Parameter #${idx + 1}`,
@@ -1612,7 +1612,6 @@ export default function DigitalDrawingCheckSheet() {
             p.criticality || 'Major',
             p.status || (p.measuredVal ? 'MEASURED' : 'PENDING')
           ])
-        )
       };
 
       await executeReportPrintAction({

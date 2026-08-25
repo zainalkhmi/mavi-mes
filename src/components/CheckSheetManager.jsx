@@ -120,6 +120,8 @@ export default function CheckSheetManager() {
     const [checksheets, setChecksheets] = useState([]);
     const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [woSearch, setWoSearch] = useState('');
+    const [partSearch, setPartSearch] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('ALL');
     const [selectedStatus, setSelectedStatus] = useState('ALL');
     const [sortBy, setSortBy] = useState('updatedAt');
@@ -200,6 +202,7 @@ export default function CheckSheetManager() {
     const filteredChecksheets = useMemo(() => {
         return checksheets
             .filter(cs => {
+                // Generic search across all text fields
                 const matchSearch =
                     (cs.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                     (cs.docNo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -208,10 +211,27 @@ export default function CheckSheetManager() {
                     (cs.customer || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                     (cs.author || '').toLowerCase().includes(searchTerm.toLowerCase());
 
+                // Dedicated Work Order filter
+                const matchWo = !woSearch || (
+                    (cs.workOrderNo || '').toLowerCase().includes(woSearch.toLowerCase()) ||
+                    (cs.woPrefix || '').toLowerCase().includes(woSearch.toLowerCase()) ||
+                    (cs.workOrderPrefix || '').toLowerCase().includes(woSearch.toLowerCase()) ||
+                    (cs.serialNo || '').toLowerCase().includes(woSearch.toLowerCase()) ||
+                    (cs.lotBatchNo || '').toLowerCase().includes(woSearch.toLowerCase()) ||
+                    (cs.stationId || '').toLowerCase().includes(woSearch.toLowerCase())
+                );
+
+                // Dedicated Part Number filter
+                const matchPart = !partSearch || (
+                    (cs.partNo || '').toLowerCase().includes(partSearch.toLowerCase()) ||
+                    (cs.partName || '').toLowerCase().includes(partSearch.toLowerCase()) ||
+                    (cs.serialNo || '').toLowerCase().includes(partSearch.toLowerCase())
+                );
+
                 const matchCategory = selectedCategory === 'ALL' || cs.category === selectedCategory;
                 const matchStatus = selectedStatus === 'ALL' || cs.status === selectedStatus;
 
-                return matchSearch && matchCategory && matchStatus;
+                return matchSearch && matchWo && matchPart && matchCategory && matchStatus;
             })
             .sort((a, b) => {
                 if (sortBy === 'updatedAt') return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
@@ -220,7 +240,7 @@ export default function CheckSheetManager() {
                 if (sortBy === 'name') return (a.name || '').localeCompare(b.name || '');
                 return 0;
             });
-    }, [checksheets, searchTerm, selectedCategory, selectedStatus, sortBy]);
+    }, [checksheets, searchTerm, woSearch, partSearch, selectedCategory, selectedStatus, sortBy]);
 
     // Summary Statistics
     const stats = useMemo(() => {
@@ -464,7 +484,8 @@ export default function CheckSheetManager() {
             </div>
 
             {/* ─── 3. FILTER BAR & SEARCH ─── */}
-            <div className="px-6 py-3 flex flex-col md:flex-row items-center justify-between gap-3">
+            <div className="px-6 py-3 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+
                 {/* Category Pills */}
                 <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 scrollbar-none">
                     {categories.map(cat => {
@@ -486,29 +507,54 @@ export default function CheckSheetManager() {
                     })}
                 </div>
 
-                {/* Right Search, Status Filter & View Toggle */}
-                <div className="flex items-center gap-2 w-full md:w-auto justify-end">
-                    <div className="relative flex-1 md:w-64">
-                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                {/* Right: Work Order + Part No + Status Filter */}
+                <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                    {/* Work Order Filter */}
+                    <div className="relative">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold uppercase tracking-wider pointer-events-none">WO</span>
                         <input
                             type="text"
-                            placeholder="Cari Doc No, Part No, Customer..."
+                            placeholder="WO-2026-001"
+                            value={woSearch}
+                            onChange={e => setWoSearch(e.target.value)}
+                            className="w-32 pl-7 pr-2 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-purple-500"
+                        />
+                    </div>
+
+                    {/* Part Number Filter */}
+                    <div className="relative">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold uppercase tracking-wider pointer-events-none">PN</span>
+                        <input
+                            type="text"
+                            placeholder="PRT-001"
+                            value={partSearch}
+                            onChange={e => setPartSearch(e.target.value)}
+                            className="w-32 pl-7 pr-2 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-purple-500"
+                        />
+                    </div>
+
+                    {/* Generic Search */}
+                    <div className="relative flex-1 md:flex-none md:w-48">
+                        <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                            type="text"
+                            placeholder="Cari nama, doc, customer..."
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full pl-9 pr-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                            className="w-full pl-8 pr-2 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
                         />
                     </div>
 
                     <select
                         value={selectedStatus}
                         onChange={e => setSelectedStatus(e.target.value)}
-                        className="bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-300 px-3 py-1.5 focus:outline-none focus:border-purple-500"
+                        className="bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-300 px-2 py-1.5 focus:outline-none focus:border-purple-500"
                     >
-                        <option value="ALL">Semua Status</option>
-                        <option value="APPROVED">APPROVED (Berlaku)</option>
-                        <option value="IN_REVIEW">IN_REVIEW (Review)</option>
-                        <option value="DRAFT">DRAFT</option>
-                        <option value="OBSOLETE">OBSOLETE</option>
+                        <option value="ALL">Semua</option>
+                        <option value="APPROVED">✅ APPROVED</option>
+                        <option value="IN_REVIEW">⏳ IN_REVIEW</option>
+                        <option value="DRAFT">📝 DRAFT</option>
+                        <option value="OBSOLETE">❌ OBSOLETE</option>
                     </select>
 
                     <div className="flex items-center bg-slate-800 border border-slate-700 rounded-lg p-0.5">
@@ -543,14 +589,32 @@ export default function CheckSheetManager() {
                         <FolderArchive size={40} className="text-slate-600 mb-2" />
                         <h3 className="text-sm font-bold text-slate-300">Tidak ada dokumen checksheet yang sesuai filter</h3>
                         <p className="text-xs text-slate-500 mt-1 max-w-sm">
-                            Coba ubah kata kunci pencarian atau buat dokumen checksheet baru melalui Inspector Designer Studio.
+                            {(woSearch || partSearch || searchTerm || selectedCategory !== 'ALL' || selectedStatus !== 'ALL')
+                                ? 'Coba ubah kata kunci pencarian atau filter.'
+                                : 'Belum ada checksheet. Buat baru melalui Inspector Designer Studio.'}
                         </p>
-                        <button
-                            onClick={() => navigate('/inspector-designer')}
-                            className="mt-4 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-4 py-2 rounded-lg"
-                        >
-                            Buat Checksheet Baru
-                        </button>
+                        {(woSearch || partSearch || searchTerm || selectedCategory !== 'ALL' || selectedStatus !== 'ALL') && (
+                            <button
+                                onClick={() => {
+                                    setWoSearch('');
+                                    setPartSearch('');
+                                    setSearchTerm('');
+                                    setSelectedCategory('ALL');
+                                    setSelectedStatus('ALL');
+                                }}
+                                className="mt-3 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold px-4 py-2 rounded-lg"
+                            >
+                                Reset Semua Filter
+                            </button>
+                        )}
+                        {!woSearch && !partSearch && !searchTerm && selectedCategory === 'ALL' && selectedStatus === 'ALL' && (
+                            <button
+                                onClick={() => navigate('/inspector-designer')}
+                                className="mt-4 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-4 py-2 rounded-lg"
+                            >
+                                Buat Checksheet Baru
+                            </button>
+                        )}
                     </div>
                 ) : viewMode === 'grid' ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-2">
