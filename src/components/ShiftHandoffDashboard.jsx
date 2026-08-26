@@ -42,30 +42,27 @@ const ShiftHandoffDashboard = () => {
 
   // Ensure shift report template exists in localStorage
   useEffect(() => {
-    const { getSavedReportTemplates } = require('../utils/reportPrintService');
-    const templates = getSavedReportTemplates();
-    const hasShiftReport = templates.some(t => t.id === 'shift-handoff-report-a4');
+    import('../utils/reportPrintService').then(({ getSavedReportTemplates }) => {
+      const templates = getSavedReportTemplates();
+      const hasShiftReport = templates.some(t => t.id === 'shift-handoff-report-a4');
 
-    if (!hasShiftReport) {
-      // Import and merge shift report template
-      import('../utils/reportPrintService').then(({ getSavedReportTemplates: getSR }) => {
+      if (!hasShiftReport) {
         const saved = localStorage.getItem('mandor_pdf_templates_v5');
         let existingTemplates = [];
         try {
           existingTemplates = saved ? JSON.parse(saved) : [];
         } catch (e) {}
 
-        // Find shift report template
-        const defaultTemplates = getSR();
-        const shiftTemplate = defaultTemplates.find(t => t.id === 'shift-handoff-report-a4');
-
+        const shiftTemplate = templates.find(t => t.id === 'shift-handoff-report-a4');
         if (shiftTemplate && !existingTemplates.find(t => t.id === 'shift-handoff-report-a4')) {
           existingTemplates.push(shiftTemplate);
           localStorage.setItem('mandor_pdf_templates_v5', JSON.stringify(existingTemplates));
           console.log('[ShiftHandoff] Added shift report template to localStorage');
         }
-      });
-    }
+      }
+    }).catch(err => {
+      console.warn('[ShiftHandoff] Error loading reportPrintService:', err);
+    });
   }, []);
 
   useEffect(() => {

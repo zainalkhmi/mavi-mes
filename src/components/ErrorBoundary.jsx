@@ -9,12 +9,14 @@
 import React, { Component } from 'react';
 import { AlertTriangle, RefreshCw, Home, Bug, ChevronDown, ChevronUp } from 'lucide-react';
 
-// Try to import Sentry (optional)
+// Optional Sentry integration
 let Sentry = null;
-try {
-  Sentry = require('@sentry/react').captureException;
-} catch (e) {
-  // Sentry not configured
+if (typeof require !== 'undefined') {
+  try {
+    Sentry = require('@sentry/react')?.captureException;
+  } catch (e) {
+    // Sentry not configured
+  }
 }
 
 /**

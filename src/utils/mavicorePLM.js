@@ -312,6 +312,169 @@ export async function releaseDrawingRevision(id, releasedBy) {
 }
 
 // =====================================================
+// DRAWING FILE UPLOAD
+// =====================================================
+
+/**
+ * Upload drawing file to Supabase Storage
+ * @param {string} revisionId - The revision ID
+ * @param {File} file - The file to upload
+ * @param {string} folder - Optional folder path
+ * @returns {Promise<{success: boolean, data?: object, error?: string}>}
+ */
+export async function uploadDrawingFile(revisionId, file, folder = 'drawings') {
+  try {
+    // Validate file
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/gif', 'application/pdf',
+                         'image/svg+xml', 'model/gltf+json', 'model/gltf-binary'];
+    const maxSize = 50 * 1024 * 1024; // 50MB
+
+    if (!allowedTypes.includes(file.type)) {
+      return { success: false, error: `Tipe file tidak didukung: ${file.type}` };
+    }
+    if (file.size > maxSize) {
+      return { success: false, error: 'Ukuran file terlalu besar (max 50MB)' };
+    }
+
+    // Generate unique filename
+    const timestamp = Date.now();
+    const extension = file.name.split('.').pop();
+    const fileName = `${folder}/${revisionId}/${timestamp}_${file.name}`;
+
+    // Upload to Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('drawing-files')
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
+
+    if (uploadError) {
+      // If storage bucket doesn't exist, try alternative approach (base64 in database)
+      console.warn('[PLM] Storage upload failed, using base64 fallback:', uploadError);
+      return await uploadDrawingFileBase64(revisionId, file);
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from('drawing-files')
+      .getPublicUrl(fileName);
+
+    return {
+      success: true,
+      data: {
+        file_url: urlData.publicUrl,
+        file_name: file.name,
+        file_type: file.type,
+        file_size: file.size,
+        storage_path: fileName
+      }
+    };
+  } catch (err) {
+    console.error('[PLM] uploadDrawingFile error:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Fallback: Store file as base64 in database (when storage not available)
+ */
+export async function uploadDrawingFileBase64(revisionId, file) {
+  try {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const base64 = e.target.result;
+
+        // Update revision with base64 data URL
+        const { data, error } = await supabase
+          .from('drawing_revisions')
+          .update({
+            file_url: base64,
+            file_name: file.name,
+            metadata: {
+              file_type: file.type,
+              file_size: file.size,
+              uploaded_at: new Date().toISOString()
+            }
+          })
+          .eq('id', revisionId)
+          .select()
+          .single();
+
+        if (error) {
+          resolve({ success: false, error: error.message });
+        } else {
+          resolve({
+            success: true,
+            data: {
+              file_url: base64,
+              file_name: file.name,
+              file_type: file.type,
+              file_size: file.size,
+              is_base64: true
+            }
+          });
+        }
+      };
+      reader.onerror = () => resolve({ success: false, error: 'Failed to read file' });
+      reader.readAsDataURL(file);
+    });
+  } catch (err) {
+    console.error('[PLM] uploadDrawingFileBase64 error:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Update revision with file info (after successful upload)
+ */
+export async function updateDrawingRevisionFile(revisionId, fileInfo) {
+  try {
+    const { data, error } = await supabase
+      .from('drawing_revisions')
+      .update({
+        file_url: fileInfo.file_url,
+        file_name: fileInfo.file_name,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', revisionId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return { success: true, data };
+  } catch (err) {
+    console.error('[PLM] updateDrawingRevisionFile error:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Delete drawing file from storage
+ */
+export async function deleteDrawingFile(storagePath) {
+  try {
+    if (!storagePath || storagePath.startsWith('data:')) {
+      // It's base64 data, no need to delete from storage
+      return { success: true };
+    }
+
+    const { error } = await supabase.storage
+      .from('drawing-files')
+      .remove([storagePath]);
+
+    if (error) {
+      console.warn('[PLM] deleteDrawingFile warning:', error);
+    }
+    return { success: true };
+  } catch (err) {
+    console.error('[PLM] deleteDrawingFile error:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+// =====================================================
 // DRAWING RELATIONS (Parent-Child Tree)
 // =====================================================
 
@@ -668,11 +831,70 @@ export async function searchPLM(query) {
   }
 }
 
+// =====================================================
+// PRODUCT PARTS (BOM - BILL OF MATERIALS)
+// =====================================================
+
+export async function getProductParts(productId) {
+  try {
+    const { data, error } = await supabase
+      .from('product_parts')
+      .select(`
+        *,
+        part:parts (*)
+      `)
+      .eq('product_id', productId)
+      .order('position', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error('[PLM] getProductParts error:', err);
+    return [];
+  }
+}
+
+export async function addProductPart(productPart) {
+  try {
+    const { data, error } = await supabase
+      .from('product_parts')
+      .insert(productPart)
+      .select(`
+        *,
+        part:parts (*)
+      `)
+      .single();
+
+    if (error) throw error;
+    return { success: true, data };
+  } catch (err) {
+    console.error('[PLM] addProductPart error:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+export async function removeProductPart(id) {
+  try {
+    const { error } = await supabase
+      .from('product_parts')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    console.error('[PLM] removeProductPart error:', err);
+    return { success: false, error: err.message };
+  }
+}
+
 export default {
   // Products
   getProducts, getProduct, createProduct, updateProduct, deleteProduct,
   // Parts
   getParts, getPart, createPart, updatePart,
+  // Product Parts (BOM)
+  getProductParts, addProductPart, removeProductPart,
   // Drawings
   getDrawings, getDrawing, createDrawing, updateDrawing, deleteDrawing,
   // Revisions

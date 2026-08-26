@@ -7,12 +7,10 @@ import {
   ClipboardCheck, FileSpreadsheet, Boxes, LayoutDashboard, FolderArchive, Layers
 } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
-
 import { useGlobalStore } from '../../store/useGlobalStore.js';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { hasAccess as checkRoleAccess } from '../../utils/roleAccess.js';
 import { logout } from '../../utils/auth.js';
-
 import NavDropdown from './NavDropdown.jsx';
 import SystemStatusDropdown from './SystemStatusDropdown.jsx';
 
@@ -21,15 +19,9 @@ export default function TopNavbar() {
   const globalUser = useGlobalStore((state) => state.user);
   const setUser = useGlobalStore((state) => state.setUser);
   const isOperator = useGlobalStore((state) => state.getIsOperator());
-
-  // Use AuthContext user which has role set correctly
-  const { user: authUser, isOwner, isAdmin } = useAuth();
-
-  // Merge authUser with globalUser, prefer authUser
+  const { user: authUser } = useAuth();
   const user = authUser || globalUser;
-
   const isOperatorRoute = location.pathname.startsWith('/player') || location.pathname.startsWith('/terminal');
-
   const hasAccess = (path) => checkRoleAccess(user, path);
 
   if (isOperatorRoute || isOperator) return null;
@@ -45,11 +37,11 @@ export default function TopNavbar() {
   ].filter(Boolean);
 
   const plmItems = [
-    { path: '/plm-integration', icon: <Layers size={16} className="text-cyan-500" />, label: 'PLM Dashboard' },
-    { path: '/drawing-management', icon: <Folder size={16} className="text-amber-500" />, label: 'Drawing Management' },
-    { path: '/inspector-designer', icon: <FileCode size={16} className="text-indigo-500" />, label: 'Inspector Designer' },
-    { path: '/drawing-checksheet', icon: <ClipboardCheck size={16} className="text-emerald-500" />, label: 'Digital Check Sheet' },
-    { path: '/checksheets', icon: <FolderArchive size={16} className="text-purple-500" />, label: 'Checksheet Management (ISO 9001)' }
+    { path: '/plm-integration', icon: <Layers size={16} />, label: 'PLM Dashboard' },
+    { path: '/drawing-management', icon: <Folder size={16} />, label: 'Drawing Management' },
+    { path: '/inspector-designer', icon: <FileCode size={16} />, label: 'Inspector Designer' },
+    { path: '/drawing-checksheet', icon: <ClipboardCheck size={16} />, label: 'Digital Check Sheet' },
+    { path: '/checksheets', icon: <FolderArchive size={16} />, label: 'Checksheet Management (ISO 9001)' }
   ].filter(Boolean);
 
   const shopFloorItems = [
@@ -59,7 +51,7 @@ export default function TopNavbar() {
     hasAccess('/edge-devices') && { path: '/edge-devices', icon: <Activity size={16} />, label: 'Edge Devices' },
     { type: 'divider' },
     hasAccess('/plc-settings') && { path: '/plc-settings', icon: <SlidersHorizontal size={16} />, label: 'PLC Settings' },
-    { path: '/nodered', icon: <Terminal size={16} className="text-red-500" />, label: 'Node-RED Dashboard' }
+    { path: '/nodered', icon: <Terminal size={16} />, label: 'Node-RED Dashboard' }
   ].filter(Boolean);
 
   const visionItems = [
@@ -104,77 +96,40 @@ export default function TopNavbar() {
       <div className="flex h-12 items-center justify-between px-4 sm:px-6">
         <div className="flex items-center gap-8">
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white font-bold text-lg shadow-sm">
-              M
-            </div>
+            <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white font-bold text-lg shadow-sm">M</div>
             <span className="font-bold text-lg text-slate-900 tracking-tight">MANDOR</span>
           </Link>
-
-          {/* Core App Navigation Tabs */}
           <div className="hidden lg:flex items-center gap-1">
-            <Link
-              to="/"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
-                location.pathname === '/' ? 'bg-emerald-50 text-emerald-600' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-              }`}
-            >
-              <LayoutDashboard size={16} />
-              Home
+            <Link to="/" className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${location.pathname === '/' ? 'bg-emerald-50 text-emerald-600' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}>
+              <LayoutDashboard size={16} /> Home
             </Link>
-
-            {hasAccess('/store') && (
-              <Link
-                to="/store"
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
-                  location.pathname === '/store' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                App Store
-              </Link>
-            )}
-
-            {appItems.length > 0 && <NavDropdown title="Apps" pathMatches={['/builder', '/file-explorer', '/app-management', '/tables', '/connectors', '/variables', '/mcp-server']} items={appItems} />}
-            {plmItems.length > 0 && <NavDropdown title="PLM" pathMatches={['/plm-integration', '/drawing-management', '/inspector-designer', '/drawing-checksheet', '/qa-checksheet', '/checksheets', '/checksheet-management']} items={plmItems} />}
-            
-          {shopFloorItems.length > 0 && <NavDropdown title="Shop Floor" pathMatches={['/stations', '/display-devices', '/machines', '/edge-devices', '/plc-settings', '/nodered']} items={shopFloorItems} />}
-          {visionItems.length > 0 && <NavDropdown title="Vision" pathMatches={['/vision', '/vision/calibration', '/vision/quickbuild']} items={visionItems} />}
-          {analyticsItems.length > 0 && <NavDropdown title="Analytics" pathMatches={['/bi', '/reports', '/shift-handoff']} items={analyticsItems} />}
-          {logicItems.length > 0 && <NavDropdown title="Logic" pathMatches={['/automations', '/functions']} items={logicItems} />}
-        </div>
-      </div>
-
-      {/* RIGHT SECTION */}
-      <div className="flex items-center gap-2">
-        {consoleItems.length > 0 && <NavDropdown title="Console" pathMatches={['/player', '/terminal']} items={consoleItems} />}
-        {systemItems.length > 0 && <NavDropdown title="System" pathMatches={['/users', '/ai-settings', '/supabase-settings', '/n8n-settings', '/build-center', '/admin-settings']} items={systemItems} />}
-
-        <Toaster position="top-right" />
-
-        <SystemStatusDropdown />
-
-        <div className="w-px h-6 bg-slate-200 mx-2" />
-
-        {/* USER MENU */}
-        <div className="flex items-center gap-4 pl-1">
-          <div className="flex items-center gap-2 text-slate-900 text-[0.85rem] font-semibold">
-            <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">
-              {user?.name?.charAt(0) || 'U'}
-            </div>
-            <span>{user?.name || 'User'}</span>
+            <Link to="/store" className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${location.pathname === '/store' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}>
+              <ShoppingBag size={16} /> App Store
+            </Link>
+            {appItems.length > 0 && <NavDropdown title="Apps" items={appItems} />}
+            {plmItems.length > 0 && <NavDropdown title="PLM" items={plmItems} />}
+            {shopFloorItems.length > 0 && <NavDropdown title="Shop Floor" items={shopFloorItems} />}
+            {visionItems.length > 0 && <NavDropdown title="Vision" items={visionItems} />}
+            {analyticsItems.length > 0 && <NavDropdown title="Analytics" items={analyticsItems} />}
+            {logicItems.length > 0 && <NavDropdown title="Logic" items={logicItems} />}
           </div>
-          <button
-            onClick={async () => {
-              await logout();
-              setUser(null);
-              window.location.href = '/';
-            }}
-            className="bg-transparent border border-slate-300 text-slate-500 px-3 py-1.5 rounded-md text-[0.8rem] font-semibold hover:bg-red-50 hover:border-red-500 hover:text-red-500 transition-colors"
-          >
-            Logout
-          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          {consoleItems.length > 0 && <NavDropdown title="Console" items={consoleItems} />}
+          {systemItems.length > 0 && <NavDropdown title="System" items={systemItems} />}
+          <SystemStatusDropdown />
+          <div className="w-px h-6 bg-slate-200 mx-2" />
+          <div className="flex items-center gap-4 pl-1">
+            <div className="flex items-center gap-2 text-slate-900 text-[0.85rem] font-semibold">
+              <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold">{user?.name?.charAt(0) || 'U'}</div>
+              <span>{user?.name || 'User'}</span>
+            </div>
+            <button onClick={async () => { await logout(); setUser(null); window.location.href = '/'; }} className="bg-transparent border border-slate-300 text-slate-500 px-3 py-1.5 rounded-md text-[0.8rem] font-semibold hover:bg-red-50 hover:border-red-500 hover:text-red-500 transition-colors">
+              Logout
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  </nav>
-);
+    </nav>
+  );
 }

@@ -127,6 +127,8 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/inspector-designer" element={<InspectorDesigner />} />
               <Route path="/drawing-checksheet" element={<DigitalDrawingCheckSheet />} />
               <Route path="/qa-checksheet" element={<DigitalDrawingCheckSheet />} />
+              <Route path="/drawing-management" element={<DrawingManagement />} />
+              <Route path="/plm-integration" element={<PLMIntegrationDashboard />} />
               <Route path="/app-management" element={hasAccess('/app-management') ? <AppManagement /> : <Navigate to="/" replace />} />
               <Route path="/tables" element={hasAccess('/tables') ? <TableManager /> : <Navigate to="/" replace />} />
               <Route path="/connectors" element={hasAccess('/connectors') ? <ConnectorManager /> : <Navigate to="/" replace />} />
