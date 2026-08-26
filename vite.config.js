@@ -3,6 +3,24 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import tailwindcss from '@tailwindcss/vite'
 
+// Security headers for production
+const securityHeaders = {
+  'X-Frame-Options': 'DENY',
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+  'X-XSS-Protection': '1; mode=block',
+  'Content-Security-Policy': [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.supabase.co",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com data:",
+    "img-src 'self' data: https://*.supabase.co blob:",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+    "frame-ancestors 'none'",
+  ].join('; '),
+};
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
@@ -64,7 +82,8 @@ export default defineConfig({
       'dexie',
       'i18next',
       'react-i18next',
-      'zustand'
+      'zustand',
+      'zod'
     ]
   },
   server: {
@@ -74,9 +93,24 @@ export default defineConfig({
     hmr: {
       host: 'localhost',
     },
+    // Security headers for development
+    headers: {
+      ...securityHeaders,
+      // Relax CSP for dev
+      'Content-Security-Policy': [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' ws://localhost:* http://localhost:*",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' https://fonts.gstatic.com data:",
+        "img-src 'self' data: blob: https://*.supabase.co",
+        "connect-src 'self' ws://localhost:* http://localhost:* https://*.supabase.co wss://*.supabase.co",
+        "frame-ancestors 'none'",
+      ].join('; '),
+    },
   },
   build: {
     chunkSizeWarningLimit: 1000,
+    // Security headers for production build
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -110,6 +144,9 @@ export default defineConfig({
             }
             if (id.includes('i18next') || id.includes('react-i18next') || id.includes('mqtt') || id.includes('dexie')) {
               return 'vendor-services';
+            }
+            if (id.includes('zod')) {
+              return 'vendor-validation';
             }
           }
         }

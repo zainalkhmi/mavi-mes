@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video Script - Mavi MES Solutions (90 Detik)</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --primary: #3B82F6;
+      --secondary: #10B981;
+      --accent: #8B5CF6;
+      --dark: #1E293B;
+      --light: #F8FAFC;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+      color: #E2E8F0;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, #60A5FA, #34D399);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #94A3B8;
+      margin-bottom: 2rem;
+      font-size: 1.1rem;
+    }
+
+    .script-section {
+      background: rgba(255,255,255,0.05);
+      border-radius: 16px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .section-title .icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+    }
+
+    .scene {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      padding: 1rem;
+      background: rgba(0,0,0,0.2);
+      border-radius: 12px;
+      border-left: 4px solid var(--primary);
+    }
+
+    .scene-badge {
+      background: var(--primary);
+      color: white;
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      white-space: nowrap;
+      height: fit-content;
+    }
+
+    .scene-content {
+      flex: 1;
+    }
+
+    .scene-title {
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: #F1F5F9;
+    }
+
+    .scene-text {
+      font-size: 0.95rem;
+      color: #CBD5E1;
+      line-height: 1.6;
+    }
+
+    .voiceover {
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin-top: 0.75rem;
+      font-style: italic;
+      color: #6EE7B7;
+    }
+
+    .voiceover::before {
+      content: "🎙️ Voiceover: ";
+      font-weight: 600;
+      font-style: normal;
+    }
+
+    .visual {
+      background: rgba(139, 92, 246, 0.1);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin-top: 0.75rem;
+      color: #C4B5FD;
+    }
+
+    .visual::before {
+      content: "📹 Visual: ";
+      font-weight: 600;
+    }
+
+    .timer {
+      display: inline-block;
+      background: rgba(239, 68, 68, 0.2);
+      color: #FCA5A5;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      margin-left: 0.5rem;
+    }
+
+    .summary {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(16, 185, 129, 0.2));
+      border-radius: 16px;
+      padding: 1.5rem;
+      margin-top: 2rem;
+    }
+
+    .summary h2 {
+      margin-bottom: 1rem;
+      font-size: 1.3rem;
+    }
+
+    .summary ul {
+      list-style: none;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .summary li {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .check {
+      color: #34D399;
+      font-weight: bold;
+    }
+
+    .next-steps {
+      margin-top: 2rem;
+      text-align: center;
+      padding: 1.5rem;
+      background: rgba(255,255,255,0.05);
+      border-radius: 16px;
+    }
+
+    .next-steps h3 {
+      margin-bottom: 1rem;
+      color: #F1F5F9;
+    }
+
+    .cta-btn {
+      display: inline-block;
+      background: linear-gradient(135deg, #3B82F6, #2563EB);
+      color: white;
+      padding: 0.75rem 2rem;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      transition: transform 0.2s;
+    }
+
+    .cta-btn:hover {
+      transform: scale(1.05);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📹 Video Script: Mavi MES Solutions</h1>
+    <p class="subtitle">Durasi: 90 Detik | Target: Manufaktur / Produksi</p>
+
+    <div class="script-section">
+      <div class="section-title">
+        <span class="icon" style="background: rgba(59,130,246,0.2);">🎬</span>
+        SCENE 1 - HOOK (Detik 0-10)
+      </div>
+
+      <div class="scene">
+        <span class="scene-badge">0:00-0:05</span>
+        <div class="scene-content">
+          <div class="scene-title">Opening - Masalah Produksi</div>
+          <div class="scene-text">
+            Wide shot pabrik dengan produksi berjalan.字幕 muncul: "Quality Control masih manual dan error-prone?"
+          </div>
+          <div class="voiceover">
+            Quality control yang lambat, inspection point yang terlewat, dan data yang tidak terintegrasi? Ini costing manufaktur Anda.
+          </div>
+          <div class="visual">
+            Visual: Pabrik → Close-up inspeksi manual → Grafik error tinggi
+          </div>
+        </div>
+      </div>
+
+      <div class="scene">
+        <span class="scene-badge">0:05-0:10</span>
+        <div class="scene-content">
+          <div class="scene-title">Solusi Muncul</div>
+          <div class="scene-text">
+            Transisi cepat ke dashboard Mavi MES.字幕: "Mavi MES - All-in-One Smart Factory Platform"
+          </div>
+          <div class="voiceover">
+            Mavi MES mengubah cara Anda melakukan quality control. Satu platform untuk seluruh proses produksi.
+          </div>
+          <div class="visual">
+            Visual: Logo Mavi MES → Dashboard Overview → Fade in tagline
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="script-section">
+      <div class="section-title">
+        <span class="icon" style="background: rgba(16,185,129,0.2);">⚡</span>
+        SCENE 2 - FEATURES (Detik 10-55)
+      </div>
+
+      <div class="scene">
+        <span class="scene-badge">0:10-0:20</span>
+        <div class="scene-content">
+          <div class="scene-title">Feature 1: Inspector Designer Studio</div>
+          <div class="scene-text">
+            Demo upload blueprint PDF, define inspection points dengan drag-drop. Export ke digital checklist.
+          </div>
+          <div class="voiceover">
+            Buat inspection template dari blueprint PDF dalam hitungan menit. Drag, drop, set tolerance — selesai!
+          </div>
+          <div class="visual">
+            Visual: Blueprint PDF → Add inspection points → Set parameter → Export
+          </div>
+        </div>
+      </div>
+
+      <div class="scene">
+        <span class="scene-badge">0:20-0:30</span>
+        <div class="scene-content">
+          <div class="scene-title">Feature 2: Digital Check Sheet</div>
+          <div class="scene-text">
+            Operator di lantai produksi menggunakan tablet untuk check sheet digital. Scan barcode, input hasil, capture photo.
+          </div>
+          <div class="voiceover">
+            Operator di lantai produksi tinggal scan barcode dan input hasil. Semua data langsung sync ke cloud.
+          </div>
+          <div class="visual">
+            Visual: Tablet → Scan barcode → Input hasil inspection → Photo capture → Submit
+          </div>
+        </div>
+      </div>
+
+      <div class="scene">
+        <span class="scene-badge">0:30-0:40</span>
+        <div class="scene-content">
+          <div class="scene-title">Feature 3: Real-time IoT Integration</div>
+          <div class="scene-text">
+            Dashboard dengan live data dari PLC/Sensor: Temperature, Spindle Speed, Machine Status.
+          </div>
+          <div class="voiceover">
+            Data mesin real-time dari IoT sensor. Monitor spindle speed, temperature, dan status mesin langsung di dashboard.
+          </div>
+          <div class="visual">
+            Visual: IoT Dashboard → Live graphs → Sensor readings → Alert notification
+          </div>
+        </div>
+      </div>
+
+      <div class="scene">
+        <span class="scene-badge">0:40-0:55</span>
+        <div class="scene-content">
+          <div class="scene-title">Feature 4: AI-Powered Analytics</div>
+          <div class="scene-text">
+            Report builder dengan charts, BI studio, predictive maintenance alerts.
+          </div>
+          <div class="voiceover">
+            AI analytics memberikan insight untuk predictive maintenance. Deteksi masalah sebelum terjadi.
+          </div>
+          <div class="visual">
+            Visual: Analytics Dashboard → Trend charts → AI insights → Maintenance schedule
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="script-section">
+      <div class="section-title">
+        <span class="icon" style="background: rgba(139,92,246,0.2);">🎯</span>
+        SCENE 3 - BENEFITS (Detik 55-75)
+      </div>
+
+      <div class="scene">
+        <span class="scene-badge">0:55-1:05</span>
+        <div class="scene-content">
+          <div class="scene-title">Key Benefits Stack</div>
+          <div class="scene-text">
+            Animated icons showing: 90% faster QC → 50% reduced error → 100% data traceability → Real-time visibility
+          </div>
+          <div class="voiceover">
+            Hasil nyata: QC 90% lebih cepat, error berkurang 50%, dan full traceability dari raw material hingga finished product.
+          </div>
+          <div class="visual">
+            Visual: Animated numbers → 90% faster → 50% less errors → 100% traceable
+          </div>
+        </div>
+      </div>
+
+      <div class="scene">
+        <span class="scene-badge">1:05-1:15</span>
+        <div class="scene-content">
+          <div class="scene-title">Cloud-Native & Secure</div>
+          <div class="scene-text">
+            Secure login dengan Google OAuth. Role-based access: Owner, Admin, Operator. Semua data ter-encrypted.
+          </div>
+          <div class="voiceover">
+            Enterprise-grade security dengan Google login. Atur siapa yang bisa akses apa dengan role-based permissions.
+          </div>
+          <div class="visual">
+            Visual: Login screen → Role selection → Dashboard with permissions
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="script-section">
+      <div class="section-title">
+        <span class="icon" style="background: rgba(239,68,68,0.2);">🚀</span>
+        SCENE 4 - CTA (Detik 75-90)
+      </div>
+
+      <div class="scene">
+        <span class="scene-badge">1:15-1:25</span>
+        <div class="scene-content">
+          <div class="scene-title">Closing Hook</div>
+          <div class="scene-text">
+            Show transformation: Before vs After. Manual process → Mavi MES automated.
+          </div>
+          <div class="voiceover">
+            Ubah proses quality control Anda dari manual ke smart automated. Mulai transformasi digital manufaktur Anda hari ini.
+          </div>
+          <div class="visual">
+            Visual: Split screen → Manual process (messy) → Mavi MES (clean, automated)
+          </div>
+        </div>
+      </div>
+
+      <div class="scene">
+        <span class="scene-badge">1:25-1:30</span>
+        <div class="scene-content">
+          <div class="scene-title">Call to Action</div>
+          <div class="scene-text">
+            Website URL displayed prominently. Free trial mention. Contact info.
+          </div>
+          <div class="voiceover">
+            Kunjungi mavimes.com untuk demo gratis. Atau hubungi tim kami untuk konsultasi kebutuhan Anda.
+          </div>
+          <div class="visual">
+            Visual: Website URL → Contact button → Company logo → Social links
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="summary">
+      <h2>📋 Ringkasan Scene</h2>
+      <ul>
+        <li><span class="check">✓</span> Scene 1: Hook - Masalah Produksi (0-10s)</li>
+        <li><span class="check">✓</span> Scene 2: Features - 4 Core Features (10-55s)</li>
+        <li><span class="check">✓</span> Scene 3: Benefits - Keunggulan & Security (55-75s)</li>
+        <li><span class="check">✓</span> Scene 4: CTA - Call to Action (75-90s)</li>
+      </ul>
+
+      <h2 style="margin-top: 1.5rem;">🎬 Notes Produksi</h2>
+      <ul>
+        <li><span class="check">✓</span> Total duration: 90 detik</li>
+        <li><span class="check">✓</span> Tone: Professional tapi approachable</li>
+        <li><span class="check">✓</span> Music: Upbeat corporate, non-intrusive</li>
+        <li><span class="check">✓</span> Transitions: Smooth cut, 0.5s max</li>
+        <li><span class="check">✓</span> Text overlay: Clean, readable font</li>
+      </ul>
+    </div>
+
+    <div class="next-steps">
+      <h3>🎥 Next Steps</h3>
+      <p style="color: #94A3B8; margin-bottom: 1rem;">
+        Script ini siap digunakan untuk recording atau diberikan ke video editor profesional.
+      </p>
+      <a href="#" class="cta-btn">📥 Download Script (PDF)</a>
+    </div>
+  </div>
+</body>
+</html>

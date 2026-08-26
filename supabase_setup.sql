@@ -1091,4 +1091,3 @@ CREATE POLICY "Allow all ai_agents" ON public.ai_agents FOR ALL TO anon, authent
 -- Indexes for ai_agents
 CREATE INDEX IF NOT EXISTS idx_ai_agents_type ON public.ai_agents(type);
 CREATE INDEX IF NOT EXISTS idx_ai_agents_active ON public.ai_agents(is_active) WHERE is_active = TRUE;
-CREATE POLICY "Allow all scada_reports" ON public.scada_reports FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);

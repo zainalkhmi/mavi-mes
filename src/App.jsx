@@ -8,6 +8,7 @@ import { useZoom } from './hooks/useZoom';
 import Login from './components/Login';
 import LoadingScreen from './components/layout/LoadingScreen';
 import { useGlobalStore } from './store/useGlobalStore';
+import { useAuth } from './contexts/AuthContext';
 
 import LandingPage from './components/LandingPage';
 
@@ -18,11 +19,15 @@ const MachineActivityYieldTracker = lazy(() => import('./components/MachineActiv
 const AgentManager = lazy(() => import('./components/AgentManager'));
 const ShiftHandoffDashboard = lazy(() => import('./components/ShiftHandoffDashboard'));
 const DigitalDrawingCheckSheet = lazy(() => import('./components/DigitalDrawingCheckSheet'));
+const SimpleCheckSheetDemo = lazy(() => import('./components/SimpleCheckSheetDemo'));
+const DrawingManagement = lazy(() => import('./components/DrawingManagement'));
+const PLMIntegrationDashboard = lazy(() => import('./components/PLMIntegrationDashboard'));
 
 export default function App() {
   const user = useGlobalStore((state) => state.user);
   const setUser = useGlobalStore((state) => state.setUser);
-  
+  const { user: authUser, loading: authLoading, isAuthenticated } = useAuth();
+
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -30,6 +35,14 @@ export default function App() {
   const isOperator = user?.role === 'OPERATOR' || user?.role === 'STATION_OPERATOR';
 
   const { zoomLevel, setZoomLevel, isZoomCollapsed, setIsZoomCollapsed } = useZoom();
+
+  // Sync AuthContext user to useGlobalStore
+  useEffect(() => {
+    if (authLoading) return;
+    if (authUser && !user) {
+      setUser(authUser);
+    }
+  }, [authUser, authLoading, user, setUser]);
 
   // Load PLC Settings from Supabase globally after login
   useEffect(() => {
@@ -60,7 +73,10 @@ export default function App() {
     }
   };
 
-  if (!user) {
+  // Check if user is logged in (from either source)
+  const isUserLoggedIn = user || (authUser && isAuthenticated);
+
+  if (!isUserLoggedIn && !authLoading) {
     return (
       <div style={{ minHeight: '100vh', width: '100%', display: 'flex', flexDirection: 'column' }}>
         <EnterpriseDialogContainer />
@@ -79,6 +95,9 @@ export default function App() {
             <Route path="/shift-handoff" element={<ShiftHandoffDashboard />} />
             <Route path="/drawing-checksheet" element={<DigitalDrawingCheckSheet />} />
             <Route path="/qa-checksheet" element={<DigitalDrawingCheckSheet />} />
+            <Route path="/simple-checksheet" element={<SimpleCheckSheetDemo />} />
+            <Route path="/drawing-management" element={<DrawingManagement />} />
+            <Route path="/plm-integration" element={<PLMIntegrationDashboard />} />
             <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

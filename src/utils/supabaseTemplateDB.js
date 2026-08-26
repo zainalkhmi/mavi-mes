@@ -2,13 +2,7 @@
  * supabaseTemplateDB.js
  * Cloud storage for Inspector Studio templates via Supabase
  */
-import { createClient } from '@supabase/supabase-js';
-
-const getClient = (() => {
-    const url = 'https://pypjnzvsolxsddsqworw.supabase.co';
-    const anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB5cGpuenZzb2x4c2Rkc3F3b3J3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMTQ1MDQsImV4cCI6MjA5MjY5MDUwNH0.kjKlJu336ZqIOEk4SV7WhPrhsHzQv-rrKDh-oPasbAc';
-    return createClient(url, anonKey);
-})();
+import { getSupabaseAuth } from './supabaseAuth.js';
 
 // Table: inspector_templates
 // Columns: id, name, doc_no, revision, status, template_data (jsonb), created_at, updated_at
@@ -18,7 +12,10 @@ const getClient = (() => {
  */
 export async function getTemplates() {
     try {
-        const { data, error } = await getClient()
+        const client = getSupabaseAuth();
+        if (!client) throw new Error('Supabase not configured');
+
+        const { data, error } = await client
             .from('inspector_templates')
             .select('*')
             .order('updated_at', { ascending: false });
@@ -36,8 +33,10 @@ export async function getTemplates() {
 export async function saveTemplates(templates) {
     if (!templates?.length) return;
     try {
+        const client = getSupabaseAuth();
+        if (!client) throw new Error('Supabase not configured');
+
         // Upsert each template
-        const client = getClient();
         for (const t of templates) {
             await client.from('inspector_templates').upsert({
                 id: t.id,
@@ -50,10 +49,30 @@ export async function saveTemplates(templates) {
             }, { onConflict: 'id' });
         }
     } catch (e) {
-        console.warn('[Supabase] saveTemplates offline fallback to localStorage', e);
-    } finally {
-        // Always save locally as fallback
+        console.warn('[Supabase] saveTemplates failed, trying localStorage', e);
+    }
+
+    // Save locally as fallback, but handle quota exceeded
+    try {
+        const data = JSON.stringify(templates);
+        // If data is too large (> 4MB), keep only last 10 templates
+        if (data.length > 4 * 1024 * 1024) {
+            console.warn('[Templates] Data too large, trimming to last 10 templates');
+            templates = templates.slice(-10);
+        }
         localStorage.setItem('mandor_inspector_templates', JSON.stringify(templates));
+    } catch (e) {
+        if (e.name === 'QuotaExceededError' || e.message.includes('quota')) {
+            console.warn('[Templates] localStorage full, trying to clear old data');
+            // Try to save with fewer templates
+            try {
+                localStorage.setItem('mandor_inspector_templates', JSON.stringify(templates.slice(-5)));
+            } catch (e2) {
+                console.error('[Templates] Cannot save even 5 templates to localStorage');
+            }
+        } else {
+            console.error('[Templates] Failed to save to localStorage:', e);
+        }
     }
 }
 
@@ -62,7 +81,10 @@ export async function saveTemplates(templates) {
  */
 export async function getTemplate(id) {
     try {
-        const { data, error } = await getClient()
+        const client = getSupabaseAuth();
+        if (!client) throw new Error('Supabase not configured');
+
+        const { data, error } = await client
             .from('inspector_templates')
             .select('*')
             .eq('id', id)
@@ -80,7 +102,10 @@ export async function getTemplate(id) {
  */
 export async function deleteTemplate(id) {
     try {
-        await getClient().from('inspector_templates').delete().eq('id', id);
+        const client = getSupabaseAuth();
+        if (!client) throw new Error('Supabase not configured');
+
+        await client.from('inspector_templates').delete().eq('id', id);
     } catch (e) {
         console.warn('[Supabase] deleteTemplate offline', e);
     }

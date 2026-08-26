@@ -15,6 +15,9 @@ if (typeof window !== 'undefined' && pdfjsLib.GlobalWorkerOptions) {
     pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker || `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version || '6.2.108'}/build/pdf.worker.min.mjs`;
 }
 
+// Disable external font loading to avoid CSP issues
+pdfjsLib.OPS.setFont = null;
+
 /**
  * Converts PDF (Data URL, Blob, Uint8Array, or ArrayBuffer) directly to high-res PNG Data URL
  * @param {string|ArrayBuffer|Uint8Array|Blob} pdfInput
@@ -31,7 +34,22 @@ export async function convertPdfToImageDataUrl(pdfInput, scale = 2.5) {
             pdfData = pdfInput;
         } else if (pdfInput instanceof ArrayBuffer) {
             pdfData = new Uint8Array(pdfInput);
-        } else if (typeof pdfInput === 'string' && (pdfInput.startsWith('data:') || pdfInput.startsWith('blob:') || pdfInput.startsWith('http'))) {
+        } else if (typeof pdfInput === 'string' && pdfInput.startsWith('data:')) {
+            // Handle data: URL directly without fetch (CSP compliant)
+            const base64Match = pdfInput.match(/^data:([^;]+);base64,(.+)$/);
+            if (base64Match) {
+                const binaryString = atob(base64Match[2]);
+                const len = binaryString.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                pdfData = bytes;
+            } else {
+                throw new Error('Invalid data: URL format');
+            }
+        } else if (typeof pdfInput === 'string' && (pdfInput.startsWith('blob:') || pdfInput.startsWith('http'))) {
+            // For blob: and http: URLs, use fetch
             const res = await fetch(pdfInput);
             const buf = await res.arrayBuffer();
             pdfData = new Uint8Array(buf);
@@ -51,9 +69,9 @@ export async function convertPdfToImageDataUrl(pdfInput, scale = 2.5) {
 
         const loadingTask = pdfjsLib.getDocument({
             data: pdfData,
-            cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version || '6.2.108'}/cmaps/`,
-            cMapPacked: true,
-            standardFontDataUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version || '6.2.108'}/standard_fonts/`
+            // Disable external font loading to avoid CSP issues
+            standardFontDataUrl: null,
+            cMapUrl: null,
         });
 
         const pdf = await loadingTask.promise;

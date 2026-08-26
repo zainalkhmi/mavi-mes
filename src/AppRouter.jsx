@@ -58,6 +58,10 @@ const DashboardManager = lazy(() => import('./components/DashboardManager'));
 const AiSettings = lazy(() => import('./components/AiSettings'));
 const SupabaseSettings = lazy(() => import('./components/SupabaseSettings'));
 const AdminSettings = lazy(() => import('./components/AdminSettings'));
+const SimpleDigitalCheckSheet = lazy(() => import('./components/SimpleDigitalCheckSheet'));
+const SimpleCheckSheetDemo = lazy(() => import('./components/SimpleCheckSheetDemo'));
+const DrawingManagement = lazy(() => import('./components/DrawingManagement'));
+const PLMIntegrationDashboard = lazy(() => import('./components/PLMIntegrationDashboard'));
 const N8nWebhookSettings = lazy(() => import('./components/N8nWebhookSettings'));
 const AppManagement = lazy(() => import('./components/AppManagement'));
 const FileExplorer = lazy(() => import('./components/FileExplorer'));
@@ -91,6 +95,9 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/player" element={<AppPlayer />} />
               <Route path="/drawing-checksheet" element={<DigitalDrawingCheckSheet />} />
               <Route path="/qa-checksheet" element={<DigitalDrawingCheckSheet />} />
+              <Route path="/simple-checksheet" element={<SimpleCheckSheetDemo />} />
+              <Route path="/drawing-management" element={<DrawingManagement />} />
+              <Route path="/plm-integration" element={<PLMIntegrationDashboard />} />
               <Route path="/checksheets" element={<CheckSheetManager />} />
               <Route path="/checksheet-management" element={<CheckSheetManager />} />
               <Route path="/checksheet-manager" element={<CheckSheetManager />} />

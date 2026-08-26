@@ -1,6 +1,7 @@
 import { getSupabaseClient } from './supabaseManualDB.js';
 import { deleteTable } from './supabaseTablesDB.js';
 import n8nWebhook from './n8nWebhookService.js';
+import { isSupabaseReady } from './supabaseAuth.js';
 
 export async function getStations() {
     const supabase = getSupabaseClient();

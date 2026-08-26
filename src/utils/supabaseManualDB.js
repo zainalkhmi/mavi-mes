@@ -5,7 +5,7 @@
  * Replaces: tursoAPI.js + knowledgeBaseDB.js + tursoClient.js
  * =====================================================
  */
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAuth } from './supabaseAuth.js';
 
 const MANUAL_SUMMARY_COLUMNS = [
     'id',
@@ -34,50 +34,19 @@ const normalizeWorkflowStatus = (status) => {
 };
 
 // ── Singleton client ──────────────────────────────────
-let _client = null;
 
 /**
- * Reads Supabase credentials from:
- *   1. Vite env variables (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY)
- *   2. localStorage (supabase_storage_settings, saved by Settings UI)
- */
-function getCredentials() {
-    // HARDCODED PERMANENT CREDENTIALS (as requested)
-    const url = 'https://pypjnzvsolxsddsqworw.supabase.co';
-    const anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB5cGpuenZzb2x4c2Rkc3F3b3J3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMTQ1MDQsImV4cCI6MjA5MjY5MDUwNH0.kjKlJu336ZqIOEk4SV7WhPrhsHzQv-rrKDh-oPasbAc';
-    
-    return { url, anonKey };
-}
-
-/**
- * Returns the Supabase JS client (singleton).
- * Throws if credentials are not configured.
+ * Returns the Supabase JS client from supabaseAuth.js
  */
 export function getSupabaseClient() {
-    if (_client) return _client;
-
-    const { url, anonKey } = getCredentials();
-
-    if (!url || !anonKey) {
-        throw new Error(
-            'Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY ' +
-            'or configure them in the App Settings.'
-        );
-    }
-
-    _client = createClient(url, anonKey, {
-        auth: { persistSession: false }
-    });
-
-    return _client;
+    return getSupabaseAuth();
 }
 
 /**
  * Returns true if Supabase credentials are available.
  */
 export function isSupabaseReady() {
-    const { url, anonKey } = getCredentials();
-    return Boolean(url && anonKey);
+    return true; // Using supabaseAuth client, which handles credentials
 }
 
 // ── Schema columns (mirrors supabase_setup.sql) ───────

@@ -4,11 +4,12 @@ import {
   BarChart3, BarChart2, Monitor, MapPin, Radio, Tv, Activity, Eye, BrainCircuit,
   SlidersHorizontal, Users, ShoppingBag, AppWindow, Folder, Volume2,
   FileCode, Webhook, Play, Layout, FileText, PieChart, Terminal, Bot, Clock,
-  ClipboardCheck, FileSpreadsheet, Boxes, LayoutDashboard, FolderArchive
+  ClipboardCheck, FileSpreadsheet, Boxes, LayoutDashboard, FolderArchive, Layers
 } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 
 import { useGlobalStore } from '../../store/useGlobalStore.js';
+import { useAuth } from '../../contexts/AuthContext.jsx';
 import { hasAccess as checkRoleAccess } from '../../utils/roleAccess.js';
 import { logout } from '../../utils/auth.js';
 
@@ -17,10 +18,16 @@ import SystemStatusDropdown from './SystemStatusDropdown.jsx';
 
 export default function TopNavbar() {
   const location = useLocation();
-  const user = useGlobalStore((state) => state.user);
+  const globalUser = useGlobalStore((state) => state.user);
   const setUser = useGlobalStore((state) => state.setUser);
   const isOperator = useGlobalStore((state) => state.getIsOperator());
-  
+
+  // Use AuthContext user which has role set correctly
+  const { user: authUser, isOwner, isAdmin } = useAuth();
+
+  // Merge authUser with globalUser, prefer authUser
+  const user = authUser || globalUser;
+
   const isOperatorRoute = location.pathname.startsWith('/player') || location.pathname.startsWith('/terminal');
 
   const hasAccess = (path) => checkRoleAccess(user, path);
@@ -37,10 +44,12 @@ export default function TopNavbar() {
     hasAccess('/variables') && { path: '/variables', icon: <Variable size={16} />, label: 'Variables' }
   ].filter(Boolean);
 
-  const drawingItems = [
-    hasAccess('/checksheets') && { path: '/checksheets', icon: <FolderArchive size={16} className="text-purple-500" />, label: 'Checksheet Management (ISO 9001)' },
-    hasAccess('/inspector-designer') && { path: '/inspector-designer', icon: <FileCode size={16} className="text-indigo-500" />, label: 'Inspector Designer Studio' },
-    hasAccess('/drawing-checksheet') && { path: '/drawing-checksheet', icon: <ClipboardCheck size={16} className="text-emerald-500" />, label: 'Digital Check Sheet' }
+  const plmItems = [
+    { path: '/plm-integration', icon: <Layers size={16} className="text-cyan-500" />, label: 'PLM Dashboard' },
+    { path: '/drawing-management', icon: <Folder size={16} className="text-amber-500" />, label: 'Drawing Management' },
+    { path: '/inspector-designer', icon: <FileCode size={16} className="text-indigo-500" />, label: 'Inspector Designer' },
+    { path: '/drawing-checksheet', icon: <ClipboardCheck size={16} className="text-emerald-500" />, label: 'Digital Check Sheet' },
+    { path: '/checksheets', icon: <FolderArchive size={16} className="text-purple-500" />, label: 'Checksheet Management (ISO 9001)' }
   ].filter(Boolean);
 
   const shopFloorItems = [
@@ -125,7 +134,8 @@ export default function TopNavbar() {
             )}
 
             {appItems.length > 0 && <NavDropdown title="Apps" pathMatches={['/builder', '/file-explorer', '/app-management', '/tables', '/connectors', '/variables', '/mcp-server']} items={appItems} />}
-            {drawingItems.length > 0 && <NavDropdown title="Drawings & QA" pathMatches={['/checksheets', '/checksheet-management', '/checksheet-manager', '/drawing-checksheet', '/qa-checksheet', '/inspector-designer']} items={drawingItems} />}
+            {plmItems.length > 0 && <NavDropdown title="PLM" pathMatches={['/plm-integration', '/drawing-management', '/inspector-designer', '/drawing-checksheet', '/qa-checksheet', '/checksheets', '/checksheet-management']} items={plmItems} />}
+            
           {shopFloorItems.length > 0 && <NavDropdown title="Shop Floor" pathMatches={['/stations', '/display-devices', '/machines', '/edge-devices', '/plc-settings', '/nodered']} items={shopFloorItems} />}
           {visionItems.length > 0 && <NavDropdown title="Vision" pathMatches={['/vision', '/vision/calibration', '/vision/quickbuild']} items={visionItems} />}
           {analyticsItems.length > 0 && <NavDropdown title="Analytics" pathMatches={['/bi', '/reports', '/shift-handoff']} items={analyticsItems} />}
@@ -153,9 +163,10 @@ export default function TopNavbar() {
             <span>{user?.name || 'User'}</span>
           </div>
           <button
-            onClick={() => {
-              logout();
+            onClick={async () => {
+              await logout();
               setUser(null);
+              window.location.href = '/';
             }}
             className="bg-transparent border border-slate-300 text-slate-500 px-3 py-1.5 rounded-md text-[0.8rem] font-semibold hover:bg-red-50 hover:border-red-500 hover:text-red-500 transition-colors"
           >

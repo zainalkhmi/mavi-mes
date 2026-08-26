@@ -1,240 +1,442 @@
+/**
+ * Login.jsx
+ * =====================================================
+ * Login page with email/password and OAuth options
+ * =====================================================
+ */
+
 import React, { useState } from 'react';
-import { User, Lock, ArrowRight, Activity, Settings, AlertCircle } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { login } from '../utils/auth';
+import { Navigate, Link } from 'react-router-dom';
+import {
+  Eye,
+  EyeOff,
+  Mail,
+  Lock,
+  LogIn,
+  AlertCircle,
+  Loader2,
+  Chrome,
+  Github,
+} from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
-const Login = ({ onLoginSuccess }) => {
-    const [username, setUsername] = useState('');
-    const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
+export default function Login() {
+  const { login, loginWithOAuth, loading, error, clearError, isAuthenticated } = useAuth();
 
-    const handleLogin = async (e) => {
-        e.preventDefault();
-        setError('');
-        setIsLoading(true);
+  // Form state
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [oauthLoading, setOauthLoading] = useState(null);
 
-        try {
-            // Simulate brief network delay for realism
-            await new Promise(resolve => setTimeout(resolve, 600));
+  // If already authenticated, redirect
+  if (isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
 
-            const user = login(username, password);
-            if (user) {
-                onLoginSuccess(user);
-            } else {
-                setError('Invalid username or password.');
-            }
-        } catch (err) {
-            setError('An error occurred during authentication.');
-            console.error(err);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+  // Validate form
+  const validateForm = () => {
+    if (!email) {
+      setFormError('Email is required');
+      return false;
+    }
+    if (!email.includes('@')) {
+      setFormError('Please enter a valid email');
+      return false;
+    }
+    if (!password) {
+      setFormError('Password is required');
+      return false;
+    }
+    setFormError('');
+    return true;
+  };
 
-    return (
-        <div style={{
-            minHeight: '100vh',
-            width: '100%',
+  // Handle email/password login
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    clearError();
+
+    if (!validateForm()) return;
+
+    const result = await login(email, password);
+
+    if (!result.success && result.error) {
+      // Error is handled by AuthContext
+    }
+  };
+
+  // Handle OAuth login
+  const handleOAuthLogin = async (provider) => {
+    setOauthLoading(provider);
+    clearError();
+
+    const result = await loginWithOAuth(provider);
+
+    if (result.success && result.url) {
+      // Redirect to OAuth provider
+      window.location.href = result.url;
+    }
+
+    if (!result.success) {
+      setOauthLoading(null);
+    }
+  };
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#f8f9fa',
+      padding: '20px',
+      fontFamily: "'Inter', system-ui, sans-serif",
+    }}>
+      <div style={{
+        width: '100%',
+        maxWidth: '420px',
+        backgroundColor: '#fff',
+        borderRadius: '12px',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+        padding: '40px',
+      }}>
+        {/* Logo/Header */}
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <div style={{
+            width: '64px',
+            height: '64px',
+            backgroundColor: '#7c3aed',
+            borderRadius: '12px',
             display: 'flex',
-            backgroundColor: '#0f172a',
-            fontFamily: "'Inter', sans-serif"
-        }}>
-            {/* Left side: Branding / Manufacturing Visual */}
-            <div style={{
-                flex: 1,
-                minWidth: '320px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                position: 'relative',
-                overflow: 'hidden',
-                backgroundColor: '#001e3c',
-                padding: '40px 20px'
-            }}>
-                <div style={{
-                    position: 'absolute',
-                    top: '40px',
-                    left: '40px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    zIndex: 10
-                }}>
-                    <div style={{
-                        backgroundColor: '#3b82f6',
-                        padding: '10px',
-                        borderRadius: '8px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                    }}>
-                        <Settings size={28} color="white" />
-                    </div>
-                    <span style={{ fontSize: '1.8rem', fontWeight: 900, color: 'white', letterSpacing: '2px' }}>MANDOR</span>
-                </div>
-
-                <div style={{ textAlign: 'center', position: 'relative', zIndex: 10 }}>
-                    <Activity size={120} color="rgba(255,255,255,0.05)" style={{ marginBottom: '-60px' }} />
-                    <h1 style={{ fontSize: '3rem', fontWeight: 900, color: 'white', marginBottom: '16px' }}>
-                        Enterprise Frontline
-                    </h1>
-                    <p style={{ color: '#94a3b8', fontSize: '1.2rem', maxWidth: '400px', margin: '0 auto', lineHeight: '1.6' }}>
-                        Connecting operations, enforcing quality, and driving efficiency across the shop floor.
-                    </p>
-                </div>
-            </div>
-
-            {/* Right side: Login Form */}
-            <div style={{
-                width: '480px',
-                minWidth: '380px',
-                backgroundColor: 'white',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                padding: '40px 50px',
-                boxShadow: '-10px 0 30px rgba(0,0,0,0.2)',
-                boxSizing: 'border-box'
-            }}>
-                <Link to="/" style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    color: '#2563eb',
-                    textDecoration: 'none',
-                    fontSize: '0.85rem',
-                    fontWeight: 700,
-                    marginBottom: '24px',
-                    transition: 'color 0.2s',
-                    width: 'fit-content'
-                }}>
-                    ← Back to Platform Site
-                </Link>
-
-                <div style={{ marginBottom: '40px' }}>
-                    <h2 style={{ fontSize: '2rem', fontWeight: 800, color: '#0f172a', marginBottom: '8px' }}>
-                        Sign In
-                    </h2>
-                    <p style={{ color: '#64748b', fontSize: '1rem' }}>
-                        Enter your factory credentials to access your workspace.
-                    </p>
-                </div>
-
-                {error && (
-                    <div style={{
-                        backgroundColor: '#fee2e2',
-                        border: '1px solid #ef4444',
-                        color: '#b91c1c',
-                        padding: '12px 16px',
-                        borderRadius: '8px',
-                        marginBottom: '24px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                        fontSize: '0.9rem',
-                        fontWeight: 600
-                    }}>
-                        <AlertCircle size={18} />
-                        {error}
-                    </div>
-                )}
-
-                <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                    <div>
-                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#334155', marginBottom: '8px' }}>
-                            Username / Operator ID
-                        </label>
-                        <div style={{ position: 'relative' }}>
-                            <User size={18} color="#64748b" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
-                            <input
-                                type="text"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
-                                placeholder="e.g. admin, operator"
-                                disabled={isLoading}
-                                style={{
-                                    width: '100%',
-                                    padding: '14px 16px 14px 44px',
-                                    borderRadius: '8px',
-                                    border: '1px solid #cbd5e1',
-                                    backgroundColor: '#f8fafc',
-                                    fontSize: '1rem',
-                                    outline: 'none',
-                                    transition: 'border-color 0.2s',
-                                    boxSizing: 'border-box'
-                                }}
-                                onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
-                                onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
-                                autoFocus
-                            />
-                        </div>
-                    </div>
-
-                    <div>
-                        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#334155', marginBottom: '8px' }}>
-                            Password / PIN
-                        </label>
-                        <div style={{ position: 'relative' }}>
-                            <Lock size={18} color="#64748b" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
-                            <input
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                placeholder="••••••••"
-                                disabled={isLoading}
-                                style={{
-                                    width: '100%',
-                                    padding: '14px 16px 14px 44px',
-                                    borderRadius: '8px',
-                                    border: '1px solid #cbd5e1',
-                                    backgroundColor: '#f8fafc',
-                                    fontSize: '1rem',
-                                    outline: 'none',
-                                    transition: 'border-color 0.2s',
-                                    boxSizing: 'border-box',
-                                    letterSpacing: '2px'
-                                }}
-                                onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
-                                onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
-                            />
-                        </div>
-                    </div>
-
-                    <button
-                        type="submit"
-                        disabled={isLoading || !username || !password}
-                        style={{
-                            marginTop: '10px',
-                            backgroundColor: (isLoading || !username || !password) ? '#94a3b8' : '#3b82f6',
-                            color: 'white',
-                            padding: '16px',
-                            borderRadius: '8px',
-                            border: 'none',
-                            fontSize: '1rem',
-                            fontWeight: 700,
-                            cursor: (isLoading || !username || !password) ? 'not-allowed' : 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '10px',
-                            transition: 'background-color 0.2s'
-                        }}
-                    >
-                        {isLoading ? 'Authenticating...' : 'Sign In'} 
-                        {!isLoading && <ArrowRight size={18} />}
-                    </button>
-                    
-                    {/* Helper text for demo / testing */}
-                    <div style={{ marginTop: '30px', padding: '16px', backgroundColor: '#f1f5f9', borderRadius: '8px', fontSize: '0.8rem', color: '#64748b', lineHeight: '1.5' }}>
-                        <strong>Demo Accounts:</strong><br />
-                        Admin: <span style={{ fontFamily: 'monospace' }}>admin</span> / <span style={{ fontFamily: 'monospace' }}>123</span><br />
-                        Operator: <span style={{ fontFamily: 'monospace' }}>operator</span> / <span style={{ fontFamily: 'monospace' }}>123</span>
-                    </div>
-                </form>
-            </div>
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 16px',
+          }}>
+            <span style={{ fontSize: '32px', color: '#fff' }}>⚙️</span>
+          </div>
+          <h1 style={{
+            fontSize: '24px',
+            fontWeight: '700',
+            color: '#111827',
+            margin: '0 0 8px',
+          }}>
+            Welcome Back
+          </h1>
+          <p style={{
+            fontSize: '14px',
+            color: '#6b7280',
+            margin: 0,
+          }}>
+            Sign in to your Mavi MES account
+          </p>
         </div>
-    );
-};
 
-export default Login;
+        {/* Error Messages */}
+        {(error || formError) && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '12px 16px',
+            backgroundColor: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: '8px',
+            marginBottom: '24px',
+            color: '#dc2626',
+            fontSize: '14px',
+          }}>
+            <AlertCircle size={18} />
+            {formError || error}
+          </div>
+        )}
+
+        {/* Email/Password Form */}
+        <form onSubmit={handleSubmit} style={{ marginBottom: '24px' }}>
+          {/* Email */}
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{
+              display: 'block',
+              fontSize: '14px',
+              fontWeight: '600',
+              color: '#374151',
+              marginBottom: '8px',
+            }}>
+              Email
+            </label>
+            <div style={{ position: 'relative' }}>
+              <Mail
+                size={18}
+                style={{
+                  position: 'absolute',
+                  left: '14px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: '#9ca3af',
+                }}
+              />
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@company.com"
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  padding: '12px 14px 12px 44px',
+                  borderRadius: '8px',
+                  border: '1px solid #d1d5db',
+                  fontSize: '14px',
+                  outline: 'none',
+                  transition: 'border-color 0.15s, box-shadow 0.15s',
+                  boxSizing: 'border-box',
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = '#7c3aed';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(124, 58, 237, 0.1)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = '#d1d5db';
+                  e.target.style.boxShadow = 'none';
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Password */}
+          <div style={{ marginBottom: '24px' }}>
+            <label style={{
+              display: 'block',
+              fontSize: '14px',
+              fontWeight: '600',
+              color: '#374151',
+              marginBottom: '8px',
+            }}>
+              Password
+            </label>
+            <div style={{ position: 'relative' }}>
+              <Lock
+                size={18}
+                style={{
+                  position: 'absolute',
+                  left: '14px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: '#9ca3af',
+                }}
+              />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  padding: '12px 44px 12px 44px',
+                  borderRadius: '8px',
+                  border: '1px solid #d1d5db',
+                  fontSize: '14px',
+                  outline: 'none',
+                  transition: 'border-color 0.15s, box-shadow 0.15s',
+                  boxSizing: 'border-box',
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = '#7c3aed';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(124, 58, 237, 0.1)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = '#d1d5db';
+                  e.target.style.boxShadow = 'none';
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: 'absolute',
+                  right: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: '#9ca3af',
+                  padding: '4px',
+                }}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </div>
+
+          {/* Forgot Password Link */}
+          <div style={{ textAlign: 'right', marginBottom: '24px' }}>
+            <Link
+              to="/forgot-password"
+              style={{
+                fontSize: '14px',
+                color: '#7c3aed',
+                textDecoration: 'none',
+              }}
+            >
+              Forgot password?
+            </Link>
+          </div>
+
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              width: '100%',
+              padding: '14px',
+              backgroundColor: loading ? '#9ca3af' : '#7c3aed',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '16px',
+              fontWeight: '600',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              transition: 'background-color 0.15s',
+            }}
+          >
+            {loading ? (
+              <>
+                <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
+                Signing in...
+              </>
+            ) : (
+              <>
+                <LogIn size={18} />
+                Sign In
+              </>
+            )}
+          </button>
+        </form>
+
+        {/* Divider */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px',
+          marginBottom: '24px',
+        }}>
+          <div style={{ flex: 1, height: '1px', backgroundColor: '#e5e7eb' }} />
+          <span style={{ fontSize: '14px', color: '#9ca3af' }}>or continue with</span>
+          <div style={{ flex: 1, height: '1px', backgroundColor: '#e5e7eb' }} />
+        </div>
+
+        {/* OAuth Buttons */}
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button
+            type="button"
+            onClick={() => handleOAuthLogin('google')}
+            disabled={loading || oauthLoading}
+            style={{
+              flex: 1,
+              padding: '12px',
+              backgroundColor: '#fff',
+              border: '1px solid #d1d5db',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: '500',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              color: '#374151',
+              transition: 'background-color 0.15s',
+            }}
+          >
+            {oauthLoading === 'google' ? (
+              <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
+            ) : (
+              <>
+                <Chrome size={18} />
+                Google
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleOAuthLogin('github')}
+            disabled={loading || oauthLoading}
+            style={{
+              flex: 1,
+              padding: '12px',
+              backgroundColor: '#fff',
+              border: '1px solid #d1d5db',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: '500',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              color: '#374151',
+              transition: 'background-color 0.15s',
+            }}
+          >
+            {oauthLoading === 'github' ? (
+              <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
+            ) : (
+              <>
+                <Github size={18} />
+                GitHub
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Sign Up Link */}
+        <p style={{
+          textAlign: 'center',
+          marginTop: '24px',
+          fontSize: '14px',
+          color: '#6b7280',
+        }}>
+          Don't have an account?{' '}
+          <Link
+            to="/register"
+            style={{
+              color: '#7c3aed',
+              fontWeight: '600',
+              textDecoration: 'none',
+            }}
+          >
+            Sign up
+          </Link>
+        </p>
+
+        {/* Demo Mode Notice */}
+        <div style={{
+          marginTop: '24px',
+          padding: '12px 16px',
+          backgroundColor: '#fef3c7',
+          border: '1px solid #fde68a',
+          borderRadius: '8px',
+          fontSize: '13px',
+          color: '#92400e',
+        }}>
+          <strong>Demo Mode:</strong> Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.local to enable authentication.
+        </div>
+
+        {/* Spinner animation */}
+        <style>{`
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    </div>
+  );
+}

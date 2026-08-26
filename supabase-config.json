@@ -1,0 +1,74 @@
+{
+  "$schema": "https://supabase.com/schema/v1",
+  "version": 1,
+  "project_id": "your-project-id",
+
+  "database": {
+    "migration_files_dir": "supabase/migrations",
+    "sql_dir": "supabase/sql"
+  },
+
+  "auth": {
+    "site_url": "http://localhost:5173",
+    "additional_redirect_urls": [
+      "https://mavi.mes",
+      "https://www.mavi.mes"
+    ],
+    "jwt_expiry": 3600,
+    "enable_signup": true,
+    "enable_anonymous_sign_ins": false,
+    "minimum_password_length": 8
+  },
+
+  "auth_config": {
+    "providers": {
+      "google": {
+        "enabled": false,
+        "client_id": "",
+        "client_secret": ""
+      },
+      "github": {
+        "enabled": false,
+        "client_id": "",
+        "client_secret": ""
+      }
+    },
+    "email": {
+      "enable_signup": true,
+      "double_confirm_changes": true,
+      "enable_confirmations": true
+    }
+  },
+
+  "storage": {
+    "file_size_limit": "50MB",
+    " buckets": [
+      {
+        "id": "manual-media",
+        "name": "manual-media",
+        "public": true,
+        "file_size_limit": "10MB"
+      },
+      {
+        "id": "app-assets",
+        "name": "app-assets",
+        "public": true,
+        "file_size_limit": "5MB"
+      }
+    ]
+  },
+
+  "functions": {
+    "directory": "supabase/functions",
+    "secrets": [
+      "SENTRY_DSN"
+    ]
+  },
+
+  "edge_functions": {
+    "rate-limiter": {
+      "verify_jwt": false,
+      "timeout_ms": 5000
+    }
+  }
+}

@@ -1135,10 +1135,27 @@ export default function InspectorDesigner() {
       publishedBy: currentUser?.username || 'Unknown'
     };
     
-    // Save to localStorage for Digital Check Sheet
-    localStorage.setItem('mandor_published_checksheet', JSON.stringify(checkSheetData));
-    localStorage.setItem('mandor_checksheet_published', 'true');
-    localStorage.setItem('mandor_checksheet_publish_id', publishId);
+    // Save to localStorage for Digital Check Sheet (with quota handling)
+    try {
+      localStorage.setItem('mandor_checksheet_published', 'true');
+      localStorage.setItem('mandor_checksheet_publish_id', publishId);
+      // Only save summary to localStorage, full data goes to Supabase
+      const summary = {
+        id: checkSheetData.id,
+        name: checkSheetData.name,
+        workOrder: checkSheetData.workOrder,
+        publishedAt: checkSheetData.publishedAt,
+        publishedBy: checkSheetData.publishedBy,
+        // Don't save full template_data to localStorage
+      };
+      localStorage.setItem('mandor_published_checksheet', JSON.stringify(summary));
+    } catch (e) {
+      if (e.name === 'QuotaExceededError') {
+        console.warn('[InspectorDesigner] localStorage full, skipping localStorage save');
+      } else {
+        console.warn('[InspectorDesigner] Failed to save to localStorage:', e);
+      }
+    }
 
     // ── Sync published checksheet ke Supabase (fire-and-forget) ──
     try {

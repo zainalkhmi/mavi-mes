@@ -1,8 +1,13 @@
 {
-  "rewrites": [
+  "framework": null,
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm ci",
+  "regions": ["sin1"],
+  "routes": [
     {
-      "source": "/((?!assets/|.*\\..*).*)",
-      "destination": "/index.html"
+      "src": "/((?!assets/|.*\\..*).*)",
+      "dest": "/index.html"
     }
   ],
   "headers": [
@@ -42,6 +47,12 @@
         }
       ]
     }
-  ]
+  ],
+  "env": {
+    "VITE_APP_ENV": "production"
+  },
+  "github": {
+    "silent": false,
+    "autoJobCancelInProgress": true
+  }
 }
-

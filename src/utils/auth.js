@@ -166,10 +166,18 @@ export function getCurrentUser() {
 }
 
 /**
- * Logs out the current user by clearing the session.
+ * Logs out the current user by clearing the session and calling Supabase signOut.
  */
-export function logout() {
+export async function logout() {
     localStorage.removeItem(AUTH_KEY);
+
+    // Also call Supabase signOut if available
+    try {
+        const { signOut } = await import('./supabaseAuth');
+        await signOut();
+    } catch (err) {
+        console.warn('[Auth] Supabase signOut not available:', err);
+    }
 }
 
 /**
