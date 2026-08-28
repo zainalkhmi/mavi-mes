@@ -16,17 +16,28 @@ const Home = () => {
   const showChatRef = React.useRef(showChat);
   const currentUser = getCurrentUser()?.name || 'Manager';
 
+  // ─── Optimizations: Prevent multiple simultaneous refreshes & throttle ───
+  const isRefreshingRef = React.useRef(false);
+  const refreshTimeoutRef = React.useRef(null);
+
   useEffect(() => {
     showChatRef.current = showChat;
     if (showChat) setUnreadCount(0);
   }, [showChat]);
 
-  const refreshSnapshot = async ({ silent = false } = {}) => {
+  const refreshSnapshot = async ({ silent = false, immediate = false } = {}) => {
+    // Throttle: skip if already refreshing
+    if (isRefreshingRef.current && !immediate) return;
+
     if (!silent) setLoading(true);
     setError('');
+
     try {
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Snapshot fetch timeout')), 3000)
+      isRefreshingRef.current = true;
+
+      // Race with timeout
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Snapshot fetch timeout')), 5000)
       );
       const snap = await Promise.race([getShopFloorRealtimeSnapshot(), timeoutPromise]);
       setWorkstations(snap.workstations || []);
@@ -35,6 +46,7 @@ const Home = () => {
     } catch (err) {
       console.warn('[Home] Failed or timed out fetching realtime snapshot', err);
     } finally {
+      isRefreshingRef.current = false;
       if (!silent) setLoading(false);
     }
   };
@@ -46,14 +58,14 @@ const Home = () => {
 
     const initial = async () => {
       if (!isMounted) return;
-      await refreshSnapshot();
+      await refreshSnapshot({ immediate: true });
     };
 
     initial();
 
     if (!isSupabaseReady()) {
-      console.warn('[Home] Supabase is not configured. Realtime features (Chat, Notifications) will be disabled.');
-      pollingInterval = setInterval(() => refreshSnapshot({ silent: true }), 10000);
+      console.warn('[Home] Supabase is not configured. Polling mode active.');
+      pollingInterval = setInterval(() => refreshSnapshot({ silent: true }), 15000); // Reduced from 10s
       return () => {
         isMounted = false;
         if (pollingInterval) clearInterval(pollingInterval);
@@ -62,7 +74,7 @@ const Home = () => {
 
     const supabase = getSupabaseClient();
     if (!supabase) {
-      pollingInterval = setInterval(() => refreshSnapshot({ silent: true }), 10000);
+      pollingInterval = setInterval(() => refreshSnapshot({ silent: true }), 15000);
       return () => {
         isMounted = false;
         if (pollingInterval) clearInterval(pollingInterval);
@@ -70,37 +82,51 @@ const Home = () => {
     }
 
     try {
+      // ─── OPTIMIZED: Single combined channel for all postgres_changes ───
       realtimeChannel = supabase
         .channel(`shop-floor-home-${Date.now()}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'production_queue' }, () => {
-          refreshSnapshot({ silent: true });
+          // Debounce: only refresh after 500ms of no changes
+          if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+          refreshTimeoutRef.current = setTimeout(() => refreshSnapshot({ silent: true }), 500);
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'audit_logs' }, () => {
-          refreshSnapshot({ silent: true });
+          if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+          refreshTimeoutRef.current = setTimeout(() => refreshSnapshot({ silent: true }), 500);
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'andon_events' }, () => {
+          if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+          refreshTimeoutRef.current = setTimeout(() => refreshSnapshot({ silent: true }), 500);
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'workstation_status' }, () => {
+          if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+          refreshTimeoutRef.current = setTimeout(() => refreshSnapshot({ silent: true }), 500);
         })
         .subscribe((status) => {
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.warn('[Home] Realtime channel error, polling fallback active');
             if (!pollingInterval) {
-              pollingInterval = setInterval(() => refreshSnapshot({ silent: true }), 10000);
+              pollingInterval = setInterval(() => refreshSnapshot({ silent: true }), 15000);
             }
           }
         });
 
-      pollingInterval = setInterval(() => refreshSnapshot({ silent: true }), 10000);
+      // Reduced polling frequency when realtime is active
+      pollingInterval = setInterval(() => refreshSnapshot({ silent: true }), 15000);
     } catch (e) {
-      console.warn('[Home] Realtime subscription unavailable, fallback polling only.', e);
-      pollingInterval = setInterval(() => refreshSnapshot({ silent: true }), 10000);
+      console.warn('[Home] Realtime subscription unavailable, polling only.', e);
+      pollingInterval = setInterval(() => refreshSnapshot({ silent: true }), 15000);
     }
 
-    // Chat Notification Listener
+    // ─── OPTIMIZED: Single chat notification channel ───
     let chatChannel = null;
     try {
       chatChannel = supabase
-        .channel('chat_notifications')
-        .on('postgres_changes', { 
-          event: 'INSERT', 
-          schema: 'public', 
-          table: 'chat_messages' 
+        .channel('home-chat-notifications')
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_messages'
         }, (payload) => {
           const msg = payload.new;
           if (!showChatRef.current) {
@@ -118,6 +144,7 @@ const Home = () => {
 
     return () => {
       isMounted = false;
+      if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
       if (pollingInterval) clearInterval(pollingInterval);
       if (realtimeChannel && supabase) {
         try {

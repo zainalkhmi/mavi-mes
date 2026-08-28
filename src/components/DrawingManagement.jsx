@@ -210,23 +210,35 @@ export default function DrawingManagement() {
   // Active detail tab
   const [activeTab, setActiveTab] = useState('canvas'); // canvas | bom | revisions | balloons | features | relations
 
-  // ─── Load Initial Drawings & Parts ───
-  const loadInitialData = useCallback(async () => {
+  // ─── Pagination State ───
+  const [drawingsPage, setDrawingsPage] = useState(0);
+  const [drawingsTotal, setDrawingsTotal] = useState(0);
+  const PAGE_SIZE = 20;
+
+  // ─── Load Initial Drawings & Parts (with pagination) ───
+  const loadInitialData = useCallback(async (search = '', page = 0) => {
     setLoading(true);
     try {
-      const [drawingsData, partsData] = await Promise.all([
-        getDrawings(),
-        getParts()
-      ]);
-      setDrawings(drawingsData || []);
-      setParts(partsData || []);
+      // Use paginated query
+      const drawingsResult = await getDrawings({ page, pageSize: PAGE_SIZE, search });
+      const partsResult = await getParts({ page: 0, pageSize: 100 }); // Parts still load all for BOM dropdown
+
+      setDrawings(drawingsResult.items || []);
+      setDrawingsTotal(drawingsResult.total || 0);
+      setParts(partsResult.items || partsResult || []);
     } catch (err) {
       console.error('Failed to load PLM master data:', err);
     }
     setLoading(false);
   }, []);
 
-  useEffect(() => { loadInitialData(); }, [loadInitialData]);
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadInitialData(searchTerm, drawingsPage);
+    }, 300); // Wait 300ms after user stops typing
+    return () => clearTimeout(timer);
+  }, [searchTerm, drawingsPage, loadInitialData]);
 
   // ─── Load sub-data when drawing selected ───
   const selectDrawing = useCallback(async (drawing) => {
@@ -991,9 +1003,32 @@ export default function DrawingManagement() {
             )}
           </div>
 
+          {/* Pagination Controls */}
+          {drawingsTotal > PAGE_SIZE && (
+            <div className="flex items-center justify-between px-3 py-2 border-t border-slate-700">
+              <button
+                onClick={() => setDrawingsPage(p => Math.max(0, p - 1))}
+                disabled={drawingsPage === 0}
+                className="p-1.5 text-xs text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed rounded hover:bg-slate-700"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <span className="text-[10px] text-slate-500">
+                {drawingsPage * PAGE_SIZE + 1}-{Math.min((drawingsPage + 1) * PAGE_SIZE, drawingsTotal)} / {drawingsTotal}
+              </span>
+              <button
+                onClick={() => setDrawingsPage(p => (p + 1) * PAGE_SIZE < drawingsTotal ? p + 1 : p)}
+                disabled={(drawingsPage + 1) * PAGE_SIZE >= drawingsTotal}
+                className="p-1.5 text-xs text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed rounded hover:bg-slate-700"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          )}
+
           <div className="p-3 border-t border-slate-800">
             <button
-              onClick={loadInitialData}
+              onClick={() => { setDrawingsPage(0); loadInitialData(searchTerm, 0); }}
               className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[11px] font-semibold text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-all"
             >
               <RefreshCw size={12} /> Refresh Data
