@@ -1,16 +1,75 @@
 /**
  * supabaseTemplateDB.js
  * Cloud storage for Inspector Studio templates via Supabase
+ * OPTIMIZED: Pagination + Caching
  */
 import { getSupabaseAuth } from './supabaseAuth.js';
+
+const DEFAULT_PAGE_SIZE = 20;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const cache = new Map();
+
+const getCached = (key) => {
+    const cached = cache.get(key);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+        return cached.data;
+    }
+    cache.delete(key);
+    return null;
+};
+
+const setCache = (key, data) => {
+    cache.set(key, { data, timestamp: Date.now() });
+};
 
 // Table: inspector_templates
 // Columns: id, name, doc_no, revision, status, template_data (jsonb), created_at, updated_at
 
 /**
- * Get all templates
+ * Get templates with pagination
+ * @param {object} options - { page, pageSize, search }
  */
-export async function getTemplates() {
+export async function getTemplates({ page = 0, pageSize = DEFAULT_PAGE_SIZE, search = '' } = {}) {
+    const cacheKey = `templates:${page}:${pageSize}:${search}`;
+    const cached = getCached(cacheKey);
+    if (cached) return cached;
+
+    try {
+        const client = getSupabaseAuth();
+        if (!client) throw new Error('Supabase not configured');
+
+        const from = page * pageSize;
+        let query = client
+            .from('inspector_templates')
+            .select('*', { count: 'exact' })
+            .order('updated_at', { ascending: false })
+            .range(from, from + pageSize - 1);
+
+        if (search) {
+            query = query.or(`name.ilike.%${search}%,doc_no.ilike.%${search}%`);
+        }
+
+        const { data, error, count } = await query;
+        if (error) throw error;
+
+        const result = { items: data || [], total: count || 0, page, pageSize };
+        setCache(cacheKey, result);
+        return result;
+    } catch (e) {
+        console.warn('[Supabase Templates] getTemplates failed, falling back to localStorage', e);
+        const local = JSON.parse(localStorage.getItem('mandor_inspector_templates') || '[]');
+        return { items: local, total: local.length, page, pageSize };
+    }
+}
+
+/**
+ * Get all templates (legacy - prefer paginated version)
+ */
+export async function getTemplatesAll() {
+    const cacheKey = 'templates:all';
+    const cached = getCached(cacheKey);
+    if (cached) return cached;
+
     try {
         const client = getSupabaseAuth();
         if (!client) throw new Error('Supabase not configured');
@@ -20,9 +79,11 @@ export async function getTemplates() {
             .select('*')
             .order('updated_at', { ascending: false });
         if (error) throw error;
+
+        setCache(cacheKey, data || []);
         return data || [];
     } catch (e) {
-        console.warn('[Supabase Templates] getTemplates failed, falling back to localStorage', e);
+        console.warn('[Supabase Templates] getTemplatesAll failed, falling back to localStorage', e);
         return JSON.parse(localStorage.getItem('mandor_inspector_templates') || '[]');
     }
 }

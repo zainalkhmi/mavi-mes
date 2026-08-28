@@ -53,6 +53,7 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
+        // Aggressive caching for better performance
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
@@ -60,11 +61,35 @@ export default defineConfig({
             options: {
               cacheName: 'supabase-cache',
               expiration: {
-                maxEntries: 100,
+                maxEntries: 200, // Increased from 100
                 maxAgeSeconds: 60 * 60 * 24 // 24 hours
               },
               cacheableResponse: {
                 statuses: [0, 200]
+              }
+            }
+          },
+          {
+            // Cache Google Fonts
+            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
+              }
+            }
+          },
+          {
+            // Cache images from Supabase
+            urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'supabase-images',
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 * 24 // 24 hours
               }
             }
           }
@@ -84,6 +109,10 @@ export default defineConfig({
       'react-i18next',
       'zustand',
       'zod'
+    ],
+    // Pre-bundle these for faster dev server startup
+    exclude: [
+      // Heavy libraries that should be lazily loaded
     ]
   },
   server: {
@@ -110,6 +139,14 @@ export default defineConfig({
   },
   build: {
     chunkSizeWarningLimit: 1000,
+    // Minify for production
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true, // Remove console.log in production
+        drop_debugger: true
+      }
+    },
     // Security headers for production build
     rollupOptions: {
       output: {

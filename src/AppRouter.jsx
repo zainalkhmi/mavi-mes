@@ -5,6 +5,16 @@ import { hasAccess as checkRoleAccess } from './utils/roleAccess';
 import Home from './components/Home';
 import ReportDesignerFallback from './components/ReportDesignerFallback';
 
+// Loading component for lazy loaded routes
+const PageLoader = () => (
+  <div className="flex items-center justify-center h-full w-full bg-slate-900">
+    <div className="flex flex-col items-center gap-4">
+      <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      <span className="text-slate-400 text-sm">Memuat...</span>
+    </div>
+  </div>
+);
+
 // Error Boundary for Report Designer
 class ReportDesignerErrorBoundary extends Component {
   constructor(props) {
@@ -85,7 +95,7 @@ export default function AppRouter({ user, isOperator }) {
 
   return (
     <div style={{ flex: 1, width: '100%', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      <Suspense fallback={null}>
+      <Suspense fallback={<PageLoader />}>
         <Routes>
           {isOperator ? (
             // OPERATOR ROUTES ONLY

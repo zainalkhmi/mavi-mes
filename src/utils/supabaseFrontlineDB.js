@@ -429,7 +429,17 @@ const buildActiveAndons = (auditRows = []) => {
         .sort((a, b) => b.startTime - a.startTime);
 };
 
+// ─── Caching for getShopFloorRealtimeSnapshot ───
+let snapshotCache = null;
+let snapshotCacheTime = 0;
+const SNAPSHOT_CACHE_TTL = 2000; // 2 seconds cache to prevent spam
+
 export async function getShopFloorRealtimeSnapshot() {
+    // Return cached data if fresh enough
+    if (snapshotCache && (Date.now() - snapshotCacheTime) < SNAPSHOT_CACHE_TTL) {
+        return snapshotCache;
+    }
+
     try {
         const supabase = getSupabaseClient();
         if (!supabase) {
@@ -441,16 +451,18 @@ export async function getShopFloorRealtimeSnapshot() {
             };
         }
 
+        // Limit audit logs for performance
         const [queueRes, auditRes] = await Promise.all([
             supabase
                 .from('production_queue')
                 .select('*')
-                .order('created_at', { ascending: false }),
+                .order('created_at', { ascending: false })
+                .limit(100), // Limit queue to 100 rows
             supabase
                 .from('audit_logs')
                 .select('*')
                 .order('created_at', { ascending: false })
-                .limit(300)
+                .limit(200) // Reduced from 300
         ]);
 
         if (queueRes.error) throw queueRes.error;
@@ -543,20 +555,32 @@ export async function getShopFloorRealtimeSnapshot() {
     const totalActual = workstations.reduce((acc, ws) => acc + safeNumber(ws.actualOutput), 0);
     const oee = totalExpected > 0 ? ((totalActual / totalExpected) * 100) : 0;
 
-    return {
+    const result = {
         workstations,
         activeAndons,
         oee: Number(oee.toFixed(1))
     };
+
+    // Cache the result
+    snapshotCache = result;
+    snapshotCacheTime = Date.now();
+
+    return result;
   } catch (err) {
     console.warn('[getShopFloorRealtimeSnapshot] Failed to fetch:', err);
-    return {
+    return snapshotCache || {
         workstations: [],
         activeAndons: [],
         oee: 0,
         queue: []
     };
   }
+}
+
+// Helper to clear snapshot cache (call after mutations)
+export function clearSnapshotCache() {
+    snapshotCache = null;
+    snapshotCacheTime = 0;
 }
 
 export async function acknowledgeAndon({ workstation, category, detail, user = 'Supervisor' }) {

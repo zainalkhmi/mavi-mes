@@ -58,6 +58,14 @@ export default function PLMIntegrationDashboard() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Pagination
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
+  const PAGE_SIZE = 20;
+
+  // Debounce ref
+  const searchTimeoutRef = React.useRef(null);
+
   // Modals
   const [showReportModal, setShowReportModal] = useState(false);
   const [FAIReport, setFAIReport] = useState(null);
@@ -69,14 +77,27 @@ export default function PLMIntegrationDashboard() {
   const [quickResultStatus, setQuickResultStatus] = useState('OK');
   const [quickResultNotes, setQuickResultNotes] = useState('');
 
-  // ─── Load Initial Drawings ───
-  const loadData = useCallback(async () => {
+  // ─── Load Initial Drawings (with pagination & debounced search) ───
+  const loadData = useCallback(async (search = '', pageNum = 0) => {
     setLoading(true);
     try {
-      const data = await getDrawings();
-      setDrawings(data || []);
-      if (data && data.length > 0 && !selectedDrawing) {
-        selectDrawing(data[0]);
+      const result = await getDrawings({ page: pageNum, pageSize: PAGE_SIZE, search });
+      // Handle both paginated {items, total} and legacy array response
+      const items = Array.isArray(result) ? result : (result.items || []);
+      const totalCount = Array.isArray(result) ? result.length : (result.total || 0);
+
+      setDrawings(items || []);
+      setTotal(totalCount);
+      setPage(pageNum);
+
+      if (items && items.length > 0 && !selectedDrawing) {
+        selectDrawing(items[0]);
+      } else if (items && items.length > 0 && selectedDrawing) {
+        // Try to keep selection if still in list
+        const stillExists = items.find(d => d.id === selectedDrawing.id);
+        if (!stillExists) {
+          selectDrawing(items[0]);
+        }
       }
     } catch (err) {
       console.error('Error loading PLM drawings:', err);
@@ -84,9 +105,16 @@ export default function PLMIntegrationDashboard() {
     setLoading(false);
   }, [selectedDrawing]);
 
+  // Debounced search
   useEffect(() => {
-    loadData();
-  }, []);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchTimeoutRef.current = setTimeout(() => {
+      loadData(searchTerm, 0);
+    }, 300);
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, [searchTerm]);
 
   // ─── Select Drawing ───
   const selectDrawing = async (drawing) => {
