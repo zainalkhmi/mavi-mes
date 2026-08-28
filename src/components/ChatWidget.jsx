@@ -171,52 +171,63 @@ const ChatWidget = ({ currentStation, currentUser, onClose }) => {
   const supabase = ready ? getSupabaseClient() : null;
 
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !supabase) return;
     fetchMessages();
     loadStations();
     
-    const channel = supabase
-      .channel('chat_messages')
-      .on('postgres_changes', { 
-        event: 'INSERT', 
-        schema: 'public', 
-        table: 'chat_messages' 
-      }, (payload) => {
-        const msg = payload.new;
-        const targetId = String(msg.target_station_id || '').toLowerCase();
-        
-        const isAdminTarget = ['ADMINISTRATOR', 'ACCOUNT_OWNER', 'ADMIN'].includes(userRole);
-        const isEngineerTarget = ['CONNECTOR_SUPERVISOR', 'STATION_SUPERVISOR', 'TABLES_SUPERVISOR', 'APPLICATION_ENGINEER', 'ENGINEER'].includes(userRole);
+    let channel = null;
+    try {
+      channel = supabase
+        .channel('chat_messages')
+        .on('postgres_changes', { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'chat_messages' 
+        }, (payload) => {
+          const msg = payload.new;
+          const targetId = String(msg.target_station_id || '').toLowerCase();
+          
+          const isAdminTarget = ['ADMINISTRATOR', 'ACCOUNT_OWNER', 'ADMIN'].includes(userRole);
+          const isEngineerTarget = ['CONNECTOR_SUPERVISOR', 'STATION_SUPERVISOR', 'TABLES_SUPERVISOR', 'APPLICATION_ENGINEER', 'ENGINEER'].includes(userRole);
 
-        const isGroup = !targetId || targetId === 'all';
-        const isForMe = targetId === String(currentStation || '').toLowerCase() || 
-                        (targetId === 'admin' && isAdminTarget) ||
-                        (targetId === 'engineer' && isEngineerTarget) ||
-                        (targetId === username);
-        const amISender = String(msg.sender_id || '').toLowerCase() === username || msg.sender_id === currentUser;
-        
-        if (isGroup || isForMe || amISender) {
-          setMessages(prev => [...prev, msg]);
-          if ((isGroup || isForMe) && !amISender) {
-            if (isMinimized) {
-              setUnreadCount(prev => prev + 1);
-            } else {
-              markAsRead(msg.id);
+          const isGroup = !targetId || targetId === 'all';
+          const isForMe = targetId === String(currentStation || '').toLowerCase() || 
+                          (targetId === 'admin' && isAdminTarget) ||
+                          (targetId === 'engineer' && isEngineerTarget) ||
+                          (targetId === username);
+          const amISender = String(msg.sender_id || '').toLowerCase() === username || msg.sender_id === currentUser;
+          
+          if (isGroup || isForMe || amISender) {
+            setMessages(prev => [...prev, msg]);
+            if ((isGroup || isForMe) && !amISender) {
+              if (isMinimized) {
+                setUnreadCount(prev => prev + 1);
+              } else {
+                markAsRead(msg.id);
+              }
             }
           }
-        }
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages' }, (payload) => {
-        const updatedMsg = payload.new;
-        setMessages(prev => prev.map(m => m.id === updatedMsg.id ? updatedMsg : m));
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_messages' }, (payload) => {
-        setMessages(prev => prev.filter(m => m.id !== payload.old.id));
-      })
-      .subscribe();
+        })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages' }, (payload) => {
+          const updatedMsg = payload.new;
+          setMessages(prev => prev.map(m => m.id === updatedMsg.id ? updatedMsg : m));
+        })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_messages' }, (payload) => {
+          setMessages(prev => prev.filter(m => m.id !== payload.old.id));
+        })
+        .subscribe();
+    } catch (e) {
+      console.warn('[ChatWidget] Failed to subscribe to chat_messages channel:', e);
+    }
 
-    return () => { supabase.removeChannel(channel); };
-  }, [currentStation, currentUser, username, userRole, isMinimized]);
+    return () => {
+      if (supabase && channel) {
+        try {
+          supabase.removeChannel(channel);
+        } catch (e) {}
+      }
+    };
+  }, [currentStation, currentUser, username, userRole, isMinimized, ready, supabase]);
 
   useEffect(() => {
     if (!isMinimized && view === 'CHAT' && selectedContact && messages.length > 0) {

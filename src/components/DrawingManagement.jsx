@@ -3,9 +3,9 @@
  * =====================================================
  * Full PLM Master Data Hub — Drawing, Revision, Balloon, Feature, BOM & ECN Management
  * Features:
- * - Blueprint File Upload (PDF / DXF / PNG / JPG / DWG) with client-side renderer
+ * - Direct Client-side Blueprint File Upload (PDF / DXF / PNG / JPG / SVG)
  * - Auto-persistence to Supabase & localStorage cache
- * - Interactive Visual Canvas Viewer with Zoom, Pan, and Reset
+ * - Interactive Visual Canvas Viewer with Zoom, Pan, Drag & Drop, and Reset
  * - Visual Click-to-Place Balloon Annotation on Blueprint
  * - Quick Demo Blueprint Loaders (CAD Flange & Stepper Shaft)
  * - Part Number & BOM (Bill of Materials) Integration
@@ -26,7 +26,7 @@ import {
   FolderArchive, Target, Ruler, Settings2, Link2, Unlink, BarChart2,
   PlusCircle, MinusCircle, ChevronLeft, Upload, Info, ZoomIn, ZoomOut,
   Maximize2, Crosshair, Move, Image, FileUp, MousePointer, Boxes, Cpu,
-  ShieldCheck, Award, Printer, FileSpreadsheet, CheckSquare, Wand2
+  ShieldCheck, Award, Printer, FileSpreadsheet, CheckSquare, Wand2, FileSearch
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -157,6 +157,7 @@ export default function DrawingManagement() {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [isBalloonPlacingMode, setIsBalloonPlacingMode] = useState(false);
   const [activeBalloonId, setActiveBalloonId] = useState(null);
+  const [isDragOver, setIsDragOver] = useState(false);
   const canvasContainerRef = useRef(null);
   const imageRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -294,11 +295,11 @@ export default function DrawingManagement() {
     loadRevData();
   }, [selectedRevision]);
 
-  // ─── File Upload Handler (PDF, DXF, PNG, JPG) ───
+  // ─── File Upload Handler (PDF, DXF, PNG, JPG, SVG) ───
   const handleFileUpload = async (file) => {
     if (!file) return;
     setIsProcessingFile(true);
-    const toastId = toast.loading(`Memproses ${file.name}...`);
+    const toastId = toast.loading(`Memproses dan memuat ${file.name}...`);
 
     try {
       const ext = file.name.split('.').pop().toLowerCase();
@@ -311,6 +312,9 @@ export default function DrawingManagement() {
           reader.onerror = reject;
           reader.readAsDataURL(file);
         });
+      } else if (ext === 'svg') {
+        const text = await file.text();
+        imageUrl = `data:image/svg+xml;utf8,${encodeURIComponent(text)}`;
       } else if (ext === 'pdf') {
         const reader = new FileReader();
         const fileDataUrl = await new Promise((resolve, reject) => {
@@ -324,15 +328,24 @@ export default function DrawingManagement() {
         const parsed = parseDxfContent(text, file.name);
         imageUrl = parsed.rendered_image;
       } else {
-        throw new Error(`Format .${ext} belum didukung. Gunakan PNG, JPG, PDF, atau DXF.`);
+        throw new Error(`Format .${ext} belum didukung. Gunakan PNG, JPG, PDF, SVG, atau DXF.`);
       }
 
+      if (!imageUrl) throw new Error('Gambar blueprint tidak dapat diproses');
+
+      // Update State immediately
       setBlueprintImage(imageUrl);
       setZoom(1);
       setPan({ x: 0, y: 0 });
+      setActiveTab('canvas');
 
       if (selectedDrawing) {
-        localStorage.setItem(`mandor_drawing_image_${selectedDrawing.id}`, imageUrl);
+        try {
+          localStorage.setItem(`mandor_drawing_image_${selectedDrawing.id}`, imageUrl);
+        } catch (e) {
+          console.warn('localStorage quota warning:', e);
+        }
+
         await updateDrawing(selectedDrawing.id, {
           file_name: file.name,
           file_type: ext.toUpperCase(),
@@ -340,17 +353,22 @@ export default function DrawingManagement() {
           file_url: imageUrl,
           thumbnail_url: imageUrl
         });
+
         setSelectedDrawing(prev => ({
           ...prev,
           file_name: file.name,
           file_url: imageUrl,
           thumbnail_url: imageUrl
         }));
+
+        if (selectedRevision) {
+          setSelectedRevision(prev => ({ ...prev, file_url: imageUrl }));
+        }
       } else {
-        // Create new drawing automatically from file
+        // Auto create drawing
         const cleanName = file.name.replace(/\.[^/.]+$/, "");
         const code = generateCode('DRW');
-        const newDwg = await createDrawing({
+        const newDwgRes = await createDrawing({
           code,
           name: cleanName,
           drawing_type: 'DETAIL',
@@ -361,17 +379,20 @@ export default function DrawingManagement() {
           file_url: imageUrl,
           thumbnail_url: imageUrl
         });
-        if (newDwg.success) {
-          localStorage.setItem(`mandor_drawing_image_${newDwg.data.id}`, imageUrl);
+
+        if (newDwgRes.success) {
+          try {
+            localStorage.setItem(`mandor_drawing_image_${newDwgRes.data.id}`, imageUrl);
+          } catch (e) {}
           await loadInitialData();
-          selectDrawing(newDwg.data);
+          await selectDrawing(newDwgRes.data);
         }
       }
 
-      toast.success(`Blueprint ${file.name} siap ditampilkan di canvas!`, { id: toastId });
+      toast.success(`✓ Blueprint "${file.name}" berhasil dimuat di canvas!`, { id: toastId });
     } catch (err) {
       console.error('File Upload Error:', err);
-      toast.error(`Gagal render file: ${err.message}`, { id: toastId });
+      toast.error(`Gagal render blueprint: ${err.message}`, { id: toastId });
     } finally {
       setIsProcessingFile(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -384,23 +405,30 @@ export default function DrawingManagement() {
     setBlueprintImage(demoSvg);
     setZoom(1);
     setPan({ x: 0, y: 0 });
+    setActiveTab('canvas');
+
+    const fileName = presetType === 'shaft' ? 'Precision_Shaft_Demo.svg' : 'Flange_Housing_Demo.svg';
 
     if (selectedDrawing) {
-      localStorage.setItem(`mandor_drawing_image_${selectedDrawing.id}`, demoSvg);
+      try {
+        localStorage.setItem(`mandor_drawing_image_${selectedDrawing.id}`, demoSvg);
+      } catch (e) {}
+
       await updateDrawing(selectedDrawing.id, {
-        file_name: presetType === 'shaft' ? 'Precision_Shaft_Demo.svg' : 'Flange_Housing_Demo.svg',
+        file_name: fileName,
         file_type: 'SVG',
         file_url: demoSvg,
         thumbnail_url: demoSvg
       });
+
       setSelectedDrawing(prev => ({
         ...prev,
-        file_name: presetType === 'shaft' ? 'Precision_Shaft_Demo.svg' : 'Flange_Housing_Demo.svg',
+        file_name: fileName,
         file_url: demoSvg,
         thumbnail_url: demoSvg
       }));
     }
-    toast.success(`Demo CAD Blueprint (${presetType}) berhasil dimuat ke canvas!`);
+    toast.success(`✓ Demo CAD Blueprint (${presetType}) berhasil dimuat ke canvas!`);
   };
 
   // ─── Canvas Interaction ───
@@ -455,6 +483,27 @@ export default function DrawingManagement() {
     setIsBalloonPlacingMode(false);
     setShowBalloonModal(true);
     toast.success(`Koordinat balloon (${posX}, ${posY}) terdeteksi!`);
+  };
+
+  // ─── Drag & Drop Handlers on Canvas ───
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file) handleFileUpload(file);
   };
 
   // ─── Filtered Drawings ───
@@ -1001,7 +1050,7 @@ export default function DrawingManagement() {
                         )}
                       </div>
                       <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-0.5">
-                        <span>Revisi Terpilih: <strong className="text-white">{selectedRevision ? `Rev ${selectedRevision.revision_code}` : 'None'}</strong></span>
+                        <span>Revisi: <strong className="text-white">{selectedRevision ? `Rev ${selectedRevision.revision_code}` : 'A (Default)'}</strong></span>
                         {selectedRevision?.metadata?.ecn_number && (
                           <span className="text-purple-300 font-mono">
                             • ECN: <strong>{selectedRevision.metadata.ecn_number}</strong>
@@ -1010,7 +1059,7 @@ export default function DrawingManagement() {
                         <span>•</span>
                         <span>Balloons: <strong className="text-cyan-300">{balloons.length}</strong></span>
                         <span>•</span>
-                        <span>File: <strong className="text-slate-300">{selectedDrawing.file_name || 'Tersedia di Canvas'}</strong></span>
+                        <span>File: <strong className="text-slate-300">{selectedDrawing.file_name || (blueprintImage ? 'Blueprint Dimuat' : 'Belum Ada File')}</strong></span>
                       </div>
                     </div>
                   </div>
@@ -1073,8 +1122,9 @@ export default function DrawingManagement() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => {
-                        if (!selectedRevision) {
-                          toast.error('Pilih/buat revisi terlebih dahulu');
+                        if (!selectedRevision && revisions.length === 0) {
+                          toast('Membuat Revision A awal...', { icon: '⚙️' });
+                          handleCreateRevision();
                           return;
                         }
                         setIsBalloonPlacingMode(prev => !prev);
@@ -1130,7 +1180,7 @@ export default function DrawingManagement() {
                       <div className="w-px h-4 bg-slate-700 mx-1" />
                       <button
                         onClick={() => fileInputRef.current?.click()}
-                        className="text-[11px] font-bold text-cyan-400 hover:text-cyan-300 px-2 py-1 rounded bg-slate-800 flex items-center gap-1"
+                        className="text-[11px] font-bold text-cyan-400 hover:text-cyan-300 px-2 py-1 rounded bg-slate-800 flex items-center gap-1 cursor-pointer"
                       >
                         <Upload size={12} /> Upload File
                       </button>
@@ -1139,7 +1189,10 @@ export default function DrawingManagement() {
                     {/* Canvas Area with Image & Balloons */}
                     <div
                       ref={canvasContainerRef}
-                      className={`flex-1 w-full h-full min-h-[450px] overflow-hidden flex items-center justify-center select-none relative ${isBalloonPlacingMode ? 'cursor-crosshair' : isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      className={`flex-1 w-full h-full min-h-[450px] overflow-hidden flex items-center justify-center select-none relative transition-colors ${isDragOver ? 'bg-blue-950/40 border-2 border-dashed border-blue-500' : ''} ${isBalloonPlacingMode ? 'cursor-crosshair' : isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
                       onWheel={handleWheel}
                       onMouseDown={handleMouseDown}
                       onMouseMove={handleMouseMove}
@@ -1147,11 +1200,11 @@ export default function DrawingManagement() {
                       onClick={handleCanvasClick}
                     >
                       {!blueprintImage ? (
-                        <div className="flex flex-col items-center justify-center text-center p-8 border border-dashed border-slate-800 rounded-2xl bg-slate-900/60 max-w-lg shadow-2xl">
+                        <div className="flex flex-col items-center justify-center text-center p-8 border border-dashed border-slate-800 rounded-2xl bg-slate-900/60 max-w-lg shadow-2xl m-4">
                           <Image size={48} className="text-slate-600 mb-3" />
                           <h4 className="text-base font-bold text-white mb-1">Belum Ada File Blueprint yang Dimuat</h4>
                           <p className="text-xs text-slate-400 mb-5 max-w-sm">
-                            Unggah file CAD berupa <strong>PDF, DXF, PNG, JPG, atau SVG</strong> untuk melihat gambar teknik dan menaruh balon inspeksi.
+                            Unggah file CAD berupa <strong>PDF, DXF, PNG, JPG, atau SVG</strong> (atau drag & drop langsung ke sini).
                           </p>
                           <div className="flex flex-wrap items-center justify-center gap-3">
                             <button
@@ -1187,13 +1240,16 @@ export default function DrawingManagement() {
                           <img
                             ref={imageRef}
                             src={blueprintImage}
-                            alt="Blueprint"
-                            className="max-w-none shadow-2xl rounded-lg border border-slate-800 pointer-events-none"
+                            alt="Blueprint Canvas"
+                            className="max-w-none shadow-2xl rounded-lg border border-slate-800 pointer-events-auto"
                             style={{
                               maxHeight: '75vh',
                               maxWidth: '85vw',
-                              objectFit: 'contain'
+                              objectFit: 'contain',
+                              display: 'block'
                             }}
+                            onLoad={() => console.log('[DrawingManagement] Blueprint loaded successfully')}
+                            onError={(e) => console.error('[DrawingManagement] Image element load error:', e)}
                           />
 
                           {/* Visual Balloons Layer */}

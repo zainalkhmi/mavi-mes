@@ -361,30 +361,40 @@ const BuilderCopilot = ({
   useEffect(() => {
     if (!isSupabaseReady()) return;
     const supabase = getSupabaseClient();
+    if (!supabase) return;
     
-    const channel = supabase
-      .channel('antigravity_commands_feedback')
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'chat_messages'
-      }, (payload) => {
-        const msg = payload.new;
-        if (msg.sender_id === 'antigravity') {
-          setMessages(prev => [
-            ...prev,
-            {
-              role: 'assistant',
-              content: msg.content,
-              timestamp: new Date(msg.created_at)
-            }
-          ]);
-        }
-      })
-      .subscribe();
+    let channel = null;
+    try {
+      channel = supabase
+        .channel('antigravity_commands_feedback')
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_messages'
+        }, (payload) => {
+          const msg = payload.new;
+          if (msg.sender_id === 'antigravity') {
+            setMessages(prev => [
+              ...prev,
+              {
+                role: 'assistant',
+                content: msg.content,
+                timestamp: new Date(msg.created_at)
+              }
+            ]);
+          }
+        })
+        .subscribe();
+    } catch (e) {
+      console.warn('[BuilderCopilot] Failed to subscribe to channel:', e);
+    }
 
     return () => {
-      supabase.removeChannel(channel);
+      if (supabase && channel) {
+        try {
+          supabase.removeChannel(channel);
+        } catch (e) {}
+      }
     };
   }, []);
 

@@ -3,9 +3,39 @@
  * =====================================================
  * Single storage layer for Manual Creation using Supabase.
  * Replaces: tursoAPI.js + knowledgeBaseDB.js + tursoClient.js
+ * OPTIMIZED: Pagination + Caching + Null-Safe
  * =====================================================
  */
-import { getSupabaseAuth } from './supabaseAuth.js';
+import { getSupabaseAuth, isSupabaseReady as isAuthReady } from './supabaseAuth.js';
+import { createClient } from '@supabase/supabase-js';
+
+// ─── Config ────────────────────────────────────────────
+const DEFAULT_PAGE_SIZE = 20;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// ─── Memory Cache ─────────────────────────────────────
+const cache = new Map();
+
+const getCached = (key) => {
+  const cached = cache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data;
+  }
+  cache.delete(key);
+  return null;
+};
+
+const setCache = (key, data) => {
+  cache.set(key, { data, timestamp: Date.now() });
+};
+
+const invalidateCache = (prefix) => {
+  for (const key of cache.keys()) {
+    if (key.startsWith(prefix)) {
+      cache.delete(key);
+    }
+  }
+};
 
 const MANUAL_SUMMARY_COLUMNS = [
     'id',
@@ -33,6 +63,13 @@ const normalizeWorkflowStatus = (status) => {
     return 'DRAFT';
 };
 
+function getCredentials() {
+    return {
+        url: import.meta.env.VITE_SUPABASE_URL || '',
+        anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+    };
+}
+
 // ── Singleton client ──────────────────────────────────
 
 /**
@@ -46,7 +83,7 @@ export function getSupabaseClient() {
  * Returns true if Supabase credentials are available.
  */
 export function isSupabaseReady() {
-    return true; // Using supabaseAuth client, which handles credentials
+    return isAuthReady();
 }
 
 // ── Schema columns (mirrors supabase_setup.sql) ───────
@@ -122,10 +159,12 @@ export async function upsertManual(manual) {
                 delete fallbackRow.content_json;
                 const retry = await performUpsert(fallbackRow);
                 if (retry.error) throw retry.error;
+                invalidateCache('manuals'); // Clear all manuals cache
                 return { id: retry.data.id, updatedAt: retry.data.updated_at };
             }
             throw error;
         }
+        invalidateCache('manuals'); // Clear all manuals cache
         return { id: data.id, updatedAt: data.updated_at };
     } catch (err) {
         console.error('[supabaseManualDB] Upsert failed:', err);
@@ -134,23 +173,67 @@ export async function upsertManual(manual) {
 }
 
 /**
- * Fetch all manuals ordered by most recently updated.
+ * Fetch manuals with pagination.
+ * @param {number} page - Page number (0-indexed)
+ * @param {number} pageSize - Items per page
+ * @param {object} filters - Optional filters {search, category, status}
+ * @returns {{ items: Array, total: number, page: number, pageSize: number }}
+ */
+export async function listManuals({ page = 0, pageSize = DEFAULT_PAGE_SIZE, search = '', category = '', status = '' } = {}) {
+    const supabase = getSupabaseClient();
+    const cacheKey = `manuals:${page}:${pageSize}:${search}:${category}:${status}`;
+    const cached = getCached(cacheKey);
+    if (cached) return cached;
+
+    try {
+        const from = page * pageSize;
+        let query = supabase
+            .from('manuals')
+            .select(MANUAL_SUMMARY_COLUMNS, { count: 'exact' })
+            .order('updated_at', { ascending: false })
+            .range(from, from + pageSize - 1);
+
+        if (search) {
+            query = query.or(`title.ilike.%${search}%,document_number.ilike.%${search}%`);
+        }
+        if (category) {
+            query = query.eq('category', category);
+        }
+        if (status) {
+            query = query.eq('status', status);
+        }
+
+        const { data, error, count } = await query;
+
+        if (error) throw error;
+        const result = { items: (data || []).map(normalizeRow), total: count || 0, page, pageSize };
+        setCache(cacheKey, result);
+        return result;
+    } catch (err) {
+        console.error('[supabaseManualDB] listManuals error:', err);
+        return { items: [], total: 0, page, pageSize };
+    }
+}
+
+/**
+ * Fetch all manuals (legacy - prefer paginated version).
  * @returns {Array}
  */
-export async function listManuals() {
-    const supabase = getSupabaseClient();
+export async function listManualsAll() {
+    const cacheKey = 'manuals:all';
+    const cached = getCached(cacheKey);
+    if (cached) return cached;
 
-    // IMPORTANT:
-    // Avoid selecting large JSON payload columns (content_json / steps) for list views.
-    // Fetching full rows for many manuals can trigger Postgres statement timeout (57014)
-    // when manuals contain large embedded media/content snapshots.
+    const supabase = getSupabaseClient();
     const { data, error } = await supabase
         .from('manuals')
         .select(MANUAL_SUMMARY_COLUMNS)
         .order('updated_at', { ascending: false });
 
     if (error) throw error;
-    return (data || []).map(normalizeRow);
+    const result = (data || []).map(normalizeRow);
+    setCache(cacheKey, result);
+    return result;
 }
 
 /**
@@ -159,6 +242,10 @@ export async function listManuals() {
  * @returns {Array}
  */
 export async function listManualSummaries() {
+    const cacheKey = 'manuals:summaries';
+    const cached = getCached(cacheKey);
+    if (cached) return cached;
+
     const supabase = getSupabaseClient();
 
     try {
@@ -168,13 +255,18 @@ export async function listManualSummaries() {
             .order('updated_at', { ascending: false });
 
         if (error) {
-            console.warn('[Offline Mode] Supabase query failed for Manual Summaries, trying cache...', error);
+            console.warn('[Offline Mode] Supabase query failed, trying cache...', error);
             throw error;
         }
 
         const normalized = (data || []).map(normalizeRow);
+        setCache(cacheKey, normalized);
+
+        // Also save to localStorage for offline
         if (typeof window !== 'undefined') {
-            localStorage.setItem('offline_manual_summaries_cache', JSON.stringify(normalized));
+            try {
+                localStorage.setItem('offline_manual_summaries_cache', JSON.stringify(normalized));
+            } catch (e) {}
         }
         return normalized;
     } catch (err) {
@@ -242,6 +334,7 @@ export async function deleteManual(id) {
         .eq('id', id);
 
     if (error) throw error;
+    invalidateCache('manuals'); // Clear all manuals cache
     return true;
 }
 
@@ -284,6 +377,8 @@ export async function appendManualDataCapture(id, capture) {
  * Upload an image (data URL or File/Blob) to Supabase Storage.
  * Returns the public URL of the uploaded file.
  *
+ * OPTIMIZED: Caches working bucket to avoid trying all buckets every time
+ *
  * @param {string} storagePath  e.g. "manuals/manual-uuid/step-1.jpg"
  * @param {string|Blob} fileOrDataUrl
  * @param {object} [overrideSettings]  optional {url, anonKey, bucket}
@@ -298,11 +393,6 @@ export async function uploadManualImage(storagePath, fileOrDataUrl, overrideSett
         : getSupabaseClient();
 
     // Read settings for bucket name
-    // Priority:
-    // 1) overrideSettings.bucket
-    // 2) localStorage.supabase_storage_settings.bucket
-    // 3) Vite env VITE_SUPABASE_BUCKET
-    // 4) fallback manual-media
     let bucket =
         overrideSettings?.bucket ||
         import.meta.env.VITE_SUPABASE_BUCKET ||
@@ -332,21 +422,22 @@ export async function uploadManualImage(storagePath, fileOrDataUrl, overrideSett
     }
 
     const cleanPath = String(storagePath).replace(/^\/+/, '');
-    const candidateBuckets = Array.from(new Set([
-        bucket,
-        'manual-media',
-        'manuals',
-        'images'
-    ].filter(Boolean)));
+
+    // OPTIMIZED: Try cached bucket first, then fallback list
+    const cachedBucket = localStorage.getItem('supabase_active_bucket') || bucket;
+    const fallbackBuckets = ['manual-media', 'manuals', 'images'].filter(b => b !== cachedBucket);
+    const candidateBuckets = [cachedBucket, ...fallbackBuckets].filter(Boolean);
 
     let uploadError = null;
-    let activeBucket = bucket;
+    let activeBucket = null;
 
     for (const candidate of candidateBuckets) {
         const { error } = await supabase.storage.from(candidate).upload(cleanPath, fileBlob, { upsert: true });
         if (!error) {
             activeBucket = candidate;
             uploadError = null;
+            // Cache successful bucket
+            localStorage.setItem('supabase_active_bucket', candidate);
             break;
         }
         uploadError = error;
@@ -439,4 +530,37 @@ function normalizeRow(row) {
 
 function safeParseJson(value) {
     try { return JSON.parse(value); } catch { return {}; }
+}
+
+// ─── Cache Control ────────────────────────────────────────
+
+/**
+ * Clear all cached data
+ */
+export function clearAllCache() {
+    cache.clear();
+    if (typeof window !== 'undefined') {
+        try {
+            localStorage.removeItem('offline_manual_summaries_cache');
+            // Clear individual manual caches
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+                const key = localStorage.key(i);
+                if (key?.startsWith('offline_manual_cache_')) {
+                    localStorage.removeItem(key);
+                }
+            }
+        } catch (e) {}
+    }
+}
+
+/**
+ * Get cache statistics
+ * @returns {{ size: number, keys: string[] }}
+ */
+export function getCacheStats() {
+    return {
+        size: cache.size,
+        keys: Array.from(cache.keys()),
+        memoryUsage: JSON.stringify(Array.from(cache.entries())).length
+    };
 }

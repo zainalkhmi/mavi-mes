@@ -15,11 +15,40 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 // Create Supabase client
 let supabase = null;
 
+// ─── Null-Safe Client Wrapper ────────────────────────────────────────────────
+const nullClient = {
+  from: () => ({
+    select: () => Promise.resolve({ data: [], error: { message: 'Supabase not configured' } }),
+    insert: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }),
+    update: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }),
+    delete: () => Promise.resolve({ error: { message: 'Supabase not configured' } }),
+    upsert: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }),
+    channel: () => ({
+      on: () => ({ subscribe: () => {} }),
+      subscribe: () => {}
+    })
+  }),
+  auth: {
+    getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+    getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+    signInWithPassword: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }),
+    signOut: () => Promise.resolve({ error: null }),
+    onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } })
+  },
+  storage: {
+    from: () => ({
+      upload: () => Promise.resolve({ error: { message: 'Supabase not configured' } }),
+      remove: () => Promise.resolve({ error: null }),
+      getPublicUrl: () => ({ data: { publicUrl: '' } })
+    })
+  }
+};
+
 export function getSupabaseAuth() {
   if (!supabase) {
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
       console.warn('[Auth] Supabase not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY');
-      return null;
+      return nullClient; // Return null-safe client instead of null
     }
 
     supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {

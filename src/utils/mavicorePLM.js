@@ -3,41 +3,114 @@
  * =====================================================
  * PLM/PDM Service for MaviCore
  * Drawing Management + Product Structure + Revision
+ * OPTIMIZED: Pagination + Caching + Request Debouncing
  * =====================================================
  */
 
 import { getSupabaseClient } from './supabaseManualDB.js';
 
-const supabase = getSupabaseClient();
+// ─── Config ────────────────────────────────────────────
+const DEFAULT_PAGE_SIZE = 20;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// ─── Memory Cache ─────────────────────────────────────
+const cache = new Map();
+
+const getCacheKey = (prefix, id) => `${prefix}:${id || 'list'}`;
+
+const getCached = (prefix, id) => {
+  const key = getCacheKey(prefix, id);
+  const cached = cache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data;
+  }
+  cache.delete(key);
+  return null;
+};
+
+const setCache = (prefix, id, data) => {
+  const key = getCacheKey(prefix, id);
+  cache.set(key, { data, timestamp: Date.now() });
+};
+
+const invalidateCache = (prefix) => {
+  for (const key of cache.keys()) {
+    if (key.startsWith(prefix + ':')) {
+      cache.delete(key);
+    }
+  }
+};
+
+// ─── Helper ───────────────────────────────────────────
+const getClient = () => {
+  const client = getSupabaseClient();
+  if (!client) {
+    throw new Error('Supabase client not initialized');
+  }
+  return client;
+};
 
 // =====================================================
-// PRODUCTS
+// PRODUCTS (with pagination)
 // =====================================================
 
-export async function getProducts() {
+export async function getProducts({ page = 0, pageSize = DEFAULT_PAGE_SIZE } = {}) {
+  const cacheKey = `products:${page}:${pageSize}`;
+  const cached = getCached('products', cacheKey);
+  if (cached) return cached;
+
   try {
-    const { data, error } = await supabase
+    const from = page * pageSize;
+    const { data, error, count } = await getClient()
+      .from('products')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(from, from + pageSize - 1);
+
+    if (error) throw error;
+    const result = { items: data || [], total: count || 0, page, pageSize };
+    setCache('products', cacheKey, result);
+    return result;
+  } catch (err) {
+    console.error('[PLM] getProducts error:', err);
+    return { items: [], total: 0, page, pageSize };
+  }
+}
+
+// Legacy: keep old signature but add pagination
+export async function getProductsAll() {
+  const cacheKey = 'products:all';
+  const cached = getCached('products', cacheKey);
+  if (cached) return cached;
+
+  try {
+    const { data, error } = await getClient()
       .from('products')
       .select('*')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
+    setCache('products', cacheKey, data || []);
     return data || [];
   } catch (err) {
-    console.error('[PLM] getProducts error:', err);
+    console.error('[PLM] getProductsAll error:', err);
     return [];
   }
 }
 
 export async function getProduct(id) {
+  const cached = getCached('product', id);
+  if (cached) return cached;
+
   try {
-    const { data, error } = await supabase
+    const { data, error } = await getClient()
       .from('products')
       .select('*')
       .eq('id', id)
       .single();
 
     if (error) throw error;
+    setCache('product', id, data);
     return data;
   } catch (err) {
     console.error('[PLM] getProduct error:', err);
@@ -47,7 +120,7 @@ export async function getProduct(id) {
 
 export async function createProduct(product) {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await getClient()
       .from('products')
       .insert(product)
       .select()
@@ -164,27 +237,66 @@ export async function updatePart(id, updates) {
 }
 
 // =====================================================
-// DRAWINGS
+// DRAWINGS (with pagination & caching)
 // =====================================================
 
-export async function getDrawings() {
+export async function getDrawings({ page = 0, pageSize = DEFAULT_PAGE_SIZE, search = '' } = {}) {
+  const cacheKey = `drawings:${page}:${pageSize}:${search}`;
+  const cached = getCached('drawings', cacheKey);
+  if (cached) return cached;
+
   try {
-    const { data, error } = await supabase
+    const from = page * pageSize;
+    let query = getClient()
       .from('drawings')
-      .select('*')
-      .order('created_at', { ascending: false });
+      .select('*', { count: 'exact' })
+      .order('updated_at', { ascending: false })
+      .range(from, from + pageSize - 1);
+
+    // Add search filter if provided
+    if (search) {
+      query = query.or(`name.ilike.%${search}%,code.ilike.%${search}%`);
+    }
+
+    const { data, error, count } = await query;
 
     if (error) throw error;
-    return data || [];
+    const result = { items: data || [], total: count || 0, page, pageSize };
+    setCache('drawings', cacheKey, result);
+    return result;
   } catch (err) {
     console.error('[PLM] getDrawings error:', err);
+    return { items: [], total: 0, page, pageSize };
+  }
+}
+
+// Legacy: maintain old signature
+export async function getDrawingsAll() {
+  const cacheKey = 'drawings:all';
+  const cached = getCached('drawings', cacheKey);
+  if (cached) return cached;
+
+  try {
+    const { data, error } = await getClient()
+      .from('drawings')
+      .select('*')
+      .order('updated_at', { ascending: false });
+
+    if (error) throw error;
+    setCache('drawings', cacheKey, data || []);
+    return data || [];
+  } catch (err) {
+    console.error('[PLM] getDrawingsAll error:', err);
     return [];
   }
 }
 
 export async function getDrawing(id) {
+  const cached = getCached('drawing', id);
+  if (cached) return cached;
+
   try {
-    const { data, error } = await supabase
+    const { data, error } = await getClient()
       .from('drawings')
       .select(`
         *,
@@ -198,6 +310,7 @@ export async function getDrawing(id) {
       .single();
 
     if (error) throw error;
+    setCache('drawing', id, data);
     return data;
   } catch (err) {
     console.error('[PLM] getDrawing error:', err);
@@ -207,13 +320,14 @@ export async function getDrawing(id) {
 
 export async function createDrawing(drawing) {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await getClient()
       .from('drawings')
       .insert(drawing)
       .select()
       .single();
 
     if (error) throw error;
+    invalidateCache('drawings'); // Clear list cache
     return { success: true, data };
   } catch (err) {
     console.error('[PLM] createDrawing error:', err);
@@ -224,7 +338,7 @@ export async function createDrawing(drawing) {
 export async function updateDrawing(id, updates) {
   try {
     updates.updated_at = new Date().toISOString();
-    const { data, error } = await supabase
+    const { data, error } = await getClient()
       .from('drawings')
       .update(updates)
       .eq('id', id)
@@ -232,6 +346,8 @@ export async function updateDrawing(id, updates) {
       .single();
 
     if (error) throw error;
+    invalidateCache('drawings'); // Clear list cache
+    invalidateCache('drawing', id); // Clear single item cache
     return { success: true, data };
   } catch (err) {
     console.error('[PLM] updateDrawing error:', err);
@@ -241,12 +357,14 @@ export async function updateDrawing(id, updates) {
 
 export async function deleteDrawing(id) {
   try {
-    const { error } = await supabase
+    const { error } = await getClient()
       .from('drawings')
       .delete()
       .eq('id', id);
 
     if (error) throw error;
+    invalidateCache('drawings'); // Clear list cache
+    invalidateCache('drawing', id); // Clear single item cache
     return { success: true };
   } catch (err) {
     console.error('[PLM] deleteDrawing error:', err);

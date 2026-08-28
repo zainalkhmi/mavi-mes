@@ -61,6 +61,13 @@ const Home = () => {
     }
 
     const supabase = getSupabaseClient();
+    if (!supabase) {
+      pollingInterval = setInterval(() => refreshSnapshot({ silent: true }), 10000);
+      return () => {
+        isMounted = false;
+        if (pollingInterval) clearInterval(pollingInterval);
+      };
+    }
 
     try {
       realtimeChannel = supabase
@@ -86,35 +93,46 @@ const Home = () => {
     }
 
     // Chat Notification Listener
-    const chatChannel = supabase
-      .channel('chat_notifications')
-      .on('postgres_changes', { 
-        event: 'INSERT', 
-        schema: 'public', 
-        table: 'chat_messages' 
-      }, (payload) => {
-        const msg = payload.new;
-        if (!showChatRef.current) {
-          setUnreadCount(prev => prev + 1);
-          try {
-            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
-            audio.play();
-          } catch (e) {}
-        }
-      })
-      .subscribe();
+    let chatChannel = null;
+    try {
+      chatChannel = supabase
+        .channel('chat_notifications')
+        .on('postgres_changes', { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'chat_messages' 
+        }, (payload) => {
+          const msg = payload.new;
+          if (!showChatRef.current) {
+            setUnreadCount(prev => prev + 1);
+            try {
+              const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
+              audio.play();
+            } catch (e) {}
+          }
+        })
+        .subscribe();
+    } catch (e) {
+      console.warn('[Home] Chat realtime subscription unavailable', e);
+    }
 
     return () => {
       isMounted = false;
       if (pollingInterval) clearInterval(pollingInterval);
-      if (realtimeChannel) {
+      if (realtimeChannel && supabase) {
         try {
-          realtimeChannel.unsubscribe();
+          supabase.removeChannel ? supabase.removeChannel(realtimeChannel) : realtimeChannel.unsubscribe();
         } catch (e) {
           console.warn('[Home] Failed to unsubscribe realtime channel', e);
         }
       }
-      if (chatChannel) chatChannel.unsubscribe();
+      if (chatChannel && supabase) {
+        try {
+          supabase.removeChannel ? supabase.removeChannel(chatChannel) : chatChannel.unsubscribe();
+        } catch (e) {
+          console.warn('[Home] Failed to unsubscribe chat channel', e);
+        }
+      }
     };
   }, [showChat]);
 

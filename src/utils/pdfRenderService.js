@@ -12,11 +12,12 @@ import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 // Configure pdfjs worker for Vite
 if (typeof window !== 'undefined' && pdfjsLib.GlobalWorkerOptions) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker || `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version || '6.2.108'}/build/pdf.worker.min.mjs`;
+    try {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker || `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+    } catch (e) {
+        console.warn('PDF Worker config note:', e);
+    }
 }
-
-// Disable external font loading to avoid CSP issues
-pdfjsLib.OPS.setFont = null;
 
 /**
  * Converts PDF (Data URL, Blob, Uint8Array, or ArrayBuffer) directly to high-res PNG Data URL
@@ -69,7 +70,6 @@ export async function convertPdfToImageDataUrl(pdfInput, scale = 2.5) {
 
         const loadingTask = pdfjsLib.getDocument({
             data: pdfData,
-            // Disable external font loading to avoid CSP issues
             standardFontDataUrl: null,
             cMapUrl: null,
         });

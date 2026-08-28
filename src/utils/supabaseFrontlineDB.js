@@ -4,10 +4,15 @@ import n8nWebhook from './n8nWebhookService.js';
 import { isSupabaseReady } from './supabaseAuth.js';
 
 export async function getStations() {
-    const supabase = getSupabaseClient();
-    const { data, error } = await supabase.from('stations').select('*').order('name');
-    if (error) return [];
-    return data || [];
+    try {
+        const supabase = getSupabaseClient();
+        if (!supabase) return [];
+        const { data, error } = await supabase.from('stations').select('*').order('name');
+        if (error) return [];
+        return data || [];
+    } catch (e) {
+        return [];
+    }
 }
 
 
@@ -16,6 +21,7 @@ export async function getStations() {
 export async function getTables() {
     try {
         const supabase = getSupabaseClient();
+        if (!supabase) return [];
         const { data, error } = await supabase
             .from('app_tables')
             .select('*')
@@ -424,22 +430,31 @@ const buildActiveAndons = (auditRows = []) => {
 };
 
 export async function getShopFloorRealtimeSnapshot() {
-    const supabase = getSupabaseClient();
+    try {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+            return {
+                workstations: [],
+                activeAndons: [],
+                oee: 0,
+                queue: []
+            };
+        }
 
-    const [queueRes, auditRes] = await Promise.all([
-        supabase
-            .from('production_queue')
-            .select('*')
-            .order('created_at', { ascending: false }),
-        supabase
-            .from('audit_logs')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(300)
-    ]);
+        const [queueRes, auditRes] = await Promise.all([
+            supabase
+                .from('production_queue')
+                .select('*')
+                .order('created_at', { ascending: false }),
+            supabase
+                .from('audit_logs')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(300)
+        ]);
 
-    if (queueRes.error) throw queueRes.error;
-    if (auditRes.error) throw auditRes.error;
+        if (queueRes.error) throw queueRes.error;
+        if (auditRes.error) throw auditRes.error;
 
     const queueRows = queueRes.data || [];
     const auditRows = auditRes.data || [];
@@ -533,6 +548,15 @@ export async function getShopFloorRealtimeSnapshot() {
         activeAndons,
         oee: Number(oee.toFixed(1))
     };
+  } catch (err) {
+    console.warn('[getShopFloorRealtimeSnapshot] Failed to fetch:', err);
+    return {
+        workstations: [],
+        activeAndons: [],
+        oee: 0,
+        queue: []
+    };
+  }
 }
 
 export async function acknowledgeAndon({ workstation, category, detail, user = 'Supervisor' }) {
@@ -1022,6 +1046,7 @@ export async function savePlcSettingsToSupabase(controllers, tags) {
 export async function loadPlcSettingsFromSupabase() {
     try {
         const supabase = getSupabaseClient();
+        if (!supabase) return { controllers: null, tags: null };
         
         // 1. Try reading from plc_controllers & plc_tags tables first
         try {
