@@ -264,7 +264,7 @@ export default function CheckSheetManager() {
     const handleEditInDesigner = (cs) => {
         localStorage.setItem('mandor_inspector_active_template', JSON.stringify(cs));
         toast.success(`Membuka ${cs.name} di Inspector Designer Studio`);
-        navigate('/inspector-designer');
+        navigate(`/inspector-designer?edit=${encodeURIComponent(cs.id || cs.docNo || '')}`);
     };
 
     const handlePrintISOReport = async (cs) => {
@@ -969,6 +969,15 @@ export default function CheckSheetManager() {
                             </div>
 
                             <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        setShowDetailModal(false);
+                                        handleEditInDesigner(selectedChecksheet);
+                                    }}
+                                    className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs px-3.5 py-2 rounded-lg shadow-lg shadow-purple-600/30 cursor-pointer"
+                                >
+                                    <Edit3 size={13} /> Edit di Studio
+                                </button>
                                 <button
                                     onClick={() => handlePrintISOReport(selectedChecksheet)}
                                     className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs px-3 py-2 rounded-lg border border-slate-700 cursor-pointer"

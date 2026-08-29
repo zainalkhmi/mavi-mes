@@ -105,6 +105,8 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/player" element={<AppPlayer />} />
               <Route path="/drawing-checksheet" element={<DigitalDrawingCheckSheet />} />
               <Route path="/qa-checksheet" element={<DigitalDrawingCheckSheet />} />
+              <Route path="/live-checksheet" element={<DigitalDrawingCheckSheet />} />
+              <Route path="/live-player" element={<DigitalDrawingCheckSheet />} />
               <Route path="/simple-checksheet" element={<SimpleCheckSheetDemo />} />
               <Route path="/drawing-management" element={<DrawingManagement />} />
               <Route path="/plm-integration" element={<PLMIntegrationDashboard />} />
@@ -137,6 +139,8 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/inspector-designer" element={<InspectorDesigner />} />
               <Route path="/drawing-checksheet" element={<DigitalDrawingCheckSheet />} />
               <Route path="/qa-checksheet" element={<DigitalDrawingCheckSheet />} />
+              <Route path="/live-checksheet" element={<DigitalDrawingCheckSheet />} />
+              <Route path="/live-player" element={<DigitalDrawingCheckSheet />} />
               <Route path="/drawing-management" element={<DrawingManagement />} />
               <Route path="/plm-integration" element={<PLMIntegrationDashboard />} />
               <Route path="/app-management" element={hasAccess('/app-management') ? <AppManagement /> : <Navigate to="/" replace />} />

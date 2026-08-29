@@ -67,11 +67,23 @@ import {
   Trash2,
   Highlighter,
   MousePointer,
-  Pen // Handwriting input icon
+  Pen, // Handwriting input icon
+  Thermometer,
+  Droplets,
+  ShieldAlert,
+  History,
+  Lock,
+  Tag
 } from 'lucide-react';
 import NumpadInput from './NumpadInput';
 import CameraInput from './CameraInput';
 import CheckTabContent from './CheckTabContent';
+import {
+  NCRDefectModal,
+  AuditTrailModal,
+  SupervisorApprovalModal,
+  EnvironmentSettingsModal
+} from './checksheet/ISOComplianceModals';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import toast, { Toaster } from 'react-hot-toast';
 import QRCode from 'react-qr-code';
@@ -607,12 +619,13 @@ export default function DigitalDrawingCheckSheet() {
   const [filterCriticality, setFilterCriticality] = useState('ALL');
 
   // Canvas Viewport State (Zoom & Pan)
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(0.92);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [showRuler, setShowRuler] = useState(true);
   const [darkModeBlueprint, setDarkModeBlueprint] = useState(false);
+  const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
 
   // ISO 9001 Traceability & Work Order Metadata
   const [workOrderNo, setWorkOrderNo] = useState('WO-2026-CAST-042');
@@ -650,6 +663,53 @@ export default function DigitalDrawingCheckSheet() {
   const [companionLink, setCompanionLink] = useState('');
   const [linkCopied, setLinkCopied] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+
+  // ─── ISO 9001:2015 & IATF 16949 Compliance State ───
+  const [temperature, setTemperature] = useState('20.0'); // ISO 1 Standard (20°C)
+  const [humidity, setHumidity] = useState('52'); // % RH
+  const [showEnvModal, setShowEnvModal] = useState(false);
+  const [showWatermark, setShowWatermark] = useState(true);
+
+  // Clause 8.7: Non-Conformance Reports (NCR) & Defect Management
+  const [ncrList, setNcrList] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('mandor_checksheet_ncrs') || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const [activeNCRPoint, setActiveNCRPoint] = useState(null);
+  const [showNCRModal, setShowNCRModal] = useState(false);
+
+  // Clause 7.5.3: ISO Audit Trail & Revision History
+  const [auditTrail, setAuditTrail] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('mandor_checksheet_audit_trail') || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const [showAuditTrailModal, setShowAuditTrailModal] = useState(false);
+
+  // Clause 8.6: Two-Tier Maker-Checker Supervisor Sign-Off
+  const [supervisorApproval, setSupervisorApproval] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('mandor_checksheet_supervisor_approval') || '{"isApproved":false}');
+    } catch {
+      return { isApproved: false };
+    }
+  });
+  const [showSupervisorModal, setShowSupervisorModal] = useState(false);
+
+  // Clause 7.1.5: Measuring Equipment & Calibration Log
+  const [gaugesList, setGaugesList] = useState([
+    { id: 'CAL-003', name: 'Digital Caliper 0-150mm', type: 'Caliper', serial: 'SN-MITU-9921', calDate: '2025-10-30', dueDate: '2026-10-30', status: 'VALID', certNo: 'CAL-CERT-2025-881' },
+    { id: 'MIC-102', name: 'Outside Micrometer 0-25mm', type: 'Micrometer', serial: 'SN-MITU-4412', calDate: '2026-01-15', dueDate: '2027-01-15', status: 'VALID', certNo: 'CAL-CERT-2026-102' },
+    { id: 'CMM-001', name: 'Zeiss Contura 3D CMM', type: 'CMM', serial: 'SN-ZEISS-770', calDate: '2026-04-10', dueDate: '2027-04-10', status: 'VALID', certNo: 'CAL-CERT-2026-001' },
+    { id: 'DI-007', name: 'Dial Indicator (0.001mm)', type: 'Dial', serial: 'SN-TECLOCK-12', calDate: '2025-08-01', dueDate: '2026-08-01', status: 'EXPIRING_SOON', certNo: 'CAL-CERT-2025-007' },
+    { id: 'BG-014', name: 'Digital Bore Gauge 18-35mm', type: 'Bore Gauge', serial: 'SN-BG-338', calDate: '2025-12-31', dueDate: '2026-12-31', status: 'VALID', certNo: 'CAL-CERT-2025-014' },
+    { id: 'HG-002', name: 'Digital Height Gauge 300mm', type: 'Height Gauge', serial: 'SN-MITU-002', calDate: '2025-12-05', dueDate: '2026-12-05', status: 'VALID', certNo: 'CAL-CERT-2025-002' }
+  ]);
 
   // ─── Handwriting Input State ───
   
@@ -1323,6 +1383,24 @@ export default function DigitalDrawingCheckSheet() {
       disposition = 'MRB Hold / Review';
     }
 
+    // ── Record Audit Trail (ISO 9001: 7.5.3) ──
+    if (pt.measuredVal && pt.measuredVal !== finalVal) {
+      const auditEntry = {
+        id: `AUDIT_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        timestamp: new Date().toISOString(),
+        user: inspectorName,
+        pointNumber: pt.pointNumber,
+        param: pt.title,
+        oldVal: pt.measuredVal,
+        newVal: finalVal,
+        status,
+        reason: 'Revisi hasil ukur inspeksi'
+      };
+      const updatedAudit = [auditEntry, ...auditTrail];
+      setAuditTrail(updatedAudit);
+      localStorage.setItem('mandor_checksheet_audit_trail', JSON.stringify(updatedAudit));
+    }
+
     const updatedPoints = checkPoints.map((p, idx) => {
       if (idx === ptIndex) {
         return { ...p, measuredVal: finalVal, status, disposition };
@@ -1331,6 +1409,34 @@ export default function DigitalDrawingCheckSheet() {
     });
 
     setCheckPoints(updatedPoints);
+
+    // ── If NG, trigger NCR flow (ISO 9001: 8.7) ──
+    if (status === 'NG') {
+      setActiveNCRPoint({ ...pt, measuredVal: finalVal, status, disposition });
+      toast((t) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ color: '#ef4444', fontWeight: 800 }}>⚠️ Dimensi NG Terdeteksi!</span>
+          <button
+            onClick={() => {
+              toast.dismiss(t.id);
+              setShowNCRModal(true);
+            }}
+            style={{
+              padding: '3px 8px',
+              backgroundColor: '#ef4444',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              fontWeight: 800,
+              fontSize: '0.7rem',
+              cursor: 'pointer'
+            }}
+          >
+            Buka NCR
+          </button>
+        </div>
+      ), { duration: 4000 });
+    }
 
     // Check if there is a next point in the list
     if (ptIndex + 1 < updatedPoints.length) {
@@ -1343,12 +1449,30 @@ export default function DigitalDrawingCheckSheet() {
       const totalFailed = updatedPoints.filter(p => p.status === 'NG').length;
       const overall = totalFailed > 0 ? 'REJECTED (NG)' : 'APPROVED (OK)';
 
-      toast.success(`🎉 Seluruh 12 Dimensi Selesai! Menyimpan sertifikat inspeksi...`, { duration: 3000 });
+      toast.success(`🎉 Seluruh Dimensi Selesai! Menyimpan sertifikat inspeksi...`, { duration: 3000 });
       
       // Auto-save and move to Summary tab
       saveInspectionPayload(updatedPoints, overall);
       setActiveTab('Summary');
     }
+  };
+
+  const handleSaveNCR = (ncrData) => {
+    const updated = [ncrData, ...ncrList];
+    setNcrList(updated);
+    localStorage.setItem('mandor_checksheet_ncrs', JSON.stringify(updated));
+  };
+
+  const handleSupervisorApprove = (approvalData) => {
+    setSupervisorApproval(approvalData);
+    localStorage.setItem('mandor_checksheet_supervisor_approval', JSON.stringify(approvalData));
+  };
+
+  const handleUpdateEnvironment = (temp, hum) => {
+    setTemperature(temp);
+    setHumidity(hum);
+    localStorage.setItem('mandor_checksheet_temp', temp);
+    localStorage.setItem('mandor_checksheet_humidity', hum);
   };
 
   // Helper to save inspection payload directly
@@ -1580,8 +1704,8 @@ export default function DigitalDrawingCheckSheet() {
     const origin = window.location.origin;
     const pathname = window.location.pathname.endsWith('/') ? window.location.pathname : window.location.pathname + '/';
 
-    // Generate direct functional URL to Digital Drawing Check Sheet
-    const companionUrl = `${origin}${pathname}#/drawing-checksheet?wo=${encodeURIComponent(workOrderNo)}&sn=${encodeURIComponent(partSerial)}&lot=${encodeURIComponent(lotBatchNo)}&station=${encodeURIComponent(stationId)}&inspector=${encodeURIComponent(inspectorName)}`;
+    // Generate direct functional URL to Digital Drawing Check Sheet (standalone without main app header)
+    const companionUrl = `${origin}${pathname}#/drawing-checksheet?wo=${encodeURIComponent(workOrderNo)}&sn=${encodeURIComponent(partSerial)}&lot=${encodeURIComponent(lotBatchNo)}&station=${encodeURIComponent(stationId)}&inspector=${encodeURIComponent(inspectorName)}&standalone=true&mode=companion`;
 
     setCompanionLink(companionUrl);
     setShowCompanionModal(true);
@@ -1712,13 +1836,75 @@ export default function DigitalDrawingCheckSheet() {
   const handleMouseUp = () => setIsPanning(false);
 
   const handleZoom = (delta) => {
-    setZoom(prev => Math.min(Math.max(0.4, +(prev + delta).toFixed(2)), 3.0));
+    setZoom(prev => Math.min(Math.max(0.4, +(prev + delta).toFixed(2)), 3.5));
+  };
+
+  // Proportional Clean Fit to Screen (With Safe Margins for Left Toolbar & HUD)
+  const handleFitToScreen = () => {
+    if (!containerRef.current) {
+      setZoom(0.92);
+      setPan({ x: 0, y: 0 });
+      return;
+    }
+    const cw = containerRef.current.clientWidth || window.innerWidth;
+    const ch = containerRef.current.clientHeight || (window.innerHeight - 56);
+
+    // Reserve safe space so the drawing never overlaps the left floating Draw Tools palette
+    const leftReserve = isDrawingMode ? 120 : 24;
+    const rightReserve = 24;
+    const topReserve = 24;
+    const bottomReserve = 24;
+
+    const usableW = Math.max(cw - (leftReserve + rightReserve), 400);
+    const usableH = Math.max(ch - (topReserve + bottomReserve), 300);
+
+    const scaleX = usableW / 1000;
+    const scaleY = usableH / 680;
+    const optimalScale = Math.min(scaleX, scaleY) * 0.96;
+
+    // Shift pan slightly to center in the remaining unobstructed canvas space
+    const panOffsetX = isDrawingMode ? 55 : 0;
+
+    setZoom(+optimalScale.toFixed(2));
+    setPan({ x: Math.round(panOffsetX), y: 0 });
   };
 
   const handleResetView = () => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
+    handleFitToScreen();
+    toast('Ukuran gambar disesuaikan rapi', { icon: '📐' });
   };
+
+  const handleToggleFullscreenCanvas = () => {
+    setIsRightPanelCollapsed(prev => {
+      const next = !prev;
+      setTimeout(() => {
+        handleFitToScreen();
+      }, 150);
+      if (next) {
+        toast.success('Drawing Full Screen (Panel Samping Dilipat)', { icon: '📺' });
+      } else {
+        toast('Panel checklist & keypad ditampilkan', { icon: '📋' });
+      }
+      return next;
+    });
+  };
+
+  // Auto-fit on load & window resize with smooth adjustment
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      handleFitToScreen();
+    }, 150);
+
+    const onResize = () => {
+      handleFitToScreen();
+    };
+
+    window.addEventListener('resize', onResize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [isRightPanelCollapsed, isDrawingMode]);
 
   // Filtered check points for right panel
   const filteredPoints = useMemo(() => {
@@ -1772,209 +1958,222 @@ export default function DigitalDrawingCheckSheet() {
           zIndex: 20
         }}
       >
-        {/* Left: Branding & Drawing Info */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '28px', height: '28px', backgroundColor: '#22c55e', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0f172a', fontWeight: 900, fontSize: '0.9rem' }}>
-              M
-            </div>
-            <div>
-              <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#ffffff', lineHeight: 1.1 }}>
-                MANDOR<span style={{ color: '#22c55e' }}>®</span> <span style={{ color: '#38bdf8', fontSize: '0.75rem', fontWeight: 700 }}>DIGITAL CHECK SHEET</span>
-              </div>
-              <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 600 }}>
-                ISO 9001:2015 & IATF 16949 COMPLIANT INSPECTION SYSTEM
-              </div>
-            </div>
+        {/* Left: Compact Branding & Drawing Info */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          <div style={{ width: '26px', height: '26px', backgroundColor: '#22c55e', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0f172a', fontWeight: 900, fontSize: '0.85rem' }}>
+            M
+          </div>
+          <div style={{ fontWeight: 800, fontSize: '0.88rem', color: '#ffffff', whiteSpace: 'nowrap' }}>
+            MANDOR<span style={{ color: '#22c55e' }}>®</span> <span style={{ color: '#38bdf8', fontSize: '0.72rem', fontWeight: 700 }}>CHECK SHEET</span>
           </div>
         </div>
 
-        {/* Center: ISO Traceability Badge & Target Table Badge */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#0f172a', border: '1px solid #1e293b', padding: '4px 12px', borderRadius: '20px' }}>
-            <ShieldCheck size={14} color="#22c55e" />
-            <span style={{ fontSize: '0.74rem', color: '#cbd5e1', fontWeight: 700 }}>
-              {workOrderNo} • {partSerial}
+        {/* Center: ISO Traceability Badge & Live Metrics */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
+          {/* WO & Progress Pill */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#1e293b', border: '1px solid #334155', padding: '3px 10px', borderRadius: '16px', flexShrink: 0 }}>
+            <ShieldCheck size={13} color="#22c55e" />
+            <span style={{ fontSize: '0.72rem', color: '#cbd5e1', fontWeight: 700, whiteSpace: 'nowrap' }}>
+              {workOrderNo}
             </span>
-            <span style={{ fontSize: '0.65rem', padding: '2px 8px', borderRadius: '10px', backgroundColor: stats.failed > 0 ? '#ef4444' : stats.passed === stats.total ? '#22c55e' : '#0284c7', color: 'white', fontWeight: 800 }}>
-              {stats.overallStatus} ({stats.passed}/{stats.total})
+            <span style={{ fontSize: '0.64rem', padding: '1px 6px', borderRadius: '6px', backgroundColor: stats.failed > 0 ? '#ef4444' : stats.passed === stats.total ? '#22c55e' : '#0284c7', color: 'white', fontWeight: 800 }}>
+              {stats.passed}/{stats.total}
             </span>
-            <span style={{ fontSize: '0.65rem', color: '#64748b', borderLeft: '1px solid #334155', paddingLeft: '8px' }}>
+            <span style={{ fontSize: '0.64rem', color: '#64748b', borderLeft: '1px solid #334155', paddingLeft: '6px' }}>
               Cpk: <strong style={{ color: stats.failed > 0 ? '#ef4444' : '#38bdf8' }}>{stats.cpkEstimated}</strong>
             </span>
           </div>
 
-          {/* Data Source / Target Table Configuration Badge */}
+          {/* Environmental Conditions Pill */}
+          <button
+            onClick={() => setShowEnvModal(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              backgroundColor: '#1e293b',
+              border: parseFloat(temperature) >= 18 && parseFloat(temperature) <= 22 ? '1px solid #22c55e' : '1px solid #eab308',
+              padding: '4px 8px',
+              borderRadius: '6px',
+              color: '#f8fafc',
+              fontSize: '0.72rem',
+              cursor: 'pointer',
+              flexShrink: 0
+            }}
+            title={`Kondisi Lingkungan (ISO 1 Standard): ${temperature}°C / ${humidity}% RH`}
+          >
+            <Thermometer size={13} color={parseFloat(temperature) >= 18 && parseFloat(temperature) <= 22 ? '#22c55e' : '#eab308'} />
+            <span style={{ fontWeight: 700 }}>{temperature}°C</span>
+          </button>
+
+          {/* Audit Trail Icon Badge */}
+          <button
+            onClick={() => setShowAuditTrailModal(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              backgroundColor: '#1e293b',
+              border: '1px solid #334155',
+              padding: '4px 8px',
+              borderRadius: '6px',
+              color: '#38bdf8',
+              fontSize: '0.72rem',
+              cursor: 'pointer',
+              flexShrink: 0
+            }}
+            title={`Riwayat Audit Log ISO (${auditTrail.length} Perubahan)`}
+          >
+            <History size={13} />
+            <span style={{ fontWeight: 700 }}>{auditTrail.length}</span>
+          </button>
+
+          {/* NCR Active Defect Alert */}
+          {(ncrList.length > 0 || stats.failed > 0) && (
+            <button
+              onClick={() => {
+                if (!activeNCRPoint && checkPoints.some(p => p.status === 'NG')) {
+                  const firstNg = checkPoints.find(p => p.status === 'NG');
+                  setActiveNCRPoint(firstNg);
+                }
+                setShowNCRModal(true);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                backgroundColor: 'rgba(239, 68, 68, 0.25)',
+                border: '1px solid #ef4444',
+                padding: '4px 8px',
+                borderRadius: '6px',
+                color: '#fca5a5',
+                fontSize: '0.72rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+                flexShrink: 0
+              }}
+              title="Laporan Ketidaksesuaian Produk & Karantina (ISO 8.7)"
+            >
+              <ShieldAlert size={13} color="#ef4444" />
+              <span>{ncrList.length || stats.failed}</span>
+            </button>
+          )}
+
+          {/* Database Target Table Icon */}
           <button
             onClick={() => setShowTableConfigModal(true)}
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
+              gap: '4px',
               backgroundColor: '#1e293b',
               border: targetTable ? '1px solid #0284c7' : '1px dashed #eab308',
-              padding: '5px 10px',
+              padding: '4px 8px',
               borderRadius: '6px',
-              color: '#f8fafc',
+              color: targetTable ? '#38bdf8' : '#eab308',
               fontSize: '0.72rem',
               cursor: 'pointer',
-              transition: 'all 0.15s'
+              flexShrink: 0
             }}
-            title="Klik untuk memilih atau konfigurasi tabel penyimpanan hasil checksheet"
+            title={`Tabel Database: ${targetTable ? targetTable.name : 'Pilih Tabel Target'}`}
           >
-            <Database size={13} color="#38bdf8" />
-            <span style={{ color: '#94a3b8' }}>Tabel:</span>
-            <strong style={{ color: targetTable ? '#38bdf8' : '#eab308', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {targetTable ? targetTable.name : 'Pilih Tabel Data'}
-            </strong>
-            <Settings2 size={12} color="#94a3b8" />
+            <Database size={13} />
           </button>
         </div>
 
-        {/* Right Tools: Zoom, Print, Drawing Switch */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {/* Companion Button - Generate Link & QR Code */}
+        {/* Right Tools: Compact Action Icons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+          {/* Companion QR Button */}
           <button
             onClick={handleGenerateCompanionLink}
             disabled={!isPublished}
             style={{
-              padding: '6px 12px',
-              backgroundColor: isPublished ? '#8b5cf6' : '#334155',
+              padding: '5px 8px',
+              backgroundColor: isPublished ? '#8b5cf6' : '#1e293b',
               color: isPublished ? 'white' : '#64748b',
               border: 'none',
               borderRadius: '6px',
               fontSize: '0.72rem',
-              fontWeight: 700,
               cursor: isPublished ? 'pointer' : 'not-allowed',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
-              boxShadow: isPublished ? '0 0 12px rgba(139, 92, 246, 0.4)' : 'none',
-              transition: 'all 0.2s'
+              gap: '4px'
             }}
-            title={isPublished ? 'Generate QR Code & Link untuk device companion' : 'Publish dulu untuk generate QR Code'}
+            title="Scan QR Code untuk Mobile Companion"
           >
             <QrCode size={14} />
-            <Smartphone size={14} />
-            Companion
           </button>
 
-          {/* Publish Button - Publish to Live Player */}
+          {/* Smart Publish / Live Toggle */}
           <button
-            onClick={handlePublishCheckSheet}
-            disabled={isPublishing || isPublished}
+            onClick={isPublished ? handleUnpublishCheckSheet : handlePublishCheckSheet}
+            disabled={isPublishing}
             style={{
-              padding: '6px 12px',
-              backgroundColor: isPublished ? '#22c55e' : isPublishing ? '#0284c7' : '#eab308',
-              color: isPublished ? '#0f172a' : '#0f172a',
-              border: 'none',
+              padding: '5px 9px',
+              backgroundColor: isPublished ? 'rgba(34, 197, 94, 0.15)' : '#0284c7',
+              color: isPublished ? '#22c55e' : 'white',
+              border: isPublished ? '1px solid #22c55e' : 'none',
               borderRadius: '6px',
               fontSize: '0.72rem',
               fontWeight: 800,
-              cursor: isPublished ? 'default' : 'pointer',
+              cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
-              boxShadow: isPublished ? '0 0 12px rgba(34, 197, 94, 0.4)' : '0 0 12px rgba(234, 179, 8, 0.4)',
-              transition: 'all 0.2s'
+              gap: '4px'
             }}
-            title={isPublished ? 'Check Sheet sudah dipublish ke Live Player' : isPublishing ? 'Mempublish...' : 'Publish ke Live Player'}
+            title={isPublished ? "Status: Published Live (Klik untuk Unpublish)" : "Publish ke Live Player"}
           >
-            {isPublished ? (
-              <>
-                <CheckCircle size={14} />
-                Published
-              </>
-            ) : isPublishing ? (
-              <>
-                <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                Publishing...
-              </>
-            ) : (
-              <>
-                <Upload size={14} />
-                Publish
-              </>
-            )}
+            {isPublished ? <CheckCircle size={13} /> : <Upload size={13} />}
+            <span>{isPublished ? 'Live' : 'Publish'}</span>
           </button>
 
-          {/* Unpublish Button - Remove from Live Player */}
-          {isPublished && (
-            <button
-              onClick={handleUnpublishCheckSheet}
-              style={{
-                padding: '6px 10px',
-                backgroundColor: '#dc2626',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                fontSize: '0.68rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}
-              title="Hapus dari Live Player"
-            >
-              <X size={12} />
-              Unpublish
-            </button>
-          )}
-
-
-          {/* Zoom Controller */}
-          <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#1e293b', borderRadius: '6px', padding: '2px 6px', gap: '4px' }}>
-            <button onClick={() => handleZoom(-0.15)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }} title="Zoom Out"><ZoomOut size={14} /></button>
-            <span style={{ fontSize: '0.74rem', fontWeight: 700, minWidth: '40px', textAlign: 'center', color: '#38bdf8' }}>{Math.round(zoom * 100)}%</span>
-            <button onClick={() => handleZoom(0.15)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }} title="Zoom In"><ZoomIn size={14} /></button>
-            <button onClick={handleResetView} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px', fontSize: '0.68rem', fontWeight: 700 }} title="Reset Fit">Fit</button>
+          {/* Compact Zoom & View Controller */}
+          <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#1e293b', borderRadius: '6px', padding: '2px 4px', gap: '2px' }}>
+            <button onClick={() => handleZoom(-0.15)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '3px' }} title="Zoom Out"><ZoomOut size={13} /></button>
+            <span style={{ fontSize: '0.72rem', fontWeight: 700, minWidth: '34px', textAlign: 'center', color: '#38bdf8' }}>{Math.round(zoom * 100)}%</span>
+            <button onClick={() => handleZoom(0.15)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '3px' }} title="Zoom In"><ZoomIn size={13} /></button>
+            <button onClick={handleResetView} style={{ background: 'none', border: 'none', color: '#38bdf8', cursor: 'pointer', padding: '3px 5px', fontSize: '0.68rem', fontWeight: 800 }} title="Reset Fit View">Fit</button>
+            <button onClick={handleToggleFullscreenCanvas} style={{ background: 'none', border: 'none', color: isRightPanelCollapsed ? '#22c55e' : '#94a3b8', cursor: 'pointer', padding: '3px' }} title="Toggle Fullscreen Drawing"><Maximize2 size={13} /></button>
           </div>
 
-          <button onClick={() => setShowRuler(!showRuler)} style={{ background: showRuler ? 'rgba(56, 189, 248, 0.2)' : '#1e293b', border: '1px solid #334155', color: showRuler ? '#38bdf8' : '#94a3b8', borderRadius: '6px', padding: '6px 8px', cursor: 'pointer' }} title="Toggle Grid / Rulers"><Grid size={14} /></button>
-          <button onClick={() => setDarkModeBlueprint(!darkModeBlueprint)} style={{ background: darkModeBlueprint ? 'rgba(34, 197, 94, 0.2)' : '#1e293b', border: '1px solid #334155', color: darkModeBlueprint ? '#22c55e' : '#94a3b8', borderRadius: '6px', padding: '6px 8px', cursor: 'pointer' }} title="Invert Theme"><Eye size={14} /></button>
-          <button onClick={() => setShowPrintTemplateModal(true)} style={{ background: '#1e293b', border: '1px solid #334155', color: '#94a3b8', borderRadius: '6px', padding: '6px 8px', cursor: 'pointer' }} title="Pilih Template Cetak"><Printer size={14} /><span style={{ fontSize: '9px', marginLeft: '3px' }}>▾</span></button>
-          <button onClick={handlePrintQCReport} style={{ background: '#4c1d95', border: 'none', color: '#fff', borderRadius: '6px', padding: '6px 8px', cursor: 'pointer', boxShadow: '0 2px 8px rgba(76,29,149,0.4)' }} title="Cetak Certificate ISO 9001"><Printer size={14} /></button>
+          {/* Quick Display & Print Toggles */}
+          <button onClick={() => setShowRuler(!showRuler)} style={{ background: showRuler ? 'rgba(56, 189, 248, 0.2)' : '#1e293b', border: '1px solid #334155', color: showRuler ? '#38bdf8' : '#94a3b8', borderRadius: '6px', padding: '5px 7px', cursor: 'pointer' }} title="Toggle Grid / Rulers"><Grid size={14} /></button>
+          <button onClick={() => setDarkModeBlueprint(!darkModeBlueprint)} style={{ background: darkModeBlueprint ? 'rgba(34, 197, 94, 0.2)' : '#1e293b', border: '1px solid #334155', color: darkModeBlueprint ? '#22c55e' : '#94a3b8', borderRadius: '6px', padding: '5px 7px', cursor: 'pointer' }} title="Mode Gelap / Terang Drawing"><Eye size={14} /></button>
+          <button onClick={handlePrintQCReport} style={{ background: '#4c1d95', border: 'none', color: '#fff', borderRadius: '6px', padding: '5px 8px', cursor: 'pointer' }} title="Cetak Sertifikat Inspeksi ISO 9001"><Printer size={14} /></button>
 
+          {/* Navigation Icon Buttons (Space Saving) */}
           <button
             onClick={() => navigate('/checksheets')}
             style={{
-              padding: '6px 12px',
+              padding: '5px 8px',
               backgroundColor: '#1e293b',
               color: '#38bdf8',
               border: '1px solid #0284c7',
               borderRadius: '6px',
-              fontSize: '0.74rem',
-              fontWeight: 700,
               cursor: 'pointer',
               display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
+              alignItems: 'center'
             }}
-            title="Kelola Dokumen Checksheet ISO 9001"
+            title="Arsip Dokumen Checksheet ISO"
           >
-            <FolderArchive size={14} /> Dokumen ISO
+            <FolderArchive size={14} />
           </button>
 
           <button
             onClick={() => navigate('/inspector-designer')}
             style={{
-              padding: '6px 12px',
+              padding: '5px 8px',
               backgroundColor: '#8b5cf6',
               color: 'white',
               border: 'none',
               borderRadius: '6px',
-              fontSize: '0.74rem',
-              fontWeight: 700,
               cursor: 'pointer',
               display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)'
+              alignItems: 'center'
             }}
             title="Buka Inspector Designer Studio"
           >
-            <FileCode size={14} /> Inspector Studio
+            <FileCode size={14} />
           </button>
         </div>
       </div>
@@ -1984,8 +2183,10 @@ export default function DigitalDrawingCheckSheet() {
         style={{
           flex: 1,
           display: 'grid',
-          gridTemplateColumns: '1fr 320px',
-          overflow: 'hidden'
+          gridTemplateColumns: isRightPanelCollapsed ? '1fr 0px' : '1fr 460px',
+          transition: 'grid-template-columns 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+          overflow: 'hidden',
+          position: 'relative'
         }}
       >
         {/* ─── CENTER PANEL: SYMMETRICAL INTERACTIVE BLUEPRINT CANVAS ────────── */}
@@ -1996,13 +2197,15 @@ export default function DigitalDrawingCheckSheet() {
           onMouseUp={handleMouseUp}
           style={{
             position: 'relative',
-            backgroundColor: darkModeBlueprint ? '#020617' : '#e2e8f0',
+            backgroundColor: darkModeBlueprint ? '#020617' : '#f8fafc',
             overflow: 'hidden',
             cursor: isPanning ? 'grabbing' : 'crosshair',
             userSelect: 'none',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            width: '100%',
+            height: '100%'
           }}
         >
           {/* Top Canvas HUD Overlay */}
@@ -2046,6 +2249,51 @@ export default function DigitalDrawingCheckSheet() {
               <Sparkles size={16} color="#ffffff" />
             </button>
 
+            {/* Fullscreen Canvas Maximize Toggle */}
+            <button
+              onClick={handleToggleFullscreenCanvas}
+              style={{
+                backgroundColor: isRightPanelCollapsed ? '#22c55e' : 'rgba(15, 23, 42, 0.9)',
+                color: isRightPanelCollapsed ? '#0f172a' : '#38bdf8',
+                border: '1px solid rgba(56, 189, 248, 0.4)',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontWeight: 800,
+                fontSize: '0.72rem',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                transition: 'all 0.15s'
+              }}
+              title={isRightPanelCollapsed ? "Kembalikan Panel Input Keypad" : "Maksimalkan Drawing ke Layar Penuh (Full Screen Tanpa Ruang Kosong)"}
+            >
+              <Maximize2 size={14} />
+              <span>{isRightPanelCollapsed ? 'Tampilkan Panel' : 'Full Screen'}</span>
+            </button>
+
+            {/* Fit View Button */}
+            <button
+              onClick={handleResetView}
+              style={{
+                backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                color: '#cbd5e1',
+                border: '1px solid #334155',
+                padding: '8px 10px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontWeight: 700,
+                fontSize: '0.72rem'
+              }}
+              title="Sesuaikan proporsi gambar agar pas dan rapi tanpa menutupi toolbar"
+            >
+              <span>Fit</span>
+            </button>
+
             {/* Pass All Dimensions Button */}
             <button
               onClick={handlePassAll}
@@ -2067,6 +2315,34 @@ export default function DigitalDrawingCheckSheet() {
               <CheckCircle2 size={16} color="#0f172a" />
             </button>
           </div>
+
+          {/* Floating Sidebar Toggle Button (Right Edge) */}
+          <button
+            onClick={handleToggleFullscreenCanvas}
+            style={{
+              position: 'absolute',
+              right: 0,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              zIndex: 30,
+              backgroundColor: '#1e293b',
+              color: '#38bdf8',
+              border: '1px solid #334155',
+              borderRight: 'none',
+              borderTopLeftRadius: '8px',
+              borderBottomLeftRadius: '8px',
+              padding: '12px 5px',
+              cursor: 'pointer',
+              boxShadow: '-4px 0 12px rgba(0,0,0,0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'background-color 0.15s'
+            }}
+            title={isRightPanelCollapsed ? "Buka Panel Checklist & Keypad" : "Sembunyikan Panel (Drawing Full Screen)"}
+          >
+            {isRightPanelCollapsed ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+          </button>
 
           {/* ─── LEFT SIDEBAR: DRAWING TOOLS FLOATING PALETTE ─── */}
           {isDrawingMode ? (
@@ -2484,6 +2760,41 @@ export default function DigitalDrawingCheckSheet() {
               />
             ) : (
               CASTING_HOUSING_SVG
+            )}
+
+            {/* ISO 9001 Document Control Watermark Overlay (Clause 7.5) */}
+            {showWatermark && (
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  pointerEvents: 'none',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 8,
+                  userSelect: 'none'
+                }}
+              >
+                <div
+                  style={{
+                    transform: 'rotate(-22deg)',
+                    border: '3px dashed rgba(220, 38, 38, 0.25)',
+                    padding: '12px 36px',
+                    borderRadius: '12px',
+                    textAlign: 'center',
+                    backgroundColor: 'rgba(255, 255, 255, 0.02)'
+                  }}
+                >
+                  <div style={{ fontSize: '1.6rem', fontWeight: 900, color: 'rgba(220, 38, 38, 0.28)', letterSpacing: '4px', textTransform: 'uppercase' }}>
+                    CONTROLLED COPY
+                  </div>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'rgba(15, 23, 42, 0.35)', letterSpacing: '2px' }}>
+                    ISO 9001:2015 & IATF 16949 • FOR PRODUCTION INSPECTION ONLY • REV 2.1
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* Interactive Hotspot Pins (Precisely Aligned on Drawing Features) */}
@@ -3173,41 +3484,77 @@ export default function DigitalDrawingCheckSheet() {
             />
           )}
 
-          {/* TAB 3: CALIBRATION & GAUGE LOG TABLE */}
+          {/* TAB 3: CALIBRATION & GAUGE LOG TABLE (ISO 9001: 7.1.5) */}
           {activeTab === 'Calibration' && (
-            <div style={{ flex: 1, padding: '10px', overflowY: 'auto' }}>
-              <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#38bdf8', marginBottom: '8px' }}>
-                ISO 9001: 7.1.5 MONITORING & MEASURING RESOURCES LOG
+            <div style={{ flex: 1, padding: '10px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#38bdf8' }}>
+                  ISO 9001: 7.1.5 MONITORING & MEASURING RESOURCES
+                </div>
+                <span style={{ fontSize: '0.62rem', backgroundColor: '#1e293b', color: '#22c55e', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                  {gaugesList.filter(g => g.status === 'VALID').length}/{gaugesList.length} Terkalibrasi
+                </span>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {[
-                  { tool: 'Digital Bore Gauge', id: 'BG-014', calDate: '2025-12-31', due: '2026-12-31', status: 'VALID' },
-                  { tool: 'Depth Micrometer', id: 'DM-008', calDate: '2025-11-15', due: '2026-11-15', status: 'VALID' },
-                  { tool: 'Pin Gauge Set', id: 'PG-022', calDate: '2026-02-28', due: '2027-02-28', status: 'VALID' },
-                  { tool: 'Digital Caliper 0-150mm', id: 'CAL-003', calDate: '2025-10-30', due: '2026-10-30', status: 'VALID' },
-                  { tool: 'CMM Zeiss Contura', id: 'CMM-001', calDate: '2026-04-10', due: '2027-04-10', status: 'VALID' },
-                  { tool: 'Dial Indicator (0.001mm)', id: 'DI-007', calDate: '2025-11-20', due: '2026-11-20', status: 'VALID' }
-                ].map((g, i) => (
-                  <div key={i} style={{ backgroundColor: '#1e293b', borderRadius: '6px', padding: '8px', border: '1px solid #334155' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 700, color: '#f8fafc' }}>
-                      <span>{g.tool}</span>
-                      <span style={{ color: '#22c55e', fontSize: '0.65rem' }}>● {g.status}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: '#94a3b8', marginTop: '2px' }}>
-                      <span>Tag: <strong>{g.id}</strong></span>
-                      <span>Cal Due: {g.due}</span>
-                    </div>
+
+              {/* Environmental Sensor Banner */}
+              <div
+                onClick={() => setShowEnvModal(true)}
+                style={{ backgroundColor: '#090d16', border: '1px solid #334155', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Thermometer size={16} color="#38bdf8" />
+                  <div>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#f8fafc' }}>Suhu: {temperature}°C • Kelembaban: {humidity}% RH</div>
+                    <div style={{ fontSize: '0.62rem', color: '#64748b' }}>ISO 1 Standard: 20°C ± 2°C (Klik untuk kalibrasi lingkungan)</div>
                   </div>
-                ))}
+                </div>
+                <span style={{ fontSize: '0.65rem', color: '#38bdf8', fontWeight: 800 }}>Edit ➔</span>
+              </div>
+
+              {/* Instruments List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {gaugesList.map((g, i) => {
+                  const isValid = g.status === 'VALID';
+                  const isExpiring = g.status === 'EXPIRING_SOON';
+                  return (
+                    <div
+                      key={i}
+                      style={{
+                        backgroundColor: '#1e293b',
+                        borderRadius: '8px',
+                        padding: '9px 12px',
+                        border: isValid ? '1px solid #334155' : isExpiring ? '1px solid #eab308' : '1.5px solid #ef4444'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.76rem', fontWeight: 700, color: '#f8fafc' }}>
+                        <span>{g.name}</span>
+                        <span style={{ color: isValid ? '#22c55e' : isExpiring ? '#eab308' : '#ef4444', fontSize: '0.64rem', fontWeight: 800 }}>
+                          ● {g.status}
+                        </span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', fontSize: '0.66rem', color: '#94a3b8', marginTop: '4px' }}>
+                        <span>ID: <strong style={{ color: '#38bdf8' }}>{g.id}</strong></span>
+                        <span>Serial: {g.serial}</span>
+                        <span>Cert No: {g.certNo}</span>
+                        <span style={{ color: isValid ? '#cbd5e1' : '#ef4444' }}>Due: <strong>{g.dueDate}</strong></span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
 
-          {/* TAB 4: SUMMARY & STATISTICAL SIGN-OFF */}
+          {/* TAB 4: SUMMARY & TWO-TIER SIGN-OFF (ISO 9001: 8.6) */}
           {activeTab === 'Summary' && (
             <div style={{ flex: 1, padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto' }}>
-              <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#38bdf8' }}>
-                ISO 9001:2015 FINAL INSPECTION & SIGN-OFF
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#38bdf8' }}>
+                  ISO 9001:2015 FINAL INSPECTION & SIGN-OFF
+                </div>
+                <span style={{ fontSize: '0.65rem', backgroundColor: '#1e293b', color: '#38bdf8', padding: '2px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                  Clause 8.6
+                </span>
               </div>
 
               {/* Statistics Grid */}
@@ -3234,27 +3581,64 @@ export default function DigitalDrawingCheckSheet() {
                 </div>
               </div>
 
-              {/* QA Approval Stamp */}
-              <div style={{ backgroundColor: stats.failed > 0 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(34, 197, 94, 0.1)', border: stats.failed > 0 ? '2px dashed #ef4444' : '2px dashed #22c55e', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Official Quality Assurance Stamp</div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '6px' }}>
-                  <Award size={24} color={stats.failed > 0 ? '#ef4444' : '#22c55e'} />
+              {/* Tier 1: Inspector Submission Badge */}
+              <div style={{ backgroundColor: stats.failed > 0 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(34, 197, 94, 0.1)', border: stats.failed > 0 ? '1.5px dashed #ef4444' : '1.5px dashed #22c55e', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>TIER 1: QC INSPECTOR CERTIFICATION</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '4px' }}>
+                  <Award size={20} color={stats.failed > 0 ? '#ef4444' : '#22c55e'} />
                   <div>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 800, color: stats.failed > 0 ? '#ef4444' : '#22c55e' }}>{stats.overallStatus}</div>
-                    <div style={{ fontSize: '0.65rem', color: '#64748b' }}>Certified by {inspectorName} on {new Date().toLocaleDateString()}</div>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 800, color: stats.failed > 0 ? '#ef4444' : '#22c55e' }}>{stats.overallStatus}</div>
+                    <div style={{ fontSize: '0.64rem', color: '#94a3b8' }}>Inspector: {inspectorName} • {new Date().toLocaleDateString()}</div>
                   </div>
                 </div>
               </div>
 
+              {/* Tier 2: Supervisor Approval Card */}
+              {supervisorApproval.isApproved ? (
+                <div style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', border: '1.5px solid #22c55e', borderRadius: '10px', padding: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#86efac' }}>TIER 2: QA SUPERVISOR APPROVED ✓</span>
+                    <span style={{ fontSize: '0.6rem', color: '#64748b', fontFamily: 'monospace' }}>{supervisorApproval.hash}</span>
+                  </div>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#f8fafc', marginTop: '4px' }}>
+                    {supervisorApproval.supervisorName}
+                  </div>
+                  <div style={{ fontSize: '0.65rem', color: '#cbd5e1', marginTop: '2px' }}>
+                    {supervisorApproval.comments}
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowSupervisorModal(true)}
+                  style={{
+                    padding: '10px',
+                    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                    border: '1.5px dashed #38bdf8',
+                    borderRadius: '10px',
+                    color: '#38bdf8',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.76rem', fontWeight: 800 }}>
+                    <Lock size={14} /> Otorisasi Supervisor QA (Tier 2 Sign-off)
+                  </div>
+                  <span style={{ fontSize: '0.64rem', color: '#94a3b8' }}>Klik untuk memasukkan otorisasi & PIN rilis produk</span>
+                </button>
+              )}
+
               {/* Notes */}
               <div>
-                <label style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Catatan / Root-Cause Non-Conformance:</label>
+                <label style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Catatan Mutu / Root-Cause Non-Conformance:</label>
                 <textarea
-                  rows={3}
+                  rows={2}
                   value={inspectionNotes}
                   onChange={e => setInspectionNotes(e.target.value)}
                   placeholder="Catatan inspeksi QC atau tindakan korektif..."
-                  style={{ width: '100%', marginTop: '4px', padding: '6px', borderRadius: '6px', border: '1px solid #334155', backgroundColor: '#090d16', color: 'white', fontSize: '0.72rem', outline: 'none' }}
+                  style={{ width: '100%', boxSizing: 'border-box', marginTop: '4px', padding: '6px', borderRadius: '6px', border: '1px solid #334155', backgroundColor: '#090d16', color: 'white', fontSize: '0.72rem', outline: 'none' }}
                 />
               </div>
             </div>
@@ -4037,8 +4421,46 @@ export default function DigitalDrawingCheckSheet() {
         </div>
       )}
 
-      {/* ─── Handwriting Input Modal ─── */}
-      
+      {/* ─── ISO 9001:2015 & IATF 16949 COMPLIANCE MODALS ──────────────────── */}
+
+      {/* 1. NCR (Non-Conformance Report) & Red Tag Modal (Clause 8.7) */}
+      <NCRDefectModal
+        isOpen={showNCRModal}
+        onClose={() => setShowNCRModal(false)}
+        activePoint={activeNCRPoint || checkPoints.find(p => p.status === 'NG') || checkPoints[0]}
+        workOrderNo={workOrderNo}
+        partSerial={partSerial}
+        inspectorName={inspectorName}
+        onSaveNCR={handleSaveNCR}
+      />
+
+      {/* 2. ISO Audit Trail & Revision History Modal (Clause 7.5.3) */}
+      <AuditTrailModal
+        isOpen={showAuditTrailModal}
+        onClose={() => setShowAuditTrailModal(false)}
+        auditTrail={auditTrail}
+        workOrderNo={workOrderNo}
+      />
+
+      {/* 3. Two-Tier QA Supervisor Approval Modal (Clause 8.6) */}
+      <SupervisorApprovalModal
+        isOpen={showSupervisorModal}
+        onClose={() => setShowSupervisorModal(false)}
+        stats={stats}
+        workOrderNo={workOrderNo}
+        partSerial={partSerial}
+        onApprove={handleSupervisorApprove}
+      />
+
+      {/* 4. Environmental Conditions Calibration Modal (Clause 7.1.5) */}
+      <EnvironmentSettingsModal
+        isOpen={showEnvModal}
+        onClose={() => setShowEnvModal(false)}
+        temperature={temperature}
+        humidity={humidity}
+        onSave={handleUpdateEnvironment}
+      />
+
     </div>
   );
 }

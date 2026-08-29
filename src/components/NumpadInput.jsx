@@ -20,31 +20,39 @@ export default function NumpadInput({
     }
   }, [value, onChange]);
 
+  const numBtnStyle = {
+    padding: '20px 0',
+    minHeight: '66px',
+    backgroundColor: '#1e293b',
+    border: '1px solid #334155',
+    borderRadius: '12px',
+    color: '#f8fafc',
+    fontSize: '2.1rem',
+    fontWeight: 800,
+    cursor: 'pointer',
+    fontFamily: "'Orbitron', 'Inter', monospace",
+    boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
+    transition: 'all 0.1s ease',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+  };
+
   return (
     <div style={{
-      backgroundColor: '#0f172a',
-      borderRadius: '12px',
-      padding: '10px',
+      backgroundColor: '#090d16',
+      borderRadius: '14px',
+      padding: '12px',
       border: '1px solid #1e293b'
     }}>
       {/* 4x3 Grid - Numbers Only */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
         {['7', '8', '9'].map(n => (
           <button
             key={n}
             onClick={() => handleKey(n)}
             onMouseDown={(e) => e.preventDefault()}
-            style={{
-              padding: '20px 0',
-              backgroundColor: '#1e293b',
-              border: '1px solid #334155',
-              borderRadius: '10px',
-              color: '#f8fafc',
-              fontSize: '1.8rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              fontFamily: 'monospace'
-            }}
+            style={numBtnStyle}
           >
             {n}
           </button>
@@ -55,17 +63,7 @@ export default function NumpadInput({
             key={n}
             onClick={() => handleKey(n)}
             onMouseDown={(e) => e.preventDefault()}
-            style={{
-              padding: '20px 0',
-              backgroundColor: '#1e293b',
-              border: '1px solid #334155',
-              borderRadius: '10px',
-              color: '#f8fafc',
-              fontSize: '1.8rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              fontFamily: 'monospace'
-            }}
+            style={numBtnStyle}
           >
             {n}
           </button>
@@ -76,17 +74,7 @@ export default function NumpadInput({
             key={n}
             onClick={() => handleKey(n)}
             onMouseDown={(e) => e.preventDefault()}
-            style={{
-              padding: '20px 0',
-              backgroundColor: '#1e293b',
-              border: '1px solid #334155',
-              borderRadius: '10px',
-              color: '#f8fafc',
-              fontSize: '1.8rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              fontFamily: 'monospace'
-            }}
+            style={numBtnStyle}
           >
             {n}
           </button>
@@ -97,14 +85,10 @@ export default function NumpadInput({
           onClick={() => handleKey('.')}
           onMouseDown={(e) => e.preventDefault()}
           style={{
-            padding: '20px 0',
-            backgroundColor: '#475569',
-            border: '1px solid #64748b',
-            borderRadius: '10px',
-            color: '#f8fafc',
-            fontSize: '1.8rem',
-            fontWeight: 700,
-            cursor: 'pointer'
+            ...numBtnStyle,
+            backgroundColor: '#334155',
+            borderColor: '#475569',
+            fontSize: '2.4rem'
           }}
         >
           .
@@ -112,17 +96,7 @@ export default function NumpadInput({
         <button
           onClick={() => handleKey('0')}
           onMouseDown={(e) => e.preventDefault()}
-          style={{
-            padding: '20px 0',
-            backgroundColor: '#1e293b',
-            border: '1px solid #334155',
-            borderRadius: '10px',
-            color: '#f8fafc',
-            fontSize: '1.8rem',
-            fontWeight: 700,
-            cursor: 'pointer',
-            fontFamily: 'monospace'
-          }}
+          style={numBtnStyle}
         >
           0
         </button>
@@ -130,15 +104,13 @@ export default function NumpadInput({
           onClick={() => handleKey('back')}
           onMouseDown={(e) => e.preventDefault()}
           style={{
-            padding: '20px 0',
-            backgroundColor: '#dc2626',
-            border: '1px solid #ef4444',
-            borderRadius: '10px',
-            color: '#ffffff',
-            fontSize: '1.4rem',
-            fontWeight: 700,
-            cursor: 'pointer'
+            ...numBtnStyle,
+            backgroundColor: 'rgba(239, 68, 68, 0.2)',
+            borderColor: '#ef4444',
+            color: '#ef4444',
+            fontSize: '1.6rem'
           }}
+          title="Hapus Digit Terakhir"
         >
           ⌫
         </button>

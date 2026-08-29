@@ -21,10 +21,22 @@ export default function TopNavbar() {
   const isOperator = useGlobalStore((state) => state.getIsOperator());
   const { user: authUser } = useAuth();
   const user = authUser || globalUser;
+  const isChecksheetRoute = 
+    location.pathname.startsWith('/drawing-checksheet') ||
+    location.pathname.startsWith('/qa-checksheet') ||
+    location.pathname.startsWith('/live-checksheet') ||
+    location.pathname.startsWith('/live-player') ||
+    location.pathname.startsWith('/simple-checksheet') ||
+    location.search.includes('standalone=true') ||
+    location.search.includes('hideHeader=true') ||
+    location.search.includes('mode=companion') ||
+    window.location.hash.includes('standalone=true') ||
+    window.location.hash.includes('mode=companion');
+
   const isOperatorRoute = location.pathname.startsWith('/player') || location.pathname.startsWith('/terminal');
   const hasAccess = (path) => checkRoleAccess(user, path);
 
-  if (isOperatorRoute || isOperator) return null;
+  if (isOperatorRoute || isOperator || isChecksheetRoute) return null;
 
   const appItems = [
     hasAccess('/builder') && { path: '/builder', icon: <Layout size={16} />, label: 'App Builder' },

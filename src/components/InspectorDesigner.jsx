@@ -471,12 +471,73 @@ export default function InspectorDesigner() {
   const activePoint = useMemo(() => {
     return checkPoints.find(p => p.id === activePointId) || null;
   }, [checkPoints, activePointId]);  
-  // ─── Load Drawings on Mount ───
+  // ─── Load Check Sheet into Designer (for Edit / Modification) ───
+  const loadChecksheetIntoDesigner = (cs, allDrawings = []) => {
+    if (!cs) return;
+    setPartNo(cs.partNo || cs.part_no || '');
+    setPartName(cs.partName || cs.part_name || cs.name || '');
+    setCustomer(cs.customer || '');
+    setProcessName(cs.processName || cs.process || '');
+    setDrawingNo(cs.drawingNo || cs.docNo || cs.doc_no || '');
+    setRevisionNo(cs.revisionNo || cs.revision || 'A');
+    setEffectiveDate(cs.effectiveDate || cs.effective_date || new Date().toISOString().split('T')[0]);
+    setNextReviewDate(cs.nextReviewDate || cs.next_review_date || '');
+    setInspectorName(cs.inspectorName || cs.author || currentUser?.username || '');
+    setApprovedBy(cs.approvedBy || cs.approver || '');
+    setQualityStandard(cs.qualityStandard || cs.standard || 'ISO 9001:2015');
+    setCheckSheetStatus(cs.status || 'draft');
+    setCheckSheetName(cs.name || cs.checkSheetName || cs.title || 'Check Sheet');
+    setCheckSheetDescription(cs.description || '');
+    setWorkOrderPrefix(cs.workOrderPrefix || 'WO-2026');
+    setStationId(cs.stationId || cs.station || 'ST-01');
+
+    if (cs.checkPoints && Array.isArray(cs.checkPoints) && cs.checkPoints.length > 0) {
+      setCheckPoints(cs.checkPoints);
+    } else if (cs.points && Array.isArray(cs.points) && cs.points.length > 0) {
+      setCheckPoints(cs.points);
+    }
+
+    // Resolve drawing preview & metadata
+    const preview = cs.drawingPreview || cs.drawingSvg || cs.svgData || cs.dataUrl || cs.drawingDataUrl || null;
+    if (preview) {
+      setDrawingPreview(preview);
+    }
+
+    const dwgs = allDrawings && allDrawings.length > 0 ? allDrawings : drawingsList;
+    let matchedDrawing = null;
+    if (cs.drawingId && dwgs && dwgs.length > 0) {
+      matchedDrawing = dwgs.find(d => d.id === cs.drawingId);
+      if (matchedDrawing) {
+        setSelectedDrawing(matchedDrawing);
+        if (!preview && (matchedDrawing.svgData || matchedDrawing.dataUrl)) {
+          setDrawingPreview(matchedDrawing.svgData || matchedDrawing.dataUrl);
+        }
+      }
+    }
+    if (!matchedDrawing && (cs.drawingId || cs.drawingName || preview)) {
+      setSelectedDrawing({
+        id: cs.drawingId || cs.id || 'dwg_custom',
+        name: cs.drawingName || cs.name || 'Inspection Drawing',
+        svgData: preview,
+        fileType: 'SVG'
+      });
+    }
+
+    if (cs.targetTableId) {
+      setTargetTableId(cs.targetTableId);
+    }
+
+    toast.success(`Check Sheet "${cs.name || cs.docNo || 'Aktif'}" berhasil dimuat ke Designer!`, { icon: '✏️' });
+  };
+
+  // ─── Load Drawings & Checksheet on Mount ───
   useEffect(() => {
     const loadData = async () => {
+      let loadedDrawings = [];
       try {
         const drawings = await getAllDrawings();
         if (drawings && drawings.length > 0) {
+          loadedDrawings = drawings;
           setDrawingsList(drawings);
         }
       } catch (err) {
@@ -496,20 +557,45 @@ export default function InspectorDesigner() {
         console.warn('Could not load tables:', err);
       }
 
+      let allTemplates = [];
       // Load saved templates from Supabase (fallback to localStorage)
       try {
         const remoteTemplates = await getTemplates();
         if (remoteTemplates && remoteTemplates.length > 0) {
+          allTemplates = remoteTemplates;
           setSavedTemplates(remoteTemplates);
           localStorage.setItem('mandor_inspector_templates', JSON.stringify(remoteTemplates));
         } else {
           const local = JSON.parse(localStorage.getItem('mandor_inspector_templates') || '[]');
+          allTemplates = local;
           setSavedTemplates(local);
         }
       } catch (e) {
         console.warn('[InspectorDesigner] getTemplates failed, using localStorage fallback', e);
         const local = JSON.parse(localStorage.getItem('mandor_inspector_templates') || '[]');
+        allTemplates = local;
         setSavedTemplates(local);
+      }
+
+      // ── Check if there is an active checksheet requested for edit from Checksheet Management ──
+      const editTemplateJson = localStorage.getItem('mandor_inspector_active_template');
+      if (editTemplateJson) {
+        try {
+          const cs = JSON.parse(editTemplateJson);
+          loadChecksheetIntoDesigner(cs, loadedDrawings);
+        } catch (err) {
+          console.warn('[InspectorDesigner] Failed to parse mandor_inspector_active_template', err);
+        }
+      } else {
+        // Check URL query parameters (e.g. ?edit=... or ?id=...)
+        const urlParams = new URLSearchParams(window.location.hash.includes('?') ? window.location.hash.split('?')[1] : window.location.search);
+        const editId = urlParams.get('edit') || urlParams.get('id') || urlParams.get('docNo');
+        if (editId && allTemplates.length > 0) {
+          const found = allTemplates.find(t => t.id === editId || t.docNo === editId || t.name === editId);
+          if (found) {
+            loadChecksheetIntoDesigner(found, loadedDrawings);
+          }
+        }
       }
     };
     loadData();
@@ -1228,9 +1314,10 @@ export default function InspectorDesigner() {
   
   // ─── Generate QR Code ───
   const handleGenerateQR = () => {
-    const baseUrl = window.location.origin;
+    const origin = window.location.origin;
+    const pathname = window.location.pathname.endsWith('/') ? window.location.pathname : window.location.pathname + '/';
     const publishId = `CHECKSHEET_${workOrderPrefix}_${Date.now().toString(36)}`;
-    const qrUrl = `${baseUrl}/live-player?checksheet=${publishId}&mode=companion&wo=${encodeURIComponent(checkSheetName)}`;
+    const qrUrl = `${origin}${pathname}#/drawing-checksheet?checksheet=${publishId}&mode=companion&standalone=true&wo=${encodeURIComponent(checkSheetName || workOrderPrefix)}`;
     setPreviewQRCode(qrUrl);
     setShowQRModal(true);
   };

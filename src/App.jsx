@@ -32,6 +32,18 @@ export default function App() {
   const navigate = useNavigate();
 
   const isOperatorRoute = location.pathname.startsWith('/player') || location.pathname.startsWith('/terminal');
+  const isChecksheetRoute = 
+    location.pathname.startsWith('/drawing-checksheet') ||
+    location.pathname.startsWith('/qa-checksheet') ||
+    location.pathname.startsWith('/live-checksheet') ||
+    location.pathname.startsWith('/live-player') ||
+    location.pathname.startsWith('/simple-checksheet') ||
+    location.search.includes('standalone=true') ||
+    location.search.includes('hideHeader=true') ||
+    location.search.includes('mode=companion') ||
+    window.location.hash.includes('standalone=true') ||
+    window.location.hash.includes('mode=companion');
+
   const isOperator = user?.role === 'OPERATOR' || user?.role === 'STATION_OPERATOR';
 
   const { zoomLevel, setZoomLevel, isZoomCollapsed, setIsZoomCollapsed } = useZoom();
@@ -104,6 +116,8 @@ export default function App() {
             <Route path="/shift-handoff" element={<ShiftHandoffDashboard />} />
             <Route path="/drawing-checksheet" element={<DigitalDrawingCheckSheet />} />
             <Route path="/qa-checksheet" element={<DigitalDrawingCheckSheet />} />
+            <Route path="/live-checksheet" element={<DigitalDrawingCheckSheet />} />
+            <Route path="/live-player" element={<DigitalDrawingCheckSheet />} />
             <Route path="/simple-checksheet" element={<SimpleCheckSheetDemo />} />
             <Route path="/drawing-management" element={<DrawingManagement />} />
             <Route path="/plm-integration" element={<PLMIntegrationDashboard />} />
@@ -118,16 +132,18 @@ export default function App() {
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#f1f5f9', fontFamily: "'Inter', sans-serif" }}>
       <EnterpriseDialogContainer />
-      <TopNavbar
-        user={currentUser}
-        setUser={setUser}
-        isOperator={isOperator}
-        isOperatorRoute={isOperatorRoute}
-      />
+      {!isChecksheetRoute && (
+        <TopNavbar
+          user={currentUser}
+          setUser={setUser}
+          isOperator={isOperator}
+          isOperatorRoute={isOperatorRoute}
+        />
+      )}
       
       <AppRouter user={currentUser} isOperator={isOperator} />
 
-      {!location.pathname.startsWith('/drawing-checksheet') && !location.pathname.startsWith('/qa-checksheet') && (
+      {!isChecksheetRoute && (
         <ZoomWidget 
           zoomLevel={zoomLevel} 
           setZoomLevel={setZoomLevel} 
