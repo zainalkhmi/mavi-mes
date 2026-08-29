@@ -13438,6 +13438,9 @@ const AppBuilder = () => {
                                     operator: 'Designer',
                                     station: 'Test Station 1'
                                 });
+                                if (window.location.search) {
+                                    window.history.replaceState(null, '', window.location.pathname);
+                                }
                                 window.location.hash = `/player?${params.toString()}`;
                             }}
                             title="Buka di App Player"
@@ -13474,8 +13477,10 @@ const AppBuilder = () => {
                                     toast.error('Please save the app first.');
                                     return;
                                 }
-                                const url = `${window.location.origin}/#/terminal/${currentAppId}`;
-                                window.open(url, '_blank');
+                                if (window.location.search) {
+                                    window.history.replaceState(null, '', window.location.pathname);
+                                }
+                                window.location.hash = `/terminal/${currentAppId}?devMode=true`;
                             }}
                             title="Buka Live Terminal"
                             style={{

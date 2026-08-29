@@ -2772,7 +2772,7 @@ const LiveTerminal = () => {
     if (hashSearchIndex !== -1) {
       const hashParams = new URLSearchParams(hash.substring(hashSearchIndex));
       for (const [key, value] of hashParams.entries()) {
-        if (!searchParams.has(key)) searchParams.set(key, value);
+        searchParams.set(key, value);
       }
     }
     return searchParams.get('devMode') === 'true' || searchParams.get('dev') === 'true';
@@ -2811,7 +2811,7 @@ const LiveTerminal = () => {
     if (hashSearchIndex !== -1) {
       const hashParams = new URLSearchParams(hash.substring(hashSearchIndex));
       for (const [key, value] of hashParams.entries()) {
-        if (!searchParams.has(key)) searchParams.set(key, value);
+        searchParams.set(key, value);
       }
     }
     return searchParams;

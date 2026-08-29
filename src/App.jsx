@@ -73,20 +73,29 @@ export default function App() {
     }
   };
 
-  // Check if user is logged in (from either source)
-  const isUserLoggedIn = user || (authUser && isAuthenticated);
+  // Effective user from either Zustand store or AuthContext
+  const currentUser = user || authUser;
+  const isUserLoggedIn = !!currentUser || isAuthenticated;
 
-  if (!isUserLoggedIn && !authLoading) {
+  // Show loading screen while auth is initializing to prevent early redirect
+  if (authLoading && !currentUser) {
+    return <LoadingScreen />;
+  }
+
+  if (!isUserLoggedIn) {
     return (
       <div style={{ minHeight: '100vh', width: '100%', display: 'flex', flexDirection: 'column' }}>
         <EnterpriseDialogContainer />
-        <Suspense fallback={null}>
+        <Suspense fallback={<LoadingScreen />}>
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/store" element={<LandingPage initialTab="store" />} />
             <Route path="/builder" element={<LandingPage initialTab="builder" />} />
             <Route path="/pricing" element={<LandingPage initialTab="pricing" />} />
             <Route path="/faq" element={<LandingPage initialTab="faq" />} />
+            <Route path="/player" element={<AppPlayer />} />
+            <Route path="/terminal" element={<LiveTerminal />} />
+            <Route path="/terminal/:appId" element={<LiveTerminal />} />
             <Route path="/production-dashboard" element={<ProductionPlantDashboard />} />
             <Route path="/plant-dashboard" element={<ProductionPlantDashboard />} />
             <Route path="/machine-activity-tracker" element={<MachineActivityYieldTracker />} />
@@ -110,13 +119,13 @@ export default function App() {
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#f1f5f9', fontFamily: "'Inter', sans-serif" }}>
       <EnterpriseDialogContainer />
       <TopNavbar
-        user={user}
+        user={currentUser}
         setUser={setUser}
         isOperator={isOperator}
         isOperatorRoute={isOperatorRoute}
       />
       
-      <AppRouter user={user} isOperator={isOperator} />
+      <AppRouter user={currentUser} isOperator={isOperator} />
 
       {!location.pathname.startsWith('/drawing-checksheet') && !location.pathname.startsWith('/qa-checksheet') && (
         <ZoomWidget 

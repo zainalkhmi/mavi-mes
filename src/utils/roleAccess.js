@@ -1,10 +1,15 @@
 export const hasAccess = (user, path) => {
+  // Frontline runtime routes are universally accessible
+  if (path === '/player' || path.startsWith('/player') || path === '/terminal' || path.startsWith('/terminal')) {
+    return true;
+  }
+
   if (!user) return false;
   const role = user.role?.toUpperCase();
   const rawRole = user.role?.toLowerCase();
 
   // Account Owner: Access to everything
-  if (role === 'ACCOUNT_OWNER' || rawRole === 'owner') return true;
+  if (role === 'ACCOUNT_OWNER' || rawRole === 'owner' || role === 'OWNER') return true;
 
   // Administrator / ADMIN
   if (role === 'ADMINISTRATOR' || role === 'ADMIN') {
