@@ -13,106 +13,8 @@ import toast, { Toaster } from 'react-hot-toast';
 import { executeReportPrintAction } from '../utils/reportPrintService';
 import { getTemplates, saveTemplates } from '../utils/supabaseTemplateDB';
 
-// Standard ISO 9001 Default Checksheet Templates
-const DEFAULT_ISO_CHECKSHEETS = [
-    {
-        id: 'cs-iso-001',
-        docNo: 'QA-CS-2026-0819',
-        revisionNo: '2.1',
-        name: 'Precision Flange Housing Inspection',
-        partNo: 'PRT-FLG-450X',
-        partName: 'Precision Hydraulic Flange Housing',
-        customer: 'AeroTech Dynamics Ltd.',
-        process: 'CNC Turning & Milling Line 2',
-        stationId: 'ST-QC-04',
-        category: 'Drawing & GD&T',
-        status: 'APPROVED',
-        effectiveDate: '2026-08-15',
-        isoStandard: 'ISO 9001:2015 / IATF 16949',
-        author: 'Budi Santoso (QA Engineer)',
-        approver: 'Ahmad Setiawan (QA Manager)',
-        drawingFileName: 'CAD_Flange_Housing_Rev2.png',
-        targetTableId: 'tbl_qa_drawing_checksheets',
-        targetTableName: 'QC Inspection Records',
-        totalCheckPoints: 10,
-        checkPoints: [
-            { pointNumber: 1, title: 'Internal Bore Diameter', category: 'Linear Dimension', nominal: 25.000, tolMin: 24.900, tolMax: 25.100, unit: 'mm', criticality: 'Critical (CC)', tool: 'Inside Micrometer' },
-            { pointNumber: 2, title: 'Outer Flange Diameter', category: 'Linear Dimension', nominal: 45.000, tolMin: 44.950, tolMax: 45.100, unit: 'mm', criticality: 'Major', tool: 'Digital Vernier Caliper' },
-            { pointNumber: 3, title: 'Seal Face Flatness', category: 'Flatness (GD&T)', nominal: 0.020, tolMin: 0.000, tolMax: 0.030, unit: 'mm', criticality: 'Major', tool: 'Dial Indicator' },
-            { pointNumber: 4, title: 'Bolt Hole PCD', category: 'Position (GD&T)', nominal: 65.000, tolMin: 64.950, tolMax: 65.100, unit: 'mm', criticality: 'Minor', tool: 'CMM / Gauge' },
-            { pointNumber: 5, title: 'Perpendicularity Datum A', category: 'Perpendicularity', nominal: 0.015, tolMin: 0.000, tolMax: 0.025, unit: 'mm', criticality: 'Critical (CC)', tool: 'CMM' }
-        ],
-        changeHistory: [
-            { rev: '1.0', date: '2026-01-10', author: 'Budi S.', summary: 'Initial Document Release for Production', approvedBy: 'Ahmad S.' },
-            { rev: '2.0', date: '2026-05-20', author: 'Budi S.', summary: 'Updated GD&T Perpendicularity tolerance following customer ECN', approvedBy: 'Ahmad S.' },
-            { rev: '2.1', date: '2026-08-15', author: 'Budi S.', summary: 'Added Cpk tracking attribute and digital stamp workflow', approvedBy: 'Ahmad S.' }
-        ],
-        createdAt: '2026-01-10T08:00:00Z',
-        updatedAt: '2026-08-15T14:30:00Z'
-    },
-    {
-        id: 'cs-iso-002',
-        docNo: 'QA-CS-2026-0422',
-        revisionNo: '1.4',
-        name: 'Engine Casting Base Plate Verification',
-        partNo: 'ENG-CST-8842',
-        partName: 'Engine Casting Housing Base Plate',
-        customer: 'General Automotive Corp',
-        process: 'High Pressure Die Casting & CNC',
-        stationId: 'ST-CNC-04',
-        category: 'IPQC (In-Process)',
-        status: 'APPROVED',
-        effectiveDate: '2026-07-01',
-        isoStandard: 'ISO 9001:2015',
-        author: 'Rian Pratama',
-        approver: 'Ahmad Setiawan',
-        drawingFileName: 'Engine_Casting_Rev2.1.png',
-        targetTableId: 'tbl_qa_drawing_checksheets',
-        targetTableName: 'QC Inspection Records',
-        totalCheckPoints: 12,
-        checkPoints: [
-            { pointNumber: 1, title: 'Internal Main Cavity Bore', category: 'Linear Dimension', nominal: 25.000, tolMin: 24.900, tolMax: 25.100, unit: 'mm', criticality: 'Critical (CC)', tool: 'Bore Gauge' },
-            { pointNumber: 2, title: 'Outer Flange Thickness', category: 'Linear Dimension', nominal: 45.000, tolMin: 44.950, tolMax: 45.100, unit: 'mm', criticality: 'Major', tool: 'Digital Micrometer' },
-            { pointNumber: 3, title: 'Total Housing Height', category: 'Height', nominal: 32.500, tolMin: 32.400, tolMax: 32.600, unit: 'mm', criticality: 'Major', tool: 'Height Gauge' }
-        ],
-        changeHistory: [
-            { rev: '1.0', date: '2026-02-14', author: 'Rian P.', summary: 'Baseline checksheet creation', approvedBy: 'Ahmad S.' },
-            { rev: '1.4', date: '2026-07-01', author: 'Rian P.', summary: 'Tightened casting wall thickness tolerances', approvedBy: 'Ahmad S.' }
-        ],
-        createdAt: '2026-02-14T09:00:00Z',
-        updatedAt: '2026-07-01T11:20:00Z'
-    },
-    {
-        id: 'cs-iso-003',
-        docNo: 'QA-CS-2026-0902',
-        revisionNo: '1.0',
-        name: 'Precision Stepper Shaft Turn Check',
-        partNo: 'SFT-STP-120',
-        partName: 'Precision CNC Stepper Motor Shaft',
-        customer: 'RoboMotion Systems',
-        process: 'CNC Swiss Lathe Turn',
-        stationId: 'ST-QC-01',
-        category: 'IQC (Incoming)',
-        status: 'IN_REVIEW',
-        effectiveDate: '2026-09-01',
-        isoStandard: 'ISO 9001:2015 / IATF 16949',
-        author: 'Siti Rahma',
-        approver: 'Pending QA Lead Review',
-        drawingFileName: 'Shaft_Drawing_Blueprint.png',
-        targetTableId: 'tbl_qa_drawing_checksheets',
-        targetTableName: 'QC Inspection Records',
-        totalCheckPoints: 8,
-        checkPoints: [
-            { pointNumber: 1, title: 'Journal Bearing Diameter', category: 'Shaft OD', nominal: 12.000, tolMin: 11.990, tolMax: 12.005, unit: 'mm', criticality: 'Critical (CC)', tool: 'Laser Micrometer' },
-            { pointNumber: 2, title: 'Total Shaft Length', category: 'Length', nominal: 120.000, tolMin: 119.800, tolMax: 120.200, unit: 'mm', criticality: 'Minor', tool: 'Digital Caliper' }
-        ],
-        changeHistory: [
-            { rev: '1.0', date: '2026-08-20', author: 'Siti R.', summary: 'New product line checksheet draft', approvedBy: 'In Review' }
-        ],
-        createdAt: '2026-08-20T10:00:00Z',
-        updatedAt: '2026-08-20T10:00:00Z'
-    }
-];
+// Standard Default Checksheet (Empty - No Mock Data)
+const DEFAULT_ISO_CHECKSHEETS = [];
 
 export default function CheckSheetManager() {
     const navigate = useNavigate();
@@ -134,40 +36,41 @@ export default function CheckSheetManager() {
     const [revisionReason, setRevisionReason] = useState('');
     const [newRevisionNo, setNewRevisionNo] = useState('');
 
-    // ── Load dari Supabase on mount ──
+    // ── Load Checksheets on Mount (from Cloud / LocalStorage) ──
     const getStoredChecksheets = () => {
         try {
             const saved = localStorage.getItem('mandor_inspector_templates');
             if (saved) {
                 const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                    const savedIds = new Set(parsed.map(p => p.id));
-                    const missingDefaults = DEFAULT_ISO_CHECKSHEETS.filter(d => !savedIds.has(d.id));
-                    return [...parsed, ...missingDefaults];
+                if (Array.isArray(parsed)) {
+                    // Filter out legacy mock data if present
+                    return parsed.filter(p => !p.id?.startsWith('cs-iso-00') && p.id !== 'cs-iso-001' && p.id !== 'cs-iso-002' && p.id !== 'cs-iso-003');
                 }
             }
         } catch (e) {
             console.error('Failed to load checksheets:', e);
         }
-        return DEFAULT_ISO_CHECKSHEETS;
+        return [];
     };
 
     useEffect(() => {
         const loadTemplates = async () => {
             try {
                 const remote = await getTemplates();
-                if (remote && remote.length > 0) {
-                    // Remote wins — use Supabase data, merge missing defaults
-                    const savedIds = new Set(remote.map(p => p.id));
-                    const missingDefaults = DEFAULT_ISO_CHECKSHEETS.filter(d => !savedIds.has(d.id));
-                    setChecksheets([...remote, ...missingDefaults]);
+                if (remote && Array.isArray(remote)) {
+                    // Filter out legacy mock data if present
+                    const cleanRemote = remote.filter(p => !p.id?.startsWith('cs-iso-00') && p.id !== 'cs-iso-001' && p.id !== 'cs-iso-002' && p.id !== 'cs-iso-003');
+                    setChecksheets(cleanRemote);
+                    localStorage.setItem('mandor_inspector_templates', JSON.stringify(cleanRemote));
                 } else {
-                    // No remote data — fall back to localStorage
-                    setChecksheets(getStoredChecksheets());
+                    const local = getStoredChecksheets();
+                    setChecksheets(local);
+                    localStorage.setItem('mandor_inspector_templates', JSON.stringify(local));
                 }
             } catch (e) {
                 console.warn('[CheckSheetManager] getTemplates failed, using localStorage fallback', e);
-                setChecksheets(getStoredChecksheets());
+                const local = getStoredChecksheets();
+                setChecksheets(local);
             } finally {
                 setIsLoadingTemplates(false);
             }
@@ -184,7 +87,6 @@ export default function CheckSheetManager() {
             toast.success('✓ Checksheet disimpan ke cloud & lokal!');
         } catch (e) {
             console.warn('[CheckSheetManager] saveTemplates failed, data saved locally only', e);
-            // localStorage sudah disimpan di atas — tidak ada data yang hilang
         }
     };
 
@@ -337,12 +239,15 @@ export default function CheckSheetManager() {
         toast.success(`Checksheet berhasil diduplikasi: ${copyObj.docNo}`);
     };
 
-    const handleDeleteChecksheet = (id) => {
-        if (window.confirm('Apakah Anda yakin ingin menghapus file checksheet ini dari sistem ISO?')) {
+    const handleDeleteChecksheet = (id, name = 'Checksheet') => {
+        if (window.confirm(`Hapus checksheet "${name}" secara permanen dari sistem?`)) {
             const updated = checksheets.filter(c => c.id !== id);
             saveChecksheets(updated);
-            toast.success('Checksheet berhasil dihapus');
-            if (selectedChecksheet?.id === id) setShowDetailModal(false);
+            toast.success(`Checksheet "${name}" berhasil dihapus`, { icon: '🗑️' });
+            if (selectedChecksheet?.id === id) {
+                setShowDetailModal(false);
+                setSelectedChecksheet(null);
+            }
         }
     };
 
@@ -696,7 +601,7 @@ export default function CheckSheetManager() {
                                     )}
                                 </div>
 
-                                {/* Card Footer Actions */}
+                                 {/* Card Footer Actions */}
                                 <div className="p-3 bg-slate-900/60 border-t border-slate-700/50 flex items-center justify-between gap-1.5">
                                     <button
                                         onClick={() => { setSelectedChecksheet(cs); setShowDetailModal(true); }}
@@ -727,6 +632,13 @@ export default function CheckSheetManager() {
                                             title="Print / Cetak ISO Certificate"
                                         >
                                             <Printer size={12} />
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteChecksheet(cs.id, cs.name || cs.docNo)}
+                                            className="flex items-center gap-1 text-[11px] font-bold text-red-400 hover:text-white bg-red-950/40 hover:bg-red-600 border border-red-700/50 px-2 py-1.5 rounded-lg transition-all cursor-pointer"
+                                            title="Hapus Checksheet Secara Permanen"
+                                        >
+                                            <Trash2 size={12} />
                                         </button>
                                     </div>
                                 </div>
@@ -811,6 +723,13 @@ export default function CheckSheetManager() {
                                                     title="Lihat Detail Dokumen"
                                                 >
                                                     <Eye size={12} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteChecksheet(cs.id, cs.name || cs.docNo)}
+                                                    className="p-1.5 rounded-md bg-red-950/40 hover:bg-red-600 text-red-400 hover:text-white border border-red-700/50 cursor-pointer"
+                                                    title="Hapus Checksheet"
+                                                >
+                                                    <Trash2 size={12} />
                                                 </button>
                                             </div>
                                         </td>

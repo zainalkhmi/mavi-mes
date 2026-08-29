@@ -2208,113 +2208,7 @@ export default function DigitalDrawingCheckSheet() {
             height: '100%'
           }}
         >
-          {/* Top Canvas HUD Overlay */}
-          <div style={{ position: 'absolute', top: '12px', left: '16px', zIndex: 10, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div
-              style={{
-                backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                backdropFilter: 'blur(8px)',
-                padding: '8px',
-                borderRadius: '8px',
-                border: '1px solid rgba(255,255,255,0.1)',
-                color: 'white',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
-              }}
-              title="Check Sheet Canvas (Klik pin untuk mengukur)"
-            >
-              <Crosshair size={16} color="#22c55e" />
-            </div>
 
-            {/* 🔍 Guided Inspect Trigger Button */}
-            <button
-              onClick={() => handleStartInspection()}
-              style={{
-                backgroundColor: '#0284c7',
-                color: 'white',
-                border: 'none',
-                padding: '8px',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 0 14px rgba(2, 132, 199, 0.5)',
-                transition: 'transform 0.1s'
-              }}
-              title="Inspect (Guided Mode: Mulai alur inspeksi otomatis terpandu)"
-            >
-              <Sparkles size={16} color="#ffffff" />
-            </button>
-
-            {/* Fullscreen Canvas Maximize Toggle */}
-            <button
-              onClick={handleToggleFullscreenCanvas}
-              style={{
-                backgroundColor: isRightPanelCollapsed ? '#22c55e' : 'rgba(15, 23, 42, 0.9)',
-                color: isRightPanelCollapsed ? '#0f172a' : '#38bdf8',
-                border: '1px solid rgba(56, 189, 248, 0.4)',
-                padding: '8px 12px',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontWeight: 800,
-                fontSize: '0.72rem',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                transition: 'all 0.15s'
-              }}
-              title={isRightPanelCollapsed ? "Kembalikan Panel Input Keypad" : "Maksimalkan Drawing ke Layar Penuh (Full Screen Tanpa Ruang Kosong)"}
-            >
-              <Maximize2 size={14} />
-              <span>{isRightPanelCollapsed ? 'Tampilkan Panel' : 'Full Screen'}</span>
-            </button>
-
-            {/* Fit View Button */}
-            <button
-              onClick={handleResetView}
-              style={{
-                backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                color: '#cbd5e1',
-                border: '1px solid #334155',
-                padding: '8px 10px',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                fontWeight: 700,
-                fontSize: '0.72rem'
-              }}
-              title="Sesuaikan proporsi gambar agar pas dan rapi tanpa menutupi toolbar"
-            >
-              <span>Fit</span>
-            </button>
-
-            {/* Pass All Dimensions Button */}
-            <button
-              onClick={handlePassAll}
-              style={{
-                backgroundColor: 'rgba(34, 197, 94, 0.95)',
-                color: '#0f172a',
-                border: 'none',
-                padding: '8px',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 0 14px rgba(34, 197, 94, 0.4)',
-                transition: 'transform 0.1s'
-              }}
-              title="Pass All Dimensions (Luluskan semua dimensi sekaligus)"
-            >
-              <CheckCircle2 size={16} color="#0f172a" />
-            </button>
-          </div>
 
           {/* Floating Sidebar Toggle Button (Right Edge) */}
           <button
@@ -2797,15 +2691,16 @@ export default function DigitalDrawingCheckSheet() {
               </div>
             )}
 
-            {/* Interactive Hotspot Pins (Precisely Aligned on Drawing Features) */}
+            {/* Interactive Enterprise Hotspot Pins with Heatmap & Deviation Badges */}
             {checkPoints.map((pt) => {
               const isActive = pt.id === activePointId;
               const isOK = pt.status === 'OK';
               const isNG = pt.status === 'NG';
-              const isPending = pt.status === 'PENDING';
+              const isWarning = pt.status === 'WARNING';
+              const isPending = !pt.status || pt.status === 'PENDING';
 
-              const pinBg = isOK ? '#22c55e' : isNG ? '#ef4444' : isActive ? '#38bdf8' : '#0284c7';
-              const pinRing = isOK ? 'rgba(34, 197, 94, 0.4)' : isNG ? 'rgba(239, 68, 68, 0.4)' : 'rgba(56, 189, 248, 0.5)';
+              const pinBg = isNG ? '#ef4444' : isWarning ? '#f59e0b' : isOK ? '#22c55e' : isActive ? '#38bdf8' : '#334155';
+              const pinGlow = isNG ? 'rgba(239, 68, 68, 0.6)' : isWarning ? 'rgba(245, 158, 11, 0.6)' : isOK ? 'rgba(34, 197, 94, 0.45)' : isActive ? 'rgba(56, 189, 248, 0.7)' : 'transparent';
 
               return (
                 <div
@@ -2821,67 +2716,111 @@ export default function DigitalDrawingCheckSheet() {
                     top: `${pt.y}px`,
                     transform: 'translate(-50%, -50%)',
                     cursor: 'pointer',
-                    zIndex: isActive ? 25 : 15,
-                    transition: 'all 0.2s ease'
+                    zIndex: isActive ? 30 : 15,
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
                   }}
                 >
-                  {/* Pulsing Ring */}
-                  <div
-                    style={{
-                      position: 'absolute',
-                      inset: '-8px',
-                      borderRadius: '50%',
-                      backgroundColor: pinRing,
-                      animation: isPending || isActive ? 'pulse 2s infinite' : 'none',
-                      zIndex: -1
-                    }}
-                  />
+                  {/* Concentric Pulsing Halo for Active / NG Pins */}
+                  {(isActive || isNG) && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        inset: '-10px',
+                        borderRadius: '50%',
+                        backgroundColor: pinGlow,
+                        animation: isNG ? 'blink-red 0.8s infinite' : 'pulse 1.8s infinite',
+                        zIndex: -1
+                      }}
+                    />
+                  )}
 
-                  {/* Pin Circle Body */}
+                  {/* Pin Circle Body with Metallic Stroke */}
                   <div
                     style={{
-                      width: '28px',
-                      height: '28px',
+                      width: isActive ? '32px' : '28px',
+                      height: isActive ? '32px' : '28px',
                       borderRadius: '50%',
                       backgroundColor: pinBg,
                       color: 'white',
-                      border: '2px solid #ffffff',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.35)',
+                      border: isActive ? '2.5px solid #ffffff' : isNG ? '2px solid #fee2e2' : '2px solid #ffffff',
+                      boxShadow: `0 4px 14px rgba(0,0,0,0.5), 0 0 12px ${pinGlow}`,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontWeight: 900,
-                      fontSize: '0.8rem'
+                      fontSize: isActive ? '0.85rem' : '0.78rem',
+                      transition: 'all 0.15s ease'
                     }}
                   >
-                    {isOK ? <Check size={16} strokeWidth={3} /> : isNG ? <X size={16} strokeWidth={3} /> : pt.pointNumber}
+                    {isOK ? (
+                      <Check size={16} strokeWidth={3} />
+                    ) : isNG ? (
+                      <span style={{ fontSize: '13px', fontWeight: 900 }}>✕</span>
+                    ) : isWarning ? (
+                      <span style={{ fontSize: '12px' }}>⚠️</span>
+                    ) : (
+                      pt.pointNumber
+                    )}
                   </div>
 
-                  {/* Tooltip Label on Active */}
+                  {/* Micro Measurement Value Chip under Pin */}
+                  {pt.measuredVal && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        marginTop: '3px',
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                        border: `1px solid ${pinBg}`,
+                        color: pinBg,
+                        padding: '1px 5px',
+                        borderRadius: '4px',
+                        fontSize: '0.62rem',
+                        fontWeight: 900,
+                        whiteSpace: 'nowrap',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.5)'
+                      }}
+                    >
+                      {pt.measuredVal} {pt.unit || 'mm'}
+                    </div>
+                  )}
+
+                  {/* Expanded Active Tooltip Callout */}
                   {isActive && (
                     <div
                       style={{
                         position: 'absolute',
-                        bottom: '34px',
+                        bottom: '38px',
                         left: '50%',
                         transform: 'translateX(-50%)',
                         backgroundColor: '#0f172a',
                         color: 'white',
-                        padding: '6px 10px',
-                        borderRadius: '6px',
-                        fontSize: '0.7rem',
-                        fontWeight: 700,
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        fontSize: '0.72rem',
+                        fontWeight: 800,
                         whiteSpace: 'nowrap',
-                        boxShadow: '0 8px 16px rgba(0,0,0,0.4)',
-                        border: '1px solid #334155',
+                        boxShadow: '0 12px 28px rgba(0,0,0,0.6)',
+                        border: '1.5px solid #38bdf8',
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'center',
-                        gap: '2px'
+                        gap: '3px',
+                        zIndex: 40
                       }}
                     >
-                      <span>{pt.pointNumber}. {pt.title} ({pt.criticality})</span>
-                      <span style={{ color: '#38bdf8', fontSize: '0.65rem' }}>Nom: {pt.nominal} ({pt.tolMin} - {pt.tolMax} {pt.unit})</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ color: '#38bdf8' }}>#{pt.pointNumber}</span>
+                        <span>{pt.title}</span>
+                        <span style={{ fontSize: '0.62rem', padding: '1px 5px', borderRadius: '4px', backgroundColor: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8' }}>
+                          {pt.criticality || 'Critical (CC)'}
+                        </span>
+                      </div>
+                      <div style={{ color: '#cbd5e1', fontSize: '0.68rem', fontWeight: 600 }}>
+                        Nom: <strong style={{ color: '#38bdf8' }}>{pt.nominal}</strong> • Tol: <strong style={{ color: '#22c55e' }}>{pt.tolMin} ~ {pt.tolMax} {pt.unit}</strong>
+                      </div>
                     </div>
                   )}
                 </div>
