@@ -93,21 +93,30 @@ export async function getTemplatesAll() {
  */
 export async function saveTemplates(templates) {
     if (!templates?.length) return;
+
+    // Sanitize templates: remove huge base64 drawingSvg from template_data payload
+    const safeTemplates = templates.map(t => {
+        if (t.drawingSvg && t.drawingSvg.length > 200000) {
+            return { ...t, drawingSvg: null };
+        }
+        return t;
+    });
+
     try {
         const client = getSupabaseAuth();
-        if (!client) throw new Error('Supabase not configured');
-
-        // Upsert each template
-        for (const t of templates) {
-            await client.from('inspector_templates').upsert({
-                id: t.id,
-                name: t.name,
-                doc_no: t.docNo || t.id,
-                revision: t.revisionNo || '1.0',
-                status: t.status || 'DRAFT',
-                template_data: t,
-                updated_at: new Date().toISOString()
-            }, { onConflict: 'id' });
+        if (client) {
+            // Upsert each template
+            for (const t of safeTemplates) {
+                await client.from('inspector_templates').upsert({
+                    id: t.id,
+                    name: t.name,
+                    doc_no: t.docNo || t.id,
+                    revision: t.revisionNo || '1.0',
+                    status: t.status || 'DRAFT',
+                    template_data: t,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'id' }).catch(err => console.warn('[Supabase] Template upsert skipped:', err.message));
+            }
         }
     } catch (e) {
         console.warn('[Supabase] saveTemplates failed, trying localStorage', e);
@@ -115,24 +124,15 @@ export async function saveTemplates(templates) {
 
     // Save locally as fallback, but handle quota exceeded
     try {
-        const data = JSON.stringify(templates);
-        // If data is too large (> 4MB), keep only last 10 templates
-        if (data.length > 4 * 1024 * 1024) {
-            console.warn('[Templates] Data too large, trimming to last 10 templates');
-            templates = templates.slice(-10);
-        }
-        localStorage.setItem('mandor_inspector_templates', JSON.stringify(templates));
+        localStorage.setItem('mandor_inspector_templates', JSON.stringify(safeTemplates.slice(-10)));
     } catch (e) {
-        if (e.name === 'QuotaExceededError' || e.message.includes('quota')) {
-            console.warn('[Templates] localStorage full, trying to clear old data');
-            // Try to save with fewer templates
+        if (e.name === 'QuotaExceededError' || e.message?.includes('quota')) {
+            console.warn('[Templates] localStorage full, saving latest 3 templates');
             try {
-                localStorage.setItem('mandor_inspector_templates', JSON.stringify(templates.slice(-5)));
+                localStorage.setItem('mandor_inspector_templates', JSON.stringify(safeTemplates.slice(-3)));
             } catch (e2) {
-                console.error('[Templates] Cannot save even 5 templates to localStorage');
+                console.error('[Templates] Cannot save templates to localStorage');
             }
-        } else {
-            console.error('[Templates] Failed to save to localStorage:', e);
         }
     }
 }

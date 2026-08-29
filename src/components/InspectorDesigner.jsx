@@ -15,7 +15,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import toast, { Toaster } from 'react-hot-toast';
 import QRCode from 'react-qr-code';
-import { getAllDrawings, saveDrawing } from '../utils/supabaseUtilityDB';
+import { getAllDrawings, saveDrawing, drawingsLocalDB } from '../utils/supabaseUtilityDB';
 import { convertPdfToImageDataUrl } from '../utils/pdfRenderService';
 import { parseDxfContent } from '../utils/cadDxfRenderService';
 import { getTables, addTableRecord, createTable } from '../utils/supabaseTablesDB';
@@ -1064,63 +1064,69 @@ export default function InspectorDesigner() {
   };
   
   // ─── Export to Digital Check Sheet ───
-  const handleExportToCheckSheet = () => {
+  const handleExportToCheckSheet = async () => {
     if (checkPoints.length === 0) {
       toast.error('Please add at least one inspection point');
       return;
     }
     
     const publishId = `CS-${partNo || 'PART'}-${Date.now().toString(36).toUpperCase()}`;
+    const dwgId = selectedDrawing?.id || publishId;
+    const fullDrawingSvg = drawingPreview || selectedDrawing?.svgData || selectedDrawing?.dataUrl || null;
 
     const checkSheetData = {
       // ISO 9001:2015 Document Control Fields
       id: publishId,
-      docNo: publishId,
-      status: checkSheetStatus,
-      qualityStandard,
-      revision: revisionNo,
-      effectiveDate,
-      nextReviewDate,
+      docNo: drawingNo || publishId,
+      status: checkSheetStatus || 'APPROVED',
+      qualityStandard: qualityStandard || 'ISO 9001:2015',
+      revision: revisionNo || 'A',
+      revisionNo: revisionNo || 'A',
+      effectiveDate: effectiveDate || new Date().toISOString().split('T')[0],
+      nextReviewDate: nextReviewDate || '',
 
       // Master Data Header
-      partNo,
-      partName,
-      customer,
-      processName,
-      drawingNo,
-      description: checkSheetDescription,
-      workOrderPrefix,
-      stationId,
+      partNo: partNo || checkSheetName || 'PART-001',
+      partName: partName || checkSheetName || 'Standard Component',
+      name: checkSheetName || partName || 'Inspection Check Sheet',
+      customer: customer || 'Internal Quality',
+      process: processName || 'Assembly / Machining',
+      processName: processName || 'Assembly / Machining',
+      drawingNo: drawingNo || publishId,
+      description: checkSheetDescription || '',
+      workOrderPrefix: workOrderPrefix || '',
+      stationId: stationId || '',
 
       // Personnel
-      inspectorName,
-      approvedBy,
+      inspectorName: inspectorName || currentUser?.username || 'Quality Inspector',
+      approver: approvedBy || 'QC Lead',
+      approvedBy: approvedBy || 'QC Lead',
       createdBy: currentUser?.username || 'Unknown',
       createdAt: new Date().toISOString(),
 
-      // Drawing Reference
-      drawingId: selectedDrawing?.id || null,
-      drawingName: selectedDrawing?.name || null,
-      drawingSvg: drawingPreview,
+      // Drawing Reference & Uploaded Blueprint
+      drawingId: dwgId,
+      drawingName: selectedDrawing?.name || checkSheetName || partName || 'Inspection Drawing',
+      drawingSvg: fullDrawingSvg,
 
-      // Inspection Points
-      checkPoints: checkPoints.map(p => ({
-        id: p.id,
-        pointNumber: p.pointNumber,
-        title: p.title,
-        category: p.category,
-        nominal: p.nominal,
-        tolMin: p.tolMin,
-        tolMax: p.tolMax,
-        unit: p.unit,
-        x: p.x,
-        y: p.y,
-        criticality: p.criticality,
-        tool: p.inspectionMethod,
-        toolId: p.toolId,
-        gdtSymbol: p.gdtSymbol,
-        notes: p.notes,
-        required: p.required,
+      // Inspection Points / Parameters
+      checkPoints: checkPoints.map((p, idx) => ({
+        id: p.id || `cp_${idx + 1}`,
+        pointNumber: p.pointNumber || idx + 1,
+        title: p.title || `Point ${idx + 1}`,
+        category: p.category || 'Dimension',
+        nominal: parseFloat(p.nominal) || 0,
+        tolMin: parseFloat(p.tolMin !== undefined ? p.tolMin : (p.toleranceMin || 0)),
+        tolMax: parseFloat(p.tolMax !== undefined ? p.tolMax : (p.toleranceMax || 0)),
+        unit: p.unit || 'mm',
+        x: p.x !== undefined ? p.x : 200,
+        y: p.y !== undefined ? p.y : 200,
+        criticality: p.criticality || 'Major',
+        tool: p.inspectionMethod || p.tool || 'Caliper',
+        toolId: p.toolId || '',
+        gdtSymbol: p.gdtSymbol || '',
+        notes: p.notes || '',
+        required: p.required !== false,
         status: 'PENDING',
         measuredVal: '',
         disposition: 'Pending Inspection'
@@ -1135,46 +1141,89 @@ export default function InspectorDesigner() {
       publishedBy: currentUser?.username || 'Unknown'
     };
     
-    // Save to localStorage for Digital Check Sheet (with quota handling)
+    // 1. In-memory handoff for instant rendering without storage lag
+    if (typeof window !== 'undefined') {
+      window.__mandor_active_checksheet = checkSheetData;
+      window.__mandor_active_drawing_svg = fullDrawingSvg;
+    }
+
+    // 2. Persist large drawing into IndexedDB (Dexie) - No 5MB quota limit
+    try {
+      if (fullDrawingSvg && drawingsLocalDB) {
+        await drawingsLocalDB.drawings.put({
+          id: dwgId,
+          name: checkSheetData.drawingName,
+          fileName: selectedDrawing?.fileName || `${dwgId}.png`,
+          fileType: selectedDrawing?.fileType || 'IMAGE',
+          svgData: fullDrawingSvg,
+          dataUrl: fullDrawingSvg,
+          updated_at: new Date().toISOString()
+        });
+      }
+    } catch (idbErr) {
+      console.warn('[InspectorDesigner] IndexedDB save error:', idbErr);
+    }
+
+    // 3. Save to localStorage with safe size handling (strip large base64 if needed to avoid QuotaExceededError)
     try {
       localStorage.setItem('mandor_checksheet_published', 'true');
       localStorage.setItem('mandor_checksheet_publish_id', publishId);
-      // Only save summary to localStorage, full data goes to Supabase
-      const summary = {
-        id: checkSheetData.id,
-        name: checkSheetData.name,
-        workOrder: checkSheetData.workOrder,
-        publishedAt: checkSheetData.publishedAt,
-        publishedBy: checkSheetData.publishedBy,
-        // Don't save full template_data to localStorage
+      localStorage.setItem('mandor_checksheet_active_drawing_id', dwgId);
+
+      const isDrawingHuge = fullDrawingSvg && fullDrawingSvg.length > 200000;
+      const storageSafeCheckSheet = {
+        ...checkSheetData,
+        drawingSvg: isDrawingHuge ? null : fullDrawingSvg
       };
-      localStorage.setItem('mandor_published_checksheet', JSON.stringify(summary));
-    } catch (e) {
-      if (e.name === 'QuotaExceededError') {
-        console.warn('[InspectorDesigner] localStorage full, skipping localStorage save');
-      } else {
-        console.warn('[InspectorDesigner] Failed to save to localStorage:', e);
+      
+      try {
+        localStorage.setItem('mandor_published_checksheet', JSON.stringify(storageSafeCheckSheet));
+      } catch (quotaErr) {
+        storageSafeCheckSheet.drawingSvg = null;
+        localStorage.setItem('mandor_published_checksheet', JSON.stringify(storageSafeCheckSheet));
       }
+
+      // Also save lightweight drawing metadata in drawings list
+      const existingDrawings = JSON.parse(localStorage.getItem('mandor_checksheet_drawings') || '[]');
+      const dwgItem = {
+        id: dwgId,
+        name: checkSheetData.drawingName,
+        partNo: partNo || '',
+        svgData: isDrawingHuge ? null : fullDrawingSvg,
+        uploadedAt: new Date().toISOString()
+      };
+      const updatedDrawings = [dwgItem, ...existingDrawings.filter(d => d.id !== dwgId).slice(0, 10)];
+      try {
+        localStorage.setItem('mandor_checksheet_drawings', JSON.stringify(updatedDrawings));
+      } catch (e) {
+        // Skip lightweight list if localStorage is full - IndexedDB has it
+      }
+    } catch (e) {
+      console.warn('[InspectorDesigner] localStorage write handled:', e);
     }
 
-    // ── Sync published checksheet ke Supabase (fire-and-forget) ──
+    // 4. Fire-and-forget template sync (with sanitized payload to prevent Supabase 400 & quota error)
     try {
+      const templateData = {
+        ...checkSheetData,
+        drawingSvg: checkSheetData.drawingSvg && checkSheetData.drawingSvg.length > 200000 ? null : checkSheetData.drawingSvg
+      };
       const existingTemplates = JSON.parse(localStorage.getItem('mandor_inspector_templates') || '[]');
-      const existingIndex = existingTemplates.findIndex(t => t.id === checkSheetData.id);
+      const existingIndex = existingTemplates.findIndex(t => t.id === templateData.id);
       let updatedTemplates;
       if (existingIndex >= 0) {
-        updatedTemplates = existingTemplates.map((t, i) => i === existingIndex ? checkSheetData : t);
+        updatedTemplates = existingTemplates.map((t, i) => i === existingIndex ? templateData : t);
       } else {
-        updatedTemplates = [checkSheetData, ...existingTemplates];
+        updatedTemplates = [templateData, ...existingTemplates.slice(0, 10)];
       }
-      saveTemplates(updatedTemplates); // fire-and-forget
+      saveTemplates(updatedTemplates);
       setSavedTemplates(updatedTemplates);
     } catch (e) {
-      console.warn('[InspectorDesigner] Failed to sync published checksheet to Supabase:', e);
+      console.warn('[InspectorDesigner] Template sync warning:', e);
     }
 
-    toast.success('✓ Exported to Digital Check Sheet & synced to cloud! ID: ' + publishId);
-    navigate('/qa-checksheet');
+    toast.success(`✓ Exported to Digital Check Sheet! ${checkSheetData.checkPoints.length} Parameter & Drawing terhubung.`);
+    navigate('/drawing-checksheet');
   };
   
   // ─── Generate QR Code ───

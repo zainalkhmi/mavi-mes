@@ -75,7 +75,7 @@ import CheckTabContent from './CheckTabContent';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import toast, { Toaster } from 'react-hot-toast';
 import QRCode from 'react-qr-code';
-import { getAllDrawings } from '../utils/supabaseUtilityDB';
+import { getAllDrawings, drawingsLocalDB } from '../utils/supabaseUtilityDB';
 import { getTables, addTableRecord, createTable } from '../utils/supabaseTablesDB';
 import whatsappService from '../utils/whatsappService';
 import n8nWebhook from '../utils/n8nWebhookService';
@@ -515,9 +515,34 @@ export default function DigitalDrawingCheckSheet() {
   const [searchParams] = useSearchParams();
   const currentUser = getCurrentUser();
 
-  // Helper: load checkPoints from saved templates
+  // Helper: load checkPoints from published checksheet or saved templates
   const loadCheckPoints = () => {
     try {
+      const published = localStorage.getItem('mandor_published_checksheet');
+      if (published) {
+        const cs = JSON.parse(published);
+        if (cs.checkPoints && Array.isArray(cs.checkPoints) && cs.checkPoints.length > 0) {
+          return cs.checkPoints.map((p, i) => ({
+            id: p.id || `cp_${i + 1}`,
+            pointNumber: p.pointNumber || i + 1,
+            title: p.title || `Point ${i + 1}`,
+            category: p.category || 'Dimension',
+            nominal: parseFloat(p.nominal) || 0,
+            tolMin: parseFloat(p.tolMin !== undefined ? p.tolMin : (p.toleranceMin || 0)),
+            tolMax: parseFloat(p.tolMax !== undefined ? p.tolMax : (p.toleranceMax || 0)),
+            unit: p.unit || 'mm',
+            x: p.x !== undefined ? p.x : 200,
+            y: p.y !== undefined ? p.y : 200,
+            measuredVal: p.measuredVal || '',
+            status: p.status || 'PENDING',
+            tool: p.tool || p.inspectionMethod || 'Gauge',
+            criticality: p.criticality || 'Major',
+            notes: p.notes || '',
+            disposition: p.disposition || 'Pending Inspection'
+          }));
+        }
+      }
+
       const saved = localStorage.getItem('mandor_inspector_templates');
       if (saved) {
         const templates = JSON.parse(saved);
@@ -525,14 +550,16 @@ export default function DigitalDrawingCheckSheet() {
           const firstTemplate = templates[0];
           if (firstTemplate.checkPoints?.length > 0) {
             return firstTemplate.checkPoints.map((p, i) => ({
-              id: `cp_${i + 1}`,
+              id: p.id || `cp_${i + 1}`,
               pointNumber: p.pointNumber || i + 1,
               title: p.title || `Point ${i + 1}`,
               category: p.category || 'Dimension',
               nominal: parseFloat(p.nominal) || 0,
-              tolMin: parseFloat(p.tolMin || p.toleranceMin || 0),
-              tolMax: parseFloat(p.tolMax || p.toleranceMax || 0),
+              tolMin: parseFloat(p.tolMin !== undefined ? p.tolMin : (p.toleranceMin || 0)),
+              tolMax: parseFloat(p.tolMax !== undefined ? p.tolMax : (p.toleranceMax || 0)),
               unit: p.unit || 'mm',
+              x: p.x !== undefined ? p.x : 200,
+              y: p.y !== undefined ? p.y : 200,
               measuredVal: '',
               status: 'PENDING',
               tool: p.tool || 'Gauge',
@@ -544,18 +571,39 @@ export default function DigitalDrawingCheckSheet() {
         }
       }
     } catch (e) {
-      console.warn('Failed to load templates:', e);
+      console.warn('Failed to load initial checkPoints:', e);
     }
     return INITIAL_CHECK_POINTS;
   };
 
-  const [selectedDrawingId, setSelectedDrawingId] = useState('dwg_cast_housing');
-  const [drawingsList, setDrawingsList] = useState([]);
+  const [selectedDrawingId, setSelectedDrawingId] = useState(() => {
+    try {
+      const pub = JSON.parse(localStorage.getItem('mandor_published_checksheet') || '{}');
+      if (pub.drawingId) return pub.drawingId;
+      return localStorage.getItem('mandor_checksheet_active_drawing_id') || 'dwg_cast_housing';
+    } catch (e) {
+      return 'dwg_cast_housing';
+    }
+  });
+
+  const [drawingsList, setDrawingsList] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('mandor_checksheet_drawings') || '[]');
+    } catch (e) {
+      return [];
+    }
+  });
 
   // Check sheet items state
   const [checkPoints, setCheckPoints] = useState(loadCheckPoints);
-  const [activePointId, setActivePointId] = useState('cp_1');
-  const [activeTab, setActiveTab] = useState('Check'); // Check (Focus) | Checkers | Calibration | Summary
+  const [activePointId, setActivePointId] = useState(() => {
+    try {
+      const pub = JSON.parse(localStorage.getItem('mandor_published_checksheet') || '{}');
+      if (pub.checkPoints && pub.checkPoints[0]?.id) return pub.checkPoints[0].id;
+    } catch (e) {}
+    return 'cp_1';
+  });
+  const [activeTab, setActiveTab] = useState('Check'); // Check (Focus) is default
   const [filterCriticality, setFilterCriticality] = useState('ALL');
 
   // Canvas Viewport State (Zoom & Pan)
@@ -742,58 +790,79 @@ export default function DigitalDrawingCheckSheet() {
     }
   }, [searchParams, location]);
 
-  // ── Load part/document metadata from published checksheet ──
+  // ── Load part/document metadata from in-memory / published checksheet / IndexedDB ──
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('mandor_published_checksheet');
-      if (saved) {
-        const cs = JSON.parse(saved);
-        if (cs.partNo) setPartNo(cs.partNo);
-        if (cs.partName) setPartName(cs.partName);
-        if (cs.name && !cs.partName) setPartName(cs.name);
-        if (cs.customer) setCustomer(cs.customer);
-        if (cs.process) setProcessName(cs.process);
-        if (cs.processName && !cs.process) setProcessName(cs.processName);
-        if (cs.docNo) setDocNo(cs.docNo);
-        if (cs.revisionNo) setRevisionNo(cs.revisionNo);
-        if (cs.revision && !cs.revisionNo) setRevisionNo(cs.revision);
-        if (cs.approver) setApproverName(cs.approver);
-        if (cs.approverName && !cs.approver) setApproverName(cs.approverName);
+    const loadPublishedData = async () => {
+      try {
+        const memCs = typeof window !== 'undefined' ? window.__mandor_active_checksheet : null;
+        const memSvg = typeof window !== 'undefined' ? window.__mandor_active_drawing_svg : null;
 
-        // ── Load blueprint drawing preview ──
-        if (cs.drawingSvg) {
-          // SVG/DXF data stored directly in template
-          setDrawingPreview(cs.drawingSvg);
-        } else if (cs.drawingId) {
-          // Try to find drawing from drawingsList by ID
-          setSelectedDrawingId(cs.drawingId);
-          const found = drawingsList.find(d => d.id === cs.drawingId);
-          if (found) {
-            setDrawingPreview(found.svgData || found.dataUrl || found.url || null);
+        const saved = localStorage.getItem('mandor_published_checksheet');
+        const cs = memCs || (saved ? JSON.parse(saved) : null);
+
+        if (cs) {
+          if (cs.partNo) setPartNo(cs.partNo);
+          if (cs.partName) setPartName(cs.partName);
+          if (cs.name && !cs.partName) setPartName(cs.name);
+          if (cs.customer) setCustomer(cs.customer);
+          if (cs.process) setProcessName(cs.process);
+          if (cs.processName && !cs.process) setProcessName(cs.processName);
+          if (cs.docNo) setDocNo(cs.docNo);
+          if (cs.revisionNo) setRevisionNo(cs.revisionNo);
+          if (cs.revision && !cs.revisionNo) setRevisionNo(cs.revision);
+          if (cs.approver) setApproverName(cs.approver);
+          if (cs.approverName && !cs.approver) setApproverName(cs.approverName);
+
+          // ── Load blueprint drawing preview (In-memory > cs.drawingSvg > IndexedDB) ──
+          if (memSvg) {
+            setDrawingPreview(memSvg);
+          } else if (cs.drawingSvg) {
+            setDrawingPreview(cs.drawingSvg);
+          } else if (cs.drawingId) {
+            setSelectedDrawingId(cs.drawingId);
+            if (drawingsLocalDB) {
+              try {
+                const idbItem = await drawingsLocalDB.drawings.get(cs.drawingId);
+                if (idbItem && (idbItem.svgData || idbItem.dataUrl)) {
+                  setDrawingPreview(idbItem.svgData || idbItem.dataUrl);
+                }
+              } catch (idbErr) {
+                console.warn('[DigitalCheckSheet] IndexedDB load error:', idbErr);
+              }
+            }
+          }
+
+          // Also load checkPoints from published checksheet if available
+          if (cs.checkPoints && Array.isArray(cs.checkPoints) && cs.checkPoints.length > 0) {
+            const loadedPoints = cs.checkPoints.map((p, i) => ({
+              ...p,
+              id: p.id || `cp_${i + 1}`,
+              pointNumber: p.pointNumber || i + 1,
+              nominal: parseFloat(p.nominal) || 0,
+              tolMin: parseFloat(p.tolMin !== undefined ? p.tolMin : (p.toleranceMin || 0)),
+              tolMax: parseFloat(p.tolMax !== undefined ? p.tolMax : (p.toleranceMax || 0)),
+              unit: p.unit || 'mm',
+              x: p.x !== undefined ? p.x : 200,
+              y: p.y !== undefined ? p.y : 200,
+              measuredVal: p.measuredVal || p.measuredValue || '',
+              status: p.status || 'PENDING',
+              criticality: p.criticality || 'Major',
+              tool: p.tool || p.inspectionMethod || 'Gauge',
+              notes: p.notes || '',
+              disposition: p.disposition || 'Pending Inspection'
+            }));
+            setCheckPoints(loadedPoints);
+            if (loadedPoints.length > 0) {
+              setActivePointId(loadedPoints[0].id);
+            }
           }
         }
-
-        // Also load checkPoints from published checksheet if available
-        if (cs.checkPoints && Array.isArray(cs.checkPoints) && cs.checkPoints.length > 0) {
-          setCheckPoints(cs.checkPoints.map((p, i) => ({
-            ...p,
-            id: p.id || `cp_${i + 1}`,
-            pointNumber: p.pointNumber || i + 1,
-            nominal: parseFloat(p.nominal) || 0,
-            tolMin: parseFloat(p.tolMin || p.toleranceMin || 0),
-            tolMax: parseFloat(p.tolMax || p.toleranceMax || 0),
-            unit: p.unit || 'mm',
-            measuredVal: p.measuredValue || '',
-            status: p.status || 'PENDING',
-            criticality: p.criticality || 'Major',
-            notes: p.notes || '',
-            disposition: p.disposition || 'Pending Inspection'
-          })));
-        }
+      } catch (e) {
+        console.warn('[DigitalCheckSheet] Failed to load published checksheet metadata:', e);
       }
-    } catch (e) {
-      console.warn('[DigitalCheckSheet] Failed to load published checksheet metadata:', e);
-    }
+    };
+
+    loadPublishedData();
   }, [drawingsList]);
 
   // ── Load blueprint drawing when drawingsList becomes available ──
