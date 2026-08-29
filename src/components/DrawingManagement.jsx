@@ -773,21 +773,21 @@ export default function DrawingManagement() {
   const getTypeConfig = (type) => DRAWING_TYPES.find(t => t.key === type) || DRAWING_TYPES[0];
   const getRevStatus = (status) => REV_STATUS[status] || REV_STATUS.DRAFT;
 
-  // ─── Modal Component ───
-  const Modal = ({ show, onClose, title, children, onSubmit, submitLabel = 'Simpan', maxWidth = 'max-w-lg' }) => {
+  // ─── Modal Component (Odoo Dialog Style) ───
+  const Modal = ({ show, onClose, title, children, onSubmit, submitLabel = 'Simpan', maxWidth = 'max-w-xl' }) => {
     if (!show) return null;
     return (
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4" onClick={onClose}>
-        <div className={`bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl w-full ${maxWidth} max-h-[90vh] flex flex-col overflow-hidden`} onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700 shrink-0">
-            <h3 className="text-base font-bold text-white">{title}</h3>
-            <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors"><X size={18} /></button>
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-[9999] p-4" onClick={onClose}>
+        <div className={`bg-white border border-gray-200 rounded-xl shadow-2xl w-full ${maxWidth} max-h-[90vh] flex flex-col overflow-hidden text-gray-900`} onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-[#f8f9fa] shrink-0">
+            <h3 className="text-base font-bold text-gray-900">{title}</h3>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-700 cursor-pointer"><X size={18} /></button>
           </div>
           <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">{children}</div>
           {onSubmit && (
-            <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-700 bg-slate-850 shrink-0">
-              <button onClick={onClose} className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white rounded-lg transition-colors">Batal</button>
-              <button onClick={onSubmit} className="px-5 py-2 text-xs font-bold bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white rounded-lg shadow-lg shadow-blue-600/25 transition-all">
+            <div className="flex items-center justify-end gap-2 px-6 py-3.5 border-t border-gray-200 bg-[#f8f9fa] shrink-0">
+              <button onClick={onClose} className="px-4 py-2 text-xs font-semibold text-gray-600 hover:text-gray-900 cursor-pointer">Batal</button>
+              <button onClick={onSubmit} className="px-5 py-2 text-xs font-bold bg-[#714B67] hover:bg-[#5C3D54] text-white rounded-md shadow-xs transition-all cursor-pointer">
                 {submitLabel}
               </button>
             </div>
@@ -799,26 +799,26 @@ export default function DrawingManagement() {
 
   const InputField = ({ label, value, onChange, placeholder, type = 'text', required = false }) => (
     <div>
-      <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-        {label} {required && <span className="text-red-400">*</span>}
+      <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider mb-1.5">
+        {label} {required && <span className="text-rose-500">*</span>}
       </label>
       <input
         type={type}
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#714B67] focus:ring-1 focus:ring-[#714B67] transition-all"
       />
     </div>
   );
 
   const SelectField = ({ label, value, onChange, options }) => (
     <div>
-      <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">{label}</label>
+      <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider mb-1.5">{label}</label>
       <select
         value={value}
         onChange={e => onChange(e.target.value)}
-        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-blue-500 transition-colors"
+        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:border-[#714B67] focus:ring-1 focus:ring-[#714B67] transition-all"
       >
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
@@ -827,20 +827,20 @@ export default function DrawingManagement() {
 
   const TextArea = ({ label, value, onChange, placeholder }) => (
     <div>
-      <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">{label}</label>
+      <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider mb-1.5">{label}</label>
       <textarea
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
         rows={3}
-        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors resize-none"
+        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#714B67] focus:ring-1 focus:ring-[#714B67] transition-all resize-none"
       />
     </div>
   );
 
   // ─── RENDER ───
   return (
-    <div className="flex flex-col flex-1 h-full w-full bg-slate-900 text-slate-100 overflow-hidden font-sans">
+    <div className="flex flex-col flex-1 h-full w-full bg-[#f8f9fa] text-gray-900 overflow-hidden font-sans">
       <Toaster position="top-right" />
       <input
         ref={fileInputRef}
@@ -850,20 +850,21 @@ export default function DrawingManagement() {
         onChange={(e) => handleFileUpload(e.target.files?.[0])}
       />
 
-      {/* ═══ 1. HEADER BAR ═══ */}
-      <div className="bg-slate-950/90 backdrop-blur border-b border-slate-800 px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4 z-20 shrink-0">
+      {/* ═══ 1. ODOO CONTROL PANEL / TOP HEADER BAR ═══ */}
+      <div className="bg-white border-b border-gray-200 px-6 py-3.5 flex flex-col md:flex-row md:items-center md:justify-between gap-4 z-20 shrink-0 shadow-xs">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center text-white shadow-lg shadow-blue-600/20">
+          <div className="w-10 h-10 rounded-lg bg-[#714B67] flex items-center justify-center text-white shadow-sm">
             <FolderArchive size={22} />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-lg font-black text-white tracking-tight">DRAWING & ECN MANAGEMENT</h1>
-              <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+              <span className="text-xs font-semibold text-gray-500">PLM /</span>
+              <h1 className="text-base font-bold text-gray-900 tracking-tight">Drawing & ECN Management</h1>
+              <span className="bg-[#714B67]/10 text-[#714B67] border border-[#714B67]/20 text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
                 <ShieldCheck size={11} /> ISO 9001 / IATF 16949 ECN
               </span>
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-gray-500 mt-0.5">
               Pusat kendali blueprint CAD, dokumen ECN (Engineering Change Notice), Bill of Materials, dan balloon inspeksi.
             </p>
           </div>
@@ -873,21 +874,21 @@ export default function DrawingManagement() {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isProcessingFile}
-            className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs px-3.5 py-2 rounded-lg transition-all cursor-pointer"
+            className="flex items-center gap-1.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-semibold text-xs px-3.5 py-2 rounded-md shadow-xs transition-all cursor-pointer"
           >
-            {isProcessingFile ? <RefreshCw size={14} className="animate-spin" /> : <Upload size={14} className="text-cyan-400" />}
+            {isProcessingFile ? <RefreshCw size={14} className="animate-spin text-[#714B67]" /> : <Upload size={14} className="text-[#00A09D]" />}
             Upload Blueprint
           </button>
           <button
             onClick={() => { setFormData({ name: '', code: '', drawing_type: 'DETAIL', description: '', file_url: null, file_name: null }); setShowCreateModal(true); }}
-            className="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
+            className="flex items-center gap-1.5 bg-[#714B67] hover:bg-[#5C3D54] text-white font-bold text-xs px-4 py-2 rounded-md shadow-xs transition-all cursor-pointer"
           >
             <Plus size={15} /> Buat Drawing Baru
           </button>
           {selectedDrawing && (
             <button
               onClick={handleOpenInInspector}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs px-3.5 py-2 rounded-lg shadow-lg shadow-purple-600/25 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 bg-[#00A09D] hover:bg-[#008784] text-white font-semibold text-xs px-3.5 py-2 rounded-md shadow-xs transition-all cursor-pointer"
             >
               <FileCode size={14} /> Buka di Inspector Studio
             </button>
@@ -895,22 +896,22 @@ export default function DrawingManagement() {
         </div>
       </div>
 
-      {/* ═══ 2. STATS CARDS ═══ */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-6 py-3 shrink-0">
+      {/* ═══ 2. ODOO SMART STAT BOXES (o_stat_info) ═══ */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-6 py-3.5 shrink-0 bg-[#f8f9fa]">
         {[
-          { label: 'Total Drawing', value: stats.total, sub: 'Blueprint aktif', icon: FolderArchive, accent: 'text-blue-400', iconBg: 'bg-blue-500/10' },
-          { label: 'Master Part (BOM)', value: stats.totalParts, sub: 'Part terdaftar', icon: Boxes, accent: 'text-cyan-400', iconBg: 'bg-cyan-500/10' },
-          { label: 'Revisi & ECN', value: revisions.length, sub: 'Riwayat perubahan', icon: GitBranch, accent: 'text-purple-400', iconBg: 'bg-purple-500/10' },
-          { label: 'Total Balloon', value: balloons.length, sub: 'Titik ukur aktif', icon: Circle, accent: 'text-emerald-400', iconBg: 'bg-emerald-500/10' },
+          { label: 'Total Drawing', value: stats.total, sub: 'Blueprint aktif', icon: FolderArchive, accent: 'text-[#714B67]', iconBg: 'bg-[#714B67]/10' },
+          { label: 'Master Part (BOM)', value: stats.totalParts, sub: 'Part terdaftar', icon: Boxes, accent: 'text-[#00A09D]', iconBg: 'bg-[#00A09D]/10' },
+          { label: 'Revisi & ECN', value: revisions.length, sub: 'Riwayat perubahan', icon: GitBranch, accent: 'text-indigo-600', iconBg: 'bg-indigo-50' },
+          { label: 'Total Balloon', value: balloons.length, sub: 'Titik ukur aktif', icon: Circle, accent: 'text-emerald-600', iconBg: 'bg-emerald-50' },
         ].map((s, i) => (
-          <div key={i} className="bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 flex items-center justify-between">
+          <div key={i} className="bg-white border border-gray-200 rounded-lg p-3.5 flex items-center justify-between shadow-xs hover:border-gray-300 transition-all">
             <div>
-              <div className={`text-[10px] font-semibold ${s.accent} uppercase tracking-wider`}>{s.label}</div>
-              <div className="text-lg font-extrabold text-white mt-0.5">{s.value}</div>
-              <div className="text-[10px] text-slate-500">{s.sub}</div>
+              <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">{s.label}</div>
+              <div className={`text-2xl font-black ${s.accent} mt-0.5`}>{s.value}</div>
+              <div className="text-[10px] text-gray-400">{s.sub}</div>
             </div>
-            <div className={`w-8 h-8 rounded-lg ${s.iconBg} ${s.accent} flex items-center justify-center`}>
-              <s.icon size={16} />
+            <div className={`w-10 h-10 rounded-lg ${s.iconBg} ${s.accent} flex items-center justify-center`}>
+              <s.icon size={20} />
             </div>
           </div>
         ))}
@@ -920,16 +921,16 @@ export default function DrawingManagement() {
       <div className="flex flex-1 overflow-hidden">
 
         {/* ── LEFT SIDEBAR: Drawing List ── */}
-        <div className="w-72 bg-slate-850 border-r border-slate-800 flex flex-col shrink-0" style={{ backgroundColor: 'rgb(17 24 39 / 0.5)' }}>
-          <div className="p-3 border-b border-slate-800 space-y-2">
+        <div className="w-72 bg-white border-r border-gray-200 flex flex-col shrink-0">
+          <div className="p-3 border-b border-gray-200 bg-[#f8f9fa] space-y-2">
             <div className="relative">
-              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 placeholder="Cari drawing atau part..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                className="w-full pl-8 pr-3 py-1.5 bg-white border border-gray-300 rounded-md text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#714B67] focus:ring-1 focus:ring-[#714B67] transition-all"
               />
             </div>
             <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
@@ -937,9 +938,9 @@ export default function DrawingManagement() {
                 <button
                   key={t.key}
                   onClick={() => setFilterType(t.key)}
-                  className={`px-2 py-1 rounded text-[10px] font-bold whitespace-nowrap transition-all ${filterType === t.key
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700/50'
+                  className={`px-2 py-1 rounded text-[10px] font-bold whitespace-nowrap transition-all cursor-pointer ${filterType === t.key
+                    ? 'bg-[#714B67] text-white shadow-xs'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
                   }`}
                 >
                   {t.label}
@@ -950,14 +951,14 @@ export default function DrawingManagement() {
 
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
             {loading ? (
-              <div className="flex items-center justify-center py-12 gap-2 text-slate-500">
-                <RefreshCw size={14} className="animate-spin" />
+              <div className="flex items-center justify-center py-12 gap-2 text-gray-400">
+                <RefreshCw size={14} className="animate-spin text-[#714B67]" />
                 <span className="text-xs">Memuat data...</span>
               </div>
             ) : filteredDrawings.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-                <Folder size={32} className="text-slate-700 mb-2" />
-                <p className="text-xs text-slate-500">Tidak ada drawing</p>
+                <Folder size={32} className="text-gray-300 mb-2" />
+                <p className="text-xs text-gray-500 font-medium">Tidak ada drawing</p>
               </div>
             ) : (
               filteredDrawings.map(drawing => {
@@ -968,34 +969,32 @@ export default function DrawingManagement() {
                   <button
                     key={drawing.id}
                     onClick={() => selectDrawing(drawing)}
-                    className={`w-full text-left p-2.5 rounded-lg transition-all group ${isSelected
-                      ? 'bg-blue-600/15 border border-blue-500/40'
-                      : 'hover:bg-slate-800/80 border border-transparent'
+                    className={`w-full text-left p-2.5 rounded-md transition-all group cursor-pointer ${isSelected
+                      ? 'bg-[#714B67]/10 border-l-4 border-[#714B67] text-[#714B67]'
+                      : 'hover:bg-gray-100 text-gray-700 border-l-4 border-transparent'
                     }`}
                   >
                     <div className="flex items-start gap-2.5">
                       <div
-                        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
-                        style={{ backgroundColor: typeConf.color + '18', color: typeConf.color }}
+                        className={`w-8 h-8 rounded-md flex items-center justify-center shrink-0 mt-0.5 ${isSelected ? 'bg-[#714B67] text-white' : 'bg-gray-100 text-gray-500'}`}
                       >
                         <TypeIcon size={15} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs font-bold text-white truncate">{drawing.code}</div>
-                        <div className="text-[11px] text-slate-400 truncate">{drawing.name}</div>
+                        <div className={`text-xs font-bold truncate ${isSelected ? 'text-[#714B67]' : 'text-gray-900'}`}>{drawing.code}</div>
+                        <div className="text-[11px] text-gray-500 truncate">{drawing.name}</div>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
-                            style={{ backgroundColor: typeConf.color + '18', color: typeConf.color }}>
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-200">
                             {drawing.drawing_type}
                           </span>
                           {drawing.metadata?.part_code && (
-                            <span className="text-[9px] text-cyan-400 font-mono">
+                            <span className="text-[9px] text-[#00A09D] font-mono font-bold">
                               📦 {drawing.metadata.part_code}
                             </span>
                           )}
                         </div>
                       </div>
-                      <ChevronRight size={14} className={`text-slate-600 shrink-0 mt-1 transition-transform ${isSelected ? 'text-blue-400' : 'group-hover:text-slate-400'}`} />
+                      <ChevronRight size={14} className={`shrink-0 mt-1 transition-transform ${isSelected ? 'text-[#714B67]' : 'text-gray-400 group-hover:text-gray-600'}`} />
                     </div>
                   </button>
                 );
@@ -1005,31 +1004,31 @@ export default function DrawingManagement() {
 
           {/* Pagination Controls */}
           {drawingsTotal > PAGE_SIZE && (
-            <div className="flex items-center justify-between px-3 py-2 border-t border-slate-700">
+            <div className="flex items-center justify-between px-3 py-2 border-t border-gray-200 bg-[#f8f9fa]">
               <button
                 onClick={() => setDrawingsPage(p => Math.max(0, p - 1))}
                 disabled={drawingsPage === 0}
-                className="p-1.5 text-xs text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed rounded hover:bg-slate-700"
+                className="p-1.5 text-xs text-gray-500 hover:text-gray-900 disabled:opacity-30 disabled:cursor-not-allowed rounded hover:bg-gray-200 cursor-pointer"
               >
                 <ChevronLeft size={14} />
               </button>
-              <span className="text-[10px] text-slate-500">
+              <span className="text-[10px] text-gray-500 font-medium">
                 {drawingsPage * PAGE_SIZE + 1}-{Math.min((drawingsPage + 1) * PAGE_SIZE, drawingsTotal)} / {drawingsTotal}
               </span>
               <button
                 onClick={() => setDrawingsPage(p => (p + 1) * PAGE_SIZE < drawingsTotal ? p + 1 : p)}
                 disabled={(drawingsPage + 1) * PAGE_SIZE >= drawingsTotal}
-                className="p-1.5 text-xs text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed rounded hover:bg-slate-700"
+                className="p-1.5 text-xs text-gray-500 hover:text-gray-900 disabled:opacity-30 disabled:cursor-not-allowed rounded hover:bg-gray-200 cursor-pointer"
               >
                 <ChevronRight size={14} />
               </button>
             </div>
           )}
 
-          <div className="p-3 border-t border-slate-800">
+          <div className="p-3 border-t border-gray-200 bg-[#f8f9fa]">
             <button
               onClick={() => { setDrawingsPage(0); loadInitialData(searchTerm, 0); }}
-              className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[11px] font-semibold text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-all"
+              className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[11px] font-semibold text-gray-600 hover:text-gray-900 rounded-md hover:bg-gray-200/60 transition-all cursor-pointer"
             >
               <RefreshCw size={12} /> Refresh Data
             </button>
@@ -1037,64 +1036,62 @@ export default function DrawingManagement() {
         </div>
 
         {/* ── RIGHT MAIN PANEL: Drawing Detail & Canvas ── */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden bg-[#f8f9fa]">
           {!selectedDrawing ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
-              <div className="w-20 h-20 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center mb-4">
-                <FolderArchive size={36} className="text-slate-600" />
+              <div className="w-16 h-16 rounded-2xl bg-white border border-gray-200 shadow-sm flex items-center justify-center mb-4 text-[#714B67]">
+                <FolderArchive size={32} />
               </div>
-              <h3 className="text-base font-bold text-slate-300 mb-1">Pilih Drawing untuk Membuka Visual Studio</h3>
-              <p className="text-xs text-slate-500 max-w-sm mb-6">
+              <h3 className="text-base font-bold text-gray-800 mb-1">Pilih Drawing untuk Membuka Visual Studio</h3>
+              <p className="text-xs text-gray-500 max-w-sm mb-6">
                 Pilih drawing dari sidebar untuk melihat blueprint, mengelola formulir ECN revisi, dan menaruh balon inspeksi.
               </p>
               <button
                 onClick={() => { setFormData({ name: '', code: '', drawing_type: 'DETAIL', description: '', file_url: null, file_name: null }); setShowCreateModal(true); }}
-                className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold text-xs px-5 py-2.5 rounded-lg shadow-lg shadow-blue-600/25"
+                className="flex items-center gap-2 bg-[#714B67] hover:bg-[#5C3D54] text-white font-bold text-xs px-5 py-2.5 rounded-md shadow-xs cursor-pointer"
               >
                 <Plus size={14} /> Buat Drawing Baru
               </button>
             </div>
           ) : (
             <>
-              {/* ── Drawing Info Header Bar ── */}
-              <div className="bg-slate-800/50 border-b border-slate-800 px-6 py-3.5 shrink-0">
+              {/* ── Drawing Info Header Bar (Odoo Form Header) ── */}
+              <div className="bg-white border-b border-gray-200 px-6 py-3.5 shrink-0 shadow-2xs">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-                      style={{ backgroundColor: getTypeConfig(selectedDrawing.drawing_type).color + '20', color: getTypeConfig(selectedDrawing.drawing_type).color }}>
+                    <div className="w-10 h-10 rounded-lg bg-[#714B67]/10 text-[#714B67] flex items-center justify-center font-bold">
                       {React.createElement(getTypeConfig(selectedDrawing.drawing_type).icon, { size: 20 })}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h2 className="text-sm font-black text-white">{selectedDrawing.code} - {selectedDrawing.name}</h2>
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded"
-                          style={{ backgroundColor: getTypeConfig(selectedDrawing.drawing_type).color + '18', color: getTypeConfig(selectedDrawing.drawing_type).color }}>
+                        <h2 className="text-sm font-extrabold text-gray-900">{selectedDrawing.code} - {selectedDrawing.name}</h2>
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-200">
                           {selectedDrawing.drawing_type}
                         </span>
                         {selectedPart ? (
-                          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 flex items-center gap-1">
+                          <span className="text-[9px] font-bold px-2.5 py-0.5 rounded-full bg-teal-50 text-[#00A09D] border border-teal-200 flex items-center gap-1">
                             <Boxes size={10} /> Part: {selectedPart.code} ({selectedPart.material || 'Material N/A'})
                           </span>
                         ) : (
                           <button
                             onClick={() => setShowPartModal(true)}
-                            className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-700/60 text-slate-400 hover:text-cyan-300 border border-slate-600 flex items-center gap-1 transition-colors"
+                            className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 hover:text-[#00A09D] border border-gray-200 flex items-center gap-1 transition-colors cursor-pointer"
                           >
                             <Plus size={10} /> Hubungkan Part BOM
                           </button>
                         )}
                       </div>
-                      <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-0.5">
-                        <span>Revisi: <strong className="text-white">{selectedRevision ? `Rev ${selectedRevision.revision_code}` : 'A (Default)'}</strong></span>
+                      <div className="flex items-center gap-3 text-[11px] text-gray-500 mt-0.5">
+                        <span>Revisi: <strong className="text-gray-900">{selectedRevision ? `Rev ${selectedRevision.revision_code}` : 'A (Default)'}</strong></span>
                         {selectedRevision?.metadata?.ecn_number && (
-                          <span className="text-purple-300 font-mono">
+                          <span className="text-[#714B67] font-mono font-semibold">
                             • ECN: <strong>{selectedRevision.metadata.ecn_number}</strong>
                           </span>
                         )}
                         <span>•</span>
-                        <span>Balloons: <strong className="text-cyan-300">{balloons.length}</strong></span>
+                        <span>Balloons: <strong className="text-[#00A09D]">{balloons.length}</strong></span>
                         <span>•</span>
-                        <span>File: <strong className="text-slate-300">{selectedDrawing.file_name || (blueprintImage ? 'Blueprint Dimuat' : 'Belum Ada File')}</strong></span>
+                        <span>File: <strong className="text-gray-700">{selectedDrawing.file_name || (blueprintImage ? 'Blueprint Dimuat' : 'Belum Ada File')}</strong></span>
                       </div>
                     </div>
                   </div>
@@ -1102,25 +1099,25 @@ export default function DrawingManagement() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setShowPartModal(true)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-cyan-300 text-xs font-semibold rounded-lg transition-all"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-gray-50 text-[#00A09D] border border-gray-300 text-xs font-semibold rounded-md shadow-2xs transition-all cursor-pointer"
                     >
                       <Boxes size={13} /> {selectedPart ? 'Ganti Part BOM' : 'Hubungkan Part'}
                     </button>
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold rounded-lg transition-all"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-xs font-semibold rounded-md shadow-2xs transition-all cursor-pointer"
                     >
                       <Upload size={13} /> Ganti File
                     </button>
                     <button
                       onClick={() => { setFormData({ name: selectedDrawing.name, code: selectedDrawing.code, drawing_type: selectedDrawing.drawing_type, description: selectedDrawing.description || '', file_url: selectedDrawing.file_url, file_name: selectedDrawing.file_name }); setShowEditModal(true); }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold rounded-lg transition-all"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-xs font-semibold rounded-md shadow-2xs transition-all cursor-pointer"
                     >
                       <Edit3 size={13} /> Edit
                     </button>
                     <button
                       onClick={() => handleDeleteDrawing(selectedDrawing.id)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-semibold rounded-lg border border-red-500/20 transition-all"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold rounded-md border border-rose-200 transition-all cursor-pointer"
                     >
                       <Trash2 size={13} /> Hapus
                     </button>
@@ -1128,9 +1125,9 @@ export default function DrawingManagement() {
                 </div>
               </div>
 
-              {/* ── Tabs Navigation Bar ── */}
-              <div className="flex items-center justify-between px-6 py-2 border-b border-slate-800 bg-slate-850 shrink-0" style={{ backgroundColor: 'rgb(17 24 39 / 0.3)' }}>
-                <div className="flex items-center gap-1">
+              {/* ── Odoo Notebook Tabs Navigation Bar ── */}
+              <div className="flex items-center justify-between px-6 border-b border-gray-200 bg-white shrink-0">
+                <div className="flex items-center gap-2">
                   {[
                     { key: 'canvas', label: 'Visual Blueprint & Balon', icon: Crosshair },
                     { key: 'revisions', label: `Revisi & ECN (${revisions.length})`, icon: GitBranch },
@@ -1142,9 +1139,9 @@ export default function DrawingManagement() {
                     <button
                       key={tab.key}
                       onClick={() => setActiveTab(tab.key)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === tab.key
-                        ? 'bg-blue-600/15 text-blue-400 border border-blue-500/30'
-                        : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                      className={`flex items-center gap-1.5 px-4 py-3 text-xs font-bold border-b-2 transition-all cursor-pointer ${activeTab === tab.key
+                        ? 'border-[#714B67] text-[#714B67]'
+                        : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
                       }`}
                     >
                       <tab.icon size={13} />
@@ -1167,9 +1164,9 @@ export default function DrawingManagement() {
                           toast('Klik pada area blueprint untuk menaruh titik balon', { icon: '🎯' });
                         }
                       }}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isBalloonPlacingMode
-                        ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 animate-pulse'
-                        : 'bg-blue-600/20 text-blue-300 border border-blue-500/30 hover:bg-blue-600/30'
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${isBalloonPlacingMode
+                        ? 'bg-emerald-600 text-white shadow-xs animate-pulse'
+                        : 'bg-[#714B67]/10 text-[#714B67] border border-[#714B67]/20 hover:bg-[#714B67]/20'
                       }`}
                     >
                       <Crosshair size={13} />
@@ -1184,38 +1181,38 @@ export default function DrawingManagement() {
 
                 {/* ══ 1. VISUAL CANVAS TAB ══ */}
                 {activeTab === 'canvas' && (
-                  <div className="flex-1 flex flex-col relative overflow-hidden bg-slate-950">
-                    {/* Top Canvas Controls */}
-                    <div className="absolute top-4 left-4 z-20 flex flex-wrap items-center gap-1.5 bg-slate-900/90 backdrop-blur border border-slate-800 p-1.5 rounded-xl shadow-xl">
+                  <div className="flex-1 flex flex-col relative overflow-hidden bg-slate-900">
+                    {/* Top Canvas Controls (Odoo Floating Bar) */}
+                    <div className="absolute top-4 left-4 z-20 flex flex-wrap items-center gap-1.5 bg-white/95 backdrop-blur border border-gray-200 p-1.5 rounded-lg shadow-md text-gray-800">
                       <button
                         onClick={() => setZoom(z => Math.min(z * 1.2, 5))}
-                        className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
+                        className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-all cursor-pointer"
                         title="Zoom In"
                       >
                         <ZoomIn size={15} />
                       </button>
                       <button
                         onClick={() => setZoom(z => Math.max(z * 0.8, 0.3))}
-                        className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
+                        className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-all cursor-pointer"
                         title="Zoom Out"
                       >
                         <ZoomOut size={15} />
                       </button>
                       <button
                         onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}
-                        className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-all text-xs font-bold px-2"
+                        className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-all text-xs font-bold px-2 cursor-pointer"
                         title="Reset View"
                       >
                         {Math.round(zoom * 100)}% Reset
                       </button>
-                      <div className="w-px h-4 bg-slate-700 mx-1" />
-                      <span className="text-[11px] text-slate-400 px-1 font-medium">
+                      <div className="w-px h-4 bg-gray-200 mx-1" />
+                      <span className="text-[11px] text-gray-500 px-1 font-semibold">
                         {balloons.length} Balon
                       </span>
-                      <div className="w-px h-4 bg-slate-700 mx-1" />
+                      <div className="w-px h-4 bg-gray-200 mx-1" />
                       <button
                         onClick={() => fileInputRef.current?.click()}
-                        className="text-[11px] font-bold text-cyan-400 hover:text-cyan-300 px-2 py-1 rounded bg-slate-800 flex items-center gap-1 cursor-pointer"
+                        className="text-[11px] font-bold text-[#00A09D] hover:text-[#008784] px-2 py-1 rounded bg-teal-50 flex items-center gap-1 cursor-pointer"
                       >
                         <Upload size={12} /> Upload File
                       </button>
@@ -1235,30 +1232,30 @@ export default function DrawingManagement() {
                       onClick={handleCanvasClick}
                     >
                       {!blueprintImage ? (
-                        <div className="flex flex-col items-center justify-center text-center p-8 border border-dashed border-slate-800 rounded-2xl bg-slate-900/60 max-w-lg shadow-2xl m-4">
-                          <Image size={48} className="text-slate-600 mb-3" />
-                          <h4 className="text-base font-bold text-white mb-1">Belum Ada File Blueprint yang Dimuat</h4>
-                          <p className="text-xs text-slate-400 mb-5 max-w-sm">
+                        <div className="flex flex-col items-center justify-center text-center p-8 border border-dashed border-gray-300 rounded-xl bg-white max-w-lg shadow-lg m-4">
+                          <Image size={48} className="text-gray-300 mb-3" />
+                          <h4 className="text-base font-bold text-gray-900 mb-1">Belum Ada File Blueprint yang Dimuat</h4>
+                          <p className="text-xs text-gray-500 mb-5 max-w-sm">
                             Unggah file CAD berupa <strong>PDF, DXF, PNG, JPG, atau SVG</strong> (atau drag & drop langsung ke sini).
                           </p>
                           <div className="flex flex-wrap items-center justify-center gap-3">
                             <button
                               onClick={() => fileInputRef.current?.click()}
-                              className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold text-xs px-4 py-2.5 rounded-lg shadow-lg shadow-blue-600/30 cursor-pointer"
+                              className="flex items-center gap-2 bg-[#714B67] hover:bg-[#5C3D54] text-white font-bold text-xs px-4 py-2.5 rounded-md shadow-xs cursor-pointer"
                             >
                               <Upload size={15} /> Pilih File dari Komputer
                             </button>
                             <button
                               onClick={() => handleLoadDemoPreset('flange')}
-                              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs px-3.5 py-2.5 rounded-lg transition-all cursor-pointer"
+                              className="flex items-center gap-1.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-semibold text-xs px-3.5 py-2.5 rounded-md transition-all cursor-pointer shadow-2xs"
                             >
-                              <Wand2 size={14} className="text-cyan-400" /> Muat Demo Flange CAD
+                              <Wand2 size={14} className="text-[#00A09D]" /> Muat Demo Flange CAD
                             </button>
                             <button
                               onClick={() => handleLoadDemoPreset('shaft')}
-                              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs px-3.5 py-2.5 rounded-lg transition-all cursor-pointer"
+                              className="flex items-center gap-1.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-semibold text-xs px-3.5 py-2.5 rounded-md transition-all cursor-pointer shadow-2xs"
                             >
-                              <Wand2 size={14} className="text-purple-400" /> Muat Demo Shaft CAD
+                              <Wand2 size={14} className="text-[#714B67]" /> Muat Demo Shaft CAD
                             </button>
                           </div>
                         </div>
@@ -1315,15 +1312,15 @@ export default function DrawingManagement() {
                               >
                                 <div
                                   className={`w-7 h-7 rounded-full flex items-center justify-center text-white font-black text-xs shadow-lg transition-transform ${isSelected ? 'scale-125 ring-2 ring-white ring-offset-2 ring-offset-slate-900' : 'group-hover/balloon:scale-110'}`}
-                                  style={{ backgroundColor: balloon.color || '#3B82F6' }}
+                                  style={{ backgroundColor: balloon.color || '#714B67' }}
                                 >
                                   {balloon.balloon_number}
                                 </div>
 
-                                <div className="opacity-0 group-hover/balloon:opacity-100 pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 bg-slate-900/95 text-white border border-slate-700 px-2.5 py-1 rounded-lg text-[10px] whitespace-nowrap shadow-xl z-40 transition-opacity">
+                                <div className="opacity-0 group-hover/balloon:opacity-100 pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 bg-gray-900/95 text-white border border-gray-700 px-2.5 py-1 rounded-md text-[10px] whitespace-nowrap shadow-xl z-40 transition-opacity">
                                   <div className="font-bold">Point #{balloon.balloon_number}</div>
                                   {balloon.target_feature && (
-                                    <div className="text-cyan-300 font-mono">
+                                    <div className="text-[#00A09D] font-mono">
                                       {balloon.target_feature.nominal_value} ±{balloon.target_feature.upper_tolerance || '0'} {balloon.target_feature.unit || 'mm'}
                                     </div>
                                   )}
@@ -1339,14 +1336,14 @@ export default function DrawingManagement() {
 
                 {/* ══ 2. REVISIONS & ECN TAB ══ */}
                 {activeTab === 'revisions' && (
-                  <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                  <div className="flex-1 overflow-y-auto p-6 space-y-4 max-w-6xl">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                          <ShieldCheck size={17} className="text-emerald-400" />
+                        <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                          <ShieldCheck size={18} className="text-[#714B67]" />
                           Riwayat Revisi & Dokumen ECN (ISO 9001 / IATF 16949)
                         </h3>
-                        <p className="text-xs text-slate-400">
+                        <p className="text-xs text-gray-500 mt-0.5">
                           Catatan perubahan Engineering Change Notice untuk kendali mutu dokumen manufaktur
                         </p>
                       </div>
@@ -1367,16 +1364,16 @@ export default function DrawingManagement() {
                           });
                           setShowRevisionModal(true);
                         }}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white text-xs font-bold rounded-lg shadow-lg shadow-blue-600/25 transition-all"
+                        className="flex items-center gap-1.5 px-4 py-2 bg-[#714B67] hover:bg-[#5C3D54] text-white text-xs font-bold rounded-md shadow-xs transition-all cursor-pointer"
                       >
                         <Plus size={14} /> Buat Revisi Baru (Formulir ECN)
                       </button>
                     </div>
 
                     {revisions.length === 0 ? (
-                      <div className="border border-dashed border-slate-700 rounded-xl p-8 flex flex-col items-center justify-center text-center">
-                        <GitBranch size={32} className="text-slate-600 mb-2" />
-                        <p className="text-xs text-slate-400 mb-3">Belum ada dokumen revisi atau ECN yang dicatat.</p>
+                      <div className="border border-dashed border-gray-300 bg-white rounded-lg p-10 flex flex-col items-center justify-center text-center">
+                        <GitBranch size={32} className="text-gray-300 mb-2" />
+                        <p className="text-xs text-gray-500 font-medium mb-3">Belum ada dokumen revisi atau ECN yang dicatat.</p>
                         <button
                           onClick={() => {
                             setRevFormData({
@@ -1393,7 +1390,7 @@ export default function DrawingManagement() {
                             });
                             setShowRevisionModal(true);
                           }}
-                          className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-xs font-bold rounded-lg shadow"
+                          className="flex items-center gap-1.5 px-4 py-2 bg-[#714B67] hover:bg-[#5C3D54] text-white text-xs font-bold rounded-md shadow-xs cursor-pointer"
                         >
                           <Plus size={13} /> Buat Rilis Awal (Revision A)
                         </button>
@@ -1410,50 +1407,50 @@ export default function DrawingManagement() {
                             <div
                               key={rev.id}
                               onClick={() => setSelectedRevision(rev)}
-                              className={`p-4 rounded-xl border cursor-pointer transition-all ${isActive
-                                ? 'bg-slate-800/90 border-blue-500/50 shadow-lg'
-                                : 'bg-slate-800/40 border-slate-700/50 hover:border-slate-600'
+                              className={`p-4 rounded-lg border cursor-pointer transition-all ${isActive
+                                ? 'bg-purple-50/40 border-[#714B67] shadow-xs'
+                                : 'bg-white border-gray-200 hover:border-gray-300'
                               }`}
                             >
                               <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                                 <div className="flex items-start gap-3">
-                                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-black text-sm shrink-0 shadow ${st.bg} ${st.text}`}>
+                                  <div className={`w-11 h-11 rounded-lg flex items-center justify-center font-black text-sm shrink-0 shadow-2xs ${rev.status === 'RELEASED' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
                                     {rev.revision_code}
                                   </div>
                                   <div>
                                     <div className="flex flex-wrap items-center gap-2">
-                                      <span className="text-sm font-black text-white">Revision {rev.revision_code}</span>
+                                      <span className="text-sm font-bold text-gray-900">Revision {rev.revision_code}</span>
                                       {ecn.ecn_number && (
-                                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-[#714B67]/10 text-[#714B67] border border-[#714B67]/20">
                                           📄 {ecn.ecn_number}
                                         </span>
                                       )}
-                                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${st.bg} ${st.text} ${st.border}`}>
+                                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${rev.status === 'RELEASED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
                                         {st.label}
                                       </span>
                                       {isActive && (
-                                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                                        <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-[#714B67] text-white">
                                           AKTIF
                                         </span>
                                       )}
                                     </div>
-                                    <p className="text-xs text-slate-300 font-medium mt-1">
+                                    <p className="text-xs text-gray-600 font-medium mt-1">
                                       {ecn.reason_for_change || rev.description || 'Tidak ada catatan ECN'}
                                     </p>
-                                    <div className="flex flex-wrap items-center gap-3 mt-2 text-[10px] text-slate-400">
+                                    <div className="flex flex-wrap items-center gap-3 mt-2 text-[10px] text-gray-400">
                                       {ecn.change_category && (
-                                        <span className="flex items-center gap-1 text-cyan-300">
+                                        <span className="flex items-center gap-1 text-[#00A09D] font-semibold">
                                           {catObj.icon} {catObj.label}
                                         </span>
                                       )}
                                       {ecn.effective_date && (
-                                        <span>• Tanggal Efektif: <strong className="text-white">{ecn.effective_date}</strong></span>
+                                        <span>• Tanggal Efektif: <strong className="text-gray-700">{ecn.effective_date}</strong></span>
                                       )}
                                       {ecn.originator && (
-                                        <span>• Pembuat: <strong className="text-white">{ecn.originator}</strong></span>
+                                        <span>• Pembuat: <strong className="text-gray-700">{ecn.originator}</strong></span>
                                       )}
                                       {ecn.approver && (
-                                        <span>• Approver: <strong className="text-emerald-400">{ecn.approver}</strong></span>
+                                        <span>• Approver: <strong className="text-emerald-700">{ecn.approver}</strong></span>
                                       )}
                                     </div>
                                   </div>
@@ -1466,9 +1463,9 @@ export default function DrawingManagement() {
                                       setSelectedEcnRevision(rev);
                                       setShowEcnDetailModal(true);
                                     }}
-                                    className="flex items-center gap-1 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-[11px] font-bold rounded-lg transition-all"
+                                    className="flex items-center gap-1 px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 text-[11px] font-semibold rounded-md shadow-2xs transition-all cursor-pointer"
                                   >
-                                    <FileSpreadsheet size={12} className="text-purple-400" /> Sertifikat ECN
+                                    <FileSpreadsheet size={12} className="text-[#714B67]" /> Sertifikat ECN
                                   </button>
 
                                   {rev.status === 'DRAFT' && (
@@ -1477,7 +1474,7 @@ export default function DrawingManagement() {
                                         e.stopPropagation();
                                         handleReleaseRevision(rev.id);
                                       }}
-                                      className="flex items-center gap-1 px-3 py-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 text-[11px] font-bold rounded-lg border border-emerald-500/30 transition-all"
+                                      className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-bold rounded-md border border-emerald-300 transition-all cursor-pointer"
                                     >
                                       <CheckCircle2 size={12} /> Sign-off (Release)
                                     </button>
@@ -1494,28 +1491,28 @@ export default function DrawingManagement() {
 
                 {/* ══ 3. PART & BOM INTEGRATION TAB ══ */}
                 {activeTab === 'bom' && (
-                  <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                    <div className="bg-slate-800/50 border border-slate-700/60 rounded-xl p-5">
+                  <div className="flex-1 overflow-y-auto p-6 space-y-4 max-w-6xl">
+                    <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-xs">
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-cyan-500/15 text-cyan-400 flex items-center justify-center">
+                          <div className="w-10 h-10 rounded-lg bg-[#00A09D]/10 text-[#00A09D] flex items-center justify-center">
                             <Boxes size={22} />
                           </div>
                           <div>
-                            <h3 className="text-sm font-bold text-white">Master Part Number yang Terhubung</h3>
-                            <p className="text-xs text-slate-400">Identitas fisik komponen pada database manufaktur / ERP</p>
+                            <h3 className="text-sm font-bold text-gray-900">Master Part Number yang Terhubung</h3>
+                            <p className="text-xs text-gray-500">Identitas fisik komponen pada database manufaktur / ERP</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => setShowPartModal(true)}
-                            className="px-3 py-1.5 bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 text-xs font-bold rounded-lg border border-cyan-500/30 transition-all"
+                            className="px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-[#00A09D] text-xs font-bold rounded-md border border-teal-200 transition-all cursor-pointer"
                           >
                             Pilih dari Master Part
                           </button>
                           <button
                             onClick={() => { setPartFormData({ code: `PRT-${selectedDrawing.code}`, name: selectedDrawing.name, material: '', weight: '', part_type: 'COMPONENT', unit: 'PCS' }); setShowCreatePartModal(true); }}
-                            className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg transition-all"
+                            className="px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 text-xs font-semibold rounded-md shadow-2xs transition-all cursor-pointer"
                           >
                             + Buat Part Baru
                           </button>
@@ -1523,134 +1520,136 @@ export default function DrawingManagement() {
                       </div>
 
                       {selectedPart ? (
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-900/60 p-4 rounded-xl border border-slate-700/50">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-[#f8f9fa] p-4 rounded-lg border border-gray-200">
                           <div>
-                            <span className="text-[10px] font-semibold text-slate-400 uppercase">Part Code</span>
-                            <div className="text-sm font-black text-cyan-300 font-mono">{selectedPart.code}</div>
+                            <span className="text-[10px] font-bold text-gray-400 uppercase">Part Code</span>
+                            <div className="text-sm font-extrabold text-[#00A09D] font-mono">{selectedPart.code}</div>
                           </div>
                           <div>
-                            <span className="text-[10px] font-semibold text-slate-400 uppercase">Part Name</span>
-                            <div className="text-sm font-bold text-white">{selectedPart.name}</div>
+                            <span className="text-[10px] font-bold text-gray-400 uppercase">Part Name</span>
+                            <div className="text-sm font-bold text-gray-900">{selectedPart.name}</div>
                           </div>
                           <div>
-                            <span className="text-[10px] font-semibold text-slate-400 uppercase">Material</span>
-                            <div className="text-sm font-bold text-amber-300">{selectedPart.material || 'Aluminium 6061'}</div>
+                            <span className="text-[10px] font-bold text-gray-400 uppercase">Material</span>
+                            <div className="text-sm font-bold text-amber-700">{selectedPart.material || 'Aluminium 6061'}</div>
                           </div>
                           <div>
-                            <span className="text-[10px] font-semibold text-slate-400 uppercase">Tipe Part</span>
-                            <div className="text-sm font-bold text-purple-300">{selectedPart.part_type || 'COMPONENT'}</div>
+                            <span className="text-[10px] font-bold text-gray-400 uppercase">Tipe Part</span>
+                            <div className="text-sm font-bold text-[#714B67]">{selectedPart.part_type || 'COMPONENT'}</div>
                           </div>
                         </div>
                       ) : (
-                        <div className="p-6 border border-dashed border-slate-700 rounded-xl text-center">
-                          <p className="text-xs text-slate-400 mb-2">Drawing ini belum dihubungkan ke Master Part Number.</p>
-                          <p className="text-[11px] text-slate-500">Hubungkan agar seluruh data spesifikasi & material terintegrasi otomatis ke sistem ERP/BOM.</p>
+                        <div className="p-6 border border-dashed border-gray-300 rounded-lg text-center bg-[#f8f9fa]">
+                          <p className="text-xs text-gray-600 font-medium mb-1">Drawing ini belum dihubungkan ke Master Part Number.</p>
+                          <p className="text-[11px] text-gray-400">Hubungkan agar seluruh data spesifikasi & material terintegrasi otomatis ke sistem ERP/BOM.</p>
                         </div>
                       )}
                     </div>
 
-                    {/* BOM Table if Assembly */}
-                    <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-5">
+                    {/* BOM Table if Assembly (Odoo Tree View) */}
+                    <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-xs">
                       <div className="flex items-center justify-between mb-3">
                         <div>
-                          <h4 className="text-sm font-bold text-white">Bill of Materials (BOM) & Sub-Parts</h4>
-                          <p className="text-xs text-slate-400">Daftar part penyusun untuk gambar assembly ini</p>
+                          <h4 className="text-sm font-bold text-gray-900">Bill of Materials (BOM) & Sub-Parts</h4>
+                          <p className="text-xs text-gray-500">Daftar part penyusun untuk gambar assembly ini</p>
                         </div>
                       </div>
 
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="border-b border-slate-700 text-slate-400">
-                            <th className="text-left py-2.5 px-3">Item #</th>
-                            <th className="text-left py-2.5 px-3">Part Number</th>
-                            <th className="text-left py-2.5 px-3">Deskripsi Part</th>
-                            <th className="text-center py-2.5 px-3">Qty</th>
-                            <th className="text-left py-2.5 px-3">Material</th>
-                            <th className="text-center py-2.5 px-3">Balloon Ref</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {relations.length === 0 ? (
-                            <tr>
-                              <td colSpan={6} className="text-center py-6 text-slate-500">
-                                Tidak ada sub-part BOM. Tambahkan child drawing pada tab Relations.
-                              </td>
+                      <div className="border border-gray-200 rounded-lg overflow-hidden">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-gray-200 bg-[#f8f9fa] text-gray-600">
+                              <th className="text-left py-2.5 px-3 font-bold text-[10px] uppercase">Item #</th>
+                              <th className="text-left py-2.5 px-3 font-bold text-[10px] uppercase">Part Number</th>
+                              <th className="text-left py-2.5 px-3 font-bold text-[10px] uppercase">Deskripsi Part</th>
+                              <th className="text-center py-2.5 px-3 font-bold text-[10px] uppercase">Qty</th>
+                              <th className="text-left py-2.5 px-3 font-bold text-[10px] uppercase">Material</th>
+                              <th className="text-center py-2.5 px-3 font-bold text-[10px] uppercase">Balloon Ref</th>
                             </tr>
-                          ) : (
-                            relations.map((rel, idx) => (
-                              <tr key={rel.id} className="border-b border-slate-800/50 hover:bg-slate-800/30">
-                                <td className="py-2.5 px-3 font-mono font-bold text-slate-300">0{idx + 1}</td>
-                                <td className="py-2.5 px-3 font-mono font-bold text-cyan-300">{rel.child?.code}</td>
-                                <td className="py-2.5 px-3 text-white font-medium">{rel.child?.name}</td>
-                                <td className="py-2.5 px-3 text-center font-bold text-white">{rel.quantity || 1}</td>
-                                <td className="py-2.5 px-3 text-slate-400">{rel.child?.metadata?.material || '-'}</td>
-                                <td className="py-2.5 px-3 text-center">
-                                  <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 font-bold text-[10px]">
-                                    #{idx + 1}
-                                  </span>
+                          </thead>
+                          <tbody>
+                            {relations.length === 0 ? (
+                              <tr>
+                                <td colSpan={6} className="text-center py-6 text-gray-400">
+                                  Tidak ada sub-part BOM. Tambahkan child drawing pada tab Relations.
                                 </td>
                               </tr>
-                            ))
-                          )}
-                        </tbody>
-                      </table>
+                            ) : (
+                              relations.map((rel, idx) => (
+                                <tr key={rel.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
+                                  <td className="py-2.5 px-3 font-mono font-bold text-gray-500">0{idx + 1}</td>
+                                  <td className="py-2.5 px-3 font-mono font-bold text-[#00A09D]">{rel.child?.code}</td>
+                                  <td className="py-2.5 px-3 text-gray-900 font-medium">{rel.child?.name}</td>
+                                  <td className="py-2.5 px-3 text-center font-bold text-gray-900">{rel.quantity || 1}</td>
+                                  <td className="py-2.5 px-3 text-gray-600">{rel.child?.metadata?.material || '-'}</td>
+                                  <td className="py-2.5 px-3 text-center">
+                                    <span className="px-2 py-0.5 rounded bg-[#714B67]/10 text-[#714B67] font-bold text-[10px]">
+                                      #{idx + 1}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 )}
 
                 {/* ══ 4. BALLOONS LIST TAB ══ */}
                 {activeTab === 'balloons' && (
-                  <div className="flex-1 overflow-y-auto p-6 space-y-3">
-                    <div className="flex items-center justify-between mb-2">
+                  <div className="flex-1 overflow-y-auto p-6 space-y-4 max-w-6xl">
+                    <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="text-sm font-bold text-white">Balloon Annotations</h3>
-                        {selectedRevision && <p className="text-[11px] text-slate-400 mt-0.5">Revision {selectedRevision.revision_code}</p>}
+                        <h3 className="text-sm font-bold text-gray-900">Balloon Annotations</h3>
+                        {selectedRevision && <p className="text-[11px] text-gray-500 mt-0.5">Revision {selectedRevision.revision_code}</p>}
                       </div>
                       <button
-                        onClick={() => { setBalloonFormData({ balloon_number: String(balloons.length + 1), position_x: 100, position_y: 100, color: '#3B82F6', symbol: 'CIRCLE', target_feature_id: null, target_part_id: null }); setShowBalloonModal(true); }}
+                        onClick={() => { setBalloonFormData({ balloon_number: String(balloons.length + 1), position_x: 100, position_y: 100, color: '#714B67', symbol: 'CIRCLE', target_feature_id: null, target_part_id: null }); setShowBalloonModal(true); }}
                         disabled={!selectedRevision}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/15 hover:bg-blue-600/25 text-blue-400 text-xs font-bold rounded-lg border border-blue-500/30 transition-all disabled:opacity-40"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#714B67] hover:bg-[#5C3D54] text-white text-xs font-bold rounded-md shadow-xs transition-all disabled:opacity-40 cursor-pointer"
                       >
                         <Plus size={13} /> Add Balloon Manual
                       </button>
                     </div>
 
                     {balloons.length === 0 ? (
-                      <div className="border border-dashed border-slate-700 rounded-xl p-8 flex flex-col items-center justify-center text-center">
-                        <Circle size={32} className="text-slate-600 mb-2" />
-                        <p className="text-xs text-slate-400 mb-3">Belum ada balloon. Buka tab <strong>Visual Blueprint</strong> dan klik '+ Taruh Balon Visual'.</p>
+                      <div className="border border-dashed border-gray-300 bg-white rounded-lg p-10 flex flex-col items-center justify-center text-center">
+                        <Circle size={32} className="text-gray-300 mb-2" />
+                        <p className="text-xs text-gray-500 font-medium mb-3">Belum ada balloon. Buka tab <strong>Visual Blueprint</strong> dan klik '+ Taruh Balon Visual'.</p>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
                         {balloons.map(balloon => (
-                          <div key={balloon.id} className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4 hover:border-slate-600 transition-all group">
+                          <div key={balloon.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-xs hover:border-[#714B67]/40 transition-all group">
                             <div className="flex items-center gap-3 mb-3">
                               <div
-                                className="w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-sm shadow-lg"
-                                style={{ backgroundColor: balloon.color || '#3B82F6' }}
+                                className="w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-sm shadow-xs"
+                                style={{ backgroundColor: balloon.color || '#714B67' }}
                               >
                                 {balloon.balloon_number}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <div className="text-xs font-bold text-white">Balloon #{balloon.balloon_number}</div>
-                                <div className="text-[11px] text-slate-400">
+                                <div className="text-xs font-bold text-gray-900">Balloon #{balloon.balloon_number}</div>
+                                <div className="text-[11px] text-gray-500">
                                   Pos: ({balloon.position_x}, {balloon.position_y})
                                 </div>
                               </div>
                               <button
                                 onClick={() => handleDeleteBalloon(balloon.id)}
-                                className="opacity-0 group-hover:opacity-100 p-1.5 text-red-400 hover:bg-red-500/15 rounded-lg transition-all"
+                                className="opacity-0 group-hover:opacity-100 p-1.5 text-rose-600 hover:bg-rose-50 rounded transition-all cursor-pointer"
                               >
                                 <Trash2 size={13} />
                               </button>
                             </div>
 
                             {balloon.target_feature && (
-                              <div className="bg-slate-900/50 rounded-lg p-2.5 mb-2">
-                                <div className="text-[10px] font-semibold text-slate-500 uppercase">Linked Feature</div>
-                                <div className="text-xs font-bold text-white mt-0.5">{balloon.target_feature.feature_name}</div>
+                              <div className="bg-[#f8f9fa] rounded-md p-2.5 border border-gray-100">
+                                <div className="text-[10px] font-bold text-gray-400 uppercase">Linked Feature</div>
+                                <div className="text-xs font-bold text-gray-900 mt-0.5">{balloon.target_feature.feature_name}</div>
                                 {balloon.target_feature.nominal_value && (
-                                  <div className="text-[11px] text-blue-300 mt-0.5">
+                                  <div className="text-[11px] text-[#00A09D] font-mono font-bold mt-0.5">
                                     {balloon.target_feature.nominal_value} ±{balloon.target_feature.upper_tolerance || '0'} {balloon.target_feature.unit || 'mm'}
                                   </div>
                                 )}
@@ -1665,62 +1664,62 @@ export default function DrawingManagement() {
 
                 {/* ══ 5. FEATURES TAB ══ */}
                 {activeTab === 'features' && (
-                  <div className="flex-1 overflow-y-auto p-6 space-y-3">
-                    <div className="flex items-center justify-between mb-2">
+                  <div className="flex-1 overflow-y-auto p-6 space-y-4 max-w-6xl">
+                    <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="text-sm font-bold text-white">Features & GD&T Dimensions</h3>
+                        <h3 className="text-sm font-bold text-gray-900">Features & GD&T Dimensions</h3>
                       </div>
                       <button
                         onClick={() => { setFeatureFormData({ feature_code: `DIM-00${features.length + 1}`, feature_name: '', feature_type: 'DIMENSION', nominal_value: '', upper_tolerance: '', lower_tolerance: '', unit: 'mm' }); setShowFeatureModal(true); }}
                         disabled={!selectedRevision}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/15 hover:bg-blue-600/25 text-blue-400 text-xs font-bold rounded-lg border border-blue-500/30 transition-all disabled:opacity-40"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#714B67] hover:bg-[#5C3D54] text-white text-xs font-bold rounded-md shadow-xs transition-all disabled:opacity-40 cursor-pointer"
                       >
                         <Plus size={13} /> Add Feature
                       </button>
                     </div>
 
                     {features.length === 0 ? (
-                      <div className="border border-dashed border-slate-700 rounded-xl p-8 flex flex-col items-center justify-center text-center">
-                        <Ruler size={32} className="text-slate-600 mb-2" />
-                        <p className="text-xs text-slate-400 mb-3">Belum ada fitur dimensi GD&T.</p>
+                      <div className="border border-dashed border-gray-300 bg-white rounded-lg p-10 flex flex-col items-center justify-center text-center">
+                        <Ruler size={32} className="text-gray-300 mb-2" />
+                        <p className="text-xs text-gray-500 font-medium mb-3">Belum ada fitur dimensi GD&T.</p>
                       </div>
                     ) : (
-                      <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl overflow-hidden">
+                      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-xs">
                         <table className="w-full text-xs">
                           <thead>
-                            <tr className="border-b border-slate-700">
-                              <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-400 uppercase">Code</th>
-                              <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-400 uppercase">Nama</th>
-                              <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-400 uppercase">Tipe</th>
-                              <th className="text-right px-4 py-3 text-[10px] font-bold text-slate-400 uppercase">Nominal</th>
-                              <th className="text-right px-4 py-3 text-[10px] font-bold text-slate-400 uppercase">Toleransi</th>
-                              <th className="text-center px-4 py-3 text-[10px] font-bold text-slate-400 uppercase">Unit</th>
-                              <th className="text-center px-4 py-3 text-[10px] font-bold text-slate-400 uppercase"></th>
+                            <tr className="border-b border-gray-200 bg-[#f8f9fa] text-gray-600">
+                              <th className="text-left px-4 py-3 text-[10px] font-bold uppercase">Code</th>
+                              <th className="text-left px-4 py-3 text-[10px] font-bold uppercase">Nama</th>
+                              <th className="text-left px-4 py-3 text-[10px] font-bold uppercase">Tipe</th>
+                              <th className="text-right px-4 py-3 text-[10px] font-bold uppercase">Nominal</th>
+                              <th className="text-right px-4 py-3 text-[10px] font-bold uppercase">Toleransi</th>
+                              <th className="text-center px-4 py-3 text-[10px] font-bold uppercase">Unit</th>
+                              <th className="text-center px-4 py-3 text-[10px] font-bold uppercase"></th>
                             </tr>
                           </thead>
                           <tbody>
                             {features.map(feat => {
                               const ftype = FEATURE_TYPES.find(f => f.key === feat.feature_type) || FEATURE_TYPES[0];
                               return (
-                                <tr key={feat.id} className="border-b border-slate-800/50 hover:bg-slate-800/30">
-                                  <td className="px-4 py-3 font-mono font-bold text-blue-300">{feat.feature_code}</td>
-                                  <td className="px-4 py-3 text-white font-semibold">{feat.feature_name}</td>
+                                <tr key={feat.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
+                                  <td className="px-4 py-3 font-mono font-bold text-[#714B67]">{feat.feature_code}</td>
+                                  <td className="px-4 py-3 text-gray-900 font-semibold">{feat.feature_name}</td>
                                   <td className="px-4 py-3">
-                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-700 border border-gray-200">
                                       {ftype.symbol} {ftype.label}
                                     </span>
                                   </td>
-                                  <td className="px-4 py-3 text-right font-mono text-white">{feat.nominal_value != null ? feat.nominal_value : '-'}</td>
-                                  <td className="px-4 py-3 text-right font-mono text-amber-300">
+                                  <td className="px-4 py-3 text-right font-mono font-bold text-gray-900">{feat.nominal_value != null ? feat.nominal_value : '-'}</td>
+                                  <td className="px-4 py-3 text-right font-mono text-amber-700">
                                     {feat.upper_tolerance != null && feat.lower_tolerance != null
                                       ? `+${feat.upper_tolerance} / -${feat.lower_tolerance}`
                                       : '-'}
                                   </td>
-                                  <td className="px-4 py-3 text-center text-slate-400">{feat.unit || 'mm'}</td>
+                                  <td className="px-4 py-3 text-center text-gray-500">{feat.unit || 'mm'}</td>
                                   <td className="px-4 py-3 text-center">
                                     <button
                                       onClick={() => handleDeleteFeature(feat.id)}
-                                      className="p-1 text-red-400 hover:bg-red-500/15 rounded"
+                                      className="p-1 text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
                                     >
                                       <Trash2 size={12} />
                                     </button>
@@ -1737,24 +1736,24 @@ export default function DrawingManagement() {
 
                 {/* ══ 6. RELATIONS TAB ══ */}
                 {activeTab === 'relations' && (
-                  <div className="flex-1 overflow-y-auto p-6 space-y-3">
-                    <h3 className="text-sm font-bold text-white mb-2">Hierarki Drawing Relations (Parent-Child)</h3>
+                  <div className="flex-1 overflow-y-auto p-6 space-y-4 max-w-6xl">
+                    <h3 className="text-sm font-bold text-gray-900 mb-2">Hierarki Drawing Relations (Parent-Child)</h3>
                     {relations.length === 0 ? (
-                      <div className="border border-dashed border-slate-700 rounded-xl p-8 flex flex-col items-center justify-center text-center">
-                        <Link2 size={32} className="text-slate-600 mb-2" />
-                        <p className="text-xs text-slate-400">Tidak ada child drawings yang terhubung.</p>
+                      <div className="border border-dashed border-gray-300 bg-white rounded-lg p-10 flex flex-col items-center justify-center text-center">
+                        <Link2 size={32} className="text-gray-300 mb-2" />
+                        <p className="text-xs text-gray-500 font-medium">Tidak ada child drawings yang terhubung.</p>
                       </div>
                     ) : (
                       <div className="space-y-2">
                         {relations.map(rel => (
-                          <div key={rel.id} className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4 flex items-center justify-between">
+                          <div key={rel.id} className="bg-white border border-gray-200 rounded-lg p-4 flex items-center justify-between shadow-xs">
                             <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-purple-500/15 text-purple-400 flex items-center justify-center">
+                              <div className="w-8 h-8 rounded-lg bg-[#714B67]/10 text-[#714B67] flex items-center justify-center">
                                 <Package size={16} />
                               </div>
                               <div>
-                                <div className="text-xs font-bold text-white">{rel.child?.code || 'Unknown'}</div>
-                                <div className="text-[11px] text-slate-400">{rel.child?.name || ''}</div>
+                                <div className="text-xs font-bold text-gray-900">{rel.child?.code || 'Unknown'}</div>
+                                <div className="text-[11px] text-gray-500">{rel.child?.name || ''}</div>
                               </div>
                             </div>
                             <button
@@ -1762,7 +1761,7 @@ export default function DrawingManagement() {
                                 setRelations(prev => prev.filter(r => r.id !== rel.id));
                                 toast.success('Relation removed');
                               })}
-                              className="p-1.5 text-red-400 hover:bg-red-500/15 rounded-lg"
+                              className="p-1.5 text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
                             >
                               <Trash2 size={12} />
                             </button>
@@ -1778,7 +1777,7 @@ export default function DrawingManagement() {
         </div>
       </div>
 
-      {/* ═══ MODALS ═══ */}
+      {/* ═══ MODALS (ODOO STYLE DIALOGS) ═══ */}
 
       {/* ── 1. Create Revision Modal with Full ECN Form ── */}
       <Modal
@@ -1789,12 +1788,12 @@ export default function DrawingManagement() {
         submitLabel="Dokumentasikan ECN & Revisi"
         maxWidth="max-w-2xl"
       >
-        <div className="bg-slate-900/80 p-3.5 rounded-xl border border-slate-700/60 flex items-center justify-between">
+        <div className="bg-[#f8f9fa] p-3.5 rounded-lg border border-gray-200 flex items-center justify-between">
           <div>
-            <div className="text-[11px] text-slate-400">Drawing Target:</div>
-            <div className="text-sm font-black text-white">{selectedDrawing?.code} - {selectedDrawing?.name}</div>
+            <div className="text-[11px] text-gray-500 font-medium">Drawing Target:</div>
+            <div className="text-sm font-bold text-gray-900">{selectedDrawing?.code} - {selectedDrawing?.name}</div>
           </div>
-          <span className="bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+          <span className="bg-[#714B67]/10 text-[#714B67] border border-[#714B67]/20 text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
             <ShieldCheck size={11} /> ISO 9001 Form
           </span>
         </div>
@@ -1852,19 +1851,19 @@ export default function DrawingManagement() {
             options={DISPOSITIONS.map(d => ({ value: d.key, label: d.label }))}
           />
           <div className="flex flex-col justify-end">
-            <label className="flex items-center gap-2 cursor-pointer py-2 text-xs font-semibold text-slate-300">
+            <label className="flex items-center gap-2 cursor-pointer py-2 text-xs font-semibold text-gray-700">
               <input
                 type="checkbox"
                 checked={revFormData.tooling_impact}
                 onChange={e => setRevFormData(p => ({ ...p, tooling_impact: e.target.checked }))}
-                className="w-4 h-4 rounded text-blue-600 bg-slate-900 border-slate-700"
+                className="w-4 h-4 rounded text-[#714B67] border-gray-300"
               />
               Perlu Modifikasi Tooling / Jig / Cetakan
             </label>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 border-t border-slate-700">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 border-t border-gray-200">
           <InputField
             label="Originator (Insinyur Pembuat)"
             value={revFormData.originator}
@@ -1882,108 +1881,108 @@ export default function DrawingManagement() {
 
       {/* ── 2. ECN Certificate & Detail Viewer Modal ── */}
       {showEcnDetailModal && selectedEcnRevision && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[9999] p-4" onClick={() => setShowEcnDetailModal(false)}>
-          <div className="bg-slate-850 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[88vh] flex flex-col overflow-hidden" style={{ backgroundColor: '#0f172a' }} onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 shrink-0">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-[9999] p-4" onClick={() => setShowEcnDetailModal(false)}>
+          <div className="bg-white border border-gray-200 rounded-xl shadow-2xl w-full max-w-3xl max-h-[88vh] flex flex-col overflow-hidden text-gray-900" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-[#f8f9fa] shrink-0">
               <div className="flex items-center gap-2.5">
-                <ShieldCheck size={20} className="text-emerald-400" />
+                <ShieldCheck size={20} className="text-emerald-600" />
                 <div>
-                  <h3 className="text-base font-bold text-white">Sertifikat Engineering Change Notice (ECN)</h3>
-                  <p className="text-xs text-slate-400 font-mono">
+                  <h3 className="text-base font-bold text-gray-900">Sertifikat Engineering Change Notice (ECN)</h3>
+                  <p className="text-xs text-gray-500 font-mono">
                     {selectedEcnRevision.metadata?.ecn_number || `ECN-${selectedDrawing?.code}-REV-${selectedEcnRevision.revision_code}`}
                   </p>
                 </div>
               </div>
-              <button onClick={() => setShowEcnDetailModal(false)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setShowEcnDetailModal(false)} className="text-gray-400 hover:text-gray-700 cursor-pointer">
                 <X size={20} />
               </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+              <div className="bg-[#f8f9fa] border border-gray-200 rounded-lg p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
                 <div>
-                  <span className="text-slate-400 font-semibold">Drawing:</span>
-                  <div className="font-bold text-white">{selectedDrawing?.code}</div>
+                  <span className="text-gray-500 font-semibold">Drawing:</span>
+                  <div className="font-bold text-gray-900">{selectedDrawing?.code}</div>
                 </div>
                 <div>
-                  <span className="text-slate-400 font-semibold">Revision Target:</span>
-                  <div className="font-bold text-cyan-400">Rev {selectedEcnRevision.revision_code}</div>
+                  <span className="text-gray-500 font-semibold">Revision Target:</span>
+                  <div className="font-bold text-[#00A09D]">Rev {selectedEcnRevision.revision_code}</div>
                 </div>
                 <div>
-                  <span className="text-slate-400 font-semibold">Status ISO:</span>
-                  <div className={`font-bold ${selectedEcnRevision.status === 'RELEASED' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  <span className="text-gray-500 font-semibold">Status ISO:</span>
+                  <div className={`font-bold ${selectedEcnRevision.status === 'RELEASED' ? 'text-emerald-600' : 'text-amber-600'}`}>
                     {selectedEcnRevision.status}
                   </div>
                 </div>
                 <div>
-                  <span className="text-slate-400 font-semibold">Tanggal Efektif:</span>
-                  <div className="font-bold text-white">{selectedEcnRevision.metadata?.effective_date || new Date().toISOString().split('T')[0]}</div>
+                  <span className="text-gray-500 font-semibold">Tanggal Efektif:</span>
+                  <div className="font-bold text-gray-900">{selectedEcnRevision.metadata?.effective_date || new Date().toISOString().split('T')[0]}</div>
                 </div>
               </div>
 
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+              <div className="bg-[#f8f9fa] border border-gray-200 rounded-lg p-4 space-y-3">
                 <div>
-                  <span className="text-[11px] font-bold text-purple-400 uppercase tracking-wider">Kategori Perubahan</span>
-                  <div className="text-sm font-semibold text-white mt-0.5">
+                  <span className="text-[11px] font-bold text-[#714B67] uppercase tracking-wider">Kategori Perubahan</span>
+                  <div className="text-sm font-semibold text-gray-900 mt-0.5">
                     {ECN_CATEGORIES.find(c => c.key === selectedEcnRevision.metadata?.change_category)?.label || 'Optimasi Desain'}
                   </div>
                 </div>
                 <div>
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Alasan Perubahan (Reason for Change)</span>
-                  <p className="text-xs text-slate-200 mt-1 bg-slate-950/60 p-3 rounded-lg border border-slate-800/80">
+                  <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Alasan Perubahan (Reason for Change)</span>
+                  <p className="text-xs text-gray-800 mt-1 bg-white p-3 rounded-md border border-gray-200">
                     {selectedEcnRevision.metadata?.reason_for_change || selectedEcnRevision.description || 'Rilis pembaruan gambar kerja'}
                   </p>
                 </div>
                 <div>
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Rincian Teknis Perubahan</span>
-                  <p className="text-xs text-slate-200 mt-1 bg-slate-950/60 p-3 rounded-lg border border-slate-800/80">
+                  <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Rincian Teknis Perubahan</span>
+                  <p className="text-xs text-gray-800 mt-1 bg-white p-3 rounded-md border border-gray-200">
                     {selectedEcnRevision.description || 'Pembaruan dimensi dan toleransi'}
                   </p>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                   <div>
-                    <span className="text-[10px] text-slate-400 font-semibold">Disposisi Material WIP:</span>
-                    <div className="text-xs font-bold text-amber-300 mt-0.5">
+                    <span className="text-[10px] text-gray-500 font-semibold">Disposisi Material WIP:</span>
+                    <div className="text-xs font-bold text-amber-700 mt-0.5">
                       {DISPOSITIONS.find(d => d.key === selectedEcnRevision.metadata?.disposition)?.label || 'Use As Is'}
                     </div>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 font-semibold">Dampak Tooling:</span>
-                    <div className="text-xs font-bold text-white mt-0.5">
+                    <span className="text-[10px] text-gray-500 font-semibold">Dampak Tooling:</span>
+                    <div className="text-xs font-bold text-gray-900 mt-0.5">
                       {selectedEcnRevision.metadata?.tooling_impact ? '⚠️ Ya (Perlu Modifikasi Cetakan/Tooling)' : '✓ Tidak ada dampak tooling'}
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="bg-[#f8f9fa] border border-gray-200 rounded-lg p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                  <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
                     <Award size={20} />
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-white">Digital Approval Sign-Off</div>
-                    <div className="text-[11px] text-slate-400">
-                      Disetujui oleh: <strong className="text-emerald-400">{selectedEcnRevision.metadata?.approver || 'QA Manager'}</strong>
+                    <div className="text-xs font-bold text-gray-900">Digital Approval Sign-Off</div>
+                    <div className="text-[11px] text-gray-500">
+                      Disetujui oleh: <strong className="text-emerald-700">{selectedEcnRevision.metadata?.approver || 'QA Manager'}</strong>
                     </div>
                   </div>
                 </div>
-                <span className="text-[10px] font-mono px-3 py-1 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                <span className="text-[10px] font-mono px-3 py-1 rounded bg-white text-gray-600 border border-gray-200">
                   ISO 9001 / IATF 16949 VERIFIED
                 </span>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-800 shrink-0 bg-slate-900">
+            <div className="flex items-center justify-end gap-2 px-6 py-3.5 border-t border-gray-200 shrink-0 bg-[#f8f9fa]">
               <button
                 onClick={() => window.print()}
-                className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-lg transition-all"
+                className="flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 text-xs font-semibold rounded-md shadow-2xs transition-all cursor-pointer"
               >
                 <Printer size={14} /> Cetak Lembar ECN
               </button>
               <button
                 onClick={() => setShowEcnDetailModal(false)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow transition-all"
+                className="px-4 py-2 bg-[#714B67] hover:bg-[#5C3D54] text-white text-xs font-semibold rounded-md shadow-xs transition-all cursor-pointer"
               >
                 Tutup
               </button>
@@ -1994,26 +1993,26 @@ export default function DrawingManagement() {
 
       {/* ── 3. Select Master Part Modal ── */}
       <Modal show={showPartModal} onClose={() => setShowPartModal(false)} title="Hubungkan ke Master Part Number">
-        <p className="text-xs text-slate-400 mb-3">Pilih Part Number yang sesuai dari database PLM:</p>
+        <p className="text-xs text-gray-500 mb-3">Pilih Part Number yang sesuai dari database PLM:</p>
         <div className="max-h-60 overflow-y-auto space-y-1.5">
           {parts.map(p => (
             <button
               key={p.id}
               onClick={() => handleLinkPart(p)}
-              className="w-full text-left p-2.5 rounded-lg bg-slate-900 hover:bg-blue-600/20 border border-slate-700 hover:border-blue-500/40 transition-all flex items-center justify-between group"
+              className="w-full text-left p-2.5 rounded-md bg-[#f8f9fa] hover:bg-purple-50/50 border border-gray-200 hover:border-[#714B67]/40 transition-all flex items-center justify-between group cursor-pointer"
             >
               <div>
-                <div className="text-xs font-bold text-white font-mono group-hover:text-cyan-300">{p.code}</div>
-                <div className="text-[11px] text-slate-400">{p.name} • {p.material || 'Material N/A'}</div>
+                <div className="text-xs font-bold text-gray-900 font-mono group-hover:text-[#714B67]">{p.code}</div>
+                <div className="text-[11px] text-gray-500">{p.name} • {p.material || 'Material N/A'}</div>
               </div>
-              <Check size={14} className="text-slate-600 group-hover:text-cyan-400" />
+              <Check size={14} className="text-gray-300 group-hover:text-[#714B67]" />
             </button>
           ))}
         </div>
-        <div className="pt-3 border-t border-slate-700 flex justify-end">
+        <div className="pt-3 border-t border-gray-200 flex justify-end">
           <button
             onClick={() => { setShowPartModal(false); setShowCreatePartModal(true); }}
-            className="text-xs font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+            className="text-xs font-bold text-[#714B67] hover:underline flex items-center gap-1 cursor-pointer"
           >
             <Plus size={13} /> Buat Part Baru di Master
           </button>
@@ -2072,9 +2071,9 @@ export default function DrawingManagement() {
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Warna Balon</label>
+            <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider mb-1.5">Warna Balon</label>
             <input type="color" value={balloonFormData.color} onChange={e => setBalloonFormData(p => ({ ...p, color: e.target.value }))}
-              className="w-full h-9 bg-slate-900 border border-slate-700 rounded-lg cursor-pointer" />
+              className="w-full h-9 bg-white border border-gray-300 rounded-md cursor-pointer" />
           </div>
           <SelectField label="Simbol" value={balloonFormData.symbol} onChange={v => setBalloonFormData(p => ({ ...p, symbol: v }))}
             options={[{ value: 'CIRCLE', label: '● Circle' }, { value: 'SQUARE', label: '■ Square' }, { value: 'TRIANGLE', label: '▲ Triangle' }, { value: 'DIAMOND', label: '◆ Diamond' }]} />

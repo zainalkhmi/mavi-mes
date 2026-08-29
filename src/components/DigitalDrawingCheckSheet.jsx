@@ -555,7 +555,7 @@ export default function DigitalDrawingCheckSheet() {
   // Check sheet items state
   const [checkPoints, setCheckPoints] = useState(loadCheckPoints);
   const [activePointId, setActivePointId] = useState('cp_1');
-  const [activeTab, setActiveTab] = useState('Checkers'); // Checkers | Check | Calibration | Summary
+  const [activeTab, setActiveTab] = useState('Check'); // Check (Focus) | Checkers | Calibration | Summary
   const [filterCriticality, setFilterCriticality] = useState('ALL');
 
   // Canvas Viewport State (Zoom & Pan)

@@ -6,8 +6,8 @@
  */
 
 export const securityHeaders = {
-  // Prevent clickjacking
-  'X-Frame-Options': 'DENY',
+  // Prevent clickjacking while allowing same-origin iframes for app previews
+  'X-Frame-Options': 'SAMEORIGIN',
 
   // Prevent MIME type sniffing
   'X-Content-Type-Options': 'nosniff',
@@ -15,8 +15,8 @@ export const securityHeaders = {
   // Control referrer information
   'Referrer-Policy': 'strict-origin-when-cross-origin',
 
-  // Disable some browser features
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+  // Permissions Policy
+  'Permissions-Policy': 'camera=*, microphone=*, geolocation=()',
 
   // XSS Protection (legacy browsers)
   'X-XSS-Protection': '1; mode=block',
@@ -31,13 +31,14 @@ export const securityHeaders = {
     // Fonts: Google Fonts
     "font-src 'self' https://fonts.gstatic.com data:",
     // Images: self + data URIs + Supabase storage + external URLs
-    "img-src 'self' data: https://*.supabase.co https://*.supabase.storage https://*.googleusercontent.com blob:",
-    // Connect: API endpoints
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.openai.com https://api.anthropic.com",
-    // Frames: none
-    "frame-ancestors 'none'",
+    "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.storage https://*.googleusercontent.com https://images.unsplash.com https://w0.peakpx.com",
+    // Connect: API endpoints, WebSockets, Supabase, AI & IoT brokers
+    "connect-src 'self' http: https: ws: wss: data: blob:",
+    // Frames: allow preview iframes
+    "frame-src 'self' blob: data: http://localhost:* http://127.0.0.1:* https://*.mandor.cloud https://mandor.cloud",
+    "frame-ancestors 'self' http://localhost:* http://127.0.0.1:* https://*.mandor.cloud https://mandor.cloud https://*.vercel.app",
     // Media: self + blob
-    "media-src 'self' blob:",
+    "media-src 'self' blob: data: https://assets.mixkit.co https://*.mixkit.co",
     // Objects: none
     "object-src 'none'",
     // Base URI: self
@@ -61,12 +62,14 @@ export function getSecurityHeaders(isProduction = false) {
   if (!isProduction) {
     headers['Content-Security-Policy'] = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' ws://localhost:* http://localhost:*",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' ws://localhost:* http://localhost:* https://cdn.jsdelivr.net blob:",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
       "font-src 'self' https://fonts.gstatic.com data:",
-      "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.storage",
-      "connect-src 'self' ws://localhost:* http://localhost:* https://*.supabase.co wss://*.supabase.co",
-      "frame-ancestors 'none'",
+      "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.storage https://*.googleusercontent.com https://images.unsplash.com https://w0.peakpx.com",
+      "media-src 'self' blob: data: https://assets.mixkit.co https://*.mixkit.co",
+      "connect-src 'self' http: https: ws: wss: data: blob:",
+      "frame-src 'self' blob: data: http://localhost:* http://127.0.0.1:* https://*.mandor.cloud https://mandor.cloud",
+      "frame-ancestors 'self' http://localhost:* http://127.0.0.1:* https://*.mandor.cloud https://mandor.cloud https://*.vercel.app",
     ].join('; ');
   }
 

@@ -5,19 +5,21 @@ import tailwindcss from '@tailwindcss/vite'
 
 // Security headers for production
 const securityHeaders = {
-  'X-Frame-Options': 'DENY',
+  'X-Frame-Options': 'SAMEORIGIN',
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+  'Permissions-Policy': 'camera=*, microphone=*, geolocation=()',
   'X-XSS-Protection': '1; mode=block',
   'Content-Security-Policy': [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.supabase.co",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.supabase.co https://cdn.jsdelivr.net blob:",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
     "font-src 'self' https://fonts.gstatic.com data:",
-    "img-src 'self' data: https://*.supabase.co blob:",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
-    "frame-ancestors 'none'",
+    "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.storage https://*.googleusercontent.com https://images.unsplash.com https://w0.peakpx.com",
+    "media-src 'self' blob: data: https://assets.mixkit.co https://*.mixkit.co",
+    "connect-src 'self' http: https: ws: wss: data: blob:",
+    "frame-src 'self' blob: data: http://localhost:* http://127.0.0.1:* https://*.mandor.cloud https://mandor.cloud",
+    "frame-ancestors 'self' http://localhost:* http://127.0.0.1:* https://*.mandor.cloud https://mandor.cloud https://*.vercel.app",
   ].join('; '),
 };
 
@@ -128,12 +130,14 @@ export default defineConfig({
       // Relax CSP for dev
       'Content-Security-Policy': [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' ws://localhost:* http://localhost:*",
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' ws://localhost:* http://localhost:* https://cdn.jsdelivr.net blob:",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
         "font-src 'self' https://fonts.gstatic.com data:",
-        "img-src 'self' data: blob: https://*.supabase.co",
-        "connect-src 'self' ws://localhost:* http://localhost:* https://*.supabase.co wss://*.supabase.co",
-        "frame-ancestors 'none'",
+        "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.storage https://*.googleusercontent.com https://images.unsplash.com https://w0.peakpx.com",
+        "media-src 'self' blob: data: https://assets.mixkit.co https://*.mixkit.co",
+        "connect-src 'self' http: https: ws: wss: data: blob:",
+        "frame-src 'self' blob: data: http://localhost:* http://127.0.0.1:* https://*.mandor.cloud https://mandor.cloud",
+        "frame-ancestors 'self' http://localhost:* http://127.0.0.1:* https://*.mandor.cloud https://mandor.cloud https://*.vercel.app",
       ].join('; '),
     },
   },
