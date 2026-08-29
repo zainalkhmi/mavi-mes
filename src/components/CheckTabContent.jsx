@@ -112,48 +112,48 @@ export default function CheckTabContent({ activePt, onChange, onCommit, onToggle
   }, [nominal, tolRange, currentValNum, hasValidInput, isOutOfSpec]);
 
   return (
-    <div style={{ flex: 1, padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto', backgroundColor: '#090d16' }}>
+    <div style={{ flex: 1, height: '100%', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '8px', overflow: 'hidden', backgroundColor: '#090d16' }}>
       
       {/* ── 1. ENTERPRISE SAMPLE & TOOL TRACKING HEADER ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#0f172a', padding: '8px 12px', borderRadius: '10px', border: '1px solid #1e293b' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#0f172a', padding: '6px 10px', borderRadius: '8px', border: '1px solid #1e293b' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#94a3b8' }}>SAMPLE:</span>
+          <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8' }}>SAMPLE:</span>
           <select
             value={samplePiece}
             onChange={(e) => setSamplePiece(Number(e.target.value))}
-            style={{ backgroundColor: '#1e293b', color: '#38bdf8', border: '1px solid #334155', borderRadius: '6px', padding: '3px 6px', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer' }}
+            style={{ backgroundColor: '#1e293b', color: '#38bdf8', border: '1px solid #334155', borderRadius: '5px', padding: '2px 5px', fontSize: '0.7rem', fontWeight: 800, cursor: 'pointer' }}
           >
-            {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>Piece #{n} of 5</option>)}
+            {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>Piece #{n}</option>)}
           </select>
           <select
             value={cavityNo}
             onChange={(e) => setCavityNo(Number(e.target.value))}
-            style={{ backgroundColor: '#1e293b', color: '#cbd5e1', border: '1px solid #334155', borderRadius: '6px', padding: '3px 6px', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}
+            style={{ backgroundColor: '#1e293b', color: '#cbd5e1', border: '1px solid #334155', borderRadius: '5px', padding: '2px 5px', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}
           >
             {[1, 2, 3, 4].map(c => <option key={c} value={c}>Cavity #{c}</option>)}
           </select>
         </div>
 
-        {/* Direct Bluetooth Tool Sync */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        {/* Direct Bluetooth Tool Sync & Voice */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
           <button
             onClick={handleSyncBluetoothGauge}
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '4px',
+              gap: '3px',
               backgroundColor: 'rgba(34, 197, 94, 0.15)',
               border: '1px solid #22c55e',
               color: '#22c55e',
-              padding: '3px 8px',
-              borderRadius: '6px',
-              fontSize: '0.7rem',
+              padding: '2px 6px',
+              borderRadius: '5px',
+              fontSize: '0.68rem',
               fontWeight: 800,
               cursor: 'pointer'
             }}
-            title="Klik untuk mengambil nilai terkini dari Bluetooth Digital Caliper / Tool"
+            title="Ambil nilai terkini dari Bluetooth Caliper / Tool"
           >
-            <Wifi size={12} />
+            <Wifi size={11} />
             <span>Sync Tool</span>
           </button>
           <button
@@ -165,28 +165,28 @@ export default function CheckTabContent({ activePt, onChange, onCommit, onToggle
               backgroundColor: isListeningVoice ? '#ef4444' : '#1e293b',
               border: isListeningVoice ? '1px solid #ef4444' : '1px solid #334155',
               color: isListeningVoice ? 'white' : '#94a3b8',
-              padding: '4px 6px',
-              borderRadius: '6px',
+              padding: '3px 5px',
+              borderRadius: '5px',
               cursor: 'pointer'
             }}
             title="Hands-free Voice Dictation"
           >
-            <Mic size={13} />
+            <Mic size={12} />
           </button>
         </div>
       </div>
 
       {/* ── 2. ACTIVE POINT METADATA & TOLERANCE BADGES ── */}
-      <div style={{ backgroundColor: '#0f172a', padding: '10px 14px', borderRadius: '10px', border: '1px solid #1e293b' }}>
+      <div style={{ backgroundColor: '#0f172a', padding: '8px 10px', borderRadius: '8px', border: '1px solid #1e293b' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '1rem', fontWeight: 900, color: '#38bdf8' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '0.9rem', fontWeight: 900, color: '#38bdf8' }}>
               #{activePt.pointNumber} {activePt.title}
             </span>
             <span style={{
-              padding: '2px 8px',
-              borderRadius: '6px',
-              fontSize: '0.7rem',
+              padding: '1px 6px',
+              borderRadius: '4px',
+              fontSize: '0.65rem',
               fontWeight: 900,
               backgroundColor: isOutOfSpec ? '#ef4444' : computedStatus === 'OK' ? '#22c55e' : '#334155',
               color: 'white'
@@ -194,12 +194,12 @@ export default function CheckTabContent({ activePt, onChange, onCommit, onToggle
               {isOutOfSpec ? 'NG' : computedStatus}
             </span>
           </div>
-          <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700 }}>
+          <span style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 700 }}>
             {activePt.criticality || 'Critical (CC)'}
           </span>
         </div>
 
-        <div style={{ fontSize: '0.76rem', color: '#94a3b8', marginTop: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '3px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>🛠️ <strong>{activePt.toolId || 'Digital Caliper'}</strong></span>
           <span>Nom: <strong style={{ color: '#38bdf8' }}>{nominal} {activePt.unit}</strong></span>
           <span>Tol: <strong style={{ color: '#cbd5e1' }}>{tolMin} ~ {tolMax}</strong></span>
@@ -209,12 +209,12 @@ export default function CheckTabContent({ activePt, onChange, onCommit, onToggle
       {/* ── 3. 7-SEGMENT DIGITAL DISPLAY SCREEN ── */}
       <div style={{
         backgroundColor: '#020617',
-        border: `2.5px solid ${borderColor}`,
-        borderRadius: '12px',
-        padding: '12px 18px',
+        border: `2px solid ${borderColor}`,
+        borderRadius: '10px',
+        padding: '8px 12px',
         textAlign: 'center',
         animation: isOutOfSpec ? 'blink-red 0.8s ease-in-out infinite' : 'none',
-        boxShadow: isOutOfSpec ? '0 0 24px rgba(239, 68, 68, 0.45), inset 0 2px 6px rgba(0,0,0,0.9)' : computedStatus === 'OK' ? '0 0 20px rgba(34, 197, 94, 0.35), inset 0 2px 6px rgba(0,0,0,0.9)' : 'inset 0 3px 8px rgba(0,0,0,0.95)'
+        boxShadow: isOutOfSpec ? '0 0 16px rgba(239, 68, 68, 0.4), inset 0 2px 6px rgba(0,0,0,0.9)' : computedStatus === 'OK' ? '0 0 14px rgba(34, 197, 94, 0.3), inset 0 2px 6px rgba(0,0,0,0.9)' : 'inset 0 3px 6px rgba(0,0,0,0.95)'
       }}>
         <style>{`
           @keyframes blink-red {
@@ -222,55 +222,50 @@ export default function CheckTabContent({ activePt, onChange, onCommit, onToggle
             50% { border-color: #7f1d1d; }
           }
         `}</style>
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '8px' }}>
           <span style={{
-            fontSize: '3.2rem',
+            fontSize: '2.4rem',
             fontWeight: 900,
             fontFamily: "'Orbitron', 'Share Tech Mono', monospace",
-            letterSpacing: '2px',
+            letterSpacing: '1px',
             color: inputColor,
-            textShadow: `0 0 14px ${isOutOfSpec ? 'rgba(239, 68, 68, 0.7)' : computedStatus === 'OK' ? 'rgba(34, 197, 94, 0.7)' : 'rgba(56, 189, 248, 0.6)'}`,
-            minWidth: '200px'
+            textShadow: `0 0 10px ${isOutOfSpec ? 'rgba(239, 68, 68, 0.7)' : computedStatus === 'OK' ? 'rgba(34, 197, 94, 0.7)' : 'rgba(56, 189, 248, 0.6)'}`,
+            minWidth: '150px'
           }}>
             {inputValue || '0.000'}
           </span>
-          <span style={{ fontSize: '1.2rem', color: '#64748b', fontWeight: 800, fontFamily: "'Orbitron', monospace" }}>
+          <span style={{ fontSize: '1rem', color: '#64748b', fontWeight: 800, fontFamily: "'Orbitron', monospace" }}>
             {activePt.unit}
           </span>
         </div>
 
         {/* Real-Time Deviation Metric */}
         {hasValidInput && (
-          <div style={{ marginTop: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', fontSize: '0.74rem', fontWeight: 800 }}>
+          <div style={{ marginTop: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '0.68rem', fontWeight: 800 }}>
             <span style={{ color: delta === 0 ? '#38bdf8' : isOutOfSpec ? '#ef4444' : '#22c55e' }}>
               Δ Dev: {deltaFormatted} {activePt.unit}
             </span>
             <span style={{ color: '#64748b' }}>•</span>
             <span style={{ color: isOutOfSpec ? '#ef4444' : isNearLimit ? '#f59e0b' : '#22c55e' }}>
-              {isOutOfSpec ? '⚠️ DI LUAR TOLERANSI (NG)' : isNearLimit ? '⚠️ MENDEKATI BATAS TOLERANSI' : '✓ OPTIMAL (CPK > 1.33)'}
+              {isOutOfSpec ? '⚠️ DI LUAR TOLERANSI (NG)' : isNearLimit ? '⚠️ MENDEKATI BATAS' : '✓ OPTIMAL'}
             </span>
           </div>
         )}
       </div>
 
       {/* ── 4. ENTERPRISE REAL-TIME DYNAMIC TOLERANCE GAUGE BAR ── */}
-      <div style={{ backgroundColor: '#0f172a', padding: '10px 14px', borderRadius: '10px', border: '1px solid #1e293b' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', fontWeight: 800, color: '#64748b', marginBottom: '6px' }}>
+      <div style={{ backgroundColor: '#0f172a', padding: '6px 10px', borderRadius: '8px', border: '1px solid #1e293b' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.64rem', fontWeight: 800, color: '#64748b', marginBottom: '3px' }}>
           <span style={{ color: '#fca5a5' }}>LSL: {tolMin}</span>
           <span style={{ color: '#38bdf8' }}>NOM: {nominal}</span>
           <span style={{ color: '#fca5a5' }}>USL: {tolMax}</span>
         </div>
 
         {/* Track Bar with Color Zones */}
-        <div style={{ position: 'relative', height: '14px', backgroundColor: '#020617', borderRadius: '7px', overflow: 'visible', border: '1px solid #334155' }}>
-          {/* Zone 1: Amber Near LSL */}
+        <div style={{ position: 'relative', height: '10px', backgroundColor: '#020617', borderRadius: '5px', overflow: 'visible', border: '1px solid #334155' }}>
           <div style={{ position: 'absolute', left: '0%', width: '20%', height: '100%', backgroundColor: 'rgba(245, 158, 11, 0.25)' }} />
-          {/* Zone 2: Green In-Spec Nominal */}
           <div style={{ position: 'absolute', left: '20%', width: '60%', height: '100%', backgroundColor: 'rgba(34, 197, 94, 0.35)' }} />
-          {/* Zone 3: Amber Near USL */}
           <div style={{ position: 'absolute', left: '80%', width: '20%', height: '100%', backgroundColor: 'rgba(245, 158, 11, 0.25)' }} />
-          
-          {/* Center Nominal Target Marker */}
           <div style={{ position: 'absolute', left: '50%', top: '-2px', bottom: '-2px', width: '2px', backgroundColor: '#38bdf8', zIndex: 5 }} />
 
           {/* Dynamic Needle Indicator */}
@@ -279,13 +274,13 @@ export default function CheckTabContent({ activePt, onChange, onCommit, onToggle
               style={{
                 position: 'absolute',
                 left: `${barPercent}%`,
-                top: '-4px',
+                top: '-3px',
                 transform: 'translateX(-50%)',
-                width: '10px',
-                height: '20px',
+                width: '8px',
+                height: '16px',
                 backgroundColor: inputColor,
-                borderRadius: '3px',
-                boxShadow: `0 0 10px ${inputColor}`,
+                borderRadius: '2px',
+                boxShadow: `0 0 8px ${inputColor}`,
                 zIndex: 10,
                 transition: 'left 0.15s ease-out'
               }}
@@ -294,53 +289,18 @@ export default function CheckTabContent({ activePt, onChange, onCommit, onToggle
         </div>
       </div>
 
-      {/* ── 5. MINI SPC 5-PIECE RUN CHART (COLLAPSIBLE) ── */}
-      <div style={{ backgroundColor: '#0f172a', padding: '8px 12px', borderRadius: '10px', border: '1px solid #1e293b' }}>
-        <div
-          onClick={() => setShowSpcTrend(!showSpcTrend)}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#94a3b8', fontSize: '0.7rem', fontWeight: 800 }}>
-            <Activity size={13} color="#38bdf8" />
-            <span>SPC RUN TREND (5 SAMPLES)</span>
-          </div>
-          <span style={{ fontSize: '0.68rem', color: '#64748b' }}>{showSpcTrend ? '▲ Tutup' : '▼ Lihat'}</span>
-        </div>
-
-        {showSpcTrend && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', marginTop: '8px', paddingTop: '6px', borderTop: '1px solid #1e293b' }}>
-            {historicalSamples.map((s, idx) => (
-              <div key={idx} style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '0.62rem', color: s.current ? '#38bdf8' : '#64748b', fontWeight: 800 }}>
-                  P#{s.piece}
-                </div>
-                <div style={{
-                  marginTop: '2px',
-                  padding: '2px 6px',
-                  borderRadius: '4px',
-                  fontSize: '0.68rem',
-                  fontWeight: 900,
-                  backgroundColor: s.current ? (s.status === 'NG' ? 'rgba(239, 68, 68, 0.3)' : 'rgba(56, 189, 248, 0.25)') : '#1e293b',
-                  color: s.status === 'NG' ? '#ef4444' : s.current ? '#38bdf8' : '#cbd5e1',
-                  border: s.current ? '1px solid #38bdf8' : '1px solid #334155'
-                }}>
-                  {s.val}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ── 6. SPACIOUS TOUCH KEYPAD ── */}
+      {/* ── 5. COMPACT TOUCH KEYPAD WITH SMART SPEC TOLERANCE AUDIO & VISUAL FEEDBACK ── */}
       <NumpadInput
         value={inputValue}
         onChange={handleInputChange}
         onSubmit={handleSubmit}
+        tolMin={tolMin}
+        tolMax={tolMax}
+        isOutOfSpec={isOutOfSpec}
       />
 
-      {/* ── 7. ACTION BUTTONS: OK, SIMPAN, NG ── */}
-      <div style={{ display: 'flex', gap: '10px', marginTop: '2px' }}>
+      {/* ── 6. ACTION BUTTONS: OK, SIMPAN, NG ── */}
+      <div style={{ display: 'flex', gap: '8px', marginTop: '1px' }}>
         <button
           onClick={() => {
             onToggleStatus(activePt.id, 'OK');
@@ -348,15 +308,15 @@ export default function CheckTabContent({ activePt, onChange, onCommit, onToggle
           }}
           style={{
             flex: 1,
-            padding: '14px',
+            padding: '11px',
             backgroundColor: computedStatus === 'OK' && !isOutOfSpec ? '#22c55e' : '#1e293b',
             color: computedStatus === 'OK' && !isOutOfSpec ? '#0f172a' : '#94a3b8',
             border: computedStatus === 'OK' && !isOutOfSpec ? '1px solid #22c55e' : '1px solid #334155',
-            borderRadius: '10px',
+            borderRadius: '8px',
             fontWeight: 900,
-            fontSize: '0.95rem',
+            fontSize: '0.88rem',
             cursor: 'pointer',
-            boxShadow: computedStatus === 'OK' && !isOutOfSpec ? '0 0 16px rgba(34, 197, 94, 0.4)' : 'none',
+            boxShadow: computedStatus === 'OK' && !isOutOfSpec ? '0 0 12px rgba(34, 197, 94, 0.35)' : 'none',
             transition: 'all 0.15s'
           }}
         >
@@ -366,16 +326,16 @@ export default function CheckTabContent({ activePt, onChange, onCommit, onToggle
           onClick={handleSubmit}
           style={{
             flex: 2,
-            padding: '14px',
+            padding: '11px',
             backgroundColor: isOutOfSpec ? '#ef4444' : '#0284c7',
             color: 'white',
             border: 'none',
-            borderRadius: '10px',
+            borderRadius: '8px',
             fontWeight: 900,
-            fontSize: '1rem',
+            fontSize: '0.92rem',
             cursor: 'pointer',
-            boxShadow: isOutOfSpec ? '0 0 16px rgba(239, 68, 68, 0.5)' : '0 0 16px rgba(2, 132, 199, 0.45)',
-            letterSpacing: '1px',
+            boxShadow: isOutOfSpec ? '0 0 12px rgba(239, 68, 68, 0.4)' : '0 0 12px rgba(2, 132, 199, 0.35)',
+            letterSpacing: '0.5px',
             transition: 'all 0.15s'
           }}
         >
@@ -385,15 +345,15 @@ export default function CheckTabContent({ activePt, onChange, onCommit, onToggle
           onClick={() => onToggleStatus(activePt.id, 'NG')}
           style={{
             flex: 1,
-            padding: '14px',
+            padding: '11px',
             backgroundColor: isOutOfSpec || computedStatus === 'NG' ? '#ef4444' : '#1e293b',
             color: 'white',
             border: isOutOfSpec || computedStatus === 'NG' ? '1px solid #ef4444' : '1px solid #334155',
-            borderRadius: '10px',
+            borderRadius: '8px',
             fontWeight: 900,
-            fontSize: '0.95rem',
+            fontSize: '0.88rem',
             cursor: 'pointer',
-            boxShadow: isOutOfSpec || computedStatus === 'NG' ? '0 0 16px rgba(239, 68, 68, 0.45)' : 'none',
+            boxShadow: isOutOfSpec || computedStatus === 'NG' ? '0 0 12px rgba(239, 68, 68, 0.35)' : 'none',
             transition: 'all 0.15s'
           }}
         >

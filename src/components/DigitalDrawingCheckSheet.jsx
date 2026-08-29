@@ -3584,31 +3584,31 @@ export default function DigitalDrawingCheckSheet() {
           )}
 
           {/* Inspection Summary Footer & Submit Buttons */}
-          <div style={{ padding: '12px', borderTop: '1px solid #1e293b', backgroundColor: '#090d16', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ padding: '8px 12px', borderTop: '1px solid #1e293b', backgroundColor: '#090d16', display: 'flex', flexDirection: 'column', gap: '6px', flexShrink: 0 }}>
             {/* Progress Bar */}
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', fontWeight: 700, marginBottom: '4px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', fontWeight: 700, marginBottom: '3px' }}>
                 <span style={{ color: '#cbd5e1' }}>Hasil Pengukuran</span>
                 <span style={{ color: stats.failed > 0 ? '#ef4444' : '#22c55e' }}>{stats.passed}/{stats.total} Selesai ({stats.progress}%)</span>
               </div>
-              <div style={{ width: '100%', height: '6px', backgroundColor: '#1e293b', borderRadius: '3px', overflow: 'hidden' }}>
+              <div style={{ width: '100%', height: '5px', backgroundColor: '#1e293b', borderRadius: '3px', overflow: 'hidden' }}>
                 <div style={{ width: `${stats.progress}%`, height: '100%', backgroundColor: stats.failed > 0 ? '#ef4444' : '#22c55e', transition: 'width 0.3s' }} />
               </div>
             </div>
 
             {/* Action Buttons: Cancel, Print, Save Check Sheet */}
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '6px' }}>
               <button
                 onClick={handleResetCheckSheet}
                 style={{
                   flex: 1,
-                  padding: '10px',
+                  padding: '7px 8px',
                   backgroundColor: '#334155',
                   color: '#f8fafc',
                   border: 'none',
                   borderRadius: '6px',
                   fontWeight: 700,
-                  fontSize: '0.78rem',
+                  fontSize: '0.75rem',
                   cursor: 'pointer'
                 }}
               >
@@ -3618,8 +3618,8 @@ export default function DigitalDrawingCheckSheet() {
               <button
                 onClick={handlePrintQCReport}
                 style={{
-                  padding: '10px 14px',
-                  backgroundColor: '#714B67',
+                  padding: '7px 10px',
+                  backgroundColor: '#4c1d95',
                   color: 'white',
                   border: 'none',
                   borderRadius: '6px',
@@ -3628,10 +3628,11 @@ export default function DigitalDrawingCheckSheet() {
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px'
+                  gap: '4px'
                 }}
+                title="Cetak Laporan PDF / Sertifikat Mutu ISO"
               >
-                <Printer size={14} /> PDF
+                <Printer size={13} /> PDF
               </button>
 
               {/* 💾 Save Check Sheet Button */}
@@ -3640,13 +3641,13 @@ export default function DigitalDrawingCheckSheet() {
                 disabled={isSubmitting}
                 style={{
                   flex: 2,
-                  padding: '10px',
+                  padding: '7px 10px',
                   backgroundColor: '#22c55e',
                   color: '#0f172a',
                   border: 'none',
                   borderRadius: '6px',
                   fontWeight: 900,
-                  fontSize: '0.82rem',
+                  fontSize: '0.78rem',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
