@@ -89,6 +89,35 @@ import {
   SupervisorApprovalModal,
   EnvironmentSettingsModal
 } from './checksheet/ISOComplianceModals';
+
+// ─── BALLOON CATEGORY & QC COLOR PALETTE (SYNCED WITH INSPECTOR STUDIO) ───
+const getCategoryColor = (category) => {
+  switch (category?.toLowerCase()) {
+    case 'diameter':
+    case 'diameter (od/id)':
+      return '#8b5cf6'; // Electric Purple
+    case 'radius':
+    case 'radius & chamfer':
+      return '#06b6d4'; // Cyan
+    case 'length':
+    case 'linear dimension':
+      return '#3b82f6'; // Vibrant Royal Blue
+    case 'angle':
+    case 'angular / draft':
+      return '#ec4899'; // Hot Pink
+    case 'gdt':
+    case 'gd&t feature':
+      return '#f59e0b'; // Amber Gold
+    case 'visual':
+    case 'visual & surface':
+      return '#10b981'; // Emerald Green
+    case 'thread':
+    case 'thread & pitch':
+      return '#6366f1'; // Indigo
+    default:
+      return '#3b82f6'; // Vibrant Blue
+  }
+};
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import toast, { Toaster } from 'react-hot-toast';
 import QRCode from 'react-qr-code';
@@ -597,7 +626,7 @@ export default function DigitalDrawingCheckSheet() {
       const pub = JSON.parse(localStorage.getItem('mandor_published_checksheet') || '{}');
       if (pub.drawingId) return pub.drawingId;
       return localStorage.getItem('mandor_checksheet_active_drawing_id') || 'dwg_cast_housing';
-    } catch (e) {
+    } catch {
       return 'dwg_cast_housing';
     }
   });
@@ -605,7 +634,7 @@ export default function DigitalDrawingCheckSheet() {
   const [drawingsList, setDrawingsList] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('mandor_checksheet_drawings') || '[]');
-    } catch (e) {
+    } catch {
       return [];
     }
   });
@@ -616,7 +645,9 @@ export default function DigitalDrawingCheckSheet() {
     try {
       const pub = JSON.parse(localStorage.getItem('mandor_published_checksheet') || '{}');
       if (pub.checkPoints && pub.checkPoints[0]?.id) return pub.checkPoints[0].id;
-    } catch (e) {}
+    } catch {
+      // Fallback
+    }
     return 'cp_1';
   });
   const [activeTab, setActiveTab] = useState('Check'); // Check (Focus) is default
@@ -636,7 +667,7 @@ export default function DigitalDrawingCheckSheet() {
   const [partSerial, setPartSerial] = useState('SN-8842-A');
   const [lotBatchNo, setLotBatchNo] = useState('LOT-202608-01');
   const [stationId, setStationId] = useState('ST-CNC-04');
-  const [shiftNo, setShiftNo] = useState('Shift 1 (Day)');
+  const [shiftNo] = useState('Shift 1 (Day)');
   const [inspectorName, setInspectorName] = useState(currentUser?.username || 'QC Officer (Budi S.)');
   const [inspectionNotes, setInspectionNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -672,7 +703,7 @@ export default function DigitalDrawingCheckSheet() {
   const [temperature, setTemperature] = useState('20.0'); // ISO 1 Standard (20°C)
   const [humidity, setHumidity] = useState('52'); // % RH
   const [showEnvModal, setShowEnvModal] = useState(false);
-  const [showWatermark, setShowWatermark] = useState(true);
+  const [showWatermark] = useState(true);
 
   // Clause 8.7: Non-Conformance Reports (NCR) & Defect Management
   const [ncrList, setNcrList] = useState(() => {
@@ -707,7 +738,7 @@ export default function DigitalDrawingCheckSheet() {
   const [showSupervisorModal, setShowSupervisorModal] = useState(false);
 
   // Clause 7.1.5: Measuring Equipment & Calibration Log
-  const [gaugesList, setGaugesList] = useState([
+  const [gaugesList] = useState([
     { id: 'CAL-003', name: 'Digital Caliper 0-150mm', type: 'Caliper', serial: 'SN-MITU-9921', calDate: '2025-10-30', dueDate: '2026-10-30', status: 'VALID', certNo: 'CAL-CERT-2025-881' },
     { id: 'MIC-102', name: 'Outside Micrometer 0-25mm', type: 'Micrometer', serial: 'SN-MITU-4412', calDate: '2026-01-15', dueDate: '2027-01-15', status: 'VALID', certNo: 'CAL-CERT-2026-102' },
     { id: 'CMM-001', name: 'Zeiss Contura 3D CMM', type: 'CMM', serial: 'SN-ZEISS-770', calDate: '2026-04-10', dueDate: '2027-04-10', status: 'VALID', certNo: 'CAL-CERT-2026-001' },
@@ -735,14 +766,14 @@ export default function DigitalDrawingCheckSheet() {
     setHandwritingTargetPointId(null);
   };
 
-  // ─── Animated Virtual Caliper & Metrology SOP State (ISO 9001: 7.1.5) ───
-  const [showVirtualGauge, setShowVirtualGauge] = useState(true);
+  // ─── Animated Virtual Gauge & Metrology SOP State ───
+  const [showVirtualGauge, setShowVirtualGauge] = useState(false);
 
   // ─── Blueprint Markup & Annotations Display (Created in Inspector Designer Studio) ───
-  const [isDrawingMode, setIsDrawingMode] = useState(false);
+  const [isDrawingMode] = useState(false);
   const [drawingTool, setDrawingTool] = useState('pen');
-  const [drawingColor, setDrawingColor] = useState('#ef4444');
-  const [drawingSize, setDrawingSize] = useState(1.8);
+  const [drawingColor] = useState('#ef4444');
+  const [drawingSize] = useState(1.8);
   const [drawings, setDrawings] = useState(() => {
     try {
       const inspectorDrawings = localStorage.getItem('mandor_inspector_drawings');
@@ -756,7 +787,7 @@ export default function DigitalDrawingCheckSheet() {
   const [shapeStart, setShapeStart] = useState(null);
   const [shapeCurrent, setShapeCurrent] = useState(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [redoStack, setRedoStack] = useState([]);
+  const [_redoStack, setRedoStack] = useState([]);
   const [showStampModal, setShowStampModal] = useState(false);
   const [selectedStamp, setSelectedStamp] = useState('approve');
   const [stamps, setStamps] = useState(() => {
@@ -1125,20 +1156,17 @@ export default function DigitalDrawingCheckSheet() {
   // Erase annotations near coords
   const eraseAtPoint = (coords) => {
     const threshold = 20;
-    let erasedAny = false;
 
     setDrawings(prev => {
       const next = prev.filter(d => {
         if (!d.type || d.type === 'path') {
           const hit = (d.points || []).some(p => Math.hypot(p.x - coords.x, p.y - coords.y) < threshold + (d.size || 3));
-          if (hit) erasedAny = true;
           return !hit;
         }
         if (d.type === 'arrow') {
           const d1 = Math.hypot((d.start?.x || 0) - coords.x, (d.start?.y || 0) - coords.y);
           const d2 = Math.hypot((d.end?.x || 0) - coords.x, (d.end?.y || 0) - coords.y);
           const hit = d1 < threshold || d2 < threshold;
-          if (hit) erasedAny = true;
           return !hit;
         }
         if (d.type === 'rect') {
@@ -1147,7 +1175,6 @@ export default function DigitalDrawingCheckSheet() {
           const yMin = Math.min(d.start?.y || 0, d.end?.y || 0);
           const yMax = Math.max(d.start?.y || 0, d.end?.y || 0);
           const hit = (coords.x >= xMin - threshold && coords.x <= xMax + threshold && coords.y >= yMin - threshold && coords.y <= yMax + threshold);
-          if (hit) erasedAny = true;
           return !hit;
         }
         if (d.type === 'circle') {
@@ -1156,12 +1183,10 @@ export default function DigitalDrawingCheckSheet() {
           const r = Math.hypot((d.end?.x || 0) - (d.start?.x || 0), (d.end?.y || 0) - (d.start?.y || 0)) / 2;
           const dist = Math.hypot(coords.x - cx, coords.y - cy);
           const hit = Math.abs(dist - r) < threshold;
-          if (hit) erasedAny = true;
           return !hit;
         }
         if (d.type === 'text') {
           const hit = Math.hypot((d.x || 0) - coords.x, (d.y || 0) - coords.y) < threshold + 30;
-          if (hit) erasedAny = true;
           return !hit;
         }
         return true;
@@ -1172,7 +1197,6 @@ export default function DigitalDrawingCheckSheet() {
     setStamps(prev => {
       const next = prev.filter(s => {
         const hit = Math.hypot(s.x - coords.x, s.y - coords.y) < 35;
-        if (hit) erasedAny = true;
         return !hit;
       });
       return next;
@@ -1415,7 +1439,6 @@ export default function DigitalDrawingCheckSheet() {
       toast.success(`Poin #${pt.pointNumber} [${status}] tersimpan ➔ Lanjut #${nextPt.pointNumber}`, { duration: 1500 });
     } else {
       // All points finished!
-      const totalPassed = updatedPoints.filter(p => p.status === 'OK').length;
       const totalFailed = updatedPoints.filter(p => p.status === 'NG').length;
       const overall = totalFailed > 0 ? 'REJECTED (NG)' : 'APPROVED (OK)';
 
@@ -1575,7 +1598,7 @@ export default function DigitalDrawingCheckSheet() {
   };
 
   // Batch Pass All
-  const handlePassAll = () => {
+  const _handlePassAll = () => {
     setCheckPoints(prev => prev.map(pt => ({
       ...pt,
       status: 'OK',
@@ -1714,7 +1737,7 @@ export default function DigitalDrawingCheckSheet() {
       setLinkCopied(true);
       toast.success('Link berhasil disalin!');
       setTimeout(() => setLinkCopied(false), 2000);
-    } catch (err) {
+    } catch {
       toast.error('Gagal menyalin link');
     }
   };
@@ -2137,32 +2160,6 @@ export default function DigitalDrawingCheckSheet() {
           <button onClick={() => setDarkModeBlueprint(!darkModeBlueprint)} style={{ background: darkModeBlueprint ? 'rgba(34, 197, 94, 0.2)' : '#1e293b', border: '1px solid #334155', color: darkModeBlueprint ? '#22c55e' : '#94a3b8', borderRadius: '6px', padding: '5px 7px', cursor: 'pointer' }} title="Mode Gelap / Terang Drawing"><Eye size={14} /></button>
           <button onClick={handlePrintQCReport} style={{ background: '#4c1d95', border: 'none', color: '#fff', borderRadius: '6px', padding: '5px 8px', cursor: 'pointer' }} title="Cetak Sertifikat Inspeksi ISO 9001"><Printer size={14} /></button>
 
-          {/* Virtual Caliper / Measuring Tool Animation Toggle */}
-          <button
-            onClick={() => {
-              const next = !showVirtualGauge;
-              setShowVirtualGauge(next);
-              toast(next ? '🎬 Animasi Caliper Diaktifkan' : 'SOP Caliper Disembunyikan', { icon: '📏' });
-            }}
-            style={{
-              background: showVirtualGauge ? 'rgba(56, 189, 248, 0.25)' : '#1e293b',
-              border: showVirtualGauge ? '1.5px solid #38bdf8' : '1px solid #334155',
-              color: showVirtualGauge ? '#38bdf8' : '#94a3b8',
-              borderRadius: '6px',
-              padding: '5px 8px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              fontSize: '0.72rem',
-              fontWeight: 800
-            }}
-            title="Toggle Animasi Alat Ukur / Virtual Caliper Visual SOP (ISO 7.1.5)"
-          >
-            <Crosshair size={14} />
-            <span>Caliper</span>
-          </button>
-
           {/* Navigation Icon Buttons (Space Saving) */}
           <button
             onClick={() => navigate('/checksheets')}
@@ -2433,16 +2430,73 @@ export default function DigitalDrawingCheckSheet() {
               </div>
             )}
 
+            {/* ─── LEADER LINES & POINTER ARROWS SVG LAYER ─────────────── */}
+            <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 12 }}>
+              <defs>
+                <marker id="ds-leader-arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M 0 1 L 10 5 L 0 9 z" fill="#ff0055" />
+                </marker>
+              </defs>
+              {checkPoints.map(pt => {
+                if (pt.targetX !== undefined && pt.targetY !== undefined && (Math.abs(pt.targetX - pt.x) > 10 || Math.abs(pt.targetY - pt.y) > 10)) {
+                  return (
+                    <g key={`leader_${pt.id}`}>
+                      <line
+                        x1={pt.x}
+                        y1={pt.y}
+                        x2={pt.targetX}
+                        y2={pt.targetY}
+                        stroke={pt.criticality?.includes('Critical') ? '#dc2626' : '#0284c7'}
+                        strokeWidth="2"
+                        strokeDasharray="4 3"
+                        markerEnd="url(#ds-leader-arrow)"
+                      />
+                      <circle cx={pt.targetX} cy={pt.targetY} r="4" fill="#ff0055" stroke="#ffffff" strokeWidth="1.5" />
+                    </g>
+                  );
+                }
+                return null;
+              })}
+            </svg>
+
             {/* Interactive Enterprise Hotspot Pins with Heatmap & Deviation Badges */}
             {checkPoints.map((pt) => {
               const isActive = pt.id === activePointId;
               const isOK = pt.status === 'OK';
               const isNG = pt.status === 'NG';
               const isWarning = pt.status === 'WARNING';
-              const isPending = !pt.status || pt.status === 'PENDING';
 
-              const pinBg = isNG ? '#ef4444' : isWarning ? '#f59e0b' : isOK ? '#22c55e' : isActive ? '#38bdf8' : '#334155';
-              const pinGlow = isNG ? 'rgba(239, 68, 68, 0.6)' : isWarning ? 'rgba(245, 158, 11, 0.6)' : isOK ? 'rgba(34, 197, 94, 0.45)' : isActive ? 'rgba(56, 189, 248, 0.7)' : 'transparent';
+              const isHexagon = pt.shape === 'hexagon' || pt.criticality?.includes('Critical');
+              const isDiamond = pt.shape === 'diamond' || pt.criticality?.includes('Major');
+              const isSquare = pt.shape === 'square';
+
+              const defaultColor = isHexagon
+                ? '#dc2626'
+                : isDiamond
+                ? '#d97706'
+                : isSquare
+                ? '#16a34a'
+                : getCategoryColor(pt.category);
+
+              const pinBg = isNG
+                ? '#ef4444'
+                : isWarning
+                ? '#f59e0b'
+                : isOK
+                ? '#22c55e'
+                : isActive
+                ? '#0284c7'
+                : defaultColor;
+
+              const pinGlow = isNG
+                ? 'rgba(239, 68, 68, 0.6)'
+                : isWarning
+                ? 'rgba(245, 158, 11, 0.6)'
+                : isOK
+                ? 'rgba(34, 197, 94, 0.45)'
+                : isActive
+                ? 'rgba(2, 132, 199, 0.7)'
+                : `${defaultColor}88`;
 
               return (
                 <div
@@ -2469,7 +2523,7 @@ export default function DigitalDrawingCheckSheet() {
                       style={{
                         position: 'absolute',
                         inset: '-10px',
-                        borderRadius: '50%',
+                        borderRadius: isSquare ? '6px' : '50%',
                         backgroundColor: pinGlow,
                         animation: isNG ? 'blink-red 0.8s infinite' : 'pulse 1.8s infinite',
                         zIndex: -1
@@ -2477,15 +2531,20 @@ export default function DigitalDrawingCheckSheet() {
                     />
                   )}
 
-                  {/* Pin Circle Body with Metallic Stroke */}
+                  {/* Pin Geometrical Shape Body (Hexagon, Diamond, Square, Circle) */}
                   <div
                     style={{
                       width: isActive ? '32px' : '28px',
                       height: isActive ? '32px' : '28px',
-                      borderRadius: '50%',
+                      borderRadius: isSquare ? '4px' : isHexagon || isDiamond ? '0' : '50%',
+                      clipPath: isHexagon
+                        ? 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)'
+                        : isDiamond
+                        ? 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)'
+                        : 'none',
                       backgroundColor: pinBg,
                       color: 'white',
-                      border: isActive ? '2.5px solid #ffffff' : isNG ? '2px solid #fee2e2' : '2px solid #ffffff',
+                      border: isHexagon || isDiamond ? 'none' : isActive ? '2.5px solid #ffffff' : isNG ? '2px solid #fee2e2' : '2px solid #ffffff',
                       boxShadow: `0 4px 14px rgba(0,0,0,0.5), 0 0 12px ${pinGlow}`,
                       display: 'flex',
                       alignItems: 'center',
