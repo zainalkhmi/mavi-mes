@@ -2098,7 +2098,7 @@ export default function InspectorDesigner() {
           </div>
         </div>
         
-        {/* Top Step Indicator (7-Step Process) */}
+        {/* Top Step Indicator (7-Step Process) - Icon Only */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           {[
             { num: 1, label: 'Header', icon: ClipboardList, color: '#38bdf8' },
@@ -2116,40 +2116,40 @@ export default function InspectorDesigner() {
               <React.Fragment key={s.num}>
                 <button
                   onClick={() => setCurrentStep(s.num)}
+                  title={`Step ${s.num}: ${s.label}`}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
-                    padding: isActive ? '4px 10px' : '4px 7px',
-                    borderRadius: '20px',
+                    justifyContent: 'center',
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '50%',
                     backgroundColor: isActive 
-                      ? 'rgba(139, 92, 246, 0.25)' 
+                      ? 'rgba(139, 92, 246, 0.3)' 
                       : isCompleted 
-                      ? 'rgba(16, 185, 129, 0.12)' 
-                      : 'rgba(30, 41, 59, 0.5)',
+                      ? 'rgba(16, 185, 129, 0.15)' 
+                      : 'rgba(30, 41, 59, 0.6)',
                     border: isActive 
-                      ? '1.5px solid #a78bfa' 
+                      ? '2px solid #a78bfa' 
                       : isCompleted 
-                      ? '1px solid rgba(16, 185, 129, 0.4)' 
+                      ? '1.5px solid #10b981' 
                       : '1px solid #334155',
-                    color: isActive ? '#ffffff' : isCompleted ? '#34d399' : '#94a3b8',
-                    fontWeight: isActive ? 800 : 600,
-                    fontSize: '0.72rem',
                     cursor: 'pointer',
-                    transition: 'all 0.15s ease'
+                    transition: 'all 0.15s ease',
+                    transform: isActive ? 'scale(1.1)' : 'scale(1)',
+                    boxShadow: isActive ? '0 0 10px rgba(139, 92, 246, 0.4)' : 'none',
+                    padding: 0
                   }}
                 >
                   <div style={{
-                    width: '18px', height: '18px',
+                    width: '20px', height: '20px',
                     borderRadius: '50%',
-                    backgroundColor: isActive ? '#8b5cf6' : isCompleted ? '#10b981' : '#334155',
+                    backgroundColor: isActive ? '#8b5cf6' : isCompleted ? '#10b981' : 'transparent',
                     color: 'white',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '0.62rem', fontWeight: 800
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
                   }}>
-                    {isCompleted ? <Check size={11} strokeWidth={3} /> : <IconCmp size={10} />}
+                    {isCompleted ? <Check size={12} strokeWidth={3} /> : <IconCmp size={12} color={isActive ? 'white' : s.color} />}
                   </div>
-                  <span>{s.label}</span>
                 </button>
                 {idx < 6 && (
                   <div style={{
@@ -2163,186 +2163,206 @@ export default function InspectorDesigner() {
           })}
         </div>
 
-        {/* ── Project Actions: Save & Open ── */}
+        {/* ── Right Toolbar: ISO Controls & Actions ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          {/* Open Project */}
-          <button
-            onClick={() => setShowOpenProjectModal(true)}
+          {/* ISO 9001 Status Badge */}
+          <div 
+            title={`Status: ${checkSheetStatus ? checkSheetStatus.toUpperCase() : 'DRAFT'}`}
             style={{
-              padding: '6px 10px',
-              backgroundColor: '#1e293b',
-              color: '#38bdf8',
-              border: '1px solid #0284c7',
-              borderRadius: '8px',
-              fontSize: '0.72rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              transition: 'all 0.15s'
-            }}
-            title="Buka Project"
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#0c1a2e'}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#1e293b'}
-          >
-            <FolderOpen size={14} />
-            Open
-          </button>
-
-          {/* Save Project */}
-          <button
-            onClick={handleSaveTemplate}
-            style={{
-              padding: '6px 10px',
-              backgroundColor: '#10b981',
+              padding: '4px 8px',
+              borderRadius: '12px',
+              backgroundColor: checkSheetStatus === 'draft' ? '#64748b' :
+                               checkSheetStatus === 'pending_approval' ? '#f59e0b' :
+                               checkSheetStatus === 'approved' ? '#22c55e' :
+                               checkSheetStatus === 'released' ? '#3b82f6' : '#ef4444',
               color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '0.72rem',
+              fontSize: '0.65rem',
               fontWeight: 800,
-              cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '5px',
-              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)',
-              transition: 'all 0.15s'
+              gap: '4px'
             }}
-            title="Simpan Project"
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#059669'}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#10b981'}
           >
-            <Save size={14} />
-            Save
-          </button>
-        </div>
-
-        {/* ISO 9001 Status Badge */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{
-            padding: '4px 10px',
-            borderRadius: '12px',
-            backgroundColor: checkSheetStatus === 'draft' ? '#64748b' :
-                             checkSheetStatus === 'pending_approval' ? '#f59e0b' :
-                             checkSheetStatus === 'approved' ? '#22c55e' :
-                             checkSheetStatus === 'released' ? '#3b82f6' : '#ef4444',
-            color: 'white',
-            fontSize: '0.65rem',
-            fontWeight: 800,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px'
-          }}>
             <ShieldCheck size={12} />
-            {checkSheetStatus === 'draft' ? 'DRAFT' :
-             checkSheetStatus === 'pending_approval' ? 'PENDING APPROVAL' :
-             checkSheetStatus === 'approved' ? 'APPROVED' :
-             checkSheetStatus === 'released' ? 'RELEASED' : 'ARCHIVED'}
+            <span>
+              {checkSheetStatus === 'draft' ? 'DRAFT' :
+               checkSheetStatus === 'pending_approval' ? 'PENDING' :
+               checkSheetStatus === 'approved' ? 'APPROVED' :
+               checkSheetStatus === 'released' ? 'RELEASED' : 'ARCHIVED'}
+            </span>
           </div>
 
           {/* Checksheet Management ISO 9001 */}
           <button
             onClick={() => navigate('/checksheets')}
             style={{
-              padding: '6px 12px',
+              width: '32px',
+              height: '32px',
               backgroundColor: '#1e293b',
               color: '#38bdf8',
               border: '1px solid #0284c7',
-              borderRadius: '6px',
-              fontSize: '0.72rem',
-              fontWeight: 700,
+              borderRadius: '8px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px'
+              justifyContent: 'center',
+              transition: 'all 0.15s'
             }}
-            title="Buka Checksheet Management ISO 9001"
+            title="Dokumen ISO 9001 (Checksheet Management)"
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#0c1a2e'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#1e293b'}
           >
-            <FolderArchive size={14} /> Dokumen ISO
+            <FolderArchive size={16} />
           </button>
 
           {/* Template Library Button */}
           <button
             onClick={() => setShowTemplateModal(true)}
             style={{
-              padding: '6px 12px',
+              height: '32px',
+              padding: '0 8px',
               backgroundColor: '#1e293b',
               color: '#f8fafc',
               border: '1px solid #334155',
-              borderRadius: '6px',
-              fontSize: '0.72rem',
-              fontWeight: 600,
+              borderRadius: '8px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px'
+              justifyContent: 'center',
+              gap: '4px',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              transition: 'all 0.15s'
             }}
+            title={`Template Library (${savedTemplates.length})`}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#334155'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#1e293b'}
           >
-            <FileText size={14} />
-            Library ({savedTemplates.length})
+            <FileText size={15} />
+            <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>({savedTemplates.length})</span>
           </button>
 
           {/* Revision History */}
           <button
             onClick={() => setShowRevisionModal(true)}
             style={{
-              padding: '6px 10px',
+              height: '32px',
+              padding: '0 8px',
               backgroundColor: '#1e293b',
               color: '#f8fafc',
               border: '1px solid #334155',
-              borderRadius: '6px',
-              fontSize: '0.72rem',
-              fontWeight: 600,
+              borderRadius: '8px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px'
+              justifyContent: 'center',
+              gap: '4px',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              transition: 'all 0.15s'
             }}
+            title={`Revision History (Rev ${revisionNo})`}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#334155'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#1e293b'}
           >
-            <Clock size={14} />
-            Rev {revisionNo}
+            <Clock size={15} />
+            <span style={{ fontSize: '0.68rem', color: '#38bdf8' }}>{revisionNo}</span>
           </button>
-        </div>
 
-        {/* Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ width: '1px', height: '20px', backgroundColor: '#334155', margin: '0 2px' }} />
+
           {/* Create New Check Sheet */}
           <button
             onClick={handleCreateNewCheckSheet}
             style={{
-              padding: '7px 14px',
+              width: '32px',
+              height: '32px',
               backgroundColor: '#10b981',
               color: 'white',
               border: 'none',
-              borderRadius: '6px',
-              fontSize: '0.75rem',
-              fontWeight: 800,
+              borderRadius: '8px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
-              boxShadow: '0 2px 10px rgba(16, 185, 129, 0.35)'
+              justifyContent: 'center',
+              boxShadow: '0 2px 10px rgba(16, 185, 129, 0.35)',
+              transition: 'all 0.15s'
             }}
-            title="Mulai membuat lembar checksheet inspeksi baru dari awal"
+            title="Create New Check Sheet (Buat Baru)"
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#059669'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#10b981'}
           >
-            <PlusCircle size={15} /> + Create New Check Sheet
+            <PlusCircle size={16} />
           </button>
 
+          {/* Open Project */}
+          <button
+            onClick={() => setShowOpenProjectModal(true)}
+            style={{
+              width: '32px',
+              height: '32px',
+              backgroundColor: '#1e293b',
+              color: '#38bdf8',
+              border: '1px solid #0284c7',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.15s'
+            }}
+            title="Buka Project (Open)"
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#0c1a2e'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#1e293b'}
+          >
+            <FolderOpen size={16} />
+          </button>
+
+          {/* Save Project */}
+          <button
+            onClick={handleSaveTemplate}
+            style={{
+              width: '32px',
+              height: '32px',
+              backgroundColor: '#10b981',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)',
+              transition: 'all 0.15s'
+            }}
+            title="Simpan Project (Save)"
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#059669'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#10b981'}
+          >
+            <Save size={16} />
+          </button>
+
+          {/* Back to QA Checksheet */}
           <button
             onClick={() => navigate('/qa-checksheet')}
             style={{
-              padding: '7px 12px',
+              width: '32px',
+              height: '32px',
               backgroundColor: '#334155',
               color: '#f8fafc',
               border: 'none',
-              borderRadius: '6px',
-              fontSize: '0.75rem',
-              fontWeight: 600,
+              borderRadius: '8px',
               cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: '6px'
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.15s'
             }}
+            title="Back to QA Checksheet"
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#475569'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#334155'}
           >
-            <ArrowLeft size={14} /> Back
+            <ArrowLeft size={16} />
           </button>
         </div>
       </div>      
@@ -2362,7 +2382,7 @@ export default function InspectorDesigner() {
             borderBottom: '1px solid #1e293b',
             backgroundColor: '#090d16'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {currentStep === 1 && <ClipboardList size={16} color="#38bdf8" />}
               {currentStep === 2 && <Layers size={16} color="#a78bfa" />}
               {currentStep === 3 && <Ruler size={16} color="#f59e0b" />}
@@ -2379,82 +2399,6 @@ export default function InspectorDesigner() {
                  currentStep === 6 ? '6. Report & Physical Print' :
                  '7. Deploy & Export'}
               </span>
-            </div>
-            
-            {/* Step Navigation Bar with Pro Icons */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(7, 1fr)',
-              gap: '3px',
-              backgroundColor: '#050811',
-              padding: '4px',
-              borderRadius: '8px',
-              border: '1px solid #1e293b'
-            }}>
-              {[
-                { num: 1, label: 'Header', icon: ClipboardList, color: '#38bdf8' },
-                { num: 2, label: 'Drawing', icon: Layers, color: '#a78bfa' },
-                { num: 3, label: 'Param', icon: Ruler, color: '#f59e0b' },
-                { num: 4, label: 'Data', icon: Database, color: '#10b981' },
-                { num: 5, label: 'Flow', icon: SlidersHorizontal, color: '#ec4899' },
-                { num: 6, label: 'Report', icon: FileSpreadsheet, color: '#8b5cf6' },
-                { num: 7, label: 'Deploy', icon: Sparkles, color: '#06b6d4' }
-              ].map(s => {
-                const IconComponent = s.icon;
-                const isActive = currentStep === s.num;
-                const isCompleted = currentStep > s.num;
-                return (
-                  <button
-                    key={s.num}
-                    onClick={() => setCurrentStep(s.num)}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '4px',
-                      padding: '7px 2px',
-                      backgroundColor: isActive 
-                        ? '#7c3aed'
-                        : isCompleted 
-                        ? 'rgba(15, 23, 42, 0.9)' 
-                        : 'rgba(30, 41, 59, 0.4)',
-                      backgroundImage: isActive ? 'linear-gradient(135deg, #8b5cf6, #6366f1)' : 'none',
-                      color: isActive ? '#ffffff' : isCompleted ? '#cbd5e1' : '#64748b',
-                      border: isActive 
-                        ? '1px solid #c084fc' 
-                        : isCompleted 
-                        ? '1px solid rgba(139, 92, 246, 0.3)' 
-                        : '1px solid rgba(51, 65, 85, 0.4)',
-                      borderRadius: '6px',
-                      fontSize: '0.62rem',
-                      fontWeight: isActive ? 800 : 600,
-                      cursor: 'pointer',
-                      transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
-                      boxShadow: isActive ? '0 3px 10px rgba(139, 92, 246, 0.45)' : 'none',
-                      position: 'relative'
-                    }}
-                    title={`Step ${s.num}: ${s.label}`}
-                  >
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: isActive ? '#ffffff' : s.color
-                    }}>
-                      <IconComponent size={14} strokeWidth={isActive ? 2.6 : 2} />
-                    </div>
-                    <span style={{
-                      fontSize: '0.58rem',
-                      letterSpacing: '-0.01em',
-                      lineHeight: 1,
-                      fontWeight: isActive ? 800 : 600
-                    }}>
-                      {s.num}.{s.label}
-                    </span>
-                  </button>
-                );
-              })}
             </div>
           </div>
           
@@ -3901,103 +3845,116 @@ export default function InspectorDesigner() {
             userSelect: 'none'
           }}
         >
-          {/* HUD Compact for CAD Editor */}
+          {/* HUD Compact Vertical Floating Toolbar on Left Side of Canvas */}
           {currentStep !== 6 && (
             <div style={{
               position: 'absolute',
               top: '12px',
-              left: '14px',
+              left: '12px',
               zIndex: 30,
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
-              gap: '6px'
+              gap: '6px',
+              backgroundColor: 'rgba(15, 23, 42, 0.94)',
+              backdropFilter: 'blur(10px)',
+              padding: '6px 5px',
+              borderRadius: '10px',
+              border: '1px solid #334155',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.6)'
             }}>
-              <div style={{
-                backgroundColor: '#0f172a',
-                padding: '6px 12px',
-                borderRadius: '6px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                border: '1px solid #334155',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.4)'
-              }}>
-                <Target size={14} color="#a855f7" />
-                <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#ffffff' }}>
-                  {checkPoints.length} Poin
+              {/* Point Counter Badge */}
+              <div 
+                style={{
+                  padding: '4px 6px',
+                  borderRadius: '6px',
+                  backgroundColor: 'rgba(139, 92, 246, 0.15)',
+                  border: '1px solid rgba(139, 92, 246, 0.3)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'default',
+                  minWidth: '32px'
+                }}
+                title={`${checkPoints.length} Titik Ukur / Balon`}
+              >
+                <Target size={13} color="#a855f7" />
+                <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#c084fc', marginTop: '1px' }}>
+                  {checkPoints.length}
                 </span>
               </div>
+
+              <div style={{ width: '22px', height: '1px', backgroundColor: '#334155' }} />
 
               {/* Add Pin Mode Toggle */}
               <button
                 onClick={() => setIsAddPinMode(!isAddPinMode)}
                 style={{
-                  padding: '6px 14px',
+                  width: '32px',
+                  height: '32px',
                   backgroundColor: isAddPinMode ? '#16a34a' : '#1e293b',
                   color: '#ffffff',
                   border: isAddPinMode ? '1.5px solid #22c55e' : '1px solid #475569',
-                  borderRadius: '6px',
-                  fontSize: '0.74rem',
-                  fontWeight: 800,
+                  borderRadius: '7px',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '5px',
-                  boxShadow: isAddPinMode ? '0 0 12px rgba(34, 197, 94, 0.6)' : '0 2px 6px rgba(0,0,0,0.3)',
+                  justifyContent: 'center',
+                  boxShadow: isAddPinMode ? '0 0 12px rgba(34, 197, 94, 0.6)' : 'none',
                   transition: 'all 0.15s ease'
                 }}
-                title="Klik canvas untuk meletakkan titik ukur baru"
+                title={isAddPinMode ? 'Mode Pin Aktif (Klik Canvas untuk Pin)' : 'Tambah Titik Balon (+ Pin)'}
               >
-                <PlusCircle size={14} color={isAddPinMode ? '#ffffff' : '#22c55e'} />
-                <span>{isAddPinMode ? 'Klik Canvas untuk Pin' : '+ Pin'}</span>
+                <PlusCircle size={16} color={isAddPinMode ? '#ffffff' : '#22c55e'} />
               </button>
 
               {/* 🪄 1-Click Auto-Balloon Feature Extractor (Solid & Vibrant) */}
               <button
                 onClick={handleOpenAutoBalloonStudio}
                 style={{
-                  padding: '6px 14px',
+                  width: '32px',
+                  height: '32px',
                   backgroundColor: '#7c3aed',
                   color: '#ffffff',
                   border: '1px solid #6d28d9',
-                  borderRadius: '6px',
-                  fontSize: '0.74rem',
-                  fontWeight: 800,
+                  borderRadius: '7px',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px',
+                  justifyContent: 'center',
                   boxShadow: '0 2px 8px rgba(124, 58, 237, 0.45)',
                   transition: 'all 0.15s ease'
                 }}
-                title="Ekstraksi Otomatis Dimensi CAD menjadi Balon/Titik Ukur & Toleransi"
+                title="Auto-Balloon CAD (Ekstraksi Otomatis Dimensi CAD)"
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#6d28d9'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#7c3aed'}
               >
-                <Sparkles size={14} color="#ffffff" />
-                <span>Auto-Balloon CAD</span>
+                <Sparkles size={16} color="#ffffff" />
               </button>
 
-              {/* 📐 Auto-Align & Disperse Overlaps Button (Solid & Vibrant) */}
+              {/* 📐 Auto-Align & Disperse Overlaps Button */}
               <button
                 onClick={handleAutoDisperseBalloons}
                 style={{
-                  padding: '6px 12px',
+                  width: '32px',
+                  height: '32px',
                   backgroundColor: '#0284c7',
                   color: '#ffffff',
                   border: '1px solid #0369a1',
-                  borderRadius: '6px',
-                  fontSize: '0.74rem',
-                  fontWeight: 800,
+                  borderRadius: '7px',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '5px',
+                  justifyContent: 'center',
                   boxShadow: '0 2px 8px rgba(2, 132, 199, 0.45)',
                   transition: 'all 0.15s ease'
                 }}
-                title="Rapikan Balon Otomatis & Buat Leader Lines jika Ada Tabrakan"
+                title="Auto-Align (Rapikan Balon & Buat Leader Lines)"
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#0369a1'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#0284c7'}
               >
-                <Layers size={14} color="#ffffff" />
-                <span>Auto-Align</span>
+                <Layers size={16} color="#ffffff" />
               </button>
 
               {/* 🔢 Smart Re-Number Dropdown Menu */}
@@ -4005,29 +3962,43 @@ export default function InspectorDesigner() {
                 <button
                   onClick={() => setShowRenumberMenu(!showRenumberMenu)}
                   style={{
-                    padding: '6px 12px',
+                    width: '32px',
+                    height: '32px',
                     backgroundColor: '#1e293b',
                     color: '#ffffff',
                     border: '1px solid #475569',
-                    borderRadius: '6px',
-                    fontSize: '0.74rem',
-                    fontWeight: 800,
+                    borderRadius: '7px',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '4px',
-                    boxShadow: '0 2px 6px rgba(0,0,0,0.3)'
+                    justifyContent: 'center',
+                    transition: 'all 0.15s'
                   }}
-                  title="Urutkan Ulang Nomor Balon Secara Otomatis"
+                  title="Urutkan Ulang Nomor Balon (Re-Number)"
+                  onMouseEnter={e => e.currentTarget.style.backgroundColor = '#334155'}
+                  onMouseLeave={e => e.currentTarget.style.backgroundColor = '#1e293b'}
                 >
-                  <Hash size={14} color="#f59e0b" />
-                  <span>Re-Number ▾</span>
+                  <Hash size={16} color="#f59e0b" />
                 </button>
 
                 {showRenumberMenu && (
-                  <div style={{ position: 'absolute', top: '34px', left: 0, backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '6px', padding: '4px', zIndex: 100, display: 'flex', flexDirection: 'column', gap: '3px', width: '170px', boxShadow: '0 8px 24px rgba(0,0,0,0.7)' }}>
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: '38px',
+                    backgroundColor: '#0f172a',
+                    border: '1px solid #334155',
+                    borderRadius: '8px',
+                    padding: '4px',
+                    zIndex: 100,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '3px',
+                    width: '160px',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.7)'
+                  }}>
                     <button
-                      onClick={handleSortClockwise}
+                      onClick={() => { handleSortClockwise(); setShowRenumberMenu(false); }}
                       style={{ padding: '7px 10px', textAlign: 'left', background: 'none', border: 'none', color: '#f8fafc', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', borderRadius: '4px' }}
                       onMouseEnter={(e) => e.target.style.backgroundColor = '#1e293b'}
                       onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
@@ -4035,7 +4006,7 @@ export default function InspectorDesigner() {
                       🔄 Clockwise Sort
                     </button>
                     <button
-                      onClick={handleSortReadingOrder}
+                      onClick={() => { handleSortReadingOrder(); setShowRenumberMenu(false); }}
                       style={{ padding: '7px 10px', textAlign: 'left', background: 'none', border: 'none', color: '#f8fafc', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', borderRadius: '4px' }}
                       onMouseEnter={(e) => e.target.style.backgroundColor = '#1e293b'}
                       onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
@@ -4046,33 +4017,35 @@ export default function InspectorDesigner() {
                 )}
               </div>
 
-              {/* ⭐ QC Balloon Shape Selector */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '3px', backgroundColor: '#0f172a', padding: '3px 6px', borderRadius: '6px', border: '1px solid #334155', boxShadow: '0 2px 6px rgba(0,0,0,0.3)' }}>
+              <div style={{ width: '22px', height: '1px', backgroundColor: '#334155' }} />
+
+              {/* ⭐ QC Balloon Shape Selector (Compact 2x2 Grid) */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '2px', backgroundColor: '#090d16', padding: '2px', borderRadius: '6px', border: '1px solid #1e293b' }}>
                 <button
                   onClick={() => setDefaultBalloonShape('circle')}
-                  title="Bentuk Bulat (Dimensi Standar)"
-                  style={{ width: '22px', height: '22px', borderRadius: '50%', border: defaultBalloonShape === 'circle' ? '2px solid #38bdf8' : '1px solid #475569', backgroundColor: defaultBalloonShape === 'circle' ? '#0284c7' : '#1e293b', color: '#fff', fontSize: '0.65rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  title="Bulat (Dimensi Standar)"
+                  style={{ width: '15px', height: '15px', borderRadius: '50%', border: defaultBalloonShape === 'circle' ? '1.5px solid #38bdf8' : '1px solid #475569', backgroundColor: defaultBalloonShape === 'circle' ? '#0284c7' : 'transparent', color: '#fff', fontSize: '0.55rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 >
                   ◯
                 </button>
                 <button
                   onClick={() => setDefaultBalloonShape('hexagon')}
-                  title="Bentuk Hexagon ⬡ (Dimensi Kritis / Key Characteristic Cpk >= 1.67)"
-                  style={{ width: '22px', height: '22px', border: defaultBalloonShape === 'hexagon' ? '2px solid #ef4444' : '1px solid #475569', backgroundColor: defaultBalloonShape === 'hexagon' ? '#dc2626' : '#1e293b', color: '#fff', fontSize: '0.65rem', cursor: 'pointer', clipPath: 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  title="Hexagon (Kritis / Cpk >= 1.67)"
+                  style={{ width: '15px', height: '15px', border: defaultBalloonShape === 'hexagon' ? '1.5px solid #ef4444' : '1px solid #475569', backgroundColor: defaultBalloonShape === 'hexagon' ? '#dc2626' : 'transparent', color: '#fff', fontSize: '0.55rem', cursor: 'pointer', clipPath: 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 >
                   ⬡
                 </button>
                 <button
                   onClick={() => setDefaultBalloonShape('diamond')}
-                  title="Bentuk Diamond ⬥ (Major Safety Characteristic)"
-                  style={{ width: '22px', height: '22px', border: defaultBalloonShape === 'diamond' ? '2px solid #f59e0b' : '1px solid #475569', backgroundColor: defaultBalloonShape === 'diamond' ? '#d97706' : '#1e293b', color: '#fff', fontSize: '0.65rem', cursor: 'pointer', clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  title="Diamond (Major Safety)"
+                  style={{ width: '15px', height: '15px', border: defaultBalloonShape === 'diamond' ? '1.5px solid #f59e0b' : '1px solid #475569', backgroundColor: defaultBalloonShape === 'diamond' ? '#d97706' : 'transparent', color: '#fff', fontSize: '0.55rem', cursor: 'pointer', clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 >
                   ⬥
                 </button>
                 <button
                   onClick={() => setDefaultBalloonShape('square')}
-                  title="Bentuk Kotak ▢ (Pass/Fail Attribute)"
-                  style={{ width: '22px', height: '22px', borderRadius: '3px', border: defaultBalloonShape === 'square' ? '2px solid #22c55e' : '1px solid #475569', backgroundColor: defaultBalloonShape === 'square' ? '#16a34a' : '#1e293b', color: '#fff', fontSize: '0.65rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  title="Kotak (Pass/Fail Attribute)"
+                  style={{ width: '15px', height: '15px', borderRadius: '2px', border: defaultBalloonShape === 'square' ? '1.5px solid #22c55e' : '1px solid #475569', backgroundColor: defaultBalloonShape === 'square' ? '#16a34a' : 'transparent', color: '#fff', fontSize: '0.55rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 >
                   ▢
                 </button>
@@ -4087,75 +4060,60 @@ export default function InspectorDesigner() {
                   toast(next ? '🖍️ Mode Coretan & Anotasi Aktif' : 'Mode Coretan Dinonaktifkan', { icon: '✏️' });
                 }}
                 style={{
-                  padding: '6px 12px',
+                  width: '32px',
+                  height: '32px',
                   backgroundColor: isDrawingMode ? '#d97706' : '#1e293b',
                   color: '#ffffff',
                   border: isDrawingMode ? '1.5px solid #f59e0b' : '1px solid #475569',
-                  borderRadius: '6px',
-                  fontSize: '0.74rem',
-                  fontWeight: 800,
+                  borderRadius: '7px',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '5px',
-                  boxShadow: isDrawingMode ? '0 0 12px rgba(245, 158, 11, 0.5)' : '0 2px 6px rgba(0,0,0,0.3)',
+                  justifyContent: 'center',
+                  boxShadow: isDrawingMode ? '0 0 12px rgba(245, 158, 11, 0.5)' : 'none',
                   transition: 'all 0.15s ease'
                 }}
-                title="Buka Alat Gambar & Anotasi Blueprint (Pen, Panah, Stamp, Teks, Bentuk)"
+                title="Alat Gambar & Anotasi Blueprint (Draw Tools)"
               >
-                <Pencil size={14} color={isDrawingMode ? '#ffffff' : '#f59e0b'} />
-                <span>{isDrawingMode ? 'Drawing: ON' : 'Draw Tools'}</span>
+                <Pencil size={15} color={isDrawingMode ? '#ffffff' : '#f59e0b'} />
               </button>
-              
-              {/* Zoom Controls with Fit Button */}
+
+              <div style={{ width: '22px', height: '1px', backgroundColor: '#334155' }} />
+
+              {/* Zoom Controls Vertical Group */}
               <div style={{
-                backgroundColor: '#0f172a',
-                padding: '4px 8px',
-                borderRadius: '6px',
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
-                gap: '4px',
-                border: '1px solid #334155',
-                boxShadow: '0 2px 6px rgba(0,0,0,0.3)'
+                gap: '2px',
+                backgroundColor: '#090d16',
+                padding: '3px 2px',
+                borderRadius: '6px',
+                border: '1px solid #1e293b'
               }}>
                 <button
-                  onClick={() => setZoom(z => Math.max(0.3, z - 0.1))}
-                  style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px 4px' }}
-                  title="Zoom Out"
-                >
-                  <ZoomOut size={14} />
-                </button>
-                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#8b5cf6', minWidth: '38px', textAlign: 'center' }}>
-                  {Math.round(zoom * 100)}%
-                </span>
-                <button
                   onClick={() => setZoom(z => Math.min(3, z + 0.1))}
-                  style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px 4px' }}
+                  style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   title="Zoom In"
                 >
                   <ZoomIn size={14} />
                 </button>
-
-                <div style={{ width: '1px', height: '14px', backgroundColor: 'rgba(255,255,255,0.15)', margin: '0 2px' }} />
-
-                {/* ⤢ Fit Proportional Button */}
+                <span style={{ fontSize: '0.58rem', fontWeight: 800, color: '#8b5cf6', textAlign: 'center', padding: '1px 0' }}>
+                  {Math.round(zoom * 100)}%
+                </span>
+                <button
+                  onClick={() => setZoom(z => Math.max(0.3, z - 0.1))}
+                  style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  title="Zoom Out"
+                >
+                  <ZoomOut size={14} />
+                </button>
                 <button
                   onClick={handleFitToScreen}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#38bdf8',
-                    cursor: 'pointer',
-                    padding: '2px 6px',
-                    fontSize: '0.7rem',
-                    fontWeight: 800,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '3px'
-                  }}
-                  title="Fit Gambar Proporsional (Tanpa Area Mubazir)"
+                  style={{ background: 'none', border: 'none', color: '#38bdf8', cursor: 'pointer', padding: '2px', marginTop: '2px', borderTop: '1px solid #1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  title="Fit to Screen (Proporsional)"
                 >
-                  <Maximize2 size={12} /> Fit
+                  <Maximize2 size={13} />
                 </button>
               </div>
             </div>
@@ -4166,8 +4124,8 @@ export default function InspectorDesigner() {
             <div
               style={{
                 position: 'absolute',
-                left: '14px',
-                top: '56px',
+                left: '56px',
+                top: '12px',
                 bottom: '16px',
                 zIndex: 35,
                 width: '108px',
