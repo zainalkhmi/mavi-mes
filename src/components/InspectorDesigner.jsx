@@ -208,16 +208,15 @@ export default function InspectorDesigner() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
 
-  // ─── STEP 6: Report Designer & Physical Print States ───
   const [reportPaperSize, setReportPaperSize] = useState('A4'); // A4, A3, Letter, Legal, Label_100x150
   const [reportOrientation, setReportOrientation] = useState('portrait'); // portrait, landscape
   const [reportTheme, setReportTheme] = useState('mandor_purple'); // mandor_purple, navy_modern, emerald_qa, monochrome
-  const [reportMargin, setReportMargin] = useState('10mm');
+  const [reportMargin] = useState('10mm');
   const [includeIsoHeader, setIncludeIsoHeader] = useState(true);
   const [includeStatsBar, setIncludeStatsBar] = useState(true);
   const [includeGdtTable, setIncludeGdtTable] = useState(true);
   const [includeSignatures, setIncludeSignatures] = useState(true);
-  const [includeQrCode, setIncludeQrCode] = useState(true);
+  const [includeQrCode] = useState(true);
 
   // ─── Report Generator & Deep Link ───
   const handleOpenInReportDesigner = () => {
@@ -1062,7 +1061,7 @@ export default function InspectorDesigner() {
   };
 
   const [isGeneratingTable, setIsGeneratingTable] = useState(false);
-  const [generatedTableInfo, setGeneratedTableInfo] = useState(null);
+  const [_generatedTableInfo, setGeneratedTableInfo] = useState(null);
 
   // ─── Auto-Generate Dedicated Database Table ───
   const handleAutoGenerateTable = async () => {
@@ -1123,7 +1122,7 @@ export default function InspectorDesigner() {
 
   // ─── Create New Check Sheet (Reset & Fresh Setup) ───
   const handleCreateNewCheckSheet = () => {
-    const defaultDocNo = `CS-${Date.now().toString(36).toUpperCase()}`;
+    const _defaultDocNo = `CS-${Date.now().toString(36).toUpperCase()}`;
     setCheckSheetName('New Quality Check Sheet');
     setPartNo('PART-' + Math.floor(1000 + Math.random() * 9000));
     setPartName('Precision Component');
@@ -1316,7 +1315,7 @@ export default function InspectorDesigner() {
   };
 
   // ─── Select Drawing ───
-  const handleSelectDrawing = (drawing) => {
+  const _handleSelectDrawing = (drawing) => {
     setSelectedDrawing(drawing);
     setDrawingPreview(drawing.svgData || drawing.dataUrl || null);
     setCheckSheetName(drawing.name || 'New Check Sheet');
@@ -1907,7 +1906,7 @@ export default function InspectorDesigner() {
       
       try {
         localStorage.setItem('mandor_published_checksheet', JSON.stringify(storageSafeCheckSheet));
-      } catch (_quotaErr) {
+      } catch {
         storageSafeCheckSheet.drawingSvg = null;
         localStorage.setItem('mandor_published_checksheet', JSON.stringify(storageSafeCheckSheet));
       }
@@ -1924,7 +1923,7 @@ export default function InspectorDesigner() {
       const updatedDrawings = [dwgItem, ...existingDrawings.filter(d => d.id !== dwgId).slice(0, 10)];
       try {
         localStorage.setItem('mandor_checksheet_drawings', JSON.stringify(updatedDrawings));
-      } catch (_e) {
+      } catch {
         // Skip lightweight list if localStorage is full - IndexedDB has it
       }
     } catch (e) {
@@ -4665,55 +4664,66 @@ export default function InspectorDesigner() {
                 />
               )}
 
-              {/* ─── REAL-TIME PRECISION LASER CROSSHAIR & TARGET RETICLE OVERLAY ─── */}
+              {/* ─── REAL-TIME PRECISION RED LASER CROSSHAIR & TARGET RETICLE OVERLAY ─── */}
               {isAddPinMode && hoverCoords && (
                 <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 40 }}>
-                  {/* Vertical Guide Line */}
+                  {/* Vertical Red Laser Guide Line (Ultra-Vibrant Ruby Beam) */}
                   <div style={{
                     position: 'absolute',
                     left: `${hoverCoords.x}px`,
                     top: 0,
                     bottom: 0,
-                    width: '1px',
-                    backgroundColor: '#2563eb',
-                    boxShadow: '0 0 8px #38bdf8',
-                    opacity: 0.85
+                    width: '2px',
+                    backgroundColor: '#ffffff',
+                    boxShadow: '0 0 3px #ffffff, 0 0 8px #ff0055, 0 0 16px #ef4444, 0 0 28px #dc2626, 0 0 50px #991b1b',
+                    opacity: 1,
+                    transform: 'translateX(-50%)'
                   }} />
-                  {/* Horizontal Guide Line */}
+                  {/* Horizontal Red Laser Guide Line (Ultra-Vibrant Ruby Beam) */}
                   <div style={{
                     position: 'absolute',
                     top: `${hoverCoords.y}px`,
                     left: 0,
                     right: 0,
-                    height: '1px',
-                    backgroundColor: '#2563eb',
-                    boxShadow: '0 0 8px #38bdf8',
-                    opacity: 0.85
+                    height: '2px',
+                    backgroundColor: '#ffffff',
+                    boxShadow: '0 0 3px #ffffff, 0 0 8px #ff0055, 0 0 16px #ef4444, 0 0 28px #dc2626, 0 0 50px #991b1b',
+                    opacity: 1,
+                    transform: 'translateY(-50%)'
                   }} />
-                  {/* Target Reticle Ring */}
+
+                  {/* Target Reticle Red Laser Glow Ring */}
                   <div style={{
                     position: 'absolute',
                     left: `${hoverCoords.x}px`,
                     top: `${hoverCoords.y}px`,
                     transform: 'translate(-50%, -50%)',
-                    width: '36px',
-                    height: '36px',
+                    width: '42px',
+                    height: '42px',
                     borderRadius: '50%',
-                    border: '2px dashed #2563eb',
-                    boxShadow: '0 0 14px rgba(37, 99, 235, 0.6), inset 0 0 8px rgba(37, 99, 235, 0.3)',
+                    border: '2.5px dashed #ff0055',
+                    boxShadow: '0 0 16px #ff0055, inset 0 0 12px rgba(255, 0, 85, 0.6), 0 0 30px rgba(220, 38, 38, 0.7)',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    animation: 'spin 12s linear infinite'
                   }}>
-                    {/* Center Laser Dot */}
-                    <div style={{
-                      width: '4px',
-                      height: '4px',
-                      borderRadius: '50%',
-                      backgroundColor: '#ef4444',
-                      boxShadow: '0 0 6px #ef4444'
-                    }} />
                   </div>
+
+                  {/* Center Intense Ruby Laser Focal Point */}
+                  <div style={{
+                    position: 'absolute',
+                    left: `${hoverCoords.x}px`,
+                    top: `${hoverCoords.y}px`,
+                    transform: 'translate(-50%, -50%)',
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    backgroundColor: '#ffffff',
+                    border: '2px solid #ff0055',
+                    boxShadow: '0 0 8px #ff0055, 0 0 20px #ff0055, 0 0 35px #dc2626'
+                  }} />
+
                   {/* Ghost Next Pin Preview */}
                   <div style={{
                     position: 'absolute',
@@ -4723,36 +4733,38 @@ export default function InspectorDesigner() {
                     width: '28px',
                     height: '28px',
                     borderRadius: '50%',
-                    backgroundColor: '#3b82f6',
+                    backgroundColor: '#dc2626',
                     color: 'white',
-                    border: '2px solid white',
+                    border: '2px solid #ffffff',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontWeight: 900,
                     fontSize: '0.75rem',
-                    opacity: 0.65,
-                    boxShadow: '0 4px 10px rgba(0,0,0,0.3)'
+                    opacity: 0.9,
+                    boxShadow: '0 0 16px #ff0055, 0 4px 10px rgba(0,0,0,0.5)'
                   }}>
                     {checkPoints.length + 1}
                   </div>
-                  {/* Real-time Coordinates HUD Tag */}
+
+                  {/* Real-time Coordinates HUD Red Laser Tag */}
                   <div style={{
                     position: 'absolute',
-                    left: `${Math.min(hoverCoords.x + 22, 860)}px`,
-                    top: `${Math.max(hoverCoords.y - 28, 10)}px`,
-                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                    color: '#38bdf8',
-                    padding: '3px 8px',
-                    borderRadius: '4px',
-                    fontSize: '0.65rem',
-                    fontWeight: 800,
+                    left: `${Math.min(hoverCoords.x + 24, 860)}px`,
+                    top: `${Math.max(hoverCoords.y - 32, 10)}px`,
+                    backgroundColor: 'rgba(20, 5, 10, 0.95)',
+                    color: '#ff2a5f',
+                    padding: '4px 10px',
+                    borderRadius: '5px',
+                    fontSize: '0.68rem',
+                    fontWeight: 900,
                     fontFamily: 'monospace',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                    border: '1px solid rgba(56, 189, 248, 0.4)',
-                    whiteSpace: 'nowrap'
+                    boxShadow: '0 0 15px rgba(255, 0, 85, 0.5), 0 4px 16px rgba(0,0,0,0.7)',
+                    border: '1.5px solid #ff0055',
+                    whiteSpace: 'nowrap',
+                    letterSpacing: '0.5px'
                   }}>
-                    X: {hoverCoords.x}px • Y: {hoverCoords.y}px
+                    🎯 X: {hoverCoords.x}px • Y: {hoverCoords.y}px
                   </div>
                 </div>
               )}
