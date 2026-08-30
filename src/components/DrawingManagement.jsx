@@ -26,17 +26,18 @@ import {
   FolderArchive, Target, Ruler, Settings2, Link2, Unlink, BarChart2,
   PlusCircle, MinusCircle, ChevronLeft, Upload, Info, ZoomIn, ZoomOut,
   Maximize2, Crosshair, Move, Image, FileUp, MousePointer, Boxes, Cpu,
-  ShieldCheck, Award, Printer, FileSpreadsheet, CheckSquare, Wand2, FileSearch
+  ShieldCheck, Award, Printer, FileSpreadsheet, CheckSquare, Wand2, FileSearch,
+  HelpCircle, FileDown, BookOpen, ListOrdered
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
 import {
   getDrawings, createDrawing, updateDrawing, deleteDrawing,
   getDrawingRevisions, createDrawingRevision, releaseDrawingRevision,
-  getDrawingBalloons, createDrawingBalloon, updateDrawingBalloon, deleteDrawingBalloon,
-  getDrawingFeatures, createDrawingFeature, updateDrawingFeature, deleteDrawingFeature,
+  getDrawingBalloons, createDrawingBalloon, deleteDrawingBalloon,
+  getDrawingFeatures, createDrawingFeature, deleteDrawingFeature,
   getDrawingRelations, addChildDrawing, removeChildDrawing,
-  getParts, getPart, createPart, updatePart,
+  getParts, getPart, createPart,
   generateCode
 } from '../utils/mavicorePLM';
 import { convertPdfToImageDataUrl } from '../utils/pdfRenderService';
@@ -78,6 +79,59 @@ const DISPOSITIONS = [
   { key: 'USE_AS_IS', label: 'Use As Is (Gunakan Stok Berjalan)' },
   { key: 'REWORK', label: 'Rework Required (Wajib Rework Stok)' },
   { key: 'SCRAP', label: 'Scrap / Obsolete (Karantina & Musnahkan)' },
+];
+
+// ─── Complete Industrial BOM Templates (Multi-Level Engineering Assemblies) ───
+const BOM_TEMPLATES = [
+  {
+    id: 'bom_hyd_flange',
+    name: 'Precision Hydraulic Flange Assembly',
+    code: 'ASM-FLG-450',
+    category: 'Hydraulics & Precision Machining',
+    drawingType: 'ASSEMBLY',
+    description: 'Unit perakitan flange hidrolik presisi tinggi dengan sealing O-Ring ganda dan bearing penopang poros stepper.',
+    totalParts: 5,
+    items: [
+      { itemNo: '01', partCode: 'PRT-FLG-01', partName: 'Main Cast Housing Flange', type: 'COMPONENT', qty: 1, unit: 'PCS', material: 'AL-6061-T6', weight: '0.450', balloonRef: '#1', notes: 'CNC Milled & Anodized Silver' },
+      { itemNo: '02', partCode: 'PRT-SFT-02', partName: 'Precision Stepper Drive Shaft', type: 'COMPONENT', qty: 1, unit: 'PCS', material: 'SUS-304', weight: '0.280', balloonRef: '#2', notes: 'Ground OD Ø25.00 ±0.005' },
+      { itemNo: '03', partCode: 'PRT-BRG-03', partName: 'Deep Groove Ball Bearing 6002-2RS', type: 'STANDARD_PART', qty: 2, unit: 'PCS', material: 'Chrome Steel GCr15', weight: '0.065', balloonRef: '#3', notes: 'JIS B 1521 Standard' },
+      { itemNo: '04', partCode: 'PRT-SL-04', partName: 'Hydraulic O-Ring NBR-70 Ø25x2.5', type: 'STANDARD_PART', qty: 1, unit: 'PCS', material: 'Nitrile Rubber NBR-70', weight: '0.005', balloonRef: '#4', notes: 'ISO 3601-1 Sealing' },
+      { itemNo: '05', partCode: 'PRT-FST-05', partName: 'Hex Socket Head Cap Bolt M6x20 Gr 8.8', type: 'STANDARD_PART', qty: 4, unit: 'PCS', material: 'Carbon Steel (Black Oxide)', weight: '0.012', balloonRef: '#5', notes: 'DIN 912 / ISO 4762' },
+    ]
+  },
+  {
+    id: 'bom_gearbox_unit',
+    name: 'Dual Stage Planetary Gearbox Transmission',
+    code: 'ASM-GBX-100',
+    category: 'Automotive & Power Transmission',
+    drawingType: 'ASSEMBLY',
+    description: 'Unit transmisi gearbox planetary rasio 5:1 untuk aplikasi robotika dan otomotif bertorsi tinggi.',
+    totalParts: 6,
+    items: [
+      { itemNo: '01', partCode: 'PRT-GBX-CASING', partName: 'Die-Cast Planetary Gearbox Housing', type: 'COMPONENT', qty: 1, unit: 'PCS', material: 'ADC-12 Aluminium', weight: '0.850', balloonRef: '#1', notes: 'Shot blasted & Powder Coated' },
+      { itemNo: '02', partCode: 'PRT-GEAR-SUN', partName: 'Sun Input Gear Mod 1.5 24T', type: 'COMPONENT', qty: 1, unit: 'PCS', material: 'SCM-415 (Carburized)', weight: '0.190', balloonRef: '#2', notes: 'Heat Treated HRC 58-62' },
+      { itemNo: '03', partCode: 'PRT-GEAR-PLANET', partName: 'Planetary Gear Cluster 18T', type: 'COMPONENT', qty: 3, unit: 'PCS', material: 'SCM-415 (Carburized)', weight: '0.120', balloonRef: '#3', notes: 'Needle roller fitted bore' },
+      { itemNo: '04', partCode: 'PRT-PIN-01', partName: 'Planetary Carrier Dowel Pin Ø6x30', type: 'STANDARD_PART', qty: 3, unit: 'PCS', material: 'SUJ2 Hardened Steel', weight: '0.015', balloonRef: '#4', notes: 'Tolerance m6 fit' },
+      { itemNo: '05', partCode: 'PRT-OIL-SL', partName: 'Rotary Oil Seal TC 20x35x7', type: 'STANDARD_PART', qty: 1, unit: 'PCS', material: 'FKM Viton', weight: '0.008', balloonRef: '#5', notes: 'High temp resistant 180°C' },
+      { itemNo: '06', partCode: 'PRT-LUB-01', partName: 'Synthetic Gear Lubricant EP-2', type: 'RAW_MATERIAL', qty: 0.05, unit: 'KG', material: 'Synthetic Grease EP-2', weight: '0.050', balloonRef: '#6', notes: 'Factory Filled 50ml' },
+    ]
+  },
+  {
+    id: 'bom_sheet_enclosure',
+    name: 'Industrial IP65 Control Box Enclosure',
+    code: 'ASM-ENC-800',
+    category: 'Sheet Metal & Enclosure',
+    drawingType: 'ASSEMBLY',
+    description: 'Kotak panel kontrol elektrik industri dengan standar proteksi tahan cuaca IP65 dan grounding terisolasi.',
+    totalParts: 5,
+    items: [
+      { itemNo: '01', partCode: 'PRT-SHT-BASE', partName: 'Base Enclosure Chassis 2.0mm', type: 'COMPONENT', qty: 1, unit: 'PCS', material: 'SPCC Cold Rolled Steel', weight: '1.450', balloonRef: '#1', notes: 'CNC Laser Cut & Bended' },
+      { itemNo: '02', partCode: 'PRT-SHT-TOP', partName: 'Top Cover Panel 1.5mm', type: 'COMPONENT', qty: 1, unit: 'PCS', material: 'SPCC Cold Rolled Steel', weight: '0.780', balloonRef: '#2', notes: 'Powder Coated RAL 7035 Grey' },
+      { itemNo: '03', partCode: 'PRT-GSK-01', partName: 'EPDM Continuous Sealing Gasket Strip', type: 'RAW_MATERIAL', qty: 1.2, unit: 'MTR', material: 'EPDM Sponge Rubber', weight: '0.040', balloonRef: '#3', notes: 'Self-adhesive waterproof profile' },
+      { itemNo: '04', partCode: 'PRT-PEM-M4', partName: 'PEM Self-Clinching Standoff M4x10', type: 'STANDARD_PART', qty: 8, unit: 'PCS', material: 'Zinc Plated Steel', weight: '0.003', balloonRef: '#4', notes: 'Hydraulic Pressed to sheet' },
+      { itemNo: '05', partCode: 'PRT-LCH-01', partName: 'Quarter-Turn Cam Latch Lock Key', type: 'STANDARD_PART', qty: 2, unit: 'SET', material: 'Zinc Alloy Die-Cast', weight: '0.085', balloonRef: '#5', notes: 'IP65 Rated Key Lock' },
+    ]
+  }
 ];
 
 // ─── Demo CAD Blueprint Generator Helper ───
@@ -127,6 +181,76 @@ const createDemoBlueprintSvg = (type = 'flange') => {
   </svg>`;
 };
 
+// ─── Reusable Modal & Form Components (Module Level to Prevent Re-mount Loss of Focus) ───
+const Modal = ({ show, onClose, title, children, onSubmit, submitLabel = 'Simpan', maxWidth = 'max-w-xl' }) => {
+  if (!show) return null;
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 animate-in fade-in duration-150" onClick={onClose}>
+      <div className={`bg-white border border-gray-200 rounded-xl shadow-2xl w-full ${maxWidth} max-h-[90vh] flex flex-col overflow-hidden text-gray-900`} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-[#f8f9fa] shrink-0">
+          <h3 className="text-base font-bold text-gray-900">{title}</h3>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700 cursor-pointer p-1 rounded-md hover:bg-gray-200 transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">{children}</div>
+        {onSubmit && (
+          <div className="flex items-center justify-end gap-2 px-6 py-3.5 border-t border-gray-200 bg-[#f8f9fa] shrink-0">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-semibold text-gray-600 hover:text-gray-900 rounded-md hover:bg-gray-200 cursor-pointer transition-colors">
+              Batal
+            </button>
+            <button type="button" onClick={onSubmit} className="px-5 py-2 text-xs font-bold bg-[#714B67] hover:bg-[#5C3D54] text-white rounded-md shadow-xs transition-all cursor-pointer">
+              {submitLabel}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const InputField = ({ label, value, onChange, placeholder, type = 'text', required = false, autoFocus = false }) => (
+  <div>
+    <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+      {label} {required && <span className="text-rose-500">*</span>}
+    </label>
+    <input
+      type={type}
+      value={value || ''}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      autoFocus={autoFocus}
+      className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#714B67] focus:ring-2 focus:ring-[#714B67]/20 transition-all"
+    />
+  </div>
+);
+
+const SelectField = ({ label, value, onChange, options }) => (
+  <div>
+    <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">{label}</label>
+    <select
+      value={value || ''}
+      onChange={e => onChange(e.target.value)}
+      className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:border-[#714B67] focus:ring-2 focus:ring-[#714B67]/20 transition-all cursor-pointer"
+    >
+      {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  </div>
+);
+
+const TextArea = ({ label, value, onChange, placeholder }) => (
+  <div>
+    <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-1.5">{label}</label>
+    <textarea
+      value={value || ''}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      rows={3}
+      className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#714B67] focus:ring-2 focus:ring-[#714B67]/20 transition-all resize-none"
+    />
+  </div>
+);
+
 export default function DrawingManagement() {
   const navigate = useNavigate();
 
@@ -172,6 +296,10 @@ export default function DrawingManagement() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPartModal, setShowPartModal] = useState(false);
   const [showCreatePartModal, setShowCreatePartModal] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showBomTemplateModal, setShowBomTemplateModal] = useState(false);
+  const [selectedBomTemplate, setSelectedBomTemplate] = useState(BOM_TEMPLATES[0]);
+  const [activeHelpTab, setActiveHelpTab] = useState('workflow');
 
   // Form states
   const [formData, setFormData] = useState({ name: '', code: '', drawing_type: 'DETAIL', description: '', file_url: null, file_name: null });
@@ -395,7 +523,9 @@ export default function DrawingManagement() {
         if (newDwgRes.success) {
           try {
             localStorage.setItem(`mandor_drawing_image_${newDwgRes.data.id}`, imageUrl);
-          } catch (e) {}
+          } catch {
+            // LocalStorage quota fallback
+          }
           await loadInitialData();
           await selectDrawing(newDwgRes.data);
         }
@@ -424,7 +554,9 @@ export default function DrawingManagement() {
     if (selectedDrawing) {
       try {
         localStorage.setItem(`mandor_drawing_image_${selectedDrawing.id}`, demoSvg);
-      } catch (e) {}
+      } catch {
+        // LocalStorage quota fallback
+      }
 
       await updateDrawing(selectedDrawing.id, {
         file_name: fileName,
@@ -527,14 +659,6 @@ export default function DrawingManagement() {
       return matchSearch && matchType;
     });
   }, [drawings, searchTerm, filterType]);
-
-  // ─── Stats ───
-  const stats = useMemo(() => ({
-    total: drawings.length,
-    detail: drawings.filter(d => d.drawing_type === 'DETAIL').length,
-    assembly: drawings.filter(d => d.drawing_type === 'ASSEMBLY').length,
-    totalParts: parts.length,
-  }), [drawings, parts]);
 
   // ─── CRUD Handlers ───
   const handleCreateDrawing = async () => {
@@ -773,71 +897,6 @@ export default function DrawingManagement() {
   const getTypeConfig = (type) => DRAWING_TYPES.find(t => t.key === type) || DRAWING_TYPES[0];
   const getRevStatus = (status) => REV_STATUS[status] || REV_STATUS.DRAFT;
 
-  // ─── Modal Component (Odoo Dialog Style) ───
-  const Modal = ({ show, onClose, title, children, onSubmit, submitLabel = 'Simpan', maxWidth = 'max-w-xl' }) => {
-    if (!show) return null;
-    return (
-      <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-[9999] p-4" onClick={onClose}>
-        <div className={`bg-white border border-gray-200 rounded-xl shadow-2xl w-full ${maxWidth} max-h-[90vh] flex flex-col overflow-hidden text-gray-900`} onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-[#f8f9fa] shrink-0">
-            <h3 className="text-base font-bold text-gray-900">{title}</h3>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-700 cursor-pointer"><X size={18} /></button>
-          </div>
-          <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">{children}</div>
-          {onSubmit && (
-            <div className="flex items-center justify-end gap-2 px-6 py-3.5 border-t border-gray-200 bg-[#f8f9fa] shrink-0">
-              <button onClick={onClose} className="px-4 py-2 text-xs font-semibold text-gray-600 hover:text-gray-900 cursor-pointer">Batal</button>
-              <button onClick={onSubmit} className="px-5 py-2 text-xs font-bold bg-[#714B67] hover:bg-[#5C3D54] text-white rounded-md shadow-xs transition-all cursor-pointer">
-                {submitLabel}
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const InputField = ({ label, value, onChange, placeholder, type = 'text', required = false }) => (
-    <div>
-      <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider mb-1.5">
-        {label} {required && <span className="text-rose-500">*</span>}
-      </label>
-      <input
-        type={type}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#714B67] focus:ring-1 focus:ring-[#714B67] transition-all"
-      />
-    </div>
-  );
-
-  const SelectField = ({ label, value, onChange, options }) => (
-    <div>
-      <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider mb-1.5">{label}</label>
-      <select
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:border-[#714B67] focus:ring-1 focus:ring-[#714B67] transition-all"
-      >
-        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-    </div>
-  );
-
-  const TextArea = ({ label, value, onChange, placeholder }) => (
-    <div>
-      <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider mb-1.5">{label}</label>
-      <textarea
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        rows={3}
-        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#714B67] focus:ring-1 focus:ring-[#714B67] transition-all resize-none"
-      />
-    </div>
-  );
-
   // ─── RENDER ───
   return (
     <div className="flex flex-col flex-1 h-full w-full bg-[#f8f9fa] text-gray-900 overflow-hidden font-sans">
@@ -872,6 +931,20 @@ export default function DrawingManagement() {
 
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setShowHelpModal(true)}
+            className="flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold text-xs px-3 py-2 rounded-md shadow-xs transition-all cursor-pointer"
+          >
+            <HelpCircle size={14} className="text-amber-600" />
+            Panduan & SOP
+          </button>
+          <button
+            onClick={() => setShowBomTemplateModal(true)}
+            className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-300 font-bold text-xs px-3 py-2 rounded-md shadow-xs transition-all cursor-pointer"
+          >
+            <Package size={14} className="text-indigo-600" />
+            Template BOM Lengkap
+          </button>
+          <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isProcessingFile}
             className="flex items-center gap-1.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-semibold text-xs px-3.5 py-2 rounded-md shadow-xs transition-all cursor-pointer"
@@ -896,28 +969,7 @@ export default function DrawingManagement() {
         </div>
       </div>
 
-      {/* ═══ 2. ODOO SMART STAT BOXES (o_stat_info) ═══ */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-6 py-3.5 shrink-0 bg-[#f8f9fa]">
-        {[
-          { label: 'Total Drawing', value: stats.total, sub: 'Blueprint aktif', icon: FolderArchive, accent: 'text-[#714B67]', iconBg: 'bg-[#714B67]/10' },
-          { label: 'Master Part (BOM)', value: stats.totalParts, sub: 'Part terdaftar', icon: Boxes, accent: 'text-[#00A09D]', iconBg: 'bg-[#00A09D]/10' },
-          { label: 'Revisi & ECN', value: revisions.length, sub: 'Riwayat perubahan', icon: GitBranch, accent: 'text-indigo-600', iconBg: 'bg-indigo-50' },
-          { label: 'Total Balloon', value: balloons.length, sub: 'Titik ukur aktif', icon: Circle, accent: 'text-emerald-600', iconBg: 'bg-emerald-50' },
-        ].map((s, i) => (
-          <div key={i} className="bg-white border border-gray-200 rounded-lg p-3.5 flex items-center justify-between shadow-xs hover:border-gray-300 transition-all">
-            <div>
-              <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">{s.label}</div>
-              <div className={`text-2xl font-black ${s.accent} mt-0.5`}>{s.value}</div>
-              <div className="text-[10px] text-gray-400">{s.sub}</div>
-            </div>
-            <div className={`w-10 h-10 rounded-lg ${s.iconBg} ${s.accent} flex items-center justify-center`}>
-              <s.icon size={20} />
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* ═══ 3. MAIN WORKSPACE ═══ */}
+      {/* ═══ 2. MAIN WORKSPACE ═══ */}
       <div className="flex flex-1 overflow-hidden">
 
         {/* ── LEFT SIDEBAR: Drawing List ── */}
@@ -1129,12 +1181,10 @@ export default function DrawingManagement() {
               <div className="flex items-center justify-between px-6 border-b border-gray-200 bg-white shrink-0">
                 <div className="flex items-center gap-2">
                   {[
-                    { key: 'canvas', label: 'Visual Blueprint & Balon', icon: Crosshair },
+                    { key: 'canvas', label: 'Preview Blueprint CAD', icon: FileText },
                     { key: 'revisions', label: `Revisi & ECN (${revisions.length})`, icon: GitBranch },
                     { key: 'bom', label: 'Part & BOM Integration', icon: Boxes },
-                    { key: 'balloons', label: `Daftar Balon (${balloons.length})`, icon: Circle },
-                    { key: 'features', label: `Features / GD&T (${features.length})`, icon: Ruler },
-                    { key: 'relations', label: `Relations (${relations.length})`, icon: Link2 },
+                    { key: 'relations', label: `Drawing Relations (${relations.length})`, icon: Link2 },
                   ].map(tab => (
                     <button
                       key={tab.key}
@@ -1150,30 +1200,16 @@ export default function DrawingManagement() {
                   ))}
                 </div>
 
-                {activeTab === 'canvas' && (
-                  <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
+                  {selectedDrawing && (
                     <button
-                      onClick={() => {
-                        if (!selectedRevision && revisions.length === 0) {
-                          toast('Membuat Revision A awal...', { icon: '⚙️' });
-                          handleCreateRevision();
-                          return;
-                        }
-                        setIsBalloonPlacingMode(prev => !prev);
-                        if (!isBalloonPlacingMode) {
-                          toast('Klik pada area blueprint untuk menaruh titik balon', { icon: '🎯' });
-                        }
-                      }}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${isBalloonPlacingMode
-                        ? 'bg-emerald-600 text-white shadow-xs animate-pulse'
-                        : 'bg-[#714B67]/10 text-[#714B67] border border-[#714B67]/20 hover:bg-[#714B67]/20'
-                      }`}
+                      onClick={handleOpenInInspector}
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-xs font-bold bg-[#00A09D] hover:bg-[#008784] text-white shadow-xs transition-all cursor-pointer"
                     >
-                      <Crosshair size={13} />
-                      {isBalloonPlacingMode ? 'Mode Penempatan Aktif (Klik Gambar)' : '+ Taruh Balon Visual'}
+                      <FileCode size={14} /> Atur Balon & GD&T di Inspector Studio ➔
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
               {/* ── Tab Content ── */}
@@ -1218,18 +1254,17 @@ export default function DrawingManagement() {
                       </button>
                     </div>
 
-                    {/* Canvas Area with Image & Balloons */}
+                    {/* Canvas Area with Blueprint Image */}
                     <div
                       ref={canvasContainerRef}
                       onDragOver={handleDragOver}
                       onDragLeave={handleDragLeave}
                       onDrop={handleDrop}
-                      className={`flex-1 w-full h-full min-h-[450px] overflow-hidden flex items-center justify-center select-none relative transition-colors ${isDragOver ? 'bg-blue-950/40 border-2 border-dashed border-blue-500' : ''} ${isBalloonPlacingMode ? 'cursor-crosshair' : isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+                      className={`flex-1 w-full h-full min-h-[450px] overflow-hidden flex items-center justify-center select-none relative transition-colors ${isDragOver ? 'bg-blue-950/40 border-2 border-dashed border-blue-500' : ''} ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
                       onWheel={handleWheel}
                       onMouseDown={handleMouseDown}
                       onMouseMove={handleMouseMove}
                       onMouseUp={handleMouseUp}
-                      onClick={handleCanvasClick}
                     >
                       {!blueprintImage ? (
                         <div className="flex flex-col items-center justify-center text-center p-8 border border-dashed border-gray-300 rounded-xl bg-white max-w-lg shadow-lg m-4">
@@ -1283,51 +1318,21 @@ export default function DrawingManagement() {
                             onLoad={() => console.log('[DrawingManagement] Blueprint loaded successfully')}
                             onError={(e) => console.error('[DrawingManagement] Image element load error:', e)}
                           />
+                        </div>
+                      )}
 
-                          {/* Visual Balloons Layer */}
-                          {balloons.map((balloon) => {
-                            const naturalWidth = imageRef.current?.naturalWidth || 1000;
-                            const naturalHeight = imageRef.current?.naturalHeight || 650;
-
-                            const leftPercent = (balloon.position_x / naturalWidth) * 100;
-                            const topPercent = (balloon.position_y / naturalHeight) * 100;
-
-                            const isSelected = activeBalloonId === balloon.id;
-
-                            return (
-                              <div
-                                key={balloon.id}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveBalloonId(balloon.id);
-                                }}
-                                style={{
-                                  position: 'absolute',
-                                  left: `${leftPercent}%`,
-                                  top: `${topPercent}%`,
-                                  transform: 'translate(-50%, -50%)',
-                                  zIndex: isSelected ? 30 : 10
-                                }}
-                                className="group/balloon cursor-pointer"
-                              >
-                                <div
-                                  className={`w-7 h-7 rounded-full flex items-center justify-center text-white font-black text-xs shadow-lg transition-transform ${isSelected ? 'scale-125 ring-2 ring-white ring-offset-2 ring-offset-slate-900' : 'group-hover/balloon:scale-110'}`}
-                                  style={{ backgroundColor: balloon.color || '#714B67' }}
-                                >
-                                  {balloon.balloon_number}
-                                </div>
-
-                                <div className="opacity-0 group-hover/balloon:opacity-100 pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 bg-gray-900/95 text-white border border-gray-700 px-2.5 py-1 rounded-md text-[10px] whitespace-nowrap shadow-xl z-40 transition-opacity">
-                                  <div className="font-bold">Point #{balloon.balloon_number}</div>
-                                  {balloon.target_feature && (
-                                    <div className="text-[#00A09D] font-mono">
-                                      {balloon.target_feature.nominal_value} ±{balloon.target_feature.upper_tolerance || '0'} {balloon.target_feature.unit || 'mm'}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
+                      {/* Bottom Banner: Redirect to Inspector Studio for Ballooning */}
+                      {blueprintImage && selectedDrawing && (
+                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex flex-wrap items-center justify-center gap-3 bg-gray-900/90 backdrop-blur-md border border-gray-700 px-4 py-2 rounded-lg text-white shadow-xl max-w-xl text-center">
+                          <span className="text-xs text-gray-300">
+                            💡 Penomoran Balon, Toleransi GD&T, dan Metrologi dikelola di <strong>Inspector Designer Studio</strong>.
+                          </span>
+                          <button
+                            onClick={handleOpenInInspector}
+                            className="bg-[#00A09D] hover:bg-[#008784] text-white font-bold text-xs px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                          >
+                            <FileCode size={13} /> Buka di Inspector Studio
+                          </button>
                         </div>
                       )}
                     </div>
@@ -1548,10 +1553,41 @@ export default function DrawingManagement() {
 
                     {/* BOM Table if Assembly (Odoo Tree View) */}
                     <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-xs">
-                      <div className="flex items-center justify-between mb-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-gray-100">
                         <div>
-                          <h4 className="text-sm font-bold text-gray-900">Bill of Materials (BOM) & Sub-Parts</h4>
-                          <p className="text-xs text-gray-500">Daftar part penyusun untuk gambar assembly ini</p>
+                          <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                            <Package size={16} className="text-[#714B67]" /> Bill of Materials (BOM) & Multi-level Parts
+                          </h4>
+                          <p className="text-xs text-gray-500">Daftar part penyusun, material spesifikasi, dan toleransi untuk perakitan</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setShowBomTemplateModal(true)}
+                            className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-md border border-indigo-200 flex items-center gap-1.5 transition-all cursor-pointer"
+                          >
+                            <Sparkles size={13} /> Muat Template BOM Standar
+                          </button>
+                          <button
+                            onClick={() => {
+                              const tpl = BOM_TEMPLATES[0];
+                              const headers = ['Item #', 'Part Number', 'Part Name', 'Qty', 'Unit', 'Material', 'Balloon Ref', 'Notes'];
+                              const rows = relations.length > 0 
+                                ? relations.map((rel, idx) => [`"0${idx + 1}"`, `"${rel.child?.code || ''}"`, `"${rel.child?.name || ''}"`, rel.quantity || 1, '"PCS"', `"${rel.child?.metadata?.material || '-'}"`, `"#${idx + 1}"`, '""'])
+                                : tpl.items.map(it => [`"${it.itemNo}"`, `"${it.partCode}"`, `"${it.partName}"`, it.qty, `"${it.unit}"`, `"${it.material}"`, `"${it.balloonRef}"`, `"${it.notes}"`]);
+                              const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+                              const encodedUri = encodeURI(csvContent);
+                              const link = document.createElement('a');
+                              link.setAttribute('href', encodedUri);
+                              link.setAttribute('download', `BOM_Export_${selectedDrawing?.code || 'Drawing'}.csv`);
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
+                              toast.success('✓ File CSV BOM berhasil diunduh!');
+                            }}
+                            className="px-3 py-1.5 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold rounded-md border border-gray-300 flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+                          >
+                            <FileDown size={13} /> Export CSV
+                          </button>
                         </div>
                       </div>
 
@@ -2095,6 +2131,275 @@ export default function DrawingManagement() {
         </div>
         <SelectField label="Unit" value={featureFormData.unit} onChange={v => setFeatureFormData(p => ({ ...p, unit: v }))}
           options={[{ value: 'mm', label: 'mm' }, { value: 'inch', label: 'inch' }, { value: 'µm', label: 'µm' }, { value: '°', label: '° (degree)' }, { value: 'Ra', label: 'Ra (roughness)' }]} />
+      </Modal>
+
+      {/* ── 9. SOP & Help Guide Modal ── */}
+      <Modal show={showHelpModal} onClose={() => setShowHelpModal(false)} title="Buku Panduan & SOP Drawing & ECN Management" maxWidth="max-w-4xl">
+        <div className="flex flex-col gap-4 text-xs">
+          {/* Sub Navigation Tabs */}
+          <div className="flex border-b border-gray-200 gap-2 pb-2 overflow-x-auto">
+            {[
+              { id: 'workflow', label: '1. Alur Kerja PLM', icon: GitBranch },
+              { id: 'bom', label: '2. Struktur BOM & Part', icon: Package },
+              { id: 'ecn', label: '3. Standar ISO / ECN', icon: ShieldCheck },
+              { id: 'inspector', label: '4. Buka di Inspector Studio', icon: FileCode },
+            ].map(t => (
+              <button
+                key={t.id}
+                onClick={() => setActiveHelpTab(t.id)}
+                className={`px-3 py-1.5 rounded-md font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+                  activeHelpTab === t.id ? 'bg-[#714B67] text-white shadow-xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                <t.icon size={13} /> {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Help Tab 1: Workflow */}
+          {activeHelpTab === 'workflow' && (
+            <div className="space-y-3 text-gray-700">
+              <h4 className="font-extrabold text-sm text-gray-900 flex items-center gap-1.5">
+                <GitBranch size={16} className="text-[#714B67]" /> Siklus Hidup Dokumen Gambar & ECN
+              </h4>
+              <p>Modul ini berfungsi sebagai Single Source of Truth untuk semua blueprint teknik manufaktur:</p>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-2">
+                <div className="p-3 bg-teal-50 border border-teal-200 rounded-lg">
+                  <div className="font-bold text-[#00A09D] mb-1">1. Registrasi & Upload</div>
+                  <p className="text-[11px] text-gray-600">Unggah file DXF, PDF vector, atau SVG. Buat kode drawing terstandar ISO (cth: DWG-FLG-001).</p>
+                </div>
+                <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                  <div className="font-bold text-[#714B67] mb-1">2. Part & BOM Hub</div>
+                  <p className="text-[11px] text-gray-600">Hubungkan drawing ke Master Part Number fisik manufaktur dan susun Bill of Materials (BOM).</p>
+                </div>
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className="font-bold text-amber-700 mb-1">3. ECN & Revisi</div>
+                  <p className="text-[11px] text-gray-600">Jika ada perubahan desain, terbitkan ECN (Engineering Change Notice) dengan approval sign-off.</p>
+                </div>
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                  <div className="font-bold text-emerald-700 mb-1">4. Inspector Studio</div>
+                  <p className="text-[11px] text-gray-600">Buka blueprint di Inspector Studio untuk penomoran balon, GD&T, dan penerbitan Check Sheet.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Help Tab 2: BOM Structure */}
+          {activeHelpTab === 'bom' && (
+            <div className="space-y-3 text-gray-700">
+              <h4 className="font-extrabold text-sm text-gray-900 flex items-center gap-1.5">
+                <Package size={16} className="text-indigo-600" /> Bill of Materials (BOM) & Master Part
+              </h4>
+              <p>MaviCore PLM menghubungkan dokumen gambar CAD 2D/3D dengan data fisik manufaktur:</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                  <div className="font-bold text-gray-900 mb-1">🔗 Hubungan Drawing ke Master Part</div>
+                  <p className="text-[11px] text-gray-600">Setiap drawing dapat dihubungkan ke Master Part Number (BOM) untuk sinkronisasi material, berat jenis, dan status inventory ERP.</p>
+                </div>
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                  <div className="font-bold text-gray-900 mb-1">🌳 Assembly Tree Hierarchy</div>
+                  <p className="text-[11px] text-gray-600">Gambar tipe <strong>Assembly</strong> dapat memiliki banyak sub-drawing child dengan kuantitas dan nomor referensi BOM.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Help Tab 3: ECN Standards */}
+          {activeHelpTab === 'ecn' && (
+            <div className="space-y-3 text-gray-700">
+              <h4 className="font-extrabold text-sm text-gray-900 flex items-center gap-1.5">
+                <ShieldCheck size={16} className="text-rose-600" /> Kepatuhan Standar ISO 9001 & IATF 16949 ECN
+              </h4>
+              <p>Prosedur perubahan teknis wajib mencakup:</p>
+              <div className="space-y-2">
+                <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-md">
+                  <span className="font-bold text-rose-800">1. Disposisi Material Sisa (Stock Disposition):</span>
+                  <p className="text-[11px] text-gray-600 mt-0.5">Wajib memilih apakah stok lama: <em>Use As Is</em> (habiskan), <em>Rework</em> (modifikasi), atau <em>Scrap</em> (musnahkan).</p>
+                </div>
+                <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-md">
+                  <span className="font-bold text-rose-800">2. Otorisasi & Tanggal Efektif:</span>
+                  <p className="text-[11px] text-gray-600 mt-0.5">Setiap revisi baru memerlukan tanda tangan persetujuan QA/Engineering dan tanggal mulai berlaku di lini perakitan.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Help Tab 4: Inspector Integration */}
+          {activeHelpTab === 'inspector' && (
+            <div className="space-y-3 text-gray-700">
+              <h4 className="font-extrabold text-sm text-gray-900 flex items-center gap-1.5">
+                <FileCode size={16} className="text-[#00A09D]" /> Pembuatan Balon & Check Sheet di Inspector Studio
+              </h4>
+              <p>Untuk menaruh balon inspeksi, memasukkan toleransi GD&T, atau menghubungkan alat ukur Bluetooth, klik tombol <strong>[Buka di Inspector Studio]</strong>.</p>
+              <p className="text-[11px] bg-teal-50 p-2.5 rounded-md border border-teal-200 text-teal-900">
+                Inspector Studio menyediakan kanvas metrologi canggih dengan shape QC (lingkaran, segi enam, diamond), crosshair laser, limit sample visual, dan ekspor instan ke Digital Drawing Check Sheet.
+              </p>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* ── 10. Complete Industrial BOM Templates Modal ── */}
+      <Modal show={showBomTemplateModal} onClose={() => setShowBomTemplateModal(false)} title="Template Lengkap BOM (Bill of Materials) Industri" maxWidth="max-w-4xl">
+        <div className="flex flex-col gap-4 text-xs">
+          <p className="text-gray-600">Pilih salah satu template struktur perakitan manufaktur standar di bawah ini untuk diterapkan langsung ke drawing dan database:</p>
+
+          {/* Template Selector Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {BOM_TEMPLATES.map(tpl => (
+              <div
+                key={tpl.id}
+                onClick={() => setSelectedBomTemplate(tpl)}
+                className={`p-3.5 rounded-lg border cursor-pointer transition-all ${
+                  selectedBomTemplate.id === tpl.id ? 'border-[#714B67] bg-[#714B67]/5 shadow-sm ring-2 ring-[#714B67]/20' : 'border-gray-200 bg-white hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="font-mono font-bold text-xs text-[#714B67]">{tpl.code}</span>
+                  <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-semibold">{tpl.totalParts} Parts</span>
+                </div>
+                <h5 className="font-bold text-gray-900 text-xs mb-1">{tpl.name}</h5>
+                <p className="text-[11px] text-gray-500 line-clamp-2">{tpl.description}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Selected Template Details & Table Preview */}
+          {selectedBomTemplate && (
+            <div className="bg-[#f8f9fa] border border-gray-200 rounded-lg p-4 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <div className="font-extrabold text-sm text-gray-900">{selectedBomTemplate.name} ({selectedBomTemplate.code})</div>
+                  <div className="text-[11px] text-gray-500">Kategori: <strong className="text-gray-700">{selectedBomTemplate.category}</strong></div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const tpl = selectedBomTemplate;
+                      const headers = ['Item No', 'Part Number', 'Part Name', 'Type', 'Quantity', 'Unit', 'Material', 'Weight (kg)', 'Balloon Ref', 'Engineering Notes'];
+                      const rows = tpl.items.map(it => [
+                        `"${it.itemNo}"`,
+                        `"${it.partCode}"`,
+                        `"${it.partName}"`,
+                        `"${it.type}"`,
+                        it.qty,
+                        `"${it.unit}"`,
+                        `"${it.material}"`,
+                        it.weight,
+                        `"${it.balloonRef}"`,
+                        `"${it.notes}"`
+                      ]);
+                      const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+                      const encodedUri = encodeURI(csvContent);
+                      const link = document.createElement('a');
+                      link.setAttribute('href', encodedUri);
+                      link.setAttribute('download', `BOM_Template_${tpl.code}.csv`);
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      toast.success(`✓ File CSV Template BOM ${tpl.code} berhasil diunduh!`);
+                    }}
+                    className="px-3 py-1.5 bg-white hover:bg-gray-100 border border-gray-300 text-gray-700 font-semibold text-xs rounded-md shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <FileDown size={13} /> Unduh CSV Template
+                  </button>
+                  <button
+                    onClick={async () => {
+                      toast.loading('Menerapkan Template BOM & Master Parts...', { id: 'bom_tpl' });
+                      try {
+                        const tpl = selectedBomTemplate;
+                        let topDwg = selectedDrawing;
+                        if (!topDwg) {
+                          const createRes = await createDrawing({
+                            code: tpl.code,
+                            name: tpl.name,
+                            drawing_type: 'ASSEMBLY',
+                            description: tpl.description
+                          });
+                          topDwg = createRes.data;
+                        }
+
+                        for (let i = 0; i < tpl.items.length; i++) {
+                          const item = tpl.items[i];
+                          const partRes = await createPart({
+                            code: item.partCode,
+                            name: item.partName,
+                            material: item.material,
+                            weight: item.weight,
+                            part_type: item.type,
+                            unit: item.unit
+                          });
+                          
+                          const childDwgRes = await createDrawing({
+                            code: `DWG-${item.partCode}`,
+                            name: `${item.partName} Drawing`,
+                            drawing_type: 'DETAIL',
+                            description: item.notes,
+                            master_part_id: partRes.data?.id
+                          });
+
+                          if (topDwg && childDwgRes.data) {
+                            await addChildDrawing(topDwg.id, childDwgRes.data.id, 'CONTAINS');
+                          }
+                        }
+
+                        if (!blueprintImage) {
+                          await handleLoadDemoPreset('flange');
+                        }
+
+                        await loadInitialData();
+                        if (topDwg) await selectDrawing(topDwg);
+                        setActiveTab('bom');
+                        setShowBomTemplateModal(false);
+                        toast.success(`✓ Template BOM "${tpl.name}" berhasil diterapkan (${tpl.items.length} Part)!`, { id: 'bom_tpl' });
+                      } catch (err) {
+                        console.error('Apply BOM error:', err);
+                        toast.error(`Gagal menerapkan template BOM: ${err.message}`, { id: 'bom_tpl' });
+                      }
+                    }}
+                    className="px-3.5 py-1.5 bg-[#714B67] hover:bg-[#5C3D54] text-white font-bold text-xs rounded-md shadow-xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Sparkles size={13} /> Terapkan ke Drawing Aktif
+                  </button>
+                </div>
+              </div>
+
+              {/* Table */}
+              <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-gray-100 text-gray-700 border-b border-gray-200">
+                      <th className="py-2 px-3 text-left font-bold text-[10px] uppercase">Item #</th>
+                      <th className="py-2 px-3 text-left font-bold text-[10px] uppercase">Part Code</th>
+                      <th className="py-2 px-3 text-left font-bold text-[10px] uppercase">Part Name</th>
+                      <th className="py-2 px-3 text-center font-bold text-[10px] uppercase">Qty</th>
+                      <th className="py-2 px-3 text-left font-bold text-[10px] uppercase">Material</th>
+                      <th className="py-2 px-3 text-center font-bold text-[10px] uppercase">Balon</th>
+                      <th className="py-2 px-3 text-left font-bold text-[10px] uppercase">Catatan Manufaktur</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedBomTemplate.items.map((it, idx) => (
+                      <tr key={idx} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
+                        <td className="py-2 px-3 font-mono font-bold text-gray-500">{it.itemNo}</td>
+                        <td className="py-2 px-3 font-mono font-bold text-[#00A09D]">{it.partCode}</td>
+                        <td className="py-2 px-3 font-semibold text-gray-900">{it.partName}</td>
+                        <td className="py-2 px-3 text-center font-bold text-gray-800">{it.qty} {it.unit}</td>
+                        <td className="py-2 px-3 text-gray-600">{it.material}</td>
+                        <td className="py-2 px-3 text-center">
+                          <span className="px-1.5 py-0.5 bg-[#714B67]/10 text-[#714B67] font-bold text-[10px] rounded">
+                            {it.balloonRef}
+                          </span>
+                        </td>
+                        <td className="py-2 px-3 text-[11px] text-gray-500">{it.notes}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
       </Modal>
     </div>
   );
