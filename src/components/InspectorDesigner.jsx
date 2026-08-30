@@ -30,6 +30,7 @@ const PARAM_CATEGORIES = [
   { key: 'radius', label: 'Radius', icon: 'R', color: '#06b6d4', symbol: 'R' },
   { key: 'angle', label: 'Angle', icon: '∠', color: '#f59e0b', symbol: '∠' },
   { key: 'depth', label: 'Depth', icon: '⏥', color: '#10b981', symbol: '⏥' },
+  { key: 'visual', label: 'Visual & Surface', icon: '👁️', color: '#10b981', symbol: '👁️' },
   { key: 'roughness', label: 'Surface Roughness', icon: 'Ra', color: '#ef4444', symbol: 'Ra' },
   { key: 'flatness', label: 'Flatness', icon: '⊥', color: '#6366f1', symbol: '⊥' },
   { key: 'roundness', label: 'Roundness', icon: '◎', color: '#ec4899', symbol: '◎' },
@@ -46,6 +47,7 @@ const CRITICALITY_LEVELS = [
 const INSPECTION_METHODS = [
   { key: 'Caliper', label: 'Digital Caliper', icon: '📏' },
   { key: 'Micrometer', label: 'Micrometer', icon: '🎯' },
+  { key: 'Visual Limit Sample', label: 'Visual Limit Sample (3-Way Comparator)', icon: '👁️' },
   { key: 'Bore Gauge', label: 'Bore Gauge', icon: '🔘' },
   { key: 'Height Gauge', label: 'Height Gauge', icon: '📐' },
   { key: 'CMM', label: 'CMM Machine', icon: '🤖' },
@@ -5499,16 +5501,22 @@ export default function InspectorDesigner() {
                 <label style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
                   Category
                 </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '4px' }}>
                   {PARAM_CATEGORIES.map(cat => (
                     <button
                       key={cat.key}
-                      onClick={() => handleUpdatePoint('category', cat.key)}
+                      onClick={() => {
+                        handleUpdatePoint('category', cat.key);
+                        if (cat.key === 'visual') {
+                          handleUpdatePoint('inspectionMethod', 'Visual Limit Sample');
+                          handleUpdatePoint('shape', 'square');
+                        }
+                      }}
                       style={{
                         padding: '6px 4px',
                         backgroundColor: activePoint.category === cat.key ? cat.color : '#1e293b',
                         color: 'white',
-                        border: 'none',
+                        border: activePoint.category === cat.key ? '1.5px solid #ffffff' : '1px solid #334155',
                         borderRadius: '4px',
                         fontSize: '0.65rem',
                         fontWeight: 700,
@@ -5520,84 +5528,221 @@ export default function InspectorDesigner() {
                       }}
                     >
                       <span>{cat.icon}</span>
-                      <span>{cat.key.slice(0, 4)}</span>
+                      <span style={{ fontSize: '0.58rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{cat.label}</span>
                     </button>
                   ))}
                 </div>
               </div>
-              
-              {/* Nominal & Tolerance */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
-                <div>
-                  <label style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
-                    Nominal
-                  </label>
-                  <input
-                    type="number"
-                    step="0.001"
-                    value={activePoint.nominal}
-                    onChange={e => handleUpdatePoint('nominal', parseFloat(e.target.value) || 0)}
-                    style={{
-                      width: '100%',
-                      padding: '6px 8px',
-                      backgroundColor: '#1e293b',
-                      border: '1px solid #334155',
-                      borderRadius: '4px',
-                      color: '#38bdf8',
-                      fontSize: '0.8rem',
-                      fontWeight: 700,
-                      outline: 'none',
-                      textAlign: 'center'
-                    }}
-                  />
+
+              {/* ════════════════════════════════════════════════════════════════
+                  VISUAL LIMIT SAMPLE & DEFECT STANDARD CONFIGURATION
+                  ════════════════════════════════════════════════════════════════ */}
+              {(activePoint.category === 'visual' || activePoint.category?.toLowerCase().includes('visual') || activePoint.inspectionMethod?.includes('Visual')) ? (
+                <div style={{ backgroundColor: '#090d16', border: '1.5px solid #10b981', borderRadius: '8px', padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.74rem', fontWeight: 900, color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      👁️ Visual Limit Sample Standard
+                    </span>
+                    <span style={{ fontSize: '0.6rem', color: '#a7f3d0', backgroundColor: 'rgba(16,185,129,0.2)', padding: '1px 5px', borderRadius: '3px', fontWeight: 800 }}>
+                      ISO 9001: 8.5.1
+                    </span>
+                  </div>
+
+                  {/* Defect Classification Tag */}
+                  <div>
+                    <label style={{ fontSize: '0.62rem', fontWeight: 700, color: '#cbd5e1', display: 'block', marginBottom: '3px' }}>
+                      Jenis Cacat (Defect Classification):
+                    </label>
+                    <select
+                      value={activePoint.defectTag || 'Scratch / Goresan'}
+                      onChange={e => handleUpdatePoint('defectTag', e.target.value)}
+                      style={{ width: '100%', padding: '6px 8px', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#38bdf8', fontSize: '0.74rem', fontWeight: 700, outline: 'none' }}
+                    >
+                      <option value="Scratch / Goresan">Scratch / Goresan</option>
+                      <option value="Painting / Cat Belang">Painting / Cat Belang (Orange Peel)</option>
+                      <option value="Burr / Ketajaman">Burr / Ketajaman Sisa Mesin</option>
+                      <option value="Pinhole / Porosi">Pinhole / Porosi Coran</option>
+                      <option value="Dent / Penyok">Dent / Penyok Benturan</option>
+                      <option value="Weld Bead">Weld Bead / Sambungan Las</option>
+                    </select>
+                  </div>
+
+                  {/* 1. Golden Sample Photo & Spec */}
+                  <div style={{ backgroundColor: '#0f172a', padding: '6px', borderRadius: '6px', border: '1px solid #166534' }}>
+                    <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#22c55e', display: 'block', marginBottom: '3px' }}>
+                      🟢 1. Golden Sample (Kondisi Sempurna OK)
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="Spesifikasi (cth: Permukaan mulus, cat rata, bebas cacat)"
+                      value={activePoint.goldenSpec || ''}
+                      onChange={e => handleUpdatePoint('goldenSpec', e.target.value)}
+                      style={{ width: '100%', padding: '4px 6px', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#f8fafc', fontSize: '0.68rem', outline: 'none', marginBottom: '4px' }}
+                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {activePoint.goldenSampleImg ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <img src={activePoint.goldenSampleImg} alt="Golden" style={{ width: '22px', height: '22px', borderRadius: '3px', objectFit: 'cover' }} />
+                          <button onClick={() => handleUpdatePoint('goldenSampleImg', null)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.6rem', cursor: 'pointer' }}>Hapus</button>
+                        </div>
+                      ) : (
+                        <label style={{ padding: '2px 6px', backgroundColor: '#1e293b', color: '#22c55e', border: '1px solid #166534', borderRadius: '3px', fontSize: '0.62rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          <Upload size={10} /> Upload Foto Golden
+                          <input type="file" accept="image/*" onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const r = new FileReader();
+                              r.onload = ev => handleUpdatePoint('goldenSampleImg', ev.target.result);
+                              r.readAsDataURL(file);
+                            }
+                          }} style={{ display: 'none' }} />
+                        </label>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 2. Limit Sample Boundary Photo & Spec */}
+                  <div style={{ backgroundColor: '#0f172a', padding: '6px', borderRadius: '6px', border: '1px solid #854d0e' }}>
+                    <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#f59e0b', display: 'block', marginBottom: '3px' }}>
+                      🟡 2. Limit Sample (Batas Maksimal Toleransi)
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="Batas batas toleransi (cth: Scratch halus ≤ 2mm, pinhole ≤ 0.3mm)"
+                      value={activePoint.limitSpec || ''}
+                      onChange={e => handleUpdatePoint('limitSpec', e.target.value)}
+                      style={{ width: '100%', padding: '4px 6px', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#f8fafc', fontSize: '0.68rem', outline: 'none', marginBottom: '4px' }}
+                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {activePoint.limitSampleImg ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <img src={activePoint.limitSampleImg} alt="Limit" style={{ width: '22px', height: '22px', borderRadius: '3px', objectFit: 'cover' }} />
+                          <button onClick={() => handleUpdatePoint('limitSampleImg', null)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.6rem', cursor: 'pointer' }}>Hapus</button>
+                        </div>
+                      ) : (
+                        <label style={{ padding: '2px 6px', backgroundColor: '#1e293b', color: '#f59e0b', border: '1px solid #854d0e', borderRadius: '3px', fontSize: '0.62rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          <Upload size={10} /> Upload Foto Limit Sample
+                          <input type="file" accept="image/*" onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const r = new FileReader();
+                              r.onload = ev => handleUpdatePoint('limitSampleImg', ev.target.result);
+                              r.readAsDataURL(file);
+                            }
+                          }} style={{ display: 'none' }} />
+                        </label>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 3. Reject Sample Photo & Spec */}
+                  <div style={{ backgroundColor: '#0f172a', padding: '6px', borderRadius: '6px', border: '1px solid #991b1b' }}>
+                    <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#ef4444', display: 'block', marginBottom: '3px' }}>
+                      🔴 3. Reject Sample (Contoh Cacat Ditolak)
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="Kriteria tolak (cth: Scratch > 2mm / terasa kuku, cat meleleh)"
+                      value={activePoint.rejectSpec || ''}
+                      onChange={e => handleUpdatePoint('rejectSpec', e.target.value)}
+                      style={{ width: '100%', padding: '4px 6px', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#f8fafc', fontSize: '0.68rem', outline: 'none', marginBottom: '4px' }}
+                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {activePoint.rejectSampleImg ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <img src={activePoint.rejectSampleImg} alt="Reject" style={{ width: '22px', height: '22px', borderRadius: '3px', objectFit: 'cover' }} />
+                          <button onClick={() => handleUpdatePoint('rejectSampleImg', null)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.6rem', cursor: 'pointer' }}>Hapus</button>
+                        </div>
+                      ) : (
+                        <label style={{ padding: '2px 6px', backgroundColor: '#1e293b', color: '#ef4444', border: '1px solid #991b1b', borderRadius: '3px', fontSize: '0.62rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          <Upload size={10} /> Upload Foto Reject
+                          <input type="file" accept="image/*" onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const r = new FileReader();
+                              r.onload = ev => handleUpdatePoint('rejectSampleImg', ev.target.result);
+                              r.readAsDataURL(file);
+                            }
+                          }} style={{ display: 'none' }} />
+                        </label>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
-                    Min
-                  </label>
-                  <input
-                    type="number"
-                    step="0.001"
-                    value={activePoint.tolMin}
-                    onChange={e => handleUpdatePoint('tolMin', parseFloat(e.target.value) || 0)}
-                    style={{
-                      width: '100%',
-                      padding: '6px 8px',
-                      backgroundColor: '#1e293b',
-                      border: '1px solid #334155',
-                      borderRadius: '4px',
-                      color: '#ef4444',
-                      fontSize: '0.8rem',
-                      fontWeight: 700,
-                      outline: 'none',
-                      textAlign: 'center'
-                    }}
-                  />
+              ) : (
+                /* Nominal & Tolerance (For Numerical Dimensions) */
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
+                  <div>
+                    <label style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                      Nominal
+                    </label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={activePoint.nominal}
+                      onChange={e => handleUpdatePoint('nominal', parseFloat(e.target.value) || 0)}
+                      style={{
+                        width: '100%',
+                        padding: '6px 8px',
+                        backgroundColor: '#1e293b',
+                        border: '1px solid #334155',
+                        borderRadius: '4px',
+                        color: '#38bdf8',
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        outline: 'none',
+                        textAlign: 'center'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                      Min
+                    </label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={activePoint.tolMin}
+                      onChange={e => handleUpdatePoint('tolMin', parseFloat(e.target.value) || 0)}
+                      style={{
+                        width: '100%',
+                        padding: '6px 8px',
+                        backgroundColor: '#1e293b',
+                        border: '1px solid #334155',
+                        borderRadius: '4px',
+                        color: '#ef4444',
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        outline: 'none',
+                        textAlign: 'center'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                      Max
+                    </label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={activePoint.tolMax}
+                      onChange={e => handleUpdatePoint('tolMax', parseFloat(e.target.value) || 0)}
+                      style={{
+                        width: '100%',
+                        padding: '6px 8px',
+                        backgroundColor: '#1e293b',
+                        border: '1px solid #334155',
+                        borderRadius: '4px',
+                        color: '#ef4444',
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        outline: 'none',
+                        textAlign: 'center'
+                      }}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
-                    Max
-                  </label>
-                  <input
-                    type="number"
-                    step="0.001"
-                    value={activePoint.tolMax}
-                    onChange={e => handleUpdatePoint('tolMax', parseFloat(e.target.value) || 0)}
-                    style={{
-                      width: '100%',
-                      padding: '6px 8px',
-                      backgroundColor: '#1e293b',
-                      border: '1px solid #334155',
-                      borderRadius: '4px',
-                      color: '#ef4444',
-                      fontSize: '0.8rem',
-                      fontWeight: 700,
-                      outline: 'none',
-                      textAlign: 'center'
-                    }}
-                  />
-                </div>
-              </div>
+              )}
               
               {/* Unit */}
               <div>

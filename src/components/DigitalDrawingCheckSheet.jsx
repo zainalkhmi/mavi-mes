@@ -2201,29 +2201,30 @@ export default function DigitalDrawingCheckSheet() {
       <div
         style={{
           flex: 1,
-          display: 'grid',
-          gridTemplateColumns: `${showVirtualGauge ? '340px' : '0px'} 1fr ${isRightPanelCollapsed ? '0px' : '460px'}`,
-          transition: 'grid-template-columns 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+          display: 'flex',
           overflow: 'hidden',
           position: 'relative'
         }}
       >
         {/* ─── LEFT PANEL: FIXED METROLOGY INSTRUMENT SIDEBAR (ISO 9001: 7.1.5) ─── */}
-        <div
-          style={{
-            backgroundColor: '#0b1120',
-            borderRight: '1px solid #1e293b',
-            overflowY: 'auto',
-            overflowX: 'hidden',
-            display: showVirtualGauge ? 'flex' : 'none',
-            flexDirection: 'column',
-            gap: '12px',
-            padding: '12px 10px',
-            height: '100%',
-            boxShadow: '4px 0 16px rgba(0,0,0,0.3)',
-            zIndex: 20
-          }}
-        >
+        {showVirtualGauge && (
+          <div
+            style={{
+              width: '340px',
+              backgroundColor: '#0b1120',
+              borderRight: '1px solid #1e293b',
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              padding: '12px 10px',
+              height: '100%',
+              boxShadow: '4px 0 16px rgba(0,0,0,0.3)',
+              zIndex: 20,
+              flexShrink: 0
+            }}
+          >
           {/* Header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '6px', borderBottom: '1px solid #1e293b' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -2288,6 +2289,7 @@ export default function DigitalDrawingCheckSheet() {
             </div>
           )}
         </div>
+      )}
 
         {/* ─── CENTER PANEL: SYMMETRICAL INTERACTIVE BLUEPRINT CANVAS ────────── */}
         <div
@@ -2304,8 +2306,9 @@ export default function DigitalDrawingCheckSheet() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: '100%',
-            height: '100%'
+            flex: 1,
+            height: '100%',
+            minWidth: 0
           }}
         >
           {/* Floating Left Sidebar Toggle Button (Left Edge) */}
@@ -2906,7 +2909,8 @@ export default function DigitalDrawingCheckSheet() {
         </div>
 
         {/* ─── RIGHT PANEL: DIGITAL CHECK SHEET & TOLERANCE INSPECTOR ────────── */}
-        <div style={{ backgroundColor: '#0f172a', borderLeft: '1px solid #1e293b', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {!isRightPanelCollapsed && (
+          <div style={{ width: '460px', backgroundColor: '#0f172a', borderLeft: '1px solid #1e293b', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
 
           {/* Tabs Header */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', borderBottom: '1px solid #1e293b', backgroundColor: '#090d16' }}>
@@ -3514,6 +3518,7 @@ export default function DigitalDrawingCheckSheet() {
           </div>
 
         </div>
+      )}
 
       </div>
 
