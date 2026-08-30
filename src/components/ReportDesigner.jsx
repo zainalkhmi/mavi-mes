@@ -117,6 +117,159 @@ const getPresetById = (id) => PAPER_PRESETS.find(p => p.id === id) || PAPER_PRES
 // ── Built-in Default Templates ──
 const DEFAULT_TEMPLATES = [
     {
+        id: 'ncr-report-a4',
+        name: 'Laporan Ketidaksesuaian Produk / Form NCR (A4)',
+        category: 'Quality Control',
+        paperPresetId: 'A4',
+        description: 'Formulir Resmi Laporan Ketidaksesuaian Produk (Non-Conformance Report) berstandar ISO 9001:2015 Clause 8.7 & IATF 16949 lengkap dengan Header Banner, Master Info Grid, Klasifikasi & Disposisi Cacat, Matriks Parameter Deviasi NG, Root Cause Analysis, Instruksi Karantina Red Tag, 4 Tanda Tangan Otorisasi, dan QR Code.',
+        template: {
+            basePdf: { width: 210, height: 297, padding: [10, 10, 10, 10] },
+            schemas: [
+                [
+                    // 1. Header Banner
+                    { name: 'header_bg', type: 'rectangle', position: { x: 12, y: 10 }, width: 186, height: 22, color: '#991b1b', borderWidth: 0 },
+                    { name: 'logo_bg', type: 'rectangle', position: { x: 16, y: 13 }, width: 15, height: 15, color: '#ffffff', borderWidth: 0 },
+                    { name: 'logo_text', type: 'text', position: { x: 16, y: 14.5 }, width: 15, height: 12, fontSize: 18, fontColor: '#991b1b', content: 'M', alignment: 'center' },
+                    { name: 'report_title', type: 'text', position: { x: 35, y: 13 }, width: 102, height: 7, fontSize: 11.5, fontColor: '#ffffff', content: 'LAPORAN KETIDAKSESUAIAN PRODUK (NCR)' },
+                    { name: 'company_subtitle', type: 'text', position: { x: 35, y: 21 }, width: 102, height: 5, fontSize: 5.5, fontColor: '#fecaca', content: 'MANDOR MES QUALITY ASSURANCE • ISO 9001:2015 CLAUSE 8.7 (NON-CONFORMING OUTPUTS)' },
+                    { name: 'doc_info', type: 'text', position: { x: 138, y: 12.5 }, width: 36, height: 9.5, fontSize: 5.5, fontColor: '#ffffff', content: 'DOC NO: FRM-QA-NCR-01\nREV: 03 | 2026-08\nISO AUDITED' },
+                    { name: 'report_qr', type: 'qrcode', position: { x: 176, y: 11 }, width: 18, height: 18 },
+
+                    // 2. Master Info Grid (4 columns)
+                    { name: 'info_bg', type: 'rectangle', position: { x: 12, y: 34 }, width: 186, height: 24, borderColor: '#fca5a5', borderWidth: 0.5, color: '#fff5f5' },
+                    
+                    { name: 'ncr_no_lbl', type: 'text', position: { x: 15, y: 36 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#991b1b', content: 'NOMOR NCR:' },
+                    { name: 'ncr_no_val', type: 'text', position: { x: 15, y: 40 }, width: 42, height: 5, fontSize: 8.5, fontColor: '#dc2626' },
+                    { name: 'station_lbl', type: 'text', position: { x: 15, y: 46 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'STATION / PROSES:' },
+                    { name: 'station_val', type: 'text', position: { x: 15, y: 50 }, width: 42, height: 5, fontSize: 7, fontColor: '#0f172a' },
+
+                    { name: 'wo_lbl', type: 'text', position: { x: 60, y: 36 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'WORK ORDER NO:' },
+                    { name: 'wo_val', type: 'text', position: { x: 60, y: 40 }, width: 42, height: 5, fontSize: 7.5, fontColor: '#0f172a' },
+                    { name: 'inspector_lbl', type: 'text', position: { x: 60, y: 46 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'QC INSPECTOR:' },
+                    { name: 'inspector_val', type: 'text', position: { x: 60, y: 50 }, width: 42, height: 5, fontSize: 7, fontColor: '#0f172a' },
+
+                    { name: 'part_name_lbl', type: 'text', position: { x: 105, y: 36 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'NAMA & NO PART:' },
+                    { name: 'part_name_val', type: 'text', position: { x: 105, y: 40 }, width: 42, height: 5, fontSize: 7.5, fontColor: '#0f172a' },
+                    { name: 'date_lbl', type: 'text', position: { x: 105, y: 46 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'TANGGAL & WAKTU:' },
+                    { name: 'date_val', type: 'text', position: { x: 105, y: 50 }, width: 42, height: 5, fontSize: 7, fontColor: '#dc2626' },
+
+                    { name: 'serial_lbl', type: 'text', position: { x: 150, y: 36 }, width: 45, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'SERIAL / LOT NUMBER:' },
+                    { name: 'serial_val', type: 'text', position: { x: 150, y: 40 }, width: 45, height: 5, fontSize: 7, fontColor: '#0f172a' },
+                    { name: 'standard_lbl', type: 'text', position: { x: 150, y: 46 }, width: 45, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'STANDAR MUTU:' },
+                    { name: 'standard_val', type: 'text', position: { x: 150, y: 50 }, width: 45, height: 5, fontSize: 7, fontColor: '#059669', content: 'ISO 9001:2015 (8.7)' },
+
+                    // 3. Summary / Disposition Cards
+                    { name: 'defect_box', type: 'rectangle', position: { x: 12, y: 60 }, width: 44, height: 16, borderColor: '#fca5a5', borderWidth: 0.8, color: '#ffffff' },
+                    { name: 'defect_bar', type: 'rectangle', position: { x: 12, y: 60 }, width: 2, height: 16, color: '#dc2626', borderWidth: 0 },
+                    { name: 'defect_lbl', type: 'text', position: { x: 16, y: 62 }, width: 38, height: 3, fontSize: 5.5, fontColor: '#991b1b', content: 'KLASIFIKASI CACAT:' },
+                    { name: 'defect_val', type: 'text', position: { x: 16, y: 67 }, width: 38, height: 6, fontSize: 7.5, fontColor: '#991b1b' },
+
+                    { name: 'disposition_box', type: 'rectangle', position: { x: 59, y: 60 }, width: 44, height: 16, borderColor: '#fde047', borderWidth: 0.8, color: '#ffffff' },
+                    { name: 'disposition_bar', type: 'rectangle', position: { x: 59, y: 60 }, width: 2, height: 16, color: '#eab308', borderWidth: 0 },
+                    { name: 'disposition_lbl', type: 'text', position: { x: 63, y: 62 }, width: 38, height: 3, fontSize: 5.5, fontColor: '#854d0e', content: 'KEPUTUSAN DISPOSISI:' },
+                    { name: 'disposition_val', type: 'text', position: { x: 63, y: 67 }, width: 38, height: 6, fontSize: 8, fontColor: '#a16207' },
+
+                    { name: 'quarantine_box', type: 'rectangle', position: { x: 106, y: 60 }, width: 44, height: 16, borderColor: '#cbd5e1', borderWidth: 0.8, color: '#ffffff' },
+                    { name: 'quarantine_bar', type: 'rectangle', position: { x: 106, y: 60 }, width: 2, height: 16, color: '#0284c7', borderWidth: 0 },
+                    { name: 'quarantine_lbl', type: 'text', position: { x: 110, y: 62 }, width: 38, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'LOKASI AREA KARANTINA:' },
+                    { name: 'quarantine_val', type: 'text', position: { x: 110, y: 67 }, width: 38, height: 6, fontSize: 7.5, fontColor: '#0f172a' },
+
+                    { name: 'hold_box', type: 'rectangle', position: { x: 153, y: 60 }, width: 45, height: 16, borderColor: '#f87171', borderWidth: 0.8, color: '#ffffff' },
+                    { name: 'hold_bar', type: 'rectangle', position: { x: 153, y: 60 }, width: 2, height: 16, color: '#ef4444', borderWidth: 0 },
+                    { name: 'hold_lbl', type: 'text', position: { x: 157, y: 62 }, width: 39, height: 3, fontSize: 5.5, fontColor: '#991b1b', content: 'STATUS KARANTINA:' },
+                    { name: 'hold_val', type: 'text', position: { x: 157, y: 67 }, width: 39, height: 6, fontSize: 7.5, fontColor: '#dc2626', content: '[HOLD] QUARANTINED' },
+
+                    // 4. Parameter Matrix Table (Defects / NG Items)
+                    { name: 'ncr_table_title_bg', type: 'rectangle', position: { x: 12, y: 78 }, width: 186, height: 6, color: '#991b1b', borderWidth: 0 },
+                    { name: 'ncr_table_title', type: 'text', position: { x: 14, y: 79 }, width: 180, height: 4, fontSize: 6.5, fontColor: '#ffffff', content: 'MATRIKS PARAMETER & PENYIMPANGAN UKURAN (OUT OF TOLERANCE)' },
+                    {
+                        name: 'ncr_table',
+                        type: 'table',
+                        position: { x: 12, y: 84 },
+                        width: 186,
+                        height: 50,
+                        showHead: true,
+                        head: ['#', 'Parameter Ukur / Dimensi', 'Standar Nominal', 'Toleransi', 'Hasil Aktual', 'Deviasi (Delta)', 'Status'],
+                        headWidthPercentages: [5, 33, 15, 17, 14, 10, 6],
+                        tableStyles: { borderColor: '#991b1b', borderWidth: 0.3 },
+                        headStyles: { alignment: 'center', verticalAlignment: 'middle', fontSize: 6.5, fontColor: '#ffffff', backgroundColor: '#991b1b', padding: { top: 2, right: 2, bottom: 2, left: 2 } },
+                        bodyStyles: { alignment: 'center', verticalAlignment: 'middle', fontSize: 6.5, fontColor: '#0f172a', padding: { top: 2, right: 2, bottom: 2, left: 2 }, alternateBackgroundColor: '#fef2f2' },
+                        columnStyles: {}
+                    },
+
+                    // 5. RCA & Corrective Action
+                    { name: 'rca_border', type: 'rectangle', position: { x: 12, y: 136 }, width: 91, height: 32, borderColor: '#cbd5e1', borderWidth: 0.5, color: '#ffffff' },
+                    { name: 'rca_hdr', type: 'text', position: { x: 14, y: 138 }, width: 87, height: 4, fontSize: 6, fontColor: '#991b1b', content: '1. ANALISIS PENYEBAB KETIDAKSESUAIAN (ROOT CAUSE ANALYSIS):' },
+                    { name: 'rca_val', type: 'text', position: { x: 14, y: 143 }, width: 87, height: 23, fontSize: 6.5, fontColor: '#1e293b' },
+
+                    { name: 'corrective_border', type: 'rectangle', position: { x: 107, y: 136 }, width: 91, height: 32, borderColor: '#cbd5e1', borderWidth: 0.5, color: '#ffffff' },
+                    { name: 'corrective_hdr', type: 'text', position: { x: 109, y: 138 }, width: 87, height: 4, fontSize: 6, fontColor: '#991b1b', content: '2. TINDAKAN KOREKTIF & DISPOSISI (CORRECTIVE ACTION):' },
+                    { name: 'corrective_val', type: 'text', position: { x: 109, y: 143 }, width: 87, height: 23, fontSize: 6.5, fontColor: '#1e293b' },
+
+                    // 6. Physical Quarantine Notice Box
+                    { name: 'quarantine_notice', type: 'rectangle', position: { x: 12, y: 170 }, width: 186, height: 18, borderColor: '#ef4444', borderWidth: 0.6, color: '#fef2f2' },
+                    { name: 'quarantine_tag_badge', type: 'rectangle', position: { x: 15, y: 173 }, width: 16, height: 6, color: '#ef4444', borderWidth: 0 },
+                    { name: 'quarantine_tag_text', type: 'text', position: { x: 15, y: 174 }, width: 16, height: 4, fontSize: 5, fontColor: '#ffffff', content: 'RED TAG', alignment: 'center' },
+                    { name: 'quarantine_notice_title', type: 'text', position: { x: 34, y: 172 }, width: 162, height: 3.5, fontSize: 6.5, fontColor: '#991b1b', content: '3. VERIFIKASI KARANTINA FISIK & RED HOLD TAG (ISO 9001: 8.7.1)' },
+                    { name: 'quarantine_notice_text', type: 'text', position: { x: 34, y: 177 }, width: 162, height: 9, fontSize: 6, fontColor: '#7f1d1d', content: 'Part telah ditempeli Label Karantina Merah (Red Hold Tag) dan dipindahkan ke BIN-Q-02 (HOLD AREA). Dilarang memproses lebih lanjut tanpa otorisasi tertulis QA Management.' },
+
+                    // 7. Multi-tier ISO 9001 Signature Matrix (4 columns)
+                    { name: 'sign_box1', type: 'rectangle', position: { x: 12, y: 191 }, width: 44, height: 24, borderColor: '#cbd5e1', borderWidth: 0.5, color: '#ffffff' },
+                    { name: 'sign_lbl1', type: 'text', position: { x: 13, y: 193 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'PELAPOR / INSPECTOR', alignment: 'center' },
+                    { name: 'sign_val1', type: 'text', position: { x: 13, y: 198 }, width: 42, height: 5, fontSize: 7.5, fontColor: '#059669', content: '[OK] admin', alignment: 'center' },
+                    { name: 'sign_sub1', type: 'text', position: { x: 13, y: 207 }, width: 42, height: 3, fontSize: 5, fontColor: '#94a3b8', content: 'QC Inspector Verifikasi', alignment: 'center' },
+
+                    { name: 'sign_box2', type: 'rectangle', position: { x: 59, y: 191 }, width: 44, height: 24, borderColor: '#cbd5e1', borderWidth: 0.5, color: '#ffffff' },
+                    { name: 'sign_lbl2', type: 'text', position: { x: 60, y: 193 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'ENGINEERING REVIEW', alignment: 'center' },
+                    { name: 'sign_val2', type: 'text', position: { x: 60, y: 198 }, width: 42, height: 5, fontSize: 7.5, fontColor: '#2563eb', content: '[OK] Ahmad S., ST (QA Eng)', alignment: 'center' },
+                    { name: 'sign_sub2', type: 'text', position: { x: 60, y: 207 }, width: 42, height: 3, fontSize: 5, fontColor: '#94a3b8', content: 'Evaluasi Teknis CNC', alignment: 'center' },
+
+                    { name: 'sign_box3', type: 'rectangle', position: { x: 106, y: 191 }, width: 44, height: 24, borderColor: '#cbd5e1', borderWidth: 0.5, color: '#ffffff' },
+                    { name: 'sign_lbl3', type: 'text', position: { x: 107, y: 193 }, width: 42, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'PERSETUJUAN QA MGR', alignment: 'center' },
+                    { name: 'sign_val3', type: 'text', position: { x: 107, y: 198 }, width: 42, height: 5, fontSize: 7.5, fontColor: '#991b1b', content: '[OK] Hendra Wijaya, ST (QA Mgr)', alignment: 'center' },
+                    { name: 'sign_sub3', type: 'text', position: { x: 107, y: 207 }, width: 42, height: 3, fontSize: 5, fontColor: '#94a3b8', content: 'Otorisasi Disposisi Mutu', alignment: 'center' },
+
+                    { name: 'sign_box4', type: 'rectangle', position: { x: 153, y: 191 }, width: 45, height: 24, borderColor: '#cbd5e1', borderWidth: 0.5, color: '#ffffff' },
+                    { name: 'sign_lbl4', type: 'text', position: { x: 154, y: 193 }, width: 43, height: 3, fontSize: 5.5, fontColor: '#64748b', content: 'PRODUKSI / LINE LEAD', alignment: 'center' },
+                    { name: 'sign_val4', type: 'text', position: { x: 154, y: 198 }, width: 43, height: 5, fontSize: 7.5, fontColor: '#475569', content: '[OK] Budi Santoso (Line Lead)', alignment: 'center' },
+                    { name: 'sign_sub4', type: 'text', position: { x: 154, y: 207 }, width: 43, height: 3, fontSize: 5, fontColor: '#94a3b8', content: 'Penerima Part Karantina', alignment: 'center' },
+
+                    // 8. Footer Watermark
+                    { name: 'footer_line', type: 'line', position: { x: 12, y: 218 }, width: 186, height: 0.2, color: '#cbd5e1' },
+                    { name: 'footer_text', type: 'text', position: { x: 12, y: 220 }, width: 130, height: 4, fontSize: 5, fontColor: '#94a3b8', content: 'MANDOR MES QUALITY ENGINE - ISO 9001:2015 AUDITED FORM NCR - DIGITAL SIGNATURE SECURED' },
+                    { name: 'footer_page', type: 'text', position: { x: 145, y: 220 }, width: 53, height: 4, fontSize: 5, fontColor: '#94a3b8', content: 'Doc Control: Controlled Copy - 30/8/2026', alignment: 'right' }
+                ]
+            ]
+        },
+        sampleInputs: [
+            {
+                report_qr: 'NCR_WO-2026-CAST-01_SN-0042-A',
+                ncr_no_val: 'NCR-WO-2026-CAST-01',
+                wo_val: 'WO-2026-CAST-018',
+                part_name_val: 'Precision Housing Component',
+                serial_val: 'SN-0042-A (LOT-202608-01)',
+                station_val: 'ST-CNC-01 (Milling)',
+                inspector_val: 'admin (QC Inspector)',
+                date_val: '30/8/2026, 06:05:00',
+                standard_val: 'ISO 9001:2015 (8.7)',
+                defect_val: 'DIMENSIONAL_OVER',
+                disposition_val: 'REWORK',
+                quarantine_val: 'BIN-Q-02 (HOLD AREA)',
+                hold_val: '[HOLD] QUARANTINED',
+                rca_val: 'Penyimpangan toleransi dimensi pada proses pemesinan CNC.',
+                corrective_val: 'Karantina part di Area Hold. Kalibrasi ulang tool offset CNC dan setting fixture sebelum lanjut.',
+                sign_val1: '[OK] admin',
+                sign_val2: '[OK] Ahmad S., ST (QA Eng)',
+                sign_val3: '[OK] Hendra Wijaya, ST (QA Mgr)',
+                sign_val4: '[OK] Budi Santoso (Line Lead)',
+                ncr_table: JSON.stringify([
+                    ['1', 'Internal Bore Diameter', '25.000 mm', '24.950 ~ 25.050 mm', '25.180 mm', '+0.130 mm', 'NG'],
+                    ['2', 'Flange Thickness', '15.000 mm', '14.900 ~ 15.100 mm', '15.220 mm', '+0.120 mm', 'NG']
+                ])
+            }
+        ]
+    },
+    {
         id: 'qc-checksheet-a4-basic',
         name: 'QC Checksheet Basic (A4)',
         category: 'Quality Control',
@@ -1119,6 +1272,13 @@ export default function ReportDesigner() {
         };
     }, [activeTab, selectedTemplateId, templateSchema.basePdf?.width, templateSchema.basePdf?.height]);
 
+    // Auto-generate preview when switching to preview tab or template
+    useEffect(() => {
+        if (activeTab === 'preview' && !isGeneratingPdf) {
+            handleGeneratePdf('preview');
+        }
+    }, [activeTab, selectedTemplateId]);
+
     // ── QUERY & FETCH DATA FROM SELECTED SOURCE ──
     const handleFetchDataSource = async () => {
         setIsLoadingData(true);
@@ -1274,6 +1434,44 @@ export default function ReportDesigner() {
                     });
                 }
 
+                // Also fetch NCRs from mandor_checksheet_ncrs
+                const rawNCRs = JSON.parse(localStorage.getItem('mandor_checksheet_ncrs') || '[]');
+                if (rawNCRs.length > 0) {
+                    rawNCRs.forEach(ncr => {
+                        const tableRows = (ncr.ngPoints || [ncr]).map((p, idx) => [
+                            String(idx + 1),
+                            p.title || `#${p.pointNumber} Parameter`,
+                            p.nominal || '-',
+                            p.tolerance || '-',
+                            p.measuredVal || 'NG',
+                            p.delta || '-',
+                            'NG'
+                        ]);
+                        combined.push({
+                            report_qr: `NCR_${ncr.ncrNumber}_${ncr.workOrderNo}`,
+                            ncr_no_val: ncr.ncrNumber,
+                            wo_val: ncr.workOrderNo,
+                            part_name_val: ncr.partName || 'Precision Housing Component',
+                            serial_val: ncr.partSerial || '-',
+                            station_val: ncr.stationId || 'ST-CNC-01',
+                            inspector_val: ncr.inspector || 'QC Inspector',
+                            date_val: new Date(ncr.createdAt || Date.now()).toLocaleDateString('id-ID'),
+                            standard_val: 'ISO 9001:2015 (8.7)',
+                            defect_val: ncr.defectType,
+                            disposition_val: ncr.disposition,
+                            quarantine_val: ncr.quarantineBin,
+                            hold_val: '⛔ QUARANTINED (HOLD)',
+                            rca_val: ncr.rootCause || 'Penyimpangan toleransi pada proses permesinan CNC.',
+                            corrective_val: ncr.correctiveAction || `Disposisi: ${ncr.disposition}. Part di ${ncr.quarantineBin}.`,
+                            sign_val1: `✓ ${ncr.inspector || 'admin'}`,
+                            sign_val2: '✓ Ahmad S., ST (QA Eng)',
+                            sign_val3: '✓ Hendra Wijaya, ST (QA Mgr)',
+                            sign_val4: '✓ Budi Santoso (Line Lead)',
+                            ncr_table: JSON.stringify(tableRows)
+                        });
+                    });
+                }
+
                 if (combined.length === 0) {
                     records = currentTemplateObj.sampleInputs || [{}];
                 } else {
@@ -1344,40 +1542,89 @@ export default function ReportDesigner() {
     // Generate PDF Preview / Download / Print
     const handleGeneratePdf = async (action = 'preview') => {
         setIsGeneratingPdf(true);
+        if (action === 'preview') {
+            setActiveTab('preview');
+        }
         try {
             // ── Validasi: template schema harus ada ──
             if (!templateSchema || !templateSchema.schemas || !Array.isArray(templateSchema.schemas) || templateSchema.schemas.length === 0) {
                 throw new Error('Template schema belum dimuat. Pilih template terlebih dahulu.');
             }
-            // ── Validasi: sample input data harus ada ──
-            if (!sampleInputData || !Array.isArray(sampleInputData) || sampleInputData.length === 0) {
-                throw new Error('Belum ada data. Klik "Ambil Data Checksheet" lalu "Terapkan ke Template" terlebih dahulu.');
+            
+            // Text sanitizer for WinAnsi PDF compatibility (strips emojis and special symbols)
+            const cleanWinAnsiText = (val) => {
+                if (typeof val !== 'string') return val;
+                return val
+                    .replace(/⛔/g, '[HOLD]')
+                    .replace(/🏷️/g, '[TAG]')
+                    .replace(/✓/g, '[OK]')
+                    .replace(/⚙️/g, '[WIP]')
+                    .replace(/📦/g, '[PKG]')
+                    .replace(/🏭/g, '[MFG]')
+                    .replace(/🔧/g, '[TOOL]')
+                    .replace(/⚡/g, '[SYS]')
+                    .replace(/🔍/g, '[QC]')
+                    .replace(/📋/g, '[DOC]')
+                    .replace(/→/g, '->')
+                    .replace(/—/g, '-')
+                    .replace(/–/g, '-')
+                    .replace(/[^\x00-\x7F\xA0-\xFF]/g, '');
+            };
+
+            // ── Deep sanitize template schemas ──
+            const sanitizedTemplate = JSON.parse(JSON.stringify(templateSchema));
+            if (sanitizedTemplate.schemas) {
+                sanitizedTemplate.schemas.forEach(page => {
+                    if (Array.isArray(page)) {
+                        page.forEach(item => {
+                            if (item && item.content && typeof item.content === 'string') {
+                                item.content = cleanWinAnsiText(item.content);
+                            }
+                        });
+                    }
+                });
             }
-            // ── Transformasi: parse JSON strings (inspection_table dll) ──
+
+            // ── Validasi & fallback sample input data ──
+            const rawInputs = (sampleInputData && Array.isArray(sampleInputData) && sampleInputData.length > 0)
+                ? sampleInputData
+                : (currentTemplateObj.sampleInputs || [{}]);
+
+            // ── Transformasi: parse JSON strings & sanitize all text fields ──
             const sanitizeRow = (row) => {
                 const clean = {};
                 Object.entries(row).forEach(([key, value]) => {
                     if (value === undefined || value === null) {
                         clean[key] = '';
+                    } else if (Array.isArray(value)) {
+                        clean[key] = value.map(r => Array.isArray(r) ? r.map(c => cleanWinAnsiText(String(c ?? ''))) : cleanWinAnsiText(String(r ?? '')));
                     } else if (typeof value === 'string') {
+                        const trimmed = value.trim();
                         try {
-                            if ((value.startsWith('[') || value.startsWith('{')) && value.includes('"')) {
-                                clean[key] = JSON.parse(value);
+                            if ((trimmed.startsWith('[') || trimmed.startsWith('{')) && trimmed.includes('"')) {
+                                const parsed = JSON.parse(trimmed);
+                                if (Array.isArray(parsed)) {
+                                    clean[key] = parsed.map(r => Array.isArray(r) ? r.map(c => cleanWinAnsiText(String(c ?? ''))) : cleanWinAnsiText(String(r ?? '')));
+                                } else {
+                                    clean[key] = parsed;
+                                }
                             } else {
-                                clean[key] = value;
+                                clean[key] = cleanWinAnsiText(trimmed);
                             }
                         } catch {
-                            clean[key] = value;
+                            clean[key] = cleanWinAnsiText(trimmed);
                         }
                     } else {
-                        clean[key] = value;
+                        clean[key] = cleanWinAnsiText(String(value));
                     }
                 });
                 return clean;
             };
-            const sanitizedInputs = sampleInputData.map(sanitizeRow);
+
+            const sanitizedInputs = rawInputs.map(sanitizeRow);
+
             const pdfUint8 = await generate({
-                template: templateSchema,
+                template: sanitizedTemplate,
                 inputs: sanitizedInputs,
                 plugins: PDF_PLUGINS
             });
@@ -1392,7 +1639,7 @@ export default function ReportDesigner() {
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
-                toast.success(`🎉 PDF (${sampleInputData.length} Halaman) Berhasil diunduh!`);
+                toast.success(`🎉 PDF (${sanitizedInputs.length} Halaman) Berhasil diunduh!`);
             } else if (action === 'print') {
                 const printWindow = window.open(url);
                 if (printWindow) {
@@ -1401,7 +1648,7 @@ export default function ReportDesigner() {
             } else {
                 setPdfPreviewUrl(url);
                 setActiveTab('preview');
-                toast.success(`✨ Preview PDF (${sampleInputData.length} Halaman) siap!`);
+                toast.success(`✨ Preview PDF (${sanitizedInputs.length} Halaman) siap!`);
             }
         } catch (err) {
             console.error('PDF Generation Error:', err);

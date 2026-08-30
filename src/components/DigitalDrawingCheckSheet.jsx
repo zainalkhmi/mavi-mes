@@ -78,8 +78,13 @@ import {
 import NumpadInput from './NumpadInput';
 import CameraInput from './CameraInput';
 import CheckTabContent from './CheckTabContent';
+import VirtualMeasuringTool from './checksheet/VirtualMeasuringTool';
+import MetrologyHardwareHub from './checksheet/MetrologyHardwareHub';
+import CameraOCRReader from './checksheet/CameraOCRReader';
+import MeasurementTypeVisual from './checksheet/MeasurementTypeVisual';
 import {
   NCRDefectModal,
+  OfficialNCRFormModal,
   AuditTrailModal,
   SupervisorApprovalModal,
   EnvironmentSettingsModal
@@ -89,7 +94,6 @@ import toast, { Toaster } from 'react-hot-toast';
 import QRCode from 'react-qr-code';
 import { getAllDrawings, drawingsLocalDB } from '../utils/supabaseUtilityDB';
 import { getTables, addTableRecord, createTable } from '../utils/supabaseTablesDB';
-import whatsappService from '../utils/whatsappService';
 import n8nWebhook from '../utils/n8nWebhookService';
 import { getCurrentUser } from '../utils/auth';
 
@@ -680,6 +684,7 @@ export default function DigitalDrawingCheckSheet() {
   });
   const [activeNCRPoint, setActiveNCRPoint] = useState(null);
   const [showNCRModal, setShowNCRModal] = useState(false);
+  const [selectedNCRForView, setSelectedNCRForView] = useState(null);
 
   // Clause 7.5.3: ISO Audit Trail & Revision History
   const [auditTrail, setAuditTrail] = useState(() => {
@@ -712,7 +717,13 @@ export default function DigitalDrawingCheckSheet() {
   ]);
 
   // ─── Handwriting Input State ───
-  
+  const [showHandwritingModal, setShowHandwritingModal] = useState(false);
+  const [handwritingTargetPointId, setHandwritingTargetPointId] = useState(null);
+
+  const handleOpenHandwriting = (pointId) => {
+    setHandwritingTargetPointId(pointId);
+    setShowHandwritingModal(true);
+  };
 
   // Handle recognition result
   const handleHandwritingRecognize = (value) => {
@@ -720,17 +731,22 @@ export default function DigitalDrawingCheckSheet() {
       handleMeasurementChange(handwritingTargetPointId, value);
       toast.success(`Nilai "${value}" berhasil dimasukkan!`);
     }
-    (false);
-    ;
+    setShowHandwritingModal(false);
+    setHandwritingTargetPointId(null);
   };
 
-  // ─── Drawing Tools State ───
-  const [isDrawingMode, setIsDrawingMode] = useState(true);
-  const [drawingTool, setDrawingTool] = useState('pen'); // pen, marker, highlighter, arrow, rect, circle, text, eraser, stamp
+  // ─── Animated Virtual Caliper & Metrology SOP State (ISO 9001: 7.1.5) ───
+  const [showVirtualGauge, setShowVirtualGauge] = useState(true);
+
+  // ─── Blueprint Markup & Annotations Display (Created in Inspector Designer Studio) ───
+  const [isDrawingMode, setIsDrawingMode] = useState(false);
+  const [drawingTool, setDrawingTool] = useState('pen');
   const [drawingColor, setDrawingColor] = useState('#ef4444');
   const [drawingSize, setDrawingSize] = useState(1.8);
   const [drawings, setDrawings] = useState(() => {
     try {
+      const inspectorDrawings = localStorage.getItem('mandor_inspector_drawings');
+      if (inspectorDrawings) return JSON.parse(inspectorDrawings);
       return JSON.parse(localStorage.getItem('mandor_checksheet_drawings') || '[]');
     } catch {
       return [];
@@ -745,6 +761,8 @@ export default function DigitalDrawingCheckSheet() {
   const [selectedStamp, setSelectedStamp] = useState('approve');
   const [stamps, setStamps] = useState(() => {
     try {
+      const inspectorStamps = localStorage.getItem('mandor_inspector_stamps');
+      if (inspectorStamps) return JSON.parse(inspectorStamps);
       return JSON.parse(localStorage.getItem('mandor_checksheet_stamps') || '[]');
     } catch {
       return [];
@@ -754,7 +772,6 @@ export default function DigitalDrawingCheckSheet() {
   const [textInputPosition, setTextInputPosition] = useState(null);
   const [textInputValue, setTextInputValue] = useState('');
   const drawingCanvasRef = useRef(null);
-  const drawingCtxRef = useRef(null);
 
   // Synchronize drawings and stamps to local storage
   useEffect(() => {
@@ -1298,56 +1315,9 @@ export default function DigitalDrawingCheckSheet() {
     toast.success('Catatan teks ditambahkan!');
   };
 
-  const handleUndo = () => {
-    if (drawings.length > 0) {
-      const last = drawings[drawings.length - 1];
-      setDrawings(prev => prev.slice(0, -1));
-      setRedoStack(prev => [...prev, { itemType: 'drawing', data: last }]);
-    } else if (stamps.length > 0) {
-      const last = stamps[stamps.length - 1];
-      setStamps(prev => prev.slice(0, -1));
-      setRedoStack(prev => [...prev, { itemType: 'stamp', data: last }]);
-    }
-  };
-
-  const handleRedo = () => {
-    if (redoStack.length === 0) return;
-    const last = redoStack[redoStack.length - 1];
-    setRedoStack(prev => prev.slice(0, -1));
-    if (last.itemType === 'drawing') {
-      setDrawings(prev => [...prev, last.data]);
-    } else if (last.itemType === 'stamp') {
-      setStamps(prev => [...prev, last.data]);
-    }
-  };
-
-  const handleClearDrawings = () => {
-    if (drawings.length === 0 && stamps.length === 0) {
-      toast('Belum ada coretan/stamp', { icon: 'ℹ️' });
-      return;
-    }
-    if (window.confirm('Hapus semua anotasi & stamp pada drawing ini?')) {
-      setDrawings([]);
-      setStamps([]);
-      setRedoStack([]);
-      localStorage.removeItem('mandor_checksheet_drawings');
-      localStorage.removeItem('mandor_checksheet_stamps');
-      toast.success('Drawing & annotations cleared');
-    }
-  };
-
   const handleDeleteSpecificStamp = (id, e) => {
     if (e) e.stopPropagation();
     setStamps(prev => prev.filter(s => s.id !== id));
-  };
-
-  const toggleDrawingMode = () => {
-    setIsDrawingMode(prev => !prev);
-    if (!isDrawingMode) {
-      toast.success('Mode Gambar & Anotasi AKTIF', { icon: '✏️' });
-    } else {
-      toast('Mode Gambar Nonaktif', { icon: '👁️' });
-    }
   };
 
   // Commit Current Point & Auto-Advance to Next Point
@@ -1457,10 +1427,36 @@ export default function DigitalDrawingCheckSheet() {
     }
   };
 
-  const handleSaveNCR = (ncrData) => {
-    const updated = [ncrData, ...ncrList];
+  const handleSaveNCR = async (ncrData) => {
+    const updated = [ncrData, ...ncrList.filter(n => n.ncrNumber !== ncrData.ncrNumber)];
     setNcrList(updated);
     localStorage.setItem('mandor_checksheet_ncrs', JSON.stringify(updated));
+
+    // Also write to connected Mandor Table if configured
+    if (targetTableId) {
+      try {
+        await addTableRecord(targetTableId, {
+          recordId: `NCR_${ncrData.ncrNumber}`,
+          Work_Order: workOrderNo,
+          Serial_Number: partSerial,
+          'NCR Number': ncrData.ncrNumber,
+          fld_ncr_no: ncrData.ncrNumber,
+          Defect_Type: ncrData.defectType,
+          fld_defect_type: ncrData.defectType,
+          Disposition: ncrData.disposition,
+          fld_disposition: ncrData.disposition,
+          Quarantine_Bin: ncrData.quarantineBin,
+          fld_quarantine_bin: ncrData.quarantineBin,
+          Root_Cause: ncrData.rootCause,
+          Inspector: inspectorName,
+          Overall_Status: 'REJECTED (NCR ISSUED)',
+          Timestamp: ncrData.createdAt || new Date().toISOString(),
+          Notes: `NCR Form Otomatis: ${ncrData.ncrNumber} - ${ncrData.disposition}`
+        });
+      } catch (tblErr) {
+        console.warn('[Table NCR Log Error]', tblErr);
+      }
+    }
   };
 
   const handleSupervisorApprove = (approvalData) => {
@@ -2141,6 +2137,32 @@ export default function DigitalDrawingCheckSheet() {
           <button onClick={() => setDarkModeBlueprint(!darkModeBlueprint)} style={{ background: darkModeBlueprint ? 'rgba(34, 197, 94, 0.2)' : '#1e293b', border: '1px solid #334155', color: darkModeBlueprint ? '#22c55e' : '#94a3b8', borderRadius: '6px', padding: '5px 7px', cursor: 'pointer' }} title="Mode Gelap / Terang Drawing"><Eye size={14} /></button>
           <button onClick={handlePrintQCReport} style={{ background: '#4c1d95', border: 'none', color: '#fff', borderRadius: '6px', padding: '5px 8px', cursor: 'pointer' }} title="Cetak Sertifikat Inspeksi ISO 9001"><Printer size={14} /></button>
 
+          {/* Virtual Caliper / Measuring Tool Animation Toggle */}
+          <button
+            onClick={() => {
+              const next = !showVirtualGauge;
+              setShowVirtualGauge(next);
+              toast(next ? '🎬 Animasi Caliper Diaktifkan' : 'SOP Caliper Disembunyikan', { icon: '📏' });
+            }}
+            style={{
+              background: showVirtualGauge ? 'rgba(56, 189, 248, 0.25)' : '#1e293b',
+              border: showVirtualGauge ? '1.5px solid #38bdf8' : '1px solid #334155',
+              color: showVirtualGauge ? '#38bdf8' : '#94a3b8',
+              borderRadius: '6px',
+              padding: '5px 8px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '0.72rem',
+              fontWeight: 800
+            }}
+            title="Toggle Animasi Alat Ukur / Virtual Caliper Visual SOP (ISO 7.1.5)"
+          >
+            <Crosshair size={14} />
+            <span>Caliper</span>
+          </button>
+
           {/* Navigation Icon Buttons (Space Saving) */}
           <button
             onClick={() => navigate('/checksheets')}
@@ -2178,17 +2200,98 @@ export default function DigitalDrawingCheckSheet() {
         </div>
       </div>
 
-      {/* ─── 2. MAIN 2-PANEL WORKSPACE (BLUEPRINT CANVAS & RIGHT ATTRIBUTES INSPECTOR) ─── */}
+      {/* ─── 2. MAIN 3-PANEL WORKSPACE (LEFT METROLOGY SIDEBAR | CENTER BLUEPRINT CANVAS | RIGHT CHECKLIST INSPECTOR) ─── */}
       <div
         style={{
           flex: 1,
           display: 'grid',
-          gridTemplateColumns: isRightPanelCollapsed ? '1fr 0px' : '1fr 460px',
+          gridTemplateColumns: `${showVirtualGauge ? '340px' : '0px'} 1fr ${isRightPanelCollapsed ? '0px' : '460px'}`,
           transition: 'grid-template-columns 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
           overflow: 'hidden',
           position: 'relative'
         }}
       >
+        {/* ─── LEFT PANEL: FIXED METROLOGY INSTRUMENT SIDEBAR (ISO 9001: 7.1.5) ─── */}
+        <div
+          style={{
+            backgroundColor: '#0b1120',
+            borderRight: '1px solid #1e293b',
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            display: showVirtualGauge ? 'flex' : 'none',
+            flexDirection: 'column',
+            gap: '12px',
+            padding: '12px 10px',
+            height: '100%',
+            boxShadow: '4px 0 16px rgba(0,0,0,0.3)',
+            zIndex: 20
+          }}
+        >
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '6px', borderBottom: '1px solid #1e293b' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ backgroundColor: 'rgba(56, 189, 248, 0.15)', padding: '5px', borderRadius: '6px', color: '#38bdf8' }}>
+                <Crosshair size={15} />
+              </div>
+              <div>
+                <div style={{ fontSize: '0.76rem', fontWeight: 900, color: '#f8fafc', letterSpacing: '0.3px' }}>
+                  METROLOGY SOP & GAUGE
+                </div>
+                <div style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: 700 }}>
+                  ISO 9001: 7.1.5 Metrology Sync
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Virtual Measuring Tool Component */}
+          {activePt ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <VirtualMeasuringTool
+                activePoint={activePt}
+                isVisible={true}
+                onAutoSetMeasurement={(val) => {
+                  if (activePt?.id) {
+                    handleMeasurementChange(activePt.id, val);
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  boxShadow: 'none',
+                  backgroundColor: '#0f172a'
+                }}
+              />
+
+              {/* ─── Measurement Type Visual (WHAT is being measured) ─── */}
+              <MeasurementTypeVisual activePoint={activePt} />
+
+              {/* ─── Hardware Direct IoT Sync, Thermal Compensation & ISO Traceability ─── */}
+              <MetrologyHardwareHub
+                activePoint={activePt}
+                onAutoSetMeasurement={(val) => {
+                  if (activePt?.id) {
+                    handleMeasurementChange(activePt.id, val);
+                  }
+                }}
+              />
+
+              {/* ─── Camera OCR LCD Display Reader ─── */}
+              <CameraOCRReader
+                activePoint={activePt}
+                onValueDetected={(val) => {
+                  if (activePt?.id) {
+                    handleMeasurementChange(activePt.id, val);
+                  }
+                }}
+              />
+            </div>
+          ) : (
+            <div style={{ padding: '24px 12px', textAlign: 'center', color: '#64748b', fontSize: '0.74rem' }}>
+              Pilih titik ukur (hotspot) di blueprint canvas untuk memuat SOP alat ukur.
+            </div>
+          )}
+        </div>
+
         {/* ─── CENTER PANEL: SYMMETRICAL INTERACTIVE BLUEPRINT CANVAS ────────── */}
         <div
           ref={containerRef}
@@ -2208,7 +2311,35 @@ export default function DigitalDrawingCheckSheet() {
             height: '100%'
           }}
         >
-
+          {/* Floating Left Sidebar Toggle Button (Left Edge) */}
+          {!showVirtualGauge && (
+            <button
+              onClick={() => setShowVirtualGauge(true)}
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                zIndex: 30,
+                backgroundColor: '#1e293b',
+                color: '#38bdf8',
+                border: '1px solid #334155',
+                borderLeft: 'none',
+                borderTopRightRadius: '8px',
+                borderBottomRightRadius: '8px',
+                padding: '12px 5px',
+                cursor: 'pointer',
+                boxShadow: '4px 0 12px rgba(0,0,0,0.4)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'background-color 0.15s'
+              }}
+              title="Buka Panel Metrology & Alat Ukur"
+            >
+              <ChevronRight size={16} />
+            </button>
+          )}
 
           {/* Floating Sidebar Toggle Button (Right Edge) */}
           <button
@@ -2237,395 +2368,6 @@ export default function DigitalDrawingCheckSheet() {
           >
             {isRightPanelCollapsed ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
           </button>
-
-          {/* ─── LEFT SIDEBAR: DRAWING TOOLS FLOATING PALETTE ─── */}
-          {isDrawingMode ? (
-            <div
-              style={{
-                position: 'absolute',
-                left: '16px',
-                top: '56px',
-                bottom: '16px',
-                zIndex: 35,
-                width: '102px',
-                backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                backdropFilter: 'blur(12px)',
-                borderRadius: '12px',
-                border: '1.5px solid #334155',
-                boxShadow: '0 16px 36px rgba(0,0,0,0.65)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '6px',
-                padding: '8px 6px',
-                overflowY: 'auto',
-                userSelect: 'none'
-              }}
-            >
-              {/* Sidebar Header */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px 6px', borderBottom: '1px solid #334155' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#f59e0b', fontSize: '0.66rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  <Pencil size={11} /> Draw Tools
-                </div>
-                <button
-                  onClick={toggleDrawingMode}
-                  style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0', fontSize: '11px', lineHeight: 1 }}
-                  title="Tutup Toolbar"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* Tools List */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                {/* Pen */}
-                <button
-                  onClick={() => setDrawingTool('pen')}
-                  style={{
-                    padding: '6px 6px',
-                    backgroundColor: drawingTool === 'pen' ? '#22c55e' : 'transparent',
-                    color: drawingTool === 'pen' ? '#ffffff' : '#94a3b8',
-                    border: drawingTool === 'pen' ? '1px solid #22c55e' : '1px solid transparent',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '0.68rem',
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    transition: 'all 0.15s'
-                  }}
-                  title="Pen Coretan Bebas"
-                >
-                  <Pencil size={13} />
-                  <span>Pen</span>
-                </button>
-
-                {/* Marker */}
-                <button
-                  onClick={() => setDrawingTool('marker')}
-                  style={{
-                    padding: '6px 6px',
-                    backgroundColor: drawingTool === 'marker' ? '#f59e0b' : 'transparent',
-                    color: drawingTool === 'marker' ? '#0f172a' : '#94a3b8',
-                    border: drawingTool === 'marker' ? '1px solid #f59e0b' : '1px solid transparent',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '0.68rem',
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px'
-                  }}
-                  title="Marker Garis Tebal"
-                >
-                  <span style={{ fontSize: '12px' }}>🖍️</span>
-                  <span>Marker</span>
-                </button>
-
-                {/* Highlighter */}
-                <button
-                  onClick={() => setDrawingTool('highlighter')}
-                  style={{
-                    padding: '6px 6px',
-                    backgroundColor: drawingTool === 'highlighter' ? '#fcd34d' : 'transparent',
-                    color: drawingTool === 'highlighter' ? '#0f172a' : '#94a3b8',
-                    border: drawingTool === 'highlighter' ? '1px solid #fcd34d' : '1px solid transparent',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '0.68rem',
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px'
-                  }}
-                  title="Stabilo Transparan"
-                >
-                  <Highlighter size={13} />
-                  <span>Stabilo</span>
-                </button>
-
-                {/* Arrow */}
-                <button
-                  onClick={() => setDrawingTool('arrow')}
-                  style={{
-                    padding: '6px 6px',
-                    backgroundColor: drawingTool === 'arrow' ? '#38bdf8' : 'transparent',
-                    color: drawingTool === 'arrow' ? '#0f172a' : '#94a3b8',
-                    border: drawingTool === 'arrow' ? '1px solid #38bdf8' : '1px solid transparent',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '0.68rem',
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px'
-                  }}
-                  title="Panah Petunjuk"
-                >
-                  <ArrowUpRight size={13} />
-                  <span>Panah</span>
-                </button>
-
-                {/* Rectangle Box */}
-                <button
-                  onClick={() => setDrawingTool('rect')}
-                  style={{
-                    padding: '6px 6px',
-                    backgroundColor: drawingTool === 'rect' ? '#38bdf8' : 'transparent',
-                    color: drawingTool === 'rect' ? '#0f172a' : '#94a3b8',
-                    border: drawingTool === 'rect' ? '1px solid #38bdf8' : '1px solid transparent',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '0.68rem',
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px'
-                  }}
-                  title="Kotak Area"
-                >
-                  <Square size={13} />
-                  <span>Kotak</span>
-                </button>
-
-                {/* Circle */}
-                <button
-                  onClick={() => setDrawingTool('circle')}
-                  style={{
-                    padding: '6px 6px',
-                    backgroundColor: drawingTool === 'circle' ? '#38bdf8' : 'transparent',
-                    color: drawingTool === 'circle' ? '#0f172a' : '#94a3b8',
-                    border: drawingTool === 'circle' ? '1px solid #38bdf8' : '1px solid transparent',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '0.68rem',
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px'
-                  }}
-                  title="Lingkaran Defect"
-                >
-                  <Circle size={13} />
-                  <span>Lingkaran</span>
-                </button>
-
-                {/* Text Note */}
-                <button
-                  onClick={() => {
-                    setDrawingTool('text');
-                    toast('Klik canvas untuk meletakkan teks catatan', { icon: '✍️' });
-                  }}
-                  style={{
-                    padding: '6px 6px',
-                    backgroundColor: drawingTool === 'text' ? '#a855f7' : 'transparent',
-                    color: drawingTool === 'text' ? '#ffffff' : '#94a3b8',
-                    border: drawingTool === 'text' ? '1px solid #a855f7' : '1px solid transparent',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '0.68rem',
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px'
-                  }}
-                  title="Teks Catatan"
-                >
-                  <Type size={13} />
-                  <span>Teks</span>
-                </button>
-
-                {/* Stamp Tool */}
-                <button
-                  onClick={() => { setDrawingTool('stamp'); setShowStampModal(true); }}
-                  style={{
-                    padding: '6px 6px',
-                    backgroundColor: drawingTool === 'stamp' ? '#8b5cf6' : 'transparent',
-                    color: drawingTool === 'stamp' ? '#ffffff' : '#94a3b8',
-                    border: drawingTool === 'stamp' ? '1px solid #8b5cf6' : '1px solid transparent',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '0.68rem',
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px'
-                  }}
-                  title="Cap / Stamp QA"
-                >
-                  <span style={{ fontSize: '12px' }}>🏷️</span>
-                  <span>Stamp</span>
-                </button>
-
-                {/* Eraser */}
-                <button
-                  onClick={() => setDrawingTool('eraser')}
-                  style={{
-                    padding: '6px 6px',
-                    backgroundColor: drawingTool === 'eraser' ? '#ef4444' : 'transparent',
-                    color: drawingTool === 'eraser' ? '#ffffff' : '#94a3b8',
-                    border: drawingTool === 'eraser' ? '1px solid #ef4444' : '1px solid transparent',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '0.68rem',
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px'
-                  }}
-                  title="Penghapus (Klik/drag goresan untuk hapus)"
-                >
-                  <Eraser size={13} />
-                  <span>Hapus</span>
-                </button>
-              </div>
-
-              {/* Divider */}
-              <div style={{ width: '100%', height: '1px', backgroundColor: '#334155', margin: '2px 0' }} />
-
-              {/* Line Width */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%' }}>
-                <span style={{ fontSize: '0.58rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Tebal</span>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '3px' }}>
-                  {DRAWING_SIZES.map(s => (
-                    <button
-                      key={s.size}
-                      onClick={() => setDrawingSize(s.size)}
-                      style={{
-                        padding: '3px 0',
-                        backgroundColor: drawingSize === s.size ? '#0284c7' : '#1e293b',
-                        color: drawingSize === s.size ? '#ffffff' : '#94a3b8',
-                        border: '1px solid #334155',
-                        borderRadius: '4px',
-                        fontSize: '0.62rem',
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                        textAlign: 'center'
-                      }}
-                    >
-                      {s.size}px
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Divider */}
-              <div style={{ width: '100%', height: '1px', backgroundColor: '#334155', margin: '2px 0' }} />
-
-              {/* Color Dots */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', width: '100%' }}>
-                <span style={{ fontSize: '0.58rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Warna</span>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', justifyItems: 'center' }}>
-                  {DRAWING_COLORS.map(c => (
-                    <button
-                      key={c.color}
-                      onClick={() => setDrawingColor(c.color)}
-                      title={c.name}
-                      style={{
-                        width: '16px',
-                        height: '16px',
-                        borderRadius: '50%',
-                        backgroundColor: c.color,
-                        border: drawingColor === c.color ? '2px solid white' : '1px solid #475569',
-                        cursor: 'pointer',
-                        transform: drawingColor === c.color ? 'scale(1.2)' : 'scale(1)',
-                        transition: 'transform 0.1s'
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {/* Divider */}
-              <div style={{ width: '100%', height: '1px', backgroundColor: '#334155', margin: '2px 0' }} />
-
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', gap: '3px', width: '100%' }}>
-                <button
-                  onClick={handleUndo}
-                  disabled={drawings.length === 0 && stamps.length === 0}
-                  style={{
-                    flex: 1,
-                    padding: '5px 0',
-                    backgroundColor: '#1e293b',
-                    color: (drawings.length > 0 || stamps.length > 0) ? '#cbd5e1' : '#475569',
-                    border: '1px solid #334155',
-                    borderRadius: '4px',
-                    cursor: (drawings.length > 0 || stamps.length > 0) ? 'pointer' : 'not-allowed',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                  title="Undo"
-                >
-                  <Undo2 size={12} />
-                </button>
-                <button
-                  onClick={handleRedo}
-                  disabled={redoStack.length === 0}
-                  style={{
-                    flex: 1,
-                    padding: '5px 0',
-                    backgroundColor: '#1e293b',
-                    color: redoStack.length > 0 ? '#cbd5e1' : '#475569',
-                    border: '1px solid #334155',
-                    borderRadius: '4px',
-                    cursor: redoStack.length > 0 ? 'pointer' : 'not-allowed',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                  title="Redo"
-                >
-                  <Redo2 size={12} />
-                </button>
-                <button
-                  onClick={handleClearDrawings}
-                  style={{
-                    flex: 1,
-                    padding: '5px 0',
-                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                    color: '#ef4444',
-                    border: '1px solid rgba(239, 68, 68, 0.4)',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                  title="Hapus Semua Coretan"
-                >
-                  <Trash2 size={12} />
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              onClick={toggleDrawingMode}
-              style={{
-                position: 'absolute',
-                left: '16px',
-                top: '56px',
-                zIndex: 35,
-                width: '36px',
-                height: '36px',
-                borderRadius: '8px',
-                backgroundColor: 'rgba(15, 23, 42, 0.92)',
-                backdropFilter: 'blur(8px)',
-                border: '1px solid #334155',
-                color: '#f59e0b',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 4px 14px rgba(0,0,0,0.45)',
-                transition: 'all 0.15s'
-              }}
-              title="Buka Toolbar Gambar (Draw Tools)"
-            >
-              <Pencil size={15} />
-            </button>
-          )}
 
           {/* Zoomable & Pannable Blueprint Wrapper */}
           <div
@@ -2708,7 +2450,8 @@ export default function DigitalDrawingCheckSheet() {
                   className="hotspot-pin"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleStartInspection(pt.id);
+                    setActivePointId(pt.id);
+                    setActiveTab('Check');
                   }}
                   style={{
                     position: 'absolute',
@@ -3569,6 +3312,55 @@ export default function DigitalDrawingCheckSheet() {
                 </button>
               )}
 
+              {/* NCR & Defect Reports Card (ISO Clause 8.7) */}
+              {(ncrList.length > 0 || stats.failed > 0) && (
+                <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.12)', border: '1.5px solid #ef4444', borderRadius: '10px', padding: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', fontWeight: 800, color: '#fca5a5' }}>
+                      <ShieldAlert size={15} color="#ef4444" />
+                      <span>LAPORAN NCR (ISO 9001: 8.7)</span>
+                    </div>
+                    <span style={{ fontSize: '0.64rem', backgroundColor: '#ef4444', color: 'white', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                      {ncrList.length} Diterbitkan
+                    </span>
+                  </div>
+
+                  {ncrList.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {ncrList.map((ncr, idx) => (
+                        <div key={idx} style={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '6px', padding: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#f8fafc' }}>
+                              {ncr.ncrNumber}
+                            </div>
+                            <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>
+                              Disposisi: <strong style={{ color: ncr.disposition === 'SCRAP' ? '#ef4444' : '#eab308' }}>{ncr.disposition}</strong> • Bin: {ncr.quarantineBin}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setSelectedNCRForView(ncr)}
+                            style={{ padding: '4px 8px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', fontSize: '0.68rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            <FileText size={12} /> Buka Form NCR
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        const firstNg = checkPoints.find(p => p.status === 'NG') || checkPoints[0];
+                        setActiveNCRPoint(firstNg);
+                        setShowNCRModal(true);
+                      }}
+                      style={{ width: '100%', padding: '6px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                    >
+                      <ShieldAlert size={13} /> Terbitkan Form NCR Sekarang
+                    </button>
+                  )}
+                </div>
+              )}
+
               {/* Notes */}
               <div>
                 <label style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Catatan Mutu / Root-Cause Non-Conformance:</label>
@@ -4361,6 +4153,48 @@ export default function DigitalDrawingCheckSheet() {
         </div>
       )}
 
+      {/* Handwriting / OCR Input Modal */}
+      {showHandwritingModal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ backgroundColor: '#0f172a', border: '1px solid #7c3aed', borderRadius: '12px', width: '420px', maxWidth: '92vw', padding: '18px', display: 'flex', flexDirection: 'column', gap: '12px', boxShadow: '0 20px 50px rgba(124, 58, 237, 0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#c084fc', fontWeight: 800, fontSize: '0.9rem' }}>
+                <Pen size={16} /> Input Nilai Ukur Poin Dimensi
+              </div>
+              <button onClick={() => setShowHandwritingModal(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X size={18} /></button>
+            </div>
+            <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
+              Ketik atau masukkan angka hasil pengukuran untuk poin #{checkPoints.find(p => p.id === handwritingTargetPointId)?.pointNumber || ''}:
+            </div>
+            <input
+              type="number"
+              step="0.001"
+              autoFocus
+              placeholder="Contoh: 25.020"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && e.target.value) {
+                  handleHandwritingRecognize(e.target.value);
+                }
+              }}
+              style={{ padding: '10px 14px', borderRadius: '8px', border: '1.5px solid #7c3aed', backgroundColor: '#090d16', color: 'white', fontSize: '1.2rem', fontFamily: 'monospace', fontWeight: 800, outline: 'none' }}
+              id="handwriting-quick-input"
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button onClick={() => setShowHandwritingModal(false)} style={{ padding: '8px 14px', backgroundColor: '#334155', color: '#cbd5e1', border: 'none', borderRadius: '6px', fontSize: '0.76rem', fontWeight: 700, cursor: 'pointer' }}>Batal</button>
+              <button
+                onClick={() => {
+                  const val = document.getElementById('handwriting-quick-input')?.value;
+                  if (val) handleHandwritingRecognize(val);
+                }}
+                style={{ padding: '8px 18px', backgroundColor: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.76rem', fontWeight: 800, cursor: 'pointer' }}
+              >
+                Terapkan Nilai
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ─── ISO 9001:2015 & IATF 16949 COMPLIANCE MODALS ──────────────────── */}
 
       {/* 1. NCR (Non-Conformance Report) & Red Tag Modal (Clause 8.7) */}
@@ -4368,11 +4202,26 @@ export default function DigitalDrawingCheckSheet() {
         isOpen={showNCRModal}
         onClose={() => setShowNCRModal(false)}
         activePoint={activeNCRPoint || checkPoints.find(p => p.status === 'NG') || checkPoints[0]}
+        checkPoints={checkPoints}
         workOrderNo={workOrderNo}
         partSerial={partSerial}
+        partName={partName || 'Precision Housing Component'}
+        partNo={partNo || partSerial}
+        lotBatchNo={lotBatchNo}
+        stationId={stationId}
+        docNo={docNo}
         inspectorName={inspectorName}
         onSaveNCR={handleSaveNCR}
       />
+
+      {/* Official Form NCR Standalone Viewer / Print Modal */}
+      {selectedNCRForView && (
+        <OfficialNCRFormModal
+          isOpen={!!selectedNCRForView}
+          onClose={() => setSelectedNCRForView(null)}
+          ncrData={selectedNCRForView}
+        />
+      )}
 
       {/* 2. ISO Audit Trail & Revision History Modal (Clause 7.5.3) */}
       <AuditTrailModal

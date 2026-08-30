@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import NumpadInput from './NumpadInput';
 import { Wifi, Mic, Sparkles, AlertTriangle, CheckCircle2, XCircle, Activity, RefreshCw } from 'lucide-react';
 
@@ -15,13 +15,14 @@ export default function CheckTabContent({ activePt, onChange, onCommit, onToggle
   const [inputValue, setInputValue] = useState(activePt.measuredVal || '');
   const [samplePiece, setSamplePiece] = useState(1);
   const [cavityNo, setCavityNo] = useState(1);
-  const [isBluetoothConnected, setIsBluetoothConnected] = useState(true);
   const [isListeningVoice, setIsListeningVoice] = useState(false);
-  const [showSpcTrend, setShowSpcTrend] = useState(true);
 
   // Sync when activePt changes (next point)
   useEffect(() => {
-    setInputValue(activePt.measuredVal || '');
+    const t = setTimeout(() => {
+      setInputValue(activePt.measuredVal || '');
+    }, 0);
+    return () => clearTimeout(t);
   }, [activePt.id, activePt.measuredVal]);
 
   const handleInputChange = (val) => {
@@ -99,17 +100,6 @@ export default function CheckTabContent({ activePt, onChange, onCommit, onToggle
     };
     recognition.start();
   };
-
-  // Simulated 5-Piece Historical Trend
-  const historicalSamples = useMemo(() => {
-    return [
-      { piece: 1, val: (nominal + (tolRange * 0.05)).toFixed(3), status: 'OK' },
-      { piece: 2, val: (nominal - (tolRange * 0.08)).toFixed(3), status: 'OK' },
-      { piece: 3, val: (nominal + (tolRange * 0.12)).toFixed(3), status: 'OK' },
-      { piece: 4, val: (nominal + (tolRange * 0.02)).toFixed(3), status: 'OK' },
-      { piece: 5, val: hasValidInput ? currentValNum.toFixed(3) : nominal.toFixed(3), status: isOutOfSpec ? 'NG' : 'OK', current: true }
-    ];
-  }, [nominal, tolRange, currentValNum, hasValidInput, isOutOfSpec]);
 
   return (
     <div style={{ flex: 1, height: '100%', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '8px', overflow: 'hidden', backgroundColor: '#090d16' }}>

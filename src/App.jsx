@@ -22,6 +22,8 @@ const DigitalDrawingCheckSheet = lazy(() => import('./components/DigitalDrawingC
 const SimpleCheckSheetDemo = lazy(() => import('./components/SimpleCheckSheetDemo'));
 const DrawingManagement = lazy(() => import('./components/DrawingManagement'));
 const PLMIntegrationDashboard = lazy(() => import('./components/PLMIntegrationDashboard'));
+const AppPlayer = lazy(() => import('./components/AppPlayer'));
+const LiveTerminal = lazy(() => import('./components/LiveTerminal'));
 
 export default function App() {
   const user = useGlobalStore((state) => state.user);
