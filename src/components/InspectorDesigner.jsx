@@ -85,26 +85,44 @@ const DRAWING_SIZES = [
   { size: 5, label: 'Ekstra (5px)' },
 ];
 
+// ─── CAD DRAWING GRID ZONE DETECTOR (AS9102 / ISO 9001) ─────────
+const calculateDrawingZone = (x, y, width = 980, height = 680) => {
+  const colIndex = Math.min(8, Math.max(1, Math.ceil((x / (width || 980)) * 8)));
+  const rows = ['A', 'B', 'C', 'D', 'E', 'F'];
+  const rowIndex = Math.min(5, Math.max(0, Math.floor((y / (height || 680)) * 6)));
+  const rowLetter = rows[rowIndex] || 'A';
+  return `${rowLetter}-${colIndex}`;
+};
+
 // Default template for a check point
-const createDefaultCheckPoint = (index, x = 200, y = 200) => ({
-  id: `cp_${Date.now()}_${index}`,
-  pointNumber: index,
-  title: `Inspection Point ${index}`,
-  category: 'dimension',
-  nominal: 0,
-  tolMin: 0,
-  tolMax: 0,
-  unit: 'mm',
-  x: x,
-  y: y,
-  criticality: 'Minor',
-  inspectionMethod: 'Caliper',
-  toolId: '',
-  notes: '',
-  gdtSymbol: '',
-  required: false,
-  autoAdvance: true
-});
+const createDefaultCheckPoint = (index, x = 200, y = 200, defaultShape = 'circle') => {
+  const zone = calculateDrawingZone(x, y, 980, 680);
+  return {
+    id: `cp_${Date.now()}_${index}`,
+    pointNumber: index,
+    title: `Dimensi #${index}`,
+    category: 'Linear Dimension',
+    nominal: '10.00',
+    tolMin: '9.95',
+    tolMax: '10.05',
+    upperTol: '0.05',
+    lowerTol: '-0.05',
+    unit: 'mm',
+    x: x,
+    y: y,
+    targetX: x,
+    targetY: y,
+    zone: zone,
+    shape: defaultShape,
+    criticality: defaultShape === 'hexagon' ? 'Critical (KC)' : defaultShape === 'diamond' ? 'Major (Safety)' : 'Standard',
+    inspectionMethod: 'Digital Caliper 0-150mm',
+    toolId: '',
+    notes: `Pemeriksaan dimensi di Drawing Zone ${zone}`,
+    gdtSymbol: '',
+    required: true,
+    autoAdvance: true
+  };
+};
 
 export default function InspectorDesigner() {
   const navigate = useNavigate();
@@ -217,6 +235,11 @@ export default function InspectorDesigner() {
   const [includeGdtTable, setIncludeGdtTable] = useState(true);
   const [includeSignatures, setIncludeSignatures] = useState(true);
   const [includeQrCode] = useState(true);
+
+  // ─── PRO CAD BALLOONING SUITE STATES ─────────────────────────────
+  const [defaultBalloonShape, setDefaultBalloonShape] = useState('circle'); // circle, hexagon, diamond, square
+  const [enableMicroLoupe] = useState(true);
+  const [showRenumberMenu, setShowRenumberMenu] = useState(false);
 
   // ─── Report Generator & Deep Link ───
   const handleOpenInReportDesigner = () => {
@@ -695,6 +718,63 @@ export default function InspectorDesigner() {
   const [showAutoBalloonModal, setShowAutoBalloonModal] = useState(false);
   const [autoBalloonToleranceGrade, setAutoBalloonToleranceGrade] = useState('iso_m'); // iso_f (fine ±0.05), iso_m (medium ±0.1), custom_precision (±0.02)
   const [autoBalloonSortStrategy, setAutoBalloonSortStrategy] = useState('spatial'); // spatial, critical_first, clockwise
+
+  // ─── AUTO-ALIGN & DISPERSE BALLOONS (COLLISION AVOIDANCE) ─────────
+  const handleAutoDisperseBalloons = () => {
+    if (checkPoints.length <= 1) return;
+    const updated = checkPoints.map(p => ({ ...p }));
+    let dispersedCount = 0;
+
+    for (let i = 0; i < updated.length; i++) {
+      for (let j = i + 1; j < updated.length; j++) {
+        const dx = updated[i].x - updated[j].x;
+        const dy = updated[i].y - updated[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 40) {
+          if (updated[j].targetX === undefined) {
+            updated[j].targetX = updated[j].x;
+            updated[j].targetY = updated[j].y;
+          }
+          const angle = Math.atan2(dy, dx) || 0.5;
+          updated[j].x = Math.round(updated[j].x - Math.cos(angle) * 44);
+          updated[j].y = Math.round(updated[j].y - Math.sin(angle) * 44);
+          dispersedCount++;
+        }
+      }
+    }
+    setCheckPoints(updated);
+    toast.success(`⚡ ${dispersedCount} Balon dirapikan otomatis dengan Leader Lines!`, { icon: '📐' });
+  };
+
+  // ─── SMART RE-NUMBERING: CLOCKWISE SORT ────────────────────────────
+  const handleSortClockwise = () => {
+    if (checkPoints.length <= 1) return;
+    const centerX = checkPoints.reduce((s, p) => s + p.x, 0) / checkPoints.length;
+    const centerY = checkPoints.reduce((s, p) => s + p.y, 0) / checkPoints.length;
+
+    const sorted = [...checkPoints].sort((a, b) => {
+      const angleA = Math.atan2(a.y - centerY, a.x - centerX);
+      const angleB = Math.atan2(b.y - centerY, b.x - centerX);
+      return angleA - angleB;
+    }).map((p, idx) => ({ ...p, pointNumber: idx + 1 }));
+
+    setCheckPoints(sorted);
+    setShowRenumberMenu(false);
+    toast.success('Urutan balon diperbarui searah jarum jam (Clockwise)!', { icon: '🔄' });
+  };
+
+  // ─── SMART RE-NUMBERING: READING ORDER (GRID) ─────────────────────
+  const handleSortReadingOrder = () => {
+    if (checkPoints.length <= 1) return;
+    const sorted = [...checkPoints].sort((a, b) => {
+      if (Math.abs(a.y - b.y) > 60) return a.y - b.y; // Top to Bottom
+      return a.x - b.x; // Left to Right
+    }).map((p, idx) => ({ ...p, pointNumber: idx + 1 }));
+
+    setCheckPoints(sorted);
+    setShowRenumberMenu(false);
+    toast.success('Urutan balon diperbarui sesuai Grid (Top-to-Bottom / Left-to-Right)!', { icon: '🔢' });
+  };
   const [detectedCADPoints, setDetectedCADPoints] = useState([]);
 
   // ─── AI / CAD Feature High-Precision Auto-Ballooning Dimension Extractor ───
@@ -3799,7 +3879,6 @@ export default function InspectorDesigner() {
           )}
         </div>        
         {/* ─── CENTER PANEL: Canvas ─── */}
-        {/* ─── CENTER PANEL: Canvas / Physical Checksheet Mockup ─── */}
         <div
           ref={containerRef}
           onMouseDown={currentStep !== 6 ? handleCanvasMouseDown : undefined}
@@ -3832,17 +3911,17 @@ export default function InspectorDesigner() {
               gap: '6px'
             }}>
               <div style={{
-                backgroundColor: 'rgba(15, 23, 42, 0.85)',
-                backdropFilter: 'blur(8px)',
-                padding: '5px 10px',
+                backgroundColor: '#0f172a',
+                padding: '6px 12px',
                 borderRadius: '6px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
-                border: '1px solid rgba(255,255,255,0.1)'
+                border: '1px solid #334155',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.4)'
               }}>
-                <Target size={14} color="#8b5cf6" />
-                <span style={{ fontSize: '0.74rem', fontWeight: 800, color: 'white' }}>
+                <Target size={14} color="#a855f7" />
+                <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#ffffff' }}>
                   {checkPoints.length} Poin
                 </span>
               </div>
@@ -3851,50 +3930,151 @@ export default function InspectorDesigner() {
               <button
                 onClick={() => setIsAddPinMode(!isAddPinMode)}
                 style={{
-                  padding: '5px 12px',
-                  backgroundColor: isAddPinMode ? '#22c55e' : 'rgba(15, 23, 42, 0.85)',
-                  backdropFilter: 'blur(8px)',
-                  color: isAddPinMode ? '#0f172a' : '#f8fafc',
-                  border: isAddPinMode ? '1px solid #22c55e' : '1px solid #8b5cf6',
+                  padding: '6px 14px',
+                  backgroundColor: isAddPinMode ? '#16a34a' : '#1e293b',
+                  color: '#ffffff',
+                  border: isAddPinMode ? '1.5px solid #22c55e' : '1px solid #475569',
                   borderRadius: '6px',
-                  fontSize: '0.72rem',
+                  fontSize: '0.74rem',
                   fontWeight: 800,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '5px',
-                  boxShadow: isAddPinMode ? '0 0 10px rgba(34, 197, 94, 0.4)' : 'none'
+                  boxShadow: isAddPinMode ? '0 0 12px rgba(34, 197, 94, 0.6)' : '0 2px 6px rgba(0,0,0,0.3)',
+                  transition: 'all 0.15s ease'
                 }}
                 title="Klik canvas untuk meletakkan titik ukur baru"
               >
-                <PlusCircle size={13} />
-                {isAddPinMode ? 'Klik Canvas untuk Pin' : '+ Pin'}
+                <PlusCircle size={14} color={isAddPinMode ? '#ffffff' : '#22c55e'} />
+                <span>{isAddPinMode ? 'Klik Canvas untuk Pin' : '+ Pin'}</span>
               </button>
 
-              {/* 🪄 1-Click Auto-Balloon Feature Extractor */}
+              {/* 🪄 1-Click Auto-Balloon Feature Extractor (Solid & Vibrant) */}
               <button
                 onClick={handleOpenAutoBalloonStudio}
                 style={{
-                  padding: '5px 12px',
-                  backgroundColor: 'rgba(139, 92, 246, 0.25)',
-                  backdropFilter: 'blur(8px)',
-                  color: '#c4b5fd',
-                  border: '1px solid #8b5cf6',
+                  padding: '6px 14px',
+                  backgroundColor: '#7c3aed',
+                  color: '#ffffff',
+                  border: '1px solid #6d28d9',
                   borderRadius: '6px',
-                  fontSize: '0.72rem',
+                  fontSize: '0.74rem',
                   fontWeight: 800,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '5px',
-                  boxShadow: '0 0 12px rgba(139, 92, 246, 0.35)',
+                  gap: '6px',
+                  boxShadow: '0 2px 8px rgba(124, 58, 237, 0.45)',
                   transition: 'all 0.15s ease'
                 }}
                 title="Ekstraksi Otomatis Dimensi CAD menjadi Balon/Titik Ukur & Toleransi"
               >
-                <Sparkles size={13} color="#c4b5fd" />
+                <Sparkles size={14} color="#ffffff" />
                 <span>Auto-Balloon CAD</span>
               </button>
+
+              {/* 📐 Auto-Align & Disperse Overlaps Button (Solid & Vibrant) */}
+              <button
+                onClick={handleAutoDisperseBalloons}
+                style={{
+                  padding: '6px 12px',
+                  backgroundColor: '#0284c7',
+                  color: '#ffffff',
+                  border: '1px solid #0369a1',
+                  borderRadius: '6px',
+                  fontSize: '0.74rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  boxShadow: '0 2px 8px rgba(2, 132, 199, 0.45)',
+                  transition: 'all 0.15s ease'
+                }}
+                title="Rapikan Balon Otomatis & Buat Leader Lines jika Ada Tabrakan"
+              >
+                <Layers size={14} color="#ffffff" />
+                <span>Auto-Align</span>
+              </button>
+
+              {/* 🔢 Smart Re-Number Dropdown Menu */}
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setShowRenumberMenu(!showRenumberMenu)}
+                  style={{
+                    padding: '6px 12px',
+                    backgroundColor: '#1e293b',
+                    color: '#ffffff',
+                    border: '1px solid #475569',
+                    borderRadius: '6px',
+                    fontSize: '0.74rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.3)'
+                  }}
+                  title="Urutkan Ulang Nomor Balon Secara Otomatis"
+                >
+                  <Hash size={14} color="#f59e0b" />
+                  <span>Re-Number ▾</span>
+                </button>
+
+                {showRenumberMenu && (
+                  <div style={{ position: 'absolute', top: '34px', left: 0, backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '6px', padding: '4px', zIndex: 100, display: 'flex', flexDirection: 'column', gap: '3px', width: '170px', boxShadow: '0 8px 24px rgba(0,0,0,0.7)' }}>
+                    <button
+                      onClick={handleSortClockwise}
+                      style={{ padding: '7px 10px', textAlign: 'left', background: 'none', border: 'none', color: '#f8fafc', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', borderRadius: '4px' }}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = '#1e293b'}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                    >
+                      🔄 Clockwise Sort
+                    </button>
+                    <button
+                      onClick={handleSortReadingOrder}
+                      style={{ padding: '7px 10px', textAlign: 'left', background: 'none', border: 'none', color: '#f8fafc', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', borderRadius: '4px' }}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = '#1e293b'}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                    >
+                      ⬇️ Grid Reading Order
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* ⭐ QC Balloon Shape Selector */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '3px', backgroundColor: '#0f172a', padding: '3px 6px', borderRadius: '6px', border: '1px solid #334155', boxShadow: '0 2px 6px rgba(0,0,0,0.3)' }}>
+                <button
+                  onClick={() => setDefaultBalloonShape('circle')}
+                  title="Bentuk Bulat (Dimensi Standar)"
+                  style={{ width: '22px', height: '22px', borderRadius: '50%', border: defaultBalloonShape === 'circle' ? '2px solid #38bdf8' : '1px solid #475569', backgroundColor: defaultBalloonShape === 'circle' ? '#0284c7' : '#1e293b', color: '#fff', fontSize: '0.65rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  ◯
+                </button>
+                <button
+                  onClick={() => setDefaultBalloonShape('hexagon')}
+                  title="Bentuk Hexagon ⬡ (Dimensi Kritis / Key Characteristic Cpk >= 1.67)"
+                  style={{ width: '22px', height: '22px', border: defaultBalloonShape === 'hexagon' ? '2px solid #ef4444' : '1px solid #475569', backgroundColor: defaultBalloonShape === 'hexagon' ? '#dc2626' : '#1e293b', color: '#fff', fontSize: '0.65rem', cursor: 'pointer', clipPath: 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  ⬡
+                </button>
+                <button
+                  onClick={() => setDefaultBalloonShape('diamond')}
+                  title="Bentuk Diamond ⬥ (Major Safety Characteristic)"
+                  style={{ width: '22px', height: '22px', border: defaultBalloonShape === 'diamond' ? '2px solid #f59e0b' : '1px solid #475569', backgroundColor: defaultBalloonShape === 'diamond' ? '#d97706' : '#1e293b', color: '#fff', fontSize: '0.65rem', cursor: 'pointer', clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  ⬥
+                </button>
+                <button
+                  onClick={() => setDefaultBalloonShape('square')}
+                  title="Bentuk Kotak ▢ (Pass/Fail Attribute)"
+                  style={{ width: '22px', height: '22px', borderRadius: '3px', border: defaultBalloonShape === 'square' ? '2px solid #22c55e' : '1px solid #475569', backgroundColor: defaultBalloonShape === 'square' ? '#16a34a' : '#1e293b', color: '#fff', fontSize: '0.65rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  ▢
+                </button>
+              </div>
 
               {/* 🖍️ Drawing Markup & Annotation Mode Toggle */}
               <button
@@ -3905,36 +4085,36 @@ export default function InspectorDesigner() {
                   toast(next ? '🖍️ Mode Coretan & Anotasi Aktif' : 'Mode Coretan Dinonaktifkan', { icon: '✏️' });
                 }}
                 style={{
-                  padding: '5px 12px',
-                  backgroundColor: isDrawingMode ? '#f59e0b' : 'rgba(15, 23, 42, 0.85)',
-                  backdropFilter: 'blur(8px)',
-                  color: isDrawingMode ? '#0f172a' : '#f8fafc',
-                  border: isDrawingMode ? '1px solid #f59e0b' : '1px solid #64748b',
+                  padding: '6px 12px',
+                  backgroundColor: isDrawingMode ? '#d97706' : '#1e293b',
+                  color: '#ffffff',
+                  border: isDrawingMode ? '1.5px solid #f59e0b' : '1px solid #475569',
                   borderRadius: '6px',
-                  fontSize: '0.72rem',
+                  fontSize: '0.74rem',
                   fontWeight: 800,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '5px',
-                  boxShadow: isDrawingMode ? '0 0 10px rgba(245, 158, 11, 0.4)' : 'none'
+                  boxShadow: isDrawingMode ? '0 0 12px rgba(245, 158, 11, 0.5)' : '0 2px 6px rgba(0,0,0,0.3)',
+                  transition: 'all 0.15s ease'
                 }}
                 title="Buka Alat Gambar & Anotasi Blueprint (Pen, Panah, Stamp, Teks, Bentuk)"
               >
-                <Pencil size={13} />
+                <Pencil size={14} color={isDrawingMode ? '#ffffff' : '#f59e0b'} />
                 <span>{isDrawingMode ? 'Drawing: ON' : 'Draw Tools'}</span>
               </button>
               
               {/* Zoom Controls with Fit Button */}
               <div style={{
-                backgroundColor: 'rgba(15, 23, 42, 0.85)',
-                backdropFilter: 'blur(8px)',
-                padding: '3px 6px',
+                backgroundColor: '#0f172a',
+                padding: '4px 8px',
                 borderRadius: '6px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '4px',
-                border: '1px solid rgba(255,255,255,0.1)'
+                border: '1px solid #334155',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.3)'
               }}>
                 <button
                   onClick={() => setZoom(z => Math.max(0.3, z - 0.1))}
@@ -4606,13 +4786,34 @@ export default function InspectorDesigner() {
               ref={canvasContentRef}
               onDoubleClick={handleCanvasDoubleClick}
               onMouseMove={(e) => {
-                if (isAddPinMode) {
+                if (isDragging && draggedPointId) {
+                  const coords = getCanvasCoords(e.clientX, e.clientY);
+                  setCheckPoints(prev => prev.map(pt => {
+                    if (pt.id === draggedPointId) {
+                      const targetX = pt.targetX !== undefined ? pt.targetX : pt.x;
+                      const targetY = pt.targetY !== undefined ? pt.targetY : pt.y;
+                      const zone = calculateDrawingZone(coords.x, coords.y, 980, 680);
+                      return { ...pt, x: coords.x, y: coords.y, targetX, targetY, zone };
+                    }
+                    return pt;
+                  }));
+                } else if (isAddPinMode) {
                   const coords = getCanvasCoords(e.clientX, e.clientY);
                   setHoverCoords(coords);
                 }
               }}
+              onMouseUp={() => {
+                if (isDragging) {
+                  setIsDragging(false);
+                  setDraggedPointId(null);
+                }
+              }}
               onMouseLeave={() => {
                 if (hoverCoords) setHoverCoords(null);
+                if (isDragging) {
+                  setIsDragging(false);
+                  setDraggedPointId(null);
+                }
               }}
               onClick={(e) => {
                 if (isAddPinMode) {
@@ -4621,12 +4822,13 @@ export default function InspectorDesigner() {
                   const newPoint = createDefaultCheckPoint(
                     checkPoints.length + 1,
                     coords.x,
-                    coords.y
+                    coords.y,
+                    defaultBalloonShape
                   );
                   setCheckPoints(prev => [...prev, newPoint]);
                   setActivePointId(newPoint.id);
                   setCurrentStep(3);
-                  toast.success(`Titik ukur #${newPoint.pointNumber} diletakkan presisi di (${coords.x}, ${coords.y})`);
+                  toast.success(`Titik ukur #${newPoint.pointNumber} (${newPoint.shape || 'circle'}) diletakkan di (${coords.x}, ${coords.y}) - Zone ${newPoint.zone}`);
                   setIsAddPinMode(false);
                   setHoverCoords(null);
                 }
@@ -4747,7 +4949,7 @@ export default function InspectorDesigner() {
                     {checkPoints.length + 1}
                   </div>
 
-                  {/* Real-time Coordinates HUD Red Laser Tag */}
+                  {/* Real-time Coordinates HUD Red Laser Tag (with Auto Zone) */}
                   <div style={{
                     position: 'absolute',
                     left: `${Math.min(hoverCoords.x + 24, 860)}px`,
@@ -4762,18 +4964,94 @@ export default function InspectorDesigner() {
                     boxShadow: '0 0 15px rgba(255, 0, 85, 0.5), 0 4px 16px rgba(0,0,0,0.7)',
                     border: '1.5px solid #ff0055',
                     whiteSpace: 'nowrap',
-                    letterSpacing: '0.5px'
+                    letterSpacing: '0.5px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
                   }}>
-                    🎯 X: {hoverCoords.x}px • Y: {hoverCoords.y}px
+                    <span>🎯 X: {hoverCoords.x}px • Y: {hoverCoords.y}px</span>
+                    <span style={{ backgroundColor: '#ff0055', color: '#fff', padding: '1px 5px', borderRadius: '3px', fontSize: '0.62rem' }}>
+                      Zone: {calculateDrawingZone(hoverCoords.x, hoverCoords.y, 980, 680)}
+                    </span>
                   </div>
+
+                  {/* 🔬 Micro-Loupe Magnifier (2.5x High-Precision Zoom Lens) */}
+                  {enableMicroLoupe && drawingPreview && (
+                    <div style={{
+                      position: 'absolute',
+                      left: `${Math.min(hoverCoords.x + 35, 820)}px`,
+                      top: `${Math.max(hoverCoords.y - 120, 10)}px`,
+                      width: '105px',
+                      height: '105px',
+                      borderRadius: '50%',
+                      border: '3px solid #ff0055',
+                      boxShadow: '0 0 22px rgba(255, 0, 85, 0.6), 0 8px 24px rgba(0,0,0,0.7)',
+                      backgroundColor: '#ffffff',
+                      overflow: 'hidden',
+                      zIndex: 50,
+                      pointerEvents: 'none'
+                    }}>
+                      <div
+                        style={{
+                          position: 'absolute',
+                          left: `${-hoverCoords.x * 2.5 + 52}px`,
+                          top: `${-hoverCoords.y * 2.5 + 52}px`,
+                          transform: 'scale(2.5)',
+                          transformOrigin: '0 0',
+                          pointerEvents: 'none'
+                        }}
+                        dangerouslySetInnerHTML={{ __html: drawingPreview }}
+                      />
+                      {/* Loupe Laser Reticle */}
+                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{ width: '100%', height: '1.5px', backgroundColor: 'rgba(255, 0, 85, 0.8)' }} />
+                        <div style={{ height: '100%', width: '1.5px', backgroundColor: 'rgba(255, 0, 85, 0.8)', position: 'absolute' }} />
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', border: '2px solid #ff0055', position: 'absolute' }} />
+                      </div>
+                      <span style={{ position: 'absolute', bottom: '4px', right: '12px', fontSize: '0.55rem', fontWeight: 900, color: '#ff0055', backgroundColor: 'rgba(255,255,255,0.9)', padding: '1px 4px', borderRadius: '3px' }}>2.5×</span>
+                    </div>
+                  )}
                 </div>
               )}
+
+              {/* ─── LEADER LINES & POINTER ARROWS SVG LAYER ─────────────── */}
+              <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 12 }}>
+                <defs>
+                  <marker id="leader-arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 1 L 10 5 L 0 9 z" fill="#ff0055" />
+                  </marker>
+                </defs>
+                {checkPoints.map(pt => {
+                  if (pt.targetX !== undefined && pt.targetY !== undefined && (Math.abs(pt.targetX - pt.x) > 10 || Math.abs(pt.targetY - pt.y) > 10)) {
+                    return (
+                      <g key={`leader_${pt.id}`}>
+                        <line
+                          x1={pt.x}
+                          y1={pt.y}
+                          x2={pt.targetX}
+                          y2={pt.targetY}
+                          stroke={pt.criticality?.includes('Critical') ? '#dc2626' : '#0284c7'}
+                          strokeWidth="2"
+                          strokeDasharray="4 3"
+                          markerEnd="url(#leader-arrow)"
+                        />
+                        <circle cx={pt.targetX} cy={pt.targetY} r="4" fill="#ff0055" stroke="#ffffff" strokeWidth="1.5" />
+                      </g>
+                    );
+                  }
+                  return null;
+                })}
+              </svg>
               
-              {/* Check Point Pins */}
+              {/* Check Point Pins (with Geometrical QC Shapes) */}
               {checkPoints.map(point => {
                 const isActive = point.id === activePointId;
                 const isBeingDragged = isDragging && draggedPointId === point.id;
                 const pinSize = isActive ? 36 : 28;
+                const isHexagon = point.shape === 'hexagon' || point.criticality?.includes('Critical');
+                const isDiamond = point.shape === 'diamond' || point.criticality?.includes('Major');
+                const isSquare = point.shape === 'square';
+
                 return (
                   <div
                     key={point.id}
@@ -4802,21 +5080,26 @@ export default function InspectorDesigner() {
                     <div style={{
                       position: 'absolute',
                       inset: '-10px',
-                      borderRadius: '50%',
-                      backgroundColor: getCategoryColor(point.category),
+                      borderRadius: isSquare ? '6px' : '50%',
+                      backgroundColor: isHexagon ? '#dc2626' : isDiamond ? '#d97706' : getCategoryColor(point.category),
                       opacity: isActive ? 0.4 : 0.2,
                       animation: 'pulse 2s infinite',
                       pointerEvents: 'none'
                     }} />
                     
-                    {/* Pin Circle */}
+                    {/* Pin Geometrical Shape */}
                     <div style={{
                       width: '100%',
                       height: '100%',
-                      borderRadius: '50%',
-                      backgroundColor: getCategoryColor(point.category),
+                      borderRadius: isSquare ? '4px' : isHexagon || isDiamond ? '0' : '50%',
+                      clipPath: isHexagon
+                        ? 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)'
+                        : isDiamond
+                        ? 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)'
+                        : 'none',
+                      backgroundColor: isHexagon ? '#dc2626' : isDiamond ? '#d97706' : isSquare ? '#16a34a' : getCategoryColor(point.category),
                       color: 'white',
-                      border: '3px solid white',
+                      border: isHexagon || isDiamond ? 'none' : '3px solid white',
                       boxShadow: isBeingDragged ? '0 10px 25px rgba(0,0,0,0.5)' : '0 4px 12px rgba(0,0,0,0.3)',
                       display: 'flex',
                       alignItems: 'center',
@@ -4846,11 +5129,19 @@ export default function InspectorDesigner() {
                         boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
                         border: '1px solid #334155',
                         pointerEvents: 'none',
-                        zIndex: 30
+                        zIndex: 30,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '2px'
                       }}>
-                        {point.title}
-                        <div style={{ fontSize: '0.6rem', color: '#94a3b8', marginTop: '2px' }}>
-                          {point.nominal} {point.unit}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <span>{point.title}</span>
+                          <span style={{ fontSize: '0.58rem', backgroundColor: '#38bdf8', color: '#0f172a', padding: '1px 4px', borderRadius: '3px', fontWeight: 800 }}>
+                            Zone: {point.zone || calculateDrawingZone(point.x, point.y, 980, 680)}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '0.62rem', color: '#94a3b8' }}>
+                          {point.nominal} {point.unit} ({point.criticality || 'Standard'})
                         </div>
                       </div>
                     )}
