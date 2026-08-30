@@ -10,7 +10,8 @@ import {
     Type, Palette, Layout, Copy, Settings2, Hash, AlignLeft,
     Square, Undo, Redo, ZoomIn, ZoomOut, CheckSquare, Code2,
     Terminal, Calculator, Sliders, Table, MousePointerClick,
-    FileCode2, SplitSquareHorizontal, CheckCircle
+    FileCode2, SplitSquareHorizontal, CheckCircle, Pause, Monitor, Clock, ChevronLeft,
+    Bot, Wand2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getTables, getTableRecords } from '../utils/supabaseTablesDB';
@@ -140,6 +141,22 @@ export default function BiStudio() {
     const [showTemplatesModal, setShowTemplatesModal] = useState(false);
     const [isPublished, setIsPublished] = useState(false);
 
+    // ─── POWER BI FEATURE 4: TV KIOSK / ANDON AUTO-PLAY MODE ─────────
+    const [isKioskMode, setIsKioskMode] = useState(false);
+    const [kioskIntervalSec, setKioskIntervalSec] = useState(15);
+    const [kioskIsPlaying, setKioskIsPlaying] = useState(true);
+    const [kioskCountdown, setKioskCountdown] = useState(15);
+    const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString());
+
+    // ─── POWER BI FEATURE 3: DRILL-THROUGH MODAL STATE ───────────────
+    const [drillThroughData, setDrillThroughData] = useState(null); // { visualTitle, field, value, rows }
+
+    // ─── POWER BI FEATURE 5: AI NATURAL LANGUAGE Q&A (COPILOT) ───────
+    const [showAiQaModal, setShowAiQaModal] = useState(false);
+    const [qaPrompt, setQaPrompt] = useState('');
+    const [generatedVisual, setGeneratedVisual] = useState(null);
+    const [isAiProcessing, setIsAiProcessing] = useState(false);
+
     // Global Filters / Slicers
     const filterShift = 'ALL';
     const filterLine = 'ALL';
@@ -173,6 +190,59 @@ export default function BiStudio() {
     const [isDragging, setIsDragging] = useState(false);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
     const canvasRef = useRef(null);
+
+    // ─── TV KIOSK AUTO-PLAY & LIVE CLOCK TIMERS ──────────────────────
+    useEffect(() => {
+        const clockTimer = setInterval(() => {
+            setCurrentTime(new Date().toLocaleTimeString());
+        }, 1000);
+        return () => clearInterval(clockTimer);
+    }, []);
+
+    useEffect(() => {
+        if (!isKioskMode || !kioskIsPlaying || pages.length <= 1) return;
+
+        const timer = setInterval(() => {
+            setKioskCountdown(prev => {
+                if (prev <= 1) {
+                    setActivePageId(currentId => {
+                        const idx = pages.findIndex(p => p.id === currentId);
+                        const nextIdx = (idx + 1) % pages.length;
+                        return pages[nextIdx].id;
+                    });
+                    return kioskIntervalSec;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [isKioskMode, kioskIsPlaying, pages, kioskIntervalSec]);
+
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape' && isKioskMode) {
+                setIsKioskMode(false);
+                toast('Exited TV Kiosk Mode', { icon: '📺' });
+            }
+            if (isKioskMode && e.key === 'ArrowRight') {
+                setActivePageId(currentId => {
+                    const idx = pages.findIndex(p => p.id === currentId);
+                    return pages[(idx + 1) % pages.length].id;
+                });
+                setKioskCountdown(kioskIntervalSec);
+            }
+            if (isKioskMode && e.key === 'ArrowLeft') {
+                setActivePageId(currentId => {
+                    const idx = pages.findIndex(p => p.id === currentId);
+                    return pages[(idx - 1 + pages.length) % pages.length].id;
+                });
+                setKioskCountdown(kioskIntervalSec);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isKioskMode, pages, kioskIntervalSec]);
 
     // Save Canvas Elements
     useEffect(() => {
@@ -265,14 +335,30 @@ export default function BiStudio() {
         return canvasElements.find(el => el.id === selectedElementId) || null;
     }, [canvasElements, selectedElementId]);
 
-    // ─── AGGREGATOR FUNCTION ──────────────────────────────────────────
-    const aggregateData = (dimensionCol, metricCol, aggType = 'SUM') => {
-        if (!dimensionCol || !filteredDataset.length) return { labels: [], values: [] };
+    // ─── AGGREGATOR FUNCTION (WITH HIERARCHICAL DRILL-DOWN) ───────────
+    const aggregateData = (dimCol, metCol, aggType = 'SUM', el = null) => {
+        let baseData = [...filteredDataset];
+
+        // 1. Resolve Hierarchy Dimension and Filter Path
+        let activeDim = dimCol;
+        if (el?.hierarchy && Array.isArray(el.hierarchy) && el.hierarchy.length > 0) {
+            const currentLevel = el.drillLevel || 0;
+            activeDim = el.hierarchy[currentLevel] || dimCol;
+
+            // Apply drill path filters (e.g. line = 'Line A')
+            if (Array.isArray(el.drillPath) && el.drillPath.length > 0) {
+                el.drillPath.forEach(dp => {
+                    baseData = baseData.filter(r => String(r[dp.field]) === String(dp.value));
+                });
+            }
+        }
+
+        if (!activeDim || !baseData.length) return { labels: [], values: [], activeDim };
         const groups = {};
 
-        filteredDataset.forEach(row => {
-            const dimVal = String(row[dimensionCol] ?? 'N/A');
-            const numVal = Number(row[metricCol]) || (aggType === 'COUNT' ? 1 : 0);
+        baseData.forEach(row => {
+            const dimVal = String(row[activeDim] ?? 'N/A');
+            const numVal = Number(row[metCol]) || (aggType === 'COUNT' ? 1 : 0);
             if (!groups[dimVal]) groups[dimVal] = { sum: 0, count: 0, min: numVal, max: numVal };
             groups[dimVal].sum += numVal;
             groups[dimVal].count += 1;
@@ -289,7 +375,7 @@ export default function BiStudio() {
             if (aggType === 'MAX') return g.max;
             return g.sum;
         });
-        return { labels, values };
+        return { labels, values, activeDim };
     };
 
     // Calculate Single KPI metric
@@ -309,19 +395,260 @@ export default function BiStudio() {
         return sum.toLocaleString();
     };
 
-    // ─── POWER BI CROSS-FILTER CHART EVENT LISTENER ───────────────────
+    // ─── POWER BI FEATURE 1: CONDITIONAL FORMATTING EVALUATOR ─────────
+    const evaluateConditionalColor = (value, el, crossFilterMatch = false) => {
+        if (crossFilterMatch) return '#f59e0b'; // Slicing highlight
+
+        const cf = el?.conditionalFormatting;
+        if (!cf || !cf.enabled) return el?.color || '#714B67';
+
+        const num = Number(value);
+        if (isNaN(num)) return el?.color || '#714B67';
+
+        // 1. Rules Mode (Threshold ranges)
+        if (cf.mode === 'RULES' && Array.isArray(cf.rules) && cf.rules.length > 0) {
+            for (const r of cf.rules) {
+                const min = r.min !== '' && r.min !== undefined ? Number(r.min) : -Infinity;
+                const max = r.max !== '' && r.max !== undefined ? Number(r.max) : Infinity;
+                if (num >= min && num <= max) {
+                    return r.color;
+                }
+            }
+        }
+
+        // 2. Gradient Color Scale Mode
+        if (cf.mode === 'GRADIENT') {
+            const minVal = Number(cf.minVal) || 0;
+            const maxVal = Number(cf.maxVal) || 100;
+            const ratio = Math.max(0, Math.min(1, (num - minVal) / ((maxVal - minVal) || 1)));
+            const minColor = cf.minColor || '#ef4444';
+            const maxColor = cf.maxColor || '#22c55e';
+            return ratio >= 0.5 ? maxColor : minColor;
+        }
+
+        return el?.color || '#714B67';
+    };
+
+    // ─── POWER BI FEATURE 2: ANALYTICS & REFERENCE LINES BUILDER ─────
+    const buildMarkLineOption = (el) => {
+        const lines = [];
+        const ref = el?.referenceLines;
+        if (!ref) return undefined;
+
+        // 1. Target / Benchmark Constant Line
+        if (ref.targetLine?.enabled) {
+            lines.push({
+                yAxis: Number(ref.targetLine.value) || 1000,
+                name: ref.targetLine.label || 'Target',
+                lineStyle: {
+                    color: ref.targetLine.color || '#ef4444',
+                    type: ref.targetLine.style || 'dashed',
+                    width: 2
+                },
+                label: {
+                    formatter: `${ref.targetLine.label || 'Target'}: {c}`,
+                    position: 'insideEndTop',
+                    color: ref.targetLine.color || '#ef4444',
+                    fontSize: 10,
+                    fontWeight: 'bold'
+                }
+            });
+        }
+
+        // 2. Average Line
+        if (ref.avgLine?.enabled) {
+            lines.push({
+                type: 'average',
+                name: 'Avg',
+                lineStyle: {
+                    color: ref.avgLine.color || '#3b82f6',
+                    type: ref.avgLine.style || 'dotted',
+                    width: 2
+                },
+                label: {
+                    formatter: 'Avg: {c}',
+                    position: 'insideEndTop',
+                    color: ref.avgLine.color || '#3b82f6',
+                    fontSize: 10,
+                    fontWeight: 'bold'
+                }
+            });
+        }
+
+        // 3. Min Limit Line
+        if (ref.minLine?.enabled) {
+            lines.push({
+                type: 'min',
+                name: 'Min',
+                lineStyle: { color: '#64748b', type: 'dashed', width: 1.5 },
+                label: { formatter: 'Min: {c}', position: 'start', fontSize: 9, color: '#64748b' }
+            });
+        }
+
+        // 4. Max Limit Line
+        if (ref.maxLine?.enabled) {
+            lines.push({
+                type: 'max',
+                name: 'Max',
+                lineStyle: { color: '#16a34a', type: 'dashed', width: 1.5 },
+                label: { formatter: 'Max: {c}', position: 'end', fontSize: 9, color: '#16a34a', fontWeight: 'bold' }
+            });
+        }
+
+        if (lines.length === 0) return undefined;
+        return {
+            symbol: ['none', 'none'],
+            silent: true,
+            data: lines
+        };
+    };
+
+    // ─── POWER BI CROSS-FILTER & DRILL-DOWN EVENT HANDLER ────────────
     const handleChartClick = (params, el) => {
         if (!params || !params.name) return;
-        const dim = el.dimension || 'machine';
+        const currentLevel = el.drillLevel || 0;
+        const currentDim = el.hierarchy?.[currentLevel] || el.dimension || 'machine';
         const clickedVal = params.name;
 
-        if (crossFilter?.field === dim && crossFilter?.value === clickedVal) {
+        // 1. If Drill-Down is enabled and there is a next level in hierarchy
+        if (el.drillDownEnabled && el.hierarchy && el.hierarchy.length > currentLevel + 1) {
+            const nextLevel = currentLevel + 1;
+            const newPath = [...(el.drillPath || []), { field: currentDim, value: clickedVal }];
+            const nextDim = el.hierarchy[nextLevel];
+
+            setCanvasElements(canvasElements.map(item => item.id === el.id ? {
+                ...item,
+                drillLevel: nextLevel,
+                drillPath: newPath
+            } : item));
+
+            toast.success(`Drill-Down: ${currentDim} = "${clickedVal}" ➔ Level: ${nextDim}`, { icon: '🔽' });
+            return;
+        }
+
+        // 2. Default: Cross-Filtering
+        if (crossFilter?.field === currentDim && crossFilter?.value === clickedVal) {
             setCrossFilter(null);
             toast('Cross-filter cleared', { icon: '🔄' });
         } else {
-            setCrossFilter({ field: dim, value: clickedVal, sourceVisual: el.title || el.type });
-            toast.success(`Cross-Filtered by ${dim} = "${clickedVal}"`, { icon: '⚡' });
+            setCrossFilter({ field: currentDim, value: clickedVal, sourceVisual: el.title || el.type });
+            toast.success(`Cross-Filtered by ${currentDim} = "${clickedVal}"`, { icon: '⚡' });
         }
+    };
+
+    // Drill-Up Action
+    const handleDrillUp = (el) => {
+        const currentLevel = el.drillLevel || 0;
+        if (currentLevel <= 0) return;
+        const prevLevel = currentLevel - 1;
+        const prevPath = (el.drillPath || []).slice(0, -1);
+
+        setCanvasElements(canvasElements.map(item => item.id === el.id ? {
+            ...item,
+            drillLevel: prevLevel,
+            drillPath: prevPath
+        } : item));
+        toast('Drilled Up to previous level', { icon: '🔼' });
+    };
+
+    // Drill-Through to Records Action
+    const handleTriggerDrillThrough = (el) => {
+        const currentLevel = el.drillLevel || 0;
+        const currentDim = el.hierarchy?.[currentLevel] || el.dimension || 'machine';
+        let records = [...filteredDataset];
+
+        if (Array.isArray(el.drillPath)) {
+            el.drillPath.forEach(dp => {
+                records = records.filter(r => String(r[dp.field]) === String(dp.value));
+            });
+        }
+
+        setDrillThroughData({
+            visualTitle: el.title || el.type,
+            dimension: currentDim,
+            path: el.drillPath || [],
+            rows: records
+        });
+    };
+
+    // ─── POWER BI FEATURE 5: NATURAL LANGUAGE NLP COPILOT ENGINE ──────
+    const handleExecuteAiQuery = (customPrompt = null) => {
+        const text = (customPrompt || qaPrompt).toLowerCase().trim();
+        if (!text) return;
+
+        setIsAiProcessing(true);
+
+        setTimeout(() => {
+            // 1. Detect Visual Type
+            let type = 'BAR';
+            if (text.includes('pareto') || text.includes('80/20')) type = 'PARETO';
+            else if (text.includes('donut') || text.includes('pie') || text.includes('komposisi') || text.includes('porsi')) type = 'DONUT';
+            else if (text.includes('line') || text.includes('tren') || text.includes('trend') || text.includes('waktu') || text.includes('harian')) type = 'LINE';
+            else if (text.includes('radar') || text.includes('sarang') || text.includes('pilar') || text.includes('tpm')) type = 'RADAR';
+            else if (text.includes('sankey') || text.includes('aliran') || text.includes('flow')) type = 'SANKEY';
+            else if (text.includes('gauge') || text.includes('speedometer') || text.includes('oee rate')) type = 'GAUGE';
+            else if (text.includes('kpi') || text.includes('angka') || text.includes('kartu') || text.includes('berapa')) type = 'KPI_CARD';
+
+            // 2. Detect Metric
+            let metric = numericColumns[0] || 'actualQty';
+            if (text.includes('reject') || text.includes('cacat') || text.includes('scrap') || text.includes('ncr') || text.includes('rusak')) {
+                metric = availableColumns.find(c => c.toLowerCase().includes('reject')) || numericColumns[0];
+            } else if (text.includes('downtime') || text.includes('mati') || text.includes('stop') || text.includes('breakdown')) {
+                metric = availableColumns.find(c => c.toLowerCase().includes('downtime')) || numericColumns[0];
+            } else if (text.includes('cycle') || text.includes('siklus') || text.includes('kecepatan') || text.includes('ct')) {
+                metric = availableColumns.find(c => c.toLowerCase().includes('cycle')) || numericColumns[0];
+            } else if (text.includes('target') || text.includes('plan') || text.includes('rencana')) {
+                metric = availableColumns.find(c => c.toLowerCase().includes('plan')) || numericColumns[0];
+            } else if (text.includes('output') || text.includes('produksi') || text.includes('aktual') || text.includes('actual') || text.includes('good') || text.includes('bagus')) {
+                metric = availableColumns.find(c => c.toLowerCase().includes('actual') || c.toLowerCase().includes('good')) || numericColumns[0];
+            }
+
+            // 3. Detect Dimension
+            let dimension = availableColumns.find(c => !numericColumns.includes(c)) || 'machine';
+            if (text.includes('mesin') || text.includes('machine') || text.includes('cnc')) {
+                dimension = availableColumns.find(c => c.toLowerCase().includes('machine')) || dimension;
+            } else if (text.includes('line') || text.includes('jalur')) {
+                dimension = availableColumns.find(c => c.toLowerCase().includes('line')) || dimension;
+            } else if (text.includes('operator') || text.includes('pekerja') || text.includes('manusia')) {
+                dimension = availableColumns.find(c => c.toLowerCase().includes('operator')) || dimension;
+            } else if (text.includes('defect') || text.includes('jenis cacat') || text.includes('kategori')) {
+                dimension = availableColumns.find(c => c.toLowerCase().includes('defect')) || dimension;
+            } else if (text.includes('produk') || text.includes('part') || text.includes('barang') || text.includes('item')) {
+                dimension = availableColumns.find(c => c.toLowerCase().includes('product') || c.toLowerCase().includes('part')) || dimension;
+            } else if (text.includes('shift') || text.includes('giliran')) {
+                dimension = availableColumns.find(c => c.toLowerCase().includes('shift')) || dimension;
+            } else if (text.includes('tanggal') || text.includes('date') || text.includes('hari')) {
+                dimension = availableColumns.find(c => c.toLowerCase().includes('date')) || dimension;
+            }
+
+            // 4. Detect Aggregation
+            let aggregation = 'SUM';
+            if (text.includes('rata-rata') || text.includes('average') || text.includes('avg') || text.includes('mean')) aggregation = 'AVG';
+            else if (text.includes('hitung') || text.includes('banyak') || text.includes('frekuensi') || text.includes('count')) aggregation = 'COUNT';
+            else if (text.includes('tertinggi') || text.includes('maksimal') || text.includes('max') || text.includes('puncak')) aggregation = 'MAX';
+
+            // 5. Generate Title
+            const title = `${aggregation} ${metric} by ${dimension} (${type})`;
+
+            const visual = {
+                id: `ai_visual_${Date.now()}`,
+                type,
+                title,
+                dimension,
+                metric,
+                aggregation,
+                width: type === 'KPI_CARD' ? 240 : 440,
+                height: type === 'KPI_CARD' ? 140 : 280,
+                x: 80,
+                y: 80,
+                color: type === 'PARETO' ? '#e11d48' : '#714B67',
+                pageId: activePageId
+            };
+
+            setGeneratedVisual(visual);
+            setIsAiProcessing(false);
+            toast.success(`Copilot synthesised visual: ${title}`, { icon: '🤖' });
+        }, 300);
     };
 
     // ─── ECHARTS OPTIONS BUILDERS ──────────────────────────────────────
@@ -394,7 +721,7 @@ export default function BiStudio() {
             };
         }
 
-        const { labels, values } = aggregateData(dim, met, el.aggregation);
+        const { labels, values } = aggregateData(dim, met, el.aggregation, el);
 
         if (el.type === 'DONUT') {
             return {
@@ -408,7 +735,11 @@ export default function BiStudio() {
                     avoidLabelOverlap: false,
                     itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 },
                     label: { show: false },
-                    data: labels.map((l, i) => ({ name: l, value: values[i] }))
+                    data: labels.map((l, i) => ({
+                        name: l,
+                        value: values[i],
+                        itemStyle: { color: evaluateConditionalColor(values[i], el) }
+                    }))
                 }]
             };
         }
@@ -430,7 +761,16 @@ export default function BiStudio() {
                     { type: 'value', name: 'Cum %', max: 100, axisLabel: { formatter: '{value}%', fontSize: 9 }, splitLine: { show: false } }
                 ],
                 series: [
-                    { name: 'Rejects', type: 'bar', data: values, itemStyle: { color: '#e11d48', borderRadius: [3, 3, 0, 0] } },
+                    {
+                        name: 'Rejects',
+                        type: 'bar',
+                        data: values,
+                        markLine: buildMarkLineOption(el),
+                        itemStyle: {
+                            color: (params) => evaluateConditionalColor(params.value, el, crossFilter && crossFilter.value === params.name) || '#e11d48',
+                            borderRadius: [3, 3, 0, 0]
+                        }
+                    },
                     { name: 'Cumulative %', type: 'line', yAxisIndex: 1, data: cumPercent, itemStyle: { color: '#f59e0b' }, lineStyle: { width: 2 } }
                 ]
             };
@@ -446,8 +786,13 @@ export default function BiStudio() {
                     name: el.title,
                     type: 'line',
                     smooth: true,
-                    data: values,
+                    data: values.map(v => ({
+                        value: v,
+                        itemStyle: { color: evaluateConditionalColor(v, el) }
+                    })),
+                    markLine: buildMarkLineOption(el),
                     itemStyle: { color: el.color || '#714B67' },
+                    lineStyle: { color: el.color || '#714B67', width: 2.5 },
                     areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: el.color ? `${el.color}66` : '#714B6766' }, { offset: 1, color: 'transparent' }] } }
                 }]
             };
@@ -463,11 +808,11 @@ export default function BiStudio() {
                 name: el.title,
                 type: 'bar',
                 data: values,
+                markLine: buildMarkLineOption(el),
                 itemStyle: {
                     color: (params) => {
-                        // Highlight if crossFilter is matching
-                        if (crossFilter && crossFilter.value === params.name) return '#f59e0b';
-                        return el.color || '#714B67';
+                        const isCrossMatch = crossFilter && crossFilter.value === params.name;
+                        return evaluateConditionalColor(params.value, el, isCrossMatch);
                     },
                     borderRadius: [4, 4, 0, 0]
                 }
@@ -880,39 +1225,47 @@ export default function BiStudio() {
                         <span style={{ fontWeight: 800, fontSize: '0.98rem', letterSpacing: '0.3px' }}>MANDOR BI Studio</span>
                     </div>
 
-                    {/* Mode Switcher Tabs */}
-                    <div style={{ display: 'flex', backgroundColor: 'rgba(0,0,0,0.2)', padding: '3px', borderRadius: '6px', gap: '2px' }}>
+                    {/* Mode Switcher Tabs (Compact Icon Toolbar) */}
+                    <div style={{ display: 'flex', backgroundColor: 'rgba(0,0,0,0.25)', padding: '3px', borderRadius: '7px', gap: '3px' }}>
                         <button
                             onClick={() => setActiveTab('CANVAS')}
-                            style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '4px', border: 'none', backgroundColor: activeTab === 'CANVAS' ? '#ffffff' : 'transparent', color: activeTab === 'CANVAS' ? '#714B67' : '#e2e8f0', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                            title="Visual Canvas Studio"
+                            style={{ width: '32px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '5px', border: 'none', backgroundColor: activeTab === 'CANVAS' ? '#ffffff' : 'transparent', color: activeTab === 'CANVAS' ? '#714B67' : '#e2e8f0', cursor: 'pointer', transition: 'all 0.15s' }}
                         >
-                            <Layout size={13} /> Visual Canvas Studio
+                            <Layout size={16} />
                         </button>
                         <button
                             onClick={() => setActiveTab('QUERY_STUDIO')}
-                            style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '4px', border: 'none', backgroundColor: activeTab === 'QUERY_STUDIO' ? '#ffffff' : 'transparent', color: activeTab === 'QUERY_STUDIO' ? '#714B67' : '#e2e8f0', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                            title="SQL & Query Studio"
+                            style={{ width: '32px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '5px', border: 'none', backgroundColor: activeTab === 'QUERY_STUDIO' ? '#ffffff' : 'transparent', color: activeTab === 'QUERY_STUDIO' ? '#714B67' : '#e2e8f0', cursor: 'pointer', transition: 'all 0.15s' }}
                         >
-                            <Terminal size={13} /> SQL & Query Studio
+                            <Terminal size={16} />
                         </button>
                         <button
                             onClick={() => setActiveTab('CONNECTOR_HUB')}
-                            style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '4px', border: 'none', backgroundColor: activeTab === 'CONNECTOR_HUB' ? '#ffffff' : 'transparent', color: activeTab === 'CONNECTOR_HUB' ? '#714B67' : '#e2e8f0', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                            title="Data Source & ERP Connector"
+                            style={{ width: '32px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '5px', border: 'none', backgroundColor: activeTab === 'CONNECTOR_HUB' ? '#ffffff' : 'transparent', color: activeTab === 'CONNECTOR_HUB' ? '#714B67' : '#e2e8f0', cursor: 'pointer', transition: 'all 0.15s' }}
                         >
-                            <Link2 size={13} /> Data Source & ERP
+                            <Link2 size={16} />
                         </button>
                         <button
                             onClick={() => setActiveTab('DATA_PREVIEW')}
-                            style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '4px', border: 'none', backgroundColor: activeTab === 'DATA_PREVIEW' ? '#ffffff' : 'transparent', color: activeTab === 'DATA_PREVIEW' ? '#714B67' : '#e2e8f0', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                            title={`Data Grid (${filteredDataset.length} rows)`}
+                            style={{ width: '32px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '5px', border: 'none', backgroundColor: activeTab === 'DATA_PREVIEW' ? '#ffffff' : 'transparent', color: activeTab === 'DATA_PREVIEW' ? '#714B67' : '#e2e8f0', cursor: 'pointer', transition: 'all 0.15s', position: 'relative' }}
                         >
-                            <Database size={13} /> Data Grid ({filteredDataset.length})
+                            <Database size={16} />
+                            <span style={{ position: 'absolute', top: '2px', right: '3px', fontSize: '0.55rem', fontWeight: 800, color: activeTab === 'DATA_PREVIEW' ? '#714B67' : '#4ade80' }}>
+                                {filteredDataset.length > 99 ? '99+' : filteredDataset.length}
+                            </span>
                         </button>
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ fontSize: '0.72rem', padding: '3px 10px', borderRadius: '20px', backgroundColor: 'rgba(255,255,255,0.15)', color: '#ffffff', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#4ade80' }}></span>
-                        {sourceName}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {/* Source Badge */}
+                    <div title={`Data Source: ${sourceName}`} style={{ fontSize: '0.7rem', padding: '4px 8px', borderRadius: '6px', backgroundColor: 'rgba(255,255,255,0.15)', color: '#ffffff', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#4ade80', flexShrink: 0 }}></span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{sourceName}</span>
                     </div>
 
                     {/* Dashboard Name Input */}
@@ -920,56 +1273,89 @@ export default function BiStudio() {
                         value={currentDashboardName}
                         onChange={(e) => setCurrentDashboardName(e.target.value)}
                         placeholder="Dashboard name..."
-                        style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.3)', backgroundColor: 'rgba(255,255,255,0.15)', color: '#ffffff', fontSize: '0.78rem', fontWeight: 600, width: '160px' }}
+                        title="Nama Dashboard"
+                        style={{ padding: '4px 8px', borderRadius: '5px', border: '1px solid rgba(255,255,255,0.3)', backgroundColor: 'rgba(255,255,255,0.15)', color: '#ffffff', fontSize: '0.78rem', fontWeight: 600, width: '135px' }}
                     />
 
                     {/* New Dashboard */}
                     <button
                         onClick={createNewDashboard}
-                        style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', backgroundColor: 'rgba(255,255,255,0.15)', color: '#ffffff', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                        title="Buat Dashboard Baru"
+                        style={{ width: '32px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.15)', color: '#ffffff', border: 'none', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.15s' }}
                     >
-                        <Plus size={12} /> New
+                        <Plus size={16} />
                     </button>
 
                     {/* Templates Button */}
                     <button
                         onClick={() => setShowTemplatesModal(true)}
-                        style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', backgroundColor: '#f59e0b', color: '#ffffff', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 6px rgba(245, 158, 11, 0.4)' }}
+                        title="Pilih Template Industri (4)"
+                        style={{ width: '32px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f59e0b', color: '#ffffff', border: 'none', borderRadius: '6px', cursor: 'pointer', boxShadow: '0 2px 6px rgba(245, 158, 11, 0.4)' }}
                     >
-                        <Sparkles size={12} /> Templates (4)
+                        <Sparkles size={15} />
                     </button>
+
+                    {/* AI Q&A Copilot Button */}
+                    <button
+                        onClick={() => setShowAiQaModal(true)}
+                        title="Tanya AI Natural Language (Copilot Visual)"
+                        style={{ width: '32px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #8b5cf6, #ec4899)', color: '#ffffff', border: 'none', borderRadius: '6px', cursor: 'pointer', boxShadow: '0 2px 8px rgba(139, 92, 246, 0.4)' }}
+                    >
+                        <Bot size={16} />
+                    </button>
+
+                    {/* TV Kiosk Button */}
+                    <button
+                        onClick={() => {
+                            setIsKioskMode(true);
+                            setKioskCountdown(kioskIntervalSec);
+                            setKioskIsPlaying(true);
+                            toast.success('Entering TV Andon Kiosk Mode (Press ESC to exit)', { icon: '📺' });
+                        }}
+                        title="Mode Layar Penuh TV Andon Pabrik"
+                        style={{ width: '32px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0284c7', color: '#ffffff', border: 'none', borderRadius: '6px', cursor: 'pointer', boxShadow: '0 2px 6px rgba(2, 132, 199, 0.4)' }}
+                    >
+                        <Monitor size={15} />
+                    </button>
+
+                    <div style={{ width: '1px', height: '18px', backgroundColor: 'rgba(255,255,255,0.25)', margin: '0 2px' }}></div>
 
                     {/* Save */}
                     <button
                         onClick={() => saveDashboard(false)}
                         disabled={dashboardSaving}
-                        style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', backgroundColor: '#ffffff', color: '#714B67', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', opacity: dashboardSaving ? 0.6 : 1 }}
+                        title="Simpan Dashboard"
+                        style={{ width: '32px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff', color: '#714B67', border: 'none', borderRadius: '6px', cursor: 'pointer', opacity: dashboardSaving ? 0.6 : 1 }}
                     >
-                        <Save size={12} /> {dashboardSaving ? 'Saving...' : 'Save'}
+                        <Save size={15} />
                     </button>
 
                     {/* Publish */}
                     <button
                         onClick={() => saveDashboard(true)}
                         disabled={dashboardSaving}
-                        style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', backgroundColor: isPublished ? '#16a34a' : '#f59e0b', color: '#ffffff', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', opacity: dashboardSaving ? 0.6 : 1 }}
+                        title={isPublished ? 'Published (Klik untuk perbarui)' : 'Publish Dashboard'}
+                        style={{ width: '32px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: isPublished ? '#16a34a' : '#f59e0b', color: '#ffffff', border: 'none', borderRadius: '6px', cursor: 'pointer', opacity: dashboardSaving ? 0.6 : 1 }}
                     >
-                        <Play size={12} /> {isPublished ? 'Published' : 'Publish'}
+                        <Play size={15} />
                     </button>
 
                     {/* My Dashboards */}
                     <button
                         onClick={() => { setShowDashboardManager(!showDashboardManager); loadDashboardList(); }}
-                        style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', backgroundColor: showDashboardManager ? '#ffffff' : 'rgba(255,255,255,0.15)', color: showDashboardManager ? '#714B67' : '#ffffff', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                        title="Daftar Dashboard Saya"
+                        style={{ width: '32px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: showDashboardManager ? '#ffffff' : 'rgba(255,255,255,0.15)', color: showDashboardManager ? '#714B67' : '#ffffff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
                     >
-                        <Layers size={12} /> My Dashboards
+                        <Layers size={15} />
                     </button>
 
+                    {/* Export PDF */}
                     <button
                         onClick={() => window.print()}
-                        style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 12px', backgroundColor: '#ffffff', color: '#714B67', border: 'none', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}
+                        title="Export / Cetak PDF"
+                        style={{ width: '32px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff', color: '#714B67', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
                     >
-                        <Download size={13} /> Export PDF
+                        <Download size={15} />
                     </button>
                 </div>
             </div>
@@ -1296,12 +1682,44 @@ export default function BiStudio() {
                                                 zIndex: isSelected ? 20 : 5
                                             }}
                                         >
-                                            {/* Element Header */}
+                                            {/* Element Header with Drill Controls */}
                                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 8px', backgroundColor: isSelected ? '#714B67' : '#fafbfc', color: isSelected ? '#ffffff' : '#334155', borderBottom: '1px solid #f1f5f9' }}>
-                                                <span style={{ fontSize: '0.72rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                    {el.title || el.type}
-                                                </span>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', overflow: 'hidden' }}>
+                                                    <span style={{ fontSize: '0.72rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                        {el.title || el.type}
+                                                    </span>
+
+                                                    {/* Drill Path Breadcrumbs */}
+                                                    {el.drillPath && el.drillPath.length > 0 && (
+                                                        <span style={{ fontSize: '0.62rem', backgroundColor: isSelected ? 'rgba(255,255,255,0.2)' : '#e0e7ff', color: isSelected ? '#fff' : '#4338ca', padding: '1px 5px', borderRadius: '3px', fontWeight: 700 }}>
+                                                            {el.drillPath.map(p => p.value).join(' > ')}
+                                                        </span>
+                                                    )}
+                                                </div>
+
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                                    {/* Drill-Up Button */}
+                                                    {el.drillLevel > 0 && (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); handleDrillUp(el); }}
+                                                            style={{ background: 'none', border: 'none', color: isSelected ? '#ffffff' : '#4338ca', cursor: 'pointer', padding: '1px', display: 'flex', alignItems: 'center' }}
+                                                            title="Drill-Up ke level sebelumnya"
+                                                        >
+                                                            <ArrowUp size={12} />
+                                                        </button>
+                                                    )}
+
+                                                    {/* Drill-Through Records Button */}
+                                                    {(el.type === 'BAR' || el.type === 'LINE' || el.type === 'PARETO') && (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); handleTriggerDrillThrough(el); }}
+                                                            style={{ background: 'none', border: 'none', color: isSelected ? '#ffffff' : '#0284c7', cursor: 'pointer', padding: '1px', display: 'flex', alignItems: 'center' }}
+                                                            title="Drill-Through Lihat Detail Baris Data"
+                                                        >
+                                                            <Search size={11} />
+                                                        </button>
+                                                    )}
+
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handleDeleteElement(el.id); }}
                                                         style={{ background: 'none', border: 'none', color: isSelected ? '#ffffff' : '#94a3b8', cursor: 'pointer', padding: '1px' }}
@@ -1319,14 +1737,25 @@ export default function BiStudio() {
                                                         {el.textContent || el.title}
                                                     </div>
                                                 ) : el.type === 'KPI_CARD' ? (
-                                                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%' }}>
-                                                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: el.color || '#714B67' }}>
-                                                            {el.prefix || ''}{calculateKpiValue(el)}{el.suffix || ''}
-                                                        </div>
-                                                        <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 600 }}>
-                                                            {el.aggregation || 'SUM'} of {el.metric || 'Data'}
-                                                        </div>
-                                                    </div>
+                                                    (() => {
+                                                        const kpiRaw = calculateKpiValue(el);
+                                                        const kpiNum = parseFloat(String(kpiRaw).replace(/,/g, ''));
+                                                        const kpiDynamicColor = evaluateConditionalColor(kpiNum, el);
+
+                                                        return (
+                                                            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%' }}>
+                                                                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: kpiDynamicColor, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                    <span>{el.prefix || ''}{kpiRaw}{el.suffix || ''}</span>
+                                                                    {el.conditionalFormatting?.enabled && (
+                                                                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: kpiDynamicColor, boxShadow: `0 0 6px ${kpiDynamicColor}` }}></span>
+                                                                    )}
+                                                                </div>
+                                                                <div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 600 }}>
+                                                                    {el.aggregation || 'SUM'} of {el.metric || 'Data'}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })()
                                                 ) : el.type === 'SLICER' ? (
                                                     /* INTERACTIVE SLICER */
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', height: '100%', justifyContent: 'center' }}>
@@ -1503,7 +1932,7 @@ export default function BiStudio() {
                                 </div>
 
                                 <div>
-                                    <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#475569' }}>Warna Aksen</label>
+                                    <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#475569' }}>Warna Aksen Dasar</label>
                                     <input
                                         type="color"
                                         value={selectedElement.color || '#714B67'}
@@ -1511,6 +1940,359 @@ export default function BiStudio() {
                                         style={{ width: '100%', height: '32px', padding: '2px', borderRadius: '4px', border: '1px solid #cbd5e1', cursor: 'pointer', marginTop: '3px' }}
                                     />
                                 </div>
+
+                                {/* ── POWER BI CONDITIONAL FORMATTING SECTION ── */}
+                                {selectedElement.type !== 'TEXT' && selectedElement.type !== 'SLICER' && (
+                                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '10px', marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#714B67', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                <Palette size={12} /> Conditional Formatting (fx)
+                                            </span>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedElement.conditionalFormatting?.enabled || false}
+                                                onChange={(e) => {
+                                                    const enabled = e.target.checked;
+                                                    const prev = selectedElement.conditionalFormatting || {};
+                                                    handleUpdateSelectedElement({
+                                                        conditionalFormatting: {
+                                                            ...prev,
+                                                            enabled,
+                                                            mode: prev.mode || 'RULES',
+                                                            rules: prev.rules || [
+                                                                { min: 90, max: 999999, color: '#16a34a', label: 'Good' },
+                                                                { min: 75, max: 89.99, color: '#f59e0b', label: 'Warning' },
+                                                                { min: 0, max: 74.99, color: '#dc2626', label: 'Danger' }
+                                                            ]
+                                                        }
+                                                    });
+                                                }}
+                                                style={{ cursor: 'pointer' }}
+                                            />
+                                        </div>
+
+                                        {selectedElement.conditionalFormatting?.enabled && (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', backgroundColor: '#f8fafc', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                                {/* Preset Templates */}
+                                                <div>
+                                                    <span style={{ fontSize: '0.62rem', color: '#64748b', fontWeight: 700 }}>Quick Presets:</span>
+                                                    <div style={{ display: 'flex', gap: '4px', marginTop: '3px', flexWrap: 'wrap' }}>
+                                                        <button
+                                                            onClick={() => handleUpdateSelectedElement({
+                                                                conditionalFormatting: {
+                                                                    enabled: true,
+                                                                    mode: 'RULES',
+                                                                    rules: [
+                                                                        { min: 85, max: 999999, color: '#16a34a', label: '> 85% Target' },
+                                                                        { min: 70, max: 84.99, color: '#f59e0b', label: '70-85% Mid' },
+                                                                        { min: 0, max: 69.99, color: '#dc2626', label: '< 70% Bad' }
+                                                                    ]
+                                                                }
+                                                            })}
+                                                            style={{ padding: '2px 5px', fontSize: '0.6rem', borderRadius: '3px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontWeight: 700 }}
+                                                        >
+                                                            🚦 Traffic Light
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleUpdateSelectedElement({
+                                                                conditionalFormatting: {
+                                                                    enabled: true,
+                                                                    mode: 'RULES',
+                                                                    rules: [
+                                                                        { min: 25, max: 999999, color: '#dc2626', label: 'High Rejects' },
+                                                                        { min: 10, max: 24.99, color: '#f59e0b', label: 'Medium' },
+                                                                        { min: 0, max: 9.99, color: '#16a34a', label: 'Low Rejects' }
+                                                                    ]
+                                                                }
+                                                            })}
+                                                            style={{ padding: '2px 5px', fontSize: '0.6rem', borderRadius: '3px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontWeight: 700 }}
+                                                        >
+                                                            🚨 Defect Alert
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Rules List */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                    <span style={{ fontSize: '0.62rem', color: '#64748b', fontWeight: 700 }}>Active Rules:</span>
+                                                    {(selectedElement.conditionalFormatting?.rules || []).map((r, idx) => (
+                                                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#fff', padding: '3px 5px', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '0.68rem' }}>
+                                                            <input
+                                                                type="color"
+                                                                value={r.color}
+                                                                onChange={(e) => {
+                                                                    const rules = [...selectedElement.conditionalFormatting.rules];
+                                                                    rules[idx].color = e.target.value;
+                                                                    handleUpdateSelectedElement({ conditionalFormatting: { ...selectedElement.conditionalFormatting, rules } });
+                                                                }}
+                                                                style={{ width: '18px', height: '18px', border: 'none', borderRadius: '3px', cursor: 'pointer', padding: 0 }}
+                                                            />
+                                                            <span style={{ color: '#64748b' }}>≥</span>
+                                                            <input
+                                                                type="number"
+                                                                value={r.min}
+                                                                onChange={(e) => {
+                                                                    const rules = [...selectedElement.conditionalFormatting.rules];
+                                                                    rules[idx].min = Number(e.target.value);
+                                                                    handleUpdateSelectedElement({ conditionalFormatting: { ...selectedElement.conditionalFormatting, rules } });
+                                                                }}
+                                                                style={{ width: '45px', padding: '1px 3px', fontSize: '0.65rem', border: '1px solid #cbd5e1', borderRadius: '3px' }}
+                                                            />
+                                                            <span style={{ color: '#64748b' }}>s/d</span>
+                                                            <input
+                                                                type="number"
+                                                                value={r.max}
+                                                                onChange={(e) => {
+                                                                    const rules = [...selectedElement.conditionalFormatting.rules];
+                                                                    rules[idx].max = Number(e.target.value);
+                                                                    handleUpdateSelectedElement({ conditionalFormatting: { ...selectedElement.conditionalFormatting, rules } });
+                                                                }}
+                                                                style={{ width: '45px', padding: '1px 3px', fontSize: '0.65rem', border: '1px solid #cbd5e1', borderRadius: '3px' }}
+                                                            />
+                                                            <button
+                                                                onClick={() => {
+                                                                    const rules = selectedElement.conditionalFormatting.rules.filter((_, i) => i !== idx);
+                                                                    handleUpdateSelectedElement({ conditionalFormatting: { ...selectedElement.conditionalFormatting, rules } });
+                                                                }}
+                                                                style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', padding: '1px' }}
+                                                            >
+                                                                <X size={10} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                    <button
+                                                        onClick={() => {
+                                                            const rules = [...(selectedElement.conditionalFormatting?.rules || []), { min: 0, max: 100, color: '#3b82f6', label: 'Custom' }];
+                                                            handleUpdateSelectedElement({ conditionalFormatting: { ...selectedElement.conditionalFormatting, rules } });
+                                                        }}
+                                                        style={{ padding: '3px 6px', fontSize: '0.62rem', borderRadius: '3px', border: '1px dashed #cbd5e1', background: '#fff', color: '#714B67', fontWeight: 700, cursor: 'pointer' }}
+                                                    >
+                                                        + Tambah Aturan Range
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* ── POWER BI HIERARCHICAL DRILL-DOWN SETTINGS ── */}
+                                {(selectedElement.type === 'BAR' || selectedElement.type === 'LINE' || selectedElement.type === 'PARETO') && (
+                                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '10px', marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#714B67', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                <Layers size={12} /> Hierarchical Drill-Down
+                                            </span>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedElement.drillDownEnabled || false}
+                                                onChange={(e) => {
+                                                    const enabled = e.target.checked;
+                                                    handleUpdateSelectedElement({
+                                                        drillDownEnabled: enabled,
+                                                        hierarchy: selectedElement.hierarchy || [selectedElement.dimension || availableColumns[0], availableColumns[1] || 'machine'],
+                                                        drillLevel: 0,
+                                                        drillPath: []
+                                                    });
+                                                }}
+                                                style={{ cursor: 'pointer' }}
+                                            />
+                                        </div>
+
+                                        {selectedElement.drillDownEnabled && (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', backgroundColor: '#f8fafc', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                                {/* Pre-built Hierarchy Presets */}
+                                                <div>
+                                                    <span style={{ fontSize: '0.62rem', color: '#64748b', fontWeight: 700 }}>Quick Hierarchy Presets:</span>
+                                                    <div style={{ display: 'flex', gap: '4px', marginTop: '3px', flexWrap: 'wrap' }}>
+                                                        <button
+                                                            onClick={() => handleUpdateSelectedElement({
+                                                                hierarchy: ['line', 'machine', 'operator'],
+                                                                drillLevel: 0,
+                                                                drillPath: []
+                                                            })}
+                                                            style={{ padding: '2px 5px', fontSize: '0.6rem', borderRadius: '3px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontWeight: 700 }}
+                                                        >
+                                                            🏭 Line ➔ Machine ➔ Operator
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleUpdateSelectedElement({
+                                                                hierarchy: ['date', 'shift'],
+                                                                drillLevel: 0,
+                                                                drillPath: []
+                                                            })}
+                                                            style={{ padding: '2px 5px', fontSize: '0.6rem', borderRadius: '3px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontWeight: 700 }}
+                                                        >
+                                                            📅 Date ➔ Shift
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Hierarchy Levels */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+                                                    {(selectedElement.hierarchy || [selectedElement.dimension]).map((dim, idx) => (
+                                                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.68rem' }}>
+                                                            <span style={{ width: '50px', color: '#64748b', fontWeight: 700 }}>Lvl {idx + 1}:</span>
+                                                            <select
+                                                                value={dim}
+                                                                onChange={(e) => {
+                                                                    const h = [...(selectedElement.hierarchy || [])];
+                                                                    h[idx] = e.target.value;
+                                                                    handleUpdateSelectedElement({ hierarchy: h, drillLevel: 0, drillPath: [] });
+                                                                }}
+                                                                style={{ flex: 1, padding: '2px 4px', fontSize: '0.68rem', borderRadius: '3px', border: '1px solid #cbd5e1' }}
+                                                            >
+                                                                {availableColumns.map(c => <option key={c} value={c}>{c}</option>)}
+                                                            </select>
+                                                            {idx > 0 && (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const h = selectedElement.hierarchy.filter((_, i) => i !== idx);
+                                                                        handleUpdateSelectedElement({ hierarchy: h, drillLevel: 0, drillPath: [] });
+                                                                    }}
+                                                                    style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer' }}
+                                                                >
+                                                                    <X size={10} />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    ))}
+
+                                                    <button
+                                                        onClick={() => {
+                                                            const h = [...(selectedElement.hierarchy || [selectedElement.dimension]), availableColumns[0]];
+                                                            handleUpdateSelectedElement({ hierarchy: h });
+                                                        }}
+                                                        style={{ padding: '2px 6px', fontSize: '0.62rem', borderRadius: '3px', border: '1px dashed #cbd5e1', background: '#fff', color: '#714B67', fontWeight: 700, cursor: 'pointer' }}
+                                                    >
+                                                        + Tambah Level Hierarki
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                {(selectedElement.type === 'BAR' || selectedElement.type === 'LINE' || selectedElement.type === 'PARETO') && (
+                                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '10px', marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#714B67', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <TrendingUp size={12} /> Analytics & Reference Lines
+                                        </span>
+
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', backgroundColor: '#f8fafc', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                            {/* Target Constant Line */}
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                    <label style={{ fontSize: '0.68rem', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                        <span style={{ width: '8px', height: '2px', backgroundColor: selectedElement.referenceLines?.targetLine?.color || '#ef4444' }}></span>
+                                                        Target Line (Constant)
+                                                    </label>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedElement.referenceLines?.targetLine?.enabled || false}
+                                                        onChange={(e) => {
+                                                            const prev = selectedElement.referenceLines || {};
+                                                            handleUpdateSelectedElement({
+                                                                referenceLines: {
+                                                                    ...prev,
+                                                                    targetLine: {
+                                                                        ...prev.targetLine,
+                                                                        enabled: e.target.checked,
+                                                                        value: prev.targetLine?.value || 1000,
+                                                                        label: prev.targetLine?.label || 'Target',
+                                                                        color: prev.targetLine?.color || '#ef4444',
+                                                                        style: prev.targetLine?.style || 'dashed'
+                                                                    }
+                                                                }
+                                                            });
+                                                        }}
+                                                        style={{ cursor: 'pointer' }}
+                                                    />
+                                                </div>
+
+                                                {selectedElement.referenceLines?.targetLine?.enabled && (
+                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginTop: '2px' }}>
+                                                        <input
+                                                            type="number"
+                                                            placeholder="Nilai Target"
+                                                            value={selectedElement.referenceLines?.targetLine?.value || 1000}
+                                                            onChange={(e) => {
+                                                                const prev = selectedElement.referenceLines || {};
+                                                                handleUpdateSelectedElement({
+                                                                    referenceLines: {
+                                                                        ...prev,
+                                                                        targetLine: { ...prev.targetLine, value: Number(e.target.value) }
+                                                                    }
+                                                                });
+                                                            }}
+                                                            style={{ padding: '2px 4px', fontSize: '0.65rem', border: '1px solid #cbd5e1', borderRadius: '3px' }}
+                                                        />
+                                                        <input
+                                                            type="color"
+                                                            value={selectedElement.referenceLines?.targetLine?.color || '#ef4444'}
+                                                            onChange={(e) => {
+                                                                const prev = selectedElement.referenceLines || {};
+                                                                handleUpdateSelectedElement({
+                                                                    referenceLines: {
+                                                                        ...prev,
+                                                                        targetLine: { ...prev.targetLine, color: e.target.value }
+                                                                    }
+                                                                });
+                                                            }}
+                                                            style={{ height: '22px', width: '100%', border: 'none', borderRadius: '3px', cursor: 'pointer', padding: 0 }}
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Average Line */}
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '4px' }}>
+                                                <label style={{ fontSize: '0.68rem', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                    <span style={{ width: '8px', height: '2px', backgroundColor: '#3b82f6' }}></span>
+                                                    Average Line (Rata-Rata)
+                                                </label>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedElement.referenceLines?.avgLine?.enabled || false}
+                                                    onChange={(e) => {
+                                                        const prev = selectedElement.referenceLines || {};
+                                                        handleUpdateSelectedElement({
+                                                            referenceLines: {
+                                                                ...prev,
+                                                                avgLine: {
+                                                                    enabled: e.target.checked,
+                                                                    color: '#3b82f6',
+                                                                    style: 'dotted'
+                                                                }
+                                                            }
+                                                        });
+                                                    }}
+                                                    style={{ cursor: 'pointer' }}
+                                                />
+                                            </div>
+
+                                            {/* Max & Min Lines */}
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '4px' }}>
+                                                <label style={{ fontSize: '0.68rem', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                    <span style={{ width: '8px', height: '2px', backgroundColor: '#16a34a' }}></span>
+                                                    Max / Peak Line
+                                                </label>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedElement.referenceLines?.maxLine?.enabled || false}
+                                                    onChange={(e) => {
+                                                        const prev = selectedElement.referenceLines || {};
+                                                        handleUpdateSelectedElement({
+                                                            referenceLines: {
+                                                                ...prev,
+                                                                maxLine: { enabled: e.target.checked }
+                                                            }
+                                                        });
+                                                    }}
+                                                    style={{ cursor: 'pointer' }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ) : (
@@ -1858,6 +2640,389 @@ export default function BiStudio() {
                                     </button>
                                 </div>
                             ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ─── TV KIOSK / ANDON FULLSCREEN OVERLAY ──────────────────── */}
+            {isKioskMode && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: '#0f172a', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                    {/* Top TV Andon Status Bar */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 24px', backgroundColor: '#1e293b', borderBottom: '2px solid #334155', color: '#ffffff' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#22c55e', boxShadow: '0 0 10px #22c55e' }}></span>
+                                <span style={{ fontWeight: 900, fontSize: '1.1rem', letterSpacing: '0.5px' }}>{currentDashboardName}</span>
+                            </div>
+                            <span style={{ fontSize: '0.8rem', padding: '3px 10px', borderRadius: '20px', backgroundColor: '#334155', color: '#38bdf8', fontWeight: 700 }}>
+                                📑 {pages.find(p => p.id === activePageId)?.name || 'Overview'}
+                            </span>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                            {/* Auto-Rotation Controls */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#0f172a', padding: '4px 12px', borderRadius: '8px', border: '1px solid #334155' }}>
+                                <button
+                                    onClick={() => {
+                                        setActivePageId(currentId => {
+                                            const idx = pages.findIndex(p => p.id === currentId);
+                                            return pages[(idx - 1 + pages.length) % pages.length].id;
+                                        });
+                                        setKioskCountdown(kioskIntervalSec);
+                                    }}
+                                    style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                    title="Previous Page"
+                                >
+                                    <ChevronLeft size={16} />
+                                </button>
+
+                                <button
+                                    onClick={() => setKioskIsPlaying(!kioskIsPlaying)}
+                                    style={{ background: 'none', border: 'none', color: kioskIsPlaying ? '#22c55e' : '#f59e0b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 700 }}
+                                    title={kioskIsPlaying ? 'Pause Auto-Rotation' : 'Resume Auto-Rotation'}
+                                >
+                                    {kioskIsPlaying ? <Pause size={14} /> : <Play size={14} />}
+                                    <span>{kioskIsPlaying ? `${kioskCountdown}s` : 'Paused'}</span>
+                                </button>
+
+                                <button
+                                    onClick={() => {
+                                        setActivePageId(currentId => {
+                                            const idx = pages.findIndex(p => p.id === currentId);
+                                            return pages[(idx + 1) % pages.length].id;
+                                        });
+                                        setKioskCountdown(kioskIntervalSec);
+                                    }}
+                                    style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                    title="Next Page"
+                                >
+                                    <ChevronRight size={16} />
+                                </button>
+
+                                <select
+                                    value={kioskIntervalSec}
+                                    onChange={(e) => {
+                                        const sec = Number(e.target.value);
+                                        setKioskIntervalSec(sec);
+                                        setKioskCountdown(sec);
+                                    }}
+                                    style={{ background: '#1e293b', color: '#fff', border: '1px solid #475569', borderRadius: '4px', fontSize: '0.7rem', padding: '2px 4px' }}
+                                >
+                                    <option value={10}>10s</option>
+                                    <option value={15}>15s</option>
+                                    <option value={30}>30s</option>
+                                    <option value={60}>60s</option>
+                                </select>
+                            </div>
+
+                            {/* Live Clock */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.9rem', fontWeight: 800, color: '#f8fafc' }}>
+                                <Clock size={16} color="#38bdf8" />
+                                <span>{currentTime}</span>
+                            </div>
+
+                            {/* Exit Kiosk Button */}
+                            <button
+                                onClick={() => setIsKioskMode(false)}
+                                style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 14px', borderRadius: '6px', backgroundColor: '#dc2626', color: '#fff', border: 'none', fontWeight: 800, fontSize: '0.75rem', cursor: 'pointer' }}
+                            >
+                                <X size={14} /> Exit Kiosk (ESC)
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Fullscreen Canvas Center View */}
+                    <div style={{ flex: 1, overflow: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', backgroundColor: '#0f172a' }}>
+                        <div
+                            style={{
+                                width: '1420px',
+                                minHeight: '920px',
+                                backgroundColor: '#ffffff',
+                                borderRadius: '12px',
+                                position: 'relative',
+                                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.7)',
+                                transform: 'scale(0.95)',
+                                transformOrigin: 'center center'
+                            }}
+                        >
+                            {canvasElements.map(el => (
+                                <div
+                                    key={el.id}
+                                    style={{
+                                        position: 'absolute',
+                                        left: `${el.x}px`,
+                                        top: `${el.y}px`,
+                                        width: `${el.width}px`,
+                                        height: `${el.height}px`,
+                                        backgroundColor: el.bgColor || '#ffffff',
+                                        borderRadius: '8px',
+                                        border: '1px solid #e2e8f0',
+                                        boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        overflow: 'hidden'
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', backgroundColor: '#fafbfc', color: '#334155', borderBottom: '1px solid #f1f5f9' }}>
+                                        <span style={{ fontSize: '0.78rem', fontWeight: 800 }}>{el.title || el.type}</span>
+                                    </div>
+                                    <div style={{ flex: 1, padding: '8px', overflow: 'hidden' }}>
+                                        {el.type === 'TEXT' ? (
+                                            <div style={{ fontSize: `${el.fontSize || 15}px`, color: el.color || '#1e293b', fontWeight: 700 }}>
+                                                {el.textContent || el.title}
+                                            </div>
+                                        ) : el.type === 'KPI_CARD' ? (
+                                            (() => {
+                                                const kpiRaw = calculateKpiValue(el);
+                                                const kpiNum = parseFloat(String(kpiRaw).replace(/,/g, ''));
+                                                const kpiDynamicColor = evaluateConditionalColor(kpiNum, el);
+
+                                                return (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%' }}>
+                                                        <div style={{ fontSize: '1.6rem', fontWeight: 900, color: kpiDynamicColor }}>
+                                                            {el.prefix || ''}{kpiRaw}{el.suffix || ''}
+                                                        </div>
+                                                        <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 700 }}>
+                                                            {el.aggregation || 'SUM'} of {el.metric || 'Data'}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()
+                                        ) : (
+                                            <ReactECharts
+                                                option={getChartOption(el)}
+                                                style={{ height: '100%', width: '100%' }}
+                                                notMerge={true}
+                                                lazyUpdate={true}
+                                            />
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* ─── DRILL-THROUGH RECORDS DETAIL MODAL ────────────────── */}
+            {drillThroughData && (
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                    <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', width: '950px', maxWidth: '95vw', maxHeight: '85vh', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                        {/* Modal Header */}
+                        <div style={{ padding: '14px 20px', backgroundColor: '#714B67', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Search size={16} />
+                                <div>
+                                    <h4 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 800 }}>
+                                        🔍 Drill-Through Detail: {drillThroughData.visualTitle}
+                                    </h4>
+                                    <span style={{ fontSize: '0.7rem', color: '#f3e8ff' }}>
+                                        {drillThroughData.rows.length} Baris Data Terkait Filter: {drillThroughData.path.map(p => `${p.field}="${p.value}"`).join(', ') || 'All'}
+                                    </span>
+                                </div>
+                            </div>
+                            <button onClick={() => setDrillThroughData(null)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}><X size={16} /></button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+                            <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px', maxHeight: '420px' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                                    <thead>
+                                        <tr style={{ backgroundColor: '#f1f5f9', color: '#334155' }}>
+                                            {Object.keys(drillThroughData.rows[0] || {}).map(k => <th key={k} style={{ padding: '8px 10px', textAlign: 'left' }}>{k}</th>)}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {drillThroughData.rows.map((row, idx) => (
+                                            <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
+                                                {Object.values(row).map((val, i) => <td key={i} style={{ padding: '6px 10px', borderBottom: '1px solid #f1f5f9' }}>{String(val)}</td>)}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div style={{ padding: '10px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', backgroundColor: '#f8fafc' }}>
+                            <button
+                                onClick={() => setDrillThroughData(null)}
+                                style={{ padding: '6px 16px', borderRadius: '6px', border: 'none', backgroundColor: '#714B67', color: '#fff', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                                Tutup Drill-Through
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ─── AI NATURAL LANGUAGE Q&A (COPILOT) MODAL ─────────────── */}
+            {showAiQaModal && (
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.65)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                    <div style={{ backgroundColor: '#ffffff', borderRadius: '14px', width: '850px', maxWidth: '95vw', maxHeight: '90vh', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                        {/* Header */}
+                        <div style={{ padding: '16px 20px', background: 'linear-gradient(135deg, #714B67 0%, #4c1d95 100%)', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Bot size={20} color="#fde047" />
+                                </div>
+                                <div>
+                                    <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        AI Natural Language Q&A <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '10px', backgroundColor: '#fde047', color: '#714B67', fontWeight: 900 }}>COPILOT</span>
+                                    </h3>
+                                    <span style={{ fontSize: '0.72rem', color: '#e9d5ff' }}>Ketik pertanyaan bisnis/pabrik dalam bahasa Indonesia atau Inggris untuk membuat grafik instan</span>
+                                </div>
+                            </div>
+                            <button onClick={() => setShowAiQaModal(false)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}><X size={18} /></button>
+                        </div>
+
+                        {/* Search Input Body */}
+                        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px', backgroundColor: '#f8fafc', overflowY: 'auto' }}>
+                            {/* Input Form */}
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <div style={{ position: 'relative', flex: 1 }}>
+                                    <input
+                                        value={qaPrompt}
+                                        onChange={(e) => setQaPrompt(e.target.value)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') handleExecuteAiQuery(); }}
+                                        placeholder="Contoh: 'Tampilkan total reject quantity per mesin sebagai Pareto chart' ..."
+                                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '2px solid #cbd5e1', fontSize: '0.86rem', outline: 'none', fontWeight: 600, color: '#1e293b' }}
+                                    />
+                                    <Sparkles size={16} style={{ position: 'absolute', right: '12px', top: '12px', color: '#8b5cf6' }} />
+                                </div>
+                                <button
+                                    onClick={() => handleExecuteAiQuery()}
+                                    disabled={isAiProcessing || !qaPrompt.trim()}
+                                    style={{
+                                        padding: '0 20px',
+                                        borderRadius: '8px',
+                                        border: 'none',
+                                        background: 'linear-gradient(135deg, #8b5cf6, #ec4899)',
+                                        color: '#ffffff',
+                                        fontWeight: 800,
+                                        fontSize: '0.82rem',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        opacity: isAiProcessing || !qaPrompt.trim() ? 0.6 : 1
+                                    }}
+                                >
+                                    <Wand2 size={14} /> {isAiProcessing ? 'Synthesizing...' : 'Generate Visual'}
+                                </button>
+                            </div>
+
+                            {/* Preset Questions Pills */}
+                            <div>
+                                <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b' }}>Contoh Pertanyaan Cepat:</span>
+                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+                                    {[
+                                        'Tampilkan reject quantity per mesin sebagai Pareto chart',
+                                        'Bandingkan output produksi actualQty per shift',
+                                        'Komposisi jenis defectType sebagai Donut chart',
+                                        'Tren cycleTime harian per machine',
+                                        'Total downtimeMin per line'
+                                    ].map((q, i) => (
+                                        <button
+                                            key={i}
+                                            onClick={() => { setQaPrompt(q); handleExecuteAiQuery(q); }}
+                                            style={{
+                                                padding: '4px 10px',
+                                                borderRadius: '20px',
+                                                border: '1px solid #e2e8f0',
+                                                backgroundColor: '#ffffff',
+                                                color: '#475569',
+                                                fontSize: '0.72rem',
+                                                fontWeight: 600,
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '4px'
+                                            }}
+                                        >
+                                            <Sparkles size={11} color="#8b5cf6" /> {q}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Generated Visual Live Preview */}
+                            {generatedVisual && (
+                                <div style={{ backgroundColor: '#ffffff', borderRadius: '10px', border: '1.5px solid #8b5cf6', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', boxShadow: '0 4px 16px rgba(139, 92, 246, 0.1)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span style={{ fontSize: '0.65rem', padding: '2px 8px', borderRadius: '12px', backgroundColor: '#f3e8ff', color: '#7c3aed', fontWeight: 800 }}>
+                                                {generatedVisual.type}
+                                            </span>
+                                            <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#1e293b' }}>
+                                                {generatedVisual.title}
+                                            </span>
+                                        </div>
+
+                                        <button
+                                            onClick={() => {
+                                                const finalEl = {
+                                                    ...generatedVisual,
+                                                    id: `visual_${Date.now()}`,
+                                                    pageId: activePageId,
+                                                    x: 40 + (canvasElements.length * 30) % 300,
+                                                    y: 40 + (canvasElements.length * 30) % 200
+                                                };
+                                                setCanvasElements([...canvasElements, finalEl]);
+                                                setSelectedElementId(finalEl.id);
+                                                setShowAiQaModal(false);
+                                                toast.success('Visual AI berhasil ditambahkan ke Canvas Studio!', { icon: '🎉' });
+                                            }}
+                                            style={{
+                                                padding: '6px 14px',
+                                                borderRadius: '6px',
+                                                border: 'none',
+                                                backgroundColor: '#16a34a',
+                                                color: '#ffffff',
+                                                fontWeight: 800,
+                                                fontSize: '0.78rem',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '5px',
+                                                boxShadow: '0 2px 6px rgba(22, 163, 74, 0.3)'
+                                            }}
+                                        >
+                                            <Plus size={13} /> Tambahkan ke Canvas Studio
+                                        </button>
+                                    </div>
+
+                                    {/* Preview ECharts Component */}
+                                    <div style={{ height: '240px', width: '100%' }}>
+                                        {generatedVisual.type === 'KPI_CARD' ? (
+                                            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                                                <div style={{ fontSize: '2.5rem', fontWeight: 900, color: '#714B67' }}>
+                                                    {calculateKpiValue(generatedVisual)}
+                                                </div>
+                                                <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 700 }}>
+                                                    {generatedVisual.aggregation} of {generatedVisual.metric}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <ReactECharts
+                                                option={getChartOption(generatedVisual)}
+                                                style={{ height: '100%', width: '100%' }}
+                                                notMerge={true}
+                                                lazyUpdate={true}
+                                            />
+                                        )}
+                                    </div>
+
+                                    <div style={{ display: 'flex', gap: '8px', fontSize: '0.72rem', color: '#64748b', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '6px' }}>
+                                        <span>Dimensi: <b>{generatedVisual.dimension}</b></span>
+                                        <span>•</span>
+                                        <span>Metrik: <b>{generatedVisual.metric}</b></span>
+                                        <span>•</span>
+                                        <span>Agregasi: <b>{generatedVisual.aggregation}</b></span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
