@@ -2099,7 +2099,7 @@ export default function InspectorDesigner() {
         </div>
         
         {/* Top Step Indicator (7-Step Process) - Icon Only */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           {[
             { num: 1, label: 'Header', icon: ClipboardList, color: '#38bdf8' },
             { num: 2, label: 'Drawing', icon: Layers, color: '#a78bfa' },
@@ -2121,42 +2121,58 @@ export default function InspectorDesigner() {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    width: '28px',
-                    height: '28px',
+                    width: '35px',
+                    height: '35px',
                     borderRadius: '50%',
                     backgroundColor: isActive 
-                      ? 'rgba(139, 92, 246, 0.3)' 
+                      ? 'rgba(139, 92, 246, 0.35)' 
                       : isCompleted 
-                      ? 'rgba(16, 185, 129, 0.15)' 
-                      : 'rgba(30, 41, 59, 0.6)',
+                      ? 'rgba(16, 185, 129, 0.18)' 
+                      : 'rgba(30, 41, 59, 0.65)',
                     border: isActive 
                       ? '2px solid #a78bfa' 
                       : isCompleted 
                       ? '1.5px solid #10b981' 
-                      : '1px solid #334155',
+                      : '1.5px solid #334155',
                     cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                    transform: isActive ? 'scale(1.1)' : 'scale(1)',
-                    boxShadow: isActive ? '0 0 10px rgba(139, 92, 246, 0.4)' : 'none',
+                    transition: 'all 0.18s ease',
+                    transform: isActive ? 'scale(1.08)' : 'scale(1)',
+                    boxShadow: isActive ? '0 0 14px rgba(139, 92, 246, 0.5)' : 'none',
                     padding: 0
+                  }}
+                  onMouseEnter={e => {
+                    if (!isActive) e.currentTarget.style.backgroundColor = 'rgba(51, 65, 85, 0.8)';
+                  }}
+                  onMouseLeave={e => {
+                    if (!isActive) e.currentTarget.style.backgroundColor = isCompleted ? 'rgba(16, 185, 129, 0.18)' : 'rgba(30, 41, 59, 0.65)';
                   }}
                 >
                   <div style={{
-                    width: '20px', height: '20px',
+                    width: '26px', height: '26px',
                     borderRadius: '50%',
                     backgroundColor: isActive ? '#8b5cf6' : isCompleted ? '#10b981' : 'transparent',
                     color: 'white',
                     display: 'flex', alignItems: 'center', justifyContent: 'center'
                   }}>
-                    {isCompleted ? <Check size={12} strokeWidth={3} /> : <IconCmp size={12} color={isActive ? 'white' : s.color} />}
+                    {isCompleted ? (
+                      <Check size={16} strokeWidth={3} />
+                    ) : (
+                      <IconCmp size={16} strokeWidth={isActive ? 2.5 : 2} color={isActive ? 'white' : s.color} />
+                    )}
                   </div>
                 </button>
                 {idx < 6 && (
                   <div style={{
-                    width: '8px',
-                    height: '2px',
-                    backgroundColor: currentStep > s.num ? '#10b981' : '#334155'
-                  }} />
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '0 2px',
+                    color: currentStep > s.num ? '#10b981' : currentStep === s.num ? '#a78bfa' : '#64748b',
+                    filter: currentStep > s.num ? 'drop-shadow(0 0 6px rgba(16, 185, 129, 0.6))' : currentStep === s.num ? 'drop-shadow(0 0 6px rgba(167, 139, 250, 0.6))' : 'none',
+                    transition: 'all 0.2s ease'
+                  }}>
+                    <ArrowRight size={18} strokeWidth={2.8} />
+                  </div>
                 )}
               </React.Fragment>
             );
