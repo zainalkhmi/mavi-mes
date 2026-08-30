@@ -119,7 +119,7 @@ const MEAS_TYPES = {
 /**
  * Auto-detect measurement type from checkpoint fields
  */
-export function detectMeasurementType(point) {
+function detectMeasurementType(point) {
   if (!point) return MEAS_TYPES.length;
 
   const title = (point.title || '').toLowerCase();
@@ -187,9 +187,15 @@ export default function MeasurementTypeVisual({ activePoint }) {
   const nominal = activePoint ? (parseFloat(activePoint.nominal) || 25.0) : 25.0;
   const unit = activePoint?.unit || 'mm';
 
-  // Animate on point change
+  // Animate on point change — use key-based remount approach via ref
+  const prevPointId = React.useRef(activePoint?.id);
+  if (prevPointId.current !== activePoint?.id) {
+    prevPointId.current = activePoint?.id;
+    // Reset will happen via the useMemo recompute
+  }
+
+  // Animation via setTimeout in effect
   useEffect(() => {
-    setAnimPhase(0);
     const t = setTimeout(() => setAnimPhase(1), 60);
     return () => clearTimeout(t);
   }, [activePoint?.id]);
