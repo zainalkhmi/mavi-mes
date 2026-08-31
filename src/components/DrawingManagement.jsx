@@ -42,6 +42,7 @@ import {
 } from '../utils/mavicorePLM';
 import { convertPdfToImageDataUrl } from '../utils/pdfRenderService';
 import { parseDxfContent } from '../utils/cadDxfRenderService';
+import MLightCadViewer from './drawing/MLightCadViewer';
 
 // ─── Drawing Type Config ───
 const DRAWING_TYPES = [
@@ -1181,7 +1182,8 @@ export default function DrawingManagement() {
               <div className="flex items-center justify-between px-6 border-b border-gray-200 bg-white shrink-0">
                 <div className="flex items-center gap-2">
                   {[
-                    { key: 'canvas', label: 'Preview Blueprint CAD', icon: FileText },
+                    { key: 'canvas', label: 'Preview Blueprint (2D)', icon: FileText },
+                    { key: 'mlightcad', label: 'MLightCAD CAD Studio (DWG/DXF/PDF)', icon: Cpu },
                     { key: 'revisions', label: `Revisi & ECN (${revisions.length})`, icon: GitBranch },
                     { key: 'bom', label: 'Part & BOM Integration', icon: Boxes },
                     { key: 'relations', label: `Drawing Relations (${relations.length})`, icon: Link2 },
@@ -1805,6 +1807,18 @@ export default function DrawingManagement() {
                         ))}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* ══ MLightCAD CAD Studio (DWG/DXF/PDF) TAB ══ */}
+                {activeTab === 'mlightcad' && (
+                  <div className="flex-1 flex flex-col relative overflow-hidden bg-[#1e293b] min-h-[600px]">
+                    <MLightCadViewer
+                      fileData={selectedDrawing?.pdfData || selectedDrawing?.dataUrl || selectedDrawing?.svgData}
+                      fileName={selectedDrawing?.fileName || `${selectedDrawing?.name || 'Drawing'}.${(selectedDrawing?.fileType || 'dwg').toLowerCase()}`}
+                      onToggleInspector={handleOpenInInspector}
+                      showQCInspector={true}
+                    />
                   </div>
                 )}
               </div>
