@@ -97,24 +97,29 @@ const calculateDrawingZone = (x, y, width = 980, height = 680) => {
   return `${rowLetter}-${colIndex}`;
 };
 
-// Default template for a check point
-const createDefaultCheckPoint = (index, x = 200, y = 200, defaultShape = 'circle') => {
-  const zone = calculateDrawingZone(x, y, 980, 680);
+// Default template for a check point with automatic Leader Line & Arrow Target
+const createDefaultCheckPoint = (index, targetX = 200, targetY = 200, defaultShape = 'circle') => {
+  const zone = calculateDrawingZone(targetX, targetY, 980, 680);
+  const offsetDirX = targetX > 500 ? 32 : -32;
+  const offsetDirY = targetY > 350 ? 32 : -32;
+  const balloonX = Math.min(960, Math.max(30, targetX + offsetDirX));
+  const balloonY = Math.min(660, Math.max(30, targetY + offsetDirY));
+
   return {
     id: `cp_${Date.now()}_${index}`,
     pointNumber: index,
     title: `Dimensi #${index}`,
-    category: 'Linear Dimension',
+    category: 'dimension',
     nominal: '10.00',
     tolMin: '9.95',
     tolMax: '10.05',
     upperTol: '0.05',
     lowerTol: '-0.05',
     unit: 'mm',
-    x: x,
-    y: y,
-    targetX: x,
-    targetY: y,
+    x: balloonX,
+    y: balloonY,
+    targetX: targetX,
+    targetY: targetY,
     zone: zone,
     shape: defaultShape,
     criticality: defaultShape === 'hexagon' ? 'Critical (KC)' : defaultShape === 'diamond' ? 'Major (Safety)' : 'Standard',
@@ -1204,8 +1209,10 @@ export default function InspectorDesigner() {
       id: `cp_${Date.now()}_${checkPoints.length + 1}`,
       pointNumber: checkPoints.length + 1,
       title: point.title + ' (Copy)',
-      x: point.x + 20,
-      y: point.y + 20
+      x: point.x + 25,
+      y: point.y + 25,
+      targetX: point.targetX !== undefined ? point.targetX : point.x,
+      targetY: point.targetY !== undefined ? point.targetY : point.y
     };
     setCheckPoints([...checkPoints, newPoint]);
     toast.success('Point duplicated');
