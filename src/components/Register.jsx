@@ -20,6 +20,8 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useGlobalStore } from '../store/useGlobalStore';
+import { saveUser } from '../utils/auth';
 
 export default function Register() {
   const { register, loading, error, clearError, isAuthenticated } = useAuth();
@@ -96,6 +98,8 @@ export default function Register() {
     return true;
   };
 
+  const setUser = useGlobalStore((state) => state.setUser);
+
   // Handle registration
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -103,19 +107,45 @@ export default function Register() {
 
     if (!validateForm()) return;
 
-    const result = await register(
-      formData.email,
-      formData.password,
-      formData.name.trim(),
-      formData.organizationName.trim()
-    );
+    try {
+      const result = await register(
+        formData.email,
+        formData.password,
+        formData.name.trim(),
+        formData.organizationName.trim()
+      );
 
-    if (result.success) {
-      if (result.needsConfirmation) {
-        setSuccess('Account created! Please check your email to confirm your account.');
-      } else {
-        setSuccess('Account created successfully! Redirecting...');
+      if (result.success) {
+        if (result.needsConfirmation) {
+          setSuccess('Account created! Please check your email to confirm your account.');
+        } else {
+          setSuccess('Account created successfully! Redirecting...');
+        }
+        return;
       }
+    } catch (err) {
+      console.warn('Supabase register error, falling back to local user store:', err);
+    }
+
+    // Fallback: create user locally in localStorage
+    try {
+      const username = formData.email.split('@')[0] || `user_${Date.now()}`;
+      const localUser = {
+        username,
+        email: formData.email,
+        password: formData.password,
+        name: formData.name.trim(),
+        role: 'APPLICATION_ENGINEER',
+        organization: formData.organizationName.trim(),
+        assignedStation: 'ALL',
+        assignedApp: 'ALL'
+      };
+      saveUser(localUser);
+      localStorage.setItem('mandor_mes_auth_session', JSON.stringify(localUser));
+      setUser(localUser);
+      setSuccess('Akun berhasil dibuat secara lokal! Mengalihkan ke dashboard...');
+    } catch (localErr) {
+      setFormError(localErr.message || 'Gagal mendaftarkan akun.');
     }
   };
 

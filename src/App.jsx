@@ -10,6 +10,7 @@ import LoadingScreen from './components/layout/LoadingScreen';
 import { useGlobalStore } from './store/useGlobalStore';
 import { useAuth } from './contexts/AuthContext';
 
+import Register from './components/Register';
 import LandingPage from './components/LandingPage';
 
 import { EnterpriseDialogContainer } from './components/common/EnterpriseDialog';
@@ -124,6 +125,7 @@ export default function App() {
             <Route path="/drawing-management" element={<DrawingManagement />} />
             <Route path="/plm-integration" element={<PLMIntegrationDashboard />} />
             <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />
+            <Route path="/register" element={<Register />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>

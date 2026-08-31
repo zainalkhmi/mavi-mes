@@ -18,6 +18,7 @@ import QRCode from 'react-qr-code';
 import { getAllDrawings, saveDrawing, drawingsLocalDB } from '../utils/supabaseUtilityDB';
 import { convertPdfToImageDataUrl } from '../utils/pdfRenderService';
 import { parseDxfContent } from '../utils/cadDxfRenderService';
+import { extractBlueprintDimensions, detectPdfType } from '../utils/pdfDimensionExtractor';
 import { getTables, createTable } from '../utils/supabaseTablesDB';
 import { getTemplates, saveTemplates } from '../utils/supabaseTemplateDB';
 import { getCurrentUser } from '../utils/auth';
@@ -778,329 +779,52 @@ export default function InspectorDesigner() {
     toast.success('Urutan balon diperbarui sesuai Grid (Top-to-Bottom / Left-to-Right)!', { icon: '🔢' });
   };
   const [detectedCADPoints, setDetectedCADPoints] = useState([]);
+  const [isExtractingCAD, setIsExtractingCAD] = useState(false);
+  const [extractionStatusText, setExtractionStatusText] = useState('');
+  const [detectedPdfTypeInfo, setDetectedPdfTypeInfo] = useState('VECTOR_PDF');
 
   // ─── AI / CAD Feature High-Precision Auto-Ballooning Dimension Extractor ───
-  const handleOpenAutoBalloonStudio = useCallback(() => {
-    // 22 Comprehensive High-Precision Dimensions Extracted from CAD Blueprint
-    const rawPoints = [
-      {
-        title: 'Center Main Bearing Bore',
-        category: 'diameter',
-        nominal: 44.00,
-        unit: 'mm',
-        x: 320,
-        y: 280,
-        criticality: 'Critical (CC)',
-        inspectionMethod: 'Bore Gauge',
-        toolId: 'Mitutoyo Digital Bore Gauge 35-50mm',
-        notes: 'H7 Bearing Seat Precision Diameter',
-        gdtSymbol: '⌀'
-      },
-      {
-        title: 'Overall Width Span',
-        category: 'dimension',
-        nominal: 193.39,
-        unit: 'mm',
-        x: 360,
-        y: 73,
-        criticality: 'Major',
-        inspectionMethod: 'Caliper',
-        toolId: 'Digital Caliper 0-300mm',
-        notes: 'Outer Flange Mounting Total Width',
-        gdtSymbol: '📏'
-      },
-      {
-        title: 'Top Left Flange Bore Dia',
-        category: 'diameter',
-        nominal: 13.20,
-        unit: 'mm',
-        x: 265,
-        y: 47,
-        criticality: 'Major',
-        inspectionMethod: 'Caliper',
-        toolId: 'Digital Caliper',
-        notes: 'Top Left Bolt Hole',
-        gdtSymbol: '⌀'
-      },
-      {
-        title: 'Top Flange Counterbore Dia',
-        category: 'diameter',
-        nominal: 14.03,
-        unit: 'mm',
-        x: 265,
-        y: 57,
-        criticality: 'Minor',
-        inspectionMethod: 'Caliper',
-        toolId: 'Digital Caliper',
-        notes: 'Socket Cap Screw Recess',
-        gdtSymbol: '⌀'
-      },
-      {
-        title: 'Top Center Guide Hole',
-        category: 'diameter',
-        nominal: 9.95,
-        unit: 'mm',
-        x: 355,
-        y: 57,
-        criticality: 'Major',
-        inspectionMethod: 'Caliper',
-        toolId: 'Digital Caliper',
-        notes: 'Top Center Tapping Guide Hole',
-        gdtSymbol: '⌀'
-      },
-      {
-        title: 'Top Right Mounting Hole',
-        category: 'diameter',
-        nominal: 10.28,
-        unit: 'mm',
-        x: 455,
-        y: 63,
-        criticality: 'Minor',
-        inspectionMethod: 'Caliper',
-        toolId: 'Digital Caliper',
-        notes: 'Top Right Flange Boss Clearance Hole',
-        gdtSymbol: '⌀'
-      },
-      {
-        title: 'Left Outer Height Span',
-        category: 'dimension',
-        nominal: 121.50,
-        unit: 'mm',
-        x: 87,
-        y: 285,
-        criticality: 'Major',
-        inspectionMethod: 'Height Gauge',
-        toolId: 'Digital Height Gauge 0-600mm',
-        notes: 'Datum B Left Outer Face Total Span',
-        gdtSymbol: '📏'
-      },
-      {
-        title: 'Left Chamber Step Height',
-        category: 'dimension',
-        nominal: 101.00,
-        unit: 'mm',
-        x: 112,
-        y: 285,
-        criticality: 'Minor',
-        inspectionMethod: 'Height Gauge',
-        toolId: 'Digital Height Gauge',
-        notes: 'Outer Chamber Pocket Step Height',
-        gdtSymbol: '📏'
-      },
-      {
-        title: 'Left Inner Step Cavity',
-        category: 'dimension',
-        nominal: 82.00,
-        unit: 'mm',
-        x: 137,
-        y: 285,
-        criticality: 'Minor',
-        inspectionMethod: 'Caliper',
-        toolId: 'Digital Caliper',
-        notes: 'Inner Cavity Recess Height',
-        gdtSymbol: '📏'
-      },
-      {
-        title: 'Side Flange Auxiliary Hole',
-        category: 'diameter',
-        nominal: 10.01,
-        unit: 'mm',
-        x: 120,
-        y: 105,
-        criticality: 'Major',
-        inspectionMethod: 'Caliper',
-        toolId: 'Digital Caliper',
-        notes: 'Side Auxiliary Mounting Hole',
-        gdtSymbol: '⌀'
-      },
-      {
-        title: 'Side Flange Counterbore',
-        category: 'diameter',
-        nominal: 13.31,
-        unit: 'mm',
-        x: 120,
-        y: 117,
-        criticality: 'Minor',
-        inspectionMethod: 'Caliper',
-        toolId: 'Digital Caliper',
-        notes: 'Side Flange Screw Head Recess',
-        gdtSymbol: '⌀'
-      },
-      {
-        title: 'Lower Left Mounting Hole',
-        category: 'diameter',
-        nominal: 11.60,
-        unit: 'mm',
-        x: 145,
-        y: 450,
-        criticality: 'Major',
-        inspectionMethod: 'Caliper',
-        toolId: 'Digital Caliper',
-        notes: 'Lower Left Base Boss Mounting Hole',
-        gdtSymbol: '⌀'
-      },
-      {
-        title: 'Bottom Sump Return Hole',
-        category: 'diameter',
-        nominal: 10.30,
-        unit: 'mm',
-        x: 225,
-        y: 465,
-        criticality: 'Minor',
-        inspectionMethod: 'Caliper',
-        toolId: 'Digital Caliper',
-        notes: 'Bottom Oil Sump Channel Hole',
-        gdtSymbol: '⌀'
-      },
-      {
-        title: 'Oil Drain Channel Hole',
-        category: 'diameter',
-        nominal: 7.96,
-        unit: 'mm',
-        x: 310,
-        y: 465,
-        criticality: 'Minor',
-        inspectionMethod: 'Pin Gauge',
-        toolId: 'Pin Gauge 7.96mm',
-        notes: 'Oil Drain Port Diameter',
-        gdtSymbol: '⌀'
-      },
-      {
-        title: 'Bottom Bolt Pitch Width',
-        category: 'dimension',
-        nominal: 89.98,
-        unit: 'mm',
-        x: 330,
-        y: 480,
-        criticality: 'Major',
-        inspectionMethod: 'Caliper',
-        toolId: 'Digital Caliper',
-        notes: 'Bottom Bolt Pitch Center Distance',
-        gdtSymbol: '📏'
-      },
-      {
-        title: 'Right Precision Dowel Pin',
-        category: 'diameter',
-        nominal: 17.70,
-        unit: 'mm',
-        x: 415,
-        y: 450,
-        criticality: 'Critical (CC)',
-        inspectionMethod: 'Micrometer',
-        toolId: 'Mitutoyo Digital Micrometer 0-25mm',
-        notes: 'H6 High Precision Alignment Dowel Pin Hole',
-        gdtSymbol: '⌀'
-      },
-      {
-        title: 'Right Overall Height',
-        category: 'dimension',
-        nominal: 91.49,
-        unit: 'mm',
-        x: 580,
-        y: 295,
-        criticality: 'Major',
-        inspectionMethod: 'Height Gauge',
-        toolId: 'Digital Height Gauge',
-        notes: 'Right Mounting Flange Overall Height',
-        gdtSymbol: '📏'
-      },
-      {
-        title: 'Right Boss Pitch Height',
-        category: 'dimension',
-        nominal: 82.27,
-        unit: 'mm',
-        x: 545,
-        y: 275,
-        criticality: 'Minor',
-        inspectionMethod: 'Height Gauge',
-        toolId: 'Digital Height Gauge',
-        notes: 'Right Boss Center-to-Center Height',
-        gdtSymbol: '📏'
-      },
-      {
-        title: 'Right Step Height',
-        category: 'dimension',
-        nominal: 63.89,
-        unit: 'mm',
-        x: 525,
-        y: 275,
-        criticality: 'Minor',
-        inspectionMethod: 'Caliper',
-        toolId: 'Digital Caliper',
-        notes: 'Right Inner Step Recess Height',
-        gdtSymbol: '📏'
-      },
-      {
-        title: 'Section A-A Casting Thickness',
-        category: 'depth',
-        nominal: 27.50,
-        unit: 'mm',
-        x: 660,
-        y: 92,
-        criticality: 'Critical (CC)',
-        inspectionMethod: 'Micrometer',
-        toolId: 'Digital Depth Micrometer',
-        notes: 'Structural Wall Casting Thickness (Section A-A)',
-        gdtSymbol: '⏥'
-      },
-      {
-        title: 'Right View Overall Height',
-        category: 'dimension',
-        nominal: 121.50,
-        unit: 'mm',
-        x: 790,
-        y: 285,
-        criticality: 'Major',
-        inspectionMethod: 'Height Gauge',
-        toolId: 'Digital Height Gauge',
-        notes: 'Right Projection Overall Vertical Height',
-        gdtSymbol: '📏'
-      },
-      {
-        title: 'Right View Total Depth',
-        category: 'depth',
-        nominal: 63.89,
-        unit: 'mm',
-        x: 660,
-        y: 415,
-        criticality: 'Major',
-        inspectionMethod: 'Caliper',
-        toolId: 'Digital Caliper 0-150mm',
-        notes: 'Total Casting Depth Dimension',
-        gdtSymbol: '📏'
-      }
-    ];
+  const handleOpenAutoBalloonStudio = useCallback(async () => {
+    setIsExtractingCAD(true);
+    setExtractionStatusText('🔍 Membaca geometri drawing PDF...');
+    const loadingToastId = toast.loading('Memulai Engine Auto-Ballooning Dimensi CAD & PDF...', { id: 'autoballoon-toast' });
 
-    // Compute standard tolerances
-    const computed = rawPoints.map((pt, idx) => {
-      const nom = pt.nominal;
-      let tolDelta = 0.1;
+    try {
+      // Determine best drawing source available
+      const drawingSource = selectedDrawing?.pdfData || selectedDrawing?.dataUrl || selectedDrawing?.svgData || drawingPreview || null;
 
-      if (autoBalloonToleranceGrade === 'iso_f') {
-        // ISO 2768-f Fine (Aerospace / Metrology Precision)
-        tolDelta = nom <= 6 ? 0.05 : nom <= 30 ? 0.08 : nom <= 120 ? 0.12 : 0.2;
-      } else if (autoBalloonToleranceGrade === 'custom_precision') {
-        // High Precision Machining
-        tolDelta = pt.criticality.includes('Critical') ? 0.02 : 0.05;
-      } else {
-        // ISO 2768-mK Medium Standard
-        tolDelta = nom <= 6 ? 0.1 : nom <= 30 ? 0.2 : nom <= 120 ? 0.3 : 0.5;
-        if (pt.criticality.includes('Critical')) tolDelta = 0.03; // tighter for CC
-      }
+      const result = await extractBlueprintDimensions(
+        drawingSource,
+        {
+          toleranceGrade: autoBalloonToleranceGrade,
+          sortStrategy: autoBalloonSortStrategy,
+          canvasWidth: 1000,
+          canvasHeight: 700,
+          rasterImageDataUrl: drawingPreview || selectedDrawing?.dataUrl || null
+        },
+        (statusUpdate) => {
+          if (statusUpdate.message) {
+            setExtractionStatusText(statusUpdate.message);
+          }
+        }
+      );
 
-      return {
-        ...pt,
-        id: `cp_${Date.now()}_${idx + 1}`,
-        pointNumber: idx + 1,
-        tolMin: Number((nom - tolDelta).toFixed(3)),
-        tolMax: Number((nom + tolDelta).toFixed(3)),
-        autoAdvance: true
-      };
-    });
+      setDetectedPdfTypeInfo(result.pdfType || 'VECTOR_PDF');
+      setDetectedCADPoints(result.points || []);
+      setShowAutoBalloonModal(true);
 
-    setDetectedCADPoints(computed);
-    setShowAutoBalloonModal(true);
-  }, [autoBalloonToleranceGrade]);
+      toast.success(`🎯 ${result.count} Dimensi CAD & GD&T berhasil diekstraksi (${result.pdfType})!`, {
+        id: 'autoballoon-toast',
+        duration: 3500
+      });
+    } catch (err) {
+      console.error('[InspectorDesigner] Auto-balloon extraction error:', err);
+      toast.error('Gagal mengekstrak dimensi otomatis: ' + err.message, { id: 'autoballoon-toast' });
+    } finally {
+      setIsExtractingCAD(false);
+      setExtractionStatusText('');
+    }
+  }, [selectedDrawing, drawingPreview, autoBalloonToleranceGrade, autoBalloonSortStrategy]);
 
   // Apply detected points to active check sheet
   const handleApplyAutoBalloons = (pointsToApply) => {
@@ -1293,6 +1017,9 @@ export default function InspectorDesigner() {
       let extractedDimensions = [];
       const drawingId = `dwg_direct_${Date.now()}`;
 
+      let pdfDataUrl = null;
+      let rawImageDataUrl = null;
+
       if (ext === 'pdf') {
         const reader = new FileReader();
         const fileDataUrl = await new Promise((resolve, reject) => {
@@ -1301,8 +1028,10 @@ export default function InspectorDesigner() {
           reader.readAsDataURL(file);
         });
 
+        pdfDataUrl = fileDataUrl;
         // Convert PDF to High-Res Image Data URL
         const imagePngUrl = await convertPdfToImageDataUrl(fileDataUrl, 2.5);
+        rawImageDataUrl = imagePngUrl;
         previewContent = `<img src="${imagePngUrl}" style="width:100%;height:100%;object-fit:contain;" />`;
 
       } else if (ext === 'dxf') {
@@ -1310,6 +1039,7 @@ export default function InspectorDesigner() {
         const dxfResult = parseDxfContent(text, fileName);
         
         if (dxfResult && dxfResult.rendered_image) {
+          rawImageDataUrl = dxfResult.rendered_image;
           previewContent = `<img src="${dxfResult.rendered_image}" style="width:100%;height:100%;object-fit:contain;" />`;
         } else if (dxfResult && dxfResult.svg) {
           previewContent = dxfResult.svg;
@@ -1330,6 +1060,7 @@ export default function InspectorDesigner() {
           reader.onerror = reject;
           reader.readAsDataURL(file);
         });
+        rawImageDataUrl = dataUrl;
         previewContent = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:contain;" />`;
       } else {
         throw new Error('Format file tidak didukung. Harap upload file PDF, DXF, SVG, atau PNG/JPG.');
@@ -1343,6 +1074,8 @@ export default function InspectorDesigner() {
         fileType: ext.toUpperCase(),
         description: `Uploaded directly in Inspector Designer on ${new Date().toLocaleDateString()}`,
         svgData: previewContent,
+        pdfData: pdfDataUrl,
+        dataUrl: rawImageDataUrl,
         dimensions: extractedDimensions,
         createdAt: new Date().toISOString()
       };
@@ -2047,13 +1780,15 @@ export default function InspectorDesigner() {
   };
   
   const getCategoryColor = (key) => {
-    const cat = PARAM_CATEGORIES.find(c => c.key === key);
-    return cat?.color || '#64748b';
+    const cleanKey = String(key || '').toLowerCase();
+    const cat = PARAM_CATEGORIES.find(c => c.key.toLowerCase() === cleanKey || c.label.toLowerCase() === cleanKey);
+    return cat?.color || '#3b82f6';
   };
   
   const getCategoryIcon = (key) => {
-    const cat = PARAM_CATEGORIES.find(c => c.key === key);
-    return cat?.icon || '📐';
+    const cleanKey = String(key || '').toLowerCase();
+    const cat = PARAM_CATEGORIES.find(c => c.key.toLowerCase() === cleanKey || c.label.toLowerCase() === cleanKey);
+    return cat?.icon || '📏';
   };
   
   return (
@@ -3928,25 +3663,30 @@ export default function InspectorDesigner() {
               {/* 🪄 1-Click Auto-Balloon Feature Extractor (Solid & Vibrant) */}
               <button
                 onClick={handleOpenAutoBalloonStudio}
+                disabled={isExtractingCAD}
                 style={{
                   width: '32px',
                   height: '32px',
-                  backgroundColor: '#7c3aed',
+                  backgroundColor: isExtractingCAD ? '#4c1d95' : '#7c3aed',
                   color: '#ffffff',
                   border: '1px solid #6d28d9',
                   borderRadius: '7px',
-                  cursor: 'pointer',
+                  cursor: isExtractingCAD ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   boxShadow: '0 2px 8px rgba(124, 58, 237, 0.45)',
                   transition: 'all 0.15s ease'
                 }}
-                title="Auto-Balloon CAD (Ekstraksi Otomatis Dimensi CAD)"
-                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#6d28d9'}
-                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#7c3aed'}
+                title={isExtractingCAD ? extractionStatusText || 'Mengekstrak dimensi...' : 'Auto-Balloon CAD & PDF (Ekstraksi Otomatis Dimensi)'}
+                onMouseEnter={e => { if (!isExtractingCAD) e.currentTarget.style.backgroundColor = '#6d28d9'; }}
+                onMouseLeave={e => { if (!isExtractingCAD) e.currentTarget.style.backgroundColor = '#7c3aed'; }}
               >
-                <Sparkles size={16} color="#ffffff" />
+                {isExtractingCAD ? (
+                  <RefreshCw size={15} color="#ffffff" className="animate-spin" />
+                ) : (
+                  <Sparkles size={16} color="#ffffff" />
+                )}
               </button>
 
               {/* 📐 Auto-Align & Disperse Overlaps Button */}
@@ -5488,9 +5228,9 @@ export default function InspectorDesigner() {
                       }}
                       style={{
                         padding: '6px 4px',
-                        backgroundColor: activePoint.category === cat.key ? cat.color : '#1e293b',
+                        backgroundColor: (activePoint.category === cat.key || activePoint.category?.toLowerCase() === cat.key.toLowerCase() || activePoint.category === cat.label) ? cat.color : '#1e293b',
                         color: 'white',
-                        border: activePoint.category === cat.key ? '1.5px solid #ffffff' : '1px solid #334155',
+                        border: (activePoint.category === cat.key || activePoint.category?.toLowerCase() === cat.key.toLowerCase() || activePoint.category === cat.label) ? '1.5px solid #ffffff' : '1px solid #334155',
                         borderRadius: '4px',
                         fontSize: '0.65rem',
                         fontWeight: 700,
@@ -6936,32 +6676,69 @@ export default function InspectorDesigner() {
                   <Sparkles size={20} color="white" />
                 </div>
                 <div>
-                  <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900, color: '#f8fafc', letterSpacing: '-0.02em' }}>
-                    CAD Precision Auto-Balloon Studio
-                  </h2>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 900, color: '#f8fafc', letterSpacing: '-0.02em' }}>
+                      CAD & PDF Precision Auto-Balloon Studio
+                    </h2>
+                    <span style={{
+                      fontSize: '0.65rem',
+                      fontWeight: 800,
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      backgroundColor: detectedPdfTypeInfo === 'VECTOR_PDF' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                      color: detectedPdfTypeInfo === 'VECTOR_PDF' ? '#34d399' : '#fbbf24',
+                      border: `1px solid ${detectedPdfTypeInfo === 'VECTOR_PDF' ? '#059669' : '#d97706'}`
+                    }}>
+                      {detectedPdfTypeInfo === 'VECTOR_PDF' ? '⚡ VECTOR PDF (Native Streams)' : '🔬 SCANNED PDF (OCR Vision)'}
+                    </span>
+                  </div>
                   <p style={{ margin: 0, fontSize: '0.74rem', color: '#c4b5fd' }}>
-                    {detectedCADPoints.length} Dimensi CAD berhasil diekstraksi secara presisi dengan standar toleransi ISO
+                    {detectedCADPoints.length} Dimensi CAD & GD&T berhasil diekstraksi secara presisi dengan toleransi ISO
                   </p>
                 </div>
               </div>
 
-              <button
-                onClick={() => setShowAutoBalloonModal(false)}
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  backgroundColor: '#1e293b',
-                  border: '1px solid #334155',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#94a3b8'
-                }}
-              >
-                <X size={16} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  onClick={handleOpenAutoBalloonStudio}
+                  disabled={isExtractingCAD}
+                  style={{
+                    padding: '6px 12px',
+                    backgroundColor: '#1e293b',
+                    border: '1px solid #334155',
+                    borderRadius: '8px',
+                    cursor: isExtractingCAD ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    color: '#38bdf8'
+                  }}
+                  title="Pindai ulang dimensi drawing PDF"
+                >
+                  <RefreshCw size={13} className={isExtractingCAD ? 'animate-spin' : ''} />
+                  {isExtractingCAD ? 'Memindai...' : 'Pindai Ulang'}
+                </button>
+
+                <button
+                  onClick={() => setShowAutoBalloonModal(false)}
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    backgroundColor: '#1e293b',
+                    border: '1px solid #334155',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#94a3b8'
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
             </div>
 
             {/* Tolerance Standard & Sorting Controls */}
