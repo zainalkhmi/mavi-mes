@@ -123,7 +123,7 @@ export async function detectPdfType(pdfInput) {
 }
 
 /**
- * Filter out non-dimension texts (Title blocks, notes, drawing metadata, ISO standards)
+ * Filter out non-dimension texts (Title blocks, Gear Data tables, drawing notes, metadata, ISO standards)
  */
 const NON_DIMENSION_PATTERNS = [
   /^(INSPECTOR|DESIGNER|AUTO\s*BALLOON|TEST\s*DRAWING|VECTOR\s*PDF)/i,
@@ -133,7 +133,14 @@ const NON_DIMENSION_PATTERNS = [
   /^(SCALE\s*1\s*:\s*\d+|1\s*:\s*1|1\s*:\s*2|2\s*:\s*1|SHEET\s*1\s*\/\s*1|1\s*\/\s*1)/i,
   /^(SECTION|DETAIL|VIEW)\s+[A-Z]-[A-Z]/i,
   /^(UNLESS\s+OTHERWISE\s+SPECIFIED|ALL\s+DIMENSIONS\s+IN|DO\s+NOT\s+SCALE|REMOVE\s+BURRS|SHARP\s+EDGES)/i,
-  /^(PART\s*:|MATERIAL\s*:|S45C|SS400|AL6061|SUS304|TEST-SHAFT)/i,
+  /^(PART\s*:|MATERIAL\s*:|S45C|SCM440|SS400|AL6061|SUS304|TEST-SHAFT|SPUR\s*GEAR|HEX\s*HEAD|BOLT)/i,
+  /^(HEAT\s*TREAT|HRC\s*\d+|TOOTH\s*SURFACE|CARBURIZED|HARDENED|ANODIZED|NITRIDED)/i,
+  /^(DWG\s*NO|PART\s*NO|GR-\d+|BLT-\d+|REV\s*:\s*[A-Z])/i,
+  // Gear Data & Mechanical Spec Tables
+  /^(GEAR\s*DATA|MODULE|NUMBER\s*OF\s*TEETH|NO\.?\s*OF\s*TEETH|PRESSURE\s*ANGLE|PITCH\s*DIAMETER|OUTSIDE\s*DIAMETER|ROOT\s*DIAMETER|BASE\s*CIRCLE|ADDENDUM|DEDENDUM|WHOLE\s*DEPTH|FACE\s*WIDTH|TOOTH\s*FORM|INVOLUTE|BACKLASH|QUALITY\s*GRADE|DIN\s*3962|AGMA)/i,
+  // Reference annotations & view callouts
+  /\(REF\)|\(REFERENCE\)|REF\.|\bTYP\b|TYP\s*\d+|TYPICAL|4\s*CORNERS/i,
+  /(BEARING\s*FACE|ALONG\s*SHANK|VIEW\s*ON|SHANK\s*AXIS|THREAD\s*PITCH|DIA\s*TO\s*SHANK)/i,
   /^PAGE\s*\d+\s*(OF|\/)\s*\d+/i,
   /^(A4|A3|A2|A1|A0|LETTER|TABLOID)$/i,
   /^[A-F]-[1-8]$/, // Grid labels like A-1, B-2
@@ -145,25 +152,40 @@ function isNonDimensionText(str, x = 0, y = 0, canvasWidth = 1000, canvasHeight 
   const trimmed = str.replace(/\s+/g, ' ').trim();
   if (!trimmed || trimmed.length > 55) return true;
 
-  // Title block area filter (Bottom right corner)
-  if (x > canvasWidth * 0.72 && y > canvasHeight * 0.75) {
-    if (/TEST|SHAFT|MATERIAL|SCALE|REV|SHEET|DRAWN|S45C|1:1|1\/1/i.test(trimmed)) {
+  // 1. Title block area filter (Bottom right corner quadrant)
+  if (x > canvasWidth * 0.62 && y > canvasHeight * 0.70) {
+    if (/PART|DWG|REV|SCALE|MATERIAL|SCM|HRC|HEAT|SHEET|DRAWN|INSPECTOR|GENERAL|TOL|ISO|DIN|JIS|202[0-9]|1:1|1\/1|\d+-\d+|SPUR|GEAR|BOLT/i.test(trimmed)) {
       return true;
     }
   }
 
-  // Header banner filter (Top area)
-  if (y < canvasHeight * 0.12) {
-    if (/INSPECTOR|DESIGNER|BALLOON|VECTOR|ISO|DIMENSIONS/i.test(trimmed)) {
+  // 2. Header banner filter (Top area banner)
+  if (y < canvasHeight * 0.14) {
+    if (/INSPECTOR|DESIGNER|BALLOON|VECTOR|ISO|DIMENSIONS|TEST|DRAWING|HEX|HEAD|BOLT|SPUR|GEAR/i.test(trimmed)) {
       return true;
     }
   }
 
-  // Footer notes filter (Bottom left area)
+  // 3. Footer notes filter (Bottom area)
   if (y > canvasHeight * 0.88) {
-    if (/GENERAL|TOLERANCE|BURRS|EDGES|SCALE/i.test(trimmed)) {
+    if (/GENERAL|TOLERANCE|BURRS|EDGES|SCALE|DRAWN|INSPECTOR|ISO|2768/i.test(trimmed)) {
       return true;
     }
+  }
+
+  // 4. Gear Data Table & Spec Table Exclusion
+  if (/MODULE|TEETH|PRESSURE|PITCH|OUTSIDE\s*DIA|ROOT\s*DIA|BASE\s*CIRCLE|ADDENDUM|DEDENDUM|WHOLE\s*DEPTH|FACE\s*WIDTH|INVOLUTE|BACKLASH|QUALITY\s*GRADE|DIN\s*3962|AGMA/i.test(trimmed)) {
+    return true;
+  }
+
+  // 5. Drawing Notes & Callouts Exclusion
+  if (/CHAMFER|TYP|CORNERS|BEARING\s*FACE|SHANK\s*AXIS|VIEW\s*ON|THREAD\s*PITCH|CONCENTRICITY/i.test(trimmed)) {
+    return true;
+  }
+
+  // 6. Reference dimensions (REF)
+  if (/\(REF\)|\(REFERENCE\)|REF\./i.test(trimmed)) {
+    return true;
   }
 
   return NON_DIMENSION_PATTERNS.some(pat => pat.test(trimmed));
