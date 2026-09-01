@@ -2102,6 +2102,10 @@ export const WorkflowEditorContent = () => {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
       {/* ─── CREATE NEW WORKFLOW MODAL ────────────────────────────── */}
       {showNewWorkflowModal && (
         <div
