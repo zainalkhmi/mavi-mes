@@ -25,24 +25,222 @@ import {
   AlertTriangle, CheckCircle2, Archive, Tag, Hash, ArrowRight, Sparkles,
   FolderArchive, Target, Ruler, Settings2, Link2, Unlink, BarChart2,
   PlusCircle, MinusCircle, ChevronLeft, Upload, Info, ZoomIn, ZoomOut,
-  Maximize2, Crosshair, Move, Image, FileUp, MousePointer, Boxes, Cpu,
+  Maximize2, Minimize2, Crosshair, Move, Image, FileUp, MousePointer, Boxes, Cpu,
   ShieldCheck, Award, Printer, FileSpreadsheet, CheckSquare, Wand2, FileSearch,
-  HelpCircle, FileDown, BookOpen, ListOrdered
+  HelpCircle, FileDown, BookOpen, ListOrdered, MousePointerClick, FileCheck,
+  Camera, Star, ShieldAlert, Split, Calendar, MapPin, UserCheck
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
 import {
-  getDrawings, createDrawing, updateDrawing, deleteDrawing,
+  getDrawings, createDrawing, updateDrawing, deleteDrawing, clearAllDrawings,
   getDrawingRevisions, createDrawingRevision, releaseDrawingRevision,
   getDrawingBalloons, createDrawingBalloon, deleteDrawingBalloon,
   getDrawingFeatures, createDrawingFeature, deleteDrawingFeature,
   getDrawingRelations, addChildDrawing, removeChildDrawing,
   getParts, getPart, createPart,
+  getLimitSamples, createLimitSample, updateLimitSample, deleteLimitSample,
   generateCode
 } from '../utils/mavicorePLM';
 import { convertPdfToImageDataUrl } from '../utils/pdfRenderService';
 import { parseDxfContent } from '../utils/cadDxfRenderService';
-import MLightCadViewer from './drawing/MLightCadViewer';
+
+// ─── Realistic Demo Product Photo Generator ───
+const createDemoProductPhotoSvg = (type = 'flange', angle = 'Isometric 3D') => {
+  if (type === 'shaft') {
+    return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+      <defs>
+        <radialGradient id="bg" cx="50%" cy="50%" r="75%">
+          <stop offset="0%" stop-color="%232a3447" />
+          <stop offset="100%" stop-color="%230f172a" />
+        </radialGradient>
+        <linearGradient id="metal" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="%23cbd5e1"/>
+          <stop offset="30%" stop-color="%23f8fafc"/>
+          <stop offset="50%" stop-color="%2394a3b8"/>
+          <stop offset="70%" stop-color="%23e2e8f0"/>
+          <stop offset="100%" stop-color="%2364748b"/>
+        </linearGradient>
+        <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="%23fde047"/>
+          <stop offset="100%" stop-color="%23ca8a04"/>
+        </linearGradient>
+        <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+          <feDropShadow dx="0" dy="15" stdDeviation="20" flood-color="%23000000" flood-opacity="0.6"/>
+        </filter>
+      </defs>
+      <rect width="100%" height="100%" fill="url(%23bg)"/>
+      <ellipse cx="400" cy="510" rx="320" ry="40" fill="%23000000" opacity="0.4"/>
+      <!-- Precision Ground CNC Shaft -->
+      <g filter="url(%23shadow)">
+        <rect x="120" y="240" width="160" height="120" rx="8" fill="url(%23metal)" stroke="%23f8fafc" stroke-width="2"/>
+        <rect x="280" y="200" width="240" height="200" rx="10" fill="url(%23metal)" stroke="%23f8fafc" stroke-width="2"/>
+        <rect x="520" y="250" width="160" height="100" rx="8" fill="url(%23metal)" stroke="%23f8fafc" stroke-width="2"/>
+        <!-- Bevels & Grooves -->
+        <line x1="280" y1="200" x2="280" y2="400" stroke="%23475569" stroke-width="3"/>
+        <line x1="520" y1="250" x2="520" y2="350" stroke="%23475569" stroke-width="3"/>
+        <rect x="360" y="230" width="80" height="20" rx="4" fill="%23334155"/>
+        <text x="375" y="245" fill="%2394a3b8" font-family="sans-serif" font-size="11" font-weight="bold">KEYWAY</text>
+      </g>
+      <!-- CNC Machine Finish Lines -->
+      <line x1="120" y1="300" x2="680" y2="300" stroke="%23ffffff" opacity="0.4" stroke-width="2"/>
+      <text x="40" y="60" fill="%23f8fafc" font-family="sans-serif" font-size="20" font-weight="900">REAL PRODUCT PHOTO (CNC TURNED PART)</text>
+      <text x="40" y="90" fill="%2394a3b8" font-family="sans-serif" font-size="13">Item: Precision Ground Stepper Shaft | Mat: SUS304 Ground Finish | View: ${angle}</text>
+      <rect x="40" y="520" width="180" height="36" rx="6" fill="%2310b981" opacity="0.9"/>
+      <text x="55" y="543" fill="%23ffffff" font-family="sans-serif" font-size="12" font-weight="bold">✓ 100% VISUAL QC PASSED</text>
+    </svg>`;
+  }
+  return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+    <defs>
+      <radialGradient id="bg" cx="50%" cy="50%" r="75%">
+        <stop offset="0%" stop-color="%232a3447" />
+        <stop offset="100%" stop-color="%230f172a" />
+      </radialGradient>
+      <linearGradient id="metalFlange" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="%23e2e8f0"/>
+        <stop offset="35%" stop-color="%23f8fafc"/>
+        <stop offset="60%" stop-color="%2394a3b8"/>
+        <stop offset="100%" stop-color="%23475569"/>
+      </linearGradient>
+      <linearGradient id="anodizedInner" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="%23714B67"/>
+        <stop offset="100%" stop-color="%234a2842"/>
+      </linearGradient>
+      <filter id="shadowFlange" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="20" stdDeviation="25" flood-color="%23000000" flood-opacity="0.65"/>
+      </filter>
+    </defs>
+    <rect width="100%" height="100%" fill="url(%23bg)"/>
+    <ellipse cx="400" cy="510" rx="260" ry="35" fill="%23000000" opacity="0.45"/>
+    <!-- Flange Outer Disc -->
+    <g filter="url(%23shadowFlange)">
+      <ellipse cx="400" cy="310" rx="220" ry="170" fill="url(%23metalFlange)" stroke="%23ffffff" stroke-width="3"/>
+      <ellipse cx="400" cy="305" rx="165" ry="125" fill="none" stroke="%2394a3b8" stroke-dasharray="8,6" stroke-width="2"/>
+      <!-- Inner Anodized Bore -->
+      <ellipse cx="400" cy="310" rx="100" ry="75" fill="url(%23anodizedInner)" stroke="%23f8fafc" stroke-width="2"/>
+      <ellipse cx="400" cy="310" rx="50" ry="38" fill="%230f172a" stroke="%2338bdf8" stroke-width="2"/>
+      <!-- 4 PCD Bolt Holes -->
+      <ellipse cx="400" cy="180" rx="18" ry="14" fill="%230f172a" stroke="%23cbd5e1" stroke-width="2"/>
+      <ellipse cx="400" cy="430" rx="18" ry="14" fill="%230f172a" stroke="%23cbd5e1" stroke-width="2"/>
+      <ellipse cx="235" cy="310" rx="18" ry="14" fill="%230f172a" stroke="%23cbd5e1" stroke-width="2"/>
+      <ellipse cx="565" cy="310" rx="18" ry="14" fill="%230f172a" stroke="%23cbd5e1" stroke-width="2"/>
+    </g>
+    <text x="40" y="60" fill="%23f8fafc" font-family="sans-serif" font-size="20" font-weight="900">REAL PRODUCT PHOTO (MACHINED FLANGE)</text>
+    <text x="40" y="90" fill="%2394a3b8" font-family="sans-serif" font-size="13">Item: Hydraulic Flange Housing | Mat: AL-6061-T6 Anodized | View: ${angle}</text>
+    <rect x="40" y="520" width="180" height="36" rx="6" fill="%2310b981" opacity="0.9"/>
+    <text x="55" y="543" fill="%23ffffff" font-family="sans-serif" font-size="12" font-weight="bold">✓ 100% VISUAL QC PASSED</text>
+  </svg>`;
+};
+
+// ─── Defect Categories Config (Limit Sample / Boundary Standard) ───
+const DEFECT_CATEGORIES = [
+  { key: 'SCRATCH', label: 'Goresan (Scratch / Scuff)', icon: '⚡', color: '#f59e0b' },
+  { key: 'BURR', label: 'Geram / Ketajaman Sisi (Burr / Sharp Edge)', icon: '🔪', color: '#ef4444' },
+  { key: 'DENT', label: 'Penyok / Benturan (Dent / Impact Mark)', icon: '🔨', color: '#8b5cf6' },
+  { key: 'BLOWHOLE', label: 'Porositas / Pinhole (Casting Defect)', icon: '🫧', color: '#06b6d4' },
+  { key: 'COLOR', label: 'Warna / Anodizing Tone (Discoloration)', icon: '🎨', color: '#ec4899' },
+  { key: 'FLASH', label: 'Flash / Sirip Plastik / Parting Line', icon: '📐', color: '#10b981' },
+  { key: 'OTHER', label: 'Cacat Visual Lainnya', icon: '🔍', color: '#64748b' },
+];
+
+// ─── Limit Sample Demo SVG Generator (OK vs NG Visual Boundaries) ───
+const createDemoLimitSampleSvgs = (defectKey = 'SCRATCH', type = 'OK') => {
+  const isOk = type === 'OK';
+  const bgColor = isOk ? '%23064e3b' : '%237f1d1d';
+  const borderColor = isOk ? '%2310b981' : '%23ef4444';
+  const badgeText = isOk ? '🟢 BATAS DITERIMA (OK LIMIT)' : '🔴 BATAS DITOLAK (NG LIMIT)';
+
+  if (defectKey === 'SCRATCH') {
+    return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 450" width="600" height="450">
+      <defs>
+        <linearGradient id="metalBg1" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="%23334155"/>
+          <stop offset="50%" stop-color="%2364748b"/>
+          <stop offset="100%" stop-color="%231e293b"/>
+        </linearGradient>
+      </defs>
+      <rect width="100%" height="100%" fill="url(%23metalBg1)"/>
+      <rect x="20" y="20" width="560" height="410" rx="8" fill="none" stroke="${borderColor}" stroke-width="3"/>
+      <!-- Part Surface Mockup -->
+      <rect x="50" y="70" width="500" height="290" rx="6" fill="%23475569" stroke="%2394a3b8" stroke-width="1.5"/>
+      ${isOk
+        ? `<!-- Hairline Scratch (Acceptable) -->
+           <path d="M 180 190 Q 220 200 260 195" stroke="%23cbd5e1" stroke-width="1" opacity="0.6" stroke-dasharray="4,2"/>
+           <circle cx="220" cy="195" r="30" fill="none" stroke="%2310b981" stroke-width="2" stroke-dasharray="3,3"/>
+           <text x="260" y="170" fill="%2310b981" font-family="sans-serif" font-size="12" font-weight="bold">Panjang < 10mm, Kedalaman < 0.05mm (OK)</text>`
+        : `<!-- Severe Deep Scratch (Reject) -->
+           <path d="M 140 170 Q 280 240 420 200" stroke="%23ffffff" stroke-width="4.5"/>
+           <path d="M 140 170 Q 280 240 420 200" stroke="%23ef4444" stroke-width="2"/>
+           <circle cx="280" cy="210" r="50" fill="none" stroke="%23ef4444" stroke-width="2.5"/>
+           <text x="240" y="145" fill="%23ef4444" font-family="sans-serif" font-size="12" font-weight="bold">Goresan Dalam > 0.2mm Menembus Lapisan (REJECT)</text>`
+      }
+      <!-- Header Badge -->
+      <rect x="20" y="20" width="560" height="40" fill="${bgColor}"/>
+      <text x="40" y="46" fill="%23ffffff" font-family="sans-serif" font-size="14" font-weight="900">${badgeText}</text>
+      <text x="40" y="390" fill="%23f8fafc" font-family="sans-serif" font-size="12">Kategori: Goresan Permukaan (Surface Scratch)</text>
+      <text x="40" y="410" fill="%2394a3b8" font-family="sans-serif" font-size="10">Standar ISO/IATF Visual Master Boundary</text>
+    </svg>`;
+  }
+
+  if (defectKey === 'BURR') {
+    return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 450" width="600" height="450">
+      <defs>
+        <linearGradient id="metalBg2" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="%23334155"/>
+          <stop offset="50%" stop-color="%2364748b"/>
+          <stop offset="100%" stop-color="%231e293b"/>
+        </linearGradient>
+      </defs>
+      <rect width="100%" height="100%" fill="url(%23metalBg2)"/>
+      <rect x="20" y="20" width="560" height="410" rx="8" fill="none" stroke="${borderColor}" stroke-width="3"/>
+      <!-- Edge Chamfer Mockup -->
+      <path d="M 80 320 L 80 180 L 250 180 L 320 250 L 520 250 L 520 320 Z" fill="%23475569" stroke="%2394a3b8" stroke-width="2"/>
+      ${isOk
+        ? `<!-- Smooth Chamfer with micro burr <= 0.05mm (OK) -->
+           <circle cx="285" cy="215" r="30" fill="none" stroke="%2310b981" stroke-width="2" stroke-dasharray="4,2"/>
+           <text x="325" y="200" fill="%2310b981" font-family="sans-serif" font-size="12" font-weight="bold">Burr Chamfer <= 0.05 mm (Halus / Diterima)</text>`
+        : `<!-- Sharp Ragged Burr >= 0.3mm (NG) -->
+           <path d="M 280 210 L 290 195 L 298 215 L 310 200 L 320 220" stroke="%23ef4444" stroke-width="4" fill="none"/>
+           <circle cx="300" cy="210" r="40" fill="none" stroke="%23ef4444" stroke-width="2.5"/>
+           <text x="310" y="175" fill="%23ef4444" font-family="sans-serif" font-size="12" font-weight="bold">Geram Tajam > 0.3 mm Melukai Tangan (REJECT)</text>`
+      }
+      <rect x="20" y="20" width="560" height="40" fill="${bgColor}"/>
+      <text x="40" y="46" fill="%23ffffff" font-family="sans-serif" font-size="14" font-weight="900">${badgeText}</text>
+      <text x="40" y="390" fill="%23f8fafc" font-family="sans-serif" font-size="12">Kategori: Geram / Ketajaman Tepi (Edge Burr)</text>
+      <text x="40" y="410" fill="%2394a3b8" font-family="sans-serif" font-size="10">Standar ISO/IATF Visual Master Boundary</text>
+    </svg>`;
+  }
+
+  // Default Blowhole / Porosity
+  return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 450" width="600" height="450">
+    <defs>
+      <linearGradient id="metalBg3" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="%23334155"/>
+        <stop offset="50%" stop-color="%2364748b"/>
+        <stop offset="100%" stop-color="%231e293b"/>
+      </linearGradient>
+    </defs>
+    <rect width="100%" height="100%" fill="url(%23metalBg3)"/>
+    <rect x="20" y="20" width="560" height="410" rx="8" fill="none" stroke="${borderColor}" stroke-width="3"/>
+    <circle cx="300" cy="230" r="130" fill="%23475569" stroke="%2394a3b8" stroke-width="2"/>
+    ${isOk
+      ? `<!-- Single isolated pinhole <= 0.3mm (OK) -->
+         <circle cx="280" cy="210" r="2" fill="%230f172a" stroke="%2310b981" stroke-width="1.5"/>
+         <circle cx="280" cy="210" r="25" fill="none" stroke="%2310b981" stroke-width="2" stroke-dasharray="3,3"/>
+         <text x="315" y="195" fill="%2310b981" font-family="sans-serif" font-size="12" font-weight="bold">Pinhole Tunggal Ø <= 0.3 mm (Diterima)</text>`
+      : `<!-- Cluster blowhole > 1.5mm (NG) -->
+         <circle cx="270" cy="210" r="8" fill="%230f172a"/>
+         <circle cx="290" cy="225" r="12" fill="%230f172a"/>
+         <circle cx="310" cy="205" r="6" fill="%230f172a"/>
+         <circle cx="290" cy="215" r="45" fill="none" stroke="%23ef4444" stroke-width="2.5"/>
+         <text x="230" y="150" fill="%23ef4444" font-family="sans-serif" font-size="12" font-weight="bold">Cluster Porositas Porous Ø > 1.5 mm (REJECT)</text>`
+    }
+    <rect x="20" y="20" width="560" height="40" fill="${bgColor}"/>
+    <text x="40" y="46" fill="%23ffffff" font-family="sans-serif" font-size="14" font-weight="900">${badgeText}</text>
+    <text x="40" y="390" fill="%23f8fafc" font-family="sans-serif" font-size="12">Kategori: Porositas Pengecoran (Cast Blowhole)</text>
+    <text x="40" y="410" fill="%2394a3b8" font-family="sans-serif" font-size="10">Standar ISO/IATF Visual Master Boundary</text>
+  </svg>`;
+};
 
 // ─── Drawing Type Config ───
 const DRAWING_TYPES = [
@@ -183,28 +381,118 @@ const createDemoBlueprintSvg = (type = 'flange') => {
 };
 
 // ─── Reusable Modal & Form Components (Module Level to Prevent Re-mount Loss of Focus) ───
-const Modal = ({ show, onClose, title, children, onSubmit, submitLabel = 'Simpan', maxWidth = 'max-w-xl' }) => {
+const Modal = ({ show, onClose, title, children, onSubmit, submitLabel = 'Simpan', maxWidth = 'max-w-xl', allowFullscreen = false }) => {
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (isFullscreen) {
+          setIsFullscreen(false);
+        } else if (onClose) {
+          onClose();
+        }
+      }
+    };
+    if (show) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [show, isFullscreen, onClose]);
+
   if (!show) return null;
+
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 animate-in fade-in duration-150" onClick={onClose}>
-      <div className={`bg-white border border-gray-200 rounded-xl shadow-2xl w-full ${maxWidth} max-h-[90vh] flex flex-col overflow-hidden text-gray-900`} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-[#f8f9fa] shrink-0">
-          <h3 className="text-base font-bold text-gray-900">{title}</h3>
-          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-700 cursor-pointer p-1 rounded-md hover:bg-gray-200 transition-colors">
-            <X size={18} />
-          </button>
+    <div className={`fixed inset-0 z-[99999] bg-black/75 backdrop-blur-xs flex items-center justify-center ${isFullscreen ? 'p-0' : 'p-3 sm:p-6'} animate-in fade-in duration-150`}>
+      <div
+        className={`bg-white text-gray-900 flex flex-col shadow-2xl transition-all duration-150 ${
+          isFullscreen
+            ? 'fixed inset-0 w-screen h-screen max-w-none max-h-none rounded-none z-[99999]'
+            : `w-full ${maxWidth} max-h-[90vh] rounded-xl border border-gray-200`
+        }`}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Sticky Header with Prominent Action Buttons */}
+        <div className="sticky top-0 z-30 flex items-center justify-between px-6 py-3.5 border-b border-gray-200 bg-[#f8f9fa] shadow-2xs shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <h3 className="text-sm sm:text-base font-bold text-gray-900 truncate">{title}</h3>
+            {isFullscreen && (
+              <span className="text-[10px] font-bold bg-[#714B67]/10 text-[#714B67] px-2 py-0.5 rounded border border-[#714B67]/20">
+                Mode Layar Penuh
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {allowFullscreen && (
+              <button
+                type="button"
+                onClick={() => setIsFullscreen(!isFullscreen)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-gray-700 bg-white hover:bg-gray-100 border border-gray-300 rounded-md shadow-2xs transition-all cursor-pointer"
+                title={isFullscreen ? 'Keluar Layar Penuh (Restore Window)' : 'Perbesar Layar Penuh (Fullscreen)'}
+              >
+                {isFullscreen ? (
+                  <>
+                    <Minimize2 size={15} className="text-[#714B67]" />
+                    <span>Perkecil</span>
+                  </>
+                ) : (
+                  <>
+                    <Maximize2 size={15} className="text-[#714B67]" />
+                    <span>Layar Penuh</span>
+                  </>
+                )}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setIsFullscreen(false);
+                if (onClose) onClose();
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-md shadow-xs transition-all cursor-pointer"
+              title="Tutup Modal (Esc)"
+            >
+              <X size={15} />
+              <span>Tutup</span>
+            </button>
+          </div>
         </div>
-        <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">{children}</div>
-        {onSubmit && (
-          <div className="flex items-center justify-end gap-2 px-6 py-3.5 border-t border-gray-200 bg-[#f8f9fa] shrink-0">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-semibold text-gray-600 hover:text-gray-900 rounded-md hover:bg-gray-200 cursor-pointer transition-colors">
+
+        {/* Scrollable Content Body */}
+        <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1 bg-white">
+          {children}
+        </div>
+
+        {/* Sticky Footer */}
+        {onSubmit ? (
+          <div className="sticky bottom-0 z-30 flex items-center justify-end gap-2 px-6 py-3 border-t border-gray-200 bg-[#f8f9fa] shrink-0">
+            <button
+              type="button"
+              onClick={() => { setIsFullscreen(false); if (onClose) onClose(); }}
+              className="px-4 py-2 text-xs font-semibold text-gray-600 hover:text-gray-900 rounded-md hover:bg-gray-200 cursor-pointer transition-colors"
+            >
               Batal
             </button>
-            <button type="button" onClick={onSubmit} className="px-5 py-2 text-xs font-bold bg-[#714B67] hover:bg-[#5C3D54] text-white rounded-md shadow-xs transition-all cursor-pointer">
+            <button
+              type="button"
+              onClick={onSubmit}
+              className="px-5 py-2 text-xs font-bold bg-[#714B67] hover:bg-[#5C3D54] text-white rounded-md shadow-xs transition-all cursor-pointer"
+            >
               {submitLabel}
             </button>
           </div>
-        )}
+        ) : isFullscreen ? (
+          <div className="sticky bottom-0 z-30 flex items-center justify-between px-6 py-2.5 border-t border-gray-200 bg-[#f8f9fa] shrink-0 text-xs text-gray-500">
+            <span>💡 Tekan tombol <strong>Esc</strong> pada keyboard untuk keluar layar penuh</span>
+            <button
+              onClick={() => setIsFullscreen(false)}
+              className="font-bold text-[#714B67] hover:underline flex items-center gap-1 cursor-pointer"
+            >
+              <Minimize2 size={13} /> Keluar Layar Penuh (Perkecil)
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -302,6 +590,37 @@ export default function DrawingManagement() {
   const [selectedBomTemplate, setSelectedBomTemplate] = useState(BOM_TEMPLATES[0]);
   const [activeHelpTab, setActiveHelpTab] = useState('workflow');
 
+  // Product Photo Gallery State
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
+  const [showPhotoEditModal, setShowPhotoEditModal] = useState(false);
+  const [photoEditData, setPhotoEditData] = useState({ index: 0, label: '', angle: 'Depan (Front)' });
+  const photoInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+
+  // Limit Sample (Sampel Batas Mutu) State
+  const [limitSamples, setLimitSamples] = useState([]);
+  const [showCreateLimitSampleModal, setShowCreateLimitSampleModal] = useState(false);
+  const [showLimitSampleDetailModal, setShowLimitSampleDetailModal] = useState(false);
+  const [selectedLimitSample, setSelectedLimitSample] = useState(null);
+  const [showPrintTagModal, setShowPrintTagModal] = useState(false);
+  const [limitSampleFormData, setLimitSampleFormData] = useState({
+    code: '',
+    title: '',
+    defect_category: 'SCRATCH',
+    ok_photo_url: null,
+    ok_criteria: 'Batas goresan halus (hairline scratch) panjang < 10mm, kedalaman < 0.05mm yang tidak mempengaruhi fungsi perakitan.',
+    ng_photo_url: null,
+    ng_criteria: 'Goresan dalam > 0.2mm yang menembus lapisan pelindung atau mengenai area permukaan bearing (Wajib REJECT).',
+    effective_date: new Date().toISOString().split('T')[0],
+    expiry_date: new Date(Date.now() + 180 * 86400000).toISOString().split('T')[0],
+    storage_location: 'Rak QC Metrologi #01',
+    qa_approver: 'QA Manager',
+    customer_approver: 'Customer Quality Rep',
+    notes: 'Disetujui bersama tim Quality Engineering & Customer untuk standar lot produksi tahun berjalan.'
+  });
+  const okPhotoInputRef = useRef(null);
+  const ngPhotoInputRef = useRef(null);
+
   // Form states
   const [formData, setFormData] = useState({ name: '', code: '', drawing_type: 'DETAIL', description: '', file_url: null, file_name: null });
   const [revFormData, setRevFormData] = useState({
@@ -388,12 +707,14 @@ export default function DrawingManagement() {
     setActiveTab('canvas');
 
     try {
-      const [revs, rels] = await Promise.all([
+      const [revs, rels, ls] = await Promise.all([
         getDrawingRevisions(drawing.id),
-        getDrawingRelations(drawing.id)
+        getDrawingRelations(drawing.id),
+        getLimitSamples(drawing.id)
       ]);
       setRevisions(revs || []);
       setRelations(rels || []);
+      setLimitSamples(ls || []);
 
       if (revs && revs.length > 0) {
         setSelectedRevision(revs[0]);
@@ -576,6 +897,285 @@ export default function DrawingManagement() {
     toast.success(`✓ Demo CAD Blueprint (${presetType}) berhasil dimuat ke canvas!`);
   };
 
+  // ─── Product Photos Memo & Handlers ───
+  const productPhotos = useMemo(() => {
+    if (!selectedDrawing) return [];
+    if (Array.isArray(selectedDrawing.product_photos)) return selectedDrawing.product_photos;
+    try {
+      const stored = localStorage.getItem(`mandor_drawing_photos_${selectedDrawing.id}`);
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return [];
+  }, [selectedDrawing]);
+
+  const handleAddProductPhotos = async (files) => {
+    if (!files || files.length === 0 || !selectedDrawing) return;
+    const newPhotos = [...productPhotos];
+
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith('image/')) continue;
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const cleanName = file.name.replace(/\.[^/.]+$/, "");
+      newPhotos.push({
+        id: `photo_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        name: file.name,
+        url: dataUrl,
+        label: newPhotos.length === 0 ? 'Foto Utama (Primary)' : cleanName || `Foto #${newPhotos.length + 1}`,
+        angle: newPhotos.length === 0 ? 'Depan (Front)' : 'Isometric 3D',
+        date: new Date().toISOString(),
+        isPrimary: newPhotos.length === 0
+      });
+    }
+
+    try {
+      localStorage.setItem(`mandor_drawing_photos_${selectedDrawing.id}`, JSON.stringify(newPhotos));
+    } catch {}
+
+    const updated = await updateDrawing(selectedDrawing.id, { product_photos: newPhotos });
+    if (updated.success) {
+      setSelectedDrawing(prev => ({ ...prev, product_photos: newPhotos }));
+      setDrawings(prev => prev.map(d => d.id === selectedDrawing.id ? { ...d, product_photos: newPhotos } : d));
+    }
+    toast.success(`✓ ${files.length} Foto produk berhasil ditambahkan!`);
+    if (photoInputRef.current) photoInputRef.current.value = '';
+    if (cameraInputRef.current) cameraInputRef.current.value = '';
+  };
+
+  const handleDeleteProductPhoto = async (indexToDelete) => {
+    if (!selectedDrawing) return;
+    const newPhotos = productPhotos.filter((_, idx) => idx !== indexToDelete);
+    if (newPhotos.length > 0 && !newPhotos.some(p => p.isPrimary)) {
+      newPhotos[0].isPrimary = true;
+    }
+    try {
+      localStorage.setItem(`mandor_drawing_photos_${selectedDrawing.id}`, JSON.stringify(newPhotos));
+    } catch {}
+    await updateDrawing(selectedDrawing.id, { product_photos: newPhotos });
+    setSelectedDrawing(prev => ({ ...prev, product_photos: newPhotos }));
+    setDrawings(prev => prev.map(d => d.id === selectedDrawing.id ? { ...d, product_photos: newPhotos } : d));
+    if (selectedPhotoIndex >= newPhotos.length) {
+      setSelectedPhotoIndex(Math.max(0, newPhotos.length - 1));
+    }
+    toast.success('Foto produk dihapus');
+  };
+
+  const handleSetPrimaryPhoto = async (indexToPrimary) => {
+    if (!selectedDrawing) return;
+    const newPhotos = productPhotos.map((p, idx) => ({
+      ...p,
+      isPrimary: idx === indexToPrimary
+    }));
+    try {
+      localStorage.setItem(`mandor_drawing_photos_${selectedDrawing.id}`, JSON.stringify(newPhotos));
+    } catch {}
+    await updateDrawing(selectedDrawing.id, { product_photos: newPhotos });
+    setSelectedDrawing(prev => ({ ...prev, product_photos: newPhotos }));
+    setDrawings(prev => prev.map(d => d.id === selectedDrawing.id ? { ...d, product_photos: newPhotos } : d));
+    toast.success('Foto utama produk berhasil diatur!');
+  };
+
+  const handleOpenEditPhoto = (photo, index) => {
+    setPhotoEditData({
+      index,
+      label: photo.label || `Foto #${index + 1}`,
+      angle: photo.angle || 'Depan (Front)'
+    });
+    setShowPhotoEditModal(true);
+  };
+
+  const handleSavePhotoEdit = async () => {
+    if (!selectedDrawing) return;
+    const newPhotos = productPhotos.map((p, idx) =>
+      idx === photoEditData.index ? { ...p, label: photoEditData.label, angle: photoEditData.angle } : p
+    );
+    try {
+      localStorage.setItem(`mandor_drawing_photos_${selectedDrawing.id}`, JSON.stringify(newPhotos));
+    } catch {}
+    await updateDrawing(selectedDrawing.id, { product_photos: newPhotos });
+    setSelectedDrawing(prev => ({ ...prev, product_photos: newPhotos }));
+    setDrawings(prev => prev.map(d => d.id === selectedDrawing.id ? { ...d, product_photos: newPhotos } : d));
+    setShowPhotoEditModal(false);
+    toast.success('Keterangan foto diperbarui');
+  };
+
+  const handleLoadSampleProductPhotos = async () => {
+    if (!selectedDrawing) return;
+    const isShaft = selectedDrawing.name?.toLowerCase().includes('shaft') || selectedDrawing.code?.toLowerCase().includes('sft');
+    const type = isShaft ? 'shaft' : 'flange';
+    const sample1 = createDemoProductPhotoSvg(type, 'Isometric 3D');
+    const sample2 = createDemoProductPhotoSvg(type, 'Tampak Depan (Front View)');
+    const sample3 = createDemoProductPhotoSvg(type, 'Close-Up Detail QC Toleransi');
+
+    const samplePhotos = [
+      {
+        id: `photo_${Date.now()}_1`,
+        name: `${type.toUpperCase()}_Isometric_View.svg`,
+        url: sample1,
+        label: isShaft ? 'Precision Stepper Shaft - Isometric 3D' : 'Hydraulic Flange Housing - Isometric 3D',
+        angle: 'Isometric 3D',
+        date: new Date().toISOString(),
+        isPrimary: true
+      },
+      {
+        id: `photo_${Date.now()}_2`,
+        name: `${type.toUpperCase()}_Front_View.svg`,
+        url: sample2,
+        label: isShaft ? 'Precision Stepper Shaft - Tampak Depan' : 'Hydraulic Flange Housing - Tampak Depan',
+        angle: 'Depan (Front)',
+        date: new Date().toISOString(),
+        isPrimary: false
+      },
+      {
+        id: `photo_${Date.now()}_3`,
+        name: `${type.toUpperCase()}_QC_Detail.svg`,
+        url: sample3,
+        label: isShaft ? 'Area Grinding & Chamfer Poros' : 'Detail Lubang Baut PCD & Surface Finish',
+        angle: 'Detail QC Permukaan',
+        date: new Date().toISOString(),
+        isPrimary: false
+      }
+    ];
+
+    try {
+      localStorage.setItem(`mandor_drawing_photos_${selectedDrawing.id}`, JSON.stringify(samplePhotos));
+    } catch {}
+    await updateDrawing(selectedDrawing.id, { product_photos: samplePhotos });
+    setSelectedDrawing(prev => ({ ...prev, product_photos: samplePhotos }));
+    setDrawings(prev => prev.map(d => d.id === selectedDrawing.id ? { ...d, product_photos: samplePhotos } : d));
+    setSelectedPhotoIndex(0);
+    toast.success(`✓ 3 Contoh Foto Produk Riil Manufaktur berhasil dimuat!`);
+  };
+
+  // ─── Limit Sample (Sampel Batas Mutu) Handlers ───
+  const handleCreateLimitSample = async () => {
+    if (!selectedDrawing) return;
+    if (!limitSampleFormData.title) {
+      toast.error('Judul Limit Sample wajib diisi');
+      return;
+    }
+
+    const code = limitSampleFormData.code || `LS-${selectedDrawing.code || 'PRT'}-${limitSamples.length + 1}`;
+    const okPhoto = limitSampleFormData.ok_photo_url || createDemoLimitSampleSvgs(limitSampleFormData.defect_category, 'OK');
+    const ngPhoto = limitSampleFormData.ng_photo_url || createDemoLimitSampleSvgs(limitSampleFormData.defect_category, 'NG');
+
+    const newSample = {
+      code,
+      title: limitSampleFormData.title,
+      defect_category: limitSampleFormData.defect_category,
+      drawing_id: selectedDrawing.id,
+      part_id: selectedDrawing.metadata?.part_id || null,
+      ok_photo_url: okPhoto,
+      ok_criteria: limitSampleFormData.ok_criteria,
+      ng_photo_url: ngPhoto,
+      ng_criteria: limitSampleFormData.ng_criteria,
+      status: 'ACTIVE',
+      effective_date: limitSampleFormData.effective_date,
+      expiry_date: limitSampleFormData.expiry_date,
+      storage_location: limitSampleFormData.storage_location,
+      qa_approver: limitSampleFormData.qa_approver,
+      customer_approver: limitSampleFormData.customer_approver,
+      notes: limitSampleFormData.notes
+    };
+
+    const res = await createLimitSample(newSample);
+    if (res.success) {
+      const updated = await getLimitSamples(selectedDrawing.id);
+      setLimitSamples(updated);
+      setShowCreateLimitSampleModal(false);
+      toast.success(`✓ Limit Sample "${newSample.title}" berhasil didaftarkan!`);
+    }
+  };
+
+  const handleDeleteLimitSample = async (id) => {
+    if (!selectedDrawing) return;
+    await deleteLimitSample(id, selectedDrawing.id);
+    const updated = await getLimitSamples(selectedDrawing.id);
+    setLimitSamples(updated);
+    toast.success('Limit sample berhasil dihapus');
+  };
+
+  const handleLoadDemoLimitSamples = async () => {
+    if (!selectedDrawing) return;
+    const demoItems = [
+      {
+        code: `LS-${selectedDrawing.code || 'DWG'}-001`,
+        title: 'Batas Goresan Permukaan Bodi Mesin (Scratch Boundary)',
+        defect_category: 'SCRATCH',
+        drawing_id: selectedDrawing.id,
+        part_id: selectedDrawing.metadata?.part_id || null,
+        ok_photo_url: createDemoLimitSampleSvgs('SCRATCH', 'OK'),
+        ok_criteria: 'Hairline scratch halus panjang < 10 mm, kedalaman < 0.05 mm pada area non-kritis (Lolos / OK).',
+        ng_photo_url: createDemoLimitSampleSvgs('SCRATCH', 'NG'),
+        ng_criteria: 'Goresan dalam > 0.2 mm menembus lapisan atau melintasi dudukan bearing (Wajib REJECT).',
+        status: 'ACTIVE',
+        effective_date: new Date().toISOString().split('T')[0],
+        expiry_date: new Date(Date.now() + 180 * 86400000).toISOString().split('T')[0],
+        storage_location: 'Rak QC Metrologi Box #01',
+        qa_approver: 'Budi Santoso (QA Lead)',
+        customer_approver: 'Takeshi Tanaka (Customer QA Rep)',
+        notes: 'Disetujui untuk lot perakitan tahun 2026 sesuai klausul IATF 16949.'
+      },
+      {
+        code: `LS-${selectedDrawing.code || 'DWG'}-002`,
+        title: 'Batas Ketajaman Sisi & Geram Chamfer (Burr Boundary)',
+        defect_category: 'BURR',
+        drawing_id: selectedDrawing.id,
+        part_id: selectedDrawing.metadata?.part_id || null,
+        ok_photo_url: createDemoLimitSampleSvgs('BURR', 'OK'),
+        ok_criteria: 'Tepi chamfer halus, micro burr <= 0.05 mm yang tidak melukai tangan operator (Lolos / OK).',
+        ng_photo_url: createDemoLimitSampleSvgs('BURR', 'NG'),
+        ng_criteria: 'Geram tajam bergerigi > 0.3 mm yang berisiko merobek seal hidrolik (Wajib REJECT).',
+        status: 'ACTIVE',
+        effective_date: new Date().toISOString().split('T')[0],
+        expiry_date: new Date(Date.now() + 180 * 86400000).toISOString().split('T')[0],
+        storage_location: 'Rak QC Metrologi Box #02',
+        qa_approver: 'Budi Santoso (QA Lead)',
+        customer_approver: 'Takeshi Tanaka (Customer QA Rep)',
+        notes: 'Standar de-burring proses CNC Milling & Chamfering.'
+      },
+      {
+        code: `LS-${selectedDrawing.code || 'DWG'}-003`,
+        title: 'Batas Porositas & Pinhole Coran (Blowhole Boundary)',
+        defect_category: 'BLOWHOLE',
+        drawing_id: selectedDrawing.id,
+        part_id: selectedDrawing.metadata?.part_id || null,
+        ok_photo_url: createDemoLimitSampleSvgs('BLOWHOLE', 'OK'),
+        ok_criteria: 'Pinhole tunggal terisolir dengan diameter <= 0.3 mm di luar area sealing (Lolos / OK).',
+        ng_photo_url: createDemoLimitSampleSvgs('BLOWHOLE', 'NG'),
+        ng_criteria: 'Cluster porositas berkelompok diameter > 1.5 mm yang berpotensi bocor fluida (Wajib REJECT).',
+        status: 'ACTIVE',
+        effective_date: new Date().toISOString().split('T')[0],
+        expiry_date: new Date(Date.now() + 180 * 86400000).toISOString().split('T')[0],
+        storage_location: 'Rak QC Metrologi Box #03',
+        qa_approver: 'Budi Santoso (QA Lead)',
+        customer_approver: 'Takeshi Tanaka (Customer QA Rep)',
+        notes: 'Standar coran aluminium die casting.'
+      }
+    ];
+
+    for (const item of demoItems) {
+      await createLimitSample(item);
+    }
+    const updated = await getLimitSamples(selectedDrawing.id);
+    setLimitSamples(updated);
+    toast.success(`✓ 3 Master Limit Sample Industri berhasil dimuat!`);
+  };
+
+  const handleOpenPrintTag = (sample) => {
+    setSelectedLimitSample(sample);
+    setShowPrintTagModal(true);
+  };
+
+  const handleOpenLimitSampleDetail = (sample) => {
+    setSelectedLimitSample(sample);
+    setShowLimitSampleDetailModal(true);
+  };
+
   // ─── Canvas Interaction ───
   const handleWheel = (e) => {
     e.preventDefault();
@@ -670,8 +1270,10 @@ export default function DrawingManagement() {
       toast.success(`Drawing ${code} berhasil dibuat`);
       setShowCreateModal(false);
       setFormData({ name: '', code: '', drawing_type: 'DETAIL', description: '', file_url: null, file_name: null });
-      loadInitialData();
-      selectDrawing(result.data);
+      await loadInitialData();
+      if (result.data) {
+        await selectDrawing(result.data);
+      }
     } else {
       toast.error('Gagal membuat drawing: ' + (result.error || ''));
     }
@@ -683,7 +1285,7 @@ export default function DrawingManagement() {
     if (result.success) {
       toast.success('Drawing berhasil diupdate');
       setShowEditModal(false);
-      loadInitialData();
+      await loadInitialData();
       setSelectedDrawing({ ...selectedDrawing, ...formData });
     } else {
       toast.error('Gagal update: ' + (result.error || ''));
@@ -696,7 +1298,26 @@ export default function DrawingManagement() {
     if (result.success) {
       toast.success('Drawing berhasil dihapus');
       if (selectedDrawing?.id === id) { setSelectedDrawing(null); setRevisions([]); setBlueprintImage(null); }
-      loadInitialData();
+      await loadInitialData();
+    }
+  };
+
+  const handleClearAllDrawings = async () => {
+    if (!window.confirm('Hapus SEMUA drawing template & master parts dari sistem secara permanen?')) return;
+    const toastId = toast.loading('Menghapus semua drawing...');
+    try {
+      await clearAllDrawings();
+      setSelectedDrawing(null);
+      setSelectedRevision(null);
+      setSelectedPart(null);
+      setBlueprintImage(null);
+      setDrawings([]);
+      setParts([]);
+      setDrawingsTotal(0);
+      await loadInitialData();
+      toast.success('✓ Semua template drawing berhasil dihapus bersih!', { id: toastId });
+    } catch (e) {
+      toast.error('Gagal menghapus: ' + e.message, { id: toastId });
     }
   };
 
@@ -1078,13 +1699,22 @@ export default function DrawingManagement() {
             </div>
           )}
 
-          <div className="p-3 border-t border-gray-200 bg-[#f8f9fa]">
+          <div className="p-3 border-t border-gray-200 bg-[#f8f9fa] flex items-center gap-2">
             <button
               onClick={() => { setDrawingsPage(0); loadInitialData(searchTerm, 0); }}
-              className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[11px] font-semibold text-gray-600 hover:text-gray-900 rounded-md hover:bg-gray-200/60 transition-all cursor-pointer"
+              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[11px] font-semibold text-gray-600 hover:text-gray-900 rounded-md hover:bg-gray-200/60 transition-all cursor-pointer"
             >
-              <RefreshCw size={12} /> Refresh Data
+              <RefreshCw size={12} /> Refresh
             </button>
+            {drawings.length > 0 && (
+              <button
+                onClick={handleClearAllDrawings}
+                title="Hapus Semua Drawing"
+                className="px-2.5 py-1.5 text-[11px] font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-md transition-all cursor-pointer flex items-center gap-1"
+              >
+                <Trash2 size={12} /> Hapus Semua
+              </button>
+            )}
           </div>
         </div>
 
@@ -1183,7 +1813,8 @@ export default function DrawingManagement() {
                 <div className="flex items-center gap-2">
                   {[
                     { key: 'canvas', label: 'Preview Blueprint (2D)', icon: FileText },
-                    { key: 'mlightcad', label: 'MLightCAD CAD Studio (DWG/DXF/PDF)', icon: Cpu },
+                    { key: 'photos', label: `Foto Produk (${productPhotos.length})`, icon: Camera },
+                    { key: 'limit_sample', label: `Limit Sample (${limitSamples.length})`, icon: ShieldAlert },
                     { key: 'revisions', label: `Revisi & ECN (${revisions.length})`, icon: GitBranch },
                     { key: 'bom', label: 'Part & BOM Integration', icon: Boxes },
                     { key: 'relations', label: `Drawing Relations (${relations.length})`, icon: Link2 },
@@ -1810,15 +2441,519 @@ export default function DrawingManagement() {
                   </div>
                 )}
 
-                {/* ══ MLightCAD CAD Studio (DWG/DXF/PDF) TAB ══ */}
-                {activeTab === 'mlightcad' && (
-                  <div className="flex-1 flex flex-col relative overflow-hidden bg-[#1e293b] min-h-[600px]">
-                    <MLightCadViewer
-                      fileData={selectedDrawing?.pdfData || selectedDrawing?.dataUrl || selectedDrawing?.svgData}
-                      fileName={selectedDrawing?.fileName || `${selectedDrawing?.name || 'Drawing'}.${(selectedDrawing?.fileType || 'dwg').toLowerCase()}`}
-                      onToggleInspector={handleOpenInInspector}
-                      showQCInspector={true}
-                    />
+                {/* ══ FOTO PRODUK (PRODUCT PHOTOS & VISUAL GALLERY) TAB ══ */}
+                {activeTab === 'photos' && (
+                  <div className="flex-1 flex flex-col overflow-hidden bg-white">
+                    {/* Top Action & Status Bar */}
+                    <div className="px-6 py-3.5 border-b border-gray-200 bg-[#f8f9fa] flex items-center justify-between shrink-0">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-[#714B67]/10 text-[#714B67] flex items-center justify-center font-bold">
+                          <Camera size={18} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-xs text-gray-900">Galeri Foto Fisik Produk Manufaktur</h4>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-[#714B67]">
+                              {productPhotos.length} Foto
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-gray-500">
+                            Dokumentasikan hasil foto part riil dari berbagai sudut (Tampak Depan, Samping, Atas, 3D, dan Detail QC Visual).
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons & Hidden Inputs */}
+                      <div className="flex items-center gap-2">
+                        {/* Hidden file & camera inputs */}
+                        <input
+                          type="file"
+                          ref={photoInputRef}
+                          multiple
+                          accept="image/*"
+                          onChange={e => handleAddProductPhotos(e.target.files)}
+                          className="hidden"
+                        />
+                        <input
+                          type="file"
+                          ref={cameraInputRef}
+                          accept="image/*"
+                          capture="environment"
+                          onChange={e => handleAddProductPhotos(e.target.files)}
+                          className="hidden"
+                        />
+
+                        {productPhotos.length === 0 && (
+                          <button
+                            onClick={handleLoadSampleProductPhotos}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 shadow-2xs transition-all cursor-pointer"
+                            title="Muat contoh foto produk riil 3D"
+                          >
+                            <Sparkles size={13} className="text-amber-600" /> Muat Contoh Foto
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => cameraInputRef.current?.click()}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 shadow-2xs transition-all cursor-pointer"
+                        >
+                          <Camera size={13} className="text-[#714B67]" /> Buka Kamera
+                        </button>
+
+                        <button
+                          onClick={() => photoInputRef.current?.click()}
+                          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-xs font-bold bg-[#714B67] hover:bg-[#5C3D54] text-white shadow-xs transition-all cursor-pointer"
+                        >
+                          <Plus size={14} /> + Unggah Foto Produk
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Main Content: Gallery or Empty State */}
+                    {productPhotos.length === 0 ? (
+                      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#fafafa]">
+                        <div className="w-18 h-18 rounded-2xl bg-white border-2 border-dashed border-gray-300 shadow-sm flex items-center justify-center mb-4 text-[#714B67]/70">
+                          <Camera size={36} />
+                        </div>
+                        <h4 className="text-sm font-bold text-gray-900 mb-1">Belum Ada Foto Produk yang Diunggah</h4>
+                        <p className="text-xs text-gray-500 max-w-md mb-6 leading-relaxed">
+                          Unggah foto komponen fisik hasil mesin CNC / perakitan untuk melengkapi dokumentasi inspeksi visual dan memverifikasi kualitas part riil.
+                        </p>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => photoInputRef.current?.click()}
+                            className="flex items-center gap-2 px-4 py-2 bg-[#714B67] hover:bg-[#5C3D54] text-white text-xs font-bold rounded-md shadow-xs cursor-pointer transition-all"
+                          >
+                            <Upload size={14} /> Unggah File Foto (JPG / PNG)
+                          </button>
+                          <button
+                            onClick={() => cameraInputRef.current?.click()}
+                            className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-gray-100 text-gray-700 text-xs font-bold rounded-md border border-gray-300 shadow-2xs cursor-pointer transition-all"
+                          >
+                            <Camera size={14} className="text-[#714B67]" /> Ambil dari Kamera
+                          </button>
+                          <button
+                            onClick={handleLoadSampleProductPhotos}
+                            className="flex items-center gap-2 px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold rounded-md border border-amber-200 shadow-2xs cursor-pointer transition-all"
+                          >
+                            <Sparkles size={14} className="text-amber-600" /> Muat Contoh Part
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+                        {/* Hero Preview Stage (Left / Center) */}
+                        <div className="flex-1 flex flex-col bg-slate-900 relative overflow-hidden min-h-[420px]">
+                          {/* Top Overlay Badge & Action Toolbar */}
+                          <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between pointer-events-none">
+                            <div className="flex items-center gap-2 pointer-events-auto">
+                              {productPhotos[selectedPhotoIndex]?.isPrimary && (
+                                <span className="flex items-center gap-1 bg-amber-500 text-slate-950 font-extrabold text-[11px] px-2.5 py-1 rounded-md shadow-md">
+                                  <Star size={12} fill="currentColor" /> Foto Utama (Thumbnail)
+                                </span>
+                              )}
+                              <span className="bg-black/60 backdrop-blur-md text-white font-bold text-[11px] px-2.5 py-1 rounded-md border border-white/15">
+                                📐 Sudut: {productPhotos[selectedPhotoIndex]?.angle || 'Depan (Front)'}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 pointer-events-auto bg-black/60 backdrop-blur-md p-1 rounded-lg border border-white/15">
+                              {!productPhotos[selectedPhotoIndex]?.isPrimary && (
+                                <button
+                                  onClick={() => handleSetPrimaryPhoto(selectedPhotoIndex)}
+                                  className="px-2.5 py-1 text-[11px] font-bold text-amber-300 hover:text-white hover:bg-amber-500/30 rounded transition-all flex items-center gap-1 cursor-pointer"
+                                  title="Jadikan sebagai foto utama part"
+                                >
+                                  <Star size={12} /> Jadikan Utama
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleOpenEditPhoto(productPhotos[selectedPhotoIndex], selectedPhotoIndex)}
+                                className="px-2.5 py-1 text-[11px] font-bold text-gray-300 hover:text-white hover:bg-white/10 rounded transition-all flex items-center gap-1 cursor-pointer"
+                                title="Edit keterangan dan sudut foto"
+                              >
+                                <Edit3 size={12} /> Edit Label
+                              </button>
+                              <a
+                                href={productPhotos[selectedPhotoIndex]?.url}
+                                download={productPhotos[selectedPhotoIndex]?.name || 'product-photo.png'}
+                                className="p-1.5 text-gray-300 hover:text-white hover:bg-white/10 rounded transition-all cursor-pointer"
+                                title="Unduh foto"
+                              >
+                                <Download size={13} />
+                              </a>
+                              <button
+                                onClick={() => handleDeleteProductPhoto(selectedPhotoIndex)}
+                                className="p-1.5 text-rose-400 hover:text-rose-200 hover:bg-rose-500/20 rounded transition-all cursor-pointer"
+                                title="Hapus foto ini"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Image Display */}
+                          <div className="flex-1 flex items-center justify-center p-6 select-none overflow-hidden">
+                            <img
+                              src={productPhotos[selectedPhotoIndex]?.url}
+                              alt={productPhotos[selectedPhotoIndex]?.label || 'Product Photo'}
+                              className="max-h-[520px] max-w-full object-contain rounded-lg shadow-2xl transition-transform duration-200"
+                            />
+                          </div>
+
+                          {/* Bottom Caption Bar */}
+                          <div className="bg-slate-950/80 backdrop-blur-md px-4 py-2.5 border-t border-slate-800 flex items-center justify-between text-xs text-slate-300 shrink-0">
+                            <div>
+                              <span className="font-bold text-white mr-2">{productPhotos[selectedPhotoIndex]?.label}</span>
+                              <span className="text-[11px] text-slate-400">({selectedPhotoIndex + 1} dari {productPhotos.length} foto)</span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 font-mono">
+                              {productPhotos[selectedPhotoIndex]?.date ? new Date(productPhotos[selectedPhotoIndex]?.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Thumbnail Carousel / Sidebar Grid (Right) */}
+                        <div className="w-full lg:w-80 bg-[#f8f9fa] border-t lg:border-t-0 lg:border-l border-gray-200 flex flex-col shrink-0">
+                          <div className="p-3 border-b border-gray-200 bg-white flex items-center justify-between">
+                            <span className="font-bold text-xs text-gray-800">Daftar Foto Produk ({productPhotos.length})</span>
+                            <button
+                              onClick={() => photoInputRef.current?.click()}
+                              className="text-[11px] font-bold text-[#714B67] hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                              <Plus size={12} /> Tambah Foto
+                            </button>
+                          </div>
+
+                          <div className="flex-1 overflow-y-auto p-3 space-y-2.5 max-h-[600px]">
+                            {productPhotos.map((photo, idx) => (
+                              <div
+                                key={photo.id || idx}
+                                onClick={() => setSelectedPhotoIndex(idx)}
+                                className={`p-2 rounded-lg border transition-all cursor-pointer flex gap-2.5 items-center group relative ${
+                                  selectedPhotoIndex === idx
+                                    ? 'bg-[#714B67]/5 border-[#714B67] ring-2 ring-[#714B67]/20 shadow-xs'
+                                    : 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                }`}
+                              >
+                                {/* Thumbnail Image */}
+                                <div className="w-16 h-16 rounded-md bg-slate-900 overflow-hidden shrink-0 flex items-center justify-center border border-gray-200 relative">
+                                  <img
+                                    src={photo.url}
+                                    alt={photo.label}
+                                    className="w-full h-full object-cover"
+                                  />
+                                  {photo.isPrimary && (
+                                    <div className="absolute top-1 left-1 bg-amber-500 text-slate-950 p-0.5 rounded-full shadow-xs" title="Foto Utama">
+                                      <Star size={10} fill="currentColor" />
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Details */}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between gap-1">
+                                    <h5 className="font-bold text-xs text-gray-900 truncate group-hover:text-[#714B67]">
+                                      {photo.label}
+                                    </h5>
+                                  </div>
+                                  <div className="text-[10px] text-gray-500 mt-0.5 flex items-center gap-1 font-medium">
+                                    <span className="px-1.5 py-0.2 bg-gray-100 text-gray-600 rounded">
+                                      {photo.angle || 'Depan'}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-1.5">
+                                    {!photo.isPrimary && (
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); handleSetPrimaryPhoto(idx); }}
+                                        className="text-[10px] font-bold text-amber-700 hover:underline flex items-center gap-0.5"
+                                      >
+                                        <Star size={10} /> Jadikan Utama
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleOpenEditPhoto(photo, idx); }}
+                                      className="text-[10px] font-semibold text-gray-500 hover:text-gray-800"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleDeleteProductPhoto(idx); }}
+                                      className="text-[10px] font-semibold text-rose-500 hover:text-rose-700 ml-auto"
+                                    >
+                                      Hapus
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ══ LIMIT SAMPLE (SAMPEL BATAS MUTU ISO / IATF) TAB ══ */}
+                {activeTab === 'limit_sample' && (
+                  <div className="flex-1 flex flex-col overflow-hidden bg-white">
+                    {/* Top Header Bar */}
+                    <div className="px-6 py-3.5 border-b border-gray-200 bg-[#f8f9fa] flex items-center justify-between shrink-0">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center font-bold">
+                          <ShieldAlert size={18} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-xs text-gray-900">Manajemen Limit Sample (Sampel Batas Mutu Visual)</h4>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">
+                              {limitSamples.length} Standar
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-gray-500">
+                            Standarisasi batas penerimaan cacat visual (Batas OK vs Batas NG) sesuai standar IATF 16949 / ISO 9001.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {limitSamples.length === 0 && (
+                          <button
+                            onClick={handleLoadDemoLimitSamples}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 shadow-2xs transition-all cursor-pointer"
+                          >
+                            <Sparkles size={13} className="text-amber-600" /> Muat Contoh Master
+                          </button>
+                        )}
+                        <button
+                          onClick={() => {
+                            setLimitSampleFormData({
+                              code: `LS-${selectedDrawing.code || 'PRT'}-${limitSamples.length + 1}`,
+                              title: '',
+                              defect_category: 'SCRATCH',
+                              ok_photo_url: null,
+                              ok_criteria: '',
+                              ng_photo_url: null,
+                              ng_criteria: '',
+                              effective_date: new Date().toISOString().split('T')[0],
+                              expiry_date: new Date(Date.now() + 180 * 86400000).toISOString().split('T')[0],
+                              storage_location: 'Rak QC Metrologi #01',
+                              qa_approver: 'QA Manager',
+                              customer_approver: 'Customer Quality Rep',
+                              notes: ''
+                            });
+                            setShowCreateLimitSampleModal(true);
+                          }}
+                          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-xs font-bold bg-[#714B67] hover:bg-[#5C3D54] text-white shadow-xs transition-all cursor-pointer"
+                        >
+                          <Plus size={14} /> + Daftarkan Limit Sample
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Summary Metric Pills */}
+                    {limitSamples.length > 0 && (
+                      <div className="px-6 py-2.5 bg-gray-50 border-b border-gray-200 flex items-center gap-3 overflow-x-auto text-[11px]">
+                        <span className="font-bold text-gray-700">Status Validasi:</span>
+                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-200 flex items-center gap-1">
+                          🟢 {limitSamples.filter(s => new Date(s.expiry_date) > new Date()).length} Aktif & Valid
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold border border-amber-200 flex items-center gap-1">
+                          ⚠️ {limitSamples.filter(s => {
+                            const diff = (new Date(s.expiry_date) - new Date()) / (1000 * 60 * 60 * 24);
+                            return diff > 0 && diff <= 30;
+                          }).length} Mendekati Kedaluwarsa (&lt;30 Hari)
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold border border-rose-200 flex items-center gap-1">
+                          🔴 {limitSamples.filter(s => new Date(s.expiry_date) <= new Date()).length} Expired (Perlu Re-evaluasi)
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Content List / Cards */}
+                    {limitSamples.length === 0 ? (
+                      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#fafafa]">
+                        <div className="w-18 h-18 rounded-2xl bg-white border-2 border-dashed border-gray-300 shadow-sm flex items-center justify-center mb-4 text-rose-600/70">
+                          <ShieldAlert size={36} />
+                        </div>
+                        <h4 className="text-sm font-bold text-gray-900 mb-1">Belum Ada Limit Sample yang Didaftarkan</h4>
+                        <p className="text-xs text-gray-500 max-w-md mb-6 leading-relaxed">
+                          Daftarkan sampel batas visual (Batas Goresan, Burr, Porositas, Dent, Warna) untuk menghilangkan keraguan operator saat memeriksa part di lini produksi.
+                        </p>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => {
+                              setLimitSampleFormData({
+                                code: `LS-${selectedDrawing.code || 'PRT'}-1`,
+                                title: '',
+                                defect_category: 'SCRATCH',
+                                ok_photo_url: null,
+                                ok_criteria: '',
+                                ng_photo_url: null,
+                                ng_criteria: '',
+                                effective_date: new Date().toISOString().split('T')[0],
+                                expiry_date: new Date(Date.now() + 180 * 86400000).toISOString().split('T')[0],
+                                storage_location: 'Rak QC Metrologi #01',
+                                qa_approver: 'QA Manager',
+                                customer_approver: 'Customer Quality Rep',
+                                notes: ''
+                              });
+                              setShowCreateLimitSampleModal(true);
+                            }}
+                            className="flex items-center gap-2 px-4 py-2 bg-[#714B67] hover:bg-[#5C3D54] text-white text-xs font-bold rounded-md shadow-xs cursor-pointer transition-all"
+                          >
+                            <Plus size={14} /> Daftarkan Limit Sample Baru
+                          </button>
+                          <button
+                            onClick={handleLoadDemoLimitSamples}
+                            className="flex items-center gap-2 px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold rounded-md border border-amber-200 shadow-2xs cursor-pointer transition-all"
+                          >
+                            <Sparkles size={14} className="text-amber-600" /> Muat Contoh Master Standar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                        {limitSamples.map(sample => {
+                          const isExpired = new Date(sample.expiry_date) <= new Date();
+                          const isExpiringSoon = !isExpired && (new Date(sample.expiry_date) - new Date()) / (1000 * 60 * 60 * 24) <= 30;
+
+                          return (
+                            <div
+                              key={sample.id}
+                              className="bg-white border border-gray-200 rounded-xl shadow-xs overflow-hidden hover:border-gray-300 transition-all"
+                            >
+                              {/* Card Header Bar */}
+                              <div className="px-5 py-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between flex-wrap gap-2">
+                                <div className="flex items-center gap-2.5">
+                                  <span className="font-mono font-bold text-xs bg-white text-gray-800 px-2 py-0.5 rounded border border-gray-200">
+                                    {sample.code}
+                                  </span>
+                                  <h5 className="font-bold text-xs text-gray-900">{sample.title}</h5>
+                                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-purple-50 text-[#714B67] border border-purple-200">
+                                    {DEFECT_CATEGORIES.find(c => c.key === sample.defect_category)?.label || sample.defect_category}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  {isExpired ? (
+                                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200">
+                                      🔴 EXPIRED
+                                    </span>
+                                  ) : isExpiringSoon ? (
+                                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                                      ⚠️ EXPIRES SOON
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                      🟢 AKTIF / VALID
+                                    </span>
+                                  )}
+
+                                  <button
+                                    onClick={() => handleOpenLimitSampleDetail(sample)}
+                                    className="p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded transition-all cursor-pointer"
+                                    title="Perbesar Split View Perbandingan"
+                                  >
+                                    <Split size={14} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleOpenPrintTag(sample)}
+                                    className="p-1 text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 rounded transition-all cursor-pointer"
+                                    title="Cetak Label Fisik ISO untuk Box Sampel"
+                                  >
+                                    <Printer size={14} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteLimitSample(sample.id)}
+                                    className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded transition-all cursor-pointer"
+                                    title="Hapus Limit Sample"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Visual Comparison Grid (Side by Side: OK vs NG) */}
+                              <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* OK Limit Box */}
+                                <div className="p-3.5 bg-emerald-50/40 border-2 border-emerald-500/40 rounded-lg flex flex-col space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-extrabold text-emerald-800 flex items-center gap-1.5">
+                                      <CheckCircle2 size={14} className="text-emerald-600" /> BATAS MAKSIMAL DITERIMA (OK LIMIT)
+                                    </span>
+                                    <span className="text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">
+                                      PASS
+                                    </span>
+                                  </div>
+                                  <div className="w-full h-48 bg-slate-900 rounded-md overflow-hidden flex items-center justify-center border border-emerald-200 cursor-pointer"
+                                    onClick={() => handleOpenLimitSampleDetail(sample)}
+                                  >
+                                    <img
+                                      src={sample.ok_photo_url || createDemoLimitSampleSvgs(sample.defect_category, 'OK')}
+                                      alt="OK Limit Boundary"
+                                      className="w-full h-full object-contain"
+                                    />
+                                  </div>
+                                  <div className="text-[11px] text-gray-700 leading-relaxed bg-white p-2.5 rounded border border-emerald-200">
+                                    <strong className="text-emerald-900 block mb-0.5">Kriteria Penerimaan:</strong>
+                                    {sample.ok_criteria}
+                                  </div>
+                                </div>
+
+                                {/* NG Limit Box */}
+                                <div className="p-3.5 bg-rose-50/40 border-2 border-rose-500/40 rounded-lg flex flex-col space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-extrabold text-rose-800 flex items-center gap-1.5">
+                                      <AlertTriangle size={14} className="text-rose-600" /> BATAS MINIMAL DITOLAK (NG LIMIT)
+                                    </span>
+                                    <span className="text-[10px] font-mono font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded">
+                                      REJECT
+                                    </span>
+                                  </div>
+                                  <div className="w-full h-48 bg-slate-900 rounded-md overflow-hidden flex items-center justify-center border border-rose-200 cursor-pointer"
+                                    onClick={() => handleOpenLimitSampleDetail(sample)}
+                                  >
+                                    <img
+                                      src={sample.ng_photo_url || createDemoLimitSampleSvgs(sample.defect_category, 'NG')}
+                                      alt="NG Limit Boundary"
+                                      className="w-full h-full object-contain"
+                                    />
+                                  </div>
+                                  <div className="text-[11px] text-gray-700 leading-relaxed bg-white p-2.5 rounded border border-rose-200">
+                                    <strong className="text-rose-900 block mb-0.5">Kriteria Penolakan:</strong>
+                                    {sample.ng_criteria}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Card Footer: Metadata, Approvals & Location */}
+                              <div className="px-5 py-2.5 border-t border-gray-200 bg-gray-50 flex items-center justify-between text-[11px] text-gray-600 flex-wrap gap-2">
+                                <div className="flex items-center gap-4 flex-wrap">
+                                  <span className="flex items-center gap-1">
+                                    <Calendar size={12} className="text-gray-400" /> Masa Berlaku: <strong>{sample.effective_date}</strong> s/d <strong className={isExpired ? 'text-rose-600 font-bold' : ''}>{sample.expiry_date}</strong>
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <MapPin size={12} className="text-gray-400" /> Lokasi Fisik: <strong>{sample.storage_location || 'Rak QC'}</strong>
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center gap-3">
+                                  <span className="flex items-center gap-1 text-gray-700">
+                                    <UserCheck size={12} className="text-emerald-600" /> QA: <strong>{sample.qa_approver || 'Approved'}</strong>
+                                  </span>
+                                  {sample.customer_approver && (
+                                    <span className="flex items-center gap-1 text-gray-700">
+                                      <Award size={12} className="text-blue-600" /> Customer: <strong>{sample.customer_approver}</strong>
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -2081,6 +3216,410 @@ export default function DrawingManagement() {
           options={[{ value: 'COMPONENT', label: 'Component' }, { value: 'RAW_MATERIAL', label: 'Raw Material' }, { value: 'FINISHED_GOODS', label: 'Finished Goods' }]} />
       </Modal>
 
+      {/* ── 4b. Edit Product Photo Details Modal ── */}
+      <Modal
+        show={showPhotoEditModal}
+        onClose={() => setShowPhotoEditModal(false)}
+        title="Ubah Keterangan & Sudut Pengambilan Foto"
+        onSubmit={handleSavePhotoEdit}
+        submitLabel="Simpan Perubahan"
+      >
+        <InputField
+          label="Label / Keterangan Foto"
+          value={photoEditData.label}
+          onChange={v => setPhotoEditData(p => ({ ...p, label: v }))}
+          placeholder="cth: Tampak Depan Komponen Flange Mesin CNC"
+          required
+        />
+        <SelectField
+          label="Sudut Pengambilan (Camera Angle / View)"
+          value={photoEditData.angle}
+          onChange={v => setPhotoEditData(p => ({ ...p, angle: v }))}
+          options={[
+            { value: 'Depan (Front)', label: 'Tampak Depan (Front View)' },
+            { value: 'Belakang (Back)', label: 'Tampak Belakang (Back View)' },
+            { value: 'Kiri (Left)', label: 'Tampak Samping Kiri (Left View)' },
+            { value: 'Kanan (Right)', label: 'Tampak Samping Kanan (Right View)' },
+            { value: 'Atas (Top)', label: 'Tampak Atas (Top View)' },
+            { value: 'Bawah (Bottom)', label: 'Tampak Bawah (Bottom View)' },
+            { value: 'Isometric 3D', label: 'Perspektif Isometrik (Isometric 3D)' },
+            { value: 'Detail QC Permukaan', label: 'Close-Up Detail Toleransi / Surface Finish' },
+            { value: 'Sambungan Las / Assembly', label: 'Detail Sambungan / Assembly Fitting' },
+            { value: 'Kemasan & Finishing', label: 'Kondisi Part Jadi / Packaging' },
+          ]}
+        />
+      </Modal>
+
+      {/* ── 4c. Create Limit Sample Modal (ISO / IATF 16949 Master Standard) ── */}
+      <Modal
+        show={showCreateLimitSampleModal}
+        onClose={() => setShowCreateLimitSampleModal(false)}
+        title="Registrasi Master Limit Sample (Sampel Batas Mutu)"
+        onSubmit={handleCreateLimitSample}
+        submitLabel="Simpan & Validasi Standar"
+        maxWidth="max-w-3xl"
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <InputField
+              label="Nomor Registrasi Sampel (Tag ID)"
+              value={limitSampleFormData.code}
+              onChange={v => setLimitSampleFormData(p => ({ ...p, code: v }))}
+              placeholder="LS-FLG-001"
+              required
+            />
+            <SelectField
+              label="Kategori Cacat Mutu"
+              value={limitSampleFormData.defect_category}
+              onChange={v => setLimitSampleFormData(p => ({ ...p, defect_category: v }))}
+              options={DEFECT_CATEGORIES.map(c => ({ value: c.key, label: `${c.icon} ${c.label}` }))}
+            />
+          </div>
+
+          <InputField
+            label="Nama / Judul Sampel Batas"
+            value={limitSampleFormData.title}
+            onChange={v => setLimitSampleFormData(p => ({ ...p, title: v }))}
+            placeholder="cth: Batas Goresan Permukaan Bodi Mesin (Scratch Limit)"
+            required
+          />
+
+          {/* OK vs NG Boundary Inputs */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+            {/* OK Boundary */}
+            <div className="p-3.5 bg-emerald-50/50 border border-emerald-300 rounded-lg space-y-2">
+              <span className="text-xs font-bold text-emerald-800 flex items-center gap-1.5">
+                <CheckCircle2 size={14} className="text-emerald-600" /> 1. Batas Maksimal Diterima (OK Limit)
+              </span>
+              <TextArea
+                label="Deskripsi Kriteria Lolos (OK)"
+                value={limitSampleFormData.ok_criteria}
+                onChange={v => setLimitSampleFormData(p => ({ ...p, ok_criteria: v }))}
+                placeholder="Batas cacat visual yang masih diizinkan..."
+                rows={3}
+                required
+              />
+              <div className="pt-1">
+                <input
+                  type="file"
+                  ref={okPhotoInputRef}
+                  accept="image/*"
+                  onChange={e => {
+                    const file = e.target.files[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = ev => setLimitSampleFormData(p => ({ ...p, ok_photo_url: ev.target.result }));
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => okPhotoInputRef.current?.click()}
+                  className="w-full py-2 bg-white hover:bg-emerald-100 text-emerald-800 text-xs font-semibold rounded border border-emerald-300 flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Upload size={13} /> {limitSampleFormData.ok_photo_url ? 'Ganti Foto OK' : 'Unggah Foto Batas OK'}
+                </button>
+              </div>
+            </div>
+
+            {/* NG Boundary */}
+            <div className="p-3.5 bg-rose-50/50 border border-rose-300 rounded-lg space-y-2">
+              <span className="text-xs font-bold text-rose-800 flex items-center gap-1.5">
+                <AlertTriangle size={14} className="text-rose-600" /> 2. Batas Minimal Ditolak (NG Limit)
+              </span>
+              <TextArea
+                label="Deskripsi Kriteria Tolak (NG)"
+                value={limitSampleFormData.ng_criteria}
+                onChange={v => setLimitSampleFormData(p => ({ ...p, ng_criteria: v }))}
+                placeholder="Batas cacat visual yang wajib di-reject..."
+                rows={3}
+                required
+              />
+              <div className="pt-1">
+                <input
+                  type="file"
+                  ref={ngPhotoInputRef}
+                  accept="image/*"
+                  onChange={e => {
+                    const file = e.target.files[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = ev => setLimitSampleFormData(p => ({ ...p, ng_photo_url: ev.target.result }));
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => ngPhotoInputRef.current?.click()}
+                  className="w-full py-2 bg-white hover:bg-rose-100 text-rose-800 text-xs font-semibold rounded border border-rose-300 flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Upload size={13} /> {limitSampleFormData.ng_photo_url ? 'Ganti Foto NG' : 'Unggah Foto Batas NG'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Validity & Approvals */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+            <InputField
+              label="Tanggal Efektif"
+              type="date"
+              value={limitSampleFormData.effective_date}
+              onChange={v => setLimitSampleFormData(p => ({ ...p, effective_date: v }))}
+              required
+            />
+            <InputField
+              label="Tanggal Kedaluwarsa (Masa Berlaku)"
+              type="date"
+              value={limitSampleFormData.expiry_date}
+              onChange={v => setLimitSampleFormData(p => ({ ...p, expiry_date: v }))}
+              required
+            />
+            <InputField
+              label="Lokasi Rak Fisik di Pabrik"
+              value={limitSampleFormData.storage_location}
+              onChange={v => setLimitSampleFormData(p => ({ ...p, storage_location: v }))}
+              placeholder="Rak QC Box #01"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <InputField
+              label="Disetujui oleh (QA Manager)"
+              value={limitSampleFormData.qa_approver}
+              onChange={v => setLimitSampleFormData(p => ({ ...p, qa_approver: v }))}
+              placeholder="Nama QA Approver"
+              required
+            />
+            <InputField
+              label="Persetujuan Customer (Opsional)"
+              value={limitSampleFormData.customer_approver}
+              onChange={v => setLimitSampleFormData(p => ({ ...p, customer_approver: v }))}
+              placeholder="Nama Customer Representative"
+            />
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── 4d. Fullscreen Split-View Limit Sample Detail Inspector Modal ── */}
+      {showLimitSampleDetailModal && selectedLimitSample && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl text-white">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-800 bg-slate-950 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="font-mono font-bold text-xs bg-[#714B67] text-white px-2.5 py-1 rounded">
+                  {selectedLimitSample.code}
+                </span>
+                <div>
+                  <h3 className="font-bold text-sm text-white">{selectedLimitSample.title}</h3>
+                  <p className="text-[11px] text-slate-400">
+                    Kategori: {DEFECT_CATEGORIES.find(c => c.key === selectedLimitSample.defect_category)?.label || selectedLimitSample.defect_category} • Masa Berlaku: {selectedLimitSample.effective_date} s/d {selectedLimitSample.expiry_date}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowLimitSampleDetailModal(false)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Split Screen Stage */}
+            <div className="flex-1 p-6 grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto">
+              {/* OK Stage */}
+              <div className="flex flex-col bg-emerald-950/40 border-2 border-emerald-500/50 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold text-sm text-emerald-400 flex items-center gap-2">
+                    <CheckCircle2 size={16} /> 🟢 BATAS DITERIMA (OK LIMIT)
+                  </span>
+                  <span className="bg-emerald-500/20 text-emerald-300 font-mono text-xs px-2.5 py-0.5 rounded font-bold border border-emerald-500/30">
+                    PASS CRITERIA
+                  </span>
+                </div>
+                <div className="flex-1 min-h-[300px] bg-slate-950 rounded-lg overflow-hidden flex items-center justify-center p-2 border border-emerald-900">
+                  <img
+                    src={selectedLimitSample.ok_photo_url || createDemoLimitSampleSvgs(selectedLimitSample.defect_category, 'OK')}
+                    alt="OK Limit"
+                    className="max-h-[360px] max-w-full object-contain"
+                  />
+                </div>
+                <div className="p-3 bg-slate-900 rounded-lg border border-emerald-800/60 text-xs text-emerald-200">
+                  <strong className="text-emerald-400 block mb-1">Pedoman Penerimaan:</strong>
+                  {selectedLimitSample.ok_criteria}
+                </div>
+              </div>
+
+              {/* NG Stage */}
+              <div className="flex flex-col bg-rose-950/40 border-2 border-rose-500/50 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold text-sm text-rose-400 flex items-center gap-2">
+                    <AlertTriangle size={16} /> 🔴 BATAS DITOLAK (NG LIMIT)
+                  </span>
+                  <span className="bg-rose-500/20 text-rose-300 font-mono text-xs px-2.5 py-0.5 rounded font-bold border border-rose-500/30">
+                    REJECT CRITERIA
+                  </span>
+                </div>
+                <div className="flex-1 min-h-[300px] bg-slate-950 rounded-lg overflow-hidden flex items-center justify-center p-2 border border-rose-900">
+                  <img
+                    src={selectedLimitSample.ng_photo_url || createDemoLimitSampleSvgs(selectedLimitSample.defect_category, 'NG')}
+                    alt="NG Limit"
+                    className="max-h-[360px] max-w-full object-contain"
+                  />
+                </div>
+                <div className="p-3 bg-slate-900 rounded-lg border border-rose-800/60 text-xs text-rose-200">
+                  <strong className="text-rose-400 block mb-1">Pedoman Penolakan:</strong>
+                  {selectedLimitSample.ng_criteria}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Bar */}
+            <div className="px-6 py-3 border-t border-slate-800 bg-slate-950 flex items-center justify-between text-xs text-slate-400">
+              <div>
+                <span>Lokasi Box Fisik: <strong className="text-white">{selectedLimitSample.storage_location}</strong></span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => { setShowLimitSampleDetailModal(false); handleOpenPrintTag(selectedLimitSample); }}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Printer size={14} /> Cetak Label Box Fisik (ISO Tag)
+                </button>
+                <button
+                  onClick={() => setShowLimitSampleDetailModal(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold cursor-pointer"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 4e. Printable Physical Limit Sample Tag Modal (IATF 16949 Master Tag) ── */}
+      {showPrintTagModal && selectedLimitSample && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[95vh] flex flex-col overflow-hidden shadow-2xl">
+            {/* Header */}
+            <div className="px-6 py-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Printer size={16} className="text-indigo-600" />
+                <h3 className="font-bold text-xs text-gray-900">Kartu Label Fisik Limit Sample (ISO / IATF 16949)</h3>
+              </div>
+              <button
+                onClick={() => setShowPrintTagModal(false)}
+                className="p-1 text-gray-400 hover:text-gray-700 rounded cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Printable Tag Area */}
+            <div className="flex-1 p-6 overflow-y-auto bg-gray-100 flex items-center justify-center">
+              <div className="w-full max-w-xl bg-white border-2 border-black p-6 rounded-lg shadow-md font-sans text-black">
+                {/* Tag Header */}
+                <div className="border-b-2 border-black pb-3 mb-3 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-base font-black tracking-wider uppercase">QUALITY MASTER LIMIT SAMPLE</h2>
+                    <p className="text-[10px] text-gray-600 font-bold uppercase tracking-wide">
+                      Standard Quality Reference Card • IATF 16949 / ISO 9001
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-sm font-mono font-black border-2 border-black px-2 py-0.5 rounded">
+                      {selectedLimitSample.code}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Part & Defect Info */}
+                <div className="grid grid-cols-2 gap-2 text-xs mb-3 border-b pb-3 border-gray-300">
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-500 uppercase block">Part Target:</span>
+                    <strong className="text-xs">{selectedDrawing?.name} ({selectedDrawing?.code})</strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-500 uppercase block">Kategori Cacat:</span>
+                    <strong className="text-xs">{DEFECT_CATEGORIES.find(c => c.key === selectedLimitSample.defect_category)?.label || selectedLimitSample.defect_category}</strong>
+                  </div>
+                </div>
+
+                {/* Photos OK vs NG */}
+                <div className="grid grid-cols-2 gap-3 mb-3 border-b pb-3 border-gray-300">
+                  <div className="border border-emerald-600 p-2 rounded text-center bg-emerald-50/20">
+                    <span className="text-[10px] font-black text-emerald-800 block mb-1 uppercase">🟢 OK LIMIT (TERIMA)</span>
+                    <img
+                      src={selectedLimitSample.ok_photo_url || createDemoLimitSampleSvgs(selectedLimitSample.defect_category, 'OK')}
+                      alt="OK Sample"
+                      className="w-full h-32 object-contain bg-slate-900 rounded mb-1.5"
+                    />
+                    <p className="text-[9px] text-left text-gray-700 leading-tight">{selectedLimitSample.ok_criteria}</p>
+                  </div>
+
+                  <div className="border border-rose-600 p-2 rounded text-center bg-rose-50/20">
+                    <span className="text-[10px] font-black text-rose-800 block mb-1 uppercase">🔴 NG LIMIT (TOLAK)</span>
+                    <img
+                      src={selectedLimitSample.ng_photo_url || createDemoLimitSampleSvgs(selectedLimitSample.defect_category, 'NG')}
+                      alt="NG Sample"
+                      className="w-full h-32 object-contain bg-slate-900 rounded mb-1.5"
+                    />
+                    <p className="text-[9px] text-left text-gray-700 leading-tight">{selectedLimitSample.ng_criteria}</p>
+                  </div>
+                </div>
+
+                {/* Validity and Sign-off Table */}
+                <table className="w-full text-[10px] border-collapse border border-black mb-2">
+                  <tbody>
+                    <tr className="border-b border-black">
+                      <td className="p-1.5 font-bold bg-gray-100 border-r border-black w-1/4">Tgl Berlaku:</td>
+                      <td className="p-1.5 border-r border-black w-1/4 font-mono">{selectedLimitSample.effective_date}</td>
+                      <td className="p-1.5 font-bold bg-gray-100 border-r border-black w-1/4">Tgl Kedaluwarsa:</td>
+                      <td className="p-1.5 font-mono font-bold w-1/4">{selectedLimitSample.expiry_date}</td>
+                    </tr>
+                    <tr className="border-b border-black">
+                      <td className="p-1.5 font-bold bg-gray-100 border-r border-black">Lokasi Fisik:</td>
+                      <td className="p-1.5 border-r border-black">{selectedLimitSample.storage_location}</td>
+                      <td className="p-1.5 font-bold bg-gray-100 border-r border-black">QA Approver:</td>
+                      <td className="p-1.5 font-bold">{selectedLimitSample.qa_approver}</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <p className="text-[8px] text-gray-500 italic text-center">
+                  *Kartu ini ditempelkan pada wadah master sampel batas di lantai pabrik. Wajib dire-evaluasi sebelum tanggal kedaluwarsa.
+                </p>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="px-6 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-end gap-2">
+              <button
+                onClick={() => {
+                  window.print();
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
+              >
+                <Printer size={13} /> Cetak Kartu Label
+              </button>
+              <button
+                onClick={() => setShowPrintTagModal(false)}
+                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-md text-xs font-semibold cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── 5. Create Drawing Modal ── */}
       <Modal show={showCreateModal} onClose={() => setShowCreateModal(false)} title="Buat Drawing Baru" onSubmit={handleCreateDrawing} submitLabel="Buat Drawing">
         <InputField label="Kode Drawing" value={formData.code} onChange={v => setFormData(p => ({ ...p, code: v }))} placeholder="DRW-001 (kosongkan untuk auto-generate)" />
@@ -2148,15 +3687,16 @@ export default function DrawingManagement() {
       </Modal>
 
       {/* ── 9. SOP & Help Guide Modal ── */}
-      <Modal show={showHelpModal} onClose={() => setShowHelpModal(false)} title="Buku Panduan & SOP Drawing & ECN Management" maxWidth="max-w-4xl">
+      <Modal show={showHelpModal} onClose={() => setShowHelpModal(false)} title="Buku Panduan & SOP Drawing, ECN & Metrologi Kalibrasi" maxWidth="max-w-5xl" allowFullscreen={true}>
         <div className="flex flex-col gap-4 text-xs">
           {/* Sub Navigation Tabs */}
           <div className="flex border-b border-gray-200 gap-2 pb-2 overflow-x-auto">
             {[
-              { id: 'workflow', label: '1. Alur Kerja PLM', icon: GitBranch },
-              { id: 'bom', label: '2. Struktur BOM & Part', icon: Package },
-              { id: 'ecn', label: '3. Standar ISO / ECN', icon: ShieldCheck },
-              { id: 'inspector', label: '4. Buka di Inspector Studio', icon: FileCode },
+              { id: 'workflow', label: '1. Alur Kerja PLM (4 Tahap)', icon: GitBranch },
+              { id: 'bom', label: '2. Struktur BOM & Master Part', icon: Package },
+              { id: 'ecn', label: '3. Standar ISO & Aturan ECN', icon: ShieldCheck },
+              { id: 'inspector', label: '4. Buka di Inspector Studio & Check Sheet', icon: FileCode },
+              { id: 'metrology', label: '5. Standar Alat Ukur & Kalibrasi (ISO 17025)', icon: Ruler },
             ].map(t => (
               <button
                 key={t.id}
@@ -2170,84 +3710,386 @@ export default function DrawingManagement() {
             ))}
           </div>
 
-          {/* Help Tab 1: Workflow */}
+          {/* ══════════════════════════════════════════════════════════
+              TAB 1: ALUR KERJA PLM (4 TAHAP LENGKAP)
+          ══════════════════════════════════════════════════════════ */}
           {activeHelpTab === 'workflow' && (
-            <div className="space-y-3 text-gray-700">
-              <h4 className="font-extrabold text-sm text-gray-900 flex items-center gap-1.5">
-                <GitBranch size={16} className="text-[#714B67]" /> Siklus Hidup Dokumen Gambar & ECN
-              </h4>
-              <p>Modul ini berfungsi sebagai Single Source of Truth untuk semua blueprint teknik manufaktur:</p>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-2">
-                <div className="p-3 bg-teal-50 border border-teal-200 rounded-lg">
-                  <div className="font-bold text-[#00A09D] mb-1">1. Registrasi & Upload</div>
-                  <p className="text-[11px] text-gray-600">Unggah file DXF, PDF vector, atau SVG. Buat kode drawing terstandar ISO (cth: DWG-FLG-001).</p>
+            <div className="space-y-4 text-gray-700 max-h-[72vh] overflow-y-auto pr-1">
+              <div className="bg-[#714B67]/5 border border-[#714B67]/20 rounded-lg p-3.5 flex items-start gap-3">
+                <div className="w-9 h-9 rounded-lg bg-[#714B67] text-white flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                  <GitBranch size={18} />
                 </div>
-                <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
-                  <div className="font-bold text-[#714B67] mb-1">2. Part & BOM Hub</div>
-                  <p className="text-[11px] text-gray-600">Hubungkan drawing ke Master Part Number fisik manufaktur dan susun Bill of Materials (BOM).</p>
+                <div>
+                  <h4 className="font-extrabold text-sm text-[#714B67]">
+                    Siklus Hidup Dokumen Gambar & PLM Manufaktur (Engineering to Shopfloor)
+                  </h4>
+                  <p className="text-[11px] text-gray-600 mt-1 leading-relaxed">
+                    Modul ini dirancang sebagai <strong>Single Source of Truth</strong> (Pusat Kendali Data Tunggal Resmi) berbasis <strong>Supabase Cloud</strong> untuk menghubungkan Departemen Engineering, PPIC, Produksi, dan Quality Control.
+                  </p>
                 </div>
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                  <div className="font-bold text-amber-700 mb-1">3. ECN & Revisi</div>
-                  <p className="text-[11px] text-gray-600">Jika ada perubahan desain, terbitkan ECN (Engineering Change Notice) dengan approval sign-off.</p>
+              </div>
+
+              {/* 4 Detail Steps with Tujuan, Contoh, and Cara Buatnya */}
+              <div className="space-y-3.5">
+                {/* Tahap 1 */}
+                <div className="p-3.5 bg-white border border-teal-200 rounded-lg shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-teal-600 text-white font-bold text-[10px] flex items-center justify-center">1</span>
+                      <span className="font-bold text-sm text-teal-900">Tahap 1: Registrasi & Unggah Blueprint (CAD / Vector)</span>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-teal-50 text-teal-700 font-bold border border-teal-200">Tahap 1</span>
+                  </div>
+                  <div className="space-y-1.5 text-[11px] pl-7">
+                    <p><strong className="text-gray-900">🎯 Tujuan:</strong> Menjadi <em>Single Source of Truth</em> agar operator lini dan inspektur QC selalu mengakses versi CAD yang valid dan mencegah risiko salah produksi akibat gambar kedaluwarsa.</p>
+                    <div className="bg-teal-50/60 p-2 rounded border border-teal-100 text-teal-900">
+                      <strong>💡 Contoh:</strong> Mengunggah file <code>.dxf</code> / <code>.pdf</code> dengan kode <code>DWG-FLG-001</code> (<em>Hydraulic Flange Housing Cover</em>, Tipe <code>DETAIL</code>).
+                    </div>
+                    <div className="bg-gray-50 p-2.5 rounded border border-gray-200 text-gray-700 space-y-1">
+                      <strong className="text-gray-900 block">🛠️ Cara Buatnya (Apa yang Dilakukan Step-by-Step):</strong>
+                      <ol className="list-decimal list-inside space-y-1 text-[11px]">
+                        <li>Klik tombol ungu <strong>[+ Buat Drawing Baru]</strong> di header atas.</li>
+                        <li>Masukkan Kode Drawing (cth: <code>DWG-FLG-001</code>), Nama Drawing, Tipe (<code>DETAIL</code> / <code>ASSEMBLY</code>), dan Deskripsi.</li>
+                        <li>Pilih drawing tersebut dari sidebar kiri, lalu klik tombol <strong>[Upload Blueprint]</strong> untuk mengunggah file <code>.PDF</code>, <code>.DXF</code>, <code>.SVG</code>, atau <code>.PNG</code> resolusi tinggi.</li>
+                      </ol>
+                    </div>
+                  </div>
                 </div>
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-                  <div className="font-bold text-emerald-700 mb-1">4. Inspector Studio</div>
-                  <p className="text-[11px] text-gray-600">Buka blueprint di Inspector Studio untuk penomoran balon, GD&T, dan penerbitan Check Sheet.</p>
+
+                {/* Tahap 2 */}
+                <div className="p-3.5 bg-white border border-purple-200 rounded-lg shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-[#714B67] text-white font-bold text-[10px] flex items-center justify-center">2</span>
+                      <span className="font-bold text-sm text-[#714B67]">Tahap 2: Hubungkan ke Master Part & Susun Struktur BOM</span>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-50 text-[#714B67] font-bold border border-purple-200">Tahap 2</span>
+                  </div>
+                  <div className="space-y-1.5 text-[11px] pl-7">
+                    <p><strong className="text-gray-900">🎯 Tujuan:</strong> Menautkan gambar dengan nomor part fisik inventori ERP, berat jenis material, dan menyusun pohon perakitan rakitan (*Assembly Tree*).</p>
+                    <div className="bg-purple-50/60 p-2 rounded border border-purple-100 text-purple-900">
+                      <strong>💡 Contoh:</strong> Menautkan drawing ke Part <code>PRT-FLG-450</code> (Bahan: <em>AL-6061-T6</em>, Berat: <em>0.45 kg</em>).
+                    </div>
+                    <div className="bg-gray-50 p-2.5 rounded border border-gray-200 text-gray-700 space-y-1">
+                      <strong className="text-gray-900 block">🛠️ Cara Buatnya (Apa yang Dilakukan Step-by-Step):</strong>
+                      <ol className="list-decimal list-inside space-y-1 text-[11px]">
+                        <li>Pilih drawing dari sidebar kiri, lalu klik tombol <strong>[Hubungkan Master Part]</strong> di sub-header atas kanvas.</li>
+                        <li>Pilih Part Number yang sesuai dari database, atau klik <strong>[+ Buat Part Baru di Master]</strong>.</li>
+                        <li>Isi Part Code, Nama Part, Material, Berat jenis, lalu klik <strong>[Simpan & Hubungkan]</strong>.</li>
+                        <li>Untuk gambar tipe rakitan, buka tab <strong>[BOM & Relasi Part]</strong> dan tambahkan sub-drawing child beserta kuantitasnya.</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tahap 3 */}
+                <div className="p-3.5 bg-white border border-amber-200 rounded-lg shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-amber-600 text-white font-bold text-[10px] flex items-center justify-center">3</span>
+                      <span className="font-bold text-sm text-amber-900">Tahap 3: Penerbitan ECN & Manajemen Riwayat Revisi</span>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-50 text-amber-800 font-bold border border-amber-200">Tahap 3</span>
+                  </div>
+                  <div className="space-y-1.5 text-[11px] pl-7">
+                    <p><strong className="text-gray-900">🎯 Tujuan:</strong> Mengontrol legalitas perubahan dimensi desain sesuai ISO 9001 / IATF 16949 dan menentukan disposisi stok fisik yang tersisa.</p>
+                    <div className="bg-amber-50/60 p-2 rounded border border-amber-100 text-amber-900">
+                      <strong>💡 Contoh:</strong> Penerbitan <code>ECN-2026-001</code> Revisi B karena pengetatan toleransi lubang poros menjadi ±0.015 mm dengan disposisi <strong>REWORK</strong> (bubut ulang di workshop).
+                    </div>
+                    <div className="bg-gray-50 p-2.5 rounded border border-gray-200 text-gray-700 space-y-1">
+                      <strong className="text-gray-900 block">🛠️ Cara Buatnya (Apa yang Dilakukan Step-by-Step):</strong>
+                      <ol className="list-decimal list-inside space-y-1 text-[11px]">
+                        <li>Buka tab <strong>[Revisi & Dokumen ECN]</strong> di atas kanvas visual.</li>
+                        <li>Klik tombol kuning <strong>[+ Terbitkan ECN Revisi Baru]</strong>.</li>
+                        <li>Masukkan Kode Revisi (cth: <code>B</code>), Alasan Perubahan, Disposisi Stok (<code>USE AS IS</code> / <code>REWORK</code> / <code>SCRAP</code>), Dampak Tooling, dan Approver QA.</li>
+                        <li>Klik <strong>[Terbitkan ECN Revisi]</strong>. Klik <strong>[🖨️ Cetak Lembar ECN]</strong> untuk menghasilkan lembar audit fisik.</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tahap 4 */}
+                <div className="p-3.5 bg-white border border-emerald-200 rounded-lg shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-bold text-[10px] flex items-center justify-center">4</span>
+                      <span className="font-bold text-sm text-emerald-900">Tahap 4: Integrasi ke Inspector Studio & Digital Check Sheet (ISO 17025)</span>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">Tahap 4</span>
+                  </div>
+                  <div className="space-y-1.5 text-[11px] pl-7">
+                    <p><strong className="text-gray-900">🎯 Tujuan:</strong> Mentransformasi blueprint statis menjadi kanvas metrologi interaktif dengan penomoran balon inspeksi, koneksi alat ukur terkalibrasi, dan validasi data QC cloud.</p>
+                    <div className="bg-emerald-50/60 p-2 rounded border border-emerald-100 text-emerald-900">
+                      <strong>💡 Contoh:</strong> Balon #1 (Internal Bore) terhubung ke Digital Caliper (<code>CAL-003</code>) yang berstatus <strong>CAL OK</strong> dengan toleransi ±0.02 mm.
+                    </div>
+                    <div className="bg-gray-50 p-2.5 rounded border border-gray-200 text-gray-700 space-y-1">
+                      <strong className="text-gray-900 block">🛠️ Cara Buatnya (Apa yang Dilakukan Step-by-Step):</strong>
+                      <ol className="list-decimal list-inside space-y-1 text-[11px]">
+                        <li>Pada drawing yang dipilih, klik tombol hijau <strong>[Buka di Inspector Studio]</strong> di pojok kanan atas.</li>
+                        <li>Klik titik dimensi pada gambar untuk meletakkan Balon Inspeksi (#1, #2, dst.) dan tentukan alat ukur serta toleransi nominal/min/max.</li>
+                        <li>Klik <strong>[Simpan Template Check Sheet]</strong>. Lembar pemeriksaan otomatis terbit di menu <strong>Digital Drawing Check Sheet</strong> untuk diisi operator lapangan lengkap dengan validasi status kalibrasi alat ukur real-time.</li>
+                      </ol>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Help Tab 2: BOM Structure */}
+          {/* ══════════════════════════════════════════════════════════
+              TAB 2: STRUKTUR BOM & MASTER PART
+          ══════════════════════════════════════════════════════════ */}
           {activeHelpTab === 'bom' && (
-            <div className="space-y-3 text-gray-700">
-              <h4 className="font-extrabold text-sm text-gray-900 flex items-center gap-1.5">
-                <Package size={16} className="text-indigo-600" /> Bill of Materials (BOM) & Master Part
-              </h4>
-              <p>MaviCore PLM menghubungkan dokumen gambar CAD 2D/3D dengan data fisik manufaktur:</p>
+            <div className="space-y-4 text-gray-700 max-h-[72vh] overflow-y-auto pr-1">
+              <div className="bg-indigo-50/60 border border-indigo-200 rounded-lg p-3">
+                <h4 className="font-extrabold text-sm text-indigo-900 flex items-center gap-1.5">
+                  <Package size={16} className="text-indigo-600" /> Bill of Materials (BOM) & Master Part
+                </h4>
+                <p className="text-[11px] text-gray-600 mt-1">
+                  MaviCore PLM menghubungkan dokumen gambar CAD 2D/3D dengan data fisik manufaktur dan menyusun pohon rakitan perakitan (*Assembly Tree*).
+                </p>
+              </div>
+
+              {/* Klasifikasi Gambar & Kategori Part */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                  <div className="font-bold text-gray-900 mb-1">🔗 Hubungan Drawing ke Master Part</div>
-                  <p className="text-[11px] text-gray-600">Setiap drawing dapat dihubungkan ke Master Part Number (BOM) untuk sinkronisasi material, berat jenis, dan status inventory ERP.</p>
+                <div className="p-3.5 bg-white border border-gray-200 rounded-lg space-y-2 shadow-2xs">
+                  <div className="font-bold text-gray-900 text-xs flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-blue-500"></span> Klasifikasi Gambar: Assembly vs Detail
+                  </div>
+                  <p className="text-[11px] text-gray-600 leading-relaxed">
+                    <strong>Drawing Assembly (ASSEMBLY):</strong> Gambar rakitan utuh yang menunjukkan susunan beberapa part, posisi balon komponen, dan nomor part referensi BOM.
+                  </p>
+                  <p className="text-[11px] text-gray-600 leading-relaxed">
+                    <strong>Drawing Detail (DETAIL):</strong> Gambar tunggal komponen manufaktur dengan spesifikasi dimensi, toleransi GD&T, dan perlakuan permukaan (*surface finish*).
+                  </p>
                 </div>
-                <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                  <div className="font-bold text-gray-900 mb-1">🌳 Assembly Tree Hierarchy</div>
-                  <p className="text-[11px] text-gray-600">Gambar tipe <strong>Assembly</strong> dapat memiliki banyak sub-drawing child dengan kuantitas dan nomor referensi BOM.</p>
+
+                <div className="p-3.5 bg-white border border-gray-200 rounded-lg space-y-2 shadow-2xs">
+                  <div className="font-bold text-gray-900 text-xs flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Kategori Part Manufaktur
+                  </div>
+                  <ul className="text-[11px] text-gray-600 space-y-1">
+                    <li>• <strong className="text-gray-800">Component:</strong> Part yang dibuat sendiri di lini produksi (cth: CNC Turning Shaft, Milling Body).</li>
+                    <li>• <strong className="text-gray-800">Standard Part:</strong> Komponen standar beli jadi (cth: Bearing SKF, O-Ring, Baut M6 DIN 912).</li>
+                    <li>• <strong className="text-gray-800">Raw Material:</strong> Bahan mentah (cth: Batangan Al-6061, Pelat Baja SPCC, Grease).</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Tabel Riil Perakitan */}
+              <div className="p-3.5 bg-gray-50 border border-gray-300 rounded-lg space-y-2">
+                <div className="font-bold text-xs text-gray-900 flex items-center justify-between">
+                  <span>📋 Tabel Riil Perakitan: Unit Flange Hidrolik (ASM-FLG-450)</span>
+                  <span className="text-[10px] text-indigo-700 bg-indigo-50 font-bold px-2 py-0.5 rounded border border-indigo-200">BOM Multi-Level</span>
+                </div>
+                <div className="border border-gray-200 rounded-md overflow-hidden bg-white text-[11px]">
+                  <table className="w-full">
+                    <thead className="bg-gray-100 text-gray-700 text-[10px] uppercase font-bold border-b border-gray-200">
+                      <tr>
+                        <th className="p-2 text-left">Item #</th>
+                        <th className="p-2 text-left">Part Number</th>
+                        <th className="p-2 text-left">Nama Komponen</th>
+                        <th className="p-2 text-center">Qty</th>
+                        <th className="p-2 text-left">Material / Standar</th>
+                        <th className="p-2 text-left">Fungsi Manufaktur</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      <tr>
+                        <td className="p-2 font-mono font-bold text-gray-500">01</td>
+                        <td className="p-2 font-mono font-bold text-[#714B67]">PRT-FLG-01</td>
+                        <td className="p-2 font-semibold text-gray-900">Main Cast Housing Flange</td>
+                        <td className="p-2 text-center font-bold">1 PCS</td>
+                        <td className="p-2 text-gray-600">AL-6061-T6 (Anodized)</td>
+                        <td className="p-2 text-gray-500">Bodi utama penampung oli & bearing</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2 font-mono font-bold text-gray-500">02</td>
+                        <td className="p-2 font-mono font-bold text-[#714B67]">PRT-SFT-02</td>
+                        <td className="p-2 font-semibold text-gray-900">Precision Stepper Shaft</td>
+                        <td className="p-2 text-center font-bold">1 PCS</td>
+                        <td className="p-2 text-gray-600">SUS-304 (Ground Ø25)</td>
+                        <td className="p-2 text-gray-500">Poros penggerak transmisi daya</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2 font-mono font-bold text-gray-500">03</td>
+                        <td className="p-2 font-mono font-bold text-[#714B67]">PRT-BRG-03</td>
+                        <td className="p-2 font-semibold text-gray-900">Ball Bearing 6002-2RS</td>
+                        <td className="p-2 text-center font-bold">2 PCS</td>
+                        <td className="p-2 text-gray-600">GCr15 (JIS Standard)</td>
+                        <td className="p-2 text-gray-500">Bantalan putar poros anti-gesekan</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2 font-mono font-bold text-gray-500">04</td>
+                        <td className="p-2 font-mono font-bold text-[#714B67]">PRT-SL-04</td>
+                        <td className="p-2 font-semibold text-gray-900">O-Ring NBR-70 Ø25x2.5</td>
+                        <td className="p-2 text-center font-bold">1 PCS</td>
+                        <td className="p-2 text-gray-600">Nitrile Rubber NBR-70</td>
+                        <td className="p-2 text-gray-500">Pencegah kebocoran fluida hidrolik</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Help Tab 3: ECN Standards */}
+          {/* ══════════════════════════════════════════════════════════
+              TAB 3: STANDAR ISO & ATURAN ECN
+          ══════════════════════════════════════════════════════════ */}
           {activeHelpTab === 'ecn' && (
-            <div className="space-y-3 text-gray-700">
-              <h4 className="font-extrabold text-sm text-gray-900 flex items-center gap-1.5">
-                <ShieldCheck size={16} className="text-rose-600" /> Kepatuhan Standar ISO 9001 & IATF 16949 ECN
-              </h4>
-              <p>Prosedur perubahan teknis wajib mencakup:</p>
-              <div className="space-y-2">
-                <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-md">
-                  <span className="font-bold text-rose-800">1. Disposisi Material Sisa (Stock Disposition):</span>
-                  <p className="text-[11px] text-gray-600 mt-0.5">Wajib memilih apakah stok lama: <em>Use As Is</em> (habiskan), <em>Rework</em> (modifikasi), atau <em>Scrap</em> (musnahkan).</p>
+            <div className="space-y-4 text-gray-700 max-h-[72vh] overflow-y-auto pr-1">
+              <div className="bg-rose-50/60 border border-rose-200 rounded-lg p-3">
+                <h4 className="font-extrabold text-sm text-rose-900 flex items-center gap-1.5">
+                  <ShieldCheck size={16} className="text-rose-600" /> Kepatuhan Standar ISO 9001 & IATF 16949 ECN
+                </h4>
+                <p className="text-[11px] text-gray-600 mt-1">
+                  Engineering Change Notice (ECN) adalah protokol resmi untuk mengontrol revisi produk dan mencegah kerugian akibat pemakaian komponen yang salah.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {/* Protokol Disposisi Stok */}
+                <div className="p-3.5 bg-white border border-rose-200 rounded-lg space-y-2 shadow-2xs">
+                  <div className="font-bold text-xs text-rose-900 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-rose-500"></span> Protokol Disposisi Stok (Stock Disposition)
+                  </div>
+                  <p className="text-[11px] text-gray-600">
+                    Ketika ada revisi baru, sistem mewajibkan penetapan nasib stok fisik part lama yang tersisa di gudang atau lini produksi:
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-[11px]">
+                    <div className="p-2.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-900">
+                      <strong className="block text-emerald-800 text-xs mb-0.5">🟢 USE AS IS</strong>
+                      <span className="text-[10px] text-gray-600">Habiskan stok lama di lini perakitan karena perubahan tidak berdampak kritis pada fungsi rakitan.</span>
+                    </div>
+                    <div className="p-2.5 rounded bg-amber-50 border border-amber-200 text-amber-900">
+                      <strong className="block text-amber-800 text-xs mb-0.5">🟡 REWORK</strong>
+                      <span className="text-[10px] text-gray-600">Modifikasi ulang stok lama di mesin permesinan sesuai dimensi revisi baru.</span>
+                    </div>
+                    <div className="p-2.5 rounded bg-rose-50 border border-rose-200 text-rose-900">
+                      <strong className="block text-rose-800 text-xs mb-0.5">🔴 SCRAP</strong>
+                      <span className="text-[10px] text-gray-600">Musnahkan/buang stok lama segera karena tidak dapat dipakai lagi dan berisiko fatal.</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-md">
-                  <span className="font-bold text-rose-800">2. Otorisasi & Tanggal Efektif:</span>
-                  <p className="text-[11px] text-gray-600 mt-0.5">Setiap revisi baru memerlukan tanda tangan persetujuan QA/Engineering dan tanggal mulai berlaku di lini perakitan.</p>
+
+                {/* Penilaian Dampak Tooling */}
+                <div className="p-3.5 bg-white border border-gray-200 rounded-lg space-y-1.5 shadow-2xs">
+                  <div className="font-bold text-xs text-gray-900 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-[#714B67]"></span> Penilaian Dampak Tooling (Tooling Impact Assessment)
+                  </div>
+                  <p className="text-[11px] text-gray-600">
+                    Evaluasi cetakan/dies/jig baru. Menentukan apakah perubahan geometri gambar memerlukan pembuatan cetakan (*Mold/Die*) baru, modifikasi jig pengelasan, atau penggantian insert pemotong CNC.
+                  </p>
+                </div>
+
+                {/* Digital Sign-Off */}
+                <div className="p-3.5 bg-white border border-gray-200 rounded-lg space-y-1.5 shadow-2xs">
+                  <div className="font-bold text-xs text-gray-900 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-blue-500"></span> Digital Sign-Off & Tanggal Berlaku
+                  </div>
+                  <p className="text-[11px] text-gray-600">
+                    Otorisasi oleh QA Lead & Engineering Manager sebelum berstatus <code>RELEASED</code> dengan tanggal berlaku efektif yang jelas di lini produksi.
+                  </p>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Help Tab 4: Inspector Integration */}
+          {/* ══════════════════════════════════════════════════════════
+              TAB 4: BUKA DI INSPECTOR STUDIO & CHECK SHEET
+          ══════════════════════════════════════════════════════════ */}
           {activeHelpTab === 'inspector' && (
-            <div className="space-y-3 text-gray-700">
-              <h4 className="font-extrabold text-sm text-gray-900 flex items-center gap-1.5">
-                <FileCode size={16} className="text-[#00A09D]" /> Pembuatan Balon & Check Sheet di Inspector Studio
-              </h4>
-              <p>Untuk menaruh balon inspeksi, memasukkan toleransi GD&T, atau menghubungkan alat ukur Bluetooth, klik tombol <strong>[Buka di Inspector Studio]</strong>.</p>
-              <p className="text-[11px] bg-teal-50 p-2.5 rounded-md border border-teal-200 text-teal-900">
-                Inspector Studio menyediakan kanvas metrologi canggih dengan shape QC (lingkaran, segi enam, diamond), crosshair laser, limit sample visual, dan ekspor instan ke Digital Drawing Check Sheet.
-              </p>
+            <div className="space-y-4 text-gray-700 max-h-[72vh] overflow-y-auto pr-1">
+              <div className="bg-teal-50/60 border border-teal-200 rounded-lg p-3">
+                <h4 className="font-extrabold text-sm text-teal-900 flex items-center gap-1.5">
+                  <FileCode size={16} className="text-[#00A09D]" /> Pembuatan Balon & Check Sheet di Inspector Studio
+                </h4>
+                <p className="text-[11px] text-gray-600 mt-1">
+                  Menjembatani dokumen gambar teknik dari PLM ke lantai pabrik untuk penomoran balon inspeksi (*First Article Inspection*) dan ekspor ke formulir tablet.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {/* Panduan 6 Langkah */}
+                <div className="p-3.5 bg-white border border-teal-200 rounded-lg space-y-2 shadow-2xs">
+                  <div className="font-bold text-xs text-teal-900">Panduan 6 Langkah Mengubah Gambar Menjadi Lembar Pemeriksaan:</div>
+                  <ol className="list-decimal list-inside space-y-1.5 text-[11px] text-gray-700 pl-1">
+                    <li>Pilih drawing yang ingin diinspeksi dari daftar sidebar kiri.</li>
+                    <li>Klik tombol hijau <strong>[Buka di Inspector Studio]</strong> di bilah navigasi atas.</li>
+                    <li>Studio Inspector Designer akan terbuka otomatis dengan gambar blueprint yang sudah ter-load.</li>
+                    <li>Klik pada gambar untuk menaruh <strong>Balon Inspeksi</strong> (Point #1, #2, dst.) dan isi batas toleransi (Nominal, Min, Max).</li>
+                    <li>Pilih metode alat ukur dari database Supabase (Caliper, Micrometer, Height Gauge, Bore Gauge, CMM).</li>
+                    <li>Simpan template. Formulir otomatis muncul di menu <strong>Digital Drawing Check Sheet</strong> untuk diisi oleh operator.</li>
+                  </ol>
+                </div>
+
+                {/* Validasi Kalibrasi Real-Time */}
+                <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-lg text-[11px] space-y-1.5">
+                  <span className="font-bold text-emerald-900 block text-xs">🛡️ Validasi Status Kalibrasi Otomatis (ISO 9001: 7.1.5):</span>
+                  <p className="text-emerald-800 leading-relaxed">
+                    Setiap baris pengukuran di check sheet akan menampilkan badge status <strong>`CAL OK`</strong> (hijau) atau <strong>`CAL OVERDUE`</strong> (merah). Jika alat kedaluwarsa, sistem otomatis memperingatkan operator dan mencatat log audit ketidaksesuaian.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════
+              TAB 5: STANDAR ALAT UKUR & KALIBRASI (ISO 17025)
+          ══════════════════════════════════════════════════════════ */}
+          {activeHelpTab === 'metrology' && (
+            <div className="space-y-4 text-gray-700 max-h-[72vh] overflow-y-auto pr-1">
+              <div className="bg-blue-50/60 border border-blue-200 rounded-lg p-3">
+                <h4 className="font-extrabold text-sm text-blue-900 flex items-center gap-1.5">
+                  <Ruler size={16} className="text-blue-600" /> Manajemen Inventaris Alat Ukur & Kalibrasi (ISO 17025 / ISO 9001: 7.1.5)
+                </h4>
+                <p className="text-[11px] text-gray-600 mt-1">
+                  Prosedur standar penjaminan mutu keabsahan alat ukur metrologi, ketertelusuran standar nasional KAN, dan pencegahan penggunaan alat kedaluwarsa.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {/* 1. Registrasi & Database Supabase Cloud */}
+                <div className="p-3.5 bg-white border border-blue-200 rounded-lg space-y-2 shadow-2xs">
+                  <div className="font-bold text-xs text-blue-900 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-blue-600"></span> 1. Registrasi Alat Ukur ke Cloud Database
+                  </div>
+                  <p className="text-[11px] text-gray-600 leading-relaxed">
+                    Setiap alat ukur di area workshop (Caliper, Micrometer, Bore Gauge, Height Gauge, CMM) wajib terdaftar di menu <strong>Master Alat Ukur (/measuring-tools)</strong> dengan nomor ID unik, serial number, resolusi, akurasi, dan lokasi stasiun kerja.
+                  </p>
+                </div>
+
+                {/* 2. Siklus Kalibrasi & Peringatan Otomatis */}
+                <div className="p-3.5 bg-white border border-amber-200 rounded-lg space-y-2 shadow-2xs">
+                  <div className="font-bold text-xs text-amber-900 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-600"></span> 2. Siklus Kalibrasi & Tombol Pengingat Notifikasi
+                  </div>
+                  <p className="text-[11px] text-gray-600 leading-relaxed">
+                    Interval kalibrasi ditetapkan setiap 6 atau 12 bulan. Sistem menghitung tanggal jatuh tempo secara otomatis. Gunakan tombol <strong>[🔔 Kirim Pengingat Email]</strong> untuk mengirimkan disposisi penarikan alat yang berstatus <code>OVERDUE</code> ke tim QA & Mandor Lini.
+                  </p>
+                </div>
+
+                {/* 3. Ketertelusuran Standar Master */}
+                <div className="p-3.5 bg-white border border-purple-200 rounded-lg space-y-2 shadow-2xs">
+                  <div className="font-bold text-xs text-purple-900 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-purple-600"></span> 3. Ketertelusuran Standar Master (Traceability Chain)
+                  </div>
+                  <p className="text-[11px] text-gray-600 leading-relaxed">
+                    Semua kalibrasi in-house dan verifikasi harian wajib mengacu pada <strong>Master Gauge Block Set (Grade 0 / DIN EN ISO 3650)</strong> yang tertelusur langsung ke Laboratorium KAN dan Standar SI Meter BIPM Internasional.
+                  </p>
+                </div>
+
+                {/* 4. Penempelan Stiker Kalibrasi Fisik */}
+                <div className="p-3.5 bg-white border border-emerald-200 rounded-lg space-y-2 shadow-2xs">
+                  <div className="font-bold text-xs text-emerald-900 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-600"></span> 4. Penempelan Stiker Kalibrasi Fisik
+                  </div>
+                  <p className="text-[11px] text-gray-600 leading-relaxed">
+                    Setelah alat selesai dikalibrasi dan divalidasi, cetak stiker kalibrasi melalui tombol <strong>[🖨️ Cetak Stiker]</strong> dan tempelkan pada bodi alat sebelum alat diserahkan kembali ke operator stasiun kerja.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
         </div>

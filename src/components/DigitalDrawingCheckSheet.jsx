@@ -92,6 +92,9 @@ import {
   SupervisorApprovalModal,
   EnvironmentSettingsModal
 } from './checksheet/ISOComplianceModals';
+import CalibrationManagerModal from './checksheet/CalibrationManagerModal';
+import { TOOL_DEFINITIONS, detectMeasuringToolType, getCalibrationStatus } from '../utils/metrologyToolUtils';
+import { getLimitSamples } from '../utils/mavicorePLM';
 
 // ─── BALLOON CATEGORY & QC COLOR PALETTE (SYNCED WITH INSPECTOR STUDIO) ───
 const getCategoryColor = (category) => {
@@ -728,6 +731,25 @@ export default function DigitalDrawingCheckSheet() {
     return false;
   });
   const [showDozukiModal, setShowDozukiModal] = useState(false);
+
+  // ─── Limit Sample (Sampel Batas Mutu) Integration ───
+  const [showLimitSampleModal, setShowLimitSampleModal] = useState(false);
+  const [limitSamples, setLimitSamples] = useState([]);
+  const [selectedLimitSample, setSelectedLimitSample] = useState(null);
+
+  useEffect(() => {
+    getLimitSamples(selectedDrawingId).then(samples => {
+      if (samples && samples.length > 0) {
+        setLimitSamples(samples);
+      } else {
+        getLimitSamples().then(all => setLimitSamples(all || []));
+      }
+    });
+  }, [selectedDrawingId]);
+
+  // ─── Metrology Calibration Tool Modal State (ISO 17025) ───
+  const [showCalibrationModal, setShowCalibrationModal] = useState(false);
+  const [selectedCalibrationToolId, setSelectedCalibrationToolId] = useState('caliper');
 
   // Auto-activate Mobile Mode if URL query contains mobile=true
   useEffect(() => {
@@ -2198,6 +2220,55 @@ export default function DigitalDrawingCheckSheet() {
             <span>MANDOR Portal</span>
           </button>
 
+          {/* Master Limit Sample Visual Guide Button */}
+          <button
+            onClick={() => {
+              if (limitSamples.length > 0) {
+                setSelectedLimitSample(limitSamples[0]);
+              }
+              setShowLimitSampleModal(true);
+            }}
+            style={{
+              padding: '5px 10px',
+              backgroundColor: 'rgba(244, 63, 94, 0.15)',
+              border: '1px solid #f43f5e',
+              borderRadius: '6px',
+              color: '#fda4af',
+              fontSize: '0.72rem',
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px'
+            }}
+            title="Buka Pedoman Master Limit Sample (Batas OK vs NG Visual)"
+          >
+            <ShieldAlert size={13} color="#f43f5e" />
+            <span>Limit Sample ({limitSamples.length})</span>
+          </button>
+
+          {/* Measuring Tool Toggle Button */}
+          <button
+            onClick={() => setShowVirtualGauge(prev => !prev)}
+            style={{
+              padding: '5px 10px',
+              backgroundColor: showVirtualGauge ? 'rgba(56, 189, 248, 0.25)' : 'rgba(56, 189, 248, 0.12)',
+              border: showVirtualGauge ? '1.5px solid #38bdf8' : '1px solid #0284c7',
+              borderRadius: '6px',
+              color: '#38bdf8',
+              fontSize: '0.72rem',
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px'
+            }}
+            title="Buka Panel Alat Ukur Metrologi (Caliper, Micrometer, Dial Indicator, CMM)"
+          >
+            <Crosshair size={13} color="#38bdf8" />
+            <span>Measuring Tool</span>
+          </button>
+
           {/* Mobile Dedicated Mode Toggle */}
           <button
             onClick={() => setIsMobileModeActive(true)}
@@ -2402,8 +2473,63 @@ export default function DigitalDrawingCheckSheet() {
               />
             </div>
           ) : (
-            <div style={{ padding: '24px 12px', textAlign: 'center', color: '#64748b', fontSize: '0.74rem' }}>
-              Pilih titik ukur (hotspot) di blueprint canvas untuk memuat SOP alat ukur.
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ backgroundColor: 'rgba(56, 189, 248, 0.08)', border: '1px dashed #0284c7', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#38bdf8', marginBottom: '2px' }}>
+                  Mode Simulasi Bebas Alat Ukur
+                </div>
+                <div style={{ fontSize: '0.62rem', color: '#94a3b8' }}>
+                  Pilih alat di bawah untuk simulasi gerak & kalibrasi, atau klik titik balon di blueprint untuk mengukur part.
+                </div>
+              </div>
+
+              <VirtualMeasuringTool
+                activePoint={{
+                  id: 'standalone_preview',
+                  pointNumber: 1,
+                  title: 'Komponen Standar',
+                  category: 'Linear Dimension',
+                  nominal: 25.000,
+                  tolMin: -0.020,
+                  tolMax: 0.020,
+                  unit: 'mm',
+                  status: 'MEASURING'
+                }}
+                isVisible={true}
+                onOpenCalibration={(toolId) => {
+                  setSelectedCalibrationToolId(toolId);
+                  setShowCalibrationModal(true);
+                }}
+                style={{
+                  width: '100%',
+                  boxShadow: 'none',
+                  backgroundColor: '#0f172a'
+                }}
+              />
+
+              {/* Quick Calibration Action Button */}
+              <button
+                type="button"
+                onClick={() => setShowCalibrationModal(true)}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                  border: '1px solid #f59e0b',
+                  borderRadius: '8px',
+                  color: '#fde68a',
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Wrench size={14} color="#f59e0b" />
+                <span>Buka Master Kalibrasi & Gauge Block</span>
+              </button>
             </div>
           )}
         </div>
@@ -3210,9 +3336,67 @@ export default function DigitalDrawingCheckSheet() {
 
                       {/* Measurement Input & Gauge Tag (Large 7-Segment LCD Display) */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: '22px', gap: '8px', marginTop: '2px' }}>
-                        <span style={{ fontSize: '0.68rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          🛠️ {pt.toolId}
-                        </span>
+                        {/* Interactive Master Tool Selector Dropdown with Calibration Badge */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }} onClick={(e) => e.stopPropagation()}>
+                          <select
+                            value={pt.toolId || (detectMeasuringToolType(pt) === 'micrometer' ? 'Outside Micrometer 0-25mm' : 'Digital Caliper 0-150mm')}
+                            onChange={(e) => {
+                              const newToolName = e.target.value;
+                              const matched = TOOL_DEFINITIONS.find(t => t.name === newToolName || t.id === newToolName || t.code === newToolName);
+                              const updatedToolId = matched ? matched.name : newToolName;
+                              setCheckPoints(prev => prev.map(p => p.id === pt.id ? { ...p, toolId: updatedToolId } : p));
+                            }}
+                            style={{
+                              backgroundColor: '#090d16',
+                              border: '1px solid #334155',
+                              borderRadius: '4px',
+                              color: '#94a3b8',
+                              fontSize: '0.66rem',
+                              fontWeight: 700,
+                              padding: '2px 4px',
+                              cursor: 'pointer',
+                              maxWidth: '135px'
+                            }}
+                            title="Pilih alat ukur master dari database ISO 17025"
+                          >
+                            {TOOL_DEFINITIONS.map(t => (
+                              <option key={t.id} value={t.name}>
+                                {t.icon} {t.name}
+                              </option>
+                            ))}
+                          </select>
+
+                          {/* Live Calibration Status Pill */}
+                          {(() => {
+                            const detectedType = detectMeasuringToolType(pt);
+                            const toolDef = TOOL_DEFINITIONS.find(t => t.name === pt.toolId || t.id === detectedType) || TOOL_DEFINITIONS[0];
+                            const calStat = getCalibrationStatus(toolDef);
+                            return (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedCalibrationToolId(toolDef.id);
+                                  setShowCalibrationModal(true);
+                                }}
+                                style={{
+                                  padding: '1px 5px',
+                                  borderRadius: '3px',
+                                  fontSize: '0.58rem',
+                                  fontWeight: 900,
+                                  backgroundColor: calStat.bg,
+                                  border: `1px solid ${calStat.border}`,
+                                  color: calStat.color,
+                                  cursor: 'pointer',
+                                  whiteSpace: 'nowrap'
+                                }}
+                                title={`Status Kalibrasi: ${calStat.label}. Klik untuk buka sertifikat.`}
+                              >
+                                {calStat.status === 'VALID' ? 'CAL OK' : 'CAL DUE'}
+                              </button>
+                            );
+                          })()}
+                        </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           {/* Micro-adjust -0.01 */}
@@ -4376,6 +4560,168 @@ export default function DigitalDrawingCheckSheet() {
           </div>
         </div>
       )}
+
+      {/* ─── LIMIT SAMPLE VISUAL INSPECTION GUIDE MODAL (FOR OPERATOR) ─── */}
+      {showLimitSampleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl text-white">
+            {/* Header */}
+            <div className="px-6 py-3.5 border-b border-slate-800 bg-slate-950 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center font-bold">
+                  <ShieldAlert size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-white">Master Limit Sample (Pedoman Batas Mutu Visual)</h3>
+                  <p className="text-[11px] text-slate-400">
+                    Standar Batas Diterima (OK) vs Batas Ditolak (NG) untuk Verifikasi Part di Checksheet
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowLimitSampleModal(false)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Sub-Header / Selector Tabs if multiple Limit Samples exist */}
+            {limitSamples.length > 0 ? (
+              <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+                {/* Left Sidebar List */}
+                <div className="w-full md:w-64 bg-slate-950 border-r border-slate-800 p-3 space-y-2 overflow-y-auto shrink-0">
+                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1">
+                    Daftar Standar ({limitSamples.length})
+                  </div>
+                  {limitSamples.map(sample => (
+                    <button
+                      key={sample.id}
+                      onClick={() => setSelectedLimitSample(sample)}
+                      className={`w-full text-left p-2.5 rounded-lg border transition-all cursor-pointer flex flex-col gap-1 ${
+                        (selectedLimitSample?.id || limitSamples[0]?.id) === sample.id
+                          ? 'bg-rose-500/20 border-rose-500 text-white'
+                          : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-[10px] font-bold bg-black/40 px-1.5 py-0.5 rounded text-slate-300">
+                          {sample.code}
+                        </span>
+                        <span className="text-[9px] font-bold text-emerald-400">AKTIF</span>
+                      </div>
+                      <div className="text-xs font-bold line-clamp-1">{sample.title}</div>
+                      <div className="text-[10px] text-slate-400">{sample.defect_category}</div>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Right Stage: Split View OK vs NG */}
+                {(() => {
+                  const active = selectedLimitSample || limitSamples[0];
+                  if (!active) return null;
+
+                  return (
+                    <div className="flex-1 flex flex-col overflow-y-auto p-6 space-y-4 bg-slate-900">
+                      <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-800">
+                        <div>
+                          <div className="text-xs font-bold text-rose-400 font-mono">{active.code}</div>
+                          <h4 className="text-base font-extrabold text-white">{active.title}</h4>
+                        </div>
+                        <div className="text-xs text-slate-400 font-medium">
+                          Masa Berlaku: <strong className="text-white">{active.effective_date}</strong> s/d <strong className="text-white">{active.expiry_date}</strong>
+                        </div>
+                      </div>
+
+                      {/* Side by Side Split Grid */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {/* OK Card */}
+                        <div className="bg-emerald-950/30 border-2 border-emerald-500/40 rounded-xl p-4 flex flex-col space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-extrabold text-emerald-400 flex items-center gap-1.5">
+                              <CheckCircle2 size={15} /> 🟢 BATAS MAKSIMAL DITERIMA (OK)
+                            </span>
+                            <span className="bg-emerald-500/20 text-emerald-300 font-mono text-[10px] px-2 py-0.5 rounded font-bold">
+                              PASS
+                            </span>
+                          </div>
+                          <div className="h-56 bg-slate-950 rounded-lg overflow-hidden flex items-center justify-center p-2 border border-emerald-900">
+                            <img
+                              src={active.ok_photo_url}
+                              alt="OK Limit"
+                              className="max-h-full max-w-full object-contain"
+                            />
+                          </div>
+                          <div className="p-3 bg-slate-950/80 rounded-lg border border-emerald-900/60 text-xs text-emerald-200 leading-relaxed">
+                            <strong className="text-emerald-400 block mb-1">Kriteria Penerimaan:</strong>
+                            {active.ok_criteria}
+                          </div>
+                        </div>
+
+                        {/* NG Card */}
+                        <div className="bg-rose-950/30 border-2 border-rose-500/40 rounded-xl p-4 flex flex-col space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-extrabold text-rose-400 flex items-center gap-1.5">
+                              <AlertTriangle size={15} /> 🔴 BATAS MINIMAL DITOLAK (NG)
+                            </span>
+                            <span className="bg-rose-500/20 text-rose-300 font-mono text-[10px] px-2 py-0.5 rounded font-bold">
+                              REJECT
+                            </span>
+                          </div>
+                          <div className="h-56 bg-slate-950 rounded-lg overflow-hidden flex items-center justify-center p-2 border border-rose-900">
+                            <img
+                              src={active.ng_photo_url}
+                              alt="NG Limit"
+                              className="max-h-full max-w-full object-contain"
+                            />
+                          </div>
+                          <div className="p-3 bg-slate-950/80 rounded-lg border border-rose-900/60 text-xs text-rose-200 leading-relaxed">
+                            <strong className="text-rose-400 block mb-1">Kriteria Penolakan:</strong>
+                            {active.ng_criteria}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Approval Sign-off info */}
+                      <div className="p-3 bg-slate-950 rounded-lg border border-slate-800 flex items-center justify-between text-xs text-slate-400">
+                        <span>Lokasi Rak Fisik: <strong className="text-white">{active.storage_location || 'Rak Metrologi'}</strong></span>
+                        <span>QA Lead: <strong className="text-emerald-400">{active.qa_approver || 'Approved'}</strong></span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            ) : (
+              <div className="p-12 text-center flex flex-col items-center justify-center">
+                <ShieldAlert size={48} className="text-slate-600 mb-3" />
+                <h4 className="text-sm font-bold text-white mb-1">Belum Ada Limit Sample untuk Drawing Ini</h4>
+                <p className="text-xs text-slate-400 max-w-md">
+                  Buka menu <strong>Drawing Management & PLM Hub</strong> untuk mendaftarkan Limit Sample master batas mutu part ini.
+                </p>
+              </div>
+            )}
+
+            {/* Footer */}
+            <div className="px-6 py-3 border-t border-slate-800 bg-slate-950 flex justify-end">
+              <button
+                onClick={() => setShowLimitSampleModal(false)}
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold cursor-pointer"
+              >
+                Tutup Pedoman
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── METROLOGY CALIBRATION & MASTER GAUGE BLOCK MODAL (ISO 17025) ─── */}
+      <CalibrationManagerModal
+        isOpen={showCalibrationModal}
+        onClose={() => setShowCalibrationModal(false)}
+        selectedToolId={selectedCalibrationToolId}
+        onSelectTool={(id) => setSelectedCalibrationToolId(id)}
+      />
 
       {/* ─── ISO 9001:2015 & IATF 16949 COMPLIANCE MODALS ──────────────────── */}
 

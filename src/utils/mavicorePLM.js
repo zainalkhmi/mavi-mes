@@ -3,11 +3,26 @@
  * =====================================================
  * PLM/PDM Service for MaviCore
  * Drawing Management + Product Structure + Revision
- * RESILIENT: Supabase Database + LocalStorage Fallback
+ * RESILIENT: Supabase Database + Dexie IndexedDB (No 5MB Quota Limit) + LocalStorage Fallback
  * =====================================================
  */
 
 import { getSupabaseClient } from './supabaseManualDB.js';
+import Dexie from 'dexie';
+
+// ─── Dedicated IndexedDB for PLM & Drawings (Virtually Unlimited Quota) ───
+export const plmLocalDB = typeof window !== 'undefined' ? new Dexie('mandor_plm_local_db') : null;
+if (plmLocalDB) {
+  plmLocalDB.version(1).stores({
+    products: 'id, name, code, updated_at',
+    parts: 'id, name, code, part_type, updated_at',
+    drawings: 'id, name, code, drawing_type, updated_at',
+    drawing_revisions: 'id, drawing_id, revision_code, status, updated_at',
+    drawing_balloons: 'id, drawing_revision_id, balloon_number',
+    drawing_features: 'id, drawing_revision_id, feature_code',
+    drawing_relations: 'id, parent_drawing_id, child_drawing_id'
+  });
+}
 
 // ─── Config ────────────────────────────────────────────
 const DEFAULT_PAGE_SIZE = 20;
@@ -50,23 +65,54 @@ const getClient = () => {
   }
 };
 
-// ─── Local Fallback Storage Helpers ───────────────────
-const getLocal = (key, fallback = []) => {
+// ─── Local Fallback Storage Helpers (IndexedDB + Safe LocalStorage) ───────────────────
+export async function getLocal(key, fallback = []) {
+  if (plmLocalDB && plmLocalDB[key]) {
+    try {
+      const idbList = await plmLocalDB[key].toArray();
+      if (idbList && idbList.length > 0) return idbList;
+    } catch (e) {
+      console.warn(`[PLM IndexedDB] read error for ${key}:`, e);
+    }
+  }
   try {
     const raw = localStorage.getItem(`mandor_plm_${key}`);
     return raw ? JSON.parse(raw) : fallback;
   } catch {
     return fallback;
   }
-};
+}
 
-const setLocal = (key, data) => {
+export async function setLocal(key, data) {
+  // 1. Write full rich payload to IndexedDB (no 5MB quota limit)
+  if (plmLocalDB && plmLocalDB[key]) {
+    try {
+      await plmLocalDB[key].clear();
+      if (Array.isArray(data) && data.length > 0) {
+        await plmLocalDB[key].bulkPut(data);
+      }
+    } catch (e) {
+      console.warn(`[PLM IndexedDB] write error for ${key}:`, e);
+    }
+  }
+
+  // 2. Write lightweight sanitized version to localStorage
   try {
-    localStorage.setItem(`mandor_plm_${key}`, JSON.stringify(data));
+    let sanitized = data;
+    if (Array.isArray(data)) {
+      sanitized = data.slice(0, 15).map(item => {
+        const clean = { ...item };
+        if (clean.file_url && clean.file_url.length > 30000) clean.file_url = null;
+        if (clean.thumbnail_url && clean.thumbnail_url.length > 30000) clean.thumbnail_url = null;
+        if (clean.rendered_image && clean.rendered_image.length > 30000) clean.rendered_image = null;
+        return clean;
+      });
+    }
+    localStorage.setItem(`mandor_plm_${key}`, JSON.stringify(sanitized));
   } catch (err) {
     console.warn(`[PLM LocalStorage] write error for ${key}:`, err);
   }
-};
+}
 
 // =====================================================
 // PRODUCTS
@@ -97,7 +143,7 @@ export async function getProducts({ page = 0, pageSize = DEFAULT_PAGE_SIZE } = {
     }
   }
 
-  const local = getLocal('products', []);
+  const local = await getLocal('products', []);
   const result = { items: local.slice(page * pageSize, (page + 1) * pageSize), total: local.length, page, pageSize };
   setCache('products', cacheKey, result);
   return result;
@@ -113,7 +159,7 @@ export async function getProduct(id) {
       console.warn('[PLM] getProduct Supabase fallback:', e);
     }
   }
-  const local = getLocal('products', []);
+  const local = await getLocal('products', []);
   return local.find(p => p.id === id) || null;
 }
 
@@ -124,6 +170,10 @@ export async function createProduct(product) {
     updated_at: new Date().toISOString(),
     ...product
   };
+
+  if (plmLocalDB) {
+    try { await plmLocalDB.products.put(newProduct); } catch (e) {}
+  }
 
   const client = getClient();
   if (client) {
@@ -138,9 +188,10 @@ export async function createProduct(product) {
     }
   }
 
-  const local = getLocal('products', []);
-  local.unshift(newProduct);
-  setLocal('products', local);
+  const local = await getLocal('products', []);
+  const filtered = local.filter(p => p.id !== newProduct.id);
+  filtered.unshift(newProduct);
+  await setLocal('products', filtered);
   invalidateCache('products');
   return { success: true, data: newProduct };
 }
@@ -160,11 +211,11 @@ export async function updateProduct(id, updates) {
     }
   }
 
-  const local = getLocal('products', []);
+  const local = await getLocal('products', []);
   const idx = local.findIndex(p => p.id === id);
   if (idx !== -1) {
     local[idx] = { ...local[idx], ...updates, updated_at: new Date().toISOString() };
-    setLocal('products', local);
+    await setLocal('products', local);
     invalidateCache('products');
     return { success: true, data: local[idx] };
   }
@@ -172,6 +223,10 @@ export async function updateProduct(id, updates) {
 }
 
 export async function deleteProduct(id) {
+  if (plmLocalDB) {
+    try { await plmLocalDB.products.delete(id); } catch (e) {}
+  }
+
   const client = getClient();
   if (client) {
     try {
@@ -181,8 +236,8 @@ export async function deleteProduct(id) {
     }
   }
 
-  const local = getLocal('products', []);
-  setLocal('products', local.filter(p => p.id !== id));
+  const local = await getLocal('products', []);
+  await setLocal('products', local.filter(p => p.id !== id));
   invalidateCache('products');
   return { success: true };
 }
@@ -202,10 +257,7 @@ export async function getParts() {
     }
   }
 
-  const local = getLocal('parts', [
-    { id: 'prt_1', code: 'PRT-CAST-450', name: 'Housing Cover Cast Al-6061', material: 'AL-6061-T6', weight: '0.45', part_type: 'COMPONENT' },
-    { id: 'prt_2', code: 'PRT-SFT-120', name: 'Precision Stepper Shaft', material: 'SUS-304', weight: '0.28', part_type: 'COMPONENT' }
-  ]);
+  const local = await getLocal('parts', []);
   return local;
 }
 
@@ -220,7 +272,7 @@ export async function getPart(id) {
     }
   }
 
-  const local = getLocal('parts', []);
+  const local = await getLocal('parts', []);
   return local.find(p => p.id === id) || null;
 }
 
@@ -232,6 +284,10 @@ export async function createPart(part) {
     ...part
   };
 
+  if (plmLocalDB) {
+    try { await plmLocalDB.parts.put(newPart); } catch (e) {}
+  }
+
   const client = getClient();
   if (client) {
     try {
@@ -242,9 +298,10 @@ export async function createPart(part) {
     }
   }
 
-  const local = getLocal('parts', []);
-  local.unshift(newPart);
-  setLocal('parts', local);
+  const local = await getLocal('parts', []);
+  const filtered = local.filter(p => p.id !== newPart.id);
+  filtered.unshift(newPart);
+  await setLocal('parts', filtered);
   return { success: true, data: newPart };
 }
 
@@ -260,11 +317,11 @@ export async function updatePart(id, updates) {
     }
   }
 
-  const local = getLocal('parts', []);
+  const local = await getLocal('parts', []);
   const idx = local.findIndex(p => p.id === id);
   if (idx !== -1) {
     local[idx] = { ...local[idx], ...updates, updated_at: new Date().toISOString() };
-    setLocal('parts', local);
+    await setLocal('parts', local);
     return { success: true, data: local[idx] };
   }
   return { success: false, error: 'Part not found' };
@@ -294,8 +351,22 @@ export async function getDrawings({ page = 0, pageSize = DEFAULT_PAGE_SIZE, sear
       }
 
       const { data, error, count } = await query;
-      if (!error && data) {
-        const result = { items: data, total: count || data.length, page, pageSize };
+      if (!error && data && data.length > 0) {
+        // Hydrate from IndexedDB for complete file_urls
+        let hydrated = data;
+        if (plmLocalDB) {
+          try {
+            const idbList = await plmLocalDB.drawings.toArray();
+            const idbMap = new Map(idbList.map(x => [x.id, x]));
+            hydrated = data.map(d => ({
+              ...(idbMap.get(d.id) || {}),
+              ...d,
+              file_url: d.file_url || idbMap.get(d.id)?.file_url,
+              thumbnail_url: d.thumbnail_url || idbMap.get(d.id)?.thumbnail_url
+            }));
+          } catch (e) {}
+        }
+        const result = { items: hydrated, total: count || data.length, page, pageSize };
         setCache('drawings', cacheKey, result);
         return result;
       }
@@ -304,17 +375,17 @@ export async function getDrawings({ page = 0, pageSize = DEFAULT_PAGE_SIZE, sear
     }
   }
 
-  let local = getLocal('drawings', [
-    {
-      id: 'dwg_cast_housing',
-      code: 'DWG-FLG-001',
-      name: 'Hydraulic Flange Housing Cover',
-      drawing_type: 'DETAIL',
-      description: 'Precision casting flange drawing ISO 9001 Rev 2.1',
-      updated_at: new Date().toISOString(),
-      created_at: new Date().toISOString()
-    }
-  ]);
+  // Load from IndexedDB / LocalStorage
+  let local = [];
+  if (plmLocalDB) {
+    try {
+      local = await plmLocalDB.drawings.toArray();
+      local.sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0));
+    } catch (e) {}
+  }
+  if (!local || local.length === 0) {
+    local = await getLocal('drawings', []);
+  }
 
   if (search) {
     const s = search.toLowerCase();
@@ -340,6 +411,16 @@ export async function getDrawing(id) {
   const cached = getCached('drawing', id);
   if (cached) return cached;
 
+  if (plmLocalDB) {
+    try {
+      const idbDrawing = await plmLocalDB.drawings.get(id);
+      if (idbDrawing) {
+        const revisions = await getDrawingRevisions(id);
+        return { ...idbDrawing, drawing_revisions: revisions };
+      }
+    } catch (e) {}
+  }
+
   const client = getClient();
   if (client) {
     try {
@@ -358,10 +439,10 @@ export async function getDrawing(id) {
     }
   }
 
-  const local = getLocal('drawings', []);
+  const local = await getLocal('drawings', []);
   const dwg = local.find(d => d.id === id) || null;
   if (dwg) {
-    const revisions = getLocal('drawing_revisions', []).filter(r => r.drawing_id === id);
+    const revisions = (await getLocal('drawing_revisions', [])).filter(r => r.drawing_id === id);
     return { ...dwg, drawing_revisions: revisions };
   }
   return null;
@@ -379,32 +460,60 @@ export async function createDrawing(drawing) {
     ...drawing
   };
 
+  // 1. Save full rich object to IndexedDB immediately (no quota limit)
+  if (plmLocalDB) {
+    try {
+      await plmLocalDB.drawings.put(newDrawing);
+    } catch (e) {
+      console.warn('[PLM IndexedDB] createDrawing error:', e);
+    }
+  }
+
+  // 2. Try Supabase
   const client = getClient();
   if (client) {
     try {
-      const { data, error } = await client.from('drawings').insert(newDrawing).select().single();
+      const supaPayload = { ...newDrawing };
+      if (supaPayload.file_url && supaPayload.file_url.length > 200000) supaPayload.file_url = null;
+      if (supaPayload.thumbnail_url && supaPayload.thumbnail_url.length > 200000) supaPayload.thumbnail_url = null;
+      const { data, error } = await client.from('drawings').insert(supaPayload).select().single();
       if (!error && data) {
         invalidateCache('drawings');
-        return { success: true, data };
+        return { success: true, data: { ...newDrawing, ...data } };
       }
     } catch (err) {
       console.warn('[PLM] createDrawing Supabase fallback:', err);
     }
   }
 
-  const local = getLocal('drawings', []);
-  local.unshift(newDrawing);
-  setLocal('drawings', local);
+  // 3. Fallback to sanitized LocalStorage
+  const local = await getLocal('drawings', []);
+  const filtered = local.filter(d => d.id !== newDrawing.id);
+  filtered.unshift(newDrawing);
+  await setLocal('drawings', filtered);
   invalidateCache('drawings');
   return { success: true, data: newDrawing };
 }
 
 export async function updateDrawing(id, updates) {
+  const updatedItem = { ...updates, id, updated_at: new Date().toISOString() };
+
+  if (plmLocalDB) {
+    try {
+      const existing = await plmLocalDB.drawings.get(id);
+      await plmLocalDB.drawings.put({ ...(existing || {}), ...updatedItem });
+    } catch (e) {
+      console.warn('[PLM IndexedDB] updateDrawing error:', e);
+    }
+  }
+
   const client = getClient();
   if (client) {
     try {
-      updates.updated_at = new Date().toISOString();
-      const { data, error } = await client.from('drawings').update(updates).eq('id', id).select().single();
+      const supaPayload = { ...updates, updated_at: new Date().toISOString() };
+      if (supaPayload.file_url && supaPayload.file_url.length > 200000) supaPayload.file_url = null;
+      if (supaPayload.thumbnail_url && supaPayload.thumbnail_url.length > 200000) supaPayload.thumbnail_url = null;
+      const { data, error } = await client.from('drawings').update(supaPayload).eq('id', id).select().single();
       if (!error && data) {
         invalidateCache('drawings');
         invalidateCache('drawing', id);
@@ -415,19 +524,25 @@ export async function updateDrawing(id, updates) {
     }
   }
 
-  const local = getLocal('drawings', []);
+  const local = await getLocal('drawings', []);
   const idx = local.findIndex(d => d.id === id);
   if (idx !== -1) {
     local[idx] = { ...local[idx], ...updates, updated_at: new Date().toISOString() };
-    setLocal('drawings', local);
+    await setLocal('drawings', local);
     invalidateCache('drawings');
     invalidateCache('drawing', id);
     return { success: true, data: local[idx] };
   }
-  return { success: false, error: 'Drawing not found' };
+  return { success: true, data: updatedItem };
 }
 
 export async function deleteDrawing(id) {
+  if (plmLocalDB) {
+    try {
+      await plmLocalDB.drawings.delete(id);
+    } catch (e) {}
+  }
+
   const client = getClient();
   if (client) {
     try {
@@ -437,8 +552,8 @@ export async function deleteDrawing(id) {
     }
   }
 
-  const local = getLocal('drawings', []);
-  setLocal('drawings', local.filter(d => d.id !== id));
+  const local = await getLocal('drawings', []);
+  await setLocal('drawings', local.filter(d => d.id !== id));
   invalidateCache('drawings');
   invalidateCache('drawing', id);
   return { success: true };
@@ -449,6 +564,13 @@ export async function deleteDrawing(id) {
 // =====================================================
 
 export async function getDrawingRevisions(drawingId) {
+  if (plmLocalDB) {
+    try {
+      const idbRevs = await plmLocalDB.drawing_revisions.where('drawing_id').equals(drawingId).toArray();
+      if (idbRevs && idbRevs.length > 0) return idbRevs;
+    } catch (e) {}
+  }
+
   const client = getClient();
   if (client) {
     try {
@@ -458,13 +580,13 @@ export async function getDrawingRevisions(drawingId) {
         .eq('drawing_id', drawingId)
         .order('created_at', { ascending: false });
 
-      if (!error && data) return data;
+      if (!error && data && data.length > 0) return data;
     } catch (err) {
       console.warn('[PLM] getDrawingRevisions Supabase fallback:', err);
     }
   }
 
-  const local = getLocal('drawing_revisions', []);
+  const local = await getLocal('drawing_revisions', []);
   const revs = local.filter(r => r.drawing_id === drawingId);
   if (revs.length === 0) {
     return [
@@ -489,19 +611,26 @@ export async function createDrawingRevision(revision) {
     ...revision
   };
 
+  if (plmLocalDB) {
+    try { await plmLocalDB.drawing_revisions.put(newRev); } catch (e) {}
+  }
+
   const client = getClient();
   if (client) {
     try {
-      const { data, error } = await client.from('drawing_revisions').insert(newRev).select().single();
-      if (!error && data) return { success: true, data };
+      const supaRev = { ...newRev };
+      if (supaRev.file_url && supaRev.file_url.length > 200000) supaRev.file_url = null;
+      const { data, error } = await client.from('drawing_revisions').insert(supaRev).select().single();
+      if (!error && data) return { success: true, data: { ...newRev, ...data } };
     } catch (err) {
       console.warn('[PLM] createDrawingRevision Supabase fallback:', err);
     }
   }
 
-  const local = getLocal('drawing_revisions', []);
-  local.unshift(newRev);
-  setLocal('drawing_revisions', local);
+  const local = await getLocal('drawing_revisions', []);
+  const filtered = local.filter(r => r.id !== newRev.id);
+  filtered.unshift(newRev);
+  await setLocal('drawing_revisions', filtered);
   return { success: true, data: newRev };
 }
 
@@ -511,6 +640,13 @@ export async function releaseDrawingRevision(id, releasedBy) {
     released_at: new Date().toISOString(),
     released_by: releasedBy
   };
+
+  if (plmLocalDB) {
+    try {
+      const existing = await plmLocalDB.drawing_revisions.get(id);
+      if (existing) await plmLocalDB.drawing_revisions.put({ ...existing, ...updates });
+    } catch (e) {}
+  }
 
   const client = getClient();
   if (client) {
@@ -522,11 +658,11 @@ export async function releaseDrawingRevision(id, releasedBy) {
     }
   }
 
-  const local = getLocal('drawing_revisions', []);
+  const local = await getLocal('drawing_revisions', []);
   const idx = local.findIndex(r => r.id === id);
   if (idx !== -1) {
     local[idx] = { ...local[idx], ...updates };
-    setLocal('drawing_revisions', local);
+    await setLocal('drawing_revisions', local);
     return { success: true, data: local[idx] };
   }
   return { success: false, error: 'Revision not found' };
@@ -537,6 +673,13 @@ export async function releaseDrawingRevision(id, releasedBy) {
 // =====================================================
 
 export async function getDrawingRelations(parentId) {
+  if (plmLocalDB) {
+    try {
+      const idbRels = await plmLocalDB.drawing_relations.where('parent_id').equals(parentId).toArray();
+      if (idbRels && idbRels.length > 0) return idbRels;
+    } catch (e) {}
+  }
+
   const client = getClient();
   if (client) {
     try {
@@ -552,7 +695,7 @@ export async function getDrawingRelations(parentId) {
     }
   }
 
-  const local = getLocal('drawing_relations', []);
+  const local = await getLocal('drawing_relations', []);
   return local.filter(r => r.parent_id === parentId);
 }
 
@@ -565,6 +708,10 @@ export async function addChildDrawing(parentId, childId, relationType = 'CONTAIN
     created_at: new Date().toISOString()
   };
 
+  if (plmLocalDB) {
+    try { await plmLocalDB.drawing_relations.put(newRel); } catch (e) {}
+  }
+
   const client = getClient();
   if (client) {
     try {
@@ -575,13 +722,17 @@ export async function addChildDrawing(parentId, childId, relationType = 'CONTAIN
     }
   }
 
-  const local = getLocal('drawing_relations', []);
+  const local = await getLocal('drawing_relations', []);
   local.push(newRel);
-  setLocal('drawing_relations', local);
+  await setLocal('drawing_relations', local);
   return { success: true, data: newRel };
 }
 
 export async function removeChildDrawing(relationId) {
+  if (plmLocalDB) {
+    try { await plmLocalDB.drawing_relations.delete(relationId); } catch (e) {}
+  }
+
   const client = getClient();
   if (client) {
     try {
@@ -591,8 +742,8 @@ export async function removeChildDrawing(relationId) {
     }
   }
 
-  const local = getLocal('drawing_relations', []);
-  setLocal('drawing_relations', local.filter(r => r.id !== relationId));
+  const local = await getLocal('drawing_relations', []);
+  await setLocal('drawing_relations', local.filter(r => r.id !== relationId));
   return { success: true };
 }
 
@@ -601,6 +752,13 @@ export async function removeChildDrawing(relationId) {
 // =====================================================
 
 export async function getDrawingFeatures(revisionId) {
+  if (plmLocalDB) {
+    try {
+      const idbFeats = await plmLocalDB.drawing_features.where('drawing_revision_id').equals(revisionId).toArray();
+      if (idbFeats && idbFeats.length > 0) return idbFeats;
+    } catch (e) {}
+  }
+
   const client = getClient();
   if (client) {
     try {
@@ -616,7 +774,7 @@ export async function getDrawingFeatures(revisionId) {
     }
   }
 
-  const local = getLocal('drawing_features', []);
+  const local = await getLocal('drawing_features', []);
   return local.filter(f => f.drawing_revision_id === revisionId);
 }
 
@@ -626,6 +784,10 @@ export async function createDrawingFeature(feature) {
     created_at: new Date().toISOString(),
     ...feature
   };
+
+  if (plmLocalDB) {
+    try { await plmLocalDB.drawing_features.put(newFeature); } catch (e) {}
+  }
 
   const client = getClient();
   if (client) {
@@ -637,13 +799,20 @@ export async function createDrawingFeature(feature) {
     }
   }
 
-  const local = getLocal('drawing_features', []);
+  const local = await getLocal('drawing_features', []);
   local.push(newFeature);
-  setLocal('drawing_features', local);
+  await setLocal('drawing_features', local);
   return { success: true, data: newFeature };
 }
 
 export async function updateDrawingFeature(id, updates) {
+  if (plmLocalDB) {
+    try {
+      const existing = await plmLocalDB.drawing_features.get(id);
+      if (existing) await plmLocalDB.drawing_features.put({ ...existing, ...updates });
+    } catch (e) {}
+  }
+
   const client = getClient();
   if (client) {
     try {
@@ -655,17 +824,21 @@ export async function updateDrawingFeature(id, updates) {
     }
   }
 
-  const local = getLocal('drawing_features', []);
+  const local = await getLocal('drawing_features', []);
   const idx = local.findIndex(f => f.id === id);
   if (idx !== -1) {
     local[idx] = { ...local[idx], ...updates, updated_at: new Date().toISOString() };
-    setLocal('drawing_features', local);
+    await setLocal('drawing_features', local);
     return { success: true, data: local[idx] };
   }
   return { success: false, error: 'Feature not found' };
 }
 
 export async function deleteDrawingFeature(id) {
+  if (plmLocalDB) {
+    try { await plmLocalDB.drawing_features.delete(id); } catch (e) {}
+  }
+
   const client = getClient();
   if (client) {
     try {
@@ -675,8 +848,8 @@ export async function deleteDrawingFeature(id) {
     }
   }
 
-  const local = getLocal('drawing_features', []);
-  setLocal('drawing_features', local.filter(f => f.id !== id));
+  const local = await getLocal('drawing_features', []);
+  await setLocal('drawing_features', local.filter(f => f.id !== id));
   return { success: true };
 }
 
@@ -685,6 +858,13 @@ export async function deleteDrawingFeature(id) {
 // =====================================================
 
 export async function getDrawingBalloons(revisionId) {
+  if (plmLocalDB) {
+    try {
+      const idbBalloons = await plmLocalDB.drawing_balloons.where('drawing_revision_id').equals(revisionId).toArray();
+      if (idbBalloons && idbBalloons.length > 0) return idbBalloons;
+    } catch (e) {}
+  }
+
   const client = getClient();
   if (client) {
     try {
@@ -700,7 +880,7 @@ export async function getDrawingBalloons(revisionId) {
     }
   }
 
-  const local = getLocal('drawing_balloons', []);
+  const local = await getLocal('drawing_balloons', []);
   return local.filter(b => b.drawing_revision_id === revisionId);
 }
 
@@ -710,6 +890,10 @@ export async function createDrawingBalloon(balloon) {
     created_at: new Date().toISOString(),
     ...balloon
   };
+
+  if (plmLocalDB) {
+    try { await plmLocalDB.drawing_balloons.put(newBalloon); } catch (e) {}
+  }
 
   const client = getClient();
   if (client) {
@@ -721,13 +905,20 @@ export async function createDrawingBalloon(balloon) {
     }
   }
 
-  const local = getLocal('drawing_balloons', []);
+  const local = await getLocal('drawing_balloons', []);
   local.push(newBalloon);
-  setLocal('drawing_balloons', local);
+  await setLocal('drawing_balloons', local);
   return { success: true, data: newBalloon };
 }
 
 export async function updateDrawingBalloon(id, updates) {
+  if (plmLocalDB) {
+    try {
+      const existing = await plmLocalDB.drawing_balloons.get(id);
+      if (existing) await plmLocalDB.drawing_balloons.put({ ...existing, ...updates });
+    } catch (e) {}
+  }
+
   const client = getClient();
   if (client) {
     try {
@@ -739,17 +930,21 @@ export async function updateDrawingBalloon(id, updates) {
     }
   }
 
-  const local = getLocal('drawing_balloons', []);
+  const local = await getLocal('drawing_balloons', []);
   const idx = local.findIndex(b => b.id === id);
   if (idx !== -1) {
     local[idx] = { ...local[idx], ...updates, updated_at: new Date().toISOString() };
-    setLocal('drawing_balloons', local);
+    await setLocal('drawing_balloons', local);
     return { success: true, data: local[idx] };
   }
   return { success: false, error: 'Balloon not found' };
 }
 
 export async function deleteDrawingBalloon(id) {
+  if (plmLocalDB) {
+    try { await plmLocalDB.drawing_balloons.delete(id); } catch (e) {}
+  }
+
   const client = getClient();
   if (client) {
     try {
@@ -759,8 +954,8 @@ export async function deleteDrawingBalloon(id) {
     }
   }
 
-  const local = getLocal('drawing_balloons', []);
-  setLocal('drawing_balloons', local.filter(b => b.id !== id));
+  const local = await getLocal('drawing_balloons', []);
+  await setLocal('drawing_balloons', local.filter(b => b.id !== id));
   return { success: true };
 }
 
@@ -853,14 +1048,145 @@ export async function searchPLM(query) {
   };
 }
 
+export async function clearAllDrawings() {
+  if (plmLocalDB) {
+    try {
+      await plmLocalDB.drawings.clear();
+      await plmLocalDB.drawing_revisions.clear();
+      await plmLocalDB.drawing_balloons.clear();
+      await plmLocalDB.drawing_features.clear();
+      await plmLocalDB.drawing_relations.clear();
+      await plmLocalDB.parts.clear();
+    } catch (e) {
+      console.warn('[PLM IndexedDB] clear error:', e);
+    }
+  }
+
+  const client = getClient();
+  if (client) {
+    try {
+      await client.from('drawings').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await client.from('drawing_revisions').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await client.from('drawing_balloons').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await client.from('drawing_features').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await client.from('drawing_relations').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    } catch (e) {
+      console.warn('[PLM Supabase] clear error:', e);
+    }
+  }
+
+  await setLocal('drawings', []);
+  await setLocal('drawing_revisions', []);
+  await setLocal('drawing_balloons', []);
+  await setLocal('drawing_features', []);
+  await setLocal('drawing_relations', []);
+  await setLocal('parts', []);
+  invalidateCache('drawings');
+  invalidateCache('products');
+  return { success: true };
+}
+
+// ─── Limit Sample (Sample Batas / Boundary Sample) Management ───
+export async function getLimitSamples(drawingOrPartId) {
+  if (plmLocalDB) {
+    try {
+      if (plmLocalDB.limit_samples) {
+        let results = [];
+        if (drawingOrPartId) {
+          results = await plmLocalDB.limit_samples
+            .filter(ls => ls.drawing_id === drawingOrPartId || ls.part_id === drawingOrPartId)
+            .toArray();
+        } else {
+          results = await plmLocalDB.limit_samples.toArray();
+        }
+        if (results.length > 0) return results;
+      }
+    } catch (e) {
+      console.warn('[PLM IndexedDB] getLimitSamples error:', e);
+    }
+  }
+
+  // LocalStorage Fallback
+  try {
+    const key = drawingOrPartId ? `mandor_limit_samples_${drawingOrPartId}` : 'mandor_limit_samples_all';
+    const stored = localStorage.getItem(key);
+    if (stored) return JSON.parse(stored);
+  } catch (e) {
+    console.warn('[PLM LocalStorage] getLimitSamples error:', e);
+  }
+  return [];
+}
+
+export async function createLimitSample(data) {
+  const item = {
+    id: data.id || `ls_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+    code: data.code || `LS-${Date.now().toString().slice(-4)}`,
+    title: data.title || 'Limit Sample Visual',
+    defect_category: data.defect_category || 'SCRATCH', // SCRATCH | BURR | DENT | BLOWHOLE | COLOR | FLASH | OTHER
+    drawing_id: data.drawing_id || null,
+    part_id: data.part_id || null,
+    ok_photo_url: data.ok_photo_url || null,
+    ok_criteria: data.ok_criteria || 'Batas maksimal cacat visual yang masih dapat diterima fungsi rakitan.',
+    ng_photo_url: data.ng_photo_url || null,
+    ng_criteria: data.ng_criteria || 'Batas minimal cacat visual yang wajib di-reject / tidak boleh lolos.',
+    status: data.status || 'ACTIVE', // ACTIVE | EXPIRING_SOON | EXPIRED | UNDER_REVIEW
+    effective_date: data.effective_date || new Date().toISOString().split('T')[0],
+    expiry_date: data.expiry_date || new Date(Date.now() + 180 * 86400000).toISOString().split('T')[0], // 6 months validity
+    storage_location: data.storage_location || 'Rak QC Metrologi #01',
+    qa_approver: data.qa_approver || 'QA Manager',
+    customer_approver: data.customer_approver || 'Customer Quality Rep',
+    notes: data.notes || '',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+
+  if (plmLocalDB && plmLocalDB.limit_samples) {
+    try {
+      await plmLocalDB.limit_samples.put(item);
+    } catch (e) {}
+  }
+
+  try {
+    const targetKey = item.drawing_id ? `mandor_limit_samples_${item.drawing_id}` : 'mandor_limit_samples_all';
+    const existing = JSON.parse(localStorage.getItem(targetKey) || '[]');
+    existing.unshift(item);
+    localStorage.setItem(targetKey, JSON.stringify(existing));
+  } catch (e) {}
+
+  return { success: true, data: item };
+}
+
+export async function updateLimitSample(id, updates, drawingId) {
+  const targetKey = drawingId ? `mandor_limit_samples_${drawingId}` : 'mandor_limit_samples_all';
+  try {
+    const existing = JSON.parse(localStorage.getItem(targetKey) || '[]');
+    const updatedList = existing.map(item => item.id === id ? { ...item, ...updates, updated_at: new Date().toISOString() } : item);
+    localStorage.setItem(targetKey, JSON.stringify(updatedList));
+  } catch (e) {}
+
+  return { success: true };
+}
+
+export async function deleteLimitSample(id, drawingId) {
+  const targetKey = drawingId ? `mandor_limit_samples_${drawingId}` : 'mandor_limit_samples_all';
+  try {
+    const existing = JSON.parse(localStorage.getItem(targetKey) || '[]');
+    const filtered = existing.filter(item => item.id !== id);
+    localStorage.setItem(targetKey, JSON.stringify(filtered));
+  } catch (e) {}
+
+  return { success: true };
+}
+
 export default {
   getProducts, getProduct, createProduct, updateProduct, deleteProduct,
   getParts, getPart, createPart, updatePart,
-  getDrawings, getDrawingsAll, getDrawing, createDrawing, updateDrawing, deleteDrawing,
+  getDrawings, getDrawingsAll, getDrawing, createDrawing, updateDrawing, deleteDrawing, clearAllDrawings,
   getDrawingRevisions, createDrawingRevision, releaseDrawingRevision,
   getDrawingRelations, addChildDrawing, removeChildDrawing,
   getDrawingFeatures, createDrawingFeature, updateDrawingFeature, deleteDrawingFeature,
   getDrawingBalloons, createDrawingBalloon, updateDrawingBalloon, deleteDrawingBalloon,
   getInspectionLinks, linkToInspector, linkToChecksheet,
+  getLimitSamples, createLimitSample, updateLimitSample, deleteLimitSample,
   generateCode, getDrawingTree, searchPLM
 };
