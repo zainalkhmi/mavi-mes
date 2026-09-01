@@ -82,6 +82,7 @@ import VirtualMeasuringTool from './checksheet/VirtualMeasuringTool';
 import MetrologyHardwareHub from './checksheet/MetrologyHardwareHub';
 import CameraOCRReader from './checksheet/CameraOCRReader';
 import MeasurementTypeVisual from './checksheet/MeasurementTypeVisual';
+import MobileTabletCheckSheet from './checksheet/MobileTabletCheckSheet';
 import {
   NCRDefectModal,
   OfficialNCRFormModal,
@@ -704,6 +705,10 @@ export default function DigitalDrawingCheckSheet() {
   const [humidity, setHumidity] = useState('52'); // % RH
   const [showEnvModal, setShowEnvModal] = useState(false);
   const [showWatermark] = useState(true);
+  const [isMobileTabletModeActive, setIsMobileTabletModeActive] = useState(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) return true;
+    return false;
+  });
 
   // Clause 8.7: Non-Conformance Reports (NCR) & Defect Management
   const [ncrList, setNcrList] = useState(() => {
@@ -2102,6 +2107,28 @@ export default function DigitalDrawingCheckSheet() {
 
         {/* Right Tools: Compact Action Icons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+          {/* Mobile & Tablet Dedicated Mode Toggle */}
+          <button
+            onClick={() => setIsMobileTabletModeActive(true)}
+            style={{
+              padding: '5px 10px',
+              backgroundColor: '#ff6d5a20',
+              border: '1px solid #ff6d5a',
+              borderRadius: '6px',
+              color: '#ff6d5a',
+              fontSize: '0.72rem',
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px'
+            }}
+            title="Buka Mode Khusus Mobile & Tablet Touch Ergonomis"
+          >
+            <Smartphone size={13} />
+            <span>Mobile / Tablet</span>
+          </button>
+
           {/* Companion QR Button */}
           <button
             onClick={handleGenerateCompanionLink}
@@ -4313,6 +4340,26 @@ export default function DigitalDrawingCheckSheet() {
         humidity={humidity}
         onSave={handleUpdateEnvironment}
       />
+
+      {/* ─── DEDICATED MOBILE & TABLET INDUSTRIAL QC TOUCH MODE ───── */}
+      {isMobileTabletModeActive && (
+        <MobileTabletCheckSheet
+          checksheet={currentCheckSheet}
+          drawingSvg={drawingPreview || (selectedDrawing?.svgData || selectedDrawing?.dataUrl)}
+          checkPoints={checkPoints}
+          measuredValues={checkPoints.reduce((acc, p) => ({ ...acc, [p.id]: p.measuredVal }), {})}
+          onValueChange={(pointId, val) => {
+            handleCommitAndAdvance(pointId, val);
+          }}
+          onOpenHardwareHub={() => setShowHardwareHub(true)}
+          onOpenDefectCamera={() => setShowCameraInput(true)}
+          onOpenSignatureModal={() => setShowSignModal(true)}
+          onSubmitChecksheet={handleSubmitCheckSheet}
+          onCloseMobileMode={() => setIsMobileTabletModeActive(false)}
+          currentPointIndex={activePointIndex}
+          onSelectPoint={(idx) => setActivePointIndex(idx)}
+        />
+      )}
 
     </div>
   );
