@@ -1302,6 +1302,82 @@ export const WorkflowEditorContent = () => {
     toast.success('Kanvas direset ke template default!', { icon: '✨' });
   };
 
+  // ─── LOAD & CONVERT WORKFLOW TEMPLATE INTO CANVAS NODES & EDGES ───
+  const loadTemplateIntoCanvas = useCallback((tpl) => {
+    if (!tpl) return;
+    setWorkflowName(tpl.name || 'Custom Workflow');
+
+    if (tpl.nodes && Array.isArray(tpl.nodes) && tpl.nodes.length > 0) {
+      const generatedNodes = tpl.nodes.map((node, index) => {
+        let canvasType = 'n8n_action';
+        const rawType = (node.type || '').toLowerCase();
+        if (['event', 'trigger', 'n8n_trigger'].includes(rawType)) canvasType = 'n8n_trigger';
+        else if (['decision', 'filter', 'n8n_decision'].includes(rawType)) canvasType = 'n8n_decision';
+        else if (['ai_agent', 'agent', 'n8n_agent'].includes(rawType)) canvasType = 'n8n_agent';
+        else if (rawType === 'n8n_subnode') canvasType = 'n8n_subnode';
+
+        const label = node.data?.label || node.label || `Step ${index + 1}: ${node.type}`;
+        const subtitle = node.data?.type || node.data?.triggerType || node.subtitle || '';
+        const app = (node.data?.type || node.type || '').toLowerCase();
+
+        return {
+          id: `tpl-node-${index}`,
+          type: canvasType,
+          position: {
+            x: 60 + index * 260,
+            y: index % 2 === 0 ? 160 : (index % 3 === 0 ? 280 : 70)
+          },
+          data: {
+            label,
+            subtitle,
+            app: app.includes('slack') ? 'slack' : app.includes('telegram') ? 'telegram' : app.includes('sheet') ? 'sheets' : undefined,
+            mesType: node.mesType || (node.data?.triggerType ? node.data.triggerType.toLowerCase() : undefined),
+            parameters: { ...(node.data || {}) }
+          }
+        };
+      });
+
+      const generatedEdges = (tpl.edges || []).map((edge, idx) => {
+        const sourceId = typeof edge.source === 'number' ? `tpl-node-${edge.source}` : edge.source;
+        const targetId = typeof edge.target === 'number' ? `tpl-node-${edge.target}` : edge.target;
+        return {
+          id: `tpl-edge-${idx}`,
+          source: sourceId,
+          target: targetId,
+          type: 'smoothstep',
+          label: edge.label || undefined,
+          labelStyle: edge.label ? { fill: '#94a3b8', fontSize: 11, fontWeight: 600 } : undefined,
+          labelBgStyle: edge.label ? { fill: '#111116', fillOpacity: 0.8 } : undefined,
+          style: { stroke: '#8b8b99', strokeWidth: 2 }
+        };
+      });
+
+      setNodes(generatedNodes);
+      setEdges(generatedEdges);
+      if (generatedNodes.length > 0) setSelectedNodeId(generatedNodes[0].id);
+      setTimeout(() => {
+        try { reactFlow.fitView({ padding: 0.2, duration: 400 }); } catch (e) {}
+      }, 150);
+    }
+
+    setShowTemplateModal(false);
+    localStorage.removeItem('mandor_active_workflow_template');
+    toast.success(`Template "${tpl.name}" berhasil dimuat ke kanvas!`, { icon: '⚡' });
+  }, [reactFlow, setNodes, setEdges]);
+
+  // Load saved template from Template Gallery navigation on mount
+  useEffect(() => {
+    try {
+      const savedTemplateStr = localStorage.getItem('mandor_active_workflow_template');
+      if (savedTemplateStr) {
+        const parsed = JSON.parse(savedTemplateStr);
+        loadTemplateIntoCanvas(parsed);
+      }
+    } catch (err) {
+      console.error('Failed to load saved workflow template:', err);
+    }
+  }, [loadTemplateIntoCanvas]);
+
   return (
     <div
       style={{
@@ -1804,11 +1880,7 @@ export const WorkflowEditorContent = () => {
                   </div>
 
                   <button
-                    onClick={() => {
-                      setWorkflowName(tpl.name);
-                      setShowTemplateModal(false);
-                      toast.success(`Template "${tpl.name}" berhasil dimuat!`, { icon: '⚡' });
-                    }}
+                    onClick={() => loadTemplateIntoCanvas(tpl)}
                     style={{
                       padding: '8px 14px',
                       borderRadius: '6px',
