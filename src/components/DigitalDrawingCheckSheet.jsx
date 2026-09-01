@@ -1396,9 +1396,19 @@ export default function DigitalDrawingCheckSheet() {
         status,
         reason: 'Revisi hasil ukur inspeksi'
       };
-      const updatedAudit = [auditEntry, ...auditTrail];
+      const updatedAudit = [auditEntry, ...auditTrail].slice(0, 50); // Keep max 50 recent audits
       setAuditTrail(updatedAudit);
-      localStorage.setItem('mandor_checksheet_audit_trail', JSON.stringify(updatedAudit));
+      try {
+        localStorage.setItem('mandor_checksheet_audit_trail', JSON.stringify(updatedAudit));
+      } catch (storageErr) {
+        console.warn('[Audit Trail Storage Quota]', storageErr);
+        try {
+          // If quota exceeded, keep only the latest 10 items
+          localStorage.setItem('mandor_checksheet_audit_trail', JSON.stringify(updatedAudit.slice(0, 10)));
+        } catch {
+          // Fallback ignore storage full
+        }
+      }
     }
 
     const updatedPoints = checkPoints.map((p, idx) => {
@@ -1593,8 +1603,13 @@ export default function DigitalDrawingCheckSheet() {
         }
       }
 
-      const localLogs = JSON.parse(localStorage.getItem('mandor_qa_checksheets') || '[]');
-      localStorage.setItem('mandor_qa_checksheets', JSON.stringify([payload, ...localLogs]));
+      try {
+        const localLogs = JSON.parse(localStorage.getItem('mandor_qa_checksheets') || '[]');
+        const trimmed = [payload, ...localLogs].slice(0, 25);
+        localStorage.setItem('mandor_qa_checksheets', JSON.stringify(trimmed));
+      } catch (err) {
+        console.warn('[QA Checksheets Quota Exceeded]', err);
+      }
       toast.success(`Sertifikat inspeksi QC ISO 9001 tersimpan! Status: ${payload.overallStatus}`);
     } catch (e) {
       console.warn('Auto-save note:', e);
