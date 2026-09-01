@@ -1,13 +1,24 @@
 /**
  * supabaseTemplateDB.js
- * Cloud storage for Inspector Studio templates via Supabase
- * OPTIMIZED: Pagination + Caching
+ * Cloud storage + Dexie IndexedDB storage for Inspector Studio templates
+ * OPTIMIZED: Pagination + Caching + IndexedDB Full Storage (No 5MB Quota Limit)
  */
 import { getSupabaseAuth } from './supabaseAuth.js';
+import Dexie from 'dexie';
 
 const DEFAULT_PAGE_SIZE = 20;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const cache = new Map();
+
+import { drawingsLocalDB } from './supabaseUtilityDB.js';
+
+// Dedicated IndexedDB for Inspector Studio Templates (No 5MB Quota Limit)
+export const templatesLocalDB = typeof window !== 'undefined' ? new Dexie('mandor_inspector_templates_db') : null;
+if (templatesLocalDB) {
+    templatesLocalDB.version(1).stores({
+        templates: 'id, name, docNo, status, updated_at'
+    });
+}
 
 const getCached = (key) => {
     const cached = cache.get(key);
@@ -22,8 +33,76 @@ const setCache = (key, data) => {
     cache.set(key, { data, timestamp: Date.now() });
 };
 
-// Table: inspector_templates
-// Columns: id, name, doc_no, revision, status, template_data (jsonb), created_at, updated_at
+/**
+ * Sanitize templates for localStorage (strip heavy base64 to avoid quota error)
+ */
+export function sanitizeForLocalStorage(templates) {
+    if (!Array.isArray(templates)) return [];
+    return templates.slice(0, 10).map(t => {
+        const clean = { ...t };
+        if (clean.drawingSvg && clean.drawingSvg.length > 30000) clean.drawingSvg = null;
+        if (clean.drawingDataUrl && clean.drawingDataUrl.length > 30000) clean.drawingDataUrl = null;
+        if (clean.pdfData && clean.pdfData.length > 30000) clean.pdfData = null;
+        if (clean.cadData && clean.cadData.length > 30000) clean.cadData = null;
+        if (clean.thumbnail && clean.thumbnail.length > 30000) clean.thumbnail = null;
+        return clean;
+    });
+}
+
+/**
+ * Safely persist templates to IndexedDB (full) and localStorage (lightweight)
+ */
+export async function safePersistTemplates(templates) {
+    if (!Array.isArray(templates)) return;
+    cache.clear();
+    
+    // 1. Save full rich templates to IndexedDB (virtually unlimited quota)
+    // Clear first so deleted items do not persist
+    if (templatesLocalDB) {
+        try {
+            await templatesLocalDB.templates.clear();
+            if (templates.length > 0) {
+                await templatesLocalDB.templates.bulkPut(templates);
+            }
+        } catch (dbErr) {
+            console.warn('[Templates IndexedDB] Bulk put error:', dbErr);
+        }
+    }
+
+    // 2. Save lightweight sanitized version to localStorage without throwing quota error
+    try {
+        const sanitized = sanitizeForLocalStorage(templates);
+        localStorage.setItem('mandor_inspector_templates', JSON.stringify(sanitized));
+    } catch (e) {
+        try {
+            const minimal = sanitizeForLocalStorage(templates).slice(0, 3);
+            localStorage.setItem('mandor_inspector_templates', JSON.stringify(minimal));
+        } catch (e2) {
+            console.warn('[Templates LocalStorage] Quota full, relying on IndexedDB:', e2);
+        }
+    }
+}
+
+/**
+ * Safely retrieve templates from IndexedDB first, then localStorage
+ */
+export async function safeRetrieveLocalTemplates() {
+    if (templatesLocalDB) {
+        try {
+            const idbList = await templatesLocalDB.templates.toArray();
+            if (idbList && idbList.length > 0) {
+                return idbList;
+            }
+        } catch (dbErr) {
+            console.warn('[Templates IndexedDB] Retrieve error:', dbErr);
+        }
+    }
+    try {
+        return JSON.parse(localStorage.getItem('mandor_inspector_templates') || '[]');
+    } catch (e) {
+        return [];
+    }
+}
 
 /**
  * Get templates with pagination
@@ -56,8 +135,8 @@ export async function getTemplates({ page = 0, pageSize = DEFAULT_PAGE_SIZE, sea
         setCache(cacheKey, result);
         return result;
     } catch (e) {
-        console.warn('[Supabase Templates] getTemplates failed, falling back to localStorage', e);
-        const local = JSON.parse(localStorage.getItem('mandor_inspector_templates') || '[]');
+        console.warn('[Supabase Templates] getTemplates failed, falling back to local DB', e);
+        const local = await safeRetrieveLocalTemplates();
         return { items: local, total: local.length, page, pageSize };
     }
 }
@@ -80,11 +159,13 @@ export async function getTemplatesAll() {
             .order('updated_at', { ascending: false });
         if (error) throw error;
 
-        setCache(cacheKey, data || []);
-        return data || [];
+        const templates = (data || []).map(row => row.template_data || row);
+        await safePersistTemplates(templates);
+        setCache(cacheKey, templates);
+        return templates;
     } catch (e) {
-        console.warn('[Supabase Templates] getTemplatesAll failed, falling back to localStorage', e);
-        return JSON.parse(localStorage.getItem('mandor_inspector_templates') || '[]');
+        console.warn('[Supabase Templates] getTemplatesAll failed, falling back to local DB', e);
+        return await safeRetrieveLocalTemplates();
     }
 }
 
@@ -93,8 +174,12 @@ export async function getTemplatesAll() {
  */
 export async function saveTemplates(templates) {
     if (!templates?.length) return;
+    cache.clear();
 
-    // Sanitize templates: remove huge base64 drawingSvg from template_data payload
+    // 1. Immediately persist to IndexedDB + sanitized localStorage
+    await safePersistTemplates(templates);
+
+    // 2. Sanitize templates for Supabase payload
     const safeTemplates = templates.map(t => {
         if (t.drawingSvg && t.drawingSvg.length > 200000) {
             return { ...t, drawingSvg: null };
@@ -126,21 +211,7 @@ export async function saveTemplates(templates) {
             }
         }
     } catch (e) {
-        console.warn('[Supabase] saveTemplates failed, trying localStorage', e);
-    }
-
-    // Save locally as fallback, but handle quota exceeded
-    try {
-        localStorage.setItem('mandor_inspector_templates', JSON.stringify(safeTemplates.slice(-10)));
-    } catch (e) {
-        if (e.name === 'QuotaExceededError' || e.message?.includes('quota')) {
-            console.warn('[Templates] localStorage full, saving latest 3 templates');
-            try {
-                localStorage.setItem('mandor_inspector_templates', JSON.stringify(safeTemplates.slice(-3)));
-            } catch (e2) {
-                console.error('[Templates] Cannot save templates to localStorage');
-            }
-        }
+        console.warn('[Supabase] saveTemplates failed, stored in local IndexedDB', e);
     }
 }
 
@@ -160,25 +231,59 @@ export async function getTemplate(id) {
         if (error) throw error;
         return data?.template_data || null;
     } catch (e) {
-        const local = JSON.parse(localStorage.getItem('mandor_inspector_templates') || '[]');
+        const local = await safeRetrieveLocalTemplates();
         return local.find(t => t.id === id) || null;
     }
 }
 
 /**
- * Delete template by id
+ * Delete template by id permanently across Supabase, IndexedDB, and localStorage
  */
 export async function deleteTemplate(id) {
+    cache.clear();
+    
+    // 1. Delete from Supabase
     try {
         const client = getSupabaseAuth();
-        if (!client) throw new Error('Supabase not configured');
-
-        await client.from('inspector_templates').delete().eq('id', id);
+        if (client) {
+            await client.from('inspector_templates').delete().eq('id', id);
+        }
     } catch (e) {
-        console.warn('[Supabase] deleteTemplate offline', e);
+        console.warn('[Supabase] deleteTemplate error:', e);
     }
-    const local = JSON.parse(localStorage.getItem('mandor_inspector_templates') || '[]');
+    
+    // 2. Delete from templates IndexedDB
+    if (templatesLocalDB) {
+        try {
+            await templatesLocalDB.templates.delete(id);
+        } catch (dbErr) {
+            console.warn('[Templates IndexedDB] Delete error:', dbErr);
+        }
+    }
+
+    // 3. Also delete from drawings IndexedDB
+    if (drawingsLocalDB) {
+        try {
+            await drawingsLocalDB.drawings.delete(id);
+        } catch (dwgErr) {
+            console.warn('[Drawings IndexedDB] Delete error:', dwgErr);
+        }
+    }
+
+    // 4. Delete from drawings localStorage
+    try {
+        const dwgsRaw = localStorage.getItem('mandor_drawings');
+        if (dwgsRaw) {
+            const dwgs = JSON.parse(dwgsRaw);
+            const filteredDwgs = dwgs.filter(d => d.id !== id && d.templateId !== id && d.name !== id);
+            localStorage.setItem('mandor_drawings', JSON.stringify(filteredDwgs));
+        }
+    } catch (e) {}
+    
+    // 5. Delete from templates localStorage and memory
+    const local = await safeRetrieveLocalTemplates();
     const filtered = local.filter(t => t.id !== id);
-    localStorage.setItem('mandor_inspector_templates', JSON.stringify(filtered));
+    await safePersistTemplates(filtered);
     return filtered;
 }
+

@@ -2066,4 +2066,10 @@ const FunctionsEditor = () => {
   );
 };
 
-export default FunctionsEditor;
+const WrappedFunctionsEditor = (props) => (
+  <ReactFlowProvider>
+    <FunctionsEditor {...props} />
+  </ReactFlowProvider>
+);
+
+export default WrappedFunctionsEditor;

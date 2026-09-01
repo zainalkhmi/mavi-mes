@@ -1078,9 +1078,12 @@ export default function DigitalDrawingCheckSheet() {
   const handleCreateStandardQcTable = async () => {
     setIsCreatingTable(true);
     try {
+      const title = (checkSheetInfo?.title || checkSheetInfo?.name || 'Check Sheet').trim().replace(/[/\\?%*:|"<>]/g, '');
+      const part = (checkSheetInfo?.partNo || partNo || 'PART').trim().replace(/[/\\?%*:|"<>]/g, '');
+      const tblName = `${title} - ${part}`;
       const newTbl = await createTable({
-        name: 'QC Inspection Records',
-        description: 'Log hasil pengukuran digital checksheet ISO 9001 & QA inspection',
+        name: tblName,
+        description: `Log hasil pengukuran digital checksheet ${title} (${part})`,
         fields: [
           { name: 'Work_Order', type: 'text', required: true },
           { name: 'Serial_Number', type: 'text', required: true },

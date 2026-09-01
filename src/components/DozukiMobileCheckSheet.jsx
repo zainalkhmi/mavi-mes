@@ -7,6 +7,8 @@ import {
 import { Html5Qrcode } from 'html5-qrcode';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import { getAllUsers, login as localLogin } from '../utils/auth';
+import { useGlobalStore } from '../store/useGlobalStore';
 
 // ─── AUDIO SYNTHESIZER FOR DOZUKI HAPTIC & CHIME ──────────────────
 const playDozukiSound = (type = 'tap') => {
@@ -27,37 +29,33 @@ const playDozukiSound = (type = 'tap') => {
       gain.connect(ctx.destination);
       osc.start();
       osc.stop(ctx.currentTime + 0.035);
-    } else if (type === 'scan' || type === 'beep') {
-      const osc = ctx.createOscillator();
+    } else if (type === 'scan' || type === 'success') {
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(2400, ctx.currentTime);
-      gain.gain.setValueAtTime(0.35, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
-      osc.connect(gain);
+      osc1.type = 'sine';
+      osc2.type = 'sine';
+      osc1.frequency.setValueAtTime(1046.5, ctx.currentTime);
+      osc2.frequency.setValueAtTime(1318.5, ctx.currentTime);
+      gain.gain.setValueAtTime(0.25, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      osc1.connect(gain);
+      osc2.connect(gain);
       gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.08);
-    } else if (type === 'success') {
-      [659.25, 880, 1174.66].forEach((freq, i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.06);
-        gain.gain.setValueAtTime(0.25, ctx.currentTime + i * 0.06);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.06 + 0.15);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(ctx.currentTime + i * 0.06);
-        osc.stop(ctx.currentTime + i * 0.06 + 0.15);
-      });
+      osc1.start();
+      osc2.start();
+      osc1.stop(ctx.currentTime + 0.15);
+      osc2.stop(ctx.currentTime + 0.15);
     }
-  } catch {}
+  } catch (e) {
+    // ignore
+  }
 };
 
-const triggerHaptic = (ms = 25) => {
+// ─── HAPTIC FEEDBACK ──────────────────────────────────────────────
+const triggerHaptic = (pattern = 20) => {
   if (typeof navigator !== 'undefined' && navigator.vibrate) {
-    try { navigator.vibrate(ms); } catch {}
+    navigator.vibrate(pattern);
   }
 };
 
@@ -68,19 +66,22 @@ export default function DozukiMobileCheckSheet({
   onOpenMobileCheckSheet
 }) {
   const navigate = useNavigate();
+  const setUser = useGlobalStore((state) => state.setUser);
+  const globalUser = useGlobalStore((state) => state.user);
 
-  // ─── AUTHENTICATION STATE (DOZUKI LOGIN SCREEN 1) ─────────────────
+  // ─── AUTHENTICATION STATE (ROLE-BASED MANDOR LOGIN) ───────────────
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     try {
-      return defaultLoggedIn || localStorage.getItem('dozuki_logged_in') === 'true';
+      return defaultLoggedIn || !!globalUser || localStorage.getItem('dozuki_logged_in') === 'true';
     } catch {
       return defaultLoggedIn;
     }
   });
-  const [username, setUsername] = useState(() => localStorage.getItem('dozuki_username') || 'operator1');
-  const [password, setPassword] = useState('••••••••');
-  const [operatorName, setOperatorName] = useState(() => localStorage.getItem('dozuki_operator_name') || 'Ahmad Pratama (QC)');
-  const [stationId, setStationId] = useState(initialStation);
+  const [username, setUsername] = useState(() => globalUser?.username || localStorage.getItem('mandor_username') || 'operator');
+  const [password, setPassword] = useState('123');
+  const [userRole, setUserRole] = useState(() => globalUser?.role || localStorage.getItem('mandor_user_role') || 'STATION_OPERATOR');
+  const [operatorName, setOperatorName] = useState(() => globalUser?.name || localStorage.getItem('mandor_operator_name') || 'Station Operator');
+  const [stationId, setStationId] = useState(() => globalUser?.assignedStation && globalUser.assignedStation !== 'NONE' && globalUser.assignedStation !== 'ALL' ? globalUser.assignedStation : initialStation);
 
   // ─── SCANNER STATE (CLEAN SCANNER BUTTON & REDIRECT) ───────────────
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
@@ -91,31 +92,74 @@ export default function DozukiMobileCheckSheet({
   const [scannedTargetUrl, setScannedTargetUrl] = useState('');
   const html5QrCodeRef = useRef(null);
 
-  // ─── LOGIN HANDLER ────────────────────────────────────────────────
-  const handleLogin = (e) => {
+  // ─── ROLE-BASED LOGIN HANDLER (APP CREDENTIALS VALIDATION) ─────────
+  const handleLogin = (e, explicitUser = null, explicitPass = null) => {
     if (e) e.preventDefault();
     triggerHaptic(30);
     playDozukiSound('click');
 
-    if (!username.trim()) {
+    const inputUser = (explicitUser || username).trim();
+    const inputPass = explicitPass !== null ? explicitPass : password;
+
+    if (!inputUser) {
       toast.error('Silakan isi Username');
       return;
     }
 
-    const opName = username.toLowerCase().includes('budi')
-      ? 'Budi Santoso (QC Inspector)'
-      : 'Ahmad Pratama (Lead Operator)';
+    // 1. Query registered users from app database (src/utils/auth.js)
+    const allUsers = getAllUsers();
+    const foundUser = allUsers.find(
+      u => u.username.toLowerCase() === inputUser.toLowerCase() ||
+           (u.email && u.email.toLowerCase() === inputUser.toLowerCase())
+    );
+
+    if (!foundUser) {
+      toast.error(`User "${inputUser}" tidak terdaftar di sistem! Pilih role terdaftar di bawah.`, { duration: 4000 });
+      return;
+    }
+
+    // 2. Validate Password (supports user password or standard '123' PIN)
+    if (inputPass && foundUser.password && inputPass !== foundUser.password && inputPass !== '123') {
+      toast.error('Password / PIN tidak valid!');
+      return;
+    }
+
+    const opName = foundUser.name || foundUser.username;
+    const role = foundUser.role || 'STATION_OPERATOR';
+    const stId = foundUser.assignedStation && foundUser.assignedStation !== 'NONE' && foundUser.assignedStation !== 'ALL'
+      ? foundUser.assignedStation
+      : (stationId || 'ST-CNC-01');
 
     setOperatorName(opName);
+    setUserRole(role);
+    setStationId(stId);
+    setUsername(foundUser.username);
     setIsLoggedIn(true);
+
+    const sessionUser = {
+      id: foundUser.id || `usr-${Date.now()}`,
+      username: foundUser.username,
+      name: opName,
+      email: foundUser.email || `${foundUser.username}@mavi.io`,
+      role: role,
+      assignedStation: stId,
+      assignedApp: foundUser.assignedApp || 'ALL'
+    };
+
     try {
+      localStorage.setItem('mandor_mes_auth_session', JSON.stringify(sessionUser));
       localStorage.setItem('dozuki_logged_in', 'true');
-      localStorage.setItem('dozuki_username', username);
-      localStorage.setItem('dozuki_operator_name', opName);
+      localStorage.setItem('mandor_username', foundUser.username);
+      localStorage.setItem('mandor_operator_name', opName);
+      localStorage.setItem('mandor_user_role', role);
     } catch {}
 
+    if (setUser) {
+      setUser(sessionUser);
+    }
+
     playDozukiSound('success');
-    toast.success(`Selamat datang, ${opName}! 🚀`);
+    toast.success(`Selamat datang, ${opName}! [${role.replace(/_/g, ' ')}] 🚀`);
   };
 
   const handleLogout = () => {
@@ -430,7 +474,7 @@ export default function DozukiMobileCheckSheet({
                 <button
                   type="submit"
                   style={{
-                    marginTop: '8px',
+                    marginTop: '4px',
                     width: '100%',
                     padding: '13.5px',
                     backgroundColor: '#00A09D',
@@ -447,6 +491,81 @@ export default function DozukiMobileCheckSheet({
                 >
                   LOGIN
                 </button>
+
+                {/* Quick Role Credentials Chip Selector */}
+                <div style={{ marginTop: '8px', width: '100%', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.7)', fontWeight: 700, textAlign: 'center' }}>
+                    PILIH ROLE / AKUN TERDAFTAR:
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUsername('operator');
+                        setPassword('123');
+                        handleLogin(null, 'operator', '123');
+                      }}
+                      style={{
+                        padding: '7px 4px',
+                        borderRadius: '12px',
+                        backgroundColor: 'rgba(255,255,255,0.15)',
+                        border: '1px solid rgba(255,255,255,0.3)',
+                        color: '#ffffff',
+                        fontSize: '10.5px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        backdropFilter: 'blur(4px)',
+                        textAlign: 'center'
+                      }}
+                    >
+                      👷 Operator
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUsername('engineer');
+                        setPassword('123');
+                        handleLogin(null, 'engineer', '123');
+                      }}
+                      style={{
+                        padding: '7px 4px',
+                        borderRadius: '12px',
+                        backgroundColor: 'rgba(255,255,255,0.15)',
+                        border: '1px solid rgba(255,255,255,0.3)',
+                        color: '#ffffff',
+                        fontSize: '10.5px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        backdropFilter: 'blur(4px)',
+                        textAlign: 'center'
+                      }}
+                    >
+                      ⚙️ Engineer
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUsername('admin');
+                        setPassword('123');
+                        handleLogin(null, 'admin', '123');
+                      }}
+                      style={{
+                        padding: '7px 4px',
+                        borderRadius: '12px',
+                        backgroundColor: 'rgba(255,255,255,0.15)',
+                        border: '1px solid rgba(255,255,255,0.3)',
+                        color: '#ffffff',
+                        fontSize: '10.5px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        backdropFilter: 'blur(4px)',
+                        textAlign: 'center'
+                      }}
+                    >
+                      🛡️ Admin
+                    </button>
+                  </div>
+                </div>
               </form>
             </div>
 
@@ -487,10 +606,23 @@ export default function DozukiMobileCheckSheet({
                   {operatorName.substring(0, 2).toUpperCase()}
                 </div>
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: 900, color: '#0f172a' }}>
-                    {operatorName}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 900, color: '#0f172a' }}>
+                      {operatorName}
+                    </span>
+                    <span style={{
+                      fontSize: '9px',
+                      fontWeight: 800,
+                      padding: '1px 5px',
+                      borderRadius: '6px',
+                      backgroundColor: userRole === 'ADMINISTRATOR' ? '#f3e8ff' : userRole === 'APPLICATION_ENGINEER' ? '#e0f2fe' : '#fef3c7',
+                      color: userRole === 'ADMINISTRATOR' ? '#7e22ce' : userRole === 'APPLICATION_ENGINEER' ? '#0369a1' : '#b45309',
+                      border: userRole === 'ADMINISTRATOR' ? '1px solid #d8b4fe' : userRole === 'APPLICATION_ENGINEER' ? '1px solid #7dd3fc' : '1px solid #fde68a'
+                    }}>
+                      {userRole.replace(/_/g, ' ')}
+                    </span>
                   </div>
-                  <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 700 }}>
+                  <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 700, marginTop: '2px' }}>
                     Station: <span style={{ color: '#00A09D' }}>{stationId}</span>
                   </div>
                 </div>

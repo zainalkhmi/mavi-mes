@@ -2711,7 +2711,17 @@ const AppPlayer = () => {
 
 
                     {/* Main Content Area */}
-                    <div style={{ flex: 1, backgroundColor: '#f8fafc', position: 'relative', overflow: 'hidden' }}>
+                    <div style={{
+                        flex: 1,
+                        backgroundColor: activeDevicePresetKey === 'RESPONSIVE' ? '#f8fafc' : '#0a0e1a',
+                        position: 'relative',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: activeDevicePresetKey === 'RESPONSIVE' ? '0' : '16px',
+                        boxSizing: 'border-box'
+                    }}>
                         
                         {showCameraModal && (
                             <CameraCaptureModal 
@@ -2846,21 +2856,57 @@ const AppPlayer = () => {
                                 </div>
                             </div>
                         ) : (
-                            <iframe
-                                ref={iframeRef}
-                                key={`${activeAppId}_${activeDevicePresetKey}_${activeOrientation}_${appScaleMode}_${appLayoutMode}`}
-                                title="frontline-app-player"
-                                src={appLaunchUrl}
-                                onLoad={handleIframeLoad}
-                                onError={handleIframeError}
-                                style={{ 
-                                    width: '100%', height: '100%', border: 'none', 
-                                    backgroundColor: activeApp?.config?.appBackgroundColor || 'white',
-                                    pointerEvents: isPaused ? 'none' : 'auto',
-                                    transition: 'filter 0.3s',
-                                    filter: isPaused ? 'blur(2px) grayscale(50%)' : 'none'
-                                }}
-                            />
+                            activeDevicePresetKey === 'RESPONSIVE' ? (
+                                <iframe
+                                    ref={iframeRef}
+                                    key={`${activeAppId}_${activeDevicePresetKey}_${activeOrientation}_${appScaleMode}_${appLayoutMode}`}
+                                    title="frontline-app-player"
+                                    src={appLaunchUrl}
+                                    onLoad={handleIframeLoad}
+                                    onError={handleIframeError}
+                                    style={{ 
+                                        width: '100%', height: '100%', border: 'none', 
+                                        backgroundColor: activeApp?.config?.appBackgroundColor || 'white',
+                                        pointerEvents: isPaused ? 'none' : 'auto',
+                                        transition: 'filter 0.3s',
+                                        filter: isPaused ? 'blur(2px) grayscale(50%)' : 'none'
+                                    }}
+                                />
+                            ) : (
+                                <div style={{
+                                    width: activeOrientation === 'PORTRAIT' 
+                                        ? `${DEVICE_PRESETS[activeDevicePresetKey]?.width || 768}px` 
+                                        : `${DEVICE_PRESETS[activeDevicePresetKey]?.height || 1024}px`,
+                                    height: activeOrientation === 'PORTRAIT' 
+                                        ? `${DEVICE_PRESETS[activeDevicePresetKey]?.height || 1024}px` 
+                                        : `${DEVICE_PRESETS[activeDevicePresetKey]?.width || 768}px`,
+                                    maxWidth: '100%',
+                                    maxHeight: '100%',
+                                    borderRadius: '16px',
+                                    boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.12)',
+                                    overflow: 'hidden',
+                                    backgroundColor: activeApp?.config?.appBackgroundColor || '#0f172a',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    transition: 'all 0.25s ease'
+                                }}>
+                                    <iframe
+                                        ref={iframeRef}
+                                        key={`${activeAppId}_${activeDevicePresetKey}_${activeOrientation}_${appScaleMode}_${appLayoutMode}`}
+                                        title="frontline-app-player"
+                                        src={appLaunchUrl}
+                                        onLoad={handleIframeLoad}
+                                        onError={handleIframeError}
+                                        style={{ 
+                                            width: '100%', height: '100%', border: 'none', 
+                                            backgroundColor: activeApp?.config?.appBackgroundColor || 'white',
+                                            pointerEvents: isPaused ? 'none' : 'auto',
+                                            transition: 'filter 0.3s',
+                                            filter: isPaused ? 'blur(2px) grayscale(50%)' : 'none'
+                                        }}
+                                    />
+                                </div>
+                            )
                         )}
                     </div>
                 </div>

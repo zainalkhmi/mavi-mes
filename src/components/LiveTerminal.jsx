@@ -12317,183 +12317,7 @@ const LiveTerminal = () => {
     selectedApp ? getStepRequiredSummary(step) : { total: 0, done: 0, ok: true }
   ));
 
-  if (isMobile) {
-    return (
-      <div style={{ height: '100dvh', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc', display: 'flex', flexDirection: 'column', fontFamily: "'Inter', sans-serif", overflow: 'hidden' }}>
-        {/* Mobile App Header */}
-        <div style={{
-          padding: '12px 16px', backgroundColor: activeAndon ? '#dc2626' : '#001e3c', color: 'white',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0,
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <button onClick={() => { setSelectedApp(null); setSelectedManual(null); }} style={{ background: 'none', border: 'none', color: 'white', padding: '4px' }}><ArrowLeft size={20} /></button>
-            <div style={{ fontWeight: 800, fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '180px' }}>
-              {selectedApp ? selectedApp.name : selectedManual.title}
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <div onClick={() => setShowChat(true)} style={{ position: 'relative' }}><MessageSquare size={18} /></div>
-            <div onClick={() => setShowAndonModal(true)}><AlertCircle size={18} color={activeAndon ? 'white' : '#fca5a5'} /></div>
-          </div>
-        </div>
 
-        {/* Mobile Step Indicator - Compact */}
-        <div style={{
-          padding: '10px 16px', backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white',
-          borderBottom: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`,
-          display: 'flex', overflowX: 'auto', gap: '8px', scrollbarWidth: 'none'
-        }}>
-          {steps.map((step, idx) => (
-            <div
-              key={idx}
-              onClick={() => setCurrentStepIndex(idx)}
-              style={{
-                padding: '6px 12px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 700,
-                backgroundColor: idx === currentStepIndex ? '#3b82f6' : (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f1f5f9'),
-                color: idx === currentStepIndex ? 'white' : '#64748b',
-                whiteSpace: 'nowrap', border: `1px solid ${idx === currentStepIndex ? '#3b82f6' : 'transparent'}`
-              }}
-            >
-              Step {idx + 1}
-            </div>
-          ))}
-        </div>
-
-        {/* Mobile Component Container */}
-        <div 
-          ref={setCanvasWrapper}
-          style={{
-            flex: 1, overflowY: 'auto', padding: (isResponsiveMode || effectiveScalingMode === 'FIT_WIDTH') ? '0px' : '16px',
-            display: 'flex', flexDirection: 'column', 
-            alignItems: (effectiveScalingMode === 'FIT_WIDTH') ? 'stretch' : 'center',
-            justifyContent: (effectiveScalingMode === 'FIT_WIDTH') ? 'flex-start' : 'center',
-            backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#f8fafc')
-          }}
-        >
-          <div style={{
-            width: (effectiveScalingMode === 'FIT_WIDTH') ? '100%' : `${layoutWidth * scaleX}px`,
-            height: `${layoutHeight * scaleY}px`,
-            position: 'relative',
-            overflow: 'hidden',
-            flexShrink: 0,
-            flex: 'none',
-            backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || '#ffffff',
-            borderRadius: (isPreset && effectiveScalingMode === 'FIT_SCREEN') ? canvasFrameRadius : '0px',
-            boxShadow: (isPreset && effectiveScalingMode === 'FIT_SCREEN') ? canvasFrameShadow : 'none',
-            border: (isPreset && effectiveScalingMode === 'FIT_SCREEN') ? canvasFrameBorder : 'none'
-          }}>
-            <div style={{
-              width: `${layoutWidth}px`,
-              height: `${layoutHeight}px`,
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              transform: `scale(${scaleX}, ${scaleY})`,
-              transformOrigin: 'top left',
-              backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || '#ffffff'
-            }}>
-              {[...appComponents]
-                .filter(c => (!c.step_id || c.step_id === activeStep?.id) && visibilityMap[c.id] !== false)
-                .sort((a, b) => (a.props?.zIndex || 0) - (b.props?.zIndex || 0))
-                .map((comp, idx) => {
-                  const isAbsolute = comp.x != null && comp.y != null;
-                  const containerStyle = isAbsolute ? {
-                    position: 'absolute',
-                    left: `${comp.x}px`,
-                    top: `${comp.y}px`,
-                    width: comp.w ? `${comp.w}px` : 'auto',
-                    height: comp.h ? `${comp.h}px` : 'auto',
-                    zIndex: comp.props?.zIndex || 100,
-                    transform: `rotate(${comp.props?.rotation || 0}deg)`,
-                    overflow: 'visible'
-                  } : {
-                    width: '100%',
-                    transform: `rotate(${comp.props?.rotation || 0}deg)`,
-                    marginBottom: '20px',
-                    position: 'relative'
-                  };
-                  const err = validationErrors[comp.id];
-                  return (
-                    <div key={comp.id || idx} style={containerStyle}>
-                      <div style={{
-                        border: err ? '2px solid #ef4444' : 'none',
-                        borderRadius: '8px',
-                        padding: err ? '10px' : 0,
-                        backgroundColor: err ? '#fee2e2' : 'transparent',
-                        height: isAbsolute ? '100%' : 'auto',
-                        position: 'relative',
-                        boxSizing: 'border-box'
-                      }}>
-                        {renderComponent(comp)}
-                      </div>
-                      {err && (
-                        <div style={{ marginTop: '6px', fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>
-                          {err}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
-          
-          {/* Padding for bottom buttons */}
-          <div style={{ height: (selectedApp || selectedManual) ? '0px' : '80px', flexShrink: 0 }} />
-        </div>
-
-        {/* Mobile Footer Controls */}
-        <div style={{
-          position: 'fixed', bottom: 0, left: 0, right: 0, padding: '16px',
-          backgroundColor: selectedApp?.config?.appThemeMode === 'DARK' ? '#1e293b' : 'white',
-          borderTop: `1px solid ${selectedApp?.config?.appThemeMode === 'DARK' ? '#334155' : '#e2e8f0'}`,
-          display: 'flex', gap: '12px', zIndex: 100
-        }}>
-          <button
-            disabled={currentStepIndex === 0}
-            onClick={handlePrevStep}
-            style={{
-              flex: 1, padding: '14px', borderRadius: '10px',
-              backgroundColor: '#f1f5f9', color: '#475569',
-              border: 'none', fontWeight: 700, fontSize: '0.9rem',
-              opacity: currentStepIndex === 0 ? 0.5 : 1
-            }}
-          >
-            Previous
-          </button>
-
-          {currentStepIndex === steps.length - 1 ? (
-            <button
-              onClick={() => setShowSignaturePad(true)}
-              style={{
-                flex: 2, padding: '14px', borderRadius: '10px',
-                backgroundColor: '#10b981', color: 'white',
-                border: 'none', fontWeight: 800, fontSize: '0.95rem',
-                boxShadow: '0 4px 10px rgba(16, 185, 129, 0.3)'
-              }}
-            >
-              Sign Off Order
-            </button>
-          ) : (
-            <button
-              disabled={!currentStepRequiredOk}
-              onClick={() => setCurrentStepIndex(prev => Math.min(steps.length - 1, prev + 1))}
-              style={{
-                flex: 2, padding: '14px', borderRadius: '10px',
-                backgroundColor: currentStepRequiredOk ? '#3b82f6' : '#94a3b8',
-                color: 'white', border: 'none', fontWeight: 800, fontSize: '0.95rem',
-                boxShadow: currentStepRequiredOk ? '0 4px 10px rgba(59, 130, 246, 0.3)' : 'none'
-              }}
-            >
-              Next Step
-            </button>
-          )}
-        </div>
-
-        {/* DEFECT/ANDON Modals will render here via standard portals/overlays */}
-      </div>
-    );
-  }
 
   return (
     <div style={{
@@ -12506,7 +12330,14 @@ const LiveTerminal = () => {
     }}>
       {/* MANDOR HEADER */}
       {window.self === window.top && (
-        <div className="mandor-header" style={{ display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+        <div className="mandor-header" style={{
+          display: 'flex',
+          flexDirection: 'column',
+          flexShrink: 0,
+          width: '100%',
+          backgroundColor: '#090d16',
+          alignItems: 'center'
+        }}>
           {/* Consolidated Header Bar */}
           <div style={{
             display: 'flex',
@@ -12514,12 +12345,16 @@ const LiveTerminal = () => {
             justifyContent: 'space-between',
             padding: '0 16px',
             height: '48px',
+            width: isPreset ? `${Math.min(layoutWidth * scale, containerWidth)}px` : '100%',
+            maxWidth: isPreset ? `${layoutWidth * scale}px` : '100%',
+            boxSizing: 'border-box',
             backgroundColor: activeAndon ? '#dc2626' : '#090d16',
             color: 'white',
             borderBottom: '1px solid #1e293b',
+            borderRadius: isPreset ? '8px 8px 0 0' : '0',
             fontSize: '0.75rem',
             fontWeight: 600,
-            transition: 'background-color 0.3s ease',
+            transition: 'all 0.3s ease',
             position: 'relative'
           }}>
             {/* Left side: Logo, App Title, Badge, Duration, Step, User/Station */}
@@ -13876,22 +13711,35 @@ const LiveTerminal = () => {
 
       {/* Old horizontal Work Sequence strip removed — now rendered as RIGHT SIDEBAR inside MAIN CONTENT AREA */}
 
-      {/* MANDOR FOOTER BAR - Premium Tactile Navigation */}
+      {/* MANDOR FOOTER BAR - Premium Tactile Navigation (Device Adaptive) */}
       <div style={{
         height: '56px',
-        background: 'linear-gradient(90deg, #0a0f1e 0%, #111827 50%, #0a0f1e 100%)',
+        width: '100%',
+        backgroundColor: '#0a0f1e',
         display: 'flex',
         justifyContent: 'center',
-        padding: '0 20px',
         alignItems: 'center',
-        color: 'white',
-        borderTop: '1px solid rgba(59, 130, 246, 0.15)',
-        boxShadow: '0 -4px 20px rgba(0,0,0,0.4)',
-        flexShrink: 0,
-        gap: '16px'
+        flexShrink: 0
       }}>
-        {/* Centered Icon Navigation */}
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <div style={{
+          height: '56px',
+          width: isPreset ? `${Math.min(layoutWidth * scale, containerWidth)}px` : '100%',
+          maxWidth: isPreset ? `${layoutWidth * scale}px` : '100%',
+          boxSizing: 'border-box',
+          background: 'linear-gradient(90deg, #0a0f1e 0%, #111827 50%, #0a0f1e 100%)',
+          display: 'flex',
+          justifyContent: 'center',
+          padding: '0 20px',
+          alignItems: 'center',
+          color: 'white',
+          borderTop: '1px solid rgba(59, 130, 246, 0.15)',
+          borderRadius: isPreset ? '0 0 8px 8px' : '0',
+          boxShadow: '0 -4px 20px rgba(0,0,0,0.4)',
+          gap: '16px',
+          transition: 'all 0.2s ease'
+        }}>
+          {/* Centered Icon Navigation */}
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
 
           {/* PREVIOUS STEP — Icon Only */}
           <button
@@ -14016,6 +13864,7 @@ const LiveTerminal = () => {
           )}
         </div>
       </div>
+    </div>
 
       {/* Signature Pad Overlay - Ported with new theme */}
       {showSignaturePad && (

@@ -20,7 +20,7 @@ import { convertPdfToImageDataUrl } from '../utils/pdfRenderService';
 import { parseDxfContent } from '../utils/cadDxfRenderService';
 import { extractBlueprintDimensions, detectPdfType } from '../utils/pdfDimensionExtractor';
 import { getTables, createTable } from '../utils/supabaseTablesDB';
-import { getTemplates, saveTemplates } from '../utils/supabaseTemplateDB';
+import { getTemplates, saveTemplates, safePersistTemplates, safeRetrieveLocalTemplates } from '../utils/supabaseTemplateDB';
 import { getCurrentUser } from '../utils/auth';
 import { executeReportPrintAction } from '../utils/reportPrintService';
 
@@ -650,21 +650,21 @@ export default function InspectorDesigner() {
       }
 
       let allTemplates = [];
-      // Load saved templates from Supabase (fallback to localStorage)
+      // Load saved templates from Supabase (fallback to IndexedDB / localStorage)
       try {
         const remoteTemplates = await getTemplates();
-        if (remoteTemplates && remoteTemplates.length > 0) {
-          allTemplates = remoteTemplates;
-          setSavedTemplates(remoteTemplates);
-          localStorage.setItem('mandor_inspector_templates', JSON.stringify(remoteTemplates));
+        const items = Array.isArray(remoteTemplates) ? remoteTemplates : (remoteTemplates?.items || []);
+        if (items && items.length > 0) {
+          allTemplates = items;
+          setSavedTemplates(items);
         } else {
-          const local = JSON.parse(localStorage.getItem('mandor_inspector_templates') || '[]');
+          const local = await safeRetrieveLocalTemplates();
           allTemplates = local;
           setSavedTemplates(local);
         }
       } catch (e) {
-        console.warn('[InspectorDesigner] getTemplates failed, using localStorage fallback', e);
-        const local = JSON.parse(localStorage.getItem('mandor_inspector_templates') || '[]');
+        console.warn('[InspectorDesigner] getTemplates failed, using local DB fallback', e);
+        const local = await safeRetrieveLocalTemplates();
         allTemplates = local;
         setSavedTemplates(local);
       }
@@ -879,8 +879,9 @@ export default function InspectorDesigner() {
     setIsGeneratingTable(true);
     const toastId = toast.loading('Membuat skema tabel otomatis di Supabase...');
     try {
-      const cleanPart = (partNo || 'PART').replace(/[^a-zA-Z0-9_-]/g, '_');
-      const tableName = `QC_${cleanPart}_${checkSheetName ? checkSheetName.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 20) : 'Checksheet'}`;
+      const cleanTitle = (checkSheetName || 'Check Sheet').trim().replace(/[/\\?%*:|"<>]/g, '');
+      const cleanPart = (partNo || 'PART').trim().replace(/[/\\?%*:|"<>]/g, '');
+      const tableName = `${cleanTitle} - ${cleanPart}`;
       
       const dynamicFields = [
         { id: 'fld_wo', name: 'WO Number', type: 'text', required: true },
@@ -1575,11 +1576,11 @@ export default function InspectorDesigner() {
         version: '1.0'
       };
 
-      const toastId = toast.loading('Menyimpan template ke cloud...');
+      const toastId = toast.loading('Menyimpan template...');
       let updatedTemplates;
       try {
         // Build the full templates array: replace if exists, otherwise prepend
-        const existingTemplates = JSON.parse(localStorage.getItem('mandor_inspector_templates') || '[]');
+        const existingTemplates = await safeRetrieveLocalTemplates();
         const existingIndex = existingTemplates.findIndex(t => t.id === templateData.id);
         if (existingIndex >= 0) {
           updatedTemplates = existingTemplates.map((t, i) => i === existingIndex ? templateData : t);
@@ -1589,21 +1590,24 @@ export default function InspectorDesigner() {
 
         await saveTemplates(updatedTemplates);
         setSavedTemplates(updatedTemplates);
-        localStorage.setItem('mandor_inspector_templates', JSON.stringify(updatedTemplates));
-        toast.success(`✓ Template "${templateData.name}" disimpan ke cloud!`, { id: toastId });
+        toast.success(`✓ Template "${templateData.name}" berhasil disimpan!`, { id: toastId });
       } catch (e) {
-        console.warn('[InspectorDesigner] saveTemplates failed, saving locally only', e);
-        // Fallback: save to localStorage anyway
-        const existingTemplates = JSON.parse(localStorage.getItem('mandor_inspector_templates') || '[]');
-        const existingIndex = existingTemplates.findIndex(t => t.id === templateData.id);
-        if (existingIndex >= 0) {
-          updatedTemplates = existingTemplates.map((t, i) => i === existingIndex ? templateData : t);
-        } else {
-          updatedTemplates = [templateData, ...existingTemplates];
+        console.warn('[InspectorDesigner] saveTemplates error, saving to local DB', e);
+        try {
+          const existingTemplates = await safeRetrieveLocalTemplates();
+          const existingIndex = existingTemplates.findIndex(t => t.id === templateData.id);
+          if (existingIndex >= 0) {
+            updatedTemplates = existingTemplates.map((t, i) => i === existingIndex ? templateData : t);
+          } else {
+            updatedTemplates = [templateData, ...existingTemplates];
+          }
+          await safePersistTemplates(updatedTemplates);
+          setSavedTemplates(updatedTemplates);
+          toast.success(`✓ Template "${templateData.name}" disimpan ke local DB!`, { id: toastId });
+        } catch (localErr) {
+          console.error('[InspectorDesigner] local save error:', localErr);
+          toast.error('Gagal menyimpan template: ' + (localErr.message || 'Storage error'), { id: toastId });
         }
-        setSavedTemplates(updatedTemplates);
-        localStorage.setItem('mandor_inspector_templates', JSON.stringify(updatedTemplates));
-        toast.error('⚠ Cloud save gagal — disimpan secara lokal saja.', { id: toastId });
       } finally {
         setIsSaving(false);
       }
@@ -6534,7 +6538,7 @@ export default function InspectorDesigner() {
                               if (window.confirm('Delete this template?')) {
                                 const updated = savedTemplates.filter(t => t.id !== template.id);
                                 setSavedTemplates(updated);
-                                localStorage.setItem('mandor_inspector_templates', JSON.stringify(updated));
+                                safePersistTemplates(updated);
                                 // Sync delete to Supabase
                                 import('../utils/supabaseTemplateDB').then(({ deleteTemplate }) => {
                                   deleteTemplate(template.id).catch(e => console.warn('[InspectorDesigner] deleteTemplate failed:', e));

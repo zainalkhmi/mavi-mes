@@ -43,6 +43,17 @@ export default function App() {
     location.pathname.startsWith('/live-checksheet') ||
     location.pathname.startsWith('/live-player') ||
     location.pathname.startsWith('/simple-checksheet') ||
+    location.pathname.startsWith('/player') ||
+    location.pathname.startsWith('/terminal') ||
+    location.pathname.startsWith('/mobile-player') ||
+    location.pathname.startsWith('/tulip-player') ||
+    location.pathname.startsWith('/mandor-player') ||
+    location.pathname.startsWith('/mandor-checksheet') ||
+    location.pathname.startsWith('/mandor-mobile') ||
+    location.pathname.startsWith('/mandor-portal') ||
+    location.pathname.startsWith('/dozuki-player') ||
+    location.pathname.startsWith('/dozuki-checksheet') ||
+    location.pathname.startsWith('/dozuki-mobile') ||
     location.search.includes('standalone=true') ||
     location.search.includes('hideHeader=true') ||
     location.search.includes('mode=companion') ||

@@ -11,7 +11,8 @@ import {
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { executeReportPrintAction } from '../utils/reportPrintService';
-import { getTemplates, saveTemplates } from '../utils/supabaseTemplateDB';
+import { getTemplates, saveTemplates, safePersistTemplates, safeRetrieveLocalTemplates, deleteTemplate } from '../utils/supabaseTemplateDB';
+import { deleteDrawing } from '../utils/supabaseUtilityDB';
 
 // Standard Default Checksheet (Empty - No Mock Data)
 const DEFAULT_ISO_CHECKSHEETS = [];
@@ -32,20 +33,17 @@ export default function CheckSheetManager() {
     // Modal States
     const [selectedChecksheet, setSelectedChecksheet] = useState(null);
     const [showDetailModal, setShowDetailModal] = useState(false);
+    const [showPreviewModal, setShowPreviewModal] = useState(false);
     const [showRevisionModal, setShowRevisionModal] = useState(false);
     const [revisionReason, setRevisionReason] = useState('');
     const [newRevisionNo, setNewRevisionNo] = useState('');
 
-    // ── Load Checksheets on Mount (from Cloud / LocalStorage) ──
-    const getStoredChecksheets = () => {
+    // ── Load Checksheets on Mount (from Cloud / IndexedDB / LocalStorage) ──
+    const getStoredChecksheets = async () => {
         try {
-            const saved = localStorage.getItem('mandor_inspector_templates');
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed)) {
-                    // Filter out legacy mock data if present
-                    return parsed.filter(p => !p.id?.startsWith('cs-iso-00') && p.id !== 'cs-iso-001' && p.id !== 'cs-iso-002' && p.id !== 'cs-iso-003');
-                }
+            const parsed = await safeRetrieveLocalTemplates();
+            if (Array.isArray(parsed)) {
+                return parsed.filter(p => !p.id?.startsWith('cs-iso-00') && p.id !== 'cs-iso-001' && p.id !== 'cs-iso-002' && p.id !== 'cs-iso-003');
             }
         } catch (e) {
             console.error('Failed to load checksheets:', e);
@@ -57,19 +55,18 @@ export default function CheckSheetManager() {
         const loadTemplates = async () => {
             try {
                 const remote = await getTemplates();
-                if (remote && Array.isArray(remote)) {
-                    // Filter out legacy mock data if present
-                    const cleanRemote = remote.filter(p => !p.id?.startsWith('cs-iso-00') && p.id !== 'cs-iso-001' && p.id !== 'cs-iso-002' && p.id !== 'cs-iso-003');
+                const items = Array.isArray(remote) ? remote : (remote?.items || []);
+                if (items && items.length > 0) {
+                    const cleanRemote = items.filter(p => !p.id?.startsWith('cs-iso-00') && p.id !== 'cs-iso-001' && p.id !== 'cs-iso-002' && p.id !== 'cs-iso-003');
                     setChecksheets(cleanRemote);
-                    localStorage.setItem('mandor_inspector_templates', JSON.stringify(cleanRemote));
+                    await safePersistTemplates(cleanRemote);
                 } else {
-                    const local = getStoredChecksheets();
+                    const local = await getStoredChecksheets();
                     setChecksheets(local);
-                    localStorage.setItem('mandor_inspector_templates', JSON.stringify(local));
                 }
             } catch (e) {
-                console.warn('[CheckSheetManager] getTemplates failed, using localStorage fallback', e);
-                const local = getStoredChecksheets();
+                console.warn('[CheckSheetManager] getTemplates failed, using local fallback', e);
+                const local = await getStoredChecksheets();
                 setChecksheets(local);
             } finally {
                 setIsLoadingTemplates(false);
@@ -78,13 +75,13 @@ export default function CheckSheetManager() {
         loadTemplates();
     }, []);
 
-    // ── Save Checksheets (cloud + localStorage) ──
+    // ── Save Checksheets (cloud + IndexedDB + safe localStorage) ──
     const saveChecksheets = async (newArr) => {
         setChecksheets(newArr);
-        localStorage.setItem('mandor_inspector_templates', JSON.stringify(newArr));
+        await safePersistTemplates(newArr);
         try {
             await saveTemplates(newArr);
-            toast.success('✓ Checksheet disimpan ke cloud & lokal!');
+            toast.success('✓ Checksheet disimpan!');
         } catch (e) {
             console.warn('[CheckSheetManager] saveTemplates failed, data saved locally only', e);
         }
@@ -239,11 +236,36 @@ export default function CheckSheetManager() {
         toast.success(`Checksheet berhasil diduplikasi: ${copyObj.docNo}`);
     };
 
-    const handleDeleteChecksheet = (id, name = 'Checksheet') => {
+    const handleDeleteChecksheet = async (id, name = 'Checksheet') => {
         if (window.confirm(`Hapus checksheet "${name}" secara permanen dari sistem?`)) {
             const updated = checksheets.filter(c => c.id !== id);
-            saveChecksheets(updated);
-            toast.success(`Checksheet "${name}" berhasil dihapus`, { icon: '🗑️' });
+            setChecksheets(updated);
+            
+            try {
+                await deleteTemplate(id);
+                await deleteDrawing(id).catch(() => {});
+            } catch (err) {
+                console.warn('[CheckSheetManager] Permanent delete error:', err);
+            }
+
+            try {
+                const active = localStorage.getItem('mandor_inspector_active_template');
+                if (active) {
+                    const parsed = JSON.parse(active);
+                    if (parsed?.id === id || parsed?.name === name) {
+                        localStorage.removeItem('mandor_inspector_active_template');
+                    }
+                }
+                const published = localStorage.getItem('mandor_published_checksheet');
+                if (published) {
+                    const parsed = JSON.parse(published);
+                    if (parsed?.id === id || parsed?.name === name) {
+                        localStorage.removeItem('mandor_published_checksheet');
+                    }
+                }
+            } catch (e) {}
+
+            toast.success(`Checksheet "${name}" berhasil dihapus secara permanen`, { icon: '🗑️' });
             if (selectedChecksheet?.id === id) {
                 setShowDetailModal(false);
                 setSelectedChecksheet(null);
