@@ -1097,6 +1097,10 @@ export const WorkflowEditorContent = () => {
       position: { x: node.position.x + 40, y: node.position.y + 40 },
       data: { ...node.data, label: `${node.data?.label} (Copy)` }
     };
+    setNodes((nds) => nds.concat(duplicated));
+    setSelectedNodeId(duplicated.id);
+    toast.success('Node diduplikasi');
+  }, [nodes, setNodes]);
   const [n8nServerUrl, setN8nServerUrl] = useState('http://187.77.140.205:5678');
   const [showConsole, setShowConsole] = useState(false);
   const [executionLogs, setExecutionLogs] = useState([
