@@ -104,8 +104,7 @@ export default function TopNavbar() {
   // Automation submenu items
   const automationSubItems = [
     { path: '/automations', icon: <Cpu size={16} />, label: 'Automation Hub' },
-    { path: '/automations/n8n-studio', icon: <Zap size={16} className="text-orange-500" />, label: '⚡ n8n Full Engine Studio (Live)' },
-    { path: '/automations/editor', icon: <Workflow size={16} />, label: 'Workflow Editor (n8n Style)' },
+    { path: '/automations/editor', icon: <Workflow size={16} />, label: 'Workflow Editor' },
     { path: '/automations/monitor', icon: <ActivitySquare size={16} />, label: 'Execution Monitor' },
     { path: '/automations/templates', icon: <LayoutTemplate size={16} />, label: 'Templates Gallery' },
     { path: '/automations/credentials', icon: <Key size={16} />, label: 'Credentials Manager' }
