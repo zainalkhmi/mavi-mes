@@ -4344,8 +4344,16 @@ export default function DigitalDrawingCheckSheet() {
       {/* ─── DEDICATED MOBILE & TABLET INDUSTRIAL QC TOUCH MODE ───── */}
       {isMobileTabletModeActive && (
         <MobileTabletCheckSheet
-          checksheet={currentCheckSheet}
-          drawingSvg={drawingPreview || (selectedDrawing?.svgData || selectedDrawing?.dataUrl)}
+          checksheet={{
+            name: partName || 'Digital Check Sheet',
+            partNo: partNo || 'PART-001',
+            partName: partName || 'Standard Component',
+            revisionNo: revisionNo || 'A',
+            docNo: docNo || 'DOC-001',
+            customer,
+            workOrderNo
+          }}
+          drawingSvg={drawingPreview || selectedDrawing?.svgData || selectedDrawing?.dataUrl || null}
           checkPoints={checkPoints}
           measuredValues={checkPoints.reduce((acc, p) => ({ ...acc, [p.id]: p.measuredVal }), {})}
           onValueChange={(pointId, val) => {
@@ -4353,11 +4361,13 @@ export default function DigitalDrawingCheckSheet() {
           }}
           onOpenHardwareHub={() => setShowHardwareHub(true)}
           onOpenDefectCamera={() => setShowCameraInput(true)}
-          onOpenSignatureModal={() => setShowSignModal(true)}
-          onSubmitChecksheet={handleSubmitCheckSheet}
+          onOpenSignatureModal={() => setShowSupervisorModal(true)}
+          onSubmitChecksheet={() => saveInspectionPayload(checkPoints)}
           onCloseMobileMode={() => setIsMobileTabletModeActive(false)}
-          currentPointIndex={activePointIndex}
-          onSelectPoint={(idx) => setActivePointIndex(idx)}
+          currentPointIndex={Math.max(0, checkPoints.findIndex(p => p.id === activePointId))}
+          onSelectPoint={(idx) => {
+            if (checkPoints[idx]) setActivePointId(checkPoints[idx].id);
+          }}
         />
       )}
 
