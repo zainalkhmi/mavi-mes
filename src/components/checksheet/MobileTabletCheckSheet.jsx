@@ -488,25 +488,6 @@ export default function MobileTabletCheckSheet({
             })}
           </div>
 
-          {/* Floating Zoom & Pan Controls */}
-          <div
-            style={{
-              position: 'absolute',
-              bottom: '6px',
-              right: '6px',
-              display: 'flex',
-              gap: '4px',
-              zIndex: 30,
-              backgroundColor: 'rgba(11,13,16,0.85)',
-              padding: '3px 5px',
-              borderRadius: '8px',
-              backdropFilter: 'blur(4px)',
-              border: '1px solid #262b33'
-            }}
-          >
-            <button onClick={() => setScale(prev => Math.max(prev / 1.25, 0.35))} style={microZoomBtnStyle}>−</button>
-            <button onClick={() => { setScale(1); setPan({ x: 0, y: 0 }); }} style={microZoomBtnStyle}>⟳</button>
-            <button onClick={() => setScale(prev => Math.min(prev * 1.25, 4))} style={microZoomBtnStyle}>+</button>
           </div>
         </div>
 
