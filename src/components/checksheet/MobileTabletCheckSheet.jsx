@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Smartphone, Monitor, ZoomIn, ZoomOut, RotateCcw, X,
-  Camera, Bluetooth, Volume2, VolumeX, Image as ImageIcon,
-  ChevronLeft, Check, AlertTriangle, Send, Sparkles
+  Camera, Bluetooth, Volume2, VolumeX,
+  ChevronLeft, Check, AlertTriangle, Send, Crosshair
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -39,7 +39,7 @@ const playQCSound = (type = 'pass') => {
       osc.stop(ctx.currentTime + 0.3);
     }
   } catch (e) {
-    // Audio Context not allowed before interaction
+    // Audio Context not allowed before user interaction
   }
 };
 
@@ -69,7 +69,6 @@ export default function MobileTabletCheckSheet({
 }) {
   const [activeIndex, setActiveIndex] = useState(externalIndex || 0);
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [isDrawingModalOpen, setIsDrawingModalOpen] = useState(false);
 
   // ── Local Values Buffer for 0ms Latency Display Sync ────────
   const [localValues, setLocalValues] = useState(() => ({ ...measuredValues }));
@@ -79,7 +78,7 @@ export default function MobileTabletCheckSheet({
     setLocalValues(prev => ({ ...prev, ...measuredValues }));
   }, [measuredValues]);
 
-  // Modal Pan & Zoom State
+  // Drawing Canvas Pan & Zoom State
   const [scale, setScale] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -169,7 +168,7 @@ export default function MobileTabletCheckSheet({
       nextStr += String(key);
     }
 
-    // 1. Instant local display update
+    // 1. Instant local display update (0ms latency)
     setLocalValues(prev => ({
       ...prev,
       [activePoint.id]: nextStr
@@ -198,7 +197,7 @@ export default function MobileTabletCheckSheet({
     return { okCount, ngCount, total: checkPoints.length };
   }, [checkPoints, localValues]);
 
-  // Modal dragging handlers
+  // Drawing canvas dragging handlers
   const handlePointerDown = (e) => {
     setIsDragging(true);
     dragStartRef.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
@@ -250,18 +249,19 @@ export default function MobileTabletCheckSheet({
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '10px',
-            padding: '10px 12px 6px',
-            flexShrink: 0
+            gap: '8px',
+            padding: '8px 12px 6px',
+            flexShrink: 0,
+            borderBottom: '1px solid #1b1f26'
           }}
         >
           {/* Back button */}
           <button
             onClick={onCloseMobileMode}
             style={{
-              width: '30px',
-              height: '30px',
-              borderRadius: '9px',
+              width: '28px',
+              height: '28px',
+              borderRadius: '8px',
               backgroundColor: '#1b1f26',
               border: '1px solid #262b33',
               display: 'flex',
@@ -269,7 +269,7 @@ export default function MobileTabletCheckSheet({
               justifyContent: 'center',
               color: '#eef1f5',
               flexShrink: 0,
-              fontSize: '18px',
+              fontSize: '16px',
               cursor: 'pointer'
             }}
             title="Kembali ke PC / Tablet UI"
@@ -279,12 +279,12 @@ export default function MobileTabletCheckSheet({
 
           {/* Title Block */}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '10.5px', color: '#2f8cff', fontWeight: 600, letterSpacing: '.2px' }}>
+            <div style={{ fontSize: '10px', color: '#2f8cff', fontWeight: 600, letterSpacing: '.2px' }}>
               {checksheet?.partNo || 'PART-001'} · Rev {checksheet?.revisionNo || 'A'}
             </div>
             <div
               style={{
-                fontSize: '13px',
+                fontSize: '12.5px',
                 fontWeight: 600,
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
@@ -297,16 +297,16 @@ export default function MobileTabletCheckSheet({
           </div>
 
           {/* Topbar Actions */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
             <div
               style={{
-                fontSize: '10.5px',
+                fontSize: '10px',
                 fontWeight: 700,
                 color: stats.ngCount > 0 ? '#ff5a5f' : '#39c17a',
                 backgroundColor: stats.ngCount > 0 ? 'rgba(255,90,95,.12)' : 'rgba(57,193,122,.12)',
                 border: stats.ngCount > 0 ? '1px solid rgba(255,90,95,.35)' : '1px solid rgba(57,193,122,.35)',
-                padding: '4px 7px',
-                borderRadius: '20px',
+                padding: '3px 6px',
+                borderRadius: '16px',
                 whiteSpace: 'nowrap'
               }}
             >
@@ -317,49 +317,200 @@ export default function MobileTabletCheckSheet({
             <button
               onClick={() => setSoundEnabled(!soundEnabled)}
               style={{
-                width: '28px',
-                height: '28px',
-                borderRadius: '8px',
+                width: '26px',
+                height: '26px',
+                borderRadius: '7px',
                 backgroundColor: '#1b1f26',
                 border: '1px solid #262b33',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: soundEnabled ? '#2f8cff' : '#8a919e',
-                fontSize: '13px',
+                fontSize: '12px',
                 flexShrink: 0,
                 cursor: 'pointer'
               }}
               title={soundEnabled ? 'Mute Suara QC' : 'Aktifkan Suara QC'}
             >
-              {soundEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
+              {soundEnabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
             </button>
 
             {/* Submit Icon */}
             <button
               onClick={onSubmitChecksheet}
               style={{
-                width: '28px',
-                height: '28px',
-                borderRadius: '8px',
+                width: '26px',
+                height: '26px',
+                borderRadius: '7px',
                 backgroundColor: '#1b1f26',
                 border: '1px solid #262b33',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: '#39c17a',
-                fontSize: '13px',
+                fontSize: '12px',
                 flexShrink: 0,
                 cursor: 'pointer'
               }}
               title="Simpan / Submit Checksheet"
             >
-              <Send size={13} />
+              <Send size={12} />
             </button>
           </div>
         </div>
 
-        {/* ─── STAGE (COMPACT NO-SCROLL CONTAINER) ───────────────────── */}
+        {/* ─── DIRECTLY VISIBLE INTERACTIVE CAD DRAWING VIEW (NO HIDE) ─ */}
+        <div
+          style={{
+            height: '190px',
+            backgroundColor: '#f4f2ec',
+            position: 'relative',
+            overflow: 'hidden',
+            flexShrink: 0,
+            borderBottom: '1px solid #262b33',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: isDragging ? 'grabbing' : 'grab',
+            touchAction: 'none'
+          }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+        >
+          {/* Scaled Blueprint Canvas (700 x 500) */}
+          <div
+            style={{
+              position: 'relative',
+              width: '700px',
+              height: '500px',
+              transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
+              transformOrigin: 'center center',
+              transition: isDragging ? 'none' : 'transform 0.1s ease',
+              boxShadow: '0 2px 10px rgba(0,0,0,0.15)'
+            }}
+          >
+            {/* 1. CAD Drawing Image or SVG */}
+            {drawingSvg ? (
+              typeof drawingSvg === 'string' && (drawingSvg.startsWith('data:image') || drawingSvg.startsWith('blob:') || drawingSvg.startsWith('http')) ? (
+                <img src={drawingSvg} alt="CAD Drawing" style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
+              ) : (
+                <div dangerouslySetInnerHTML={{ __html: drawingSvg }} style={{ width: '100%', height: '100%', pointerEvents: 'none' }} />
+              )
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748b' }}>
+                Drawing blueprint tidak dimuat
+              </div>
+            )}
+
+            {/* 2. Interactive SVG Leader Lines */}
+            <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 10 }}>
+              {checkPoints.map(pt => {
+                if (pt.targetX !== undefined && pt.targetY !== undefined && (Math.abs(pt.targetX - pt.x) > 10 || Math.abs(pt.targetY - pt.y) > 10)) {
+                  const isAct = checkPoints[activeIndex]?.id === pt.id;
+                  const posX = pt.x <= 100 ? (pt.x / 100) * 700 : (pt.x / 980) * 700;
+                  const posY = pt.y <= 100 ? (pt.y / 100) * 500 : (pt.y / 680) * 500;
+                  const tgtX = pt.targetX <= 100 ? (pt.targetX / 100) * 700 : (pt.targetX / 980) * 700;
+                  const tgtY = pt.targetY <= 100 ? (pt.targetY / 100) * 500 : (pt.targetY / 680) * 500;
+                  return (
+                    <g key={`leader-${pt.id}`}>
+                      <line
+                        x1={posX}
+                        y1={posY}
+                        x2={tgtX}
+                        y2={tgtY}
+                        stroke={isAct ? '#ff5a5f' : '#64748b'}
+                        strokeWidth={2}
+                        strokeDasharray={isAct ? 'none' : '3,3'}
+                      />
+                      <circle cx={tgtX} cy={tgtY} r={3} fill={isAct ? '#ff5a5f' : '#64748b'} />
+                    </g>
+                  );
+                }
+                return null;
+              })}
+            </svg>
+
+            {/* 3. Interactive Balloon Hotspot Pins */}
+            {checkPoints.map((pt, idx) => {
+              const isAct = idx === activeIndex;
+              const val = localValues[pt.id];
+              const hasVal = val !== undefined && val !== '';
+              const num = parseFloat(val);
+              const nom = parseFloat(pt.nominal) || 0;
+              const min = parseFloat(pt.tolMin !== undefined ? pt.tolMin : (nom + (parseFloat(pt.lowerTol) || 0)));
+              const max = parseFloat(pt.tolMax !== undefined ? pt.tolMax : (nom + (parseFloat(pt.upperTol) || 0)));
+              const isOK = hasVal && !isNaN(num) && num >= Math.min(min, max) && num <= Math.max(min, max);
+              const isNG = hasVal && !isNaN(num) && (num < Math.min(min, max) || num > Math.max(min, max));
+
+              const pinBg = isAct ? '#ff5a5f' : isNG ? '#ff5a5f' : isOK ? '#39c17a' : '#2f8cff';
+              const posX = pt.x <= 100 ? `${pt.x}%` : `${(pt.x / 980) * 100}%`;
+              const posY = pt.y <= 100 ? `${pt.y}%` : `${(pt.y / 680) * 100}%`;
+
+              return (
+                <div
+                  key={pt.id || idx}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePointChange(idx);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    left: posX,
+                    top: posY,
+                    transform: `translate(-50%, -50%) scale(${isAct ? 1.35 : 1})`,
+                    cursor: 'pointer',
+                    zIndex: isAct ? 35 : 20,
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                  }}
+                >
+                  <div
+                    style={{
+                      width: isAct ? '28px' : '22px',
+                      height: isAct ? '28px' : '22px',
+                      borderRadius: '50%',
+                      backgroundColor: pinBg,
+                      color: '#ffffff',
+                      border: isAct ? '2px solid #ffffff' : '1px solid #ffffff',
+                      boxShadow: isAct ? '0 0 10px rgba(255,90,95,0.8), 0 2px 8px rgba(0,0,0,0.5)' : '0 2px 6px rgba(0,0,0,0.4)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 700,
+                      fontSize: isAct ? '12px' : '10px'
+                    }}
+                  >
+                    {pt.pointNumber || idx + 1}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Floating Zoom & Pan Controls */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '6px',
+              right: '6px',
+              display: 'flex',
+              gap: '4px',
+              zIndex: 30,
+              backgroundColor: 'rgba(11,13,16,0.85)',
+              padding: '3px 5px',
+              borderRadius: '8px',
+              backdropFilter: 'blur(4px)',
+              border: '1px solid #262b33'
+            }}
+          >
+            <button onClick={() => setScale(prev => Math.max(prev / 1.25, 0.35))} style={microZoomBtnStyle}>−</button>
+            <button onClick={() => { setScale(1); setPan({ x: 0, y: 0 }); }} style={microZoomBtnStyle}>⟳</button>
+            <button onClick={() => setScale(prev => Math.min(prev * 1.25, 4))} style={microZoomBtnStyle}>+</button>
+          </div>
+        </div>
+
+        {/* ─── STAGE (BELOW DRAWING: POINT STRIP + CARD + NUMPAD) ────── */}
         <div
           id="stage"
           style={{
@@ -367,16 +518,40 @@ export default function MobileTabletCheckSheet({
             minHeight: 0,
             display: 'flex',
             flexDirection: 'column',
-            padding: '4px 12px 10px',
-            gap: '6px'
+            padding: '6px 12px 10px',
+            gap: '6px',
+            overflow: 'hidden'
           }}
         >
-          {/* 1. Point Strip */}
-          <div style={{ flexShrink: 0 }}>
+          {/* 1. Point Strip & Prev Navigation */}
+          <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              onClick={() => handlePointChange(activeIndex - 1)}
+              disabled={activeIndex === 0}
+              style={{
+                width: '32px',
+                height: '34px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '8px',
+                backgroundColor: '#1b1f26',
+                border: '1px solid #262b33',
+                color: activeIndex === 0 ? '#4b5563' : '#8a919e',
+                fontSize: '16px',
+                fontWeight: 600,
+                flexShrink: 0,
+                cursor: activeIndex === 0 ? 'not-allowed' : 'pointer'
+              }}
+            >
+              ‹
+            </button>
+
             <div
               style={{
+                flex: 1,
                 display: 'flex',
-                gap: '6px',
+                gap: '5px',
                 overflowX: 'auto',
                 scrollbarWidth: 'none',
                 msOverflowStyle: 'none'
@@ -399,9 +574,9 @@ export default function MobileTabletCheckSheet({
                     onClick={() => handlePointChange(idx)}
                     style={{
                       flexShrink: 0,
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '10px',
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '8px',
                       backgroundColor: isActive ? 'rgba(255,90,95,.12)' : '#1b1f26',
                       border: isActive
                         ? '1.5px solid #ff5a5f'
@@ -425,10 +600,10 @@ export default function MobileTabletCheckSheet({
                       <span
                         style={{
                           position: 'absolute',
-                          top: '-3px',
-                          right: '-3px',
-                          width: '8px',
-                          height: '8px',
+                          top: '-2px',
+                          right: '-2px',
+                          width: '7px',
+                          height: '7px',
                           borderRadius: '50%',
                           backgroundColor: '#39c17a',
                           border: '2px solid #0b0d10'
@@ -441,76 +616,33 @@ export default function MobileTabletCheckSheet({
             </div>
           </div>
 
-          {/* 2. Utility Row: View Drawing + Prev Point */}
-          <div style={{ flexShrink: 0, display: 'flex', gap: '6px' }}>
-            <button
-              onClick={() => setIsDrawingModalOpen(true)}
-              style={{
-                flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                padding: '8px 6px',
-                borderRadius: '10px',
-                backgroundColor: '#1b1f26',
-                border: '1px solid #262b33',
-                color: '#eef1f5',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
-            >
-              🖼 Lihat Gambar Teknik
-            </button>
-            <button
-              onClick={() => handlePointChange(activeIndex - 1)}
-              disabled={activeIndex === 0}
-              style={{
-                flex: '0 0 44px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: '10px',
-                backgroundColor: '#1b1f26',
-                border: '1px solid #262b33',
-                color: activeIndex === 0 ? '#4b5563' : '#8a919e',
-                fontSize: '16px',
-                fontWeight: 600,
-                cursor: activeIndex === 0 ? 'not-allowed' : 'pointer'
-              }}
-            >
-              ‹
-            </button>
-          </div>
-
-          {/* 3. Point + Measurement Combined Card */}
+          {/* 2. Point + Measurement Combined Card */}
           <div
             style={{
               flexShrink: 0,
               backgroundColor: '#14171c',
               border: '1px solid #262b33',
               borderRadius: '12px',
-              padding: '9px 12px'
+              padding: '8px 12px'
             }}
           >
             {/* Top Specs */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
               <div>
-                <div style={{ fontSize: '10px', fontWeight: 700, color: '#2f8cff' }}>
+                <div style={{ fontSize: '9.5px', fontWeight: 700, color: '#2f8cff' }}>
                   POIN #{activePoint?.pointNumber || activeIndex + 1}
                 </div>
-                <div style={{ fontSize: '13px', fontWeight: 700, lineHeight: 1.2, marginTop: '1px', color: '#eef1f5' }}>
+                <div style={{ fontSize: '12.5px', fontWeight: 700, lineHeight: 1.2, marginTop: '1px', color: '#eef1f5' }}>
                   {activePoint?.title || `Poin Dimensi #${activeIndex + 1}`}
                 </div>
               </div>
               <div
                 style={{
                   flexShrink: 0,
-                  fontSize: '10px',
+                  fontSize: '9.5px',
                   fontWeight: 700,
-                  padding: '3px 8px',
-                  borderRadius: '20px',
+                  padding: '3px 7px',
+                  borderRadius: '16px',
                   backgroundColor: evaluation.bg,
                   color: evaluation.color,
                   border: `1px solid ${evaluation.border}`,
@@ -522,7 +654,7 @@ export default function MobileTabletCheckSheet({
             </div>
 
             {/* Tolerance info */}
-            <div style={{ marginTop: '3px', fontSize: '11px', color: '#8a919e' }}>
+            <div style={{ marginTop: '2px', fontSize: '10.5px', color: '#8a919e' }}>
               Nominal <b style={{ color: '#eef1f5', fontWeight: 600 }}>{activePoint?.nominal || 0} {activePoint?.unit || 'mm'}</b> · Batas{' '}
               <b style={{ color: '#eef1f5', fontWeight: 600 }}>
                 {activePoint?.tolMin !== undefined ? activePoint.tolMin : (parseFloat(activePoint?.nominal || 0) + (parseFloat(activePoint?.lowerTol) || 0))} –{' '}
@@ -533,8 +665,8 @@ export default function MobileTabletCheckSheet({
             {/* Measure Row */}
             <div
               style={{
-                marginTop: '8px',
-                paddingTop: '8px',
+                marginTop: '6px',
+                paddingTop: '6px',
                 borderTop: '1px solid #262b33',
                 display: 'flex',
                 alignItems: 'center',
@@ -545,7 +677,7 @@ export default function MobileTabletCheckSheet({
               <div
                 style={{
                   fontFamily: "'SF Mono', 'Roboto Mono', ui-monospace, monospace",
-                  fontSize: '26px',
+                  fontSize: '24px',
                   fontWeight: 700,
                   display: 'flex',
                   alignItems: 'baseline',
@@ -554,7 +686,7 @@ export default function MobileTabletCheckSheet({
                 }}
               >
                 <span>{currentVal || '0.00'}</span>
-                <span style={{ fontSize: '12px', color: '#8a919e', fontWeight: 500 }}>
+                <span style={{ fontSize: '11.5px', color: '#8a919e', fontWeight: 500 }}>
                   {activePoint?.unit || 'mm'}
                 </span>
               </div>
@@ -563,13 +695,13 @@ export default function MobileTabletCheckSheet({
                 <button
                   onClick={onOpenHardwareHub}
                   style={{
-                    width: '32px',
-                    height: '32px',
+                    width: '30px',
+                    height: '30px',
                     borderRadius: '8px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: '14px',
+                    fontSize: '13px',
                     border: '1px solid rgba(47,140,255,.4)',
                     backgroundColor: 'rgba(47,140,255,.1)',
                     color: '#2f8cff',
@@ -582,13 +714,13 @@ export default function MobileTabletCheckSheet({
                 <button
                   onClick={onOpenDefectCamera}
                   style={{
-                    width: '32px',
-                    height: '32px',
+                    width: '30px',
+                    height: '30px',
                     borderRadius: '8px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: '14px',
+                    fontSize: '13px',
                     border: '1px solid rgba(255,90,95,.4)',
                     backgroundColor: 'rgba(255,90,95,.1)',
                     color: '#ff5a5f',
@@ -602,13 +734,13 @@ export default function MobileTabletCheckSheet({
             </div>
           </div>
 
-          {/* 4. Compact Numpad (Ergonomically Scaled) */}
+          {/* 3. Compact Ergonomic Numpad */}
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr) 72px',
-              gridTemplateRows: 'repeat(4, 48px)',
-              gap: '6px',
+              gridTemplateColumns: 'repeat(3, 1fr) 68px',
+              gridTemplateRows: 'repeat(4, 42px)',
+              gap: '5px',
               marginTop: 'auto',
               marginBottom: '2px'
             }}
@@ -624,12 +756,12 @@ export default function MobileTabletCheckSheet({
                 gridRow: 'span 3',
                 background: 'linear-gradient(180deg, #ff7a5c, #ff5a5f)',
                 color: '#ffffff',
-                fontSize: '13px',
+                fontSize: '12px',
                 fontWeight: 700,
                 flexDirection: 'column',
                 gap: '2px',
                 border: 'none',
-                boxShadow: '0 3px 12px rgba(255,90,95,0.4)'
+                boxShadow: '0 3px 10px rgba(255,90,95,0.4)'
               }}
             >
               NEXT<br />▶
@@ -654,7 +786,7 @@ export default function MobileTabletCheckSheet({
               style={{
                 ...keyStyle,
                 color: '#ff5a5f',
-                fontSize: '13px',
+                fontSize: '12px',
                 fontWeight: 700
               }}
             >
@@ -662,197 +794,6 @@ export default function MobileTabletCheckSheet({
             </button>
           </div>
         </div>
-
-        {/* ─── FULLSCREEN DRAWING MODAL WITH PINCH/PAN ZOOM ─────────── */}
-        {isDrawingModalOpen && (
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              backgroundColor: '#f4f2ec',
-              zIndex: 20,
-              display: 'flex',
-              flexDirection: 'column'
-            }}
-          >
-            {/* Modal Topbar */}
-            <div
-              style={{
-                backgroundColor: '#0b0d10',
-                padding: '12px 14px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexShrink: 0
-              }}
-            >
-              <button
-                onClick={() => setIsDrawingModalOpen(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#ffffff',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  cursor: 'pointer'
-                }}
-              >
-                ✕ Tutup
-              </button>
-
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <button
-                  onClick={() => setScale(prev => Math.max(prev / 1.3, 0.4))}
-                  style={zoomBtnStyle}
-                >
-                  −
-                </button>
-                <button
-                  onClick={() => { setScale(1); setPan({ x: 0, y: 0 }); }}
-                  style={zoomBtnStyle}
-                >
-                  ⟳
-                </button>
-                <button
-                  onClick={() => setScale(prev => Math.min(prev * 1.3, 5))}
-                  style={zoomBtnStyle}
-                >
-                  +
-                </button>
-              </div>
-            </div>
-
-            {/* Modal Interactive Canvas */}
-            <div
-              style={{
-                flex: 1,
-                overflow: 'hidden',
-                position: 'relative',
-                touchAction: 'none',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: isDragging ? 'grabbing' : 'grab'
-              }}
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerUp}
-            >
-              <div
-                style={{
-                  position: 'relative',
-                  width: '700px',
-                  height: '500px',
-                  transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
-                  transformOrigin: 'center center',
-                  transition: isDragging ? 'none' : 'transform 0.1s ease',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
-                }}
-              >
-                {/* 1. CAD Drawing Image or SVG */}
-                {drawingSvg ? (
-                  typeof drawingSvg === 'string' && (drawingSvg.startsWith('data:image') || drawingSvg.startsWith('blob:') || drawingSvg.startsWith('http')) ? (
-                    <img src={drawingSvg} alt="CAD Drawing" style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
-                  ) : (
-                    <div dangerouslySetInnerHTML={{ __html: drawingSvg }} style={{ width: '100%', height: '100%', pointerEvents: 'none' }} />
-                  )
-                ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748b' }}>
-                    Drawing blueprint tidak dimuat
-                  </div>
-                )}
-
-                {/* 2. Interactive SVG Leader Lines */}
-                <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 10 }}>
-                  {checkPoints.map(pt => {
-                    if (pt.targetX !== undefined && pt.targetY !== undefined && (Math.abs(pt.targetX - pt.x) > 10 || Math.abs(pt.targetY - pt.y) > 10)) {
-                      const isAct = checkPoints[activeIndex]?.id === pt.id;
-                      const posX = pt.x <= 100 ? (pt.x / 100) * 700 : (pt.x / 980) * 700;
-                      const posY = pt.y <= 100 ? (pt.y / 100) * 500 : (pt.y / 680) * 500;
-                      const tgtX = pt.targetX <= 100 ? (pt.targetX / 100) * 700 : (pt.targetX / 980) * 700;
-                      const tgtY = pt.targetY <= 100 ? (pt.targetY / 100) * 500 : (pt.targetY / 680) * 500;
-                      return (
-                        <g key={`leader-${pt.id}`}>
-                          <line
-                            x1={posX}
-                            y1={posY}
-                            x2={tgtX}
-                            y2={tgtY}
-                            stroke={isAct ? '#ff5a5f' : '#64748b'}
-                            strokeWidth={2}
-                            strokeDasharray={isAct ? 'none' : '3,3'}
-                          />
-                          <circle cx={tgtX} cy={tgtY} r={3} fill={isAct ? '#ff5a5f' : '#64748b'} />
-                        </g>
-                      );
-                    }
-                    return null;
-                  })}
-                </svg>
-
-                {/* 3. Interactive Balloon Hotspot Pins */}
-                {checkPoints.map((pt, idx) => {
-                  const isAct = idx === activeIndex;
-                  const val = localValues[pt.id];
-                  const hasVal = val !== undefined && val !== '';
-                  const num = parseFloat(val);
-                  const nom = parseFloat(pt.nominal) || 0;
-                  const min = parseFloat(pt.tolMin !== undefined ? pt.tolMin : (nom + (parseFloat(pt.lowerTol) || 0)));
-                  const max = parseFloat(pt.tolMax !== undefined ? pt.tolMax : (nom + (parseFloat(pt.upperTol) || 0)));
-                  const isOK = hasVal && !isNaN(num) && num >= Math.min(min, max) && num <= Math.max(min, max);
-                  const isNG = hasVal && !isNaN(num) && (num < Math.min(min, max) || num > Math.max(min, max));
-
-                  const pinBg = isAct ? '#ff5a5f' : isNG ? '#ff5a5f' : isOK ? '#39c17a' : '#2f8cff';
-                  const posX = pt.x <= 100 ? `${pt.x}%` : `${(pt.x / 980) * 100}%`;
-                  const posY = pt.y <= 100 ? `${pt.y}%` : `${(pt.y / 680) * 100}%`;
-
-                  return (
-                    <div
-                      key={pt.id || idx}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handlePointChange(idx);
-                        setIsDrawingModalOpen(false);
-                      }}
-                      style={{
-                        position: 'absolute',
-                        left: posX,
-                        top: posY,
-                        transform: `translate(-50%, -50%) scale(${isAct ? 1.3 : 1})`,
-                        cursor: 'pointer',
-                        zIndex: isAct ? 35 : 20,
-                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: isAct ? '28px' : '22px',
-                          height: isAct ? '28px' : '22px',
-                          borderRadius: '50%',
-                          backgroundColor: pinBg,
-                          color: '#ffffff',
-                          border: isAct ? '2px solid #ffffff' : '1px solid #ffffff',
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: 700,
-                          fontSize: isAct ? '12px' : '10px'
-                        }}
-                      >
-                        {pt.pointNumber || idx + 1}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -860,10 +801,10 @@ export default function MobileTabletCheckSheet({
 
 // ─── STYLES ──────────────────────────────────────────────────
 const keyStyle = {
-  borderRadius: '10px',
+  borderRadius: '8px',
   backgroundColor: '#1b1f26',
   border: '1px solid #262b33',
-  fontSize: '17px',
+  fontSize: '16px',
   fontWeight: 600,
   display: 'flex',
   alignItems: 'center',
@@ -874,16 +815,17 @@ const keyStyle = {
   transition: 'transform 0.05s ease, background-color 0.1s ease'
 };
 
-const zoomBtnStyle = {
-  width: '28px',
-  height: '28px',
-  borderRadius: '7px',
+const microZoomBtnStyle = {
+  width: '22px',
+  height: '22px',
+  borderRadius: '5px',
   backgroundColor: '#1b1f26',
   border: '1px solid #262b33',
   color: '#ffffff',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  fontSize: '14px',
-  cursor: 'pointer'
+  fontSize: '12px',
+  cursor: 'pointer',
+  padding: 0
 };
