@@ -209,7 +209,6 @@ export default function InspectorDesigner() {
   const [targetTableId, setTargetTableId] = useState('');
   
   // ─── ISO 9001:2015 Check Sheet Header Fields ───
-  const [checkSheetName, setCheckSheetName] = useState('');
   const [partNo, setPartNo] = useState('');
   const [partName, setPartName] = useState('');
   const [customer, setCustomer] = useState('');
