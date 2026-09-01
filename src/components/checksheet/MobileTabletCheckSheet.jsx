@@ -58,6 +58,7 @@ export default function MobileTabletCheckSheet({
   checkPoints = [],
   measuredValues = {},
   onValueChange,
+  onCommitPoint,
   onOpenHardwareHub,
   onOpenDefectCamera,
   onOpenSignatureModal,
@@ -70,6 +71,14 @@ export default function MobileTabletCheckSheet({
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isDrawingModalOpen, setIsDrawingModalOpen] = useState(false);
 
+  // ── Local Values Buffer for 0ms Latency Display Sync ────────
+  const [localValues, setLocalValues] = useState(() => ({ ...measuredValues }));
+
+  // Keep local values synced when external measuredValues changes
+  useEffect(() => {
+    setLocalValues(prev => ({ ...prev, ...measuredValues }));
+  }, [measuredValues]);
+
   // Modal Pan & Zoom State
   const [scale, setScale] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -77,7 +86,7 @@ export default function MobileTabletCheckSheet({
   const dragStartRef = useRef({ x: 0, y: 0 });
 
   const activePoint = checkPoints[activeIndex] || checkPoints[0] || null;
-  const currentVal = activePoint ? (measuredValues[activePoint.id] !== undefined ? String(measuredValues[activePoint.id]) : '') : '';
+  const currentVal = activePoint ? (localValues[activePoint.id] !== undefined ? String(localValues[activePoint.id]) : '') : '';
 
   // Synchronize index from external props
   useEffect(() => {
@@ -124,7 +133,7 @@ export default function MobileTabletCheckSheet({
   const handleNumpadPress = (key) => {
     if (!activePoint) return;
     triggerHaptic('light');
-    let nextStr = String(currentVal || '');
+    let nextStr = currentVal;
 
     if (key === 'DEL') {
       nextStr = nextStr.slice(0, -1);
@@ -144,6 +153,11 @@ export default function MobileTabletCheckSheet({
         if (soundEnabled) playQCSound('fail');
         triggerHaptic('error');
       }
+
+      if (onCommitPoint) {
+        onCommitPoint(activePoint.id, currentVal);
+      }
+
       if (activeIndex < checkPoints.length - 1) {
         handlePointChange(activeIndex + 1);
       } else {
@@ -151,10 +165,17 @@ export default function MobileTabletCheckSheet({
       }
       return;
     } else {
-      if (nextStr === '0.00') nextStr = '';
+      if (nextStr === '0.00' || nextStr === '0') nextStr = '';
       nextStr += String(key);
     }
 
+    // 1. Instant local display update
+    setLocalValues(prev => ({
+      ...prev,
+      [activePoint.id]: nextStr
+    }));
+
+    // 2. Propagate to parent state
     if (onValueChange) {
       onValueChange(activePoint.id, nextStr);
     }
@@ -165,7 +186,7 @@ export default function MobileTabletCheckSheet({
     let okCount = 0;
     let ngCount = 0;
     checkPoints.forEach(p => {
-      const v = parseFloat(measuredValues[p.id]);
+      const v = parseFloat(localValues[p.id]);
       if (!isNaN(v)) {
         const nom = parseFloat(p.nominal) || 0;
         const min = parseFloat(p.tolMin !== undefined ? p.tolMin : (nom + (parseFloat(p.lowerTol) || 0)));
@@ -175,7 +196,7 @@ export default function MobileTabletCheckSheet({
       }
     });
     return { okCount, ngCount, total: checkPoints.length };
-  }, [checkPoints, measuredValues]);
+  }, [checkPoints, localValues]);
 
   // Modal dragging handlers
   const handlePointerDown = (e) => {
@@ -230,7 +251,7 @@ export default function MobileTabletCheckSheet({
             display: 'flex',
             alignItems: 'center',
             gap: '10px',
-            padding: '12px 12px 8px',
+            padding: '10px 12px 6px',
             flexShrink: 0
           }}
         >
@@ -338,7 +359,7 @@ export default function MobileTabletCheckSheet({
           </div>
         </div>
 
-        {/* ─── STAGE (NO-SCROLL FLEX COLUMN) ────────────────────────── */}
+        {/* ─── STAGE (COMPACT NO-SCROLL CONTAINER) ───────────────────── */}
         <div
           id="stage"
           style={{
@@ -346,8 +367,8 @@ export default function MobileTabletCheckSheet({
             minHeight: 0,
             display: 'flex',
             flexDirection: 'column',
-            padding: '8px 12px calc(10px + env(safe-area-inset-bottom))',
-            gap: '7px'
+            padding: '4px 12px 10px',
+            gap: '6px'
           }}
         >
           {/* 1. Point Strip */}
@@ -363,7 +384,7 @@ export default function MobileTabletCheckSheet({
             >
               {checkPoints.map((pt, idx) => {
                 const isActive = idx === activeIndex;
-                const val = measuredValues[pt.id];
+                const val = localValues[pt.id];
                 const hasVal = val !== undefined && val !== '';
                 const num = parseFloat(val);
                 const nom = parseFloat(pt.nominal) || 0;
@@ -421,7 +442,7 @@ export default function MobileTabletCheckSheet({
           </div>
 
           {/* 2. Utility Row: View Drawing + Prev Point */}
-          <div style={{ flexShrink: 0, display: 'flex', gap: '7px' }}>
+          <div style={{ flexShrink: 0, display: 'flex', gap: '6px' }}>
             <button
               onClick={() => setIsDrawingModalOpen(true)}
               style={{
@@ -430,7 +451,7 @@ export default function MobileTabletCheckSheet({
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '6px',
-                padding: '9px 6px',
+                padding: '8px 6px',
                 borderRadius: '10px',
                 backgroundColor: '#1b1f26',
                 border: '1px solid #262b33',
@@ -469,8 +490,8 @@ export default function MobileTabletCheckSheet({
               flexShrink: 0,
               backgroundColor: '#14171c',
               border: '1px solid #262b33',
-              borderRadius: '14px',
-              padding: '10px 12px'
+              borderRadius: '12px',
+              padding: '9px 12px'
             }}
           >
             {/* Top Specs */}
@@ -479,7 +500,7 @@ export default function MobileTabletCheckSheet({
                 <div style={{ fontSize: '10px', fontWeight: 700, color: '#2f8cff' }}>
                   POIN #{activePoint?.pointNumber || activeIndex + 1}
                 </div>
-                <div style={{ fontSize: '13.5px', fontWeight: 700, lineHeight: 1.3, marginTop: '1px', color: '#eef1f5' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, lineHeight: 1.2, marginTop: '1px', color: '#eef1f5' }}>
                   {activePoint?.title || `Poin Dimensi #${activeIndex + 1}`}
                 </div>
               </div>
@@ -488,7 +509,7 @@ export default function MobileTabletCheckSheet({
                   flexShrink: 0,
                   fontSize: '10px',
                   fontWeight: 700,
-                  padding: '4px 8px',
+                  padding: '3px 8px',
                   borderRadius: '20px',
                   backgroundColor: evaluation.bg,
                   color: evaluation.color,
@@ -501,7 +522,7 @@ export default function MobileTabletCheckSheet({
             </div>
 
             {/* Tolerance info */}
-            <div style={{ marginTop: '4px', fontSize: '11px', color: '#8a919e' }}>
+            <div style={{ marginTop: '3px', fontSize: '11px', color: '#8a919e' }}>
               Nominal <b style={{ color: '#eef1f5', fontWeight: 600 }}>{activePoint?.nominal || 0} {activePoint?.unit || 'mm'}</b> · Batas{' '}
               <b style={{ color: '#eef1f5', fontWeight: 600 }}>
                 {activePoint?.tolMin !== undefined ? activePoint.tolMin : (parseFloat(activePoint?.nominal || 0) + (parseFloat(activePoint?.lowerTol) || 0))} –{' '}
@@ -512,8 +533,8 @@ export default function MobileTabletCheckSheet({
             {/* Measure Row */}
             <div
               style={{
-                marginTop: '9px',
-                paddingTop: '9px',
+                marginTop: '8px',
+                paddingTop: '8px',
                 borderTop: '1px solid #262b33',
                 display: 'flex',
                 alignItems: 'center',
@@ -524,16 +545,16 @@ export default function MobileTabletCheckSheet({
               <div
                 style={{
                   fontFamily: "'SF Mono', 'Roboto Mono', ui-monospace, monospace",
-                  fontSize: '28px',
+                  fontSize: '26px',
                   fontWeight: 700,
                   display: 'flex',
                   alignItems: 'baseline',
-                  gap: '5px',
+                  gap: '4px',
                   color: '#eef1f5'
                 }}
               >
                 <span>{currentVal || '0.00'}</span>
-                <span style={{ fontSize: '13px', color: '#8a919e', fontWeight: 500 }}>
+                <span style={{ fontSize: '12px', color: '#8a919e', fontWeight: 500 }}>
                   {activePoint?.unit || 'mm'}
                 </span>
               </div>
@@ -542,9 +563,9 @@ export default function MobileTabletCheckSheet({
                 <button
                   onClick={onOpenHardwareHub}
                   style={{
-                    width: '34px',
-                    height: '34px',
-                    borderRadius: '9px',
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -561,9 +582,9 @@ export default function MobileTabletCheckSheet({
                 <button
                   onClick={onOpenDefectCamera}
                   style={{
-                    width: '34px',
-                    height: '34px',
-                    borderRadius: '9px',
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -581,15 +602,15 @@ export default function MobileTabletCheckSheet({
             </div>
           </div>
 
-          {/* 4. Numpad (Fills All Remaining Space, Zero Scroll) */}
+          {/* 4. Compact Numpad (Ergonomically Scaled) */}
           <div
             style={{
-              flex: 1,
-              minHeight: 0,
               display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr) 74px',
-              gridTemplateRows: 'repeat(4, 1fr)',
-              gap: '7px'
+              gridTemplateColumns: 'repeat(3, 1fr) 72px',
+              gridTemplateRows: 'repeat(4, 48px)',
+              gap: '6px',
+              marginTop: 'auto',
+              marginBottom: '2px'
             }}
           >
             {/* Row 1 */}
@@ -603,12 +624,12 @@ export default function MobileTabletCheckSheet({
                 gridRow: 'span 3',
                 background: 'linear-gradient(180deg, #ff7a5c, #ff5a5f)',
                 color: '#ffffff',
-                fontSize: '14px',
+                fontSize: '13px',
                 fontWeight: 700,
                 flexDirection: 'column',
                 gap: '2px',
                 border: 'none',
-                boxShadow: '0 4px 14px rgba(255,90,95,0.4)'
+                boxShadow: '0 3px 12px rgba(255,90,95,0.4)'
               }}
             >
               NEXT<br />▶
@@ -762,7 +783,7 @@ export default function MobileTabletCheckSheet({
                             x2={tgtX}
                             y2={tgtY}
                             stroke={isAct ? '#ff5a5f' : '#64748b'}
-                            strokeWidth={isAct ? 2 : 1}
+                            strokeWidth={2}
                             strokeDasharray={isAct ? 'none' : '3,3'}
                           />
                           <circle cx={tgtX} cy={tgtY} r={3} fill={isAct ? '#ff5a5f' : '#64748b'} />
@@ -776,7 +797,7 @@ export default function MobileTabletCheckSheet({
                 {/* 3. Interactive Balloon Hotspot Pins */}
                 {checkPoints.map((pt, idx) => {
                   const isAct = idx === activeIndex;
-                  const val = measuredValues[pt.id];
+                  const val = localValues[pt.id];
                   const hasVal = val !== undefined && val !== '';
                   const num = parseFloat(val);
                   const nom = parseFloat(pt.nominal) || 0;
@@ -839,10 +860,10 @@ export default function MobileTabletCheckSheet({
 
 // ─── STYLES ──────────────────────────────────────────────────
 const keyStyle = {
-  borderRadius: '12px',
+  borderRadius: '10px',
   backgroundColor: '#1b1f26',
   border: '1px solid #262b33',
-  fontSize: '19px',
+  fontSize: '17px',
   fontWeight: 600,
   display: 'flex',
   alignItems: 'center',
@@ -850,7 +871,7 @@ const keyStyle = {
   color: '#eef1f5',
   cursor: 'pointer',
   userSelect: 'none',
-  transition: 'background 0.05s ease'
+  transition: 'transform 0.05s ease, background-color 0.1s ease'
 };
 
 const zoomBtnStyle = {

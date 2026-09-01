@@ -4377,6 +4377,9 @@ export default function DigitalDrawingCheckSheet() {
           checkPoints={checkPoints}
           measuredValues={checkPoints.reduce((acc, p) => ({ ...acc, [p.id]: p.measuredVal }), {})}
           onValueChange={(pointId, val) => {
+            setCheckPoints(prev => prev.map(p => p.id === pointId ? { ...p, measuredVal: val } : p));
+          }}
+          onCommitPoint={(pointId, val) => {
             handleCommitAndAdvance(pointId, val);
           }}
           onOpenHardwareHub={() => setShowHardwareHub(true)}
