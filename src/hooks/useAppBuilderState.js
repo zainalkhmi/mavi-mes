@@ -1,14 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { DEFAULT_FRONTLINE_APP_NAME, DEFAULT_FRONTLINE_APP_CATEGORY } from '../components/appbuilder/utils';
 
+const DEFAULT_HIDDEN_CATEGORIES = ['MEDIA', 'SENSORS', 'CONNECTIVITY'];
+
 export const useAppBuilderState = () => {
     const [appName, setAppName] = useState(DEFAULT_FRONTLINE_APP_NAME);
     const [hiddenCategories, setHiddenCategories] = useState(() => {
         try {
             const val = localStorage.getItem('mandor_hidden_categories');
-            return val ? JSON.parse(val) : [];
+            if (val) {
+                const parsed = JSON.parse(val);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+            return DEFAULT_HIDDEN_CATEGORIES;
         } catch {
-            return [];
+            return DEFAULT_HIDDEN_CATEGORIES;
         }
     });
     const [hiddenWidgets, setHiddenWidgets] = useState(() => {

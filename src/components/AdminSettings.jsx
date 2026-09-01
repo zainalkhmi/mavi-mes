@@ -77,8 +77,10 @@ const iconMap = {
   SlidersHorizontal: SlidersHorizontal
 };
 
+const DEFAULT_HIDDEN_CATEGORIES = ['MEDIA', 'SENSORS', 'CONNECTIVITY'];
+
 const AdminSettings = () => {
-  const [hiddenCategories, setHiddenCategories] = useState([]);
+  const [hiddenCategories, setHiddenCategories] = useState(DEFAULT_HIDDEN_CATEGORIES);
   const [hiddenWidgets, setHiddenWidgets] = useState([]);
   const [activeTab, setActiveTab] = useState('STANDARD_WIDGETS');
   const [widgetSearch, setWidgetSearch] = useState('');
@@ -89,7 +91,13 @@ const AdminSettings = () => {
     try {
       const cats = localStorage.getItem('mandor_hidden_categories');
       const wids = localStorage.getItem('mandor_hidden_widgets');
-      if (cats) setHiddenCategories(JSON.parse(cats));
+      if (cats) {
+        const parsedCats = JSON.parse(cats);
+        if (Array.isArray(parsedCats) && parsedCats.length > 0) setHiddenCategories(parsedCats);
+        else setHiddenCategories(DEFAULT_HIDDEN_CATEGORIES);
+      } else {
+        setHiddenCategories(DEFAULT_HIDDEN_CATEGORIES);
+      }
       if (wids) setHiddenWidgets(JSON.parse(wids));
     } catch (e) {
       console.error('Failed to load hidden configuration:', e);
