@@ -36,7 +36,7 @@ import 'reactflow/dist/style.css';
 import {
   Zap, Play, Save, Pause, Square, RotateCcw, Search, Plus, Minus,
   Clock, Database, AlertCircle, Link2, Mail, ExternalLink, Copy,
-  Trash2, Settings2, Send, Bot, Cpu, Code, Filter, Hash,
+  Trash2, Settings2, Send, Bot, Cpu, Code, Filter, Hash, Activity, ActivitySquare,
   MessageSquare, FileSpreadsheet, Server, Globe, Webhook,
   ChevronDown, ChevronRight, GripVertical, MoreHorizontal,
   PanelLeftClose, PanelRightClose, Maximize2, Minimize2,
@@ -413,47 +413,64 @@ const NODE_TYPES = {
 };
 
 // =====================================================
-// LEFT NODE PALETTE SIDEBAR COMPONENT
+// LEFT NODE PALETTE SIDEBAR COMPONENT (MES WIDGETS INTEGRATED)
 // =====================================================
 const N8NPaletteSidebar = ({ onAddNode, searchQuery, setSearchQuery, onClose }) => {
   const paletteCategories = [
     {
-      id: 'triggers',
-      label: '⚡ MES Triggers',
+      id: 'mes_machines',
+      label: '🏭 MES Machines & SCADA',
       nodes: [
-        { type: 'n8n_trigger', label: "On 'Create User' form submission", subtitle: 'Form Trigger', icon: <FileSpreadsheet size={16} color="#2dd4bf" /> },
-        { type: 'n8n_trigger', label: 'QC Inspection NG Event', subtitle: 'Defect Alert Trigger', icon: <Webhook size={16} color="#10b981" /> },
-        { type: 'n8n_trigger', label: 'Machine Shift Timer', subtitle: 'Cron Schedule', icon: <Clock size={16} color="#f59e0b" /> }
+        { type: 'n8n_trigger', mesType: 'machine_telemetry', label: 'Machine Telemetry (OEE/RPM)', subtitle: 'Read live machine metrics', icon: <Cpu size={16} color="#38bdf8" /> },
+        { type: 'n8n_trigger', mesType: 'scada_alarm', label: 'SCADA / PLC Alarm Event', subtitle: 'Overheat / Vibration alert', icon: <AlertCircle size={16} color="#ef4444" /> },
+        { type: 'n8n_trigger', mesType: 'edge_iot', label: 'Edge Device (Modbus/MQTT)', subtitle: 'IoT Hub sensor stream', icon: <Server size={16} color="#a855f7" /> },
+        { type: 'n8n_action', mesType: 'station_status', label: 'Station Status Dispatcher', subtitle: 'Update Running/Idle/Fault', icon: <Activity size={16} color="#22c55e" /> }
       ]
     },
     {
-      id: 'ai',
-      label: '🤖 Native MES AI & Agents',
+      id: 'mes_qc',
+      label: '📋 QC, Metrology & Checksheet',
       nodes: [
-        { type: 'n8n_agent', label: 'AI Agent', subtitle: 'Tools Agent', icon: <Bot size={16} color="#a855f7" /> },
-        { type: 'n8n_subnode', subType: 'model', label: 'Anthropic Chat Model', portLabel: 'Model', subtitle: 'Claude 3.5 Sonnet', icon: <Sparkles size={16} color="#ffffff" /> },
-        { type: 'n8n_subnode', subType: 'memory', label: 'Postgres Chat Memory', portLabel: 'Memory', subtitle: 'Supabase storage', icon: <Database size={16} color="#38bdf8" /> },
-        { type: 'n8n_subnode', subType: 'microsoft', label: 'Microsoft Entra ID', portLabel: 'Tool', subtitle: 'Identity & Access', icon: <Shield size={16} color="#F25022" /> },
-        { type: 'n8n_subnode', subType: 'jira', label: 'Jira Software', portLabel: 'Tool', subtitle: 'Create issue / sync', icon: <Database size={16} color="#2684FF" /> }
+        { type: 'n8n_trigger', mesType: 'qc_defect', label: 'Checksheet NG Defect Event', subtitle: 'Trigger on Defect submitted', icon: <FileSpreadsheet size={16} color="#f59e0b" /> },
+        { type: 'n8n_trigger', mesType: 'caliper_reading', label: 'Metrology Caliper Input', subtitle: 'Bluetooth / Virtual caliper', icon: <Sliders size={16} color="#06b6d4" /> },
+        { type: 'n8n_decision', mesType: 'tolerance_eval', label: 'Is Tolerance OK (Pass/Fail)?', subtitle: 'Nominal ± Tolerance rule', icon: <GitFork size={16} color="#22c55e" /> },
+        { type: 'n8n_action', mesType: 'camera_ocr', label: 'Camera OCR & Vision Check', subtitle: 'Serial / Drawing verify', icon: <Eye size={16} color="#ec4899" /> }
       ]
     },
     {
-      id: 'logic',
-      label: '🔀 Decision & Routing',
+      id: 'mes_orders',
+      label: '📦 Work Order & Production',
       nodes: [
-        { type: 'n8n_decision', label: 'Is a manager?', subtitle: 'True / False split', icon: <GitFork size={16} color="#22c55e" /> },
-        { type: 'n8n_decision', label: 'Is Tolerance OK?', subtitle: 'Measurement evaluator', icon: <CheckCircle2 size={16} color="#22c55e" /> },
-        { type: 'n8n_action', label: 'Custom JS Code', subtitle: 'Transform data', icon: <Code size={16} color="#eab308" /> }
+        { type: 'n8n_trigger', mesType: 'work_order', label: 'Work Order Status Event', subtitle: 'New Order / Batch Complete', icon: <Layers size={16} color="#6366f1" /> },
+        { type: 'n8n_action', mesType: 'yield_counter', label: 'Production Yield Counter', subtitle: 'Calculate OK vs NG parts', icon: <Hash size={16} color="#10b981" /> },
+        { type: 'n8n_action', mesType: 'erp_sync', label: 'SAP / ERP Sync Dispatcher', subtitle: 'Sync batch to ERP database', icon: <Database size={16} color="#3b82f6" /> }
       ]
     },
     {
-      id: 'actions',
-      label: '📱 Actions & Dispatchers',
+      id: 'mes_shift',
+      label: '👥 Shift Handoff & Operators',
       nodes: [
-        { type: 'n8n_action', label: 'Add to channel', subtitle: 'invite: channel', app: 'slack', icon: <MessageSquare size={16} color="#E01E5A" /> },
-        { type: 'n8n_action', label: 'Update profile', subtitle: 'updateProfile: user', app: 'slack', icon: <MessageSquare size={16} color="#36C5F0" /> },
-        { type: 'n8n_action', label: 'Telegram Alert', subtitle: 'Instant notification', app: 'telegram', icon: <Send size={16} color="#38bdf8" /> },
-        { type: 'n8n_action', label: 'Google Sheets Log', subtitle: 'Append inspection row', app: 'sheets', icon: <FileSpreadsheet size={16} color="#22c55e" /> }
+        { type: 'n8n_trigger', mesType: 'shift_handoff', label: 'Shift Handover Note Alert', subtitle: 'Mandor shift notes broadcast', icon: <Clock size={16} color="#f59e0b" /> },
+        { type: 'n8n_decision', mesType: 'operator_auth', label: 'Is Operator Authorized?', subtitle: 'Skill matrix check', icon: <UserPlus size={16} color="#8b5cf6" /> }
+      ]
+    },
+    {
+      id: 'mes_ai',
+      label: '🤖 Native AI & Analytics',
+      nodes: [
+        { type: 'n8n_agent', mesType: 'ai_agent', label: 'AI Agent (Defect Diagnostic)', subtitle: 'Tools Agent & Copilot', icon: <Bot size={16} color="#a855f7" /> },
+        { type: 'n8n_subnode', subType: 'model', label: 'Anthropic Claude 3.5', portLabel: 'Model', subtitle: 'LLM Reasoning', icon: <Sparkles size={16} color="#ffffff" /> },
+        { type: 'n8n_subnode', subType: 'memory', label: 'Supabase / Postgres Memory', portLabel: 'Memory', subtitle: 'MES chat sessions', icon: <Database size={16} color="#38bdf8" /> },
+        { type: 'n8n_action', mesType: 'bi_logger', label: 'BI Studio Telemetry Logger', subtitle: 'Push KPI to BI dashboard', icon: <ActivitySquare size={16} color="#3b82f6" /> }
+      ]
+    },
+    {
+      id: 'mes_dispatchers',
+      label: '📱 Messaging & Notifications',
+      nodes: [
+        { type: 'n8n_action', label: 'Slack QC Channel', subtitle: 'Post to #production-alerts', app: 'slack', icon: <MessageSquare size={16} color="#E01E5A" /> },
+        { type: 'n8n_action', label: 'Telegram Bot Alert', subtitle: 'Instant photo & message', app: 'telegram', icon: <Send size={16} color="#38bdf8" /> },
+        { type: 'n8n_action', label: 'Google Sheets Log', subtitle: 'Append inspection record', app: 'sheets', icon: <FileSpreadsheet size={16} color="#22c55e" /> }
       ]
     }
   ];
@@ -470,7 +487,7 @@ const N8NPaletteSidebar = ({ onAddNode, searchQuery, setSearchQuery, onClose }) 
   return (
     <div
       style={{
-        width: '280px',
+        width: '300px',
         height: '100%',
         backgroundColor: '#18181f',
         borderRight: '1px solid #282834',
@@ -484,7 +501,7 @@ const N8NPaletteSidebar = ({ onAddNode, searchQuery, setSearchQuery, onClose }) 
           <div style={{ width: '26px', height: '26px', borderRadius: '6px', backgroundColor: '#ff6d5a20', border: '1px solid #ff6d5a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Zap size={14} color="#ff6d5a" />
           </div>
-          <span style={{ fontSize: '13px', fontWeight: 800, color: '#ffffff' }}>Nodes Palette</span>
+          <span style={{ fontSize: '13px', fontWeight: 800, color: '#ffffff' }}>MES Widget Palette</span>
         </div>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
           <PanelLeftClose size={16} />
@@ -496,7 +513,7 @@ const N8NPaletteSidebar = ({ onAddNode, searchQuery, setSearchQuery, onClose }) 
           <Search size={13} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#71717a' }} />
           <input
             type="text"
-            placeholder="Cari node..."
+            placeholder="Cari widget MES (Mesin, QC, Caliper, Slack)..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{ width: '100%', padding: '7px 10px 7px 30px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#fff', fontSize: '11px', outline: 'none' }}
@@ -558,17 +575,19 @@ const N8NPaletteSidebar = ({ onAddNode, searchQuery, setSearchQuery, onClose }) 
 };
 
 // =====================================================
-// RIGHT NODE PROPERTIES INSPECTOR PANEL
+// RIGHT NODE PROPERTIES INSPECTOR PANEL (MES WIDGETS INTEGRATED)
 // =====================================================
 const N8NPropertiesInspector = ({ selectedNode, onUpdateNode, onDeleteNode, onDuplicateNode, onClose }) => {
   const [activeTab, setActiveTab] = useState('parameters');
 
   if (!selectedNode) return null;
 
+  const mesType = selectedNode.data?.mesType || '';
+
   return (
     <div
       style={{
-        width: '360px',
+        width: '380px',
         height: '100%',
         backgroundColor: '#18181f',
         borderLeft: '1px solid #282834',
@@ -587,7 +606,7 @@ const N8NPropertiesInspector = ({ selectedNode, onUpdateNode, onDeleteNode, onDu
             <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 800, color: '#ffffff' }}>
               {selectedNode.data?.label || selectedNode.id}
             </h4>
-            <span style={{ fontSize: '10px', color: '#94a3b8' }}>Type: {selectedNode.type}</span>
+            <span style={{ fontSize: '10px', color: '#38bdf8' }}>MES Widget: {selectedNode.data?.subtitle || selectedNode.type}</span>
           </div>
         </div>
 
@@ -624,7 +643,7 @@ const N8NPropertiesInspector = ({ selectedNode, onUpdateNode, onDeleteNode, onDu
           <>
             <div>
               <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
-                Node Display Label
+                Widget Display Label
               </label>
               <input
                 type="text"
@@ -634,42 +653,148 @@ const N8NPropertiesInspector = ({ selectedNode, onUpdateNode, onDeleteNode, onDu
               />
             </div>
 
-            <div>
-              <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
-                Subtitle / Secondary Info
-              </label>
-              <input
-                type="text"
-                value={selectedNode.data?.subtitle || ''}
-                onChange={(e) => onUpdateNode(selectedNode.id, { ...selectedNode.data, subtitle: e.target.value })}
-                style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '12px', outline: 'none' }}
-              />
-            </div>
+            {/* MES Machine Telemetry Parameters */}
+            {mesType === 'machine_telemetry' && (
+              <>
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                    Pilih Target Mesin MES
+                  </label>
+                  <select
+                    value={selectedNode.data?.parameters?.machineId || 'CNC-01'}
+                    onChange={(e) => onUpdateNode(selectedNode.id, { ...selectedNode.data, parameters: { ...selectedNode.data?.parameters, machineId: e.target.value } })}
+                    style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '12px' }}
+                  >
+                    <option value="CNC-01">CNC Milling Machine 01 (Station 1)</option>
+                    <option value="INJ-02">Injection Molding A (Station 2)</option>
+                    <option value="LATHE-03">Lathe Machine 03 (Station 3)</option>
+                    <option value="PRESS-04">Hydraulic Press 04 (Station 4)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                    Metrik yang Dipantau
+                  </label>
+                  <select
+                    value={selectedNode.data?.parameters?.metric || 'OEE'}
+                    onChange={(e) => onUpdateNode(selectedNode.id, { ...selectedNode.data, parameters: { ...selectedNode.data?.parameters, metric: e.target.value } })}
+                    style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '12px' }}
+                  >
+                    <option value="OEE">OEE (%)</option>
+                    <option value="RPM">Spindle Speed (RPM)</option>
+                    <option value="TEMP">Temperature (°C)</option>
+                    <option value="VIB">Vibration (mm/s)</option>
+                  </select>
+                </div>
+              </>
+            )}
 
+            {/* MES QC Checksheet Defect Parameters */}
+            {mesType === 'qc_defect' && (
+              <>
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                    Template Checksheet QC
+                  </label>
+                  <select
+                    value={selectedNode.data?.parameters?.checksheet || 'Flange-QC'}
+                    onChange={(e) => onUpdateNode(selectedNode.id, { ...selectedNode.data, parameters: { ...selectedNode.data?.parameters, checksheet: e.target.value } })}
+                    style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '12px' }}
+                  >
+                    <option value="Flange-QC">Flange Machining Inspection</option>
+                    <option value="Bushing-QC">Bushing Tolerance Check</option>
+                    <option value="PCB-Visual">PCB Visual SMT Inspection</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                    Kategori Defect Pemicu
+                  </label>
+                  <input
+                    type="text"
+                    value={selectedNode.data?.parameters?.defectCategory || 'Burr, Crack, Dimension NG'}
+                    onChange={(e) => onUpdateNode(selectedNode.id, { ...selectedNode.data, parameters: { ...selectedNode.data?.parameters, defectCategory: e.target.value } })}
+                    style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '12px' }}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Tolerance Evaluator Parameters */}
+            {mesType === 'tolerance_eval' && (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                  <div>
+                    <label style={{ fontSize: '10px', color: '#94a3b8' }}>Nominal (mm)</label>
+                    <input
+                      type="text"
+                      value={selectedNode.data?.parameters?.nominal || '45.00'}
+                      onChange={(e) => onUpdateNode(selectedNode.id, { ...selectedNode.data, parameters: { ...selectedNode.data?.parameters, nominal: e.target.value } })}
+                      style={{ width: '100%', padding: '6px 8px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '11px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '10px', color: '#94a3b8' }}>Upper (+)</label>
+                    <input
+                      type="text"
+                      value={selectedNode.data?.parameters?.upper || '+0.05'}
+                      onChange={(e) => onUpdateNode(selectedNode.id, { ...selectedNode.data, parameters: { ...selectedNode.data?.parameters, upper: e.target.value } })}
+                      style={{ width: '100%', padding: '6px 8px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '11px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '10px', color: '#94a3b8' }}>Lower (-)</label>
+                    <input
+                      type="text"
+                      value={selectedNode.data?.parameters?.lower || '-0.05'}
+                      onChange={(e) => onUpdateNode(selectedNode.id, { ...selectedNode.data, parameters: { ...selectedNode.data?.parameters, lower: e.target.value } })}
+                      style={{ width: '100%', padding: '6px 8px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '11px' }}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Slack / Telegram Channel */}
             {selectedNode.data?.app === 'slack' && (
               <div>
                 <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
-                  Slack Channel / User
+                  Slack Channel
                 </label>
                 <input
                   type="text"
-                  value={selectedNode.data?.parameters?.channel || '#general'}
+                  value={selectedNode.data?.parameters?.channel || '#production-alerts'}
                   onChange={(e) => onUpdateNode(selectedNode.id, { ...selectedNode.data, parameters: { ...selectedNode.data?.parameters, channel: e.target.value } })}
-                  style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '12px', outline: 'none' }}
+                  style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '12px' }}
                 />
               </div>
             )}
 
+            {selectedNode.data?.app === 'telegram' && (
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                  Telegram Group / Chat ID
+                </label>
+                <input
+                  type="text"
+                  value={selectedNode.data?.parameters?.chatId || '@mandor_qc_group'}
+                  onChange={(e) => onUpdateNode(selectedNode.id, { ...selectedNode.data, parameters: { ...selectedNode.data?.parameters, chatId: e.target.value } })}
+                  style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '12px' }}
+                />
+              </div>
+            )}
+
+            {/* AI Agent System Prompt */}
             {selectedNode.type === 'n8n_agent' && (
               <div>
                 <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
-                  AI Agent System Prompt
+                  AI Agent System Prompt (MES Copilot)
                 </label>
                 <textarea
                   rows={4}
-                  value={selectedNode.data?.parameters?.prompt || 'Process user onboarding and determine department privileges.'}
+                  value={selectedNode.data?.parameters?.prompt || 'Analisis kemungkinan penyebab defect dimensi NG pada mesin CNC-01 dan sarankan tindakan perbaikan.'}
                   onChange={(e) => onUpdateNode(selectedNode.id, { ...selectedNode.data, parameters: { ...selectedNode.data?.parameters, prompt: e.target.value } })}
-                  style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '11px', outline: 'none', resize: 'vertical' }}
+                  style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '11px', resize: 'vertical' }}
                 />
               </div>
             )}
@@ -679,7 +804,7 @@ const N8NPropertiesInspector = ({ selectedNode, onUpdateNode, onDeleteNode, onDu
         {activeTab === 'data' && (
           <div style={{ backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', padding: '10px' }}>
             <pre style={{ margin: 0, fontSize: '11px', color: '#34d399', fontFamily: 'monospace' }}>
-              {JSON.stringify(selectedNode.data?.parameters || { status: 'OK', payload: { id: selectedNode.id } }, null, 2)}
+              {JSON.stringify(selectedNode.data?.parameters || { mesSource: 'Mandor-Core', status: 'ACTIVE', part: 'PRT-FLG-450' }, null, 2)}
             </pre>
           </div>
         )}
@@ -716,7 +841,7 @@ const N8NPropertiesInspector = ({ selectedNode, onUpdateNode, onDeleteNode, onDu
             boxShadow: '0 2px 10px rgba(255,109,90,0.4)'
           }}
         >
-          <Play size={14} /> ⚡ Test Step
+          <Play size={14} /> ⚡ Test Widget Step
         </button>
 
         <div style={{ display: 'flex', gap: '8px' }}>
