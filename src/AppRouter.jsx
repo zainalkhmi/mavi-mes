@@ -43,7 +43,12 @@ const ConnectorManager = lazy(() => import('./components/ConnectorManager'));
 const UserManager = lazy(() => import('./components/UserManager'));
 const AppBuilder = lazy(() => import('./components/AppBuilder'));
 const AppPlayer = lazy(() => import('./components/AppPlayer'));
-const AutomationEditor = lazy(() => import('./components/AutomationEditor'));
+const AutomationEditor = lazy(() => import('./components/WorkflowEditor'));
+const AutomationDashboard = lazy(() => import('./components/AutomationDashboard'));
+const ExecutionMonitor = lazy(() => import('./components/ExecutionMonitor'));
+const CredentialManager = lazy(() => import('./components/CredentialManager'));
+const TemplateGallery = lazy(() => import('./components/TemplateGallery'));
+const VersionControl = lazy(() => import('./components/VersionControl'));
 const LiveTerminal = lazy(() => import('./components/LiveTerminal'));
 const PlcSettings = lazy(() => import('./components/PlcSettings'));
 const VisionManager = lazy(() => import('./components/VisionManager'));
@@ -90,6 +95,7 @@ const ShiftHandoffSettings = lazy(() => import('./components/ShiftHandoffSetting
 const InspectorDesigner = lazy(() => import('./components/InspectorDesigner'));
 const CheckSheetManager = lazy(() => import('./components/CheckSheetManager'));
 const MachineMonitoringDashboard = lazy(() => import('./components/MachineMonitoringDashboard'));
+const N8NStudio = lazy(() => import('./components/N8NStudio'));
 
 export default function AppRouter({ user, isOperator }) {
   const hasAccess = (path) => checkRoleAccess(user, path);
@@ -166,7 +172,14 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/nodered" element={hasAccess('/plc-settings') ? <NodeREDDashboard /> : <Navigate to="/" replace />} />
               <Route path="/users" element={hasAccess('/users') ? <UserManager /> : <Navigate to="/" replace />} />
               <Route path="/apps/data-entry-form-example" element={<DataEntryFormGuide />} />
-              <Route path="/automations" element={hasAccess('/automations') ? <AutomationEditor /> : <Navigate to="/" replace />} />
+              <Route path="/automations" element={hasAccess('/automations') ? <AutomationDashboard /> : <Navigate to="/" replace />} />
+              <Route path="/automations/n8n-studio" element={hasAccess('/automations') ? <N8NStudio /> : <Navigate to="/" replace />} />
+              <Route path="/n8n" element={hasAccess('/automations') ? <N8NStudio /> : <Navigate to="/" replace />} />
+              <Route path="/automations/editor" element={hasAccess('/automations') ? <AutomationEditor /> : <Navigate to="/" replace />} />
+              <Route path="/automations/monitor" element={hasAccess('/automations') ? <ExecutionMonitor /> : <Navigate to="/" replace />} />
+              <Route path="/automations/credentials" element={hasAccess('/automations') ? <CredentialManager /> : <Navigate to="/" replace />} />
+              <Route path="/automations/templates" element={hasAccess('/automations') ? <TemplateGallery /> : <Navigate to="/" replace />} />
+              <Route path="/automations/:id/versions" element={hasAccess('/automations') ? <VersionControl /> : <Navigate to="/" replace />} />
               <Route path="/orders" element={<WorkOrderDashboard />} />
               <Route path="/functions" element={hasAccess('/functions') ? <FunctionsEditor /> : <Navigate to="/" replace />} />
               <Route path="/terminal" element={<LiveTerminal />} />

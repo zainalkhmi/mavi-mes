@@ -1,10 +1,13 @@
 import { Link, useLocation } from 'react-router-dom';
+import { useState, useRef, useEffect } from 'react';
 import {
   Settings, Zap, Camera, Cpu, Database, Link2, Variable,
   BarChart3, BarChart2, Monitor, MapPin, Radio, Tv, Activity, Eye, BrainCircuit,
   SlidersHorizontal, Users, ShoppingBag, AppWindow, Folder, Volume2,
   FileCode, Webhook, Play, Layout, FileText, PieChart, Terminal, Bot, Clock,
-  ClipboardCheck, FileSpreadsheet, Boxes, LayoutDashboard, FolderArchive, Layers
+  ClipboardCheck, FileSpreadsheet, Boxes, LayoutDashboard, FolderArchive, Layers,
+  Workflow, ActivitySquare, Key, LayoutTemplate, GitBranch, Settings2,
+  ChevronDown, ChevronRight
 } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 import { useGlobalStore } from '../../store/useGlobalStore.js';
@@ -35,6 +38,26 @@ export default function TopNavbar() {
 
   const isOperatorRoute = location.pathname.startsWith('/player') || location.pathname.startsWith('/terminal');
   const hasAccess = (path) => checkRoleAccess(user, path);
+
+  // Logic dropdown state
+  const [isOpen, setIsOpen] = useState(false);
+  const [activeSubmenu, setActiveSubmenu] = useState(null);
+  const menuRef = useRef(null);
+
+  // Click outside handler
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setIsOpen(false);
+        setActiveSubmenu(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Check if any automation/functions route is active
+  const isLogicActive = ['/automations', '/functions'].some(path => location.pathname.startsWith(path));
 
   if (isOperatorRoute || isOperator || isChecksheetRoute) return null;
 
@@ -78,10 +101,36 @@ export default function TopNavbar() {
     hasAccess('/shift-handoff') && { path: '/shift-handoff', icon: <Clock size={16} className="text-amber-500" />, label: 'Shift Handoff' }
   ].filter(Boolean);
 
-  const logicItems = [
-    hasAccess('/automations') && { path: '/automations', icon: <Cpu size={16} />, label: 'Automations' },
-    hasAccess('/functions') && { path: '/functions', icon: <Boxes size={16} />, label: 'Functions' }
+  // Automation submenu items
+  const automationSubItems = [
+    { path: '/automations', icon: <Cpu size={16} />, label: 'Automation Hub' },
+    { path: '/automations/n8n-studio', icon: <Zap size={16} className="text-orange-500" />, label: '⚡ n8n Full Engine Studio (Live)' },
+    { path: '/automations/editor', icon: <Workflow size={16} />, label: 'Workflow Editor (n8n Style)' },
+    { path: '/automations/monitor', icon: <ActivitySquare size={16} />, label: 'Execution Monitor' },
+    { path: '/automations/templates', icon: <LayoutTemplate size={16} />, label: 'Templates Gallery' },
+    { path: '/automations/credentials', icon: <Key size={16} />, label: 'Credentials Manager' }
+  ];
+
+  // Functions submenu items
+  const functionsSubItems = [
+    hasAccess('/functions') && { path: '/functions', icon: <Boxes size={16} />, label: 'Functions Editor' }
   ].filter(Boolean);
+
+  // Logic section - main dropdown with 2 sub-items
+  const logicItems = [
+    {
+      type: 'dropdown',
+      label: 'Automation',
+      icon: <Cpu size={16} />,
+      items: automationSubItems
+    },
+    {
+      type: 'dropdown',
+      label: 'Function',
+      icon: <Boxes size={16} />,
+      items: functionsSubItems
+    }
+  ];
 
   const consoleItems = [
     hasAccess('/player') && { path: '/player', icon: <Play size={16} />, label: 'App Player' },
@@ -123,7 +172,68 @@ export default function TopNavbar() {
             {shopFloorItems.length > 0 && <NavDropdown title="Shop Floor" items={shopFloorItems} />}
             {visionItems.length > 0 && <NavDropdown title="Vision" items={visionItems} />}
             {analyticsItems.length > 0 && <NavDropdown title="Analytics" items={analyticsItems} />}
-            {logicItems.length > 0 && <NavDropdown title="Logic" items={logicItems} />}
+            {logicItems.length > 0 && (
+              <div className="relative" ref={menuRef}>
+                <button
+                  onClick={() => setIsOpen(!isOpen)}
+                  className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded transition-colors ${isLogicActive ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+                >
+                  <Cpu size={16} />
+                  Logic
+                  <ChevronDown size={14} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isOpen && (
+                  <div className="absolute top-full left-0 min-w-56 bg-white border border-slate-200 rounded-lg shadow-md py-2 flex flex-col z-50">
+                    {logicItems.map((item, idx) => {
+                      if (item.type === 'dropdown' && item.items) {
+                        return (
+                          <div
+                            key={idx}
+                            className="relative"
+                            onMouseEnter={() => setActiveSubmenu(idx)}
+                            onMouseLeave={() => setActiveSubmenu(null)}
+                          >
+                            <div
+                              className={`flex items-center justify-between px-4 py-3 text-sm font-semibold cursor-pointer border-l-4 border-transparent hover:bg-slate-50`}
+                            >
+                              <div className="flex items-center gap-2">
+                                {item.icon}
+                                {item.label}
+                              </div>
+                              <ChevronRight size={14} className="text-slate-400" />
+                            </div>
+
+                            {activeSubmenu === idx && (
+                              <div className="absolute left-full top-0 min-w-48 bg-white border border-slate-200 rounded-lg shadow-md py-2 ml-1">
+                                {item.items.map((subItem, subIdx) => {
+                                  if (subItem.type === 'divider') {
+                                    return <div key={subIdx} className="h-px bg-slate-200 my-1" />;
+                                  }
+                                  const isSubItemActive = location.pathname === subItem.path;
+                                  return (
+                                    <Link
+                                      key={subIdx}
+                                      to={subItem.path}
+                                      onClick={() => { setIsOpen(false); setActiveSubmenu(null); }}
+                                      className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold transition-colors border-l-4 ${isSubItemActive ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-transparent text-slate-800 hover:bg-slate-50'}`}
+                                    >
+                                      {subItem.icon}
+                                      {subItem.label}
+                                    </Link>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
