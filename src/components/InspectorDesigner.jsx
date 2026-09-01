@@ -5841,7 +5841,7 @@ export default function InspectorDesigner() {
                   position: 'relative',
                   overflow: 'hidden'
                 }}>
-                  <svg width="100%" height="100%" style={{ position: 'absolute' }}>
+                  <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0 }}>
                     <rect width="100%" height="100%" fill="#f8fafc" />
                     <pattern id="previewGrid" width="20" height="20" patternUnits="userSpaceOnUse">
                       <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#e2e8f0" strokeWidth="0.5" />
@@ -5849,27 +5849,81 @@ export default function InspectorDesigner() {
                     <rect width="100%" height="100%" fill="url(#previewGrid)" />
                   </svg>
                   
-                  {checkPoints.map(point => (
-                    <div key={point.id} style={{
-                      position: 'absolute',
-                      left: `${(point.x / 1000) * 100}%`,
-                      top: `${(point.y / 700) * 100}%`,
-                      transform: 'translate(-50%, -50%)'
-                    }}>
-                      <div style={{
-                        width: '28px', height: '28px',
-                        borderRadius: '50%',
-                        backgroundColor: getCategoryColor(point.category),
-                        color: 'white',
-                        border: '2px solid white',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontWeight: 900, fontSize: '0.75rem'
+                  {/* Drawing Blueprint Layer */}
+                  {drawingPreview ? (
+                    typeof drawingPreview === 'string' && (drawingPreview.startsWith('data:image') || drawingPreview.startsWith('blob:') || drawingPreview.startsWith('http')) ? (
+                      <img
+                        src={drawingPreview}
+                        alt="Blueprint Drawing"
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'contain',
+                          pointerEvents: 'none'
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          width: '100%',
+                          height: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          pointerEvents: 'none'
+                        }}
+                        dangerouslySetInnerHTML={{ __html: drawingPreview }}
+                      />
+                    )
+                  ) : (selectedDrawing?.dataUrl || selectedDrawing?.svgData) ? (
+                    <img
+                      src={selectedDrawing.dataUrl || selectedDrawing.svgData}
+                      alt="Blueprint Drawing"
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                        pointerEvents: 'none'
+                      }}
+                    />
+                  ) : null}
+                  
+                  {/* Balloon Points Layer */}
+                  {checkPoints.map(point => {
+                    const posX = point.x <= 100 ? `${point.x}%` : `${(point.x / 980) * 100}%`;
+                    const posY = point.y <= 100 ? `${point.y}%` : `${(point.y / 680) * 100}%`;
+                    return (
+                      <div key={point.id} style={{
+                        position: 'absolute',
+                        left: posX,
+                        top: posY,
+                        transform: 'translate(-50%, -50%)',
+                        zIndex: 10
                       }}>
-                        {point.pointNumber}
+                        <div style={{
+                          width: '28px', height: '28px',
+                          borderRadius: point.shape === 'hexagon' ? '4px' : point.shape === 'diamond' ? '4px' : '50%',
+                          transform: point.shape === 'diamond' ? 'rotate(45deg)' : 'none',
+                          backgroundColor: getCategoryColor(point.category),
+                          color: 'white',
+                          border: '2px solid white',
+                          boxShadow: '0 3px 10px rgba(0,0,0,0.4)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontWeight: 900, fontSize: '0.75rem'
+                        }}>
+                          <span style={{ transform: point.shape === 'diamond' ? 'rotate(-45deg)' : 'none' }}>
+                            {point.pointNumber}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
               
