@@ -269,45 +269,26 @@ export default function MobileTabletCheckSheet({
             {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
           </button>
 
-          {/* Toggle Mobile / Tablet */}
-          <div style={{ display: 'flex', backgroundColor: '#20202c', borderRadius: '8px', padding: '2px', border: '1px solid #323246' }}>
-            <button
-              onClick={() => setDeviceMode('mobile')}
-              style={{
-                padding: '4px 8px',
-                borderRadius: '6px',
-                border: 'none',
-                backgroundColor: deviceMode === 'mobile' ? '#ff6d5a' : 'transparent',
-                color: deviceMode === 'mobile' ? '#fff' : '#94a3b8',
-                fontSize: '0.72rem',
-                fontWeight: 800,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}
-            >
-              <Smartphone size={13} /> Mobile
-            </button>
-            <button
-              onClick={() => setDeviceMode('tablet')}
-              style={{
-                padding: '4px 8px',
-                borderRadius: '6px',
-                border: 'none',
-                backgroundColor: deviceMode === 'tablet' ? '#ff6d5a' : 'transparent',
-                color: deviceMode === 'tablet' ? '#fff' : '#94a3b8',
-                fontSize: '0.72rem',
-                fontWeight: 800,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}
-            >
-              <Tablet size={13} /> Tablet
-            </button>
-          </div>
+          {/* Exit to PC / Tablet View */}
+          <button
+            onClick={onCloseMobileMode}
+            style={{
+              padding: '6px 10px',
+              borderRadius: '6px',
+              border: '1px solid #383848',
+              backgroundColor: '#20202c',
+              color: '#94a3b8',
+              fontSize: '0.72rem',
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+            title="Kembali ke Tampilan PC & Tablet"
+          >
+            <Monitor size={14} /> PC / Tablet UI
+          </button>
         </div>
       </div>
 

@@ -705,8 +705,9 @@ export default function DigitalDrawingCheckSheet() {
   const [humidity, setHumidity] = useState('52'); // % RH
   const [showEnvModal, setShowEnvModal] = useState(false);
   const [showWatermark] = useState(true);
-  const [isMobileTabletModeActive, setIsMobileTabletModeActive] = useState(() => {
-    if (typeof window !== 'undefined' && window.innerWidth < 1024) return true;
+  const [isMobileModeActive, setIsMobileModeActive] = useState(() => {
+    // Only auto-open mobile mode on smartphone screens (< 768px)
+    if (typeof window !== 'undefined' && window.innerWidth < 768) return true;
     return false;
   });
 
@@ -2107,9 +2108,9 @@ export default function DigitalDrawingCheckSheet() {
 
         {/* Right Tools: Compact Action Icons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-          {/* Mobile & Tablet Dedicated Mode Toggle */}
+          {/* Mobile Dedicated Mode Toggle */}
           <button
-            onClick={() => setIsMobileTabletModeActive(true)}
+            onClick={() => setIsMobileModeActive(true)}
             style={{
               padding: '5px 10px',
               backgroundColor: '#ff6d5a20',
@@ -2123,10 +2124,10 @@ export default function DigitalDrawingCheckSheet() {
               alignItems: 'center',
               gap: '5px'
             }}
-            title="Buka Mode Khusus Mobile & Tablet Touch Ergonomis"
+            title="Buka Mode Khusus Mobile Smartphone"
           >
             <Smartphone size={13} />
-            <span>Mobile / Tablet</span>
+            <span>Mobile Mode</span>
           </button>
 
           {/* Companion QR Button */}
@@ -4341,8 +4342,8 @@ export default function DigitalDrawingCheckSheet() {
         onSave={handleUpdateEnvironment}
       />
 
-      {/* ─── DEDICATED MOBILE & TABLET INDUSTRIAL QC TOUCH MODE ───── */}
-      {isMobileTabletModeActive && (
+      {/* ─── DEDICATED MOBILE SMARTPHONE INDUSTRIAL QC TOUCH MODE ───── */}
+      {isMobileModeActive && (
         <MobileTabletCheckSheet
           checksheet={{
             name: partName || 'Digital Check Sheet',
@@ -4363,7 +4364,7 @@ export default function DigitalDrawingCheckSheet() {
           onOpenDefectCamera={() => setShowCameraInput(true)}
           onOpenSignatureModal={() => setShowSupervisorModal(true)}
           onSubmitChecksheet={() => saveInspectionPayload(checkPoints)}
-          onCloseMobileMode={() => setIsMobileTabletModeActive(false)}
+          onCloseMobileMode={() => setIsMobileModeActive(false)}
           currentPointIndex={Math.max(0, checkPoints.findIndex(p => p.id === activePointId))}
           onSelectPoint={(idx) => {
             if (checkPoints[idx]) setActivePointId(checkPoints[idx].id);
