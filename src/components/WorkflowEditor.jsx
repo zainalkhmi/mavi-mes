@@ -43,10 +43,16 @@ import {
   Variable, FileJson, FileCode, Timer, Bell, Shield, GitBranch, CheckCircle2,
   X, Check, RefreshCw, Terminal, Sliders, ArrowRight, PlayCircle, Edit3,
   Eye, Layers, HelpCircle, Sparkles, UserPlus, GitFork, ArrowUpRight,
-  SlidersHorizontal, Box, ToggleLeft, ToggleRight, CheckCheck
+  SlidersHorizontal, Box, ToggleLeft, ToggleRight, CheckCheck, FolderOpen, FilePlus
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { WORKFLOW_TEMPLATES } from './TemplateGallery';
+import {
+  getAutomations,
+  createAutomation,
+  updateAutomation,
+  deleteAutomation
+} from '../utils/automationDB';
 
 // ─── SVG LOGOS FOR N8N NODES ───
 const SlackLogo = () => (
@@ -1119,7 +1125,15 @@ export const WorkflowEditorContent = () => {
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [workflowId, setWorkflowId] = useState(null);
   const [workflowName, setWorkflowName] = useState('AI Onboarding & Role Dispatcher');
+  const [savedWorkflows, setSavedWorkflows] = useState([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSavedTime, setLastSavedTime] = useState(null);
+  const [showWorkflowsModal, setShowWorkflowsModal] = useState(false);
+  const [showNewWorkflowModal, setShowNewWorkflowModal] = useState(false);
+  const [newWorkflowName, setNewWorkflowName] = useState('');
+  const [newWorkflowDesc, setNewWorkflowDesc] = useState('');
   const [selectedNodeId, setSelectedNodeId] = useState('node-agent');
   const [showPalette, setShowPalette] = useState(true);
   const [showProperties, setShowProperties] = useState(true);
@@ -1133,6 +1147,141 @@ export const WorkflowEditorContent = () => {
     { id: '3', timestamp: new Date().toLocaleTimeString(), node: 'Slack Action', status: 'SUCCESS', details: 'Notification posted to #management' }
   ]);
   const reactFlow = useReactFlow();
+
+  // Fetch saved workflows from Supabase on mount
+  const fetchWorkflows = useCallback(async () => {
+    try {
+      const data = await getAutomations();
+      setSavedWorkflows(data || []);
+    } catch (err) {
+      console.warn('Could not fetch automations from Supabase:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchWorkflows();
+  }, [fetchWorkflows]);
+
+  // ─── SAVE WORKFLOW TO SUPABASE DATABASE ────────────────────────
+  const handleSaveWorkflow = async () => {
+    setIsSaving(true);
+    const saveToastId = toast.loading('Menyimpan alur kerja ke database MES...', { id: 'save_wf' });
+    try {
+      const payload = {
+        name: workflowName || 'Untitled Workflow',
+        description: `Dibuat di Mandor MES Studio pada ${new Date().toLocaleDateString()}`,
+        graphData: { nodes, edges },
+        triggerConfig: { count: nodes.filter(n => n.type === 'n8n_trigger').length },
+        isActive: true
+      };
+
+      let result;
+      if (workflowId) {
+        result = await updateAutomation(workflowId, payload);
+      } else {
+        result = await createAutomation(payload);
+        if (result?.id) setWorkflowId(result.id);
+      }
+
+      setLastSavedTime(new Date().toLocaleTimeString());
+      await fetchWorkflows();
+      toast.success(`Workflow "${workflowName}" berhasil disimpan!`, { id: 'save_wf', icon: '💾' });
+    } catch (err) {
+      console.error('Failed to save workflow:', err);
+      // Fallback local persistence
+      localStorage.setItem(`mes_wf_${Date.now()}`, JSON.stringify({ name: workflowName, nodes, edges }));
+      setLastSavedTime(new Date().toLocaleTimeString());
+      toast.success(`Workflow "${workflowName}" tersimpan (Lokal)!`, { id: 'save_wf', icon: '💾' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // ─── CREATE NEW WORKFLOW MODAL SUBMIT ──────────────────────────
+  const handleCreateNewWorkflowSubmit = async (e) => {
+    if (e) e.preventDefault();
+    const name = newWorkflowName.trim() || 'Workflow Baru';
+    
+    // Create clean starting trigger node
+    const starterNodes = [
+      {
+        id: `node-${Date.now()}`,
+        type: 'n8n_trigger',
+        position: { x: 100, y: 180 },
+        data: {
+          label: 'On Event Trigger',
+          subtitle: 'Start Trigger',
+          parameters: {}
+        }
+      }
+    ];
+
+    setWorkflowName(name);
+    setNodes(starterNodes);
+    setEdges([]);
+    setSelectedNodeId(starterNodes[0].id);
+    setWorkflowId(null);
+    setShowNewWorkflowModal(false);
+    setNewWorkflowName('');
+    setNewWorkflowDesc('');
+
+    toast.success(`Workflow "${name}" baru dibuat! Silakan tambahkan node.`, { icon: '✨' });
+
+    // Auto save initial draft to Supabase
+    try {
+      const res = await createAutomation({
+        name,
+        description: newWorkflowDesc,
+        graphData: { nodes: starterNodes, edges: [] },
+        isActive: true
+      });
+      if (res?.id) setWorkflowId(res.id);
+      fetchWorkflows();
+    } catch (err) {
+      console.warn('Initial draft save fallback:', err);
+    }
+  };
+
+  // ─── OPEN SAVED WORKFLOW FROM MODAL ────────────────────────────
+  const handleOpenSavedWorkflow = (wf) => {
+    if (!wf) return;
+    setWorkflowId(wf.id);
+    setWorkflowName(wf.name || 'Untitled Workflow');
+
+    const graph = wf.graph_data || wf.graphData || {};
+    if (graph.nodes && Array.isArray(graph.nodes) && graph.nodes.length > 0) {
+      setNodes(graph.nodes);
+      setEdges(graph.edges || []);
+      setSelectedNodeId(graph.nodes[0]?.id || null);
+      setTimeout(() => {
+        try { reactFlow.fitView({ padding: 0.2, duration: 400 }); } catch (e) {}
+      }, 150);
+    } else {
+      setNodes([]);
+      setEdges([]);
+    }
+
+    setShowWorkflowsModal(false);
+    toast.success(`Workflow "${wf.name}" berhasil dibuka!`, { icon: '📂' });
+  };
+
+  // ─── DELETE SAVED WORKFLOW ─────────────────────────────────────
+  const handleDeleteSavedWorkflow = async (id, name, e) => {
+    if (e) e.stopPropagation();
+    if (!window.confirm(`Hapus workflow "${name}" dari database?`)) return;
+    try {
+      await deleteAutomation(id);
+      toast.success(`Workflow "${name}" berhasil dihapus dari database.`);
+      if (workflowId === id) {
+        setWorkflowId(null);
+        setWorkflowName('New Workflow');
+      }
+      fetchWorkflows();
+    } catch (err) {
+      console.error('Failed to delete workflow:', err);
+      toast.error('Gagal menghapus workflow dari database');
+    }
+  };
 
   const selectedNode = useMemo(() => nodes.find(n => n.id === selectedNodeId) || null, [nodes, selectedNodeId]);
 
@@ -1521,6 +1670,55 @@ export const WorkflowEditorContent = () => {
             <Sparkles size={13} /> Presets
           </button>
 
+          {/* Create New Workflow Button */}
+          <button
+            onClick={() => {
+              setNewWorkflowName('');
+              setNewWorkflowDesc('');
+              setShowNewWorkflowModal(true);
+            }}
+            style={{
+              padding: '6px 10px',
+              borderRadius: '6px',
+              backgroundColor: '#272733',
+              border: '1px solid #383848',
+              color: '#4ade80',
+              fontSize: '11px',
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+            title="Buat Workflow Baru dari awal"
+          >
+            <FilePlus size={13} /> + Create New
+          </button>
+
+          {/* My Workflows Modal Button */}
+          <button
+            onClick={() => {
+              fetchWorkflows();
+              setShowWorkflowsModal(true);
+            }}
+            style={{
+              padding: '6px 10px',
+              borderRadius: '6px',
+              backgroundColor: '#272733',
+              border: '1px solid #383848',
+              color: '#e2e8f0',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+            title="Daftar alur kerja tersimpan di database"
+          >
+            <FolderOpen size={13} /> My Workflows ({savedWorkflows.length})
+          </button>
+
           {/* Hapus Seluruh Workflow Button */}
           <button
             onClick={() => setShowClearModal(true)}
@@ -1539,26 +1737,29 @@ export const WorkflowEditorContent = () => {
             }}
             title="Hapus alur kerja ini dan bersihkan kanvas"
           >
-            <Trash2 size={13} /> Hapus Workflow
+            <Trash2 size={13} /> Hapus
           </button>
 
+          {/* Save Workflow Button */}
           <button
-            onClick={() => toast.success(`Workflow "${workflowName}" tersimpan di MES!`, { icon: '💾' })}
+            onClick={handleSaveWorkflow}
+            disabled={isSaving}
             style={{
-              padding: '6px 12px',
+              padding: '6px 14px',
               borderRadius: '6px',
-              backgroundColor: '#272733',
-              border: '1px solid #383848',
-              color: '#ffffff',
+              backgroundColor: '#22c55e20',
+              border: '1px solid #22c55e',
+              color: '#4ade80',
               fontSize: '11px',
-              fontWeight: 700,
+              fontWeight: 800,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '4px'
+              gap: '5px'
             }}
+            title={lastSavedTime ? `Tersimpan jam ${lastSavedTime}` : 'Simpan alur kerja ke database Supabase'}
           >
-            <Save size={13} /> Save
+            <Save size={13} /> {isSaving ? 'Saving...' : lastSavedTime ? `Saved (${lastSavedTime.slice(0, 5)})` : 'Save Workflow'}
           </button>
 
           <button
@@ -1900,6 +2101,192 @@ export const WorkflowEditorContent = () => {
                   </button>
                 </div>
               ))}
+            </div>
+      {/* ─── CREATE NEW WORKFLOW MODAL ────────────────────────────── */}
+      {showNewWorkflowModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10000,
+            backgroundColor: 'rgba(0,0,0,0.85)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px'
+          }}
+        >
+          <div
+            style={{
+              width: '460px',
+              backgroundColor: '#18181f',
+              border: '1px solid #282834',
+              borderRadius: '14px',
+              padding: '24px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.8)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#22c55e20', border: '1px solid #22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <FilePlus size={18} color="#4ade80" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#ffffff' }}>Buat Workflow Baru</h3>
+                  <p style={{ margin: 0, fontSize: '0.75rem', color: '#94a3b8' }}>Mulai alur kerja automasi baru dari kanvas kosong</p>
+                </div>
+              </div>
+              <button onClick={() => setShowNewWorkflowModal(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X size={18} /></button>
+            </div>
+
+            <form onSubmit={handleCreateNewWorkflowSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Nama Workflow *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: QC Defect & Machine Interlock Auto"
+                  value={newWorkflowName}
+                  onChange={(e) => setNewWorkflowName(e.target.value)}
+                  style={{ width: '100%', padding: '10px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '13px', outline: 'none' }}
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Deskripsi Singkat (Opsional)</label>
+                <textarea
+                  rows={2}
+                  placeholder="Alur kerja untuk mendeteksi defect checksheet dan menghentikan mesin..."
+                  value={newWorkflowDesc}
+                  onChange={(e) => setNewWorkflowDesc(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '12px', outline: 'none', resize: 'vertical' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowNewWorkflowModal(false)}
+                  style={{ flex: 1, padding: '10px', borderRadius: '8px', backgroundColor: '#272733', color: '#cbd5e1', border: '1px solid #383848', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  style={{ flex: 1.5, padding: '10px', borderRadius: '8px', backgroundColor: '#ff6d5a', color: '#ffffff', border: 'none', fontWeight: 900, cursor: 'pointer', boxShadow: '0 2px 10px rgba(255,109,90,0.4)' }}
+                >
+                  ✨ Buat & Buka Kanvas
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MY WORKFLOWS LIST MODAL ────────────────────────────────── */}
+      {showWorkflowsModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10000,
+            backgroundColor: 'rgba(0,0,0,0.85)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px'
+          }}
+        >
+          <div
+            style={{
+              width: '680px',
+              maxHeight: '80vh',
+              backgroundColor: '#18181f',
+              border: '1px solid #282834',
+              borderRadius: '14px',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.8)',
+              overflow: 'hidden'
+            }}
+          >
+            <div style={{ padding: '18px 24px', borderBottom: '1px solid #282834', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '34px', height: '34px', borderRadius: '8px', backgroundColor: '#38bdf820', border: '1px solid #38bdf8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <FolderOpen size={18} color="#38bdf8" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#ffffff' }}>My Saved Workflows ({savedWorkflows.length})</h3>
+                  <p style={{ margin: 0, fontSize: '0.75rem', color: '#94a3b8' }}>Daftar alur kerja yang tersimpan di database Supabase</p>
+                </div>
+              </div>
+              <button onClick={() => setShowWorkflowsModal(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X size={18} /></button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {savedWorkflows.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#71717a' }}>
+                  <FolderOpen size={40} style={{ opacity: 0.3, marginBottom: '12px' }} />
+                  <div>Belum ada alur kerja yang tersimpan.</div>
+                  <div style={{ fontSize: '12px', marginTop: '4px' }}>Klik tombol <b>Save Workflow</b> di toolbar untuk menyimpan alur kerja saat ini.</div>
+                </div>
+              ) : (
+                savedWorkflows.map(wf => (
+                  <div
+                    key={wf.id}
+                    onClick={() => handleOpenSavedWorkflow(wf)}
+                    style={{
+                      backgroundColor: workflowId === wf.id ? '#ff6d5a15' : '#111116',
+                      border: `1px solid ${workflowId === wf.id ? '#ff6d5a' : '#282834'}`,
+                      borderRadius: '10px',
+                      padding: '14px 18px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#ff6d5a'; e.currentTarget.style.transform = 'translateX(2px)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = workflowId === wf.id ? '#ff6d5a' : '#282834'; e.currentTarget.style.transform = 'none'; }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#212127', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Zap size={16} color="#ff6d5a" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#ffffff' }}>
+                          {wf.name} {workflowId === wf.id && <span style={{ fontSize: '10px', color: '#4ade80', marginLeft: '6px' }}>(Sedang Aktif)</span>}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#71717a' }}>
+                          {wf.description || `Diperbarui: ${new Date(wf.updated_at || Date.now()).toLocaleString()}`}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleOpenSavedWorkflow(wf); }}
+                        style={{ padding: '6px 12px', borderRadius: '6px', backgroundColor: '#212127', border: '1px solid #383844', color: '#38bdf8', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        Buka
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteSavedWorkflow(wf.id, wf.name, e)}
+                        style={{ padding: '6px 8px', borderRadius: '6px', backgroundColor: '#7f1d1d20', border: '1px solid #7f1d1d', color: '#fca5a5', fontSize: '11px', cursor: 'pointer' }}
+                        title="Hapus alur kerja ini"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
