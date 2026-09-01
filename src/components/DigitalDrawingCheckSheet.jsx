@@ -1608,11 +1608,31 @@ export default function DigitalDrawingCheckSheet() {
       }
 
       try {
+        const lightweightPayload = {
+          ...payload,
+          drawingSvg: undefined, // remove heavy svg
+          cadData: undefined,
+          checkPoints: (payload.checkPoints || []).map(p => ({
+            id: p.id,
+            pointNumber: p.pointNumber,
+            title: p.title,
+            nominal: p.nominal,
+            measuredVal: p.measuredVal,
+            status: p.status
+          }))
+        };
         const localLogs = JSON.parse(localStorage.getItem('mandor_qa_checksheets') || '[]');
-        const trimmed = [payload, ...localLogs].slice(0, 25);
+        const trimmed = [lightweightPayload, ...localLogs].slice(0, 10);
         localStorage.setItem('mandor_qa_checksheets', JSON.stringify(trimmed));
       } catch (err) {
-        console.warn('[QA Checksheets Quota Exceeded]', err);
+        console.warn('[QA Checksheets Quota Exceeded - Pruning older logs]', err);
+        try {
+          // Fallback: keep only the latest 3 lightweight records
+          const minimal = [{ id: payload.id, date: payload.date, overallStatus: payload.overallStatus }];
+          localStorage.setItem('mandor_qa_checksheets', JSON.stringify(minimal));
+        } catch {
+          // ignore if completely full
+        }
       }
       toast.success(`Sertifikat inspeksi QC ISO 9001 tersimpan! Status: ${payload.overallStatus}`);
     } catch (e) {
