@@ -487,8 +487,6 @@ export default function MobileTabletCheckSheet({
               );
             })}
           </div>
-
-          </div>
         </div>
 
         {/* ─── STAGE (BELOW DRAWING: CARD + NUMPAD) ────────────────── */}
