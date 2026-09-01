@@ -1004,6 +1004,40 @@ export const WorkflowEditorContent = () => {
     toast.success('Native Workflow Selesai & Berhasil 100%!', { id: 'native_engine_run', icon: '🚀' });
   };
 
+  const [showClearModal, setShowClearModal] = useState(false);
+
+  // Keyboard shortcut listener: Delete or Backspace key to delete selected node
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeId) {
+        if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
+        handleDeleteNode(selectedNodeId);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedNodeId, handleDeleteNode]);
+
+  // Clear Entire Workflow
+  const handleClearWorkflow = () => {
+    setNodes([]);
+    setEdges([]);
+    setSelectedNodeId(null);
+    setWorkflowName('New Workflow');
+    setShowClearModal(false);
+    toast.success('Seluruh alur kerja berhasil dihapus & kanvas telah dikosongkan!', { icon: '🗑️' });
+  };
+
+  // Reset to Default Demo Flow
+  const handleResetToDemo = () => {
+    setNodes(initialNodes);
+    setEdges(initialEdges);
+    setSelectedNodeId('node-agent');
+    setWorkflowName('AI Onboarding & Role Dispatcher');
+    setShowClearModal(false);
+    toast.success('Kanvas direset ke template default!', { icon: '✨' });
+  };
+
   return (
     <div
       style={{
@@ -1060,21 +1094,21 @@ export const WorkflowEditorContent = () => {
                 fontSize: '13px',
                 fontWeight: 800,
                 outline: 'none',
-                width: '280px'
+                width: '260px'
               }}
             />
             <div style={{ fontSize: '10px', color: '#22c55e', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <CheckCheck size={12} /> Native MES Engine Active (Opsi A)
+              <CheckCheck size={12} /> Native MES Engine Active
             </div>
           </div>
         </div>
 
         {/* Panel Toggles & Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <button
             onClick={() => setShowPalette(!showPalette)}
             style={{
-              padding: '6px 12px',
+              padding: '6px 10px',
               borderRadius: '6px',
               backgroundColor: showPalette ? '#ff6d5a20' : '#272733',
               border: `1px solid ${showPalette ? '#ff6d5a' : '#383848'}`,
@@ -1093,7 +1127,7 @@ export const WorkflowEditorContent = () => {
           <button
             onClick={() => setShowProperties(!showProperties)}
             style={{
-              padding: '6px 12px',
+              padding: '6px 10px',
               borderRadius: '6px',
               backgroundColor: showProperties ? '#ff6d5a20' : '#272733',
               border: `1px solid ${showProperties ? '#ff6d5a' : '#383848'}`,
@@ -1112,7 +1146,7 @@ export const WorkflowEditorContent = () => {
           <button
             onClick={() => setShowConsole(!showConsole)}
             style={{
-              padding: '6px 12px',
+              padding: '6px 10px',
               borderRadius: '6px',
               backgroundColor: showConsole ? '#22c55e20' : '#272733',
               border: `1px solid ${showConsole ? '#22c55e' : '#383848'}`,
@@ -1125,13 +1159,13 @@ export const WorkflowEditorContent = () => {
               gap: '4px'
             }}
           >
-            <Terminal size={13} /> Logs Console
+            <Terminal size={13} /> Console
           </button>
 
           <button
             onClick={() => setShowTemplateModal(true)}
             style={{
-              padding: '6px 12px',
+              padding: '6px 10px',
               borderRadius: '6px',
               backgroundColor: '#272733',
               border: '1px solid #383848',
@@ -1145,6 +1179,27 @@ export const WorkflowEditorContent = () => {
             }}
           >
             <Sparkles size={13} /> Presets
+          </button>
+
+          {/* Hapus Seluruh Workflow Button */}
+          <button
+            onClick={() => setShowClearModal(true)}
+            style={{
+              padding: '6px 10px',
+              borderRadius: '6px',
+              backgroundColor: '#7f1d1d20',
+              border: '1px solid #7f1d1d',
+              color: '#fca5a5',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+            title="Hapus alur kerja ini dan bersihkan kanvas"
+          >
+            <Trash2 size={13} /> Hapus Workflow
           </button>
 
           <button
@@ -1170,7 +1225,7 @@ export const WorkflowEditorContent = () => {
             onClick={handleRunNativeEngine}
             disabled={isRunning}
             style={{
-              padding: '6px 18px',
+              padding: '6px 16px',
               borderRadius: '6px',
               backgroundColor: '#ff6d5a',
               border: 'none',
@@ -1274,6 +1329,73 @@ export const WorkflowEditorContent = () => {
               </div>
             </div>
           )}
+          {/* ─── FLOATING NODE QUICK ACTION OVERLAY ─────────────────── */}
+          {selectedNode && (
+            <div
+              style={{
+                position: 'absolute',
+                left: '50%',
+                bottom: '24px',
+                transform: 'translateX(-50%)',
+                backgroundColor: '#18181f',
+                border: '1px solid #ff6d5a',
+                borderRadius: '30px',
+                padding: '6px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                zIndex: 30,
+                boxShadow: '0 8px 30px rgba(0,0,0,0.7)',
+                backdropFilter: 'blur(8px)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 800, color: '#ff6d5a' }}>
+                <Zap size={14} /> {selectedNode.data?.label || selectedNode.id}
+              </div>
+
+              <div style={{ width: '1px', height: '14px', backgroundColor: '#383848' }} />
+
+              <button
+                onClick={() => handleDuplicateNode(selectedNode.id)}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: '16px',
+                  backgroundColor: '#212127',
+                  border: '1px solid #383844',
+                  color: '#ffffff',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <Copy size={12} /> Duplikat
+              </button>
+
+              <button
+                onClick={() => handleDeleteNode(selectedNode.id)}
+                style={{
+                  padding: '4px 12px',
+                  borderRadius: '16px',
+                  backgroundColor: '#ef4444',
+                  border: 'none',
+                  color: '#ffffff',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  boxShadow: '0 2px 8px rgba(239,68,68,0.5)'
+                }}
+                title="Hapus node ini (atau tekan tombol Delete di keyboard)"
+              >
+                <Trash2 size={12} /> Hapus Node (Del)
+              </button>
+            </div>
+          )}
         </div>
 
         {/* RIGHT NODE PROPERTIES INSPECTOR PANEL */}
@@ -1287,6 +1409,68 @@ export const WorkflowEditorContent = () => {
           />
         )}
       </div>
+
+      {/* ─── HAPUS WORKFLOW / CLEAR CONFIRMATION MODAL ──────────────── */}
+      {showClearModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10000,
+            backgroundColor: 'rgba(0,0,0,0.85)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px'
+          }}
+        >
+          <div
+            style={{
+              width: '460px',
+              backgroundColor: '#18181f',
+              border: '1px solid #7f1d1d',
+              borderRadius: '14px',
+              padding: '24px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.8)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: '#7f1d1d30', border: '1px solid #7f1d1d', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Trash2 size={20} color="#fca5a5" />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#ffffff' }}>Hapus Seluruh Workflow?</h3>
+                <p style={{ margin: 0, fontSize: '0.75rem', color: '#94a3b8' }}>Tindakan ini akan mengosongkan seluruh kanvas dan node alur kerja.</p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+              <button
+                onClick={() => setShowClearModal(false)}
+                style={{ flex: 1, padding: '10px', borderRadius: '8px', backgroundColor: '#272733', color: '#cbd5e1', border: '1px solid #383848', fontWeight: 700, cursor: 'pointer' }}
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleResetToDemo}
+                style={{ padding: '10px 14px', borderRadius: '8px', backgroundColor: '#212127', color: '#38bdf8', border: '1px solid #383848', fontWeight: 700, cursor: 'pointer' }}
+              >
+                Reset Default
+              </button>
+              <button
+                onClick={handleClearWorkflow}
+                style={{ flex: 1.5, padding: '10px', borderRadius: '8px', backgroundColor: '#ef4444', color: '#ffffff', border: 'none', fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 10px rgba(239,68,68,0.4)' }}
+              >
+                Ya, Hapus Semua
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── TEMPLATES GALLERY MODAL ────────────────────────────────── */}
       {showTemplateModal && (
