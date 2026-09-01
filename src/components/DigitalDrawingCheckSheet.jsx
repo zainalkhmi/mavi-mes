@@ -640,6 +640,10 @@ export default function DigitalDrawingCheckSheet() {
     }
   });
 
+  const selectedDrawing = useMemo(() => {
+    return drawingsList.find(d => d.id === selectedDrawingId) || drawingsList[0] || null;
+  }, [drawingsList, selectedDrawingId]);
+
   // Check sheet items state
   const [checkPoints, setCheckPoints] = useState(loadCheckPoints);
   const [activePointId, setActivePointId] = useState(() => {
