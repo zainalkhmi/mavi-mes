@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-  Smartphone, Tablet, Monitor, ZoomIn, ZoomOut, Maximize2, Minimize2,
-  CheckCircle2, XCircle, AlertTriangle, ArrowLeft, ArrowRight,
-  Camera, Wifi, Bluetooth, RotateCcw, Check, X, ShieldCheck,
-  ChevronLeft, ChevronRight, PenTool, Sparkles, Volume2, VolumeX,
-  Share2, Save, Send, Eye, FileText, Activity, Ruler, Sliders, Crosshair
+  Smartphone, Monitor, ZoomIn, ZoomOut, RotateCcw, X,
+  Camera, Bluetooth, Volume2, VolumeX, Image as ImageIcon,
+  ChevronLeft, Check, AlertTriangle, Send, Sparkles
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -16,12 +14,11 @@ const playQCSound = (type = 'pass') => {
     const ctx = new AudioContext();
 
     if (type === 'pass') {
-      // Crisp pleasant high chime (OK)
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, ctx.currentTime); // A5
-      osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.12); // E6
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.12);
       gain.gain.setValueAtTime(0.3, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
       osc.connect(gain);
@@ -29,11 +26,10 @@ const playQCSound = (type = 'pass') => {
       osc.start();
       osc.stop(ctx.currentTime + 0.2);
     } else {
-      // Low dual warning buzz (NG / Out of Spec)
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(220, ctx.currentTime); // A3
+      osc.frequency.setValueAtTime(220, ctx.currentTime);
       osc.frequency.setValueAtTime(180, ctx.currentTime + 0.1);
       gain.gain.setValueAtTime(0.4, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
@@ -43,14 +39,14 @@ const playQCSound = (type = 'pass') => {
       osc.stop(ctx.currentTime + 0.3);
     }
   } catch (e) {
-    // Audio context not allowed before user interaction
+    // Audio Context not allowed before interaction
   }
 };
 
 // ─── HAPTIC FEEDBACK ──────────────────────────────────────────
 const triggerHaptic = (type = 'light') => {
   if (typeof navigator !== 'undefined' && navigator.vibrate) {
-    if (type === 'light') navigator.vibrate(25);
+    if (type === 'light') navigator.vibrate(20);
     else if (type === 'success') navigator.vibrate([30, 50, 40]);
     else if (type === 'error') navigator.vibrate([100, 50, 100]);
   }
@@ -70,23 +66,20 @@ export default function MobileTabletCheckSheet({
   currentPointIndex: externalIndex,
   onSelectPoint
 }) {
-  const [deviceMode, setDeviceMode] = useState(() => {
-    if (typeof window !== 'undefined') {
-      if (window.innerWidth < 768) return 'mobile';
-      if (window.innerWidth <= 1180) return 'tablet';
-    }
-    return 'tablet';
-  });
-
   const [activeIndex, setActiveIndex] = useState(externalIndex || 0);
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [zoomLevel, setZoomLevel] = useState(1);
-  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [isDrawingModalOpen, setIsDrawingModalOpen] = useState(false);
+
+  // Modal Pan & Zoom State
+  const [scale, setScale] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef({ x: 0, y: 0 });
 
   const activePoint = checkPoints[activeIndex] || checkPoints[0] || null;
-  const currentVal = activePoint ? (measuredValues[activePoint.id] || '') : '';
+  const currentVal = activePoint ? (measuredValues[activePoint.id] !== undefined ? String(measuredValues[activePoint.id]) : '') : '';
 
-  // Synchronize index
+  // Synchronize index from external props
   useEffect(() => {
     if (externalIndex !== undefined && externalIndex !== activeIndex) {
       setActiveIndex(externalIndex);
@@ -102,9 +95,13 @@ export default function MobileTabletCheckSheet({
 
   // Evaluation: PASS / NG / WARNING / PENDING
   const evaluation = useMemo(() => {
-    if (!activePoint || currentVal === '' || currentVal === undefined) return { status: 'PENDING', text: 'Menunggu Pengukuran' };
+    if (!activePoint || currentVal === '' || currentVal === undefined) {
+      return { status: 'PENDING', text: 'PENDING', color: '#e0a52c', bg: 'rgba(224,165,44,.14)', border: 'rgba(224,165,44,.4)' };
+    }
     const num = parseFloat(currentVal);
-    if (isNaN(num)) return { status: 'PENDING', text: 'Format tidak valid' };
+    if (isNaN(num)) {
+      return { status: 'PENDING', text: 'INVALID', color: '#e0a52c', bg: 'rgba(224,165,44,.14)', border: 'rgba(224,165,44,.4)' };
+    }
 
     const nominal = parseFloat(activePoint.nominal) || 0;
     const tolMin = parseFloat(activePoint.tolMin !== undefined ? activePoint.tolMin : (nominal + (parseFloat(activePoint.lowerTol) || 0)));
@@ -114,14 +111,13 @@ export default function MobileTabletCheckSheet({
     const max = Math.max(tolMin, tolMax);
 
     if (num >= min && num <= max) {
-      // Check if near limit (within 10% of tolerance range)
       const range = max - min;
       if (range > 0 && (num - min < range * 0.1 || max - num < range * 0.1)) {
-        return { status: 'WARNING', text: 'IN SPEC (MENDEKATI LIMIT)', color: '#f59e0b', min, max, nominal };
+        return { status: 'WARNING', text: 'WARNING', color: '#e0a52c', bg: 'rgba(224,165,44,.14)', border: 'rgba(224,165,44,.4)', min, max, nominal };
       }
-      return { status: 'PASS', text: 'IN SPEC (OK / PASS)', color: '#22c55e', min, max, nominal };
+      return { status: 'PASS', text: 'PASS', color: '#39c17a', bg: 'rgba(57,193,122,.14)', border: 'rgba(57,193,122,.4)', min, max, nominal };
     }
-    return { status: 'NG', text: 'OUT OF SPEC (REJECT / NG)', color: '#ef4444', min, max, nominal };
+    return { status: 'NG', text: 'REJECT', color: '#ff5a5f', bg: 'rgba(255,90,95,.14)', border: 'rgba(255,90,95,.4)', min, max, nominal };
   }, [activePoint, currentVal]);
 
   // Handle Numpad key input
@@ -139,7 +135,7 @@ export default function MobileTabletCheckSheet({
       else if (nextStr !== '') nextStr = '-' + nextStr;
     } else if (key === '.') {
       if (!nextStr.includes('.')) nextStr += (nextStr === '' ? '0.' : '.');
-    } else if (key === 'ENTER') {
+    } else if (key === 'NEXT') {
       // Evaluate sound & auto-advance
       if (evaluation.status === 'PASS') {
         if (soundEnabled) playQCSound('pass');
@@ -155,6 +151,7 @@ export default function MobileTabletCheckSheet({
       }
       return;
     } else {
+      if (nextStr === '0.00') nextStr = '';
       nextStr += String(key);
     }
 
@@ -177,9 +174,26 @@ export default function MobileTabletCheckSheet({
         else ngCount++;
       }
     });
-    const progress = checkPoints.length > 0 ? Math.round(((okCount + ngCount) / checkPoints.length) * 100) : 0;
-    return { okCount, ngCount, progress, total: checkPoints.length };
+    return { okCount, ngCount, total: checkPoints.length };
   }, [checkPoints, measuredValues]);
+
+  // Modal dragging handlers
+  const handlePointerDown = (e) => {
+    setIsDragging(true);
+    dragStartRef.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
+  };
+
+  const handlePointerMove = (e) => {
+    if (!isDragging) return;
+    setPan({
+      x: e.clientX - dragStartRef.current.x,
+      y: e.clientY - dragStartRef.current.y
+    });
+  };
+
+  const handlePointerUp = () => {
+    setIsDragging(false);
+  };
 
   return (
     <div
@@ -187,172 +201,168 @@ export default function MobileTabletCheckSheet({
         position: 'fixed',
         inset: 0,
         zIndex: 99999,
-        backgroundColor: '#09090d',
-        color: '#f8fafc',
-        fontFamily: 'Inter, system-ui, sans-serif',
+        backgroundColor: '#000000',
         display: 'flex',
-        flexDirection: 'column',
+        justifyContent: 'center',
+        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
         overflow: 'hidden',
         userSelect: 'none'
       }}
     >
-      {/* ─── TOP INDUSTRIAL HEADER ──────────────────────────────────── */}
       <div
+        id="phone"
         style={{
-          height: '56px',
-          backgroundColor: '#13131a',
-          borderBottom: '1px solid #242432',
+          width: '390px',
+          maxWidth: '100vw',
+          height: '100%',
+          maxHeight: '100vh',
+          backgroundColor: '#0b0d10',
+          color: '#eef1f5',
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 12px',
-          gap: '8px',
-          flexShrink: 0
+          flexDirection: 'column',
+          overflow: 'hidden',
+          position: 'relative'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+        {/* ─── TOP BAR ──────────────────────────────────────────────── */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '12px 12px 8px',
+            flexShrink: 0
+          }}
+        >
+          {/* Back button */}
           <button
             onClick={onCloseMobileMode}
             style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '8px',
-              backgroundColor: '#20202c',
-              border: '1px solid #323246',
-              color: '#94a3b8',
+              width: '30px',
+              height: '30px',
+              borderRadius: '9px',
+              backgroundColor: '#1b1f26',
+              border: '1px solid #262b33',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              color: '#eef1f5',
+              flexShrink: 0,
+              fontSize: '18px',
               cursor: 'pointer'
             }}
-            title="Kembali ke Mode Normal Desktop"
+            title="Kembali ke PC / Tablet UI"
           >
-            <ArrowLeft size={18} />
+            ‹
           </button>
 
-          <div style={{ overflow: 'hidden' }}>
-            <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#ffffff', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
-              {checksheet?.name || checksheet?.partName || 'Digital Check Sheet'}
+          {/* Title Block */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: '10.5px', color: '#2f8cff', fontWeight: 600, letterSpacing: '.2px' }}>
+              {checksheet?.partNo || 'PART-001'} · Rev {checksheet?.revisionNo || 'A'}
             </div>
-            <div style={{ fontSize: '0.68rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ color: '#38bdf8', fontWeight: 700 }}>{checksheet?.partNo || 'PART-001'}</span>
-              <span>• Rev {checksheet?.revisionNo || checksheet?.revision || 'A'}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Status Counters & Device View Switcher */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <div style={{ display: 'flex', gap: '4px', fontSize: '0.72rem', fontWeight: 800 }}>
-            <span style={{ backgroundColor: '#22c55e20', border: '1px solid #22c55e', color: '#4ade80', padding: '3px 8px', borderRadius: '6px' }}>
-              {stats.okCount} OK
-            </span>
-            {stats.ngCount > 0 && (
-              <span style={{ backgroundColor: '#ef444420', border: '1px solid #ef4444', color: '#f87171', padding: '3px 8px', borderRadius: '6px' }}>
-                {stats.ngCount} NG
-              </span>
-            )}
-          </div>
-
-          <button
-            onClick={() => setSoundEnabled(!soundEnabled)}
-            style={{
-              padding: '6px',
-              backgroundColor: soundEnabled ? '#38bdf820' : '#20202c',
-              border: `1px solid ${soundEnabled ? '#38bdf8' : '#323246'}`,
-              borderRadius: '6px',
-              color: soundEnabled ? '#38bdf8' : '#64748b',
-              cursor: 'pointer'
-            }}
-            title={soundEnabled ? 'Suara QC Aktif' : 'Mute Suara QC'}
-          >
-            {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
-          </button>
-
-          {/* Exit to PC / Tablet View */}
-          <button
-            onClick={onCloseMobileMode}
-            style={{
-              padding: '6px 10px',
-              borderRadius: '6px',
-              border: '1px solid #383848',
-              backgroundColor: '#20202c',
-              color: '#94a3b8',
-              fontSize: '0.72rem',
-              fontWeight: 800,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}
-            title="Kembali ke Tampilan PC & Tablet"
-          >
-            <Monitor size={14} /> PC / Tablet UI
-          </button>
-        </div>
-      </div>
-
-      {/* Progress Bar Line */}
-      <div style={{ height: '3px', backgroundColor: '#1e293b', width: '100%' }}>
-        <div
-          style={{
-            height: '100%',
-            backgroundColor: stats.ngCount > 0 ? '#ef4444' : '#22c55e',
-            width: `${stats.progress}%`,
-            transition: 'width 0.3s ease'
-          }}
-        />
-      </div>
-
-      {/* ─── MAIN CONTENT CONTAINER (MOBILE vs TABLET) ─────────────── */}
-      {deviceMode === 'mobile' ? (
-        /* ══════════════════════════════════════════════════════════════
-           📱 MOBILE VIEW (VERTICAL / STEP FLOW WITH AUTO LOUPE)
-           ══════════════════════════════════════════════════════════════ */
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {/* Top 32%: Auto CAD Loupe Focus View */}
-          <div
-            style={{
-              height: '32%',
-              backgroundColor: '#16161f',
-              position: 'relative',
-              overflow: 'hidden',
-              borderBottom: '1px solid #28283a',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
             <div
               style={{
-                position: 'relative',
-                width: '980px',
-                height: '680px',
-                maxWidth: '96%',
-                maxHeight: '94%',
-                aspectRatio: '980 / 680',
-                backgroundColor: '#ffffff',
-                boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
-                borderRadius: '6px',
-                transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`,
-                transformOrigin: 'center center',
-                transition: 'transform 0.15s ease',
-                overflow: 'hidden'
+                fontSize: '13px',
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                marginTop: '1px'
               }}
             >
-              {drawingSvg ? (
-                typeof drawingSvg === 'string' && (drawingSvg.startsWith('data:image') || drawingSvg.startsWith('blob:') || drawingSvg.startsWith('http')) ? (
-                  <img src={drawingSvg} alt="CAD Drawing" style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
-                ) : (
-                  <div dangerouslySetInnerHTML={{ __html: drawingSvg }} style={{ width: '100%', height: '100%', pointerEvents: 'none' }} />
-                )
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748b', fontSize: '0.8rem' }}>Drawing blueprint tidak dimuat</div>
-              )}
+              {checksheet?.name || checksheet?.partName || 'Dual Stage Planetary Gearbox'}
+            </div>
+          </div>
 
-              {/* Mobile Interactive Balloon Pins */}
+          {/* Topbar Actions */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+            <div
+              style={{
+                fontSize: '10.5px',
+                fontWeight: 700,
+                color: stats.ngCount > 0 ? '#ff5a5f' : '#39c17a',
+                backgroundColor: stats.ngCount > 0 ? 'rgba(255,90,95,.12)' : 'rgba(57,193,122,.12)',
+                border: stats.ngCount > 0 ? '1px solid rgba(255,90,95,.35)' : '1px solid rgba(57,193,122,.35)',
+                padding: '4px 7px',
+                borderRadius: '20px',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {stats.okCount} OK {stats.ngCount > 0 && `· ${stats.ngCount} NG`}
+            </div>
+
+            {/* Sound Toggle */}
+            <button
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '8px',
+                backgroundColor: '#1b1f26',
+                border: '1px solid #262b33',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: soundEnabled ? '#2f8cff' : '#8a919e',
+                fontSize: '13px',
+                flexShrink: 0,
+                cursor: 'pointer'
+              }}
+              title={soundEnabled ? 'Mute Suara QC' : 'Aktifkan Suara QC'}
+            >
+              {soundEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
+            </button>
+
+            {/* Submit Icon */}
+            <button
+              onClick={onSubmitChecksheet}
+              style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '8px',
+                backgroundColor: '#1b1f26',
+                border: '1px solid #262b33',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#39c17a',
+                fontSize: '13px',
+                flexShrink: 0,
+                cursor: 'pointer'
+              }}
+              title="Simpan / Submit Checksheet"
+            >
+              <Send size={13} />
+            </button>
+          </div>
+        </div>
+
+        {/* ─── STAGE (NO-SCROLL FLEX COLUMN) ────────────────────────── */}
+        <div
+          id="stage"
+          style={{
+            flex: 1,
+            minHeight: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            padding: '8px 12px calc(10px + env(safe-area-inset-bottom))',
+            gap: '7px'
+          }}
+        >
+          {/* 1. Point Strip */}
+          <div style={{ flexShrink: 0 }}>
+            <div
+              style={{
+                display: 'flex',
+                gap: '6px',
+                overflowX: 'auto',
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none'
+              }}
+            >
               {checkPoints.map((pt, idx) => {
-                const isAct = idx === activeIndex;
+                const isActive = idx === activeIndex;
                 const val = measuredValues[pt.id];
                 const hasVal = val !== undefined && val !== '';
                 const num = parseFloat(val);
@@ -362,775 +372,497 @@ export default function MobileTabletCheckSheet({
                 const isOK = hasVal && !isNaN(num) && num >= Math.min(min, max) && num <= Math.max(min, max);
                 const isNG = hasVal && !isNaN(num) && (num < Math.min(min, max) || num > Math.max(min, max));
 
-                const pinBg = isAct ? '#ff6d5a' : isNG ? '#ef4444' : isOK ? '#22c55e' : '#3b82f6';
-                const posX = pt.x <= 100 ? `${pt.x}%` : `${(pt.x / 980) * 100}%`;
-                const posY = pt.y <= 100 ? `${pt.y}%` : `${(pt.y / 680) * 100}%`;
-
                 return (
                   <div
                     key={pt.id || idx}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handlePointChange(idx);
-                    }}
+                    onClick={() => handlePointChange(idx)}
                     style={{
-                      position: 'absolute',
-                      left: posX,
-                      top: posY,
-                      transform: `translate(-50%, -50%) scale(${isAct ? 1.3 : 1})`,
-                      cursor: 'pointer',
-                      zIndex: isAct ? 35 : 20
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: isAct ? '32px' : '26px',
-                        height: isAct ? '32px' : '26px',
-                        borderRadius: pt.shape === 'hexagon' ? '4px' : pt.shape === 'diamond' ? '4px' : '50%',
-                        transform: pt.shape === 'diamond' ? 'rotate(45deg)' : 'none',
-                        backgroundColor: pinBg,
-                        color: '#ffffff',
-                        border: isAct ? '2.5px solid #ffffff' : '1.5px solid #ffffff',
-                        boxShadow: '0 3px 10px rgba(0,0,0,0.5)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 900,
-                        fontSize: isAct ? '0.8rem' : '0.72rem'
-                      }}
-                    >
-                      <span style={{ transform: pt.shape === 'diamond' ? 'rotate(-45deg)' : 'none' }}>
-                        {pt.pointNumber || idx + 1}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Active Balloon Overlay Indicator */}
-            <div
-              style={{
-                position: 'absolute',
-                top: '8px',
-                left: '8px',
-                padding: '4px 10px',
-                borderRadius: '20px',
-                backgroundColor: 'rgba(0,0,0,0.75)',
-                backdropFilter: 'blur(4px)',
-                border: '1px solid #38bdf8',
-                color: '#38bdf8',
-                fontSize: '0.72rem',
-                fontWeight: 800,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              <Crosshair size={13} /> Point {activeIndex + 1} of {checkPoints.length}
-            </div>
-
-            {/* Zoom Controls Overlay */}
-            <div style={{ position: 'absolute', bottom: '8px', right: '8px', display: 'flex', gap: '4px' }}>
-              <button
-                onClick={() => setZoomLevel(prev => Math.min(prev + 0.3, 3))}
-                style={{ width: '32px', height: '32px', borderRadius: '6px', backgroundColor: '#21212b', border: '1px solid #383848', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <ZoomIn size={14} />
-              </button>
-              <button
-                onClick={() => setZoomLevel(prev => Math.max(prev - 0.3, 0.8))}
-                style={{ width: '32px', height: '32px', borderRadius: '6px', backgroundColor: '#21212b', border: '1px solid #383848', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <ZoomOut size={14} />
-              </button>
-              <button
-                onClick={() => { setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }}
-                style={{ width: '32px', height: '32px', borderRadius: '6px', backgroundColor: '#21212b', border: '1px solid #383848', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <RotateCcw size={14} />
-              </button>
-            </div>
-          </div>
-
-          {/* Bottom 68%: Giant Metrology Touch Card */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#0e0e14', padding: '10px 12px', gap: '8px', overflowY: 'auto' }}>
-            {/* Active Point Specification Box */}
-            <div
-              style={{
-                backgroundColor: '#181822',
-                border: '1px solid #2c2c3e',
-                borderRadius: '10px',
-                padding: '10px 12px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}
-            >
-              <div>
-                <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase' }}>
-                  Pemeriksaan #{activePoint?.pointNumber || activeIndex + 1} ({activePoint?.category || 'Dimension'})
-                </div>
-                <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#ffffff' }}>
-                  {activePoint?.title || `Poin Dimensi #${activeIndex + 1}`}
-                </div>
-                <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>
-                  Standar: <b>{activePoint?.nominal} {activePoint?.unit || 'mm'}</b> (Toleransi: {activePoint?.tolMin || activePoint?.nominal} ~ {activePoint?.tolMax || activePoint?.nominal})
-                </div>
-              </div>
-
-              <div
-                style={{
-                  padding: '6px 10px',
-                  borderRadius: '8px',
-                  backgroundColor: evaluation.status === 'PASS' ? '#22c55e20' : evaluation.status === 'NG' ? '#ef444420' : '#f59e0b20',
-                  border: `1px solid ${evaluation.status === 'PASS' ? '#22c55e' : evaluation.status === 'NG' ? '#ef4444' : '#f59e0b'}`,
-                  color: evaluation.color || '#94a3b8',
-                  fontSize: '0.75rem',
-                  fontWeight: 900,
-                  textAlign: 'center'
-                }}
-              >
-                {evaluation.status}
-              </div>
-            </div>
-
-            {/* Giant Live Readout Box */}
-            <div
-              style={{
-                backgroundColor: '#12121a',
-                border: `2px solid ${evaluation.status === 'PASS' ? '#22c55e' : evaluation.status === 'NG' ? '#ef4444' : '#38bdf8'}`,
-                borderRadius: '12px',
-                padding: '8px 16px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                boxShadow: evaluation.status === 'PASS' ? '0 0 20px rgba(34,197,94,0.2)' : evaluation.status === 'NG' ? '0 0 20px rgba(239,68,68,0.25)' : 'none'
-              }}
-            >
-              <div>
-                <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Nilai Pengukuran</div>
-                <div style={{ fontSize: '1.75rem', fontWeight: 900, color: '#ffffff', letterSpacing: '1px' }}>
-                  {currentVal || '0.00'} <span style={{ fontSize: '0.9rem', color: '#38bdf8' }}>{activePoint?.unit || 'mm'}</span>
-                </div>
-              </div>
-
-              {/* Instant Status Pill */}
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '0.78rem', fontWeight: 800, color: evaluation.color || '#94a3b8' }}>
-                  {evaluation.text}
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Actions (BLE Tool Sync & Camera Foto Defect) */}
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                onClick={onOpenHardwareHub}
-                style={{
-                  flex: 1,
-                  padding: '8px',
-                  borderRadius: '8px',
-                  backgroundColor: '#0284c720',
-                  border: '1px solid #0284c7',
-                  color: '#38bdf8',
-                  fontSize: '0.75rem',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px'
-                }}
-              >
-                <Bluetooth size={14} /> Sync BLE Caliper
-              </button>
-
-              <button
-                onClick={onOpenDefectCamera}
-                style={{
-                  flex: 1,
-                  padding: '8px',
-                  borderRadius: '8px',
-                  backgroundColor: '#ec489920',
-                  border: '1px solid #ec4899',
-                  color: '#f472b6',
-                  fontSize: '0.75rem',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px'
-                }}
-              >
-                <Camera size={14} /> Foto Defect
-              </button>
-            </div>
-
-            {/* Glove-Friendly Metrology Big Numpad */}
-            <div
-              style={{
-                flex: 1,
-                display: 'grid',
-                gridTemplateColumns: 'repeat(4, 1fr)',
-                gridTemplateRows: 'repeat(4, 1fr)',
-                gap: '6px',
-                minHeight: '190px'
-              }}
-            >
-              {['7', '8', '9', 'DEL', '4', '5', '6', '±', '1', '2', '3', 'CLEAR', '0', '.', '00', 'ENTER'].map((key) => {
-                const isEnter = key === 'ENTER';
-                const isDel = key === 'DEL' || key === 'CLEAR';
-                return (
-                  <button
-                    key={key}
-                    onClick={() => handleNumpadPress(key)}
-                    style={{
-                      borderRadius: '8px',
-                      border: isEnter ? 'none' : '1px solid #2e2e42',
-                      backgroundColor: isEnter ? '#ff6d5a' : isDel ? '#7f1d1d30' : '#1c1c28',
-                      color: isEnter ? '#ffffff' : isDel ? '#fca5a5' : '#f8fafc',
-                      fontSize: isEnter ? '0.85rem' : '1.15rem',
-                      fontWeight: 800,
-                      cursor: 'pointer',
+                      flexShrink: 0,
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '10px',
+                      backgroundColor: isActive ? 'rgba(255,90,95,.12)' : '#1b1f26',
+                      border: isActive
+                        ? '1.5px solid #ff5a5f'
+                        : isNG
+                        ? '1.5px solid rgba(255,90,95,.5)'
+                        : isOK
+                        ? '1.5px solid rgba(57,193,122,.5)'
+                        : '1.5px solid #262b33',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      boxShadow: isEnter ? '0 2px 10px rgba(255,109,90,0.4)' : 'none',
-                      transition: 'transform 0.05s ease'
-                    }}
-                    onMouseDown={(e) => { e.currentTarget.style.transform = 'scale(0.95)'; }}
-                    onMouseUp={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
-                  >
-                    {isEnter ? 'NEXT ▶' : key}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Bottom Thumb Navigation Bar */}
-            <div style={{ display: 'flex', gap: '8px', paddingTop: '4px' }}>
-              <button
-                onClick={() => handlePointChange(activeIndex - 1)}
-                disabled={activeIndex === 0}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  borderRadius: '8px',
-                  backgroundColor: '#20202c',
-                  border: '1px solid #323246',
-                  color: activeIndex === 0 ? '#475569' : '#cbd5e1',
-                  fontWeight: 800,
-                  fontSize: '0.8rem',
-                  cursor: activeIndex === 0 ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '4px'
-                }}
-              >
-                <ChevronLeft size={16} /> Prev
-              </button>
-
-              {activeIndex < checkPoints.length - 1 ? (
-                <button
-                  onClick={() => handlePointChange(activeIndex + 1)}
-                  style={{
-                    flex: 1.5,
-                    padding: '10px',
-                    borderRadius: '8px',
-                    backgroundColor: '#0284c7',
-                    border: 'none',
-                    color: '#ffffff',
-                    fontWeight: 900,
-                    fontSize: '0.82rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '4px',
-                    boxShadow: '0 2px 10px rgba(2,132,199,0.4)'
-                  }}
-                >
-                  Next Point <ChevronRight size={16} />
-                </button>
-              ) : (
-                <button
-                  onClick={onSubmitChecksheet}
-                  style={{
-                    flex: 1.5,
-                    padding: '10px',
-                    borderRadius: '8px',
-                    backgroundColor: '#22c55e',
-                    border: 'none',
-                    color: '#ffffff',
-                    fontWeight: 900,
-                    fontSize: '0.82rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    boxShadow: '0 2px 10px rgba(34,197,94,0.4)'
-                  }}
-                >
-                  <Send size={15} /> Submit QC
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : (
-        /* ══════════════════════════════════════════════════════════════
-           📟 TABLET DUAL-PANE VIEW (LANDSCAPE / STUDIO LAYOUT)
-           ══════════════════════════════════════════════════════════════ */
-        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '58% 42%', overflow: 'hidden' }}>
-          {/* Left Pane (58%): Full CAD Blueprint Drawing Canvas */}
-          <div
-            style={{
-              backgroundColor: '#16161f',
-              borderRight: '1px solid #28283a',
-              position: 'relative',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              overflow: 'hidden',
-              padding: '20px'
-            }}
-          >
-            {/* Scaled Blueprint & Balloons Container (980 x 680) */}
-            <div
-              style={{
-                position: 'relative',
-                width: '980px',
-                height: '680px',
-                maxWidth: '96%',
-                maxHeight: '94%',
-                aspectRatio: '980 / 680',
-                backgroundColor: '#ffffff',
-                boxShadow: '0 12px 45px rgba(0,0,0,0.6)',
-                borderRadius: '8px',
-                transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`,
-                transformOrigin: 'center center',
-                transition: 'transform 0.15s ease',
-                overflow: 'hidden'
-              }}
-            >
-              {/* 1. CAD Drawing Image / SVG */}
-              {drawingSvg ? (
-                typeof drawingSvg === 'string' && (drawingSvg.startsWith('data:image') || drawingSvg.startsWith('blob:') || drawingSvg.startsWith('http')) ? (
-                  <img src={drawingSvg} alt="CAD Drawing" style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
-                ) : (
-                  <div dangerouslySetInnerHTML={{ __html: drawingSvg }} style={{ width: '100%', height: '100%', pointerEvents: 'none' }} />
-                )
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748b' }}>
-                  Drawing blueprint tidak dimuat
-                </div>
-              )}
-
-              {/* 2. Interactive SVG Leader Lines */}
-              <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 10 }}>
-                {checkPoints.map(pt => {
-                  if (pt.targetX !== undefined && pt.targetY !== undefined && (Math.abs(pt.targetX - pt.x) > 10 || Math.abs(pt.targetY - pt.y) > 10)) {
-                    const isAct = checkPoints[activeIndex]?.id === pt.id;
-                    const posX = pt.x <= 100 ? (pt.x / 100) * 980 : pt.x;
-                    const posY = pt.y <= 100 ? (pt.y / 100) * 680 : pt.y;
-                    const tgtX = pt.targetX <= 100 ? (pt.targetX / 100) * 980 : pt.targetX;
-                    const tgtY = pt.targetY <= 100 ? (pt.targetY / 100) * 680 : pt.targetY;
-                    return (
-                      <g key={`leader-${pt.id}`}>
-                        <line
-                          x1={posX}
-                          y1={posY}
-                          x2={tgtX}
-                          y2={tgtY}
-                          stroke={isAct ? '#ff6d5a' : '#64748b'}
-                          strokeWidth={isAct ? 2.5 : 1.5}
-                          strokeDasharray={isAct ? 'none' : '3,3'}
-                        />
-                        <circle cx={tgtX} cy={tgtY} r={3.5} fill={isAct ? '#ff6d5a' : '#64748b'} />
-                      </g>
-                    );
-                  }
-                  return null;
-                })}
-              </svg>
-
-              {/* 3. Interactive Balloon Hotspot Pins */}
-              {checkPoints.map((pt, idx) => {
-                const isAct = idx === activeIndex;
-                const val = measuredValues[pt.id];
-                const hasVal = val !== undefined && val !== '';
-                const num = parseFloat(val);
-                const nom = parseFloat(pt.nominal) || 0;
-                const min = parseFloat(pt.tolMin !== undefined ? pt.tolMin : (nom + (parseFloat(pt.lowerTol) || 0)));
-                const max = parseFloat(pt.tolMax !== undefined ? pt.tolMax : (nom + (parseFloat(pt.upperTol) || 0)));
-                const isOK = hasVal && !isNaN(num) && num >= Math.min(min, max) && num <= Math.max(min, max);
-                const isNG = hasVal && !isNaN(num) && (num < Math.min(min, max) || num > Math.max(min, max));
-
-                const pinBg = isAct ? '#ff6d5a' : isNG ? '#ef4444' : isOK ? '#22c55e' : '#3b82f6';
-                const posX = pt.x <= 100 ? `${pt.x}%` : `${(pt.x / 980) * 100}%`;
-                const posY = pt.y <= 100 ? `${pt.y}%` : `${(pt.y / 680) * 100}%`;
-
-                return (
-                  <div
-                    key={pt.id || idx}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handlePointChange(idx);
-                    }}
-                    style={{
-                      position: 'absolute',
-                      left: posX,
-                      top: posY,
-                      transform: `translate(-50%, -50%) scale(${isAct ? 1.25 : 1})`,
-                      cursor: 'pointer',
-                      zIndex: isAct ? 35 : 20,
-                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      color: isActive ? '#ffffff' : isNG ? '#ff5a5f' : isOK ? '#39c17a' : '#8a919e',
+                      position: 'relative',
+                      cursor: 'pointer'
                     }}
                   >
-                    {/* Pulsing Aura for Active / NG point */}
-                    {(isAct || isNG) && (
-                      <div
+                    {pt.pointNumber || idx + 1}
+                    {isOK && (
+                      <span
                         style={{
                           position: 'absolute',
-                          inset: '-8px',
+                          top: '-3px',
+                          right: '-3px',
+                          width: '8px',
+                          height: '8px',
                           borderRadius: '50%',
-                          backgroundColor: isAct ? 'rgba(255, 109, 90, 0.45)' : 'rgba(239, 68, 68, 0.45)',
-                          animation: 'pulse 1.5s infinite',
-                          zIndex: -1
+                          backgroundColor: '#39c17a',
+                          border: '2px solid #0b0d10'
                         }}
                       />
                     )}
-
-                    <div
-                      style={{
-                        width: isAct ? '34px' : '28px',
-                        height: isAct ? '34px' : '28px',
-                        borderRadius: pt.shape === 'hexagon' ? '4px' : pt.shape === 'diamond' ? '4px' : '50%',
-                        transform: pt.shape === 'diamond' ? 'rotate(45deg)' : 'none',
-                        backgroundColor: pinBg,
-                        color: '#ffffff',
-                        border: isAct ? '3px solid #ffffff' : '2px solid #ffffff',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 900,
-                        fontSize: isAct ? '0.85rem' : '0.75rem'
-                      }}
-                    >
-                      <span style={{ transform: pt.shape === 'diamond' ? 'rotate(-45deg)' : 'none' }}>
-                        {pt.pointNumber || idx + 1}
-                      </span>
-                    </div>
                   </div>
                 );
               })}
             </div>
-
-            {/* Floating Point Bubbles Quick Jump */}
-            <div
-              style={{
-                position: 'absolute',
-                top: '12px',
-                left: '12px',
-                padding: '6px 12px',
-                borderRadius: '8px',
-                backgroundColor: 'rgba(20,20,30,0.85)',
-                backdropFilter: 'blur(6px)',
-                border: '1px solid #383848',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                zIndex: 40
-              }}
-            >
-              <Crosshair size={16} color="#38bdf8" />
-              <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#ffffff' }}>
-                Active Point: #{activePoint?.pointNumber || activeIndex + 1}
-              </span>
-            </div>
-
-            {/* Bottom Floating CAD Controls */}
-            <div
-              style={{
-                position: 'absolute',
-                bottom: '16px',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                backgroundColor: 'rgba(24,24,34,0.9)',
-                padding: '6px 12px',
-                borderRadius: '24px',
-                border: '1px solid #383848',
-                boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-                zIndex: 40
-              }}
-            >
-              <button onClick={() => setZoomLevel(prev => Math.min(prev + 0.2, 3))} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: '4px' }}><ZoomIn size={16} /></button>
-              <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#94a3b8' }}>{Math.round(zoomLevel * 100)}%</span>
-              <button onClick={() => setZoomLevel(prev => Math.max(prev - 0.2, 0.7))} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: '4px' }}><ZoomOut size={16} /></button>
-              <button onClick={() => { setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }} style={{ background: 'none', border: 'none', color: '#38bdf8', cursor: 'pointer', padding: '4px' }}><RotateCcw size={16} /></button>
-            </div>
           </div>
 
-          {/* Right Pane (42%): Active Inspection Station & Numpad */}
-          <div
-            style={{
-              backgroundColor: '#0e0e14',
-              display: 'flex',
-              flexDirection: 'column',
-              padding: '16px 20px',
-              gap: '12px',
-              overflowY: 'auto'
-            }}
-          >
-            {/* Active Dimension Header */}
-            <div
+          {/* 2. Utility Row: View Drawing + Prev Point */}
+          <div style={{ flexShrink: 0, display: 'flex', gap: '7px' }}>
+            <button
+              onClick={() => setIsDrawingModalOpen(true)}
               style={{
-                backgroundColor: '#181824',
-                border: '1px solid #28283c',
-                borderRadius: '12px',
-                padding: '14px 18px',
+                flex: 1,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between'
+                justifyContent: 'center',
+                gap: '6px',
+                padding: '9px 6px',
+                borderRadius: '10px',
+                backgroundColor: '#1b1f26',
+                border: '1px solid #262b33',
+                color: '#eef1f5',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer'
               }}
             >
+              🖼 Lihat Gambar Teknik
+            </button>
+            <button
+              onClick={() => handlePointChange(activeIndex - 1)}
+              disabled={activeIndex === 0}
+              style={{
+                flex: '0 0 44px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '10px',
+                backgroundColor: '#1b1f26',
+                border: '1px solid #262b33',
+                color: activeIndex === 0 ? '#4b5563' : '#8a919e',
+                fontSize: '16px',
+                fontWeight: 600,
+                cursor: activeIndex === 0 ? 'not-allowed' : 'pointer'
+              }}
+            >
+              ‹
+            </button>
+          </div>
+
+          {/* 3. Point + Measurement Combined Card */}
+          <div
+            style={{
+              flexShrink: 0,
+              backgroundColor: '#14171c',
+              border: '1px solid #262b33',
+              borderRadius: '14px',
+              padding: '10px 12px'
+            }}
+          >
+            {/* Top Specs */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
               <div>
-                <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', padding: '2px 8px', borderRadius: '4px', backgroundColor: '#38bdf815' }}>
-                  Point #{activePoint?.pointNumber || activeIndex + 1}
-                </span>
-                <h3 style={{ margin: '6px 0 2px 0', fontSize: '1.1rem', fontWeight: 800, color: '#ffffff' }}>
-                  {activePoint?.title || `Dimensi #${activeIndex + 1}`}
-                </h3>
-                <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
-                  Nominal: <b>{activePoint?.nominal} {activePoint?.unit || 'mm'}</b> (Batas: {activePoint?.tolMin || activePoint?.nominal} ~ {activePoint?.tolMax || activePoint?.nominal})
+                <div style={{ fontSize: '10px', fontWeight: 700, color: '#2f8cff' }}>
+                  POIN #{activePoint?.pointNumber || activeIndex + 1}
+                </div>
+                <div style={{ fontSize: '13.5px', fontWeight: 700, lineHeight: 1.3, marginTop: '1px', color: '#eef1f5' }}>
+                  {activePoint?.title || `Poin Dimensi #${activeIndex + 1}`}
                 </div>
               </div>
-
               <div
                 style={{
-                  padding: '8px 14px',
-                  borderRadius: '8px',
-                  backgroundColor: evaluation.status === 'PASS' ? '#22c55e20' : evaluation.status === 'NG' ? '#ef444420' : '#f59e0b20',
-                  border: `1.5px solid ${evaluation.status === 'PASS' ? '#22c55e' : evaluation.status === 'NG' ? '#ef4444' : '#f59e0b'}`,
-                  color: evaluation.color || '#94a3b8',
-                  fontSize: '0.85rem',
-                  fontWeight: 900
+                  flexShrink: 0,
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  padding: '4px 8px',
+                  borderRadius: '20px',
+                  backgroundColor: evaluation.bg,
+                  color: evaluation.color,
+                  border: `1px solid ${evaluation.border}`,
+                  whiteSpace: 'nowrap'
                 }}
               >
-                {evaluation.status}
+                {evaluation.text}
               </div>
             </div>
 
-            {/* Tablet Live Measured Value Display */}
+            {/* Tolerance info */}
+            <div style={{ marginTop: '4px', fontSize: '11px', color: '#8a919e' }}>
+              Nominal <b style={{ color: '#eef1f5', fontWeight: 600 }}>{activePoint?.nominal || 0} {activePoint?.unit || 'mm'}</b> · Batas{' '}
+              <b style={{ color: '#eef1f5', fontWeight: 600 }}>
+                {activePoint?.tolMin !== undefined ? activePoint.tolMin : (parseFloat(activePoint?.nominal || 0) + (parseFloat(activePoint?.lowerTol) || 0))} –{' '}
+                {activePoint?.tolMax !== undefined ? activePoint.tolMax : (parseFloat(activePoint?.nominal || 0) + (parseFloat(activePoint?.upperTol) || 0))}
+              </b>
+            </div>
+
+            {/* Measure Row */}
             <div
               style={{
-                backgroundColor: '#12121a',
-                border: `2px solid ${evaluation.status === 'PASS' ? '#22c55e' : evaluation.status === 'NG' ? '#ef4444' : '#38bdf8'}`,
-                borderRadius: '12px',
-                padding: '12px 20px',
+                marginTop: '9px',
+                paddingTop: '9px',
+                borderTop: '1px solid #262b33',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between'
+                justifyContent: 'space-between',
+                gap: '8px'
               }}
             >
-              <div>
-                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8' }}>NILAI AKTUAL PENGUKURAN</div>
-                <div style={{ fontSize: '2.2rem', fontWeight: 900, color: '#ffffff', letterSpacing: '1px' }}>
-                  {currentVal || '0.00'} <span style={{ fontSize: '1rem', color: '#38bdf8' }}>{activePoint?.unit || 'mm'}</span>
-                </div>
+              <div
+                style={{
+                  fontFamily: "'SF Mono', 'Roboto Mono', ui-monospace, monospace",
+                  fontSize: '28px',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  gap: '5px',
+                  color: '#eef1f5'
+                }}
+              >
+                <span>{currentVal || '0.00'}</span>
+                <span style={{ fontSize: '13px', color: '#8a919e', fontWeight: 500 }}>
+                  {activePoint?.unit || 'mm'}
+                </span>
               </div>
 
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '6px' }}>
                 <button
                   onClick={onOpenHardwareHub}
                   style={{
-                    padding: '10px 14px',
-                    borderRadius: '8px',
-                    backgroundColor: '#0284c720',
-                    border: '1px solid #0284c7',
-                    color: '#38bdf8',
-                    fontWeight: 800,
-                    fontSize: '0.78rem',
-                    cursor: 'pointer',
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '9px',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px'
+                    justifyContent: 'center',
+                    fontSize: '14px',
+                    border: '1px solid rgba(47,140,255,.4)',
+                    backgroundColor: 'rgba(47,140,255,.1)',
+                    color: '#2f8cff',
+                    cursor: 'pointer'
                   }}
+                  title="Sinkronisasi BLE Caliper / Tool"
                 >
-                  <Bluetooth size={16} /> Sync BLE
+                  ⚡
                 </button>
                 <button
                   onClick={onOpenDefectCamera}
                   style={{
-                    padding: '10px 14px',
-                    borderRadius: '8px',
-                    backgroundColor: '#ec489920',
-                    border: '1px solid #ec4899',
-                    color: '#f472b6',
-                    fontWeight: 800,
-                    fontSize: '0.78rem',
-                    cursor: 'pointer',
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '9px',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px'
+                    justifyContent: 'center',
+                    fontSize: '14px',
+                    border: '1px solid rgba(255,90,95,.4)',
+                    backgroundColor: 'rgba(255,90,95,.1)',
+                    color: '#ff5a5f',
+                    cursor: 'pointer'
                   }}
+                  title="Ambil Foto Bukti Defect"
                 >
-                  <Camera size={16} /> Foto NG
+                  📷
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 4. Numpad (Fills All Remaining Space, Zero Scroll) */}
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr) 74px',
+              gridTemplateRows: 'repeat(4, 1fr)',
+              gap: '7px'
+            }}
+          >
+            {/* Row 1 */}
+            <button onClick={() => handleNumpadPress('7')} style={keyStyle}>7</button>
+            <button onClick={() => handleNumpadPress('8')} style={keyStyle}>8</button>
+            <button onClick={() => handleNumpadPress('9')} style={keyStyle}>9</button>
+            <button
+              onClick={() => handleNumpadPress('NEXT')}
+              style={{
+                ...keyStyle,
+                gridRow: 'span 3',
+                background: 'linear-gradient(180deg, #ff7a5c, #ff5a5f)',
+                color: '#ffffff',
+                fontSize: '14px',
+                fontWeight: 700,
+                flexDirection: 'column',
+                gap: '2px',
+                border: 'none',
+                boxShadow: '0 4px 14px rgba(255,90,95,0.4)'
+              }}
+            >
+              NEXT<br />▶
+            </button>
+
+            {/* Row 2 */}
+            <button onClick={() => handleNumpadPress('4')} style={keyStyle}>4</button>
+            <button onClick={() => handleNumpadPress('5')} style={keyStyle}>5</button>
+            <button onClick={() => handleNumpadPress('6')} style={keyStyle}>6</button>
+
+            {/* Row 3 */}
+            <button onClick={() => handleNumpadPress('1')} style={keyStyle}>1</button>
+            <button onClick={() => handleNumpadPress('2')} style={keyStyle}>2</button>
+            <button onClick={() => handleNumpadPress('3')} style={keyStyle}>3</button>
+
+            {/* Row 4 */}
+            <button onClick={() => handleNumpadPress('0')} style={keyStyle}>0</button>
+            <button onClick={() => handleNumpadPress('.')} style={keyStyle}>.</button>
+            <button onClick={() => handleNumpadPress('00')} style={keyStyle}>00</button>
+            <button
+              onClick={() => handleNumpadPress('DEL')}
+              style={{
+                ...keyStyle,
+                color: '#ff5a5f',
+                fontSize: '13px',
+                fontWeight: 700
+              }}
+            >
+              DEL
+            </button>
+          </div>
+        </div>
+
+        {/* ─── FULLSCREEN DRAWING MODAL WITH PINCH/PAN ZOOM ─────────── */}
+        {isDrawingModalOpen && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundColor: '#f4f2ec',
+              zIndex: 20,
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            {/* Modal Topbar */}
+            <div
+              style={{
+                backgroundColor: '#0b0d10',
+                padding: '12px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexShrink: 0
+              }}
+            >
+              <button
+                onClick={() => setIsDrawingModalOpen(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#ffffff',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: 'pointer'
+                }}
+              >
+                ✕ Tutup
+              </button>
+
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button
+                  onClick={() => setScale(prev => Math.max(prev / 1.3, 0.4))}
+                  style={zoomBtnStyle}
+                >
+                  −
+                </button>
+                <button
+                  onClick={() => { setScale(1); setPan({ x: 0, y: 0 }); }}
+                  style={zoomBtnStyle}
+                >
+                  ⟳
+                </button>
+                <button
+                  onClick={() => setScale(prev => Math.min(prev * 1.3, 5))}
+                  style={zoomBtnStyle}
+                >
+                  +
                 </button>
               </div>
             </div>
 
-            {/* Tablet Metrology Big Numpad */}
+            {/* Modal Interactive Canvas */}
             <div
               style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: '8px',
-                minHeight: '220px'
+                flex: 1,
+                overflow: 'hidden',
+                position: 'relative',
+                touchAction: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: isDragging ? 'grabbing' : 'grab'
               }}
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerUp}
             >
-              {['7', '8', '9', 'DEL', '4', '5', '6', '±', '1', '2', '3', 'CLEAR', '0', '.', '00', 'ENTER'].map((key) => {
-                const isEnter = key === 'ENTER';
-                const isDel = key === 'DEL' || key === 'CLEAR';
-                return (
-                  <button
-                    key={key}
-                    onClick={() => handleNumpadPress(key)}
-                    style={{
-                      padding: '14px',
-                      borderRadius: '10px',
-                      border: isEnter ? 'none' : '1px solid #2e2e42',
-                      backgroundColor: isEnter ? '#ff6d5a' : isDel ? '#7f1d1d30' : '#1c1c28',
-                      color: isEnter ? '#ffffff' : isDel ? '#fca5a5' : '#f8fafc',
-                      fontSize: isEnter ? '0.95rem' : '1.3rem',
-                      fontWeight: 900,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      boxShadow: isEnter ? '0 4px 14px rgba(255,109,90,0.4)' : 'none'
-                    }}
-                  >
-                    {isEnter ? 'NEXT ▶' : key}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Points Ribbon Carousel */}
-            <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', padding: '6px 0' }}>
-              {checkPoints.map((pt, idx) => {
-                const val = measuredValues[pt.id];
-                const isCurrent = idx === activeIndex;
-                const hasVal = val !== undefined && val !== '';
-                return (
-                  <button
-                    key={pt.id || idx}
-                    onClick={() => handlePointChange(idx)}
-                    style={{
-                      minWidth: '54px',
-                      padding: '8px 6px',
-                      borderRadius: '8px',
-                      border: isCurrent ? '2px solid #ff6d5a' : hasVal ? '1px solid #22c55e' : '1px solid #28283a',
-                      backgroundColor: isCurrent ? '#ff6d5a20' : hasVal ? '#22c55e15' : '#14141e',
-                      color: isCurrent ? '#ff6d5a' : hasVal ? '#4ade80' : '#94a3b8',
-                      fontSize: '0.75rem',
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: '2px'
-                    }}
-                  >
-                    <span>#{pt.pointNumber || idx + 1}</span>
-                    <span style={{ fontSize: '0.65rem' }}>{hasVal ? val : '--'}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Tablet Navigation & Submission Footer */}
-            <div style={{ display: 'flex', gap: '10px', marginTop: 'auto', paddingTop: '10px' }}>
-              <button
-                onClick={() => handlePointChange(activeIndex - 1)}
-                disabled={activeIndex === 0}
+              <div
                 style={{
-                  flex: 1,
-                  padding: '12px',
-                  borderRadius: '8px',
-                  backgroundColor: '#20202c',
-                  border: '1px solid #323246',
-                  color: activeIndex === 0 ? '#475569' : '#cbd5e1',
-                  fontWeight: 800,
-                  fontSize: '0.85rem',
-                  cursor: activeIndex === 0 ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px'
+                  position: 'relative',
+                  width: '700px',
+                  height: '500px',
+                  transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
+                  transformOrigin: 'center center',
+                  transition: isDragging ? 'none' : 'transform 0.1s ease',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
                 }}
               >
-                <ChevronLeft size={18} /> Poin Sebelumnya
-              </button>
+                {/* 1. CAD Drawing Image or SVG */}
+                {drawingSvg ? (
+                  typeof drawingSvg === 'string' && (drawingSvg.startsWith('data:image') || drawingSvg.startsWith('blob:') || drawingSvg.startsWith('http')) ? (
+                    <img src={drawingSvg} alt="CAD Drawing" style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
+                  ) : (
+                    <div dangerouslySetInnerHTML={{ __html: drawingSvg }} style={{ width: '100%', height: '100%', pointerEvents: 'none' }} />
+                  )
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748b' }}>
+                    Drawing blueprint tidak dimuat
+                  </div>
+                )}
 
-              {activeIndex < checkPoints.length - 1 ? (
-                <button
-                  onClick={() => handlePointChange(activeIndex + 1)}
-                  style={{
-                    flex: 1.5,
-                    padding: '12px',
-                    borderRadius: '8px',
-                    backgroundColor: '#0284c7',
-                    border: 'none',
-                    color: '#ffffff',
-                    fontWeight: 900,
-                    fontSize: '0.9rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    boxShadow: '0 2px 10px rgba(2,132,199,0.4)'
-                  }}
-                >
-                  Poin Selanjutnya <ChevronRight size={18} />
-                </button>
-              ) : (
-                <button
-                  onClick={onSubmitChecksheet}
-                  style={{
-                    flex: 1.5,
-                    padding: '12px',
-                    borderRadius: '8px',
-                    backgroundColor: '#22c55e',
-                    border: 'none',
-                    color: '#ffffff',
-                    fontWeight: 900,
-                    fontSize: '0.9rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    boxShadow: '0 2px 10px rgba(34,197,94,0.4)'
-                  }}
-                >
-                  <Send size={16} /> Submit Checksheet QC
-                </button>
-              )}
+                {/* 2. Interactive SVG Leader Lines */}
+                <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 10 }}>
+                  {checkPoints.map(pt => {
+                    if (pt.targetX !== undefined && pt.targetY !== undefined && (Math.abs(pt.targetX - pt.x) > 10 || Math.abs(pt.targetY - pt.y) > 10)) {
+                      const isAct = checkPoints[activeIndex]?.id === pt.id;
+                      const posX = pt.x <= 100 ? (pt.x / 100) * 700 : (pt.x / 980) * 700;
+                      const posY = pt.y <= 100 ? (pt.y / 100) * 500 : (pt.y / 680) * 500;
+                      const tgtX = pt.targetX <= 100 ? (pt.targetX / 100) * 700 : (pt.targetX / 980) * 700;
+                      const tgtY = pt.targetY <= 100 ? (pt.targetY / 100) * 500 : (pt.targetY / 680) * 500;
+                      return (
+                        <g key={`leader-${pt.id}`}>
+                          <line
+                            x1={posX}
+                            y1={posY}
+                            x2={tgtX}
+                            y2={tgtY}
+                            stroke={isAct ? '#ff5a5f' : '#64748b'}
+                            strokeWidth={isAct ? 2 : 1}
+                            strokeDasharray={isAct ? 'none' : '3,3'}
+                          />
+                          <circle cx={tgtX} cy={tgtY} r={3} fill={isAct ? '#ff5a5f' : '#64748b'} />
+                        </g>
+                      );
+                    }
+                    return null;
+                  })}
+                </svg>
+
+                {/* 3. Interactive Balloon Hotspot Pins */}
+                {checkPoints.map((pt, idx) => {
+                  const isAct = idx === activeIndex;
+                  const val = measuredValues[pt.id];
+                  const hasVal = val !== undefined && val !== '';
+                  const num = parseFloat(val);
+                  const nom = parseFloat(pt.nominal) || 0;
+                  const min = parseFloat(pt.tolMin !== undefined ? pt.tolMin : (nom + (parseFloat(pt.lowerTol) || 0)));
+                  const max = parseFloat(pt.tolMax !== undefined ? pt.tolMax : (nom + (parseFloat(pt.upperTol) || 0)));
+                  const isOK = hasVal && !isNaN(num) && num >= Math.min(min, max) && num <= Math.max(min, max);
+                  const isNG = hasVal && !isNaN(num) && (num < Math.min(min, max) || num > Math.max(min, max));
+
+                  const pinBg = isAct ? '#ff5a5f' : isNG ? '#ff5a5f' : isOK ? '#39c17a' : '#2f8cff';
+                  const posX = pt.x <= 100 ? `${pt.x}%` : `${(pt.x / 980) * 100}%`;
+                  const posY = pt.y <= 100 ? `${pt.y}%` : `${(pt.y / 680) * 100}%`;
+
+                  return (
+                    <div
+                      key={pt.id || idx}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePointChange(idx);
+                        setIsDrawingModalOpen(false);
+                      }}
+                      style={{
+                        position: 'absolute',
+                        left: posX,
+                        top: posY,
+                        transform: `translate(-50%, -50%) scale(${isAct ? 1.3 : 1})`,
+                        cursor: 'pointer',
+                        zIndex: isAct ? 35 : 20,
+                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: isAct ? '28px' : '22px',
+                          height: isAct ? '28px' : '22px',
+                          borderRadius: '50%',
+                          backgroundColor: pinBg,
+                          color: '#ffffff',
+                          border: isAct ? '2px solid #ffffff' : '1px solid #ffffff',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 700,
+                          fontSize: isAct ? '12px' : '10px'
+                        }}
+                      >
+                        {pt.pointNumber || idx + 1}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
+
+// ─── STYLES ──────────────────────────────────────────────────
+const keyStyle = {
+  borderRadius: '12px',
+  backgroundColor: '#1b1f26',
+  border: '1px solid #262b33',
+  fontSize: '19px',
+  fontWeight: 600,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: '#eef1f5',
+  cursor: 'pointer',
+  userSelect: 'none',
+  transition: 'background 0.05s ease'
+};
+
+const zoomBtnStyle = {
+  width: '28px',
+  height: '28px',
+  borderRadius: '7px',
+  backgroundColor: '#1b1f26',
+  border: '1px solid #262b33',
+  color: '#ffffff',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: '14px',
+  cursor: 'pointer'
+};
