@@ -209,6 +209,7 @@ export default function InspectorDesigner() {
   const [targetTableId, setTargetTableId] = useState('');
   
   // ─── ISO 9001:2015 Check Sheet Header Fields ───
+  const [checkSheetName, setCheckSheetName] = useState('');
   const [partNo, setPartNo] = useState('');
   const [partName, setPartName] = useState('');
   const [customer, setCustomer] = useState('');
@@ -2278,6 +2279,30 @@ export default function InspectorDesigner() {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div>
+                    <label style={{ fontSize: '0.68rem', fontWeight: 800, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                      <span>Nama Check Sheet / Title *</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={checkSheetName}
+                      onChange={e => setCheckSheetName(e.target.value)}
+                      placeholder="e.g., Dual Stage Planetary Gearbox QC Checksheet"
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        backgroundColor: '#1e293b',
+                        border: '1.5px solid #0284c7',
+                        borderRadius: '6px',
+                        color: '#ffffff',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        outline: 'none',
+                        boxShadow: '0 0 10px rgba(56, 189, 248, 0.15)'
+                      }}
+                    />
+                  </div>
+
                   <div>
                     <label style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
                       Part No / Part Number *
