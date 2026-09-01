@@ -1,17 +1,18 @@
 /**
  * WorkflowEditor.jsx
  * =========================================================================
- * Authentic n8n v1+ Visual Workflow Canvas & Node Studio for Mandor MES
+ * Authentic n8n v1+ Visual Workflow Canvas, Node Palette & Properties Studio
  *
  * Exact Visual Fidelity:
+ * - Left Node Palette Sidebar with Drag-and-Drop & Categorized Tool Library
  * - D-Shaped Pill Trigger Nodes with Red Lightning Bolt Badge
  * - AI Agent Cards with Bottom Attachment Ports & Dashed Sub-nodes
  * - Circular Sub-Nodes (AI Models, Memory, Tools with Diamond Top Handles)
  * - Multi-Output Decision Nodes (Roadsign Icon with 'true' / 'false' Handles)
- * - Action Cards with Official Logos and Quick Chain '[+]' Buttons
+ * - Action Cards with Official Logos (Slack, Telegram, Sheets, etc.) & Quick Chain '[+]'
+ * - Right Slide-Over Node Properties Inspector with Parameters, Data & Settings
  * - Floating Text Labels Under Nodes & Smooth Bezier Connections
- * - Midnight Slate Canvas (#111116) with Dot Grid
- * - Interactive Right-Side Properties Inspector Panel & Templates
+ * - Midnight Slate Canvas (#111116) with Dot Grid & Interactive Tools
  * =========================================================================
  */
 
@@ -40,7 +41,8 @@ import {
   PanelLeftClose, PanelRightClose, Maximize2, Minimize2,
   Variable, FileJson, Timer, Bell, Shield, GitBranch, CheckCircle2,
   X, Check, RefreshCw, Terminal, Sliders, ArrowRight, PlayCircle,
-  Eye, Layers, HelpCircle, Sparkles, UserPlus, GitFork, ArrowUpRight
+  Eye, Layers, HelpCircle, Sparkles, UserPlus, GitFork, ArrowUpRight,
+  SlidersHorizontal, Box, ToggleLeft, ToggleRight
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { WORKFLOW_TEMPLATES } from './TemplateGallery';
@@ -444,6 +446,8 @@ const N8NDecisionNode = ({ data, selected }) => {
 // =====================================================
 const N8NActionNode = ({ data, selected }) => {
   const isSlack = (data?.type || '').toLowerCase().includes('slack') || (data?.label || '').toLowerCase().includes('slack') || (data?.app || '') === 'slack';
+  const isSheets = (data?.type || '').toLowerCase().includes('sheet') || (data?.app || '') === 'sheets';
+  const isTelegram = (data?.type || '').toLowerCase().includes('telegram') || (data?.app || '') === 'telegram';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}>
@@ -476,7 +480,7 @@ const N8NActionNode = ({ data, selected }) => {
         />
 
         {/* Icon Render */}
-        {isSlack ? <SlackLogo /> : <Send size={24} color="#38bdf8" />}
+        {isSlack ? <SlackLogo /> : isSheets ? <FileSpreadsheet size={26} color="#22c55e" /> : isTelegram ? <Send size={24} color="#38bdf8" /> : <Zap size={24} color="#a855f7" />}
 
         {/* Right Output Handle */}
         <Handle
@@ -538,10 +542,349 @@ const NODE_TYPES = {
 };
 
 // =====================================================
+// LEFT NODE PALETTE SIDEBAR COMPONENT
+// =====================================================
+const N8NPaletteSidebar = ({ onAddNode, searchQuery, setSearchQuery, onClose }) => {
+  const [activeCategory, setActiveCategory] = useState('all');
+
+  const paletteCategories = [
+    {
+      id: 'triggers',
+      label: '⚡ Triggers',
+      nodes: [
+        { type: 'n8n_trigger', label: "On 'Create User' form submission", subtitle: 'Form Trigger', icon: <FileSpreadsheet size={16} color="#2dd4bf" />, color: '#0d9488' },
+        { type: 'n8n_trigger', label: 'Webhook Listener', subtitle: 'Receive HTTP POST/GET', icon: <Webhook size={16} color="#10b981" />, color: '#10b981' },
+        { type: 'n8n_trigger', label: 'Schedule Timer', subtitle: 'Cron interval', icon: <Clock size={16} color="#f59e0b" />, color: '#f59e0b' }
+      ]
+    },
+    {
+      id: 'ai',
+      label: '🤖 AI & Agents',
+      nodes: [
+        { type: 'n8n_agent', label: 'AI Agent', subtitle: 'Tools Agent', icon: <Bot size={16} color="#a855f7" />, color: '#a855f7' },
+        { type: 'n8n_subnode', subType: 'model', label: 'Anthropic Chat Model', portLabel: 'Model', subtitle: 'Claude 3.5 Sonnet', icon: <Sparkles size={16} color="#ffffff" />, color: '#ffffff' },
+        { type: 'n8n_subnode', subType: 'memory', label: 'Postgres Chat Memory', portLabel: 'Memory', subtitle: 'Session persistence', icon: <Database size={16} color="#38bdf8" />, color: '#38bdf8' },
+        { type: 'n8n_subnode', subType: 'microsoft', label: 'Microsoft Entra ID', portLabel: 'Tool', subtitle: 'Identity & Access', icon: <Shield size={16} color="#F25022" />, color: '#F25022' },
+        { type: 'n8n_subnode', subType: 'jira', label: 'Jira Software', portLabel: 'Tool', subtitle: 'Create issue / sync', icon: <Database size={16} color="#2684FF" />, color: '#2684FF' }
+      ]
+    },
+    {
+      id: 'logic',
+      label: '🔀 Logic & Routing',
+      nodes: [
+        { type: 'n8n_decision', label: 'Is a manager?', subtitle: 'True / False split', icon: <GitFork size={16} color="#22c55e" />, color: '#22c55e' },
+        { type: 'n8n_decision', label: 'Is Dimension Pass?', subtitle: 'QC OK / NG condition', icon: <CheckCircle2 size={16} color="#22c55e" />, color: '#22c55e' },
+        { type: 'n8n_action', label: 'Custom Code (JS)', subtitle: 'Data transformation', icon: <Code size={16} color="#eab308" />, color: '#eab308' }
+      ]
+    },
+    {
+      id: 'actions',
+      label: '📱 Actions & Apps',
+      nodes: [
+        { type: 'n8n_action', label: 'Add to channel', subtitle: 'invite: channel', app: 'slack', icon: <MessageSquare size={16} color="#E01E5A" />, color: '#E01E5A' },
+        { type: 'n8n_action', label: 'Update profile', subtitle: 'updateProfile: user', app: 'slack', icon: <MessageSquare size={16} color="#36C5F0" />, color: '#36C5F0' },
+        { type: 'n8n_action', label: 'Telegram Alert', subtitle: 'Send message', app: 'telegram', icon: <Send size={16} color="#38bdf8" />, color: '#38bdf8' },
+        { type: 'n8n_action', label: 'Google Sheets Log', subtitle: 'Append row', app: 'sheets', icon: <FileSpreadsheet size={16} color="#22c55e" />, color: '#22c55e' }
+      ]
+    }
+  ];
+
+  const filteredCategories = paletteCategories.map(cat => ({
+    ...cat,
+    nodes: cat.nodes.filter(n =>
+      !searchQuery ||
+      n.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      n.subtitle?.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  })).filter(cat => cat.nodes.length > 0);
+
+  return (
+    <div
+      style={{
+        width: '280px',
+        height: '100%',
+        backgroundColor: '#18181f',
+        borderRight: '1px solid #282834',
+        display: 'flex',
+        flexDirection: 'column',
+        zIndex: 20
+      }}
+    >
+      {/* Header */}
+      <div style={{ padding: '14px 16px', borderBottom: '1px solid #282834', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ width: '26px', height: '26px', borderRadius: '6px', backgroundColor: '#ff6d5a20', border: '1px solid #ff6d5a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Zap size={14} color="#ff6d5a" />
+          </div>
+          <span style={{ fontSize: '13px', fontWeight: 800, color: '#ffffff' }}>Nodes Palette</span>
+        </div>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+          <PanelLeftClose size={16} />
+        </button>
+      </div>
+
+      {/* Search Bar */}
+      <div style={{ padding: '10px 14px', borderBottom: '1px solid #282834' }}>
+        <div style={{ position: 'relative' }}>
+          <Search size={13} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#71717a' }} />
+          <input
+            type="text"
+            placeholder="Cari node (AI, Slack, Sheets)..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{ width: '100%', padding: '7px 10px 7px 30px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#fff', fontSize: '11px', outline: 'none' }}
+          />
+        </div>
+      </div>
+
+      {/* Node Items List */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        {filteredCategories.map(cat => (
+          <div key={cat.id}>
+            <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              {cat.label}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {cat.nodes.map((node, idx) => (
+                <div
+                  key={idx}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('application/reactflow', JSON.stringify(node));
+                    e.dataTransfer.effectAllowed = 'move';
+                  }}
+                  onClick={() => onAddNode(node)}
+                  style={{
+                    padding: '8px 10px',
+                    backgroundColor: '#111116',
+                    border: '1px solid #282834',
+                    borderRadius: '8px',
+                    cursor: 'grab',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#ff6d5a'; e.currentTarget.style.transform = 'translateX(2px)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#282834'; e.currentTarget.style.transform = 'none'; }}
+                >
+                  <GripVertical size={12} color="#52525b" />
+                  <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: '#212127', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {node.icon}
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#f4f4f5', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {node.label}
+                    </div>
+                    <div style={{ fontSize: '9px', color: '#71717a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {node.subtitle}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// =====================================================
+// RIGHT NODE PROPERTIES INSPECTOR PANEL
+// =====================================================
+const N8NPropertiesInspector = ({ selectedNode, onUpdateNode, onDeleteNode, onDuplicateNode, onClose }) => {
+  const [activeTab, setActiveTab] = useState('parameters'); // 'parameters' | 'data' | 'settings'
+
+  if (!selectedNode) return null;
+
+  return (
+    <div
+      style={{
+        width: '360px',
+        height: '100%',
+        backgroundColor: '#18181f',
+        borderLeft: '1px solid #282834',
+        display: 'flex',
+        flexDirection: 'column',
+        zIndex: 20,
+        boxShadow: '-6px 0 25px rgba(0,0,0,0.6)'
+      }}
+    >
+      {/* Panel Header */}
+      <div style={{ padding: '14px 16px', borderBottom: '1px solid #282834', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#ff6d5a20', border: '1px solid #ff6d5a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Bot size={18} color="#ff6d5a" />
+          </div>
+          <div>
+            <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 800, color: '#ffffff' }}>
+              {selectedNode.data?.label || selectedNode.id}
+            </h4>
+            <span style={{ fontSize: '10px', color: '#94a3b8' }}>Type: {selectedNode.type}</span>
+          </div>
+        </div>
+
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+          <X size={16} />
+        </button>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', borderBottom: '1px solid #282834', backgroundColor: '#111116' }}>
+        {['parameters', 'data', 'settings'].map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            style={{
+              flex: 1,
+              padding: '9px',
+              fontSize: '11px',
+              fontWeight: 700,
+              textTransform: 'capitalize',
+              backgroundColor: activeTab === tab ? '#18181f' : 'transparent',
+              color: activeTab === tab ? '#ff6d5a' : '#71717a',
+              border: 'none',
+              borderBottom: activeTab === tab ? '2px solid #ff6d5a' : 'none',
+              cursor: 'pointer'
+            }}
+          >
+            {tab === 'parameters' ? '⚙️ Parameters' : tab === 'data' ? '📋 Data JSON' : '🛠️ Settings'}
+          </button>
+        ))}
+      </div>
+
+      {/* Panel Body Content */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        
+        {activeTab === 'parameters' && (
+          <>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                Node Display Label
+              </label>
+              <input
+                type="text"
+                value={selectedNode.data?.label || ''}
+                onChange={(e) => onUpdateNode(selectedNode.id, { ...selectedNode.data, label: e.target.value })}
+                style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '12px', outline: 'none' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                Subtitle / Secondary Info
+              </label>
+              <input
+                type="text"
+                value={selectedNode.data?.subtitle || ''}
+                onChange={(e) => onUpdateNode(selectedNode.id, { ...selectedNode.data, subtitle: e.target.value })}
+                style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '12px', outline: 'none' }}
+              />
+            </div>
+
+            {/* If Slack */}
+            {selectedNode.data?.app === 'slack' && (
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                  Slack Channel / User
+                </label>
+                <input
+                  type="text"
+                  value={selectedNode.data?.parameters?.channel || '#general'}
+                  onChange={(e) => onUpdateNode(selectedNode.id, { ...selectedNode.data, parameters: { ...selectedNode.data?.parameters, channel: e.target.value } })}
+                  style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '12px', outline: 'none' }}
+                />
+              </div>
+            )}
+
+            {/* If AI Agent */}
+            {selectedNode.type === 'n8n_agent' && (
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                  AI Agent System Prompt
+                </label>
+                <textarea
+                  rows={4}
+                  value={selectedNode.data?.parameters?.prompt || 'Process user onboarding and determine department privileges.'}
+                  onChange={(e) => onUpdateNode(selectedNode.id, { ...selectedNode.data, parameters: { ...selectedNode.data?.parameters, prompt: e.target.value } })}
+                  style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '11px', outline: 'none', resize: 'vertical' }}
+                />
+              </div>
+            )}
+          </>
+        )}
+
+        {activeTab === 'data' && (
+          <div style={{ backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', padding: '10px' }}>
+            <pre style={{ margin: 0, fontSize: '11px', color: '#34d399', fontFamily: 'monospace' }}>
+              {JSON.stringify(selectedNode.data?.parameters || { status: 'OK', payload: { id: selectedNode.id } }, null, 2)}
+            </pre>
+          </div>
+        )}
+
+        {activeTab === 'settings' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input type="checkbox" defaultChecked /> Continue On Fail
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input type="checkbox" defaultChecked /> Save Execution Logs
+            </label>
+          </div>
+        )}
+
+      </div>
+
+      {/* Panel Footer */}
+      <div style={{ padding: '14px', borderTop: '1px solid #282834', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <button
+          onClick={() => toast.success(`Node "${selectedNode.data?.label}" berhasil diuji!`, { icon: '⚡' })}
+          style={{
+            width: '100%',
+            padding: '10px',
+            backgroundColor: '#ff6d5a',
+            border: 'none',
+            borderRadius: '6px',
+            color: '#ffffff',
+            fontWeight: 900,
+            fontSize: '12px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            boxShadow: '0 2px 10px rgba(255,109,90,0.4)'
+          }}
+        >
+          <Play size={14} /> ⚡ Test Step
+        </button>
+
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={() => onDuplicateNode(selectedNode.id)}
+            style={{ flex: 1, padding: '7px', backgroundColor: '#212127', border: '1px solid #383844', borderRadius: '6px', color: '#fff', fontSize: '11px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+          >
+            <Copy size={12} /> Duplicate
+          </button>
+          <button
+            onClick={() => onDeleteNode(selectedNode.id)}
+            style={{ flex: 1, padding: '7px', backgroundColor: '#7f1d1d20', border: '1px solid #7f1d1d', borderRadius: '6px', color: '#fca5a5', fontSize: '11px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+          >
+            <Trash2 size={12} /> Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// =====================================================
 // MAIN WORKFLOW EDITOR COMPONENT
 // =====================================================
 export const WorkflowEditorContent = () => {
-  // Initial Nodes mirroring the user's authentic n8n v1+ screenshot
+  // Initial Nodes mirroring authentic n8n v1+ design
   const initialNodes = useMemo(() => [
     {
       id: 'node-trigger',
@@ -564,7 +907,6 @@ export const WorkflowEditorContent = () => {
         parameters: { prompt: 'Process user onboarding and determine department privileges.' }
       }
     },
-    // Sub-Nodes attached to AI Agent
     {
       id: 'sub-anthropic',
       type: 'n8n_subnode',
@@ -609,7 +951,6 @@ export const WorkflowEditorContent = () => {
         parameters: { project: 'PROD' }
       }
     },
-    // Decision Node
     {
       id: 'node-decision',
       type: 'n8n_decision',
@@ -620,7 +961,6 @@ export const WorkflowEditorContent = () => {
         parameters: { field: '{{ $json.role }}', value: 'Manager' }
       }
     },
-    // Slack Action Nodes
     {
       id: 'node-slack-channel',
       type: 'n8n_action',
@@ -646,85 +986,24 @@ export const WorkflowEditorContent = () => {
   ], []);
 
   const initialEdges = useMemo(() => [
-    // Main Flow
-    {
-      id: 'e-trigger-agent',
-      source: 'node-trigger',
-      target: 'node-agent',
-      type: 'smoothstep',
-      style: { stroke: '#8b8b99', strokeWidth: 2 }
-    },
-    // Sub-node Dashed Connections
-    {
-      id: 'e-anthropic-agent',
-      source: 'sub-anthropic',
-      target: 'node-agent',
-      targetHandle: 'chat_model',
-      type: 'smoothstep',
-      style: { stroke: '#8b8b99', strokeWidth: 1.5, strokeDasharray: '4,4' }
-    },
-    {
-      id: 'e-postgres-agent',
-      source: 'sub-postgres',
-      target: 'node-agent',
-      targetHandle: 'memory',
-      type: 'smoothstep',
-      style: { stroke: '#8b8b99', strokeWidth: 1.5, strokeDasharray: '4,4' }
-    },
-    {
-      id: 'e-entra-agent',
-      source: 'sub-entra',
-      target: 'node-agent',
-      targetHandle: 'tool',
-      type: 'smoothstep',
-      style: { stroke: '#8b8b99', strokeWidth: 1.5, strokeDasharray: '4,4' }
-    },
-    {
-      id: 'e-jira-agent',
-      source: 'sub-jira',
-      target: 'node-agent',
-      targetHandle: 'tool',
-      type: 'smoothstep',
-      style: { stroke: '#8b8b99', strokeWidth: 1.5, strokeDasharray: '4,4' }
-    },
-    // Agent to Decision
-    {
-      id: 'e-agent-decision',
-      source: 'node-agent',
-      target: 'node-decision',
-      type: 'smoothstep',
-      style: { stroke: '#8b8b99', strokeWidth: 2 }
-    },
-    // Decision to Slacks (True / False)
-    {
-      id: 'e-decision-slack-true',
-      source: 'node-decision',
-      sourceHandle: 'true',
-      target: 'node-slack-channel',
-      type: 'smoothstep',
-      label: 'true',
-      labelStyle: { fill: '#94a3b8', fontSize: 11, fontWeight: 600 },
-      labelBgStyle: { fill: '#111116', fillOpacity: 0.8 },
-      style: { stroke: '#8b8b99', strokeWidth: 2 }
-    },
-    {
-      id: 'e-decision-slack-false',
-      source: 'node-decision',
-      sourceHandle: 'false',
-      target: 'node-slack-profile',
-      type: 'smoothstep',
-      label: 'false',
-      labelStyle: { fill: '#94a3b8', fontSize: 11, fontWeight: 600 },
-      labelBgStyle: { fill: '#111116', fillOpacity: 0.8 },
-      style: { stroke: '#8b8b99', strokeWidth: 2 }
-    }
+    { id: 'e-trigger-agent', source: 'node-trigger', target: 'node-agent', type: 'smoothstep', style: { stroke: '#8b8b99', strokeWidth: 2 } },
+    { id: 'e-anthropic-agent', source: 'sub-anthropic', target: 'node-agent', targetHandle: 'chat_model', type: 'smoothstep', style: { stroke: '#8b8b99', strokeWidth: 1.5, strokeDasharray: '4,4' } },
+    { id: 'e-postgres-agent', source: 'sub-postgres', target: 'node-agent', targetHandle: 'memory', type: 'smoothstep', style: { stroke: '#8b8b99', strokeWidth: 1.5, strokeDasharray: '4,4' } },
+    { id: 'e-entra-agent', source: 'sub-entra', target: 'node-agent', targetHandle: 'tool', type: 'smoothstep', style: { stroke: '#8b8b99', strokeWidth: 1.5, strokeDasharray: '4,4' } },
+    { id: 'e-jira-agent', source: 'sub-jira', target: 'node-agent', targetHandle: 'tool', type: 'smoothstep', style: { stroke: '#8b8b99', strokeWidth: 1.5, strokeDasharray: '4,4' } },
+    { id: 'e-agent-decision', source: 'node-agent', target: 'node-decision', type: 'smoothstep', style: { stroke: '#8b8b99', strokeWidth: 2 } },
+    { id: 'e-decision-slack-true', source: 'node-decision', sourceHandle: 'true', target: 'node-slack-channel', type: 'smoothstep', label: 'true', labelStyle: { fill: '#94a3b8', fontSize: 11, fontWeight: 600 }, labelBgStyle: { fill: '#111116', fillOpacity: 0.8 }, style: { stroke: '#8b8b99', strokeWidth: 2 } },
+    { id: 'e-decision-slack-false', source: 'node-decision', sourceHandle: 'false', target: 'node-slack-profile', type: 'smoothstep', label: 'false', labelStyle: { fill: '#94a3b8', fontSize: 11, fontWeight: 600 }, labelBgStyle: { fill: '#111116', fillOpacity: 0.8 }, style: { stroke: '#8b8b99', strokeWidth: 2 } }
   ], []);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [workflowName, setWorkflowName] = useState('AI Onboarding & Role Dispatcher');
   const [selectedNodeId, setSelectedNodeId] = useState('node-agent');
+  const [showPalette, setShowPalette] = useState(true);
+  const [showProperties, setShowProperties] = useState(true);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [isRunning, setIsRunning] = useState(false);
   const reactFlow = useReactFlow();
 
@@ -738,6 +1017,85 @@ export const WorkflowEditorContent = () => {
       style: { stroke: '#8b8b99', strokeWidth: 2 }
     }, eds));
   }, [setEdges]);
+
+  // Add node from Palette
+  const handleAddNode = useCallback((nodeConfig) => {
+    const position = reactFlow.getViewport();
+    const newNode = {
+      id: `node-${Date.now()}`,
+      type: nodeConfig.type || 'n8n_action',
+      position: { x: -position.x + 350, y: -position.y + 200 },
+      data: {
+        label: nodeConfig.label,
+        subtitle: nodeConfig.subtitle,
+        subType: nodeConfig.subType,
+        portLabel: nodeConfig.portLabel,
+        app: nodeConfig.app,
+        parameters: {}
+      }
+    };
+    setNodes((nds) => nds.concat(newNode));
+    setSelectedNodeId(newNode.id);
+    toast.success(`Node "${nodeConfig.label}" ditambahkan!`, { icon: '✨' });
+  }, [reactFlow, setNodes]);
+
+  // Drag & drop
+  const onDrop = useCallback((event) => {
+    event.preventDefault();
+    const dataStr = event.dataTransfer.getData('application/reactflow');
+    if (!dataStr) return;
+    const parsed = JSON.parse(dataStr);
+    const position = reactFlow.project({ x: event.clientX, y: event.clientY });
+
+    const newNode = {
+      id: `node-${Date.now()}`,
+      type: parsed.type || 'n8n_action',
+      position,
+      data: {
+        label: parsed.label,
+        subtitle: parsed.subtitle,
+        subType: parsed.subType,
+        portLabel: parsed.portLabel,
+        app: parsed.app,
+        parameters: {}
+      }
+    };
+    setNodes((nds) => nds.concat(newNode));
+    setSelectedNodeId(newNode.id);
+  }, [reactFlow, setNodes]);
+
+  const onDragOver = useCallback((event) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  // Update node
+  const handleUpdateNode = useCallback((nodeId, newData) => {
+    setNodes((nds) => nds.map(n => n.id === nodeId ? { ...n, data: newData } : n));
+  }, [setNodes]);
+
+  // Delete node
+  const handleDeleteNode = useCallback((nodeId) => {
+    setNodes((nds) => nds.filter(n => n.id !== nodeId));
+    setEdges((eds) => eds.filter(e => e.source !== nodeId && e.target !== nodeId));
+    setSelectedNodeId(null);
+    toast.success('Node berhasil dihapus');
+  }, [setNodes, setEdges]);
+
+  // Duplicate node
+  const handleDuplicateNode = useCallback((nodeId) => {
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node) return;
+    const duplicated = {
+      ...node,
+      id: `node-${Date.now()}`,
+      position: { x: node.position.x + 40, y: node.position.y + 40 },
+      data: { ...node.data, label: `${node.data?.label} (Copy)` }
+    };
+    setNodes((nds) => nds.concat(duplicated));
+    setSelectedNodeId(duplicated.id);
+    toast.success('Node diduplikasi');
+  }, [nodes, setNodes]);
 
   // Execute Workflow Test
   const handleTestWorkflow = () => {
@@ -758,7 +1116,8 @@ export const WorkflowEditorContent = () => {
         width: '100vw',
         backgroundColor: '#111116',
         color: '#ffffff',
-        fontFamily: 'Inter, system-ui, sans-serif'
+        fontFamily: 'Inter, system-ui, sans-serif',
+        overflow: 'hidden'
       }}
     >
       <Toaster position="top-right" />
@@ -772,7 +1131,7 @@ export const WorkflowEditorContent = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '0 20px',
+          padding: '0 16px',
           zIndex: 10
         }}
       >
@@ -803,55 +1162,94 @@ export const WorkflowEditorContent = () => {
               fontSize: '14px',
               fontWeight: 800,
               outline: 'none',
-              width: '320px'
+              width: '280px'
             }}
           />
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {/* Panel Toggles & Actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            onClick={() => setShowPalette(!showPalette)}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '6px',
+              backgroundColor: showPalette ? '#ff6d5a20' : '#272733',
+              border: `1px solid ${showPalette ? '#ff6d5a' : '#383848'}`,
+              color: showPalette ? '#ff6d5a' : '#94a3b8',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px'
+            }}
+          >
+            <Box size={13} /> {showPalette ? 'Hide Palette' : 'Show Palette'}
+          </button>
+
+          <button
+            onClick={() => setShowProperties(!showProperties)}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '6px',
+              backgroundColor: showProperties ? '#ff6d5a20' : '#272733',
+              border: `1px solid ${showProperties ? '#ff6d5a' : '#383848'}`,
+              color: showProperties ? '#ff6d5a' : '#94a3b8',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px'
+            }}
+          >
+            <SlidersHorizontal size={13} /> {showProperties ? 'Hide Properties' : 'Show Properties'}
+          </button>
+
           <button
             onClick={() => setShowTemplateModal(true)}
             style={{
-              padding: '7px 14px',
+              padding: '6px 12px',
               borderRadius: '6px',
               backgroundColor: '#272733',
               border: '1px solid #383848',
               color: '#38bdf8',
-              fontSize: '12px',
+              fontSize: '11px',
               fontWeight: 800,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px'
+              gap: '5px'
             }}
           >
-            <Sparkles size={14} /> ⚡ Template Presets
+            <Sparkles size={13} /> Templates
           </button>
 
           <button
             onClick={() => toast.success(`Workflow "${workflowName}" tersimpan!`, { icon: '💾' })}
             style={{
-              padding: '7px 14px',
+              padding: '6px 12px',
               borderRadius: '6px',
               backgroundColor: '#272733',
               border: '1px solid #383848',
               color: '#ffffff',
-              fontSize: '12px',
+              fontSize: '11px',
               fontWeight: 700,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px'
+              gap: '5px'
             }}
           >
-            <Save size={14} /> Save
+            <Save size={13} /> Save
           </button>
 
           <button
             onClick={handleTestWorkflow}
             disabled={isRunning}
             style={{
-              padding: '7px 18px',
+              padding: '6px 16px',
               borderRadius: '6px',
               backgroundColor: '#ff6d5a',
               border: 'none',
@@ -865,144 +1263,65 @@ export const WorkflowEditorContent = () => {
               boxShadow: '0 2px 10px rgba(255,109,90,0.4)'
             }}
           >
-            <Play size={14} /> {isRunning ? 'Running...' : 'Test workflow'}
+            <Play size={13} /> {isRunning ? 'Running...' : 'Test workflow'}
           </button>
         </div>
       </div>
 
-      {/* ─── MAIN CANVAS AREA ──────────────────────────────────────── */}
-      <div style={{ flex: 1, position: 'relative', backgroundColor: '#111116' }}>
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onNodeClick={(_, node) => setSelectedNodeId(node.id)}
-          onPaneClick={() => setSelectedNodeId(null)}
-          nodeTypes={NODE_TYPES}
-          connectionLineType={ConnectionLineType.SmoothStep}
-          connectionLineStyle={{ stroke: '#8b8b99', strokeWidth: 2 }}
-          fitView
-          fitViewOptions={{ padding: 0.2 }}
-          style={{ backgroundColor: '#111116' }}
-        >
-          {/* Midnight Dot Grid Background */}
-          <Background color="#242430" gap={24} size={1.5} />
-          <Controls style={{ backgroundColor: '#18181f', border: '1px solid #282834', borderRadius: '8px', fill: '#ffffff' }} />
-          <MiniMap
-            nodeColor="#383848"
-            maskColor="rgba(17, 17, 22, 0.85)"
-            style={{ backgroundColor: '#18181f', border: '1px solid #282834', borderRadius: '8px' }}
+      {/* ─── MAIN WORKSPACE (LEFT PALETTE + CENTER CANVAS + RIGHT PROPERTIES) ── */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
+        
+        {/* LEFT NODE PALETTE SIDEBAR */}
+        {showPalette && (
+          <N8NPaletteSidebar
+            onAddNode={handleAddNode}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            onClose={() => setShowPalette(false)}
           />
-        </ReactFlow>
+        )}
 
-        {/* ─── RIGHT SIDE NODE PROPERTIES PANEL ───────────────────────── */}
-        {selectedNode && (
-          <div
-            style={{
-              position: 'absolute',
-              right: 0,
-              top: 0,
-              bottom: 0,
-              width: '380px',
-              backgroundColor: '#18181f',
-              borderLeft: '1px solid #282834',
-              display: 'flex',
-              flexDirection: 'column',
-              zIndex: 20,
-              boxShadow: '-6px 0 25px rgba(0,0,0,0.6)'
+        {/* CENTER REACTFLOW CANVAS */}
+        <div style={{ flex: 1, height: '100%', position: 'relative', backgroundColor: '#111116' }}>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onDrop={onDrop}
+            onDragOver={onDragOver}
+            onNodeClick={(_, node) => {
+              setSelectedNodeId(node.id);
+              setShowProperties(true);
             }}
+            onPaneClick={() => setSelectedNodeId(null)}
+            nodeTypes={NODE_TYPES}
+            connectionLineType={ConnectionLineType.SmoothStep}
+            connectionLineStyle={{ stroke: '#8b8b99', strokeWidth: 2 }}
+            fitView
+            fitViewOptions={{ padding: 0.2 }}
+            style={{ backgroundColor: '#111116' }}
           >
-            {/* Panel Header */}
-            <div style={{ padding: '16px', borderBottom: '1px solid #282834', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#ff6d5a20', border: '1px solid #ff6d5a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Bot size={18} color="#ff6d5a" />
-                </div>
-                <div>
-                  <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 800, color: '#ffffff' }}>
-                    {selectedNode.data?.label || selectedNode.id}
-                  </h4>
-                  <span style={{ fontSize: '10px', color: '#94a3b8' }}>Type: {selectedNode.type}</span>
-                </div>
-              </div>
+            <Background color="#242430" gap={24} size={1.5} />
+            <Controls style={{ backgroundColor: '#18181f', border: '1px solid #282834', borderRadius: '8px', fill: '#ffffff' }} />
+            <MiniMap
+              nodeColor="#383848"
+              maskColor="rgba(17, 17, 22, 0.85)"
+              style={{ backgroundColor: '#18181f', border: '1px solid #282834', borderRadius: '8px' }}
+            />
+          </ReactFlow>
+        </div>
 
-              <button onClick={() => setSelectedNodeId(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* Panel Form Parameters */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
-                  Node Display Label
-                </label>
-                <input
-                  type="text"
-                  value={selectedNode.data?.label || ''}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, label: val } } : n));
-                  }}
-                  style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '12px', outline: 'none' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
-                  Subtitle / Action Info
-                </label>
-                <input
-                  type="text"
-                  value={selectedNode.data?.subtitle || ''}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, subtitle: val } } : n));
-                  }}
-                  style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '12px', outline: 'none' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
-                  Parameters & Configuration JSON
-                </label>
-                <div style={{ backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', padding: '10px' }}>
-                  <pre style={{ margin: 0, fontSize: '11px', color: '#34d399', fontFamily: 'monospace' }}>
-                    {JSON.stringify(selectedNode.data?.parameters || {}, null, 2)}
-                  </pre>
-                </div>
-              </div>
-            </div>
-
-            {/* Panel Footer */}
-            <div style={{ padding: '14px', borderTop: '1px solid #282834' }}>
-              <button
-                onClick={() => {
-                  toast.success(`Node "${selectedNode.data?.label}" berhasil diuji!`, { icon: '⚡' });
-                }}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  backgroundColor: '#ff6d5a',
-                  border: 'none',
-                  borderRadius: '6px',
-                  color: '#ffffff',
-                  fontWeight: 900,
-                  fontSize: '12px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px'
-                }}
-              >
-                <Play size={14} /> ⚡ Test Step
-              </button>
-            </div>
-          </div>
+        {/* RIGHT NODE PROPERTIES INSPECTOR PANEL */}
+        {showProperties && (
+          <N8NPropertiesInspector
+            selectedNode={selectedNode}
+            onUpdateNode={handleUpdateNode}
+            onDeleteNode={handleDeleteNode}
+            onDuplicateNode={handleDuplicateNode}
+            onClose={() => setShowProperties(false)}
+          />
         )}
       </div>
 
