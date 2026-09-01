@@ -342,27 +342,90 @@ export default function MobileTabletCheckSheet({
               justifyContent: 'center'
             }}
           >
-            {drawingSvg ? (
-              <div
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`,
-                  transition: 'transform 0.2s ease'
-                }}
-              >
-                {typeof drawingSvg === 'string' && (drawingSvg.startsWith('data:image') || drawingSvg.startsWith('blob:') || drawingSvg.startsWith('http')) ? (
-                  <img src={drawingSvg} alt="CAD Drawing" style={{ maxWidth: '95%', maxHeight: '95%', objectFit: 'contain' }} />
+            <div
+              style={{
+                position: 'relative',
+                width: '980px',
+                height: '680px',
+                maxWidth: '96%',
+                maxHeight: '94%',
+                aspectRatio: '980 / 680',
+                backgroundColor: '#ffffff',
+                boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
+                borderRadius: '6px',
+                transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`,
+                transformOrigin: 'center center',
+                transition: 'transform 0.15s ease',
+                overflow: 'hidden'
+              }}
+            >
+              {drawingSvg ? (
+                typeof drawingSvg === 'string' && (drawingSvg.startsWith('data:image') || drawingSvg.startsWith('blob:') || drawingSvg.startsWith('http')) ? (
+                  <img src={drawingSvg} alt="CAD Drawing" style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
                 ) : (
-                  <div dangerouslySetInnerHTML={{ __html: drawingSvg }} style={{ width: '90%', height: '90%' }} />
-                )}
-              </div>
-            ) : (
-              <div style={{ color: '#64748b', fontSize: '0.8rem' }}>Drawing blueprint tidak dimuat</div>
-            )}
+                  <div dangerouslySetInnerHTML={{ __html: drawingSvg }} style={{ width: '100%', height: '100%', pointerEvents: 'none' }} />
+                )
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748b', fontSize: '0.8rem' }}>Drawing blueprint tidak dimuat</div>
+              )}
+
+              {/* Mobile Interactive Balloon Pins */}
+              {checkPoints.map((pt, idx) => {
+                const isAct = idx === activeIndex;
+                const val = measuredValues[pt.id];
+                const hasVal = val !== undefined && val !== '';
+                const num = parseFloat(val);
+                const nom = parseFloat(pt.nominal) || 0;
+                const min = parseFloat(pt.tolMin !== undefined ? pt.tolMin : (nom + (parseFloat(pt.lowerTol) || 0)));
+                const max = parseFloat(pt.tolMax !== undefined ? pt.tolMax : (nom + (parseFloat(pt.upperTol) || 0)));
+                const isOK = hasVal && !isNaN(num) && num >= Math.min(min, max) && num <= Math.max(min, max);
+                const isNG = hasVal && !isNaN(num) && (num < Math.min(min, max) || num > Math.max(min, max));
+
+                const pinBg = isAct ? '#ff6d5a' : isNG ? '#ef4444' : isOK ? '#22c55e' : '#3b82f6';
+                const posX = pt.x <= 100 ? `${pt.x}%` : `${(pt.x / 980) * 100}%`;
+                const posY = pt.y <= 100 ? `${pt.y}%` : `${(pt.y / 680) * 100}%`;
+
+                return (
+                  <div
+                    key={pt.id || idx}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePointChange(idx);
+                    }}
+                    style={{
+                      position: 'absolute',
+                      left: posX,
+                      top: posY,
+                      transform: `translate(-50%, -50%) scale(${isAct ? 1.3 : 1})`,
+                      cursor: 'pointer',
+                      zIndex: isAct ? 35 : 20
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: isAct ? '32px' : '26px',
+                        height: isAct ? '32px' : '26px',
+                        borderRadius: pt.shape === 'hexagon' ? '4px' : pt.shape === 'diamond' ? '4px' : '50%',
+                        transform: pt.shape === 'diamond' ? 'rotate(45deg)' : 'none',
+                        backgroundColor: pinBg,
+                        color: '#ffffff',
+                        border: isAct ? '2.5px solid #ffffff' : '1.5px solid #ffffff',
+                        boxShadow: '0 3px 10px rgba(0,0,0,0.5)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 900,
+                        fontSize: isAct ? '0.8rem' : '0.72rem'
+                      }}
+                    >
+                      <span style={{ transform: pt.shape === 'diamond' ? 'rotate(-45deg)' : 'none' }}>
+                        {pt.pointNumber || idx + 1}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
             {/* Active Balloon Overlay Indicator */}
             <div
@@ -651,30 +714,141 @@ export default function MobileTabletCheckSheet({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              padding: '20px'
             }}
           >
-            {drawingSvg ? (
-              <div
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`,
-                  transition: 'transform 0.2s ease'
-                }}
-              >
-                {typeof drawingSvg === 'string' && (drawingSvg.startsWith('data:image') || drawingSvg.startsWith('blob:') || drawingSvg.startsWith('http')) ? (
-                  <img src={drawingSvg} alt="CAD Drawing" style={{ maxWidth: '95%', maxHeight: '95%', objectFit: 'contain' }} />
+            {/* Scaled Blueprint & Balloons Container (980 x 680) */}
+            <div
+              style={{
+                position: 'relative',
+                width: '980px',
+                height: '680px',
+                maxWidth: '96%',
+                maxHeight: '94%',
+                aspectRatio: '980 / 680',
+                backgroundColor: '#ffffff',
+                boxShadow: '0 12px 45px rgba(0,0,0,0.6)',
+                borderRadius: '8px',
+                transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`,
+                transformOrigin: 'center center',
+                transition: 'transform 0.15s ease',
+                overflow: 'hidden'
+              }}
+            >
+              {/* 1. CAD Drawing Image / SVG */}
+              {drawingSvg ? (
+                typeof drawingSvg === 'string' && (drawingSvg.startsWith('data:image') || drawingSvg.startsWith('blob:') || drawingSvg.startsWith('http')) ? (
+                  <img src={drawingSvg} alt="CAD Drawing" style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
                 ) : (
-                  <div dangerouslySetInnerHTML={{ __html: drawingSvg }} style={{ width: '92%', height: '92%' }} />
-                )}
-              </div>
-            ) : (
-              <div style={{ color: '#64748b' }}>Drawing blueprint tidak dimuat</div>
-            )}
+                  <div dangerouslySetInnerHTML={{ __html: drawingSvg }} style={{ width: '100%', height: '100%', pointerEvents: 'none' }} />
+                )
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748b' }}>
+                  Drawing blueprint tidak dimuat
+                </div>
+              )}
+
+              {/* 2. Interactive SVG Leader Lines */}
+              <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 10 }}>
+                {checkPoints.map(pt => {
+                  if (pt.targetX !== undefined && pt.targetY !== undefined && (Math.abs(pt.targetX - pt.x) > 10 || Math.abs(pt.targetY - pt.y) > 10)) {
+                    const isAct = checkPoints[activeIndex]?.id === pt.id;
+                    const posX = pt.x <= 100 ? (pt.x / 100) * 980 : pt.x;
+                    const posY = pt.y <= 100 ? (pt.y / 100) * 680 : pt.y;
+                    const tgtX = pt.targetX <= 100 ? (pt.targetX / 100) * 980 : pt.targetX;
+                    const tgtY = pt.targetY <= 100 ? (pt.targetY / 100) * 680 : pt.targetY;
+                    return (
+                      <g key={`leader-${pt.id}`}>
+                        <line
+                          x1={posX}
+                          y1={posY}
+                          x2={tgtX}
+                          y2={tgtY}
+                          stroke={isAct ? '#ff6d5a' : '#64748b'}
+                          strokeWidth={isAct ? 2.5 : 1.5}
+                          strokeDasharray={isAct ? 'none' : '3,3'}
+                        />
+                        <circle cx={tgtX} cy={tgtY} r={3.5} fill={isAct ? '#ff6d5a' : '#64748b'} />
+                      </g>
+                    );
+                  }
+                  return null;
+                })}
+              </svg>
+
+              {/* 3. Interactive Balloon Hotspot Pins */}
+              {checkPoints.map((pt, idx) => {
+                const isAct = idx === activeIndex;
+                const val = measuredValues[pt.id];
+                const hasVal = val !== undefined && val !== '';
+                const num = parseFloat(val);
+                const nom = parseFloat(pt.nominal) || 0;
+                const min = parseFloat(pt.tolMin !== undefined ? pt.tolMin : (nom + (parseFloat(pt.lowerTol) || 0)));
+                const max = parseFloat(pt.tolMax !== undefined ? pt.tolMax : (nom + (parseFloat(pt.upperTol) || 0)));
+                const isOK = hasVal && !isNaN(num) && num >= Math.min(min, max) && num <= Math.max(min, max);
+                const isNG = hasVal && !isNaN(num) && (num < Math.min(min, max) || num > Math.max(min, max));
+
+                const pinBg = isAct ? '#ff6d5a' : isNG ? '#ef4444' : isOK ? '#22c55e' : '#3b82f6';
+                const posX = pt.x <= 100 ? `${pt.x}%` : `${(pt.x / 980) * 100}%`;
+                const posY = pt.y <= 100 ? `${pt.y}%` : `${(pt.y / 680) * 100}%`;
+
+                return (
+                  <div
+                    key={pt.id || idx}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePointChange(idx);
+                    }}
+                    style={{
+                      position: 'absolute',
+                      left: posX,
+                      top: posY,
+                      transform: `translate(-50%, -50%) scale(${isAct ? 1.25 : 1})`,
+                      cursor: 'pointer',
+                      zIndex: isAct ? 35 : 20,
+                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                    }}
+                  >
+                    {/* Pulsing Aura for Active / NG point */}
+                    {(isAct || isNG) && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          inset: '-8px',
+                          borderRadius: '50%',
+                          backgroundColor: isAct ? 'rgba(255, 109, 90, 0.45)' : 'rgba(239, 68, 68, 0.45)',
+                          animation: 'pulse 1.5s infinite',
+                          zIndex: -1
+                        }}
+                      />
+                    )}
+
+                    <div
+                      style={{
+                        width: isAct ? '34px' : '28px',
+                        height: isAct ? '34px' : '28px',
+                        borderRadius: pt.shape === 'hexagon' ? '4px' : pt.shape === 'diamond' ? '4px' : '50%',
+                        transform: pt.shape === 'diamond' ? 'rotate(45deg)' : 'none',
+                        backgroundColor: pinBg,
+                        color: '#ffffff',
+                        border: isAct ? '3px solid #ffffff' : '2px solid #ffffff',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 900,
+                        fontSize: isAct ? '0.85rem' : '0.75rem'
+                      }}
+                    >
+                      <span style={{ transform: pt.shape === 'diamond' ? 'rotate(-45deg)' : 'none' }}>
+                        {pt.pointNumber || idx + 1}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
             {/* Floating Point Bubbles Quick Jump */}
             <div
@@ -689,7 +863,8 @@ export default function MobileTabletCheckSheet({
                 border: '1px solid #383848',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px'
+                gap: '8px',
+                zIndex: 40
               }}
             >
               <Crosshair size={16} color="#38bdf8" />
@@ -712,7 +887,8 @@ export default function MobileTabletCheckSheet({
                 padding: '6px 12px',
                 borderRadius: '24px',
                 border: '1px solid #383848',
-                boxShadow: '0 10px 25px rgba(0,0,0,0.5)'
+                boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                zIndex: 40
               }}
             >
               <button onClick={() => setZoomLevel(prev => Math.min(prev + 0.2, 3))} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: '4px' }}><ZoomIn size={16} /></button>
