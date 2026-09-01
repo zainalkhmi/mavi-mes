@@ -43,7 +43,7 @@ const ConnectorManager = lazy(() => import('./components/ConnectorManager'));
 const UserManager = lazy(() => import('./components/UserManager'));
 const AppBuilder = lazy(() => import('./components/AppBuilder'));
 const AppPlayer = lazy(() => import('./components/AppPlayer'));
-const AutomationEditor = lazy(() => import('./components/WorkflowEditor'));
+const WorkflowEditor = lazy(() => import('./components/WorkflowEditor'));
 const AutomationDashboard = lazy(() => import('./components/AutomationDashboard'));
 const ExecutionMonitor = lazy(() => import('./components/ExecutionMonitor'));
 const CredentialManager = lazy(() => import('./components/CredentialManager'));
@@ -172,7 +172,7 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/users" element={hasAccess('/users') ? <UserManager /> : <Navigate to="/" replace />} />
               <Route path="/apps/data-entry-form-example" element={<DataEntryFormGuide />} />
               <Route path="/automations" element={hasAccess('/automations') ? <AutomationDashboard /> : <Navigate to="/" replace />} />
-              <Route path="/automations/editor" element={hasAccess('/automations') ? <AutomationEditor /> : <Navigate to="/" replace />} />
+              <Route path="/automations/editor" element={hasAccess('/automations') ? <WorkflowEditor /> : <Navigate to="/" replace />} />
               <Route path="/automations/monitor" element={hasAccess('/automations') ? <ExecutionMonitor /> : <Navigate to="/" replace />} />
               <Route path="/automations/credentials" element={hasAccess('/automations') ? <CredentialManager /> : <Navigate to="/" replace />} />
               <Route path="/automations/templates" element={hasAccess('/automations') ? <TemplateGallery /> : <Navigate to="/" replace />} />

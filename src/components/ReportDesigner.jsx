@@ -1573,12 +1573,42 @@ export default function ReportDesigner() {
 
             // ── Deep sanitize template schemas ──
             const sanitizedTemplate = JSON.parse(JSON.stringify(templateSchema));
+            const tableSchemaKeys = new Set();
+
             if (sanitizedTemplate.schemas) {
                 sanitizedTemplate.schemas.forEach(page => {
                     if (Array.isArray(page)) {
                         page.forEach(item => {
                             if (item && item.content && typeof item.content === 'string') {
                                 item.content = cleanWinAnsiText(item.content);
+                            }
+                            // Deep normalize table schemas for pdfme v5
+                            if (item && item.type === 'table') {
+                                if (item.name) tableSchemaKeys.add(item.name);
+                                item.headStyles = {
+                                    ...STD_HEAD_STYLES,
+                                    ...(item.headStyles || {}),
+                                    borderWidth: typeof item.headStyles?.borderWidth === 'object' && item.headStyles?.borderWidth !== null
+                                        ? { top: 0, right: 0, bottom: 0, left: 0, ...item.headStyles.borderWidth }
+                                        : { top: Number(item.headStyles?.borderWidth) || 0, right: Number(item.headStyles?.borderWidth) || 0, bottom: Number(item.headStyles?.borderWidth) || 0, left: Number(item.headStyles?.borderWidth) || 0 },
+                                    padding: typeof item.headStyles?.padding === 'object' && item.headStyles?.padding !== null
+                                        ? { top: 3, right: 3, bottom: 3, left: 3, ...item.headStyles.padding }
+                                        : { top: Number(item.headStyles?.padding) || 3, right: Number(item.headStyles?.padding) || 3, bottom: Number(item.headStyles?.padding) || 3, left: Number(item.headStyles?.padding) || 3 }
+                                };
+                                item.bodyStyles = {
+                                    ...STD_BODY_STYLES,
+                                    ...(item.bodyStyles || {}),
+                                    borderWidth: typeof item.bodyStyles?.borderWidth === 'object' && item.bodyStyles?.borderWidth !== null
+                                        ? { top: 0.1, right: 0.1, bottom: 0.1, left: 0.1, ...item.bodyStyles.borderWidth }
+                                        : { top: Number(item.bodyStyles?.borderWidth) || 0.1, right: Number(item.bodyStyles?.borderWidth) || 0.1, bottom: Number(item.bodyStyles?.borderWidth) || 0.1, left: Number(item.bodyStyles?.borderWidth) || 0.1 },
+                                    padding: typeof item.bodyStyles?.padding === 'object' && item.bodyStyles?.padding !== null
+                                        ? { top: 3, right: 3, bottom: 3, left: 3, ...item.bodyStyles.padding }
+                                        : { top: Number(item.bodyStyles?.padding) || 3, right: Number(item.bodyStyles?.padding) || 3, bottom: Number(item.bodyStyles?.padding) || 3, left: Number(item.bodyStyles?.padding) || 3 }
+                                };
+                                item.tableStyles = {
+                                    ...STD_TABLE_STYLES,
+                                    ...(item.tableStyles || {})
+                                };
                             }
                         });
                     }
@@ -1594,28 +1624,31 @@ export default function ReportDesigner() {
             const sanitizeRow = (row) => {
                 const clean = {};
                 Object.entries(row).forEach(([key, value]) => {
+                    const isTableField = tableSchemaKeys.has(key);
                     if (value === undefined || value === null) {
-                        clean[key] = '';
+                        clean[key] = isTableField ? '[]' : '';
                     } else if (Array.isArray(value)) {
-                        clean[key] = value.map(r => Array.isArray(r) ? r.map(c => cleanWinAnsiText(String(c ?? ''))) : cleanWinAnsiText(String(r ?? '')));
+                        const clean2D = value.map(r => Array.isArray(r) ? r.map(c => cleanWinAnsiText(String(c ?? ''))) : [cleanWinAnsiText(String(r ?? ''))]);
+                        clean[key] = isTableField ? JSON.stringify(clean2D) : clean2D;
                     } else if (typeof value === 'string') {
                         const trimmed = value.trim();
                         try {
                             if ((trimmed.startsWith('[') || trimmed.startsWith('{')) && trimmed.includes('"')) {
                                 const parsed = JSON.parse(trimmed);
                                 if (Array.isArray(parsed)) {
-                                    clean[key] = parsed.map(r => Array.isArray(r) ? r.map(c => cleanWinAnsiText(String(c ?? ''))) : cleanWinAnsiText(String(r ?? '')));
+                                    const clean2D = parsed.map(r => Array.isArray(r) ? r.map(c => cleanWinAnsiText(String(c ?? ''))) : [cleanWinAnsiText(String(r ?? ''))]);
+                                    clean[key] = isTableField ? JSON.stringify(clean2D) : clean2D;
                                 } else {
-                                    clean[key] = parsed;
+                                    clean[key] = isTableField ? JSON.stringify(parsed) : parsed;
                                 }
                             } else {
-                                clean[key] = cleanWinAnsiText(trimmed);
+                                clean[key] = isTableField ? JSON.stringify([[cleanWinAnsiText(trimmed)]]) : cleanWinAnsiText(trimmed);
                             }
                         } catch {
-                            clean[key] = cleanWinAnsiText(trimmed);
+                            clean[key] = isTableField ? JSON.stringify([[cleanWinAnsiText(trimmed)]]) : cleanWinAnsiText(trimmed);
                         }
                     } else {
-                        clean[key] = cleanWinAnsiText(String(value));
+                        clean[key] = isTableField ? JSON.stringify([[cleanWinAnsiText(String(value))]]) : cleanWinAnsiText(String(value));
                     }
                 });
                 return clean;

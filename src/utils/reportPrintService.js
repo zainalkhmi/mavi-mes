@@ -523,29 +523,88 @@ export async function executeReportPrintAction({
             throw new Error(`Template dengan ID "${targetId}" tidak ditemukan.`);
         }
 
+        const sanitizedTemplate = JSON.parse(JSON.stringify(targetTemplate.template));
+        const tableSchemaKeys = new Set();
+
+        if (sanitizedTemplate.schemas) {
+            sanitizedTemplate.schemas.forEach(page => {
+                if (Array.isArray(page)) {
+                    page.forEach(item => {
+                        if (item && item.type === 'table') {
+                            if (item.name) tableSchemaKeys.add(item.name);
+                            item.headStyles = {
+                                alignment: 'center',
+                                verticalAlignment: 'middle',
+                                fontSize: 9,
+                                lineHeight: 1,
+                                characterSpacing: 0,
+                                fontColor: '#ffffff',
+                                backgroundColor: '#714B67',
+                                borderColor: '',
+                                ...(item.headStyles || {}),
+                                borderWidth: typeof item.headStyles?.borderWidth === 'object' && item.headStyles?.borderWidth !== null
+                                    ? { top: 0, right: 0, bottom: 0, left: 0, ...item.headStyles.borderWidth }
+                                    : { top: Number(item.headStyles?.borderWidth) || 0, right: Number(item.headStyles?.borderWidth) || 0, bottom: Number(item.headStyles?.borderWidth) || 0, left: Number(item.headStyles?.borderWidth) || 0 },
+                                padding: typeof item.headStyles?.padding === 'object' && item.headStyles?.padding !== null
+                                    ? { top: 3, right: 3, bottom: 3, left: 3, ...item.headStyles.padding }
+                                    : { top: Number(item.headStyles?.padding) || 3, right: Number(item.headStyles?.padding) || 3, bottom: Number(item.headStyles?.padding) || 3, left: Number(item.headStyles?.padding) || 3 }
+                            };
+                            item.bodyStyles = {
+                                alignment: 'center',
+                                verticalAlignment: 'middle',
+                                fontSize: 8,
+                                lineHeight: 1,
+                                characterSpacing: 0,
+                                fontColor: '#000000',
+                                backgroundColor: '',
+                                borderColor: '#888888',
+                                alternateBackgroundColor: '#fdfbfd',
+                                ...(item.bodyStyles || {}),
+                                borderWidth: typeof item.bodyStyles?.borderWidth === 'object' && item.bodyStyles?.borderWidth !== null
+                                    ? { top: 0.1, right: 0.1, bottom: 0.1, left: 0.1, ...item.bodyStyles.borderWidth }
+                                    : { top: Number(item.bodyStyles?.borderWidth) || 0.1, right: Number(item.bodyStyles?.borderWidth) || 0.1, bottom: Number(item.bodyStyles?.borderWidth) || 0.1, left: Number(item.bodyStyles?.borderWidth) || 0.1 },
+                                padding: typeof item.bodyStyles?.padding === 'object' && item.bodyStyles?.padding !== null
+                                    ? { top: 3, right: 3, bottom: 3, left: 3, ...item.bodyStyles.padding }
+                                    : { top: Number(item.bodyStyles?.padding) || 3, right: Number(item.bodyStyles?.padding) || 3, bottom: Number(item.bodyStyles?.padding) || 3, left: Number(item.bodyStyles?.padding) || 3 }
+                            };
+                            item.tableStyles = {
+                                borderColor: '#714B67',
+                                borderWidth: 0.3,
+                                ...(item.tableStyles || {})
+                            };
+                        }
+                    });
+                }
+            });
+        }
+
         const inputData = Array.isArray(rawInputs) ? rawInputs : [rawInputs];
 
-        // ── Format inputs: keep arrays as-is (table data), parse JSON strings ──
+        // ── Format inputs: normalize table data ──
         const formattedInputs = inputData.map(row => {
             const cleanRow = {};
             Object.entries(row).forEach(([key, value]) => {
+                const isTableField = tableSchemaKeys.has(key);
                 if (value === undefined || value === null) {
-                    cleanRow[key] = '';
+                    cleanRow[key] = isTableField ? '[]' : '';
                 } else if (Array.isArray(value)) {
-                    // Table data (inspection_table etc.) — keep as array for pdfme
-                    cleanRow[key] = value;
+                    cleanRow[key] = isTableField ? JSON.stringify(value) : value;
                 } else if (typeof value === 'object') {
-                    // Objects → deep clone to avoid mutation
-                    try { cleanRow[key] = JSON.parse(JSON.stringify(value)); } catch { cleanRow[key] = String(value); }
+                    try { cleanRow[key] = isTableField ? JSON.stringify(value) : JSON.parse(JSON.stringify(value)); } catch { cleanRow[key] = String(value); }
                 } else if (typeof value === 'string') {
                     const trimmed = value.trim();
                     if ((trimmed.startsWith('[') || trimmed.startsWith('{')) && trimmed.includes('"')) {
-                        try { cleanRow[key] = JSON.parse(trimmed); } catch { cleanRow[key] = trimmed; }
+                        try {
+                            const parsed = JSON.parse(trimmed);
+                            cleanRow[key] = isTableField ? JSON.stringify(parsed) : parsed;
+                        } catch {
+                            cleanRow[key] = isTableField ? JSON.stringify([[trimmed]]) : trimmed;
+                        }
                     } else {
-                        cleanRow[key] = trimmed;
+                        cleanRow[key] = isTableField ? JSON.stringify([[trimmed]]) : trimmed;
                     }
                 } else {
-                    cleanRow[key] = String(value);
+                    cleanRow[key] = isTableField ? JSON.stringify([[String(value)]]) : String(value);
                 }
             });
             return cleanRow;
@@ -554,7 +613,7 @@ export async function executeReportPrintAction({
         console.log('[ReportPrintService] Generating PDF for template:', targetTemplate.name, formattedInputs);
 
         const pdfUint8 = await generate({
-            template: targetTemplate.template,
+            template: sanitizedTemplate,
             inputs: formattedInputs,
             plugins: PDF_PLUGINS
         });

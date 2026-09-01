@@ -53,10 +53,6 @@ import {
   updateAutomation,
   deleteAutomation
 } from '../utils/automationDB';
-import { telegramConnector } from '../utils/connectors/telegram.js';
-import { slackConnector } from '../utils/connectors/slack.js';
-import { googleSheetsConnector } from '../utils/connectors/googleSheets.js';
-import { emailConnector } from '../utils/connectors/email.js';
 
 // ─── SVG LOGOS FOR N8N NODES ───
 const SlackLogo = () => (

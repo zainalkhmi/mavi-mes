@@ -107,15 +107,22 @@ export async function saveTemplates(templates) {
         if (client) {
             // Upsert each template
             for (const t of safeTemplates) {
-                await client.from('inspector_templates').upsert({
-                    id: t.id,
-                    name: t.name,
-                    doc_no: t.docNo || t.id,
-                    revision: t.revisionNo || '1.0',
-                    status: t.status || 'DRAFT',
-                    template_data: t,
-                    updated_at: new Date().toISOString()
-                }, { onConflict: 'id' }).catch(err => console.warn('[Supabase] Template upsert skipped:', err.message));
+                try {
+                    const { error } = await client.from('inspector_templates').upsert({
+                        id: t.id,
+                        name: t.name,
+                        doc_no: t.docNo || t.id,
+                        revision: t.revisionNo || '1.0',
+                        status: t.status || 'DRAFT',
+                        template_data: t,
+                        updated_at: new Date().toISOString()
+                    }, { onConflict: 'id' });
+                    if (error) {
+                        console.warn('[Supabase] Template upsert skipped:', error.message);
+                    }
+                } catch (upsertErr) {
+                    console.warn('[Supabase] Template upsert error:', upsertErr?.message || upsertErr);
+                }
             }
         }
     } catch (e) {
