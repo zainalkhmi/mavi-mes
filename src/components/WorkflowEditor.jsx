@@ -41,7 +41,7 @@ import {
   ChevronDown, ChevronRight, GripVertical, MoreHorizontal,
   PanelLeftClose, PanelRightClose, Maximize2, Minimize2,
   Variable, FileJson, FileCode, Timer, Bell, Shield, GitBranch, CheckCircle2,
-  X, Check, RefreshCw, Terminal, Sliders, ArrowRight, PlayCircle,
+  X, Check, RefreshCw, Terminal, Sliders, ArrowRight, PlayCircle, Edit3,
   Eye, Layers, HelpCircle, Sparkles, UserPlus, GitFork, ArrowUpRight,
   SlidersHorizontal, Box, ToggleLeft, ToggleRight, CheckCheck
 } from 'lucide-react';
@@ -413,18 +413,29 @@ const NODE_TYPES = {
 };
 
 // =====================================================
-// LEFT NODE PALETTE SIDEBAR COMPONENT (MES WIDGETS INTEGRATED)
+// LEFT NODE PALETTE SIDEBAR COMPONENT (MES WIDGETS, DATA TABLES & MACHINE TRIGGERS)
 // =====================================================
 const N8NPaletteSidebar = ({ onAddNode, searchQuery, setSearchQuery, onClose }) => {
   const paletteCategories = [
     {
-      id: 'mes_machines',
-      label: '🏭 MES Machines & SCADA',
+      id: 'mes_machine_triggers',
+      label: '⚙️ Trigger Mesin (Machine Events)',
       nodes: [
-        { type: 'n8n_trigger', mesType: 'machine_telemetry', label: 'Machine Telemetry (OEE/RPM)', subtitle: 'Read live machine metrics', icon: <Cpu size={16} color="#38bdf8" /> },
-        { type: 'n8n_trigger', mesType: 'scada_alarm', label: 'SCADA / PLC Alarm Event', subtitle: 'Overheat / Vibration alert', icon: <AlertCircle size={16} color="#ef4444" /> },
-        { type: 'n8n_trigger', mesType: 'edge_iot', label: 'Edge Device (Modbus/MQTT)', subtitle: 'IoT Hub sensor stream', icon: <Server size={16} color="#a855f7" /> },
-        { type: 'n8n_action', mesType: 'station_status', label: 'Station Status Dispatcher', subtitle: 'Update Running/Idle/Fault', icon: <Activity size={16} color="#22c55e" /> }
+        { type: 'n8n_trigger', mesType: 'machine_trigger_status', label: 'Machine Status Trigger', subtitle: 'On RUN / STOP / FAULT / E-STOP', icon: <Cpu size={16} color="#ef4444" /> },
+        { type: 'n8n_trigger', mesType: 'machine_trigger_threshold', label: 'Machine Sensor Threshold Trigger', subtitle: 'On Temp > 80°C / High Vibration / RPM', icon: <AlertCircle size={16} color="#f59e0b" /> },
+        { type: 'n8n_trigger', mesType: 'machine_trigger_cycle', label: 'Machine Cycle Complete Trigger', subtitle: 'On Part produced / Cycle count', icon: <RefreshCw size={16} color="#10b981" /> },
+        { type: 'n8n_action', mesType: 'machine_action_command', label: 'Machine Control Action', subtitle: 'Send PLC command / Stop / Alert', icon: <Square size={16} color="#ef4444" /> }
+      ]
+    },
+    {
+      id: 'mes_data_tables',
+      label: '🗄️ Data Tabel MES (Table Manager)',
+      nodes: [
+        { type: 'n8n_trigger', mesType: 'table_trigger_create', label: 'Table: On Record Added', subtitle: 'Trigger on new row in MES table', icon: <Plus size={16} color="#22c55e" /> },
+        { type: 'n8n_trigger', mesType: 'table_trigger_update', label: 'Table: On Record Updated', subtitle: 'Trigger on row status / value change', icon: <Edit3 size={16} color="#38bdf8" /> },
+        { type: 'n8n_action', mesType: 'table_action_insert', label: 'Table Action: Insert Record', subtitle: 'Add new row to MES table', icon: <Database size={16} color="#38bdf8" /> },
+        { type: 'n8n_action', mesType: 'table_action_update', label: 'Table Action: Update Record', subtitle: 'Update row by ID / condition', icon: <FileSpreadsheet size={16} color="#8b5cf6" /> },
+        { type: 'n8n_action', mesType: 'table_action_query', label: 'Table Action: Query / Get Record', subtitle: 'Search and fetch row data', icon: <Search size={16} color="#f59e0b" /> }
       ]
     },
     {
@@ -652,6 +663,134 @@ const N8NPropertiesInspector = ({ selectedNode, onUpdateNode, onDeleteNode, onDu
                 style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '12px', outline: 'none' }}
               />
             </div>
+
+            {/* ─── MACHINE TRIGGERS & ACTIONS PARAMETERS ─── */}
+            {mesType?.startsWith('machine_') && (
+              <>
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                    Pilih Mesin MES Target
+                  </label>
+                  <select
+                    value={selectedNode.data?.parameters?.machineId || 'CNC-01'}
+                    onChange={(e) => onUpdateNode(selectedNode.id, { ...selectedNode.data, parameters: { ...selectedNode.data?.parameters, machineId: e.target.value } })}
+                    style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '12px' }}
+                  >
+                    <option value="CNC-01">CNC Milling Machine 01 (Station 1)</option>
+                    <option value="INJ-02">Injection Molding A (Station 2)</option>
+                    <option value="LATHE-03">Lathe Machine 03 (Station 3)</option>
+                    <option value="PRESS-04">Hydraulic Press 04 (Station 4)</option>
+                    <option value="ROBOT-05">Robotic Welding Cell 05 (Station 5)</option>
+                  </select>
+                </div>
+
+                {mesType === 'machine_trigger_status' && (
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                      Status Mesin Pemicu
+                    </label>
+                    <select
+                      value={selectedNode.data?.parameters?.triggerStatus || 'FAULT'}
+                      onChange={(e) => onUpdateNode(selectedNode.id, { ...selectedNode.data, parameters: { ...selectedNode.data?.parameters, triggerStatus: e.target.value } })}
+                      style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '12px' }}
+                    >
+                      <option value="FAULT">🔴 Mesin Error / Breakdown (FAULT)</option>
+                      <option value="ESTOP">🚨 Emergency Stop Ditekan (E-STOP)</option>
+                      <option value="STOPPED">🟡 Mesin Berhenti (STOPPED / IDLE)</option>
+                      <option value="RUNNING">🟢 Mesin Mulai Beroperasi (RUNNING)</option>
+                    </select>
+                  </div>
+                )}
+
+                {mesType === 'machine_trigger_threshold' && (
+                  <>
+                    <div>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                        Sensor Metrik
+                      </label>
+                      <select
+                        value={selectedNode.data?.parameters?.metric || 'TEMP'}
+                        onChange={(e) => onUpdateNode(selectedNode.id, { ...selectedNode.data, parameters: { ...selectedNode.data?.parameters, metric: e.target.value } })}
+                        style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '12px' }}
+                      >
+                        <option value="TEMP">Temperature Spindle (°C)</option>
+                        <option value="VIB">Vibration Amplitude (mm/s)</option>
+                        <option value="RPM">Spindle RPM Overspeed</option>
+                        <option value="CURRENT">Motor Current (Ampere)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                        Ambang Batas (Threshold Limit)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: > 80 atau < 500"
+                        value={selectedNode.data?.parameters?.threshold || '> 80'}
+                        onChange={(e) => onUpdateNode(selectedNode.id, { ...selectedNode.data, parameters: { ...selectedNode.data?.parameters, threshold: e.target.value } })}
+                        style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '12px' }}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {mesType === 'machine_action_command' && (
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                      Perintah Kendali PLC (Command)
+                    </label>
+                    <select
+                      value={selectedNode.data?.parameters?.command || 'STOP_MACHINE'}
+                      onChange={(e) => onUpdateNode(selectedNode.id, { ...selectedNode.data, parameters: { ...selectedNode.data?.parameters, command: e.target.value } })}
+                      style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '12px' }}
+                    >
+                      <option value="STOP_MACHINE">🛑 Hentikan Mesin Otomatis (Soft Stop)</option>
+                      <option value="TRIGGER_ANDON">🚨 Nyalakan Lampu Andon / Beacon Merah</option>
+                      <option value="LOCK_FEED">🔒 Kunci Interlock Feed</option>
+                      <option value="RESET_FAULT">🔄 Reset Alarm PLC</option>
+                    </select>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ─── DATA TABLES PARAMETERS ─── */}
+            {mesType?.startsWith('table_') && (
+              <>
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                    Pilih Tabel Database MES
+                  </label>
+                  <select
+                    value={selectedNode.data?.parameters?.tableName || 'work_orders'}
+                    onChange={(e) => onUpdateNode(selectedNode.id, { ...selectedNode.data, parameters: { ...selectedNode.data?.parameters, tableName: e.target.value } })}
+                    style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '12px' }}
+                  >
+                    <option value="work_orders">📋 work_orders (Perintah Kerja)</option>
+                    <option value="inspection_results">🔬 inspection_results (Hasil QC)</option>
+                    <option value="machines">🏭 machines (Data Mesin & Telemetri)</option>
+                    <option value="inventory">📦 inventory (Stok & Material)</option>
+                    <option value="shift_handoffs">👥 shift_handoffs (Serah Terima Shift)</option>
+                    <option value="defect_logs">⚠️ defect_logs (Temuan Cacat NG)</option>
+                    <option value="custom_table_1">🗄️ custom_table_1 (Tabel Kustom Frontline)</option>
+                  </select>
+                </div>
+
+                {['table_action_insert', 'table_action_update'].includes(mesType) && (
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                      Payload Data Kolom (JSON Mapping)
+                    </label>
+                    <textarea
+                      rows={4}
+                      value={selectedNode.data?.parameters?.columnsJson || '{\n  "status": "APPROVED",\n  "verified_by": "{{ $json.operator }}"\n}'}
+                      onChange={(e) => onUpdateNode(selectedNode.id, { ...selectedNode.data, parameters: { ...selectedNode.data?.parameters, columnsJson: e.target.value } })}
+                      style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#ffffff', fontSize: '11px', fontFamily: 'monospace', resize: 'vertical' }}
+                    />
+                  </div>
+                )}
+              </>
+            )}
 
             {/* MES Machine Telemetry Parameters */}
             {mesType === 'machine_telemetry' && (
