@@ -39,7 +39,7 @@ import {
   MessageSquare, FileSpreadsheet, Server, Globe, Webhook,
   ChevronDown, ChevronRight, GripVertical, MoreHorizontal,
   PanelLeftClose, PanelRightClose, Maximize2, Minimize2,
-  Variable, FileJson, Timer, Bell, Shield, GitBranch, CheckCircle2,
+  Variable, FileJson, FileCode, Timer, Bell, Shield, GitBranch, CheckCircle2,
   X, Check, RefreshCw, Terminal, Sliders, ArrowRight, PlayCircle,
   Eye, Layers, HelpCircle, Sparkles, UserPlus, GitFork, ArrowUpRight,
   SlidersHorizontal, Box, ToggleLeft, ToggleRight
