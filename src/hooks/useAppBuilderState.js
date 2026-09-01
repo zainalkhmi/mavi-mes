@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { DEFAULT_FRONTLINE_APP_NAME, DEFAULT_FRONTLINE_APP_CATEGORY } from '../components/appbuilder/utils';
 
-const DEFAULT_HIDDEN_CATEGORIES = ['MEDIA', 'SENSORS', 'CONNECTIVITY'];
+export const DEFAULT_HIDDEN_CATEGORIES = ['MEDIA', 'SENSORS', 'CONNECTIVITY', 'CHARTS_MAPS', 'ENGINE', 'ARDUINO'];
 
 export const useAppBuilderState = () => {
     const [appName, setAppName] = useState(DEFAULT_FRONTLINE_APP_NAME);
@@ -10,7 +10,9 @@ export const useAppBuilderState = () => {
             const val = localStorage.getItem('mandor_hidden_categories');
             if (val) {
                 const parsed = JSON.parse(val);
-                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                if (Array.isArray(parsed)) {
+                    return Array.from(new Set([...DEFAULT_HIDDEN_CATEGORIES, ...parsed]));
+                }
             }
             return DEFAULT_HIDDEN_CATEGORIES;
         } catch {

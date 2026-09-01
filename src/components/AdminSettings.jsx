@@ -77,7 +77,7 @@ const iconMap = {
   SlidersHorizontal: SlidersHorizontal
 };
 
-const DEFAULT_HIDDEN_CATEGORIES = ['MEDIA', 'SENSORS', 'CONNECTIVITY'];
+const DEFAULT_HIDDEN_CATEGORIES = ['MEDIA', 'SENSORS', 'CONNECTIVITY', 'CHARTS_MAPS', 'ENGINE', 'ARDUINO'];
 
 const AdminSettings = () => {
   const [hiddenCategories, setHiddenCategories] = useState(DEFAULT_HIDDEN_CATEGORIES);
@@ -93,8 +93,11 @@ const AdminSettings = () => {
       const wids = localStorage.getItem('mandor_hidden_widgets');
       if (cats) {
         const parsedCats = JSON.parse(cats);
-        if (Array.isArray(parsedCats) && parsedCats.length > 0) setHiddenCategories(parsedCats);
-        else setHiddenCategories(DEFAULT_HIDDEN_CATEGORIES);
+        if (Array.isArray(parsedCats)) {
+          setHiddenCategories(Array.from(new Set([...DEFAULT_HIDDEN_CATEGORIES, ...parsedCats])));
+        } else {
+          setHiddenCategories(DEFAULT_HIDDEN_CATEGORIES);
+        }
       } else {
         setHiddenCategories(DEFAULT_HIDDEN_CATEGORIES);
       }
