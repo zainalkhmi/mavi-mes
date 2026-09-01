@@ -510,7 +510,7 @@ export default function MobileTabletCheckSheet({
           </div>
         </div>
 
-        {/* ─── STAGE (BELOW DRAWING: POINT STRIP + CARD + NUMPAD) ────── */}
+        {/* ─── STAGE (BELOW DRAWING: CARD + NUMPAD) ────────────────── */}
         <div
           id="stage"
           style={{
@@ -518,105 +518,12 @@ export default function MobileTabletCheckSheet({
             minHeight: 0,
             display: 'flex',
             flexDirection: 'column',
-            padding: '6px 12px 10px',
-            gap: '6px',
+            padding: '8px 12px 10px',
+            gap: '8px',
             overflow: 'hidden'
           }}
         >
-          {/* 1. Point Strip & Prev Navigation */}
-          <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <button
-              onClick={() => handlePointChange(activeIndex - 1)}
-              disabled={activeIndex === 0}
-              style={{
-                width: '32px',
-                height: '34px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: '8px',
-                backgroundColor: '#1b1f26',
-                border: '1px solid #262b33',
-                color: activeIndex === 0 ? '#4b5563' : '#8a919e',
-                fontSize: '16px',
-                fontWeight: 600,
-                flexShrink: 0,
-                cursor: activeIndex === 0 ? 'not-allowed' : 'pointer'
-              }}
-            >
-              ‹
-            </button>
-
-            <div
-              style={{
-                flex: 1,
-                display: 'flex',
-                gap: '5px',
-                overflowX: 'auto',
-                scrollbarWidth: 'none',
-                msOverflowStyle: 'none'
-              }}
-            >
-              {checkPoints.map((pt, idx) => {
-                const isActive = idx === activeIndex;
-                const val = localValues[pt.id];
-                const hasVal = val !== undefined && val !== '';
-                const num = parseFloat(val);
-                const nom = parseFloat(pt.nominal) || 0;
-                const min = parseFloat(pt.tolMin !== undefined ? pt.tolMin : (nom + (parseFloat(pt.lowerTol) || 0)));
-                const max = parseFloat(pt.tolMax !== undefined ? pt.tolMax : (nom + (parseFloat(pt.upperTol) || 0)));
-                const isOK = hasVal && !isNaN(num) && num >= Math.min(min, max) && num <= Math.max(min, max);
-                const isNG = hasVal && !isNaN(num) && (num < Math.min(min, max) || num > Math.max(min, max));
-
-                return (
-                  <div
-                    key={pt.id || idx}
-                    onClick={() => handlePointChange(idx)}
-                    style={{
-                      flexShrink: 0,
-                      width: '34px',
-                      height: '34px',
-                      borderRadius: '8px',
-                      backgroundColor: isActive ? 'rgba(255,90,95,.12)' : '#1b1f26',
-                      border: isActive
-                        ? '1.5px solid #ff5a5f'
-                        : isNG
-                        ? '1.5px solid rgba(255,90,95,.5)'
-                        : isOK
-                        ? '1.5px solid rgba(57,193,122,.5)'
-                        : '1.5px solid #262b33',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      color: isActive ? '#ffffff' : isNG ? '#ff5a5f' : isOK ? '#39c17a' : '#8a919e',
-                      position: 'relative',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {pt.pointNumber || idx + 1}
-                    {isOK && (
-                      <span
-                        style={{
-                          position: 'absolute',
-                          top: '-2px',
-                          right: '-2px',
-                          width: '7px',
-                          height: '7px',
-                          borderRadius: '50%',
-                          backgroundColor: '#39c17a',
-                          border: '2px solid #0b0d10'
-                        }}
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 2. Point + Measurement Combined Card */}
+          {/* 1. Point + Measurement Combined Card */}
           <div
             style={{
               flexShrink: 0,
