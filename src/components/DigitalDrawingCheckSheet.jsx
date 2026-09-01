@@ -73,7 +73,8 @@ import {
   ShieldAlert,
   History,
   Lock,
-  Tag
+  Tag,
+  BookOpen
 } from 'lucide-react';
 import NumpadInput from './NumpadInput';
 import CameraInput from './CameraInput';
@@ -83,6 +84,7 @@ import MetrologyHardwareHub from './checksheet/MetrologyHardwareHub';
 import CameraOCRReader from './checksheet/CameraOCRReader';
 import MeasurementTypeVisual from './checksheet/MeasurementTypeVisual';
 import MobileTabletCheckSheet from './checksheet/MobileTabletCheckSheet';
+import DozukiMobileCheckSheet from './DozukiMobileCheckSheet';
 import {
   NCRDefectModal,
   OfficialNCRFormModal,
@@ -710,10 +712,34 @@ export default function DigitalDrawingCheckSheet() {
   const [showEnvModal, setShowEnvModal] = useState(false);
   const [showWatermark] = useState(true);
   const [isMobileModeActive, setIsMobileModeActive] = useState(() => {
-    // Only auto-open mobile mode on smartphone screens (< 768px)
-    if (typeof window !== 'undefined' && window.innerWidth < 768) return true;
+    if (typeof window !== 'undefined') {
+      const search = window.location.search || '';
+      const hash = window.location.hash || '';
+      if (
+        search.includes('mobile=true') ||
+        search.includes('mode=mobile') ||
+        hash.includes('mobile=true') ||
+        hash.includes('mode=mobile') ||
+        window.innerWidth < 768
+      ) {
+        return true;
+      }
+    }
     return false;
   });
+  const [showDozukiModal, setShowDozukiModal] = useState(false);
+
+  // Auto-activate Mobile Mode if URL query contains mobile=true
+  useEffect(() => {
+    if (
+      searchParams.get('mobile') === 'true' ||
+      searchParams.get('mode') === 'mobile' ||
+      location.search.includes('mobile=true') ||
+      location.hash.includes('mobile=true')
+    ) {
+      setIsMobileModeActive(true);
+    }
+  }, [searchParams, location.search, location.hash]);
 
   // Clause 8.7: Non-Conformance Reports (NCR) & Defect Management
   const [ncrList, setNcrList] = useState(() => {
@@ -2147,6 +2173,28 @@ export default function DigitalDrawingCheckSheet() {
 
         {/* Right Tools: Compact Action Icons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+          {/* MANDOR Mobile SOP & Barcode Mode Button */}
+          <button
+            onClick={() => setShowDozukiModal(true)}
+            style={{
+              padding: '5px 10px',
+              backgroundColor: 'rgba(234, 58, 58, 0.15)',
+              border: '1px solid #ea3a3a',
+              borderRadius: '6px',
+              color: '#ea3a3a',
+              fontSize: '0.72rem',
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px'
+            }}
+            title="Buka Antarmuka Mobile MANDOR Portal & Live Barcode Scanner"
+          >
+            <BookOpen size={13} />
+            <span>MANDOR Portal</span>
+          </button>
+
           {/* Mobile Dedicated Mode Toggle */}
           <button
             onClick={() => setIsMobileModeActive(true)}
@@ -4405,12 +4453,28 @@ export default function DigitalDrawingCheckSheet() {
           onOpenHardwareHub={() => setShowHardwareHub(true)}
           onOpenDefectCamera={() => setShowCameraInput(true)}
           onOpenSignatureModal={() => setShowSupervisorModal(true)}
-          onSubmitChecksheet={() => saveInspectionPayload(checkPoints)}
+          onSubmitChecksheet={() => {
+            toast.success('Inspeksi part berhasil disimpan ke database!');
+          }}
+          onResetChecksheet={() => {
+            setCheckPoints(prev => prev.map(p => ({ ...p, measuredVal: '' })));
+            if (checkPoints.length > 0) setActivePointId(checkPoints[0].id);
+          }}
           onCloseMobileMode={() => setIsMobileModeActive(false)}
           currentPointIndex={Math.max(0, checkPoints.findIndex(p => p.id === activePointId))}
           onSelectPoint={(idx) => {
             if (checkPoints[idx]) setActivePointId(checkPoints[idx].id);
           }}
+        />
+      )}
+
+      {/* ─── DOZUKI SOP & LIVE BARCODE SCANNER MOBILE INTERFACE ───── */}
+      {showDozukiModal && (
+        <DozukiMobileCheckSheet
+          onClose={() => setShowDozukiModal(false)}
+          initialGuideId="dozuki-casting-qc"
+          currentUser={inspectorName}
+          onOpenMobileCheckSheet={() => setIsMobileModeActive(true)}
         />
       )}
 

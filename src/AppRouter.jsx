@@ -43,6 +43,8 @@ const ConnectorManager = lazy(() => import('./components/ConnectorManager'));
 const UserManager = lazy(() => import('./components/UserManager'));
 const AppBuilder = lazy(() => import('./components/AppBuilder'));
 const AppPlayer = lazy(() => import('./components/AppPlayer'));
+const MandorMobilePlayer = lazy(() => import('./components/MandorMobilePlayer'));
+const DozukiMobileCheckSheet = lazy(() => import('./components/DozukiMobileCheckSheet'));
 const WorkflowEditor = lazy(() => import('./components/WorkflowEditor'));
 const AutomationDashboard = lazy(() => import('./components/AutomationDashboard'));
 const ExecutionMonitor = lazy(() => import('./components/ExecutionMonitor'));
@@ -109,6 +111,15 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/terminal" element={<LiveTerminal />} />
               <Route path="/terminal/:appId" element={<LiveTerminal />} />
               <Route path="/player" element={<AppPlayer />} />
+              <Route path="/mobile-player" element={<MandorMobilePlayer />} />
+              <Route path="/tulip-player" element={<MandorMobilePlayer />} />
+              <Route path="/mandor-player" element={<DozukiMobileCheckSheet />} />
+              <Route path="/mandor-checksheet" element={<DozukiMobileCheckSheet />} />
+              <Route path="/mandor-mobile" element={<DozukiMobileCheckSheet />} />
+              <Route path="/mandor-portal" element={<DozukiMobileCheckSheet />} />
+              <Route path="/dozuki-checksheet" element={<DozukiMobileCheckSheet />} />
+              <Route path="/dozuki-player" element={<DozukiMobileCheckSheet />} />
+              <Route path="/dozuki-mobile" element={<DozukiMobileCheckSheet />} />
               <Route path="/drawing-checksheet" element={<DigitalDrawingCheckSheet />} />
               <Route path="/qa-checksheet" element={<DigitalDrawingCheckSheet />} />
               <Route path="/live-checksheet" element={<DigitalDrawingCheckSheet />} />
@@ -183,6 +194,15 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/terminal/:appId" element={<LiveTerminal />} />
               <Route path="/scada" element={<SCADADashboard />} />
               <Route path="/player" element={<AppPlayer />} />
+              <Route path="/mobile-player" element={<MandorMobilePlayer />} />
+              <Route path="/tulip-player" element={<MandorMobilePlayer />} />
+              <Route path="/mandor-player" element={<DozukiMobileCheckSheet />} />
+              <Route path="/mandor-checksheet" element={<DozukiMobileCheckSheet />} />
+              <Route path="/mandor-mobile" element={<DozukiMobileCheckSheet />} />
+              <Route path="/mandor-portal" element={<DozukiMobileCheckSheet />} />
+              <Route path="/dozuki-checksheet" element={<DozukiMobileCheckSheet />} />
+              <Route path="/dozuki-player" element={<DozukiMobileCheckSheet />} />
+              <Route path="/dozuki-mobile" element={<DozukiMobileCheckSheet />} />
               <Route path="/ai-settings" element={hasAccess('/ai-settings') ? <AiSettings /> : <Navigate to="/" replace />} />
               <Route path="/supabase-settings" element={hasAccess('/supabase-settings') ? <SupabaseSettings /> : <Navigate to="/" replace />} />
               <Route path="/n8n-settings" element={hasAccess('/n8n-settings') ? <N8nWebhookSettings /> : <Navigate to="/" replace />} />

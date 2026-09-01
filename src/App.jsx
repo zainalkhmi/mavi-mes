@@ -24,6 +24,8 @@ const SimpleCheckSheetDemo = lazy(() => import('./components/SimpleCheckSheetDem
 const DrawingManagement = lazy(() => import('./components/DrawingManagement'));
 const PLMIntegrationDashboard = lazy(() => import('./components/PLMIntegrationDashboard'));
 const AppPlayer = lazy(() => import('./components/AppPlayer'));
+const MandorMobilePlayer = lazy(() => import('./components/MandorMobilePlayer'));
+const DozukiMobileCheckSheet = lazy(() => import('./components/DozukiMobileCheckSheet'));
 const LiveTerminal = lazy(() => import('./components/LiveTerminal'));
 
 export default function App() {
@@ -109,6 +111,13 @@ export default function App() {
             <Route path="/pricing" element={<LandingPage initialTab="pricing" />} />
             <Route path="/faq" element={<LandingPage initialTab="faq" />} />
             <Route path="/player" element={<AppPlayer />} />
+            <Route path="/mobile-player" element={<MandorMobilePlayer />} />
+            <Route path="/mandor-player" element={<DozukiMobileCheckSheet />} />
+            <Route path="/mandor-checksheet" element={<DozukiMobileCheckSheet />} />
+            <Route path="/mandor-mobile" element={<DozukiMobileCheckSheet />} />
+            <Route path="/mandor-portal" element={<DozukiMobileCheckSheet />} />
+            <Route path="/dozuki-checksheet" element={<DozukiMobileCheckSheet />} />
+            <Route path="/dozuki-player" element={<DozukiMobileCheckSheet />} />
             <Route path="/terminal" element={<LiveTerminal />} />
             <Route path="/terminal/:appId" element={<LiveTerminal />} />
             <Route path="/production-dashboard" element={<ProductionPlantDashboard />} />

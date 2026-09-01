@@ -1876,6 +1876,18 @@ const AppPlayer = () => {
                                     <span className={`pulse-dot ${isOnline ? 'pulse-dot-success' : 'pulse-dot-danger'}`} style={{ width: '6px', height: '6px' }} />
                                     {isOnline ? 'ONLINE' : 'OFFLINE'}
                                 </div>
+                                <a
+                                    href="/#/mobile-player"
+                                    title="Open Tulip-Style Mobile Frontline Player"
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px',
+                                        backgroundColor: '#0284c7', color: 'white', border: 'none', textDecoration: 'none',
+                                        borderRadius: '6px', fontSize: '0.72rem', fontWeight: 800,
+                                        cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)'
+                                    }}
+                                >
+                                    <Smartphone size={13} /> MOBILE
+                                </a>
                                 <button
                                     onClick={() => setShowNewAppModal(true)}
                                     title="Create New App"

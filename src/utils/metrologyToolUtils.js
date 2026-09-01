@@ -1,16 +1,104 @@
 /**
  * Metrology Measuring Tools Definitions & Type Detector (ISO 9001: 7.1.5)
+ * Enhanced with calibration tracking, expiry validation, and measurement uncertainty.
  */
 
 export const TOOL_DEFINITIONS = [
-  { id: 'caliper', name: 'Digital Caliper 0-150mm', code: 'CAL-003', icon: '📏', cert: 'CAL-CERT-2025-881' },
-  { id: 'micrometer', name: 'Outside Micrometer 0-25mm', code: 'MIC-102', icon: '🔍', cert: 'CAL-CERT-2026-102' },
-  { id: 'dial_indicator', name: 'Dial Indicator (0.001mm)', code: 'DI-007', icon: '⏲️', cert: 'CAL-CERT-2025-007' },
-  { id: 'bore_gauge', name: 'Digital Bore Gauge 18-35mm', code: 'BG-014', icon: '🕳️', cert: 'CAL-CERT-2025-014' },
-  { id: 'height_gauge', name: 'Digital Height Gauge 300mm', code: 'HG-002', icon: '📐', cert: 'CAL-CERT-2025-002' },
-  { id: 'cmm', name: 'Zeiss Contura 3D CMM', code: 'CMM-001', icon: '🤖', cert: 'CAL-CERT-2026-001' }
+  {
+    id: 'caliper',
+    name: 'Digital Caliper 0-150mm',
+    code: 'CAL-003',
+    icon: '📏',
+    cert: 'CAL-CERT-2025-881',
+    lastCalibrated: '2026-06-15',
+    calibrationDueDate: '2026-12-15',
+    calibrationInterval: 180,
+    uncertainty: 0.02,
+    uncertaintyUnit: 'mm',
+    resolution: 0.01,
+    traceability: 'BSML Jakarta → PTB Germany (SI Meter)',
+    calibratedBy: 'PT. Kalibrasi Presisi Indonesia (KAN Accredited Lab #LP-123)'
+  },
+  {
+    id: 'micrometer',
+    name: 'Outside Micrometer 0-25mm',
+    code: 'MIC-102',
+    icon: '🔍',
+    cert: 'CAL-CERT-2026-102',
+    lastCalibrated: '2026-07-01',
+    calibrationDueDate: '2027-01-01',
+    calibrationInterval: 180,
+    uncertainty: 0.003,
+    uncertaintyUnit: 'mm',
+    resolution: 0.001,
+    traceability: 'BSML Jakarta → PTB Germany (SI Meter)',
+    calibratedBy: 'PT. Kalibrasi Presisi Indonesia (KAN Accredited Lab #LP-123)'
+  },
+  {
+    id: 'dial_indicator',
+    name: 'Dial Indicator (0.001mm)',
+    code: 'DI-007',
+    icon: '⏲️',
+    cert: 'CAL-CERT-2025-007',
+    lastCalibrated: '2025-11-20',
+    calibrationDueDate: '2026-05-20',
+    calibrationInterval: 180,
+    uncertainty: 0.005,
+    uncertaintyUnit: 'mm',
+    resolution: 0.001,
+    traceability: 'BSML Jakarta → PTB Germany (SI Meter)',
+    calibratedBy: 'PT. Kalibrasi Presisi Indonesia (KAN Accredited Lab #LP-123)'
+  },
+  {
+    id: 'bore_gauge',
+    name: 'Digital Bore Gauge 18-35mm',
+    code: 'BG-014',
+    icon: '🕳️',
+    cert: 'CAL-CERT-2025-014',
+    lastCalibrated: '2026-03-10',
+    calibrationDueDate: '2026-09-10',
+    calibrationInterval: 180,
+    uncertainty: 0.008,
+    uncertaintyUnit: 'mm',
+    resolution: 0.001,
+    traceability: 'BSML Jakarta → PTB Germany (SI Meter)',
+    calibratedBy: 'PT. Kalibrasi Presisi Indonesia (KAN Accredited Lab #LP-123)'
+  },
+  {
+    id: 'height_gauge',
+    name: 'Digital Height Gauge 300mm',
+    code: 'HG-002',
+    icon: '📐',
+    cert: 'CAL-CERT-2025-002',
+    lastCalibrated: '2026-05-25',
+    calibrationDueDate: '2026-11-25',
+    calibrationInterval: 180,
+    uncertainty: 0.015,
+    uncertaintyUnit: 'mm',
+    resolution: 0.01,
+    traceability: 'BSML Jakarta → PTB Germany (SI Meter)',
+    calibratedBy: 'PT. Kalibrasi Presisi Indonesia (KAN Accredited Lab #LP-123)'
+  },
+  {
+    id: 'cmm',
+    name: 'Zeiss Contura 3D CMM',
+    code: 'CMM-001',
+    icon: '🤖',
+    cert: 'CAL-CERT-2026-001',
+    lastCalibrated: '2026-08-01',
+    calibrationDueDate: '2027-08-01',
+    calibrationInterval: 365,
+    uncertainty: 0.0018,
+    uncertaintyUnit: 'mm',
+    resolution: 0.0005,
+    traceability: 'Zeiss Factory Calibration → PTB Germany → SI Meter (BIPM)',
+    calibratedBy: 'Carl Zeiss SEA Service (ISO 17025 Accredited)'
+  }
 ];
 
+/**
+ * Detect the recommended measuring tool type from checkpoint metadata
+ */
 export function detectMeasuringToolType(activePoint) {
   if (!activePoint) return 'caliper';
   const method = (activePoint.inspectionMethod || '').toLowerCase();
@@ -34,4 +122,77 @@ export function detectMeasuringToolType(activePoint) {
     return 'height_gauge';
   }
   return 'caliper';
+}
+
+// ─── CALIBRATION STATUS CHECKER ────────────────────────────────
+/**
+ * Get calibration status for a tool definition
+ * @param {object} toolDef - Tool definition from TOOL_DEFINITIONS
+ * @param {Date} [referenceDate] - Date to check against (default: now)
+ * @returns {{ status: 'VALID'|'DUE_SOON'|'EXPIRED', daysRemaining: number, color: string, label: string }}
+ */
+export function getCalibrationStatus(toolDef, referenceDate) {
+  if (!toolDef || !toolDef.calibrationDueDate) {
+    return { status: 'UNKNOWN', daysRemaining: 0, color: '#64748b', label: 'Tidak Ada Data Kalibrasi', icon: '❓' };
+  }
+
+  const now = referenceDate || new Date();
+  const dueDate = new Date(toolDef.calibrationDueDate);
+  const diffMs = dueDate.getTime() - now.getTime();
+  const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+  if (daysRemaining < 0) {
+    return {
+      status: 'EXPIRED',
+      daysRemaining,
+      color: '#ef4444',
+      bg: 'rgba(239,68,68,.15)',
+      border: '#ef4444',
+      label: `KALIBRASI EXPIRED (${Math.abs(daysRemaining)} hari lalu)`,
+      icon: '🔴'
+    };
+  }
+
+  if (daysRemaining <= 30) {
+    return {
+      status: 'DUE_SOON',
+      daysRemaining,
+      color: '#eab308',
+      bg: 'rgba(234,179,8,.12)',
+      border: '#eab308',
+      label: `Kalibrasi ${daysRemaining} hari lagi (${dueDate.toLocaleDateString('id-ID')})`,
+      icon: '⚠️'
+    };
+  }
+
+  return {
+    status: 'VALID',
+    daysRemaining,
+    color: '#22c55e',
+    bg: 'rgba(34,197,94,.1)',
+    border: '#22c55e',
+    label: `CAL Valid s.d. ${dueDate.toLocaleDateString('id-ID')}`,
+    icon: '✅'
+  };
+}
+
+/**
+ * Check if a tool is allowed for measurement (not expired)
+ * @param {object} toolDef - Tool definition
+ * @returns {boolean} true if tool calibration is valid or due soon
+ */
+export function isToolAllowedForMeasurement(toolDef) {
+  const status = getCalibrationStatus(toolDef);
+  return status.status !== 'EXPIRED';
+}
+
+/**
+ * Get the tool definition with calibration status merged
+ * @param {string} toolType - Tool type id (e.g. 'caliper', 'micrometer')
+ * @returns {object} Tool definition with calibration status
+ */
+export function getToolWithCalibration(toolType) {
+  const toolDef = TOOL_DEFINITIONS.find(t => t.id === toolType) || TOOL_DEFINITIONS[0];
+  const calStatus = getCalibrationStatus(toolDef);
+  return { ...toolDef, calStatus };
 }

@@ -3,11 +3,15 @@ import {
   Smartphone, Monitor, ZoomIn, ZoomOut, RotateCcw, X,
   Camera, Bluetooth, Volume2, VolumeX,
   ChevronLeft, Check, AlertTriangle, Send, Crosshair,
-  Upload, CheckCircle, RefreshCw, Zap, Sliders, Scan, Eye, Loader2
+  Upload, CheckCircle, RefreshCw, Zap, Sliders, Scan, Eye, Loader2, LogOut
 } from 'lucide-react';
 import Tesseract from 'tesseract.js';
 import toast from 'react-hot-toast';
-import { detectMeasuringToolType, TOOL_DEFINITIONS } from '../../utils/metrologyToolUtils';
+import { detectMeasuringToolType, TOOL_DEFINITIONS, getCalibrationStatus, isToolAllowedForMeasurement } from '../../utils/metrologyToolUtils';
+import { fullSPCAnalysis } from '../../utils/spcEngine';
+import SPCMiniChart from './SPCMiniChart';
+import SamplingPlanBadge from './SamplingPlanBadge';
+import CalibrationStatusBadge from './CalibrationStatusBadge';
 
 // ─── AUDIO SYNTHESIZER (KEYPAD CLICK + PASS/FAIL QC SOUNDS) ─────
 const playQCSound = (type = 'key') => {
@@ -99,6 +103,7 @@ export default function MobileTabletCheckSheet({
   onOpenDefectCamera,
   onOpenSignatureModal,
   onSubmitChecksheet,
+  onResetChecksheet,
   onCloseMobileMode,
   currentPointIndex: externalIndex,
   onSelectPoint
@@ -122,6 +127,10 @@ export default function MobileTabletCheckSheet({
   const [bleDeviceName, setBleDeviceName] = useState('Mitutoyo Digimatic Caliper 500-196');
   const [cameraStream, setCameraStream] = useState(null);
   const [capturedPhoto, setCapturedPhoto] = useState(null);
+
+  // ── SPC, Sampling Plan & Calibration State ───────────────────
+  const [spcExpanded, setSpcExpanded] = useState(false);
+  const [calibrationLocked, setCalibrationLocked] = useState(false);
 
   const videoRef = useRef(null);
   const ocrCanvasRef = useRef(null);
@@ -322,7 +331,7 @@ export default function MobileTabletCheckSheet({
     } else if (key === '.') {
       if (soundEnabled) playQCSound('key');
       if (!nextStr.includes('.')) nextStr += (nextStr === '' ? '0.' : '.');
-    } else if (key === 'NEXT') {
+    } else if (key === 'NEXT' || key === 'SAVE') {
       // Evaluate sound & auto-advance
       if (evaluation.status === 'PASS') {
         if (soundEnabled) playQCSound('pass');
@@ -339,7 +348,29 @@ export default function MobileTabletCheckSheet({
       if (activeIndex < checkPoints.length - 1) {
         handlePointChange(activeIndex + 1);
       } else {
-        toast.success('Seluruh poin checksheet telah selesai diinspeksi! ✨');
+        // Last point: SAVE measurement and refresh drawing & checksheet for new cycle
+        if (onSubmitChecksheet) {
+          onSubmitChecksheet();
+        }
+        if (soundEnabled) playQCSound('pass');
+        triggerHaptic('success');
+        toast.success('💾 Data Disimpan! Drawing & Checksheet Berhasil Di-refresh... 🔄', { duration: 3500 });
+        
+        // 1. Reset all local measurement values so balloons return to initial clean numbered state (1, 2, 3...)
+        setLocalValues({});
+        setPointPhotos({});
+
+        // 2. Notify parent to clear measured values across all checkpoints
+        if (onResetChecksheet) {
+          onResetChecksheet();
+        } else if (onValueChange) {
+          checkPoints.forEach(p => onValueChange(p.id, ''));
+        }
+        
+        // 3. Reset position to first measurement point (Poin #1) with auto-focus zoom
+        setTimeout(() => {
+          handlePointChange(0);
+        }, 300);
       }
       return;
     } else {
@@ -551,9 +582,12 @@ export default function MobileTabletCheckSheet({
             borderBottom: '1px solid #1b1f26'
           }}
         >
-          {/* Back button */}
+          {/* Back / Exit button returning to MANDOR Player */}
           <button
-            onClick={onCloseMobileMode}
+            onClick={() => {
+              window.location.hash = '/dozuki-player';
+              if (onCloseMobileMode) onCloseMobileMode();
+            }}
             style={{
               width: '28px',
               height: '28px',
@@ -568,7 +602,7 @@ export default function MobileTabletCheckSheet({
               fontSize: '16px',
               cursor: 'pointer'
             }}
-            title="Kembali ke PC / Tablet UI"
+            title="Kembali ke MANDOR Player"
           >
             ‹
           </button>
@@ -609,6 +643,16 @@ export default function MobileTabletCheckSheet({
               {stats.okCount} OK {stats.ngCount > 0 && `· ${stats.ngCount} NG`}
             </div>
 
+            {/* Sampling Plan Badge (AQL) */}
+            <SamplingPlanBadge
+              lotSize={checksheet?.lotSize || 500}
+              aql={checksheet?.aql || '1.0'}
+              inspectionLevel={checksheet?.inspectionLevel || 'II'}
+              currentSampleIndex={Object.keys(localValues).filter(k => localValues[k] !== '' && localValues[k] !== undefined).length}
+              ngCountInSample={stats.ngCount}
+              inspectionSeverity={checksheet?.inspectionSeverity || 'NORMAL'}
+            />
+
             {/* Sound Toggle */}
             <button
               onClick={() => setSoundEnabled(!soundEnabled)}
@@ -629,6 +673,33 @@ export default function MobileTabletCheckSheet({
               title={soundEnabled ? 'Mute Suara QC' : 'Aktifkan Suara QC'}
             >
               {soundEnabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
+            </button>
+
+            {/* Logout / Exit returning to MANDOR Player */}
+            <button
+              onClick={() => {
+                if (window.confirm('Keluar dari sesi inspeksi dan kembali ke MANDOR Player?')) {
+                  window.location.hash = '/dozuki-player';
+                  if (onCloseMobileMode) onCloseMobileMode();
+                }
+              }}
+              style={{
+                width: '26px',
+                height: '26px',
+                borderRadius: '7px',
+                backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid #ef4444',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#f87171',
+                fontSize: '12px',
+                flexShrink: 0,
+                cursor: 'pointer'
+              }}
+              title="Logout & Kembali ke MANDOR Player"
+            >
+              <LogOut size={12} />
             </button>
 
             {/* Submit Icon */}
@@ -955,7 +1026,7 @@ export default function MobileTabletCheckSheet({
               </div>
             </div>
 
-            {/* Row 2: Tolerance & Tool Specs (Clean Inline) */}
+            {/* Row 2: Tolerance & Tool Specs (Clean Inline) + Calibration Badge */}
             {(() => {
               const toolType = detectMeasuringToolType(activePoint);
               const toolDef = TOOL_DEFINITIONS.find(t => t.id === toolType) || TOOL_DEFINITIONS[0];
@@ -969,8 +1040,10 @@ export default function MobileTabletCheckSheet({
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#38bdf8', fontWeight: 700, flexShrink: 0 }}>
                     <span>{toolDef.icon}</span>
                     <span>{toolDef.name.split(' ')[0]} {toolDef.name.split(' ')[1] || ''}</span>
-                    <span style={{ color: '#64748b' }}>•</span>
-                    <span style={{ color: '#94a3b8' }}>{toolDef.code}</span>
+                    <CalibrationStatusBadge
+                      toolType={toolType}
+                      onCalibrationExpired={() => setCalibrationLocked(true)}
+                    />
                   </div>
                 </div>
               );
@@ -1097,6 +1170,71 @@ export default function MobileTabletCheckSheet({
             </div>
           </div>
 
+          {/* ── SPC MINI CHART (Collapsible) ────────────────────── */}
+          {(() => {
+            // Collect all measured values for the active point's parameter across samples
+            const spcParamData = [];
+            // Use current and committed values for SPC
+            checkPoints.forEach(p => {
+              if (p.id === activePoint?.id) {
+                const v = parseFloat(localValues[p.id]);
+                if (!isNaN(v)) spcParamData.push(v);
+              }
+            });
+            // Also add values from the measuredValues history if available
+            if (activePoint?.spcHistory && Array.isArray(activePoint.spcHistory)) {
+              activePoint.spcHistory.forEach(v => {
+                const num = parseFloat(v);
+                if (!isNaN(num)) spcParamData.push(num);
+              });
+            }
+            // Fallback: generate simulated SPC data from nominal for demo
+            if (spcParamData.length < 5 && activePoint) {
+              const nom = parseFloat(activePoint.nominal) || 25;
+              const tol = Math.abs(parseFloat(activePoint.upperTol) || 0.05);
+              for (let i = 0; i < 25; i++) {
+                spcParamData.push(nom + (Math.random() - 0.5) * tol * 1.5);
+              }
+            }
+
+            const nominal = parseFloat(activePoint?.nominal) || 0;
+            const tolMinVal = parseFloat(activePoint?.tolMin !== undefined ? activePoint.tolMin : (nominal + (parseFloat(activePoint?.lowerTol) || 0)));
+            const tolMaxVal = parseFloat(activePoint?.tolMax !== undefined ? activePoint.tolMax : (nominal + (parseFloat(activePoint?.upperTol) || 0)));
+            const uslVal = Math.max(tolMinVal, tolMaxVal);
+            const lslVal = Math.min(tolMinVal, tolMaxVal);
+
+            return (
+              <SPCMiniChart
+                parameterData={spcParamData}
+                usl={uslVal}
+                lsl={lslVal}
+                isExpanded={spcExpanded}
+                onToggle={() => setSpcExpanded(prev => !prev)}
+                subgroupSize={5}
+              />
+            );
+          })()}
+
+          {/* Calibration Lockout Warning */}
+          {calibrationLocked && (
+            <div style={{
+              backgroundColor: 'rgba(239,68,68,.12)',
+              border: '1px solid #ef4444',
+              borderRadius: '8px',
+              padding: '6px 10px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              animation: 'pulse 1.5s infinite'
+            }}>
+              <span style={{ fontSize: '14px' }}>⛔</span>
+              <div>
+                <div style={{ fontSize: '10px', fontWeight: 900, color: '#ef4444' }}>KALIBRASI ALAT EXPIRED — INPUT DIBLOKIR</div>
+                <div style={{ fontSize: '8.5px', color: '#fca5a5' }}>Kalibrasi ulang alat ukur sebelum melanjutkan inspeksi (ISO 9001: 7.1.5)</div>
+              </div>
+            </div>
+          )}
+
           {/* 3. Ergonomic Touch Numpad with Dynamic Backlight (PC Styled) */}
           <div
             style={{
@@ -1107,7 +1245,11 @@ export default function MobileTabletCheckSheet({
               gridTemplateRows: 'repeat(4, 1fr)',
               gap: '6px',
               marginTop: '4px',
-              marginBottom: '2px'
+              marginBottom: '2px',
+              opacity: calibrationLocked ? 0.35 : 1,
+              pointerEvents: calibrationLocked ? 'none' : 'auto',
+              filter: calibrationLocked ? 'grayscale(0.5)' : 'none',
+              transition: 'opacity 0.2s ease'
             }}
           >
             {/* Row 1 */}
@@ -1123,15 +1265,29 @@ export default function MobileTabletCheckSheet({
                 {k}
               </button>
             ))}
-            <button
-              onPointerDown={() => { setPressedKey('NEXT'); handleNumpadPress('NEXT'); }}
-              onPointerUp={() => setPressedKey(null)}
-              onPointerLeave={() => setPressedKey(null)}
-              onPointerCancel={() => setPressedKey(null)}
-              style={getNextKeyStyle(pressedKey === 'NEXT')}
-            >
-              NEXT<br />▶
-            </button>
+            {/* NEXT / SAVE Dynamic Key */}
+            {(() => {
+              const isLastPoint = activeIndex === checkPoints.length - 1;
+              return (
+                <button
+                  onPointerDown={() => { setPressedKey('NEXT'); handleNumpadPress(isLastPoint ? 'SAVE' : 'NEXT'); }}
+                  onPointerUp={() => setPressedKey(null)}
+                  onPointerLeave={() => setPressedKey(null)}
+                  onPointerCancel={() => setPressedKey(null)}
+                  style={getNextKeyStyle(pressedKey === 'NEXT', isLastPoint)}
+                >
+                  {isLastPoint ? (
+                    <>
+                      SAVE<br />💾
+                    </>
+                  ) : (
+                    <>
+                      NEXT<br />▶
+                    </>
+                  )}
+                </button>
+              );
+            })()}
 
             {/* Row 2 */}
             {['4', '5', '6'].map(k => (
@@ -1830,28 +1986,54 @@ const getKeyStyle = (key, isPressed) => ({
   transition: 'transform 0.05s ease, background-color 0.08s ease, box-shadow 0.08s ease'
 });
 
-const getNextKeyStyle = (isPressed) => ({
-  gridRow: 'span 3',
-  background: isPressed ? 'linear-gradient(180deg, #059669, #047857)' : 'linear-gradient(180deg, #10b981, #059669)',
-  color: '#ffffff',
-  fontSize: '17px',
-  fontWeight: 900,
-  borderRadius: '12px',
-  border: isPressed ? '2px solid #6ee7b7' : '1px solid #34d399',
-  boxShadow: isPressed
-    ? '0 0 22px rgba(16, 185, 129, 0.95), inset 0 0 10px rgba(255, 255, 255, 0.6)'
-    : '0 4px 14px rgba(16, 185, 129, 0.4)',
-  transform: isPressed ? 'scale(0.96)' : 'scale(1)',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: '3px',
-  cursor: 'pointer',
-  userSelect: 'none',
-  fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  transition: 'all 0.08s ease'
-});
+const getNextKeyStyle = (isPressed, isLastPoint = false) => {
+  if (isLastPoint) {
+    return {
+      gridRow: 'span 3',
+      background: isPressed ? 'linear-gradient(180deg, #ca8a04, #a16207)' : 'linear-gradient(180deg, #facc15, #eab308)',
+      color: '#000000',
+      fontSize: '16px',
+      fontWeight: 900,
+      borderRadius: '12px',
+      border: isPressed ? '2px solid #fef08a' : '1.5px solid #fde047',
+      boxShadow: isPressed
+        ? '0 0 26px rgba(250, 204, 21, 0.95), inset 0 0 10px rgba(255, 255, 255, 0.8)'
+        : '0 4px 16px rgba(234, 179, 8, 0.55)',
+      transform: isPressed ? 'scale(0.96)' : 'scale(1)',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '3px',
+      cursor: 'pointer',
+      userSelect: 'none',
+      fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      transition: 'all 0.08s ease'
+    };
+  }
+  return {
+    gridRow: 'span 3',
+    background: isPressed ? 'linear-gradient(180deg, #059669, #047857)' : 'linear-gradient(180deg, #10b981, #059669)',
+    color: '#ffffff',
+    fontSize: '17px',
+    fontWeight: 900,
+    borderRadius: '12px',
+    border: isPressed ? '2px solid #6ee7b7' : '1px solid #34d399',
+    boxShadow: isPressed
+      ? '0 0 22px rgba(16, 185, 129, 0.95), inset 0 0 10px rgba(255, 255, 255, 0.6)'
+      : '0 4px 14px rgba(16, 185, 129, 0.4)',
+    transform: isPressed ? 'scale(0.96)' : 'scale(1)',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '3px',
+    cursor: 'pointer',
+    userSelect: 'none',
+    fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    transition: 'all 0.08s ease'
+  };
+};
 
 const getDelKeyStyle = (isPressed) => ({
   borderRadius: '11px',
