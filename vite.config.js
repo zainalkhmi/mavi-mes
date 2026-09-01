@@ -168,11 +168,8 @@ export default defineConfig({
             if (id.includes('lucide-react')) {
               return 'vendor-icons';
             }
-            if (id.includes('recharts') || id.includes('chart.js') || id.includes('react-chartjs-2') || id.includes('d3-')) {
-              return 'vendor-charts';
-            }
-            if (id.includes('reactflow') || id.includes('@reactflow')) {
-              return 'vendor-flow';
+            if (id.includes('recharts') || id.includes('chart.js') || id.includes('react-chartjs-2') || id.includes('d3-') || id.includes('reactflow') || id.includes('@reactflow')) {
+              return 'vendor-charts-flow';
             }
             if (id.includes('@supabase')) {
               return 'vendor-supabase';

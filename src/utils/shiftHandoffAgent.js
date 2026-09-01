@@ -3,8 +3,6 @@
  * Synthesizes production data into concise, actionable shift summaries
  */
 
-import { aiService } from './aiService';
-
 // Shift Handoff Agent Configuration
 export const SHIFT_HANDOFF_AGENT = {
   id: 'shift_handoff_agent',
