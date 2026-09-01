@@ -89,6 +89,7 @@ const ShiftHandoffDashboard = lazy(() => import('./components/ShiftHandoffDashbo
 const ShiftHandoffSettings = lazy(() => import('./components/ShiftHandoffSettings'));
 const InspectorDesigner = lazy(() => import('./components/InspectorDesigner'));
 const CheckSheetManager = lazy(() => import('./components/CheckSheetManager'));
+const MachineMonitoringDashboard = lazy(() => import('./components/MachineMonitoringDashboard'));
 
 export default function AppRouter({ user, isOperator }) {
   const hasAccess = (path) => checkRoleAccess(user, path);
@@ -123,6 +124,8 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/stations" element={hasAccess('/stations') ? <StationManager /> : <Navigate to="/" replace />} />
               <Route path="/display-devices" element={hasAccess('/display-devices') ? <InterfaceManager /> : <Navigate to="/" replace />} />
               <Route path="/machines" element={hasAccess('/machines') ? <MachineManager /> : <Navigate to="/" replace />} />
+              <Route path="/machine-monitoring" element={<MachineMonitoringDashboard />} />
+              <Route path="/machine-dashboard" element={<MachineMonitoringDashboard />} />
               <Route path="/predictive-maintenance" element={hasAccess('/predictive-maintenance') ? <PredictiveMaintenanceManager /> : <Navigate to="/" replace />} />
               <Route path="/edge-devices" element={hasAccess('/edge-devices') ? <EdgeDeviceManager /> : <Navigate to="/" replace />} />
               <Route path="/vision" element={hasAccess('/vision') ? <VisionManager initialTab="cameras" /> : <Navigate to="/" replace />} />

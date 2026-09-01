@@ -153,5 +153,41 @@ export const DASHBOARD_TEMPLATES = [
       { id: 'el_fac_bar_downtime', type: 'BAR', x: 480, y: 440, width: 460, height: 280, title: '⏱️ Machine Downtime Duration (Min)', dimension: 'machineId', metric: 'downtimeMin', color: '#dc2626' },
       { id: 'el_fac_donut_section', type: 'DONUT', x: 960, y: 440, width: 420, height: 280, title: '🍩 Downtime Share by Section', dimension: 'section', metric: 'downtimeMin' }
     ]
+  },
+
+  // ─── 5. SCADA MACHINE MONITORING & LIVE TELEMETRY ─────────────────
+  {
+    id: 'tpl_machine_monitor',
+    name: '📟 Machine Monitoring & SCADA Telemetry',
+    badge: 'SCADA / IIoT 4.0',
+    category: 'Machine Monitoring',
+    color: '#06b6d4',
+    icon: 'Activity',
+    description: 'Live Shop Floor Spindle Speed (RPM), Thermal Telemetry (°C), Vibration (RMS), Power Demand (kW), and Status Breakdown.',
+    calculatedColumns: [
+      { name: 'powerCostIDR', label: 'Est. Power Cost (IDR)', expression: 'powerKw * 1550', isCurrency: true },
+      { name: 'healthRiskIndex', label: 'Risk Index (%)', expression: '100 - healthScore', isPercent: true }
+    ],
+    dataset: [
+      { machineId: 'MCH-CNC-01', machineName: '5-Axis CNC Mill 01', line: 'Line 1 (Machining)', status: 'Running', spindleRpm: 12450, temperatureC: 46.8, vibrationRms: 1.45, powerKw: 18.4, oeePct: 88.5, outputQty: 342, healthScore: 94, operator: 'Budi Santoso' },
+      { machineId: 'MCH-CNC-02', machineName: 'High-Torque Lathe 02', line: 'Line 1 (Machining)', status: 'Running', spindleRpm: 3450, temperatureC: 52.4, vibrationRms: 2.10, powerKw: 14.2, oeePct: 84.1, outputQty: 510, healthScore: 89, operator: 'Ahmad Fauzi' },
+      { machineId: 'MCH-PRS-03', machineName: '200T Stamping Press', line: 'Line 2 (Stamping)', status: 'Alarm', spindleRpm: 0, temperatureC: 68.2, vibrationRms: 4.80, powerKw: 32.5, oeePct: 52.3, outputQty: 890, healthScore: 61, operator: 'Rian Hidayat' },
+      { machineId: 'MCH-INJ-04', machineName: 'Injection Molding 350T', line: 'Line 3 (Molding)', status: 'Running', spindleRpm: 480, temperatureC: 215.0, vibrationRms: 0.85, powerKw: 24.8, oeePct: 92.4, outputQty: 1240, healthScore: 97, operator: 'Dewi Lestari' },
+      { machineId: 'MCH-WLD-05', machineName: 'Robotic Welding Cell', line: 'Line 4 (Assembly)', status: 'Idle', spindleRpm: 0, temperatureC: 38.0, vibrationRms: 0.42, powerKw: 6.2, oeePct: 74.0, outputQty: 180, healthScore: 92, operator: 'Eko Prasetyo' },
+      { machineId: 'MCH-CMM-06', machineName: 'Bridge CMM Metrology', line: 'Line 4 (Assembly)', status: 'Running', spindleRpm: 0, temperatureC: 20.1, vibrationRms: 0.12, powerKw: 2.1, oeePct: 94.8, outputQty: 95, healthScore: 99, operator: 'Inspector QC' }
+    ],
+    elements: [
+      { id: 'el_mch_title', type: 'TEXT', x: 20, y: 20, width: 420, height: 65, title: '📟 SCADA MACHINE MONITORING & TELEMETRY HUB', textContent: 'Real-time Spindle RPM, Thermal Sensors, Vibration & Power Demand', fontSize: 15, color: '#06b6d4', bgColor: '#ffffff' },
+      { id: 'el_mch_kpi_output', type: 'KPI_CARD', x: 460, y: 20, width: 220, height: 90, title: 'Total Shift Output', metric: 'outputQty', aggregation: 'SUM', suffix: ' pcs', color: '#16a34a' },
+      { id: 'el_mch_kpi_power', type: 'KPI_CARD', x: 700, y: 20, width: 220, height: 90, title: 'Total Power Demand', metric: 'powerKw', aggregation: 'SUM', suffix: ' kW', color: '#f59e0b' },
+      { id: 'el_mch_kpi_oee', type: 'KPI_CARD', x: 940, y: 20, width: 220, height: 90, title: 'Average Machine OEE', metric: 'oeePct', aggregation: 'AVG', suffix: '%', color: '#06b6d4' },
+      { id: 'el_mch_slicer_line', type: 'SLICER', x: 1180, y: 20, width: 200, height: 90, title: 'Filter Line', dimension: 'line' },
+      { id: 'el_mch_bar_rpm', type: 'BAR', x: 20, y: 130, width: 560, height: 290, title: '⚙️ Spindle Speed (RPM) per Machine', dimension: 'machineName', metric: 'spindleRpm', color: '#06b6d4' },
+      { id: 'el_mch_bar_power', type: 'BAR', x: 600, y: 130, width: 440, height: 290, title: '⚡ Power Load Demand (kW)', dimension: 'machineName', metric: 'powerKw', color: '#f59e0b' },
+      { id: 'el_mch_donut_status', type: 'DONUT', x: 1060, y: 130, width: 320, height: 290, title: '🚨 Machine Status Breakdown', dimension: 'status', metric: 'outputQty' },
+      { id: 'el_mch_line_temp', type: 'LINE', x: 20, y: 440, width: 680, height: 280, title: '📈 Thermal Telemetry Stream (°C)', dimension: 'machineId', metric: 'temperatureC', color: '#dc2626' },
+      { id: 'el_mch_gauge_oee', type: 'OEE_GAUGE', x: 720, y: 440, width: 320, height: 280, title: '⚡ Plant Availability Index' },
+      { id: 'el_mch_radar_health', type: 'RADAR', x: 1060, y: 440, width: 320, height: 280, title: '🛡️ Asset Health & Vibration RMS' }
+    ]
   }
 ];
