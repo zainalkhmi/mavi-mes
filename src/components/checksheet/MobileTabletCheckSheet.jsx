@@ -362,7 +362,7 @@ export default function MobileTabletCheckSheet({
         {/* ─── DIRECTLY VISIBLE INTERACTIVE CAD DRAWING VIEW (NO HIDE) ─ */}
         <div
           style={{
-            height: '190px',
+            height: '280px',
             backgroundColor: '#f4f2ec',
             position: 'relative',
             overflow: 'hidden',
