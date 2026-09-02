@@ -25,7 +25,8 @@ import {
   Cell,
   ReferenceLine
 } from 'recharts';
-import { useLocation, useParams } from 'react-router-dom';
+import { useLocation, useParams, useNavigate } from 'react-router-dom';
+import { getAllChecksheets } from '../utils/supabaseTemplateDB';
 import {
   Activity,
   Play,
@@ -50,6 +51,7 @@ import {
   ToggleLeft,
   ToggleRight,
   ClipboardList,
+  ClipboardCheck,
   Minus,
   Plus,
   Image as ImageIcon,
@@ -2764,6 +2766,7 @@ const MeasurementWidget = ({ comp, syncVariable, fireWidgetTriggers, isDark }) =
 };
 
 const LiveTerminal = () => {
+  const navigate = useNavigate();
   const [showChat, setShowChat] = useState(false);
   const [devMode, setDevMode] = useState(() => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -2861,6 +2864,7 @@ const LiveTerminal = () => {
   const [loading, setLoading] = useState(true);
   const [manuals, setManuals] = useState([]);
   const [frontlineApps, setFrontlineApps] = useState([]);
+  const [checksheets, setChecksheets] = useState([]);
   const [productionQueue, setProductionQueue] = useState([]);
   const [selectedManual, setSelectedManual] = useState(null);
   const [selectedApp, setSelectedApp] = useState(null);
@@ -4349,8 +4353,13 @@ const LiveTerminal = () => {
   const handleBarcodeScan = async (code) => {
     console.log('Barcode Scanned:', code);
 
-    // 1. If we're on the selection screen, try to find a matching SOP or App
+    // 1. If we're on the selection screen, try to find a matching Checksheet, SOP, or App
     if (!selectedManual && !selectedApp) {
+      const matchCs = checksheets.find(c => c.docNo === code || c.id === code || c.partNo === code);
+      if (matchCs) {
+        handleOpenChecksheet(matchCs);
+        return;
+      }
       const matchSop = manuals.find(m => m.documentNumber === code || m.id === code);
       if (matchSop) {
         handleStartCycle(matchSop.id);
@@ -4370,18 +4379,19 @@ const LiveTerminal = () => {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [manualData, appData, queueData, stationData, interfaceData] = await Promise.all([
+        const [manualData, appData, queueData, stationData, interfaceData, checksheetData] = await Promise.all([
           listManualSummaries(),
           getAllFrontlineApps(),
           getProductionQueue(),
           getStations(),
-          getInterfaces()
+          getInterfaces(),
+          getAllChecksheets()
         ]);
 
         setStations(stationData || []);
         setInterfaces(interfaceData || []);
-
         setManuals(manualData || []);
+        setChecksheets(checksheetData || []);
 
         // --- UNIVERSAL DEEP SEARCH LOGIC ---
         let combinedApps = appData || [];
@@ -4471,6 +4481,22 @@ const LiveTerminal = () => {
 
 
 
+
+  const handleOpenChecksheet = (cs) => {
+    localStorage.setItem('mandor_published_checksheet', JSON.stringify(cs));
+    localStorage.setItem('mandor_checksheet_published', 'true');
+    logEvent({
+      type: 'CHECKSHEET_LAUNCH',
+      workstation: appContext.station,
+      workOrder: currentWorkOrder || cs.partNo || 'WO-LIVE',
+      details: { id: cs.id, docNo: cs.docNo, name: cs.name }
+    });
+    const woParam = currentWorkOrder ? encodeURIComponent(currentWorkOrder) : encodeURIComponent(cs.partNo || 'WO-LIVE');
+    const docParam = encodeURIComponent(cs.docNo || cs.id);
+    const stnParam = encodeURIComponent(appContext.station || 'WS-01');
+    const opParam = encodeURIComponent(appContext.user || 'Operator');
+    navigate(`/drawing-checksheet?wo=${woParam}&doc=${docParam}&station=${stnParam}&inspector=${opParam}&from=terminal`);
+  };
 
   const handleStartCycle = async (manualId) => {
     setLoading(true);
@@ -11887,6 +11913,29 @@ const LiveTerminal = () => {
       return true; // 'All'
     });
 
+    // Filter checksheets based on assigned station
+    const stationChecksheets = checksheets.filter(cs => {
+      if (!currentStationObj || !currentStationObj.assignedApps || currentStationObj.assignedApps.length === 0) {
+        return true; // Fallback to all if station has no restrictions
+      }
+      return (currentStationObj.assignedApps || []).includes(cs.id) || (currentStationObj.assignedApps || []).includes(cs.docNo);
+    });
+
+    const searchFilteredChecksheets = stationChecksheets.filter(cs => {
+      const q = searchQuery.toLowerCase();
+      return !q ||
+        (cs.name || '').toLowerCase().includes(q) ||
+        (cs.docNo || '').toLowerCase().includes(q) ||
+        (cs.partNo || '').toLowerCase().includes(q) ||
+        (cs.partName || '').toLowerCase().includes(q);
+    });
+
+    const tabFilteredChecksheets = searchFilteredChecksheets.filter(cs => {
+      if (terminalTab === 'Favorites') return favoriteApps.includes(cs.id);
+      if (terminalTab === 'Recent') return recentApps.includes(cs.id);
+      return true;
+    });
+
     // Group apps dynamically
     const appGroups = {};
     tabFilteredApps.forEach(app => {
@@ -11955,6 +12004,40 @@ const LiveTerminal = () => {
                     <ChevronRight size={20} color="#cbd5e1" />
                   </div>
                 ))}
+
+                {tabFilteredChecksheets.length > 0 && (
+                  <div style={{ marginTop: tabFilteredApps.length > 0 ? '24px' : 0 }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#065f46', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <ClipboardCheck size={18} color="#10b981" /> Digital Check Sheets
+                    </h3>
+                    {tabFilteredChecksheets.map(cs => (
+                      <div
+                        key={cs.id}
+                        onClick={() => handleOpenChecksheet(cs)}
+                        style={{
+                          backgroundColor: 'white', borderRadius: '16px', padding: '16px', marginBottom: '14px',
+                          display: 'flex', alignItems: 'center', gap: '14px', border: '1px solid #bbf7d0',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.02)', position: 'relative'
+                        }}
+                      >
+                        <div style={{
+                          width: '46px', height: '46px', borderRadius: '12px',
+                          background: 'linear-gradient(135deg, #064e3b 0%, #059669 100%)', display: 'flex',
+                          alignItems: 'center', justifyContent: 'center', color: 'white', flexShrink: 0
+                        }}>
+                          <ClipboardCheck size={22} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cs.name}</div>
+                          <div style={{ fontSize: '0.72rem', color: '#15803d', fontWeight: 600 }}>
+                            {cs.docNo || 'No Doc'} • Rev {cs.revisionNo || '1.0'} {cs.partNo ? `• Part ${cs.partNo}` : ''}
+                          </div>
+                        </div>
+                        <ChevronRight size={18} color="#10b981" />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -12104,8 +12187,98 @@ const LiveTerminal = () => {
               </div>
             </div>
 
+            {/* DIGITAL CHECK SHEETS (QUALITY INSPECTION) */}
+            {tabFilteredChecksheets.length > 0 && (
+              <div style={{ marginBottom: '40px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                  <h3 style={{ color: '#065f46', fontSize: '1.1rem', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <ClipboardCheck size={22} color="#10b981" /> Digital Check Sheets (Quality Inspection)
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#047857', backgroundColor: '#d1fae5', padding: '3px 10px', borderRadius: '12px', border: '1px solid #a7f3d0' }}>
+                    {tabFilteredChecksheets.length} Available
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
+                  {tabFilteredChecksheets.map(cs => (
+                    <div
+                      key={cs.id}
+                      onClick={() => handleOpenChecksheet(cs)}
+                      style={{
+                        backgroundColor: 'white',
+                        borderRadius: '14px',
+                        overflow: 'hidden',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+                        border: '1px solid #a7f3d0',
+                        transition: 'transform 0.2s, boxShadow 0.2s',
+                        position: 'relative'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-4px)';
+                        e.currentTarget.style.boxShadow = '0 12px 24px -5px rgba(16, 185, 129, 0.18)';
+                        e.currentTarget.style.borderColor = '#10b981';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.05)';
+                        e.currentTarget.style.borderColor = '#a7f3d0';
+                      }}
+                    >
+                      {/* Checksheet Card Header */}
+                      <div style={{
+                        height: '110px',
+                        background: 'linear-gradient(135deg, #064e3b 0%, #047857 50%, #059669 100%)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        padding: '16px'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <div style={{ backgroundColor: 'rgba(255,255,255,0.25)', backdropFilter: 'blur(4px)', padding: '4px 10px', borderRadius: '6px', color: 'white', fontSize: '0.72rem', fontWeight: 800, fontFamily: 'monospace' }}>
+                              {cs.docNo || 'QA-CS'}
+                            </div>
+                            <div style={{ backgroundColor: '#ecfdf5', color: '#065f46', padding: '3px 8px', borderRadius: '6px', fontSize: '0.68rem', fontWeight: 800 }}>
+                              Rev {cs.revisionNo || '1.0'}
+                            </div>
+                          </div>
+                          <span style={{ fontSize: '0.68rem', fontWeight: 800, padding: '3px 8px', borderRadius: '12px', backgroundColor: cs.status === 'APPROVED' ? '#dcfce7' : '#fef3c7', color: cs.status === 'APPROVED' ? '#166534' : '#92400e' }}>
+                            {cs.status || 'READY'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#a7f3d0', fontSize: '0.75rem', fontWeight: 600 }}>
+                          <ShieldCheck size={14} /> {cs.isoStandard || 'ISO 9001:2015'}
+                        </div>
+                      </div>
+
+                      {/* Checksheet Card Body */}
+                      <div style={{ padding: '20px' }}>
+                        <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>{cs.name}</h4>
+                        <div style={{ fontSize: '0.8rem', color: '#64748b', display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '14px' }}>
+                          {cs.partNo && <div>Part No: <strong style={{ color: '#334155' }}>{cs.partNo}</strong></div>}
+                          {cs.customer && <div>Customer: <strong style={{ color: '#334155' }}>{cs.customer}</strong></div>}
+                          <div>Titik Ukur: <strong style={{ color: '#059669' }}>{cs.checkPoints?.length || cs.totalCheckPoints || 0} Points (GD&T)</strong></div>
+                        </div>
+                      </div>
+
+                      {/* Checksheet Action Footer */}
+                      <div style={{ padding: '12px 20px', borderTop: '1px solid #ecfdf5', backgroundColor: '#f0fdf4', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.75rem', color: '#047857', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Play size={12} color="#059669" /> Inspeksi Digital
+                        </span>
+                        <div style={{ color: '#059669', fontSize: '0.85rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          Buka Check Sheet <ChevronRight size={16} />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* APPS GRID grouped by category */}
-            {Object.keys(appGroups).length > 0 ? (
+            {Object.keys(appGroups).length > 0 && (
               Object.keys(appGroups).map(category => (
                 <div key={category} style={{ marginBottom: '40px' }}>
                   <h3 style={{ color: '#475569', fontSize: '1.1rem', marginBottom: '20px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -12193,15 +12366,18 @@ const LiveTerminal = () => {
                   </div>
                 </div>
               ))
-            ) : (
-              <div style={{ textAlign: 'center', padding: '100px 20px', backgroundColor: 'white', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
+            )}
+
+            {/* EMPTY STATE: Only when NEITHER apps nor checksheets exist */}
+            {Object.keys(appGroups).length === 0 && tabFilteredChecksheets.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '80px 20px', backgroundColor: 'white', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
                 <div style={{ color: '#94a3b8', marginBottom: '16px' }}><Package size={48} /></div>
-                <h3 style={{ margin: '0 0 8px 0', color: '#0f172a', fontSize: '1.2rem', fontWeight: 700 }}>No Apps Assigned</h3>
-                <p style={{ margin: 0, color: '#64748b' }}>
-                  There are no applications assigned to <b>Station {appContext.station}</b> for user <b>{appContext.user}</b>.
+                <h3 style={{ margin: '0 0 8px 0', color: '#0f172a', fontSize: '1.2rem', fontWeight: 700 }}>No Apps or Checksheets Assigned</h3>
+                <p style={{ margin: 0, color: '#64748b', fontSize: '0.9rem' }}>
+                  There are no applications or digital checksheets assigned to <b>Station {appContext.station}</b> for user <b>{appContext.user}</b>.
                 </p>
-                <div style={{ marginTop: '20px', fontSize: '0.75rem', color: '#94a3b8' }}>
-                  User Role: {freshUser?.role || 'Unknown'} | Access: {freshUser?.assignedApp || 'Not Set'}
+                <div style={{ marginTop: '16px', fontSize: '0.75rem', color: '#94a3b8' }}>
+                  User Role: {freshUser?.role || 'Unknown'} | Station: {appContext.station}
                 </div>
               </div>
             )}

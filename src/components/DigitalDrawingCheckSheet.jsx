@@ -2343,8 +2343,31 @@ export default function DigitalDrawingCheckSheet() {
           zIndex: 20
         }}
       >
-        {/* Left: Compact Branding & Drawing Info */}
+        {/* Left: Compact Branding & Drawing Info + Optional Terminal Return */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          {(searchParams.get('from') === 'terminal' || location.search.includes('from=terminal') || window.location.hash.includes('from=terminal')) && (
+            <button
+              onClick={() => navigate('/terminal')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                border: '1px solid #3b82f6',
+                color: '#60a5fa',
+                fontSize: '0.75rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+                marginRight: '4px'
+              }}
+              title="Kembali ke Live Terminal"
+            >
+              <ChevronLeft size={14} />
+              <span>Terminal</span>
+            </button>
+          )}
           <div style={{ width: '26px', height: '26px', backgroundColor: '#22c55e', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0f172a', fontWeight: 900, fontSize: '0.85rem' }}>
             M
           </div>

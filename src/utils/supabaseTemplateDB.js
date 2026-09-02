@@ -287,3 +287,19 @@ export async function deleteTemplate(id) {
     return filtered;
 }
 
+/**
+ * Get all checksheets for station assignments and terminal execution
+ */
+export async function getAllChecksheets() {
+    try {
+        const templates = await getTemplatesAll();
+        if (Array.isArray(templates) && templates.length > 0) {
+            return templates.filter(p => !p.id?.startsWith('cs-iso-00') && p.id !== 'cs-iso-001' && p.id !== 'cs-iso-002' && p.id !== 'cs-iso-003');
+        }
+    } catch (e) {
+        console.warn('[Supabase Templates] getAllChecksheets fallback:', e);
+    }
+    const local = await safeRetrieveLocalTemplates();
+    return (local || []).filter(p => !p.id?.startsWith('cs-iso-00') && p.id !== 'cs-iso-001' && p.id !== 'cs-iso-002' && p.id !== 'cs-iso-003');
+}
+
