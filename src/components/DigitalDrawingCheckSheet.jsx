@@ -960,30 +960,41 @@ export default function DigitalDrawingCheckSheet() {
   useEffect(() => {
     const loadPublishedData = async () => {
       try {
-        const memCs = typeof window !== 'undefined' ? window.__mandor_active_checksheet : null;
-        const memSvg = typeof window !== 'undefined' ? window.__mandor_active_drawing_svg : null;
+        let memCs = typeof window !== 'undefined' ? (window.__mandor_active_checksheet || window.__mandor_inspector_active_template) : null;
+        let memSvg = typeof window !== 'undefined' ? (window.__mandor_active_drawing_svg || memCs?.drawingPreview || memCs?.drawingSvg) : null;
 
-        const saved = localStorage.getItem('mandor_published_checksheet');
+        const saved = localStorage.getItem('mandor_published_checksheet') || sessionStorage.getItem('mandor_published_checksheet') || localStorage.getItem('mandor_inspector_active_template');
         const cs = memCs || (saved ? JSON.parse(saved) : null);
+
+        // Also check URL parameters fallback
+        const urlParams = new URLSearchParams(window.location.hash.includes('?') ? window.location.hash.split('?')[1] : window.location.search);
+        const qCode = urlParams.get('code');
+        const qPart = urlParams.get('partNo');
+
+        if (qCode && !cs?.docNo) setDocNo(qCode);
+        if (qPart && !cs?.partNo) setPartNo(qPart);
 
         if (cs) {
           if (cs.partNo) setPartNo(cs.partNo);
+          else if (qPart) setPartNo(qPart);
+          else if (cs.docNo) setPartNo(cs.docNo);
+
           if (cs.partName) setPartName(cs.partName);
-          if (cs.name && !cs.partName) setPartName(cs.name);
+          else if (cs.name) setPartName(cs.name);
+
           if (cs.customer) setCustomer(cs.customer);
           if (cs.process) setProcessName(cs.process);
           if (cs.processName && !cs.process) setProcessName(cs.processName);
-          if (cs.docNo) setDocNo(cs.docNo);
+          if (cs.docNo || cs.drawingNo) setDocNo(cs.drawingNo || cs.docNo);
           if (cs.revisionNo) setRevisionNo(cs.revisionNo);
           if (cs.revision && !cs.revisionNo) setRevisionNo(cs.revision);
           if (cs.approver) setApproverName(cs.approver);
           if (cs.approverName && !cs.approver) setApproverName(cs.approverName);
 
-          // ── Load blueprint drawing preview (In-memory > cs.drawingSvg > IndexedDB) ──
-          if (memSvg) {
-            setDrawingPreview(memSvg);
-          } else if (cs.drawingSvg) {
-            setDrawingPreview(cs.drawingSvg);
+          // ── Load blueprint drawing preview (In-memory > cs.drawingPreview > cs.drawingSvg > IndexedDB) ──
+          const effectivePreview = memSvg || cs.drawingPreview || cs.drawingSvg || cs.drawingImageUrl || cs.dataUrl || cs.svgData || null;
+          if (effectivePreview) {
+            setDrawingPreview(effectivePreview);
           } else if (cs.drawingId) {
             setSelectedDrawingId(cs.drawingId);
             if (drawingsLocalDB) {
@@ -2627,17 +2638,30 @@ export default function DigitalDrawingCheckSheet() {
               overflow: 'hidden'
             }}
           >
-            {/* 2D SVG Blueprint — show uploaded drawing if available, else default */}
+            {/* 2D SVG / Image Blueprint — show uploaded drawing if available, else default */}
             {drawingPreview ? (
-              <div
-                style={{
-                  width: '100%', height: '100%',
-                  position: 'absolute', top: 0, left: 0,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  overflow: 'hidden'
-                }}
-                dangerouslySetInnerHTML={{ __html: drawingPreview }}
-              />
+              typeof drawingPreview === 'string' && (drawingPreview.trim().startsWith('<svg') || drawingPreview.trim().startsWith('<?xml')) ? (
+                <div
+                  style={{
+                    width: '100%', height: '100%',
+                    position: 'absolute', top: 0, left: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    overflow: 'hidden'
+                  }}
+                  dangerouslySetInnerHTML={{ __html: drawingPreview }}
+                />
+              ) : (
+                <img
+                  src={drawingPreview}
+                  alt="Blueprint Drawing"
+                  style={{
+                    width: '100%', height: '100%',
+                    position: 'absolute', top: 0, left: 0,
+                    objectFit: 'contain',
+                    pointerEvents: 'none'
+                  }}
+                />
+              )
             ) : (
               CASTING_HOUSING_SVG
             )}

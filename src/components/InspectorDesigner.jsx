@@ -18,7 +18,7 @@ import QRCode from 'react-qr-code';
 import { getAllDrawings, saveDrawing, drawingsLocalDB } from '../utils/supabaseUtilityDB';
 import { convertPdfToImageDataUrl } from '../utils/pdfRenderService';
 import { parseDxfContent } from '../utils/cadDxfRenderService';
-import { extractBlueprintDimensions, detectPdfType } from '../utils/pdfDimensionExtractor';
+import { extractBlueprintDimensions } from '../utils/pdfDimensionExtractor';
 import { getTables, createTable } from '../utils/supabaseTablesDB';
 import { getTemplates, saveTemplates, safePersistTemplates, safeRetrieveLocalTemplates, templatesLocalDB } from '../utils/supabaseTemplateDB';
 import { getDrawingsAll, createDrawing, getDrawingRevisions, getDrawingBalloons } from '../utils/mavicorePLM';
@@ -163,6 +163,8 @@ export default function InspectorDesigner() {
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [draggedPointId, setDraggedPointId] = useState(null);
+  const [dragMode, setDragMode] = useState('balloon'); // 'balloon' | 'target' | 'both'
+  const dragStartRef = useRef({ startX: 0, startY: 0, ptX: 0, ptY: 0, targetX: 0, targetY: 0 });
   const [hoverCoords, setHoverCoords] = useState(null); // { x: number, y: number }
 
   // ─── Drawing & Markup Annotation Tools State (Step 2 & 3) ───
@@ -570,11 +572,15 @@ export default function InspectorDesigner() {
   // ─── Load Check Sheet into Designer (for Edit / Modification) ───
   const loadChecksheetIntoDesigner = (cs, allDrawings = []) => {
     if (!cs) return;
-    setPartNo(cs.partNo || cs.part_no || '');
-    setPartName(cs.partName || cs.part_name || cs.name || '');
+    const resolvedPartNo = cs.partNo || cs.part_no || cs.code || '';
+    const resolvedPartName = cs.partName || cs.part_name || cs.name || '';
+    const resolvedDrawingNo = cs.drawingNo || cs.docNo || cs.doc_no || cs.code || '';
+
+    setPartNo(resolvedPartNo);
+    setPartName(resolvedPartName);
     setCustomer(cs.customer || '');
     setProcessName(cs.processName || cs.process || '');
-    setDrawingNo(cs.drawingNo || cs.docNo || cs.doc_no || '');
+    setDrawingNo(resolvedDrawingNo);
     setRevisionNo(cs.revisionNo || cs.revision || 'A');
     setEffectiveDate(cs.effectiveDate || cs.effective_date || new Date().toISOString().split('T')[0]);
     setNextReviewDate(cs.nextReviewDate || cs.next_review_date || '');
@@ -582,7 +588,7 @@ export default function InspectorDesigner() {
     setApprovedBy(cs.approvedBy || cs.approver || '');
     setQualityStandard(cs.qualityStandard || cs.standard || 'ISO 9001:2015');
     setCheckSheetStatus(cs.status || 'draft');
-    setCheckSheetName(cs.name || cs.checkSheetName || cs.title || 'Check Sheet');
+    setCheckSheetName(cs.name || cs.checkSheetName || cs.title || `${resolvedPartName || 'Inspection'} Check Sheet`);
     setCheckSheetDescription(cs.description || '');
     setWorkOrderPrefix(cs.workOrderPrefix || 'WO-2026');
     setStationId(cs.stationId || cs.station || 'ST-01');
@@ -594,27 +600,35 @@ export default function InspectorDesigner() {
     }
 
     // Resolve drawing preview & metadata
-    const preview = cs.drawingPreview || cs.drawingSvg || cs.svgData || cs.dataUrl || cs.drawingDataUrl || cs.drawingImageUrl || null;
+    let preview = cs.drawingPreview || cs.drawingSvg || cs.svgData || cs.dataUrl || cs.drawingDataUrl || cs.drawingImageUrl || null;
+    if (!preview && cs.drawingId) {
+      preview = localStorage.getItem(`mandor_drawing_image_${cs.drawingId}`) || null;
+    }
+
     if (preview) {
       setDrawingPreview(preview);
     }
 
     const dwgs = allDrawings && allDrawings.length > 0 ? allDrawings : drawingsList;
     let matchedDrawing = null;
-    if (cs.drawingId && dwgs && dwgs.length > 0) {
-      matchedDrawing = dwgs.find(d => d.id === cs.drawingId);
+    if ((cs.drawingId || resolvedDrawingNo) && dwgs && dwgs.length > 0) {
+      matchedDrawing = dwgs.find(d => (cs.drawingId && d.id === cs.drawingId) || (resolvedDrawingNo && d.code === resolvedDrawingNo));
       if (matchedDrawing) {
         setSelectedDrawing(matchedDrawing);
-        if (!preview && (matchedDrawing.svgData || matchedDrawing.dataUrl)) {
-          setDrawingPreview(matchedDrawing.svgData || matchedDrawing.dataUrl);
+        if (!preview && (matchedDrawing.svgData || matchedDrawing.dataUrl || matchedDrawing.file_url)) {
+          preview = matchedDrawing.svgData || matchedDrawing.dataUrl || matchedDrawing.file_url;
+          setDrawingPreview(preview);
         }
       }
     }
     if (!matchedDrawing && (cs.drawingId || cs.drawingName || preview)) {
       setSelectedDrawing({
         id: cs.drawingId || cs.id || 'dwg_custom',
-        name: cs.drawingName || cs.name || 'Inspection Drawing',
+        name: cs.drawingName || cs.name || resolvedPartName || 'Inspection Drawing',
+        code: resolvedDrawingNo,
         svgData: preview,
+        file_url: preview,
+        dataUrl: preview,
         fileType: 'SVG'
       });
     }
@@ -623,7 +637,12 @@ export default function InspectorDesigner() {
       setTargetTableId(cs.targetTableId);
     }
 
-    toast.success(`Check Sheet "${cs.name || cs.docNo || 'Aktif'}" berhasil dimuat ke Designer!`, { icon: '✏️' });
+    // When drawing or inspection points are loaded, switch directly to Step 3 so the inspector immediately sees the drawing and balloons
+    if (preview || (cs.checkPoints && cs.checkPoints.length > 0)) {
+      setCurrentStep(3);
+    }
+
+    toast.success(`Check Sheet "${cs.name || resolvedDrawingNo || 'Aktif'}" berhasil dimuat ke Designer!`, { icon: '✏️' });
   };
 
   // ─── Load Drawings & Checksheet on Mount ───
@@ -640,9 +659,11 @@ export default function InspectorDesigner() {
         console.warn('Could not load drawings:', err);
       }
 
+      let loadedPlm = [];
       try {
         const plmList = await getDrawingsAll();
         if (plmList && plmList.length > 0) {
+          loadedPlm = plmList;
           setPlmDrawings(plmList);
         }
       } catch (err) {
@@ -682,33 +703,64 @@ export default function InspectorDesigner() {
         setSavedTemplates(local);
       }
 
-      // ── Check if there is an active checksheet requested for edit from Checksheet Management or Drawing Management ──
-      const editTemplateJson = localStorage.getItem('mandor_inspector_active_template') || sessionStorage.getItem('mandor_inspector_active_template');
-      if (editTemplateJson) {
+      // ── Check if there is an active checksheet requested from Drawing Management or Checksheet Management ──
+      let activeCs = null;
+      // 1. High-priority in-memory object (unlimited size, instant)
+      if (typeof window !== 'undefined' && window.__mandor_inspector_active_template) {
+        activeCs = window.__mandor_inspector_active_template;
+      }
+      // 2. SessionStorage
+      if (!activeCs) {
+        const sessionJson = sessionStorage.getItem('mandor_inspector_active_template');
+        if (sessionJson) {
+          try { activeCs = JSON.parse(sessionJson); } catch { /* ignore */ }
+        }
+      }
+      // 3. LocalStorage
+      if (!activeCs) {
+        const localJson = localStorage.getItem('mandor_inspector_active_template');
+        if (localJson) {
+          try { activeCs = JSON.parse(localJson); } catch { /* ignore */ }
+        }
+      }
+
+      if (activeCs) {
         try {
-          let cs = JSON.parse(editTemplateJson);
-          // If preview was stripped for quota, recover from IndexedDB or sessionStorage
-          const hasImage = cs.drawingPreview || cs.drawingSvg || cs.drawingImageUrl || cs.svgData || cs.dataUrl || cs.drawingDataUrl;
-          if (!hasImage && cs.id && templatesLocalDB) {
+          // If preview was stripped for quota, recover from IndexedDB, sessionStorage, or local drawing image cache
+          const hasImage = activeCs.drawingPreview || activeCs.drawingSvg || activeCs.drawingImageUrl || activeCs.svgData || activeCs.dataUrl || activeCs.drawingDataUrl;
+          if (!hasImage && activeCs.id && templatesLocalDB) {
             try {
-              const fullTemplate = await templatesLocalDB.templates.get(cs.id);
-              if (fullTemplate) cs = fullTemplate;
+              const fullTemplate = await templatesLocalDB.templates.get(activeCs.id);
+              if (fullTemplate) activeCs = fullTemplate;
             } catch (e) {
               console.warn('[InspectorDesigner] Error loading full template from IndexedDB:', e);
             }
           }
-          loadChecksheetIntoDesigner(cs, loadedDrawings);
+          if (!activeCs.drawingPreview && activeCs.drawingId) {
+            const cachedImg = localStorage.getItem(`mandor_drawing_image_${activeCs.drawingId}`);
+            if (cachedImg) activeCs.drawingPreview = cachedImg;
+          }
+          loadChecksheetIntoDesigner(activeCs, loadedDrawings.length > 0 ? loadedDrawings : loadedPlm);
         } catch (err) {
-          console.warn('[InspectorDesigner] Failed to parse mandor_inspector_active_template', err);
+          console.warn('[InspectorDesigner] Failed to parse active checksheet template', err);
         }
       } else {
-        // Check URL query parameters (e.g. ?edit=... or ?id=...)
+        // Check URL query parameters (e.g. ?edit=... or ?id=... or ?fromDrawing=true&code=...)
         const urlParams = new URLSearchParams(window.location.hash.includes('?') ? window.location.hash.split('?')[1] : window.location.search);
         const editId = urlParams.get('edit') || urlParams.get('id') || urlParams.get('docNo');
+        const dwgCode = urlParams.get('code');
+        const dwgId = urlParams.get('dwgId');
+
         if (editId && allTemplates.length > 0) {
           const found = allTemplates.find(t => t.id === editId || t.docNo === editId || t.name === editId);
           if (found) {
             loadChecksheetIntoDesigner(found, loadedDrawings);
+          }
+        } else if (dwgCode || dwgId) {
+          const pool = [...loadedDrawings, ...loadedPlm];
+          const matched = pool.find(d => (dwgId && d.id === dwgId) || (dwgCode && d.code === dwgCode));
+          if (matched) {
+            handleSelectPlmDrawing(matched);
           }
         }
       }
@@ -894,12 +946,21 @@ export default function InspectorDesigner() {
   // ─── AI / CAD Feature High-Precision Auto-Ballooning Dimension Extractor ───
   const handleOpenAutoBalloonStudio = useCallback(async () => {
     setIsExtractingCAD(true);
-    setExtractionStatusText('🔍 Membaca geometri drawing PDF...');
-    const loadingToastId = toast.loading('Memulai Engine Auto-Ballooning Dimensi CAD & PDF...', { id: 'autoballoon-toast' });
+    setExtractionStatusText('🔍 Membaca geometri drawing CAD & PDF...');
+    toast.loading('Memulai Engine Auto-Ballooning Dimensi CAD & PDF...', { id: 'autoballoon-toast' });
 
     try {
-      // Determine best drawing source available
-      const drawingSource = selectedDrawing?.pdfData || selectedDrawing?.dataUrl || selectedDrawing?.svgData || drawingPreview || null;
+      // Determine best drawing source available (prioritize raw PDF data for vector accuracy)
+      let drawingSource = null;
+      if (selectedDrawing?.pdfData) {
+        drawingSource = selectedDrawing.pdfData;
+      } else if (typeof selectedDrawing?.file_url === 'string' && (selectedDrawing.file_url.toLowerCase().includes('.pdf') || selectedDrawing.file_url.startsWith('data:application/pdf'))) {
+        drawingSource = selectedDrawing.file_url;
+      } else if (selectedDrawing?.svgData && typeof selectedDrawing.svgData === 'string' && (selectedDrawing.svgData.includes('<svg') || selectedDrawing.svgData.startsWith('data:image/svg+xml'))) {
+        drawingSource = selectedDrawing.svgData;
+      } else {
+        drawingSource = selectedDrawing?.dataUrl || selectedDrawing?.file_url || drawingPreview || null;
+      }
 
       const result = await extractBlueprintDimensions(
         drawingSource,
@@ -908,7 +969,8 @@ export default function InspectorDesigner() {
           sortStrategy: autoBalloonSortStrategy,
           canvasWidth: 1000,
           canvasHeight: 700,
-          rasterImageDataUrl: drawingPreview || selectedDrawing?.dataUrl || null
+          rasterImageDataUrl: drawingPreview || selectedDrawing?.dataUrl || null,
+          drawingMetadata: selectedDrawing || null
         },
         (statusUpdate) => {
           if (statusUpdate.message) {
@@ -945,16 +1007,27 @@ export default function InspectorDesigner() {
         return aCrit - bCrit;
       });
     } else if (autoBalloonSortStrategy === 'clockwise') {
-      const centerX = 350;
-      const centerY = 280;
+      const centerX = 500;
+      const centerY = 350;
       finalPoints.sort((a, b) => {
-        const angleA = Math.atan2(a.y - centerY, a.x - centerX);
-        const angleB = Math.atan2(b.y - centerY, b.x - centerX);
+        const yA = a.targetY !== undefined ? a.targetY : a.y;
+        const yB = b.targetY !== undefined ? b.targetY : b.y;
+        const xA = a.targetX !== undefined ? a.targetX : a.x;
+        const xB = b.targetX !== undefined ? b.targetX : b.x;
+        const angleA = Math.atan2(yA - centerY, xA - centerX);
+        const angleB = Math.atan2(yB - centerY, xB - centerX);
         return angleA - angleB;
       });
     } else {
-      // Spatial Flow (Top to Bottom, Left to Right)
-      finalPoints.sort((a, b) => a.y - b.y || a.x - b.x);
+      // Spatial Flow (Top to Bottom by rows, Left to Right)
+      finalPoints.sort((a, b) => {
+        const yA = a.targetY !== undefined ? a.targetY : a.y;
+        const yB = b.targetY !== undefined ? b.targetY : b.y;
+        const xA = a.targetX !== undefined ? a.targetX : a.x;
+        const xB = b.targetX !== undefined ? b.targetX : b.x;
+        if (Math.abs(yA - yB) > 35) return yA - yB;
+        return xA - xB;
+      });
     }
 
     // Re-index point numbers sequentially
@@ -1539,14 +1612,99 @@ export default function InspectorDesigner() {
     }
   };
 
-  // ─── Pin Mouse Down Handler (Drag Start) ───
+  // ─── Pin Mouse Down Handler (Drag Balloon Body) ───
   const handlePinMouseDown = (e, pointId) => {
     e.stopPropagation();
     e.preventDefault();
     setActivePointId(pointId);
     setIsDragging(true);
     setDraggedPointId(pointId);
+    const mode = e.shiftKey ? 'both' : 'balloon';
+    setDragMode(mode);
+
+    const pt = checkPoints.find(p => p.id === pointId);
+    if (pt) {
+      const coords = getCanvasCoords(e.clientX, e.clientY);
+      dragStartRef.current = {
+        startX: coords.x,
+        startY: coords.y,
+        ptX: pt.x,
+        ptY: pt.y,
+        targetX: pt.targetX !== undefined ? pt.targetX : pt.x,
+        targetY: pt.targetY !== undefined ? pt.targetY : pt.y
+      };
+    }
   };
+
+  // ─── Target Pointer Mouse Down Handler (Drag Leader Line Pointer Arrow) ───
+  const handleTargetMouseDown = (e, pointId) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setActivePointId(pointId);
+    setIsDragging(true);
+    setDraggedPointId(pointId);
+    setDragMode('target');
+
+    const pt = checkPoints.find(p => p.id === pointId);
+    if (pt) {
+      const coords = getCanvasCoords(e.clientX, e.clientY);
+      dragStartRef.current = {
+        startX: coords.x,
+        startY: coords.y,
+        ptX: pt.x,
+        ptY: pt.y,
+        targetX: pt.targetX !== undefined ? pt.targetX : pt.x,
+        targetY: pt.targetY !== undefined ? pt.targetY : pt.y
+      };
+    }
+  };
+
+  // ─── Micro-Nudge Active Point (X / Y Precision Adjustment) ───
+  const handleNudgeActivePoint = useCallback((dx, dy, moveTarget = false) => {
+    if (!activePointId) return;
+    setCheckPoints(prev => prev.map(p => {
+      if (p.id !== activePointId) return p;
+      if (moveTarget) {
+        const curTargetX = p.targetX !== undefined ? p.targetX : p.x;
+        const curTargetY = p.targetY !== undefined ? p.targetY : p.y;
+        const newTargetX = Math.max(5, Math.min(995, curTargetX + dx));
+        const newTargetY = Math.max(5, Math.min(695, curTargetY + dy));
+        return { ...p, targetX: newTargetX, targetY: newTargetY, zone: calculateDrawingZone(newTargetX, newTargetY, 980, 680) };
+      } else {
+        const newX = Math.max(5, Math.min(995, p.x + dx));
+        const newY = Math.max(5, Math.min(695, p.y + dy));
+        return { ...p, x: newX, y: newY };
+      }
+    }));
+  }, [activePointId]);
+
+  // ─── Keyboard Arrow Nudge Listener for Active Point ───
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!activePointId) return;
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
+
+      const step = e.shiftKey ? 10 : 2;
+      const isAlt = e.altKey;
+
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handleNudgeActivePoint(-step, 0, isAlt);
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        handleNudgeActivePoint(step, 0, isAlt);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        handleNudgeActivePoint(0, -step, isAlt);
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        handleNudgeActivePoint(0, step, isAlt);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activePointId, handleNudgeActivePoint]);
 
   // ─── Canvas Mouse Down Handler (Pan or Add Pin) ───
   const handleCanvasMouseDown = (e) => {
@@ -1586,12 +1744,7 @@ export default function InspectorDesigner() {
 
   // ─── Mouse Move and Mouse Up Handlers ───
   const handleCanvasMouseMove = (e) => {
-    if (isDragging && draggedPointId) {
-      const coords = getCanvasCoords(e.clientX, e.clientY);
-      setCheckPoints(prev => prev.map(p => 
-        p.id === draggedPointId ? { ...p, x: coords.x, y: coords.y } : p
-      ));
-    } else if (isPanning) {
+    if (isPanning) {
       setPan({ x: e.clientX - panStart.x, y: e.clientY - panStart.y });
     }
   };
@@ -1611,9 +1764,45 @@ export default function InspectorDesigner() {
     const handleWindowMouseMove = (e) => {
       if (isDragging && draggedPointId) {
         const coords = getCanvasCoords(e.clientX, e.clientY);
-        setCheckPoints(prev => prev.map(p => 
-          p.id === draggedPointId ? { ...p, x: coords.x, y: coords.y } : p
-        ));
+        setCheckPoints(prev => prev.map(p => {
+          if (p.id !== draggedPointId) return p;
+
+          if (dragMode === 'target') {
+            return {
+              ...p,
+              targetX: coords.x,
+              targetY: coords.y,
+              zone: calculateDrawingZone(coords.x, coords.y, 980, 680)
+            };
+          } else if (dragMode === 'both') {
+            const dx = coords.x - dragStartRef.current.startX;
+            const dy = coords.y - dragStartRef.current.startY;
+            const newX = Math.max(10, Math.min(990, dragStartRef.current.ptX + dx));
+            const newY = Math.max(10, Math.min(690, dragStartRef.current.ptY + dy));
+            const newTargetX = Math.max(10, Math.min(990, dragStartRef.current.targetX + dx));
+            const newTargetY = Math.max(10, Math.min(690, dragStartRef.current.targetY + dy));
+            return {
+              ...p,
+              x: newX,
+              y: newY,
+              targetX: newTargetX,
+              targetY: newTargetY,
+              zone: calculateDrawingZone(newTargetX, newTargetY, 980, 680)
+            };
+          } else {
+            // Default: move balloon body
+            const curTargetX = p.targetX !== undefined ? p.targetX : p.x;
+            const curTargetY = p.targetY !== undefined ? p.targetY : p.y;
+            return {
+              ...p,
+              x: coords.x,
+              y: coords.y,
+              targetX: curTargetX,
+              targetY: curTargetY,
+              zone: calculateDrawingZone(curTargetX, curTargetY, 980, 680)
+            };
+          }
+        }));
       } else if (isPanning) {
         setPan({ x: e.clientX - panStart.x, y: e.clientY - panStart.y });
       }
@@ -1637,7 +1826,7 @@ export default function InspectorDesigner() {
       window.removeEventListener('mousemove', handleWindowMouseMove);
       window.removeEventListener('mouseup', handleWindowMouseUp);
     };
-  }, [isDragging, isPanning, draggedPointId, panStart, zoom]);
+  }, [isDragging, isPanning, draggedPointId, dragMode, panStart, zoom]);
   
   // ─── Save Check Sheet Template ───
   const handleSaveTemplate = async () => {
@@ -4940,34 +5129,13 @@ export default function InspectorDesigner() {
               ref={canvasContentRef}
               onDoubleClick={handleCanvasDoubleClick}
               onMouseMove={(e) => {
-                if (isDragging && draggedPointId) {
-                  const coords = getCanvasCoords(e.clientX, e.clientY);
-                  setCheckPoints(prev => prev.map(pt => {
-                    if (pt.id === draggedPointId) {
-                      const targetX = pt.targetX !== undefined ? pt.targetX : pt.x;
-                      const targetY = pt.targetY !== undefined ? pt.targetY : pt.y;
-                      const zone = calculateDrawingZone(coords.x, coords.y, 980, 680);
-                      return { ...pt, x: coords.x, y: coords.y, targetX, targetY, zone };
-                    }
-                    return pt;
-                  }));
-                } else if (isAddPinMode) {
+                if (isAddPinMode) {
                   const coords = getCanvasCoords(e.clientX, e.clientY);
                   setHoverCoords(coords);
                 }
               }}
-              onMouseUp={() => {
-                if (isDragging) {
-                  setIsDragging(false);
-                  setDraggedPointId(null);
-                }
-              }}
               onMouseLeave={() => {
                 if (hoverCoords) setHoverCoords(null);
-                if (isDragging) {
-                  setIsDragging(false);
-                  setDraggedPointId(null);
-                }
               }}
               onClick={(e) => {
                 if (isAddPinMode) {
@@ -5012,13 +5180,43 @@ export default function InspectorDesigner() {
                 <rect width="100%" height="100%" fill="url(#grid)" />
               </svg>
               
-              {/* Drawing Preview */}
-              {drawingPreview && (
-                <div
-                  style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-                  dangerouslySetInnerHTML={{ __html: drawingPreview }}
+              {/* Drawing Preview Layer (Supports SVG string, Image URL, Blob, and Base64 Data URL) */}
+              {drawingPreview ? (
+                typeof drawingPreview === 'string' && (drawingPreview.trim().startsWith('<svg') || drawingPreview.trim().startsWith('<?xml')) ? (
+                  <div
+                    style={{ position: 'absolute', inset: 0, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    dangerouslySetInnerHTML={{ __html: drawingPreview }}
+                  />
+                ) : (
+                  <img
+                    src={drawingPreview}
+                    alt={selectedDrawing?.name || 'Blueprint Drawing'}
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain',
+                      pointerEvents: 'none',
+                      userSelect: 'none'
+                    }}
+                  />
+                )
+              ) : (selectedDrawing?.dataUrl || selectedDrawing?.svgData || selectedDrawing?.file_url) ? (
+                <img
+                  src={selectedDrawing.dataUrl || selectedDrawing.svgData || selectedDrawing.file_url}
+                  alt={selectedDrawing?.name || 'Blueprint Drawing'}
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                    pointerEvents: 'none',
+                    userSelect: 'none'
+                  }}
                 />
-              )}
+              ) : null}
 
               {/* ─── REAL-TIME PRECISION RED LASER CROSSHAIR & TARGET RETICLE OVERLAY ─── */}
               {isAddPinMode && hoverCoords && (
@@ -5145,17 +5343,37 @@ export default function InspectorDesigner() {
                       zIndex: 50,
                       pointerEvents: 'none'
                     }}>
-                      <div
-                        style={{
-                          position: 'absolute',
-                          left: `${-hoverCoords.x * 2.5 + 52}px`,
-                          top: `${-hoverCoords.y * 2.5 + 52}px`,
-                          transform: 'scale(2.5)',
-                          transformOrigin: '0 0',
-                          pointerEvents: 'none'
-                        }}
-                        dangerouslySetInnerHTML={{ __html: drawingPreview }}
-                      />
+                      {typeof drawingPreview === 'string' && (drawingPreview.trim().startsWith('<svg') || drawingPreview.trim().startsWith('<?xml')) ? (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            left: `${-hoverCoords.x * 2.5 + 52}px`,
+                            top: `${-hoverCoords.y * 2.5 + 52}px`,
+                            transform: 'scale(2.5)',
+                            transformOrigin: '0 0',
+                            pointerEvents: 'none'
+                          }}
+                          dangerouslySetInnerHTML={{ __html: drawingPreview }}
+                        />
+                      ) : (
+                        <img
+                          src={drawingPreview}
+                          alt="Loupe Zoom"
+                          style={{
+                            position: 'absolute',
+                            left: `${-hoverCoords.x * 2.5 + 52}px`,
+                            top: `${-hoverCoords.y * 2.5 + 52}px`,
+                            width: '1000px',
+                            height: '700px',
+                            maxWidth: 'none',
+                            maxHeight: 'none',
+                            transform: 'scale(2.5)',
+                            transformOrigin: '0 0',
+                            pointerEvents: 'none',
+                            objectFit: 'contain'
+                          }}
+                        />
+                      )}
                       {/* Loupe Laser Reticle */}
                       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <div style={{ width: '100%', height: '1.5px', backgroundColor: 'rgba(255, 0, 85, 0.8)' }} />
@@ -5176,26 +5394,86 @@ export default function InspectorDesigner() {
                   </marker>
                 </defs>
                 {checkPoints.map(pt => {
-                  if (pt.targetX !== undefined && pt.targetY !== undefined && (Math.abs(pt.targetX - pt.x) > 10 || Math.abs(pt.targetY - pt.y) > 10)) {
+                  const targetX = pt.targetX !== undefined ? pt.targetX : pt.x;
+                  const targetY = pt.targetY !== undefined ? pt.targetY : pt.y;
+                  if (Math.abs(targetX - pt.x) > 6 || Math.abs(targetY - pt.y) > 6) {
                     return (
                       <g key={`leader_${pt.id}`}>
                         <line
                           x1={pt.x}
                           y1={pt.y}
-                          x2={pt.targetX}
-                          y2={pt.targetY}
+                          x2={targetX}
+                          y2={targetY}
                           stroke={pt.criticality?.includes('Critical') ? '#dc2626' : '#0284c7'}
                           strokeWidth="2"
                           strokeDasharray="4 3"
                           markerEnd="url(#leader-arrow)"
                         />
-                        <circle cx={pt.targetX} cy={pt.targetY} r="4" fill="#ff0055" stroke="#ffffff" strokeWidth="1.5" />
                       </g>
                     );
                   }
                   return null;
                 })}
               </svg>
+
+              {/* ─── INTERACTIVE TARGET POINTER HANDLES LAYER (Drag & Move Pointer) ─── */}
+              {checkPoints.map(pt => {
+                const targetX = pt.targetX !== undefined ? pt.targetX : pt.x;
+                const targetY = pt.targetY !== undefined ? pt.targetY : pt.y;
+                const isActive = pt.id === activePointId;
+                const isTargetDragged = isDragging && draggedPointId === pt.id && dragMode === 'target';
+
+                return (
+                  <div
+                    key={`target_handle_${pt.id}`}
+                    onMouseDown={(e) => handleTargetMouseDown(e, pt.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActivePointId(pt.id);
+                    }}
+                    title={`🎯 Target Ukur #${pt.pointNumber} (${targetX}, ${targetY}) — Klik & Tarik untuk memindahkan pointer ukur ke fitur drawing`}
+                    style={{
+                      position: 'absolute',
+                      left: `${targetX}px`,
+                      top: `${targetY}px`,
+                      width: '28px',
+                      height: '28px',
+                      transform: 'translate(-50%, -50%)',
+                      cursor: isTargetDragged ? 'grabbing' : 'crosshair',
+                      zIndex: isActive ? 26 : 14,
+                      userSelect: 'none',
+                      touchAction: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    {/* Pulsing Target Ring */}
+                    <div style={{
+                      position: 'absolute',
+                      width: isActive ? '18px' : '14px',
+                      height: isActive ? '18px' : '14px',
+                      borderRadius: '50%',
+                      border: '1.5px dashed #ff0055',
+                      opacity: isActive ? 0.9 : 0.45,
+                      pointerEvents: 'none',
+                      boxShadow: isActive ? '0 0 10px rgba(255, 0, 85, 0.6)' : 'none'
+                    }} />
+                    {/* Precision Center Target Dot */}
+                    <div style={{
+                      width: isActive ? '9px' : '7px',
+                      height: isActive ? '9px' : '7px',
+                      borderRadius: '50%',
+                      backgroundColor: '#ff0055',
+                      border: '1.5px solid #ffffff',
+                      boxShadow: '0 0 8px rgba(255,0,85,0.9)',
+                      transform: isTargetDragged ? 'scale(1.4)' : 'scale(1)',
+                      transition: 'transform 0.1s ease',
+                      pointerEvents: 'none'
+                    }} />
+                  </div>
+                );
+              })}
               
               {/* Check Point Pins (with Geometrical QC Shapes) */}
               {checkPoints.map(point => {
@@ -6024,6 +6302,140 @@ export default function InspectorDesigner() {
                 />
               </div>
               
+              {/* ─── 7. MANUAL COORDINATES & NUDGE CONTROLS ─── */}
+              <div style={{
+                backgroundColor: '#090d16',
+                border: '1.5px solid #0284c7',
+                borderRadius: '8px',
+                padding: '10px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    📍 Posisi Balon & Pointer Target
+                  </span>
+                  <span style={{ fontSize: '0.6rem', color: '#a7f3d0', backgroundColor: '#064e3b', padding: '1px 5px', borderRadius: '3px', fontWeight: 800 }}>
+                    Zone: {activePoint.zone || calculateDrawingZone(activePoint.x, activePoint.y, 980, 680)}
+                  </span>
+                </div>
+
+                {/* Coordinate Inputs: Balloon (X, Y) vs Target Pointer (X, Y) */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '0.68rem' }}>
+                  {/* Balloon Pin Position */}
+                  <div style={{ backgroundColor: '#1e293b', padding: '6px 8px', borderRadius: '6px', border: '1px solid #334155' }}>
+                    <span style={{ color: '#cbd5e1', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
+                      🎈 Posisi Balon:
+                    </span>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      <div style={{ flex: 1 }}>
+                        <span style={{ fontSize: '0.55rem', color: '#94a3b8' }}>X:</span>
+                        <input
+                          type="number"
+                          value={Math.round(activePoint.x || 0)}
+                          onChange={e => handleUpdatePoint('x', parseInt(e.target.value) || 0)}
+                          style={{ width: '100%', padding: '3px 4px', backgroundColor: '#0f172a', border: '1px solid #475569', color: 'white', borderRadius: '3px', textAlign: 'center', fontSize: '0.72rem' }}
+                        />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <span style={{ fontSize: '0.55rem', color: '#94a3b8' }}>Y:</span>
+                        <input
+                          type="number"
+                          value={Math.round(activePoint.y || 0)}
+                          onChange={e => handleUpdatePoint('y', parseInt(e.target.value) || 0)}
+                          style={{ width: '100%', padding: '3px 4px', backgroundColor: '#0f172a', border: '1px solid #475569', color: 'white', borderRadius: '3px', textAlign: 'center', fontSize: '0.72rem' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Target Pointer Position */}
+                  <div style={{ backgroundColor: '#1e293b', padding: '6px 8px', borderRadius: '6px', border: '1px solid #ff0055' }}>
+                    <span style={{ color: '#ff2a5f', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
+                      🎯 Pointer Ukur:
+                    </span>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      <div style={{ flex: 1 }}>
+                        <span style={{ fontSize: '0.55rem', color: '#94a3b8' }}>X:</span>
+                        <input
+                          type="number"
+                          value={Math.round(activePoint.targetX !== undefined ? activePoint.targetX : activePoint.x)}
+                          onChange={e => handleUpdatePoint('targetX', parseInt(e.target.value) || 0)}
+                          style={{ width: '100%', padding: '3px 4px', backgroundColor: '#0f172a', border: '1px solid #ff0055', color: '#ff2a5f', borderRadius: '3px', textAlign: 'center', fontSize: '0.72rem', fontWeight: 700 }}
+                        />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <span style={{ fontSize: '0.55rem', color: '#94a3b8' }}>Y:</span>
+                        <input
+                          type="number"
+                          value={Math.round(activePoint.targetY !== undefined ? activePoint.targetY : activePoint.y)}
+                          onChange={e => handleUpdatePoint('targetY', parseInt(e.target.value) || 0)}
+                          style={{ width: '100%', padding: '3px 4px', backgroundColor: '#0f172a', border: '1px solid #ff0055', color: '#ff2a5f', borderRadius: '3px', textAlign: 'center', fontSize: '0.72rem', fontWeight: 700 }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Nudge Buttons (Balon & Pointer) */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '2px' }}>
+                  <span style={{ fontSize: '0.62rem', color: '#94a3b8' }}>Geser Balon (5px):</span>
+                  <div style={{ display: 'flex', gap: '3px' }}>
+                    <button
+                      onClick={() => handleNudgeActivePoint(-5, 0)}
+                      style={{ padding: '3px 7px', backgroundColor: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '0.68rem', fontWeight: 700 }}
+                      title="Geser Kiri (←)"
+                    >←</button>
+                    <button
+                      onClick={() => handleNudgeActivePoint(0, -5)}
+                      style={{ padding: '3px 7px', backgroundColor: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '0.68rem', fontWeight: 700 }}
+                      title="Geser Atas (↑)"
+                    >↑</button>
+                    <button
+                      onClick={() => handleNudgeActivePoint(0, 5)}
+                      style={{ padding: '3px 7px', backgroundColor: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '0.68rem', fontWeight: 700 }}
+                      title="Geser Bawah (↓)"
+                    >↓</button>
+                    <button
+                      onClick={() => handleNudgeActivePoint(5, 0)}
+                      style={{ padding: '3px 7px', backgroundColor: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '0.68rem', fontWeight: 700 }}
+                      title="Geser Kanan (→)"
+                    >→</button>
+                  </div>
+                </div>
+
+                {/* Reset Leader Alignment Button */}
+                <button
+                  onClick={() => {
+                    handleUpdatePoint('targetX', activePoint.x);
+                    handleUpdatePoint('targetY', activePoint.y);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '5px',
+                    backgroundColor: '#1e293b',
+                    color: '#94a3b8',
+                    border: '1px dashed #475569',
+                    borderRadius: '4px',
+                    fontSize: '0.62rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px'
+                  }}
+                  title="Sejajarkan balon dengan titik target pointer"
+                >
+                  🔗 Reset Leader Line (Tempatkan Balon Langsung di Titik Ukur)
+                </button>
+
+                <div style={{ fontSize: '0.58rem', color: '#64748b', fontStyle: 'italic', lineHeight: 1.3 }}>
+                  💡 <strong>Tips Geser Bebas:</strong> Anda dapat klik & drag balon langsung di gambar canvas. Klik-tarik titik pink untuk mengarahkan panah pointer. Tahan <strong>Shift</strong> saat drag untuk memindahkan balon dan target bersamaan.
+                </div>
+              </div>
+
               {/* Actions */}
               <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
                 <button
@@ -7177,11 +7589,11 @@ export default function InspectorDesigner() {
                       fontWeight: 800,
                       padding: '2px 8px',
                       borderRadius: '6px',
-                      backgroundColor: detectedPdfTypeInfo === 'VECTOR_PDF' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
-                      color: detectedPdfTypeInfo === 'VECTOR_PDF' ? '#34d399' : '#fbbf24',
-                      border: `1px solid ${detectedPdfTypeInfo === 'VECTOR_PDF' ? '#059669' : '#d97706'}`
+                      backgroundColor: (detectedPdfTypeInfo === 'VECTOR_PDF' || detectedPdfTypeInfo === 'VECTOR_SVG' || detectedPdfTypeInfo === 'VECTOR_CAD') ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                      color: (detectedPdfTypeInfo === 'VECTOR_PDF' || detectedPdfTypeInfo === 'VECTOR_SVG' || detectedPdfTypeInfo === 'VECTOR_CAD') ? '#34d399' : '#fbbf24',
+                      border: `1px solid ${(detectedPdfTypeInfo === 'VECTOR_PDF' || detectedPdfTypeInfo === 'VECTOR_SVG' || detectedPdfTypeInfo === 'VECTOR_CAD') ? '#059669' : '#d97706'}`
                     }}>
-                      {detectedPdfTypeInfo === 'VECTOR_PDF' ? '⚡ VECTOR PDF (Native Streams)' : '🔬 SCANNED PDF (OCR Vision)'}
+                      {(detectedPdfTypeInfo === 'VECTOR_PDF' || detectedPdfTypeInfo === 'VECTOR_SVG' || detectedPdfTypeInfo === 'VECTOR_CAD') ? '⚡ VECTOR CAD (Native Streams)' : '🔬 SCANNED PDF (OCR Vision)'}
                     </span>
                   </div>
                   <p style={{ margin: 0, fontSize: '0.74rem', color: '#c4b5fd' }}>

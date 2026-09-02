@@ -1521,16 +1521,35 @@ export default function DrawingManagement() {
       return;
     }
     const revCode = selectedRevision?.revision_code || selectedDrawing.revision || selectedDrawing.revision_code || 'A';
-    const effectiveImage = blueprintImage || selectedDrawing.file_url || selectedDrawing.thumbnail_url || null;
+    const cachedImage = localStorage.getItem(`mandor_drawing_image_${selectedDrawing.id}`);
+    const effectiveImage = blueprintImage || selectedRevision?.file_url || selectedDrawing.file_url || selectedDrawing.thumbnail_url || cachedImage || null;
+
+    // Resolve part information from selectedPart, parts array, or drawing metadata
+    let currentPart = selectedPart;
+    if (!currentPart && selectedDrawing.metadata?.part_id) {
+      try {
+        currentPart = await getPart(selectedDrawing.metadata.part_id);
+      } catch (e) {
+        console.warn('[DrawingManagement] getPart failed:', e);
+      }
+    }
+    if (!currentPart && parts && parts.length > 0) {
+      currentPart = parts.find(p => p.code === selectedDrawing.code || p.name === selectedDrawing.name || p.id === selectedDrawing.metadata?.part_id);
+    }
+
+    const resolvedPartNo = currentPart?.code || selectedDrawing.part_number || selectedDrawing.part_no || selectedDrawing.code || '';
+    const resolvedPartName = currentPart?.name || selectedDrawing.part_name || selectedDrawing.name || '';
+    const resolvedDrawingNo = selectedDrawing.code || selectedDrawing.drawing_no || `DWG-${selectedDrawing.id || Date.now()}`;
 
     const templateData = {
       id: `insp_${Date.now()}`,
       name: `${selectedDrawing.name || 'Drawing'} (Rev ${revCode})`,
-      docNo: selectedDrawing.code || `DWG-${Date.now()}`,
-      partNo: selectedPart?.code || selectedDrawing.code || '',
-      partName: selectedPart?.name || selectedDrawing.name || '',
+      docNo: resolvedDrawingNo,
+      drawingNo: resolvedDrawingNo,
+      partNo: resolvedPartNo,
+      partName: resolvedPartName,
       revisionNo: revCode,
-      drawingFileName: selectedDrawing.file_name || `${selectedDrawing.code || 'drawing'}.png`,
+      drawingFileName: selectedDrawing.file_name || `${resolvedDrawingNo}.png`,
       drawingImageUrl: effectiveImage,
       drawingPreview: effectiveImage,
       drawingSvg: effectiveImage,
@@ -1555,6 +1574,13 @@ export default function DrawingManagement() {
       })) : []
     };
 
+    // 0. High-Priority In-Memory Transfer (instant, 0ms latency, zero quota limitation)
+    if (typeof window !== 'undefined') {
+      window.__mandor_inspector_active_template = templateData;
+      window.__mandor_active_checksheet = templateData;
+      window.__mandor_active_drawing_svg = effectiveImage;
+    }
+
     // 1. Save to IndexedDB (No Quota Limit)
     try {
       if (templatesLocalDB) {
@@ -1567,6 +1593,7 @@ export default function DrawingManagement() {
     // 2. Save to sessionStorage
     try {
       sessionStorage.setItem('mandor_inspector_active_template', JSON.stringify(templateData));
+      sessionStorage.setItem('mandor_published_checksheet', JSON.stringify(templateData));
     } catch (sErr) {
       console.warn('[DrawingManagement] sessionStorage warning:', sErr);
     }
@@ -1574,6 +1601,7 @@ export default function DrawingManagement() {
     // 3. Save to localStorage (with quota fallback)
     try {
       localStorage.setItem('mandor_inspector_active_template', JSON.stringify(templateData));
+      localStorage.setItem('mandor_published_checksheet', JSON.stringify(templateData));
     } catch (lsErr) {
       console.warn('[DrawingManagement] LocalStorage quota reached, saving lightweight metadata:', lsErr);
       try {
@@ -1587,13 +1615,14 @@ export default function DrawingManagement() {
           dataUrl: null
         };
         localStorage.setItem('mandor_inspector_active_template', JSON.stringify(lightweight));
+        localStorage.setItem('mandor_published_checksheet', JSON.stringify(lightweight));
       } catch (e) {
         console.warn('[DrawingManagement] LocalStorage metadata fallback warning:', e);
       }
     }
 
-    toast.success('Membuka Inspector Designer Studio dengan blueprint ini...');
-    navigate('/inspector-designer');
+    toast.success(`Memuat Drawing ${resolvedDrawingNo} ke Inspector Studio...`);
+    navigate(`/inspector-designer?fromDrawing=true&dwgId=${encodeURIComponent(selectedDrawing.id || '')}&code=${encodeURIComponent(resolvedDrawingNo)}`);
   };
 
   const getTypeConfig = (type) => DRAWING_TYPES.find(t => t.key === type) || DRAWING_TYPES[0];
@@ -2075,6 +2104,11 @@ export default function DrawingManagement() {
                       <div className="space-y-4">
                         {connectedCheckSheets.map((cs, index) => {
                           const pts = cs.checkPoints || cs.points || [];
+                          const cachedImage = selectedDrawing ? localStorage.getItem(`mandor_drawing_image_${selectedDrawing.id}`) : null;
+                          const effectiveImage = blueprintImage || selectedRevision?.file_url || selectedDrawing?.file_url || selectedDrawing?.thumbnail_url || cachedImage || null;
+                          const resolvedPartNo = cs.partNo || selectedPart?.code || selectedDrawing?.code || '';
+                          const resolvedPartName = cs.partName || selectedPart?.name || selectedDrawing?.name || '';
+                          const resolvedDrawingNo = cs.drawingNo || cs.docNo || selectedDrawing?.code || '';
                           return (
                             <div
                               key={cs.id || index}
@@ -2098,14 +2132,48 @@ export default function DrawingManagement() {
 
                                 <div className="flex items-center gap-2">
                                   <button
-                                    onClick={() => navigate(`/inspector-designer?edit=${encodeURIComponent(cs.id || cs.docNo || '')}`)}
+                                    onClick={() => {
+                                      const fullCs = {
+                                        ...cs,
+                                        drawingPreview: cs.drawingPreview || cs.drawingSvg || effectiveImage,
+                                        drawingSvg: cs.drawingSvg || cs.drawingPreview || effectiveImage,
+                                        partNo: cs.partNo || resolvedPartNo,
+                                        partName: cs.partName || resolvedPartName,
+                                        drawingNo: cs.drawingNo || resolvedDrawingNo,
+                                        docNo: cs.docNo || resolvedDrawingNo
+                                      };
+                                      if (typeof window !== 'undefined') {
+                                        window.__mandor_inspector_active_template = fullCs;
+                                        window.__mandor_active_checksheet = fullCs;
+                                        window.__mandor_active_drawing_svg = fullCs.drawingPreview;
+                                      }
+                                      sessionStorage.setItem('mandor_inspector_active_template', JSON.stringify(fullCs));
+                                      navigate(`/inspector-designer?edit=${encodeURIComponent(cs.id || cs.docNo || '')}`);
+                                    }}
                                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold bg-[#714B67] hover:bg-[#5C3D54] text-white shadow-xs transition-all cursor-pointer"
                                     title="Buka & Edit Check Sheet di Inspector Designer Studio"
                                   >
                                     <Edit3 size={13} /> Edit di Inspector Studio
                                   </button>
                                   <button
-                                    onClick={() => navigate(`/drawing-checksheet?fromDrawing=true&code=${encodeURIComponent(selectedDrawing.code)}`)}
+                                    onClick={() => {
+                                      const fullCs = {
+                                        ...cs,
+                                        drawingPreview: cs.drawingPreview || cs.drawingSvg || effectiveImage,
+                                        drawingSvg: cs.drawingSvg || cs.drawingPreview || effectiveImage,
+                                        partNo: cs.partNo || resolvedPartNo,
+                                        partName: cs.partName || resolvedPartName,
+                                        drawingNo: cs.drawingNo || resolvedDrawingNo,
+                                        docNo: cs.docNo || resolvedDrawingNo
+                                      };
+                                      if (typeof window !== 'undefined') {
+                                        window.__mandor_active_checksheet = fullCs;
+                                        window.__mandor_active_drawing_svg = fullCs.drawingPreview;
+                                      }
+                                      sessionStorage.setItem('mandor_published_checksheet', JSON.stringify(fullCs));
+                                      localStorage.setItem('mandor_published_checksheet', JSON.stringify(fullCs));
+                                      navigate(`/drawing-checksheet?fromDrawing=true&code=${encodeURIComponent(selectedDrawing.code)}&partNo=${encodeURIComponent(resolvedPartNo)}`);
+                                    }}
                                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all cursor-pointer"
                                     title="Mulai Live Inspection Player"
                                   >
