@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   FileCode,
   Search,
+  Camera,
   ZoomIn,
   ZoomOut,
   Maximize2,
@@ -93,8 +94,11 @@ import {
   EnvironmentSettingsModal
 } from './checksheet/ISOComplianceModals';
 import CalibrationManagerModal from './checksheet/CalibrationManagerModal';
+import VisualInspectionModal from './checksheet/VisualInspectionModal';
+import OperatorDigitalSignatureModal from './checksheet/OperatorDigitalSignatureModal';
 import { TOOL_DEFINITIONS, detectMeasuringToolType, getCalibrationStatus } from '../utils/metrologyToolUtils';
 import { getLimitSamples } from '../utils/mavicorePLM';
+import { createDemoLimitSampleSvgs } from '../utils/limitSampleUtils';
 
 // ─── BALLOON CATEGORY & QC COLOR PALETTE (SYNCED WITH INSPECTOR STUDIO) ───
 const getCategoryColor = (category) => {
@@ -660,6 +664,12 @@ export default function DigitalDrawingCheckSheet() {
     }
     return 'cp_1';
   });
+
+  // Active check point helper
+  const activePt = useMemo(() => {
+    return checkPoints.find(p => p.id === activePointId) || checkPoints[0];
+  }, [checkPoints, activePointId]);
+
   const [activeTab, setActiveTab] = useState('Check'); // Check (Focus) is default
   const [filterCriticality, setFilterCriticality] = useState('ALL');
 
@@ -732,10 +742,110 @@ export default function DigitalDrawingCheckSheet() {
   });
   const [showDozukiModal, setShowDozukiModal] = useState(false);
 
-  // ─── Limit Sample (Sampel Batas Mutu) Integration ───
+  // ─── Limit Sample (Sampel Batas Mutu) Integration & Online Camera ───
   const [showLimitSampleModal, setShowLimitSampleModal] = useState(false);
   const [limitSamples, setLimitSamples] = useState([]);
   const [selectedLimitSample, setSelectedLimitSample] = useState(null);
+
+  // Online Camera Real Product Inspection State
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState(null);
+  const [capturedInspectionPhoto, setCapturedInspectionPhoto] = useState(null);
+  const [cameraFacingMode, setCameraFacingMode] = useState('environment');
+  const [showReticle, setShowReticle] = useState(true);
+  const lastAutoPromptedPointIdRef = useRef(null);
+
+  const startCamera = async (facing = cameraFacingMode) => {
+    setCameraError(null);
+    try {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: facing,
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => {});
+      }
+      setCameraActive(true);
+    } catch (err) {
+      console.warn('[Camera] Failed to access camera:', err);
+      setCameraError('Kamera tidak dapat diakses atau perizinan webcam belum diberikan.');
+      setCameraActive(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    setCameraActive(false);
+  };
+
+  const captureSnapshot = () => {
+    if (!videoRef.current) return;
+    try {
+      const video = videoRef.current;
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      setCapturedInspectionPhoto(dataUrl);
+    } catch (e) {
+      console.warn('Failed to capture frame', e);
+    }
+  };
+
+  const retakeSnapshot = () => {
+    setCapturedInspectionPhoto(null);
+    startCamera(cameraFacingMode);
+  };
+
+  const toggleCameraFacing = () => {
+    const nextMode = cameraFacingMode === 'environment' ? 'user' : 'environment';
+    setCameraFacingMode(nextMode);
+    startCamera(nextMode);
+  };
+
+  useEffect(() => {
+    if (showLimitSampleModal) {
+      setCapturedInspectionPhoto(null);
+      startCamera(cameraFacingMode);
+    } else {
+      stopCamera();
+    }
+    return () => {
+      stopCamera();
+    };
+  }, [showLimitSampleModal]);
+
+  const handleLimitSampleDecision = (decision) => {
+    if (activePt) {
+      if (capturedInspectionPhoto) {
+        setCheckPoints(prev => prev.map(p => p.id === activePt.id ? { ...p, inspectionPhoto: capturedInspectionPhoto } : p));
+      }
+      handleCommitAndAdvance(activePt.id, undefined, decision);
+      if (decision === 'OK') {
+        toast.success(`✓ Pengecekan Visual [Poin #${activePt.pointNumber || 1}]: OK (DITERIMA)`, { icon: '🟢' });
+      } else {
+        toast.error(`⚠️ Pengecekan Visual [Poin #${activePt.pointNumber || 1}]: NG (DITOLAK)`, { icon: '🔴' });
+      }
+    }
+    stopCamera();
+    setShowLimitSampleModal(false);
+  };
 
   useEffect(() => {
     getLimitSamples(selectedDrawingId).then(samples => {
@@ -747,8 +857,45 @@ export default function DigitalDrawingCheckSheet() {
     });
   }, [selectedDrawingId]);
 
+  // Helper to check if point requires visual inspection
+  const isVisualPoint = (pt) => {
+    if (!pt) return false;
+    return !!(
+      pt.category?.toLowerCase().includes('visual') ||
+      pt.category?.toLowerCase().includes('surface') ||
+      pt.shape === 'square' ||
+      pt.inspectionType === 'visual' ||
+      pt.isVisual ||
+      pt.defectTag ||
+      pt.limitSampleCode ||
+      pt.limitSampleId
+    );
+  };
+
+  // Auto-open Limit Sample Modal if active point is visual inspection and status is PENDING
+  useEffect(() => {
+    if (activePt && isVisualPoint(activePt)) {
+      if (lastAutoPromptedPointIdRef.current !== activePt.id && activePt.status === 'PENDING') {
+        lastAutoPromptedPointIdRef.current = activePt.id;
+        if (activePt.limitSampleCode || activePt.limitSampleId) {
+          const matched = limitSamples.find(s => s.id === activePt.limitSampleId || s.code === activePt.limitSampleCode);
+          if (matched) setSelectedLimitSample(matched);
+        } else if (activePt.defectTag) {
+          const matched = limitSamples.find(s => s.defect_category === activePt.defectTag);
+          if (matched) setSelectedLimitSample(matched);
+        }
+        setShowLimitSampleModal(true);
+      }
+    }
+  }, [activePt, limitSamples]);
+
   // ─── Metrology Calibration Tool Modal State (ISO 17025) ───
   const [showCalibrationModal, setShowCalibrationModal] = useState(false);
+  const [calibrationModalTab, setCalibrationModalTab] = useState('inventory');
+
+  // Visual Inspection Modal State
+  const [showVisualInspectionModal, setShowVisualInspectionModal] = useState(false);
+  const [visualInspectionItem, setVisualInspectionItem] = useState(null);
   const [selectedCalibrationToolId, setSelectedCalibrationToolId] = useState('caliper');
 
   // Auto-activate Mobile Mode if URL query contains mobile=true
@@ -794,6 +941,24 @@ export default function DigitalDrawingCheckSheet() {
     }
   });
   const [showSupervisorModal, setShowSupervisorModal] = useState(false);
+
+  // ─── Operator Digital Signature State (ISO 9001: 8.5.1 / IATF 16949) ───
+  const [requireSignature, setRequireSignature] = useState(() => {
+    try {
+      const pub = JSON.parse(localStorage.getItem('mandor_published_checksheet') || '{}');
+      return pub.inspectionModes?.requireSignature ?? pub.settings?.requireSignature ?? pub.requireSignature ?? true;
+    } catch {
+      return true;
+    }
+  });
+  const [operatorSignature, setOperatorSignature] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('mandor_checksheet_operator_signature') || 'null');
+    } catch {
+      return null;
+    }
+  });
+  const [showOperatorSignatureModal, setShowOperatorSignatureModal] = useState(false);
 
   // Clause 7.1.5: Measuring Equipment & Calibration Log
   const [gaugesList] = useState([
@@ -914,11 +1079,6 @@ export default function DigitalDrawingCheckSheet() {
 
   const containerRef = useRef(null);
 
-  // Active check point helper
-  const activePt = useMemo(() => {
-    return checkPoints.find(p => p.id === activePointId) || checkPoints[0];
-  }, [checkPoints, activePointId]);
-
   // Target table helper
   const targetTable = useMemo(() => {
     return availableTables.find(t => t.id === targetTableId) || null;
@@ -990,6 +1150,11 @@ export default function DigitalDrawingCheckSheet() {
           if (cs.revision && !cs.revisionNo) setRevisionNo(cs.revision);
           if (cs.approver) setApproverName(cs.approver);
           if (cs.approverName && !cs.approver) setApproverName(cs.approverName);
+
+          // ── Load Mode & Alur Inspeksi (Require Digital Signature) ──
+          if (cs.inspectionModes?.requireSignature !== undefined) setRequireSignature(cs.inspectionModes.requireSignature);
+          else if (cs.settings?.requireSignature !== undefined) setRequireSignature(cs.settings.requireSignature);
+          else if (cs.requireSignature !== undefined) setRequireSignature(cs.requireSignature);
 
           // ── Load blueprint drawing preview (In-memory > cs.drawingPreview > cs.drawingSvg > IndexedDB) ──
           const effectivePreview = memSvg || cs.drawingPreview || cs.drawingSvg || cs.drawingImageUrl || cs.dataUrl || cs.svgData || null;
@@ -1111,8 +1276,8 @@ export default function DigitalDrawingCheckSheet() {
   const handleCreateStandardQcTable = async () => {
     setIsCreatingTable(true);
     try {
-      const title = (checkSheetInfo?.title || checkSheetInfo?.name || 'Check Sheet').trim().replace(/[/\\?%*:|"<>]/g, '');
-      const part = (checkSheetInfo?.partNo || partNo || 'PART').trim().replace(/[/\\?%*:|"<>]/g, '');
+      const title = (partName || 'Check Sheet').trim().replace(/[/\\?%*:|"<>]/g, '');
+      const part = (partNo || 'PART').trim().replace(/[/\\?%*:|"<>]/g, '');
       const tblName = `${title} - ${part}`;
       const newTbl = await createTable({
         name: tblName,
@@ -1161,8 +1326,34 @@ export default function DigitalDrawingCheckSheet() {
     return { total, passed, failed, pending, criticalFailed, progress, overallStatus, cpkEstimated, passRate: total > 0 ? `${Math.round((passed / total) * 100)}%` : '0%' };
   }, [checkPoints]);
 
-  // Handle Measurement Input Change with real-time tolerancing
+  // Handle Measurement Input Change with real-time tolerancing & ISO 9001: 7.1.5 Tool Calibration Guard
   const handleMeasurementChange = (id, val) => {
+    // Check if assigned measuring tool is expired
+    const targetPt = checkPoints.find(p => p.id === id);
+    if (targetPt && val !== '' && val !== undefined) {
+      const isVisual =
+        targetPt.category?.toLowerCase().includes('visual') ||
+        targetPt.category?.toLowerCase().includes('surface') ||
+        targetPt.shape === 'square' ||
+        targetPt.inspectionType === 'visual' ||
+        targetPt.isVisual;
+
+      if (!isVisual) {
+        const detectedType = detectMeasuringToolType(targetPt);
+        const toolDef = TOOL_DEFINITIONS.find(t => t.name === targetPt.toolId || t.id === detectedType) || TOOL_DEFINITIONS[0];
+        const calStat = getCalibrationStatus(toolDef);
+        if (calStat.status === 'EXPIRED') {
+          toast.error(
+            `⛔ Input Ditolak: Alat ukur "${toolDef.name}" (${toolDef.code}) TELAH EXPIRED!\nKalibrasi ulang alat terlebih dahulu sesuai ISO 9001: 7.1.5 & ISO 17025.`,
+            { duration: 5000, icon: '🔴' }
+          );
+          setSelectedCalibrationToolId(toolDef.id);
+          setShowCalibrationModal(true);
+          return;
+        }
+      }
+    }
+
     setCheckPoints(prev => prev.map(pt => {
       if (pt.id !== id) return pt;
       const num = parseFloat(val);
@@ -1180,6 +1371,24 @@ export default function DigitalDrawingCheckSheet() {
       }
       return { ...pt, measuredVal: val, status, disposition };
     }));
+  };
+
+  // Handle Visual Inspection trigger (PC Mode Camera)
+  const _handleVisualInspection = (item) => {
+    setVisualInspectionItem(item);
+    setShowVisualInspectionModal(true);
+  };
+
+  // Save visual inspection result
+  const handleSaveVisualInspection = (decision) => {
+    if (!visualInspectionItem) return;
+    const status = decision === 'OK' ? 'OK' : 'NG';
+    const disposition = decision === 'OK' ? 'Visual OK - No defects' : 'Visual Defect Found';
+    setCheckPoints(prev => prev.map(pt =>
+      pt.id === visualInspectionItem.id ? { ...pt, status, disposition } : pt
+    ));
+    setShowVisualInspectionModal(false);
+    setVisualInspectionItem(null);
   };
 
   // Toggle Point Status Directly
@@ -1520,16 +1729,37 @@ export default function DigitalDrawingCheckSheet() {
       setActivePointId(nextPt.id);
       toast.success(`Poin #${pt.pointNumber} [${status}] tersimpan ➔ Lanjut #${nextPt.pointNumber}`, { duration: 1500 });
     } else {
-      // All points finished!
+      // All points finished! (Titik Terakhir Selesai)
       const totalFailed = updatedPoints.filter(p => p.status === 'NG').length;
       const overall = totalFailed > 0 ? 'REJECTED (NG)' : 'APPROVED (OK)';
 
-      toast.success(`🎉 Seluruh Dimensi Selesai! Menyimpan sertifikat inspeksi...`, { duration: 3000 });
-      
-      // Auto-save and move to Summary tab
+      // Auto-save intermediate progress
       saveInspectionPayload(updatedPoints, overall);
-      setActiveTab('Summary');
+
+      // Check if Operator Digital Signature is required & not yet signed
+      if (requireSignature && !operatorSignature) {
+        toast.success(`🎉 Seluruh Titik Ukur Selesai! Silakan bubuhkan Tanda Tangan Digital Operator.`, { duration: 4000, icon: '✍️' });
+        setShowOperatorSignatureModal(true);
+      } else {
+        toast.success(`🎉 Seluruh Titik Ukur Selesai! Lembar periksa lengkap.`, { duration: 3000 });
+        setActiveTab('Summary');
+      }
     }
+  };
+
+  // Handler for Operator Digital Signature confirmation
+  const handleOperatorSignAndSubmit = async (signatureData) => {
+    setOperatorSignature(signatureData);
+    localStorage.setItem('mandor_checksheet_operator_signature', JSON.stringify(signatureData));
+    setShowOperatorSignatureModal(false);
+
+    // Save final inspection payload with digital signature attached
+    await saveInspectionPayload(checkPoints, signatureData.disposition, signatureData);
+    setActiveTab('Summary');
+    toast.success(`✓ Lembar periksa diverifikasi & ditandatangani digital oleh ${signatureData.operatorName}!`, {
+      icon: '🛡️',
+      duration: 4000
+    });
   };
 
   const handleSaveNCR = async (ncrData) => {
@@ -1577,11 +1807,12 @@ export default function DigitalDrawingCheckSheet() {
   };
 
   // Helper to save inspection payload directly
-  const saveInspectionPayload = async (pointsToSave, overallStatus) => {
+  const saveInspectionPayload = async (pointsToSave, overallStatus, explicitSignature) => {
     setIsSubmitting(true);
     const passedCount = pointsToSave.filter(p => p.status === 'OK').length;
     const failedCount = pointsToSave.filter(p => p.status === 'NG').length;
     const critFailed = pointsToSave.filter(p => p.status === 'NG' && p.criticality.includes('Critical')).length;
+    const sig = explicitSignature || operatorSignature;
 
     const payload = {
       docNo: 'FORM-QA-CK-001-C',
@@ -1592,7 +1823,15 @@ export default function DigitalDrawingCheckSheet() {
       stationId,
       shiftNo,
       drawingRef: 'MANDOR-QA-2026-08 Rev 2.1',
-      inspector: inspectorName,
+      inspector: sig?.operatorName || inspectorName,
+      operatorSignature: sig ? {
+        operatorName: sig.operatorName,
+        operatorId: sig.operatorId,
+        signedAt: sig.signedAt,
+        signedAtFormatted: sig.signedAtFormatted,
+        verificationHash: sig.verificationHash,
+        signatureDataUrl: sig.signatureDataUrl
+      } : null,
       timestamp: new Date().toISOString(),
       overallStatus: overallStatus || (failedCount > 0 ? 'REJECTED (NG)' : 'APPROVED (OK)'),
       totalPoints: pointsToSave.length,
@@ -1735,7 +1974,13 @@ export default function DigitalDrawingCheckSheet() {
         return;
       }
     }
+    if (requireSignature && !operatorSignature) {
+      toast('✍️ Silakan bubuhkan Tanda Tangan Digital Operator sebelum submit lembar periksa.', { icon: '✍️' });
+      setShowOperatorSignatureModal(true);
+      return;
+    }
     await saveInspectionPayload(checkPoints, stats.overallStatus);
+    toast.success('✓ Check sheet berhasil disimpan!');
   };
 
   // ── Publish Check Sheet to Live Player ──
@@ -2445,6 +2690,67 @@ export default function DigitalDrawingCheckSheet() {
           {/* Virtual Measuring Tool Component */}
           {activePt ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {/* ISO 9001: 7.1.5 Tool Calibration Lockout Warning Banner */}
+              {(() => {
+                const isVisual =
+                  activePt.category?.toLowerCase().includes('visual') ||
+                  activePt.category?.toLowerCase().includes('surface') ||
+                  activePt.shape === 'square' ||
+                  activePt.inspectionType === 'visual' ||
+                  activePt.isVisual;
+
+                if (isVisual) return null;
+
+                const detectedType = detectMeasuringToolType(activePt);
+                const toolDef = TOOL_DEFINITIONS.find(t => t.name === activePt.toolId || t.id === detectedType) || TOOL_DEFINITIONS[0];
+                const calStat = getCalibrationStatus(toolDef);
+                if (calStat.status === 'EXPIRED') {
+                  return (
+                    <div style={{
+                      backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                      border: '1.5px solid #ef4444',
+                      borderRadius: '8px',
+                      padding: '8px 10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      animation: 'pulse 2s infinite'
+                    }}>
+                      <span style={{ fontSize: '20px' }}>⛔</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '0.72rem', fontWeight: 900, color: '#ef4444' }}>
+                          KALIBRASI ALAT EXPIRED — INPUT DIBLOKIR
+                        </div>
+                        <div style={{ fontSize: '0.62rem', color: '#fca5a5', lineHeight: 1.3 }}>
+                          Alat ukur <strong>{toolDef.name} ({toolDef.code})</strong> telah kedaluwarsa ({toolDef.calibrationDueDate}). Berdasarkan klausul ISO 9001: 7.1.5, input hasil pengukuran ditolak hingga alat dikalibrasi ulang.
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedCalibrationToolId(toolDef.id);
+                          setShowCalibrationModal(true);
+                        }}
+                        style={{
+                          padding: '4px 8px',
+                          backgroundColor: '#ef4444',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          fontSize: '0.62rem',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        Kalibrasi
+                      </button>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
               <VirtualMeasuringTool
                 activePoint={activePt}
                 isVisible={true}
@@ -3359,52 +3665,55 @@ export default function DigitalDrawingCheckSheet() {
                       </div>
 
                       {/* Measurement Input & Gauge Tag (Large 7-Segment LCD Display) */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: '22px', gap: '8px', marginTop: '2px' }}>
-                        {/* Interactive Master Tool Selector Dropdown with Calibration Badge */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }} onClick={(e) => e.stopPropagation()}>
-                          <select
-                            value={pt.toolId || (detectMeasuringToolType(pt) === 'micrometer' ? 'Outside Micrometer 0-25mm' : 'Digital Caliper 0-150mm')}
-                            onChange={(e) => {
-                              const newToolName = e.target.value;
-                              const matched = TOOL_DEFINITIONS.find(t => t.name === newToolName || t.id === newToolName || t.code === newToolName);
-                              const updatedToolId = matched ? matched.name : newToolName;
-                              setCheckPoints(prev => prev.map(p => p.id === pt.id ? { ...p, toolId: updatedToolId } : p));
-                            }}
-                            style={{
-                              backgroundColor: '#090d16',
-                              border: '1px solid #334155',
-                              borderRadius: '4px',
-                              color: '#94a3b8',
-                              fontSize: '0.66rem',
-                              fontWeight: 700,
-                              padding: '2px 4px',
-                              cursor: 'pointer',
-                              maxWidth: '135px'
-                            }}
-                            title="Pilih alat ukur master dari database ISO 17025"
-                          >
-                            {TOOL_DEFINITIONS.map(t => (
-                              <option key={t.id} value={t.name}>
-                                {t.icon} {t.name}
-                              </option>
-                            ))}
-                          </select>
+                      {(() => {
+                        const detectedType = detectMeasuringToolType(pt);
+                        const toolDef = TOOL_DEFINITIONS.find(t => t.name === pt.toolId || t.id === detectedType) || TOOL_DEFINITIONS[0];
+                        const calStat = getCalibrationStatus(toolDef);
+                        const isToolExpired = calStat.status === 'EXPIRED';
 
-                          {/* Live Calibration Status Pill */}
-                          {(() => {
-                            const detectedType = detectMeasuringToolType(pt);
-                            const toolDef = TOOL_DEFINITIONS.find(t => t.name === pt.toolId || t.id === detectedType) || TOOL_DEFINITIONS[0];
-                            const calStat = getCalibrationStatus(toolDef);
-                            return (
+                        return (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: '22px', gap: '8px', marginTop: '2px' }}>
+                            {/* Interactive Master Tool Selector Dropdown with Calibration Badge */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }} onClick={(e) => e.stopPropagation()}>
+                              <select
+                                value={pt.toolId || (detectedType === 'micrometer' ? 'Outside Micrometer 0-25mm' : 'Digital Caliper 0-150mm')}
+                                onChange={(e) => {
+                                  const newToolName = e.target.value;
+                                  const matched = TOOL_DEFINITIONS.find(t => t.name === newToolName || t.id === newToolName || t.code === newToolName);
+                                  const updatedToolId = matched ? matched.name : newToolName;
+                                  setCheckPoints(prev => prev.map(p => p.id === pt.id ? { ...p, toolId: updatedToolId } : p));
+                                }}
+                                style={{
+                                  backgroundColor: '#090d16',
+                                  border: isToolExpired ? '1.5px solid #ef4444' : '1px solid #334155',
+                                  borderRadius: '4px',
+                                  color: isToolExpired ? '#fca5a5' : '#94a3b8',
+                                  fontSize: '0.66rem',
+                                  fontWeight: 700,
+                                  padding: '2px 4px',
+                                  cursor: 'pointer',
+                                  maxWidth: '135px'
+                                }}
+                                title="Pilih alat ukur master dari database ISO 17025"
+                              >
+                                {TOOL_DEFINITIONS.map(t => (
+                                  <option key={t.id} value={t.name}>
+                                    {t.icon} {t.name}
+                                  </option>
+                                ))}
+                              </select>
+
+                              {/* Live Calibration Status Pill */}
                               <button
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setSelectedCalibrationToolId(toolDef.id);
+                                  setCalibrationModalTab('certificates');
                                   setShowCalibrationModal(true);
                                 }}
                                 style={{
-                                  padding: '1px 5px',
+                                  padding: '2px 6px',
                                   borderRadius: '3px',
                                   fontSize: '0.58rem',
                                   fontWeight: 900,
@@ -3412,130 +3721,147 @@ export default function DigitalDrawingCheckSheet() {
                                   border: `1px solid ${calStat.border}`,
                                   color: calStat.color,
                                   cursor: 'pointer',
-                                  whiteSpace: 'nowrap'
+                                  whiteSpace: 'nowrap',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                  animation: isToolExpired ? 'pulse 1.5s infinite' : 'none'
                                 }}
                                 title={`Status Kalibrasi: ${calStat.label}. Klik untuk buka sertifikat.`}
                               >
-                                {calStat.status === 'VALID' ? 'CAL OK' : 'CAL DUE'}
+                                <span>{calStat.icon}</span>
+                                <span>{isToolExpired ? 'CAL EXPIRED' : calStat.status === 'VALID' ? 'CAL OK' : 'CAL DUE'}</span>
                               </button>
-                            );
-                          })()}
-                        </div>
+                            </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          {/* Micro-adjust -0.01 */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const curr = parseFloat(pt.measuredVal) || pt.nominal;
-                              handleMeasurementChange(pt.id, (curr - 0.01).toFixed(3));
-                            }}
-                            style={{
-                              padding: '4px 7px',
-                              borderRadius: '4px',
-                              border: '1px solid #334155',
-                              backgroundColor: '#090d16',
-                              color: '#94a3b8',
-                              fontSize: '0.75rem',
-                              fontWeight: 800,
-                              cursor: 'pointer'
-                            }}
-                            title="Kurangi -0.01"
-                          >
-                            -
-                          </button>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              {/* Micro-adjust -0.01 */}
+                              <button
+                                disabled={isToolExpired}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isToolExpired) return;
+                                  const curr = parseFloat(pt.measuredVal) || pt.nominal;
+                                  handleMeasurementChange(pt.id, (curr - 0.01).toFixed(3));
+                                }}
+                                style={{
+                                  padding: '4px 7px',
+                                  borderRadius: '4px',
+                                  border: '1px solid #334155',
+                                  backgroundColor: '#090d16',
+                                  color: isToolExpired ? '#475569' : '#94a3b8',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 800,
+                                  cursor: isToolExpired ? 'not-allowed' : 'pointer',
+                                  opacity: isToolExpired ? 0.35 : 1
+                                }}
+                                title={isToolExpired ? "Kalibrasi expired - Masukan diblokir" : "Kurangi -0.01"}
+                              >
+                                -
+                              </button>
 
-                          {/* 7-Segment Digital LCD Display Screen */}
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              backgroundColor: '#020617',
-                              border: isNG ? '2px solid #ef4444' : isOK ? '2px solid #22c55e' : '1.5px solid #38bdf8',
-                              borderRadius: '6px',
-                              padding: '2px 8px',
-                              boxShadow: isNG ? '0 0 12px rgba(239, 68, 68, 0.4), inset 0 2px 4px rgba(0,0,0,0.9)' : isOK ? '0 0 12px rgba(34, 197, 94, 0.4), inset 0 2px 4px rgba(0,0,0,0.9)' : 'inset 0 2px 4px rgba(0,0,0,0.9)',
-                              minWidth: '135px'
-                            }}
-                          >
-                            <input
-                              type="number"
-                              step="0.001"
-                              placeholder="---.---"
-                              value={pt.measuredVal}
-                              onChange={(e) => handleMeasurementChange(pt.id, e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  handleCommitAndAdvance(pt.id, e.target.value);
-                                }
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                              style={{
-                                width: '95px',
-                                background: 'transparent',
-                                border: 'none',
-                                color: isOK ? '#22c55e' : isNG ? '#ef4444' : '#38bdf8',
-                                fontSize: '1.25rem',
-                                fontFamily: "'Orbitron', 'Share Tech Mono', monospace",
-                                fontWeight: 800,
-                                letterSpacing: '1.5px',
-                                textAlign: 'right',
-                                outline: 'none',
-                                textShadow: isOK ? '0 0 8px rgba(34, 197, 94, 0.6)' : isNG ? '0 0 8px rgba(239, 68, 68, 0.6)' : '0 0 8px rgba(56, 189, 248, 0.5)'
-                              }}
-                            />
-                            <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 800, marginLeft: '4px', fontFamily: "'Orbitron', monospace" }}>
-                              {pt.unit}
-                            </span>
+                              {/* 7-Segment Digital LCD Display Screen */}
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  backgroundColor: '#020617',
+                                  border: isToolExpired ? '2px solid #ef4444' : isNG ? '2px solid #ef4444' : isOK ? '2px solid #22c55e' : '1.5px solid #38bdf8',
+                                  borderRadius: '6px',
+                                  padding: '2px 8px',
+                                  boxShadow: isToolExpired ? '0 0 12px rgba(239, 68, 68, 0.4), inset 0 2px 4px rgba(0,0,0,0.9)' : isNG ? '0 0 12px rgba(239, 68, 68, 0.4), inset 0 2px 4px rgba(0,0,0,0.9)' : isOK ? '0 0 12px rgba(34, 197, 94, 0.4), inset 0 2px 4px rgba(0,0,0,0.9)' : 'inset 0 2px 4px rgba(0,0,0,0.9)',
+                                  minWidth: '135px',
+                                  opacity: isToolExpired ? 0.65 : 1
+                                }}
+                              >
+                                <input
+                                  type="number"
+                                  step="0.001"
+                                  disabled={isToolExpired}
+                                  placeholder={isToolExpired ? "LOCK" : "---.---"}
+                                  value={pt.measuredVal}
+                                  onChange={(e) => handleMeasurementChange(pt.id, e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      handleCommitAndAdvance(pt.id, e.target.value);
+                                    }
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  style={{
+                                    width: '95px',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: isToolExpired ? '#ef4444' : isOK ? '#22c55e' : isNG ? '#ef4444' : '#38bdf8',
+                                    fontSize: '1.25rem',
+                                    fontFamily: "'Orbitron', 'Share Tech Mono', monospace",
+                                    fontWeight: 800,
+                                    letterSpacing: '1.5px',
+                                    textAlign: 'right',
+                                    outline: 'none',
+                                    cursor: isToolExpired ? 'not-allowed' : 'text',
+                                    textShadow: isToolExpired ? '0 0 8px rgba(239, 68, 68, 0.6)' : isOK ? '0 0 8px rgba(34, 197, 94, 0.6)' : isNG ? '0 0 8px rgba(239, 68, 68, 0.6)' : '0 0 8px rgba(56, 189, 248, 0.5)'
+                                  }}
+                                />
+                                <span style={{ fontSize: '0.72rem', color: isToolExpired ? '#ef4444' : '#64748b', fontWeight: 800, marginLeft: '4px', fontFamily: "'Orbitron', monospace" }}>
+                                  {isToolExpired ? '⛔' : pt.unit}
+                                </span>
+                              </div>
+
+                              {/* Handwriting Input Button */}
+                              <button
+                                disabled={isToolExpired}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isToolExpired) return;
+                                  handleOpenHandwriting(pt.id);
+                                }}
+                                style={{
+                                  padding: '4px 6px',
+                                  borderRadius: '4px',
+                                  border: '1px solid #7c3aed',
+                                  backgroundColor: 'rgba(124, 58, 237, 0.2)',
+                                  color: isToolExpired ? '#475569' : '#a855f7',
+                                  fontSize: '0.7rem',
+                                  fontWeight: 700,
+                                  cursor: isToolExpired ? 'not-allowed' : 'pointer',
+                                  opacity: isToolExpired ? 0.35 : 1,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                                title={isToolExpired ? "Kalibrasi expired - Masukan diblokir" : "✍️ Input tulisan tangan"}
+                              >
+                                <Pen size={12} />
+                              </button>
+
+                              {/* Micro-adjust +0.01 */}
+                              <button
+                                disabled={isToolExpired}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isToolExpired) return;
+                                  const curr = parseFloat(pt.measuredVal) || pt.nominal;
+                                  handleMeasurementChange(pt.id, (curr + 0.01).toFixed(3));
+                                }}
+                                style={{
+                                  padding: '4px 7px',
+                                  borderRadius: '4px',
+                                  border: '1px solid #334155',
+                                  backgroundColor: '#090d16',
+                                  color: isToolExpired ? '#475569' : '#94a3b8',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 800,
+                                  cursor: isToolExpired ? 'not-allowed' : 'pointer',
+                                  opacity: isToolExpired ? 0.35 : 1
+                                }}
+                                title={isToolExpired ? "Kalibrasi expired - Masukan diblokir" : "Tambah +0.01"}
+                              >
+                                +
+                              </button>
+                            </div>
                           </div>
-
-                          {/* Handwriting Input Button */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenHandwriting(pt.id);
-                            }}
-                            style={{
-                              padding: '4px 6px',
-                              borderRadius: '4px',
-                              border: '1px solid #7c3aed',
-                              backgroundColor: 'rgba(124, 58, 237, 0.2)',
-                              color: '#a855f7',
-                              fontSize: '0.7rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '4px'
-                            }}
-                            title="✍️ Input tulisan tangan"
-                          >
-                            <Pen size={12} />
-                          </button>
-
-                          {/* Micro-adjust +0.01 */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const curr = parseFloat(pt.measuredVal) || pt.nominal;
-                              handleMeasurementChange(pt.id, (curr + 0.01).toFixed(3));
-                            }}
-                            style={{
-                              padding: '4px 7px',
-                              borderRadius: '4px',
-                              border: '1px solid #334155',
-                              backgroundColor: '#090d16',
-                              color: '#94a3b8',
-                              fontSize: '0.75rem',
-                              fontWeight: 800,
-                              cursor: 'pointer'
-                            }}
-                            title="Tambah +0.01"
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}
@@ -3552,6 +3878,11 @@ export default function DigitalDrawingCheckSheet() {
               onChange={handleMeasurementChange}
               onCommit={handleCommitAndAdvance}
               onToggleStatus={handleToggleStatus}
+              onOpenCalibration={(toolId) => {
+                setSelectedCalibrationToolId(toolId);
+                setCalibrationModalTab('certificates');
+                setShowCalibrationModal(true);
+              }}
             />
           )}
 
@@ -3652,17 +3983,82 @@ export default function DigitalDrawingCheckSheet() {
                 </div>
               </div>
 
-              {/* Tier 1: Inspector Submission Badge */}
-              <div style={{ backgroundColor: stats.failed > 0 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(34, 197, 94, 0.1)', border: stats.failed > 0 ? '1.5px dashed #ef4444' : '1.5px dashed #22c55e', borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>TIER 1: QC INSPECTOR CERTIFICATION</div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '4px' }}>
-                  <Award size={20} color={stats.failed > 0 ? '#ef4444' : '#22c55e'} />
-                  <div>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 800, color: stats.failed > 0 ? '#ef4444' : '#22c55e' }}>{stats.overallStatus}</div>
-                    <div style={{ fontSize: '0.64rem', color: '#94a3b8' }}>Inspector: {inspectorName} • {new Date().toLocaleDateString()}</div>
+              {/* Tier 1: Operator Digital Signature Card (ISO 9001: 8.5.1 / IATF 16949) */}
+              {operatorSignature ? (
+                <div style={{
+                  backgroundColor: 'rgba(6, 182, 212, 0.12)',
+                  border: '1.5px solid #06b6d4',
+                  borderRadius: '10px',
+                  padding: '10px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.65rem', fontWeight: 900, color: '#67e8f9' }}>TIER 1: OPERATOR E-SIGNATURE ✓</span>
+                    <span style={{ fontSize: '0.58rem', color: '#94a3b8', fontFamily: 'monospace' }}>{operatorSignature.verificationHash}</span>
+                  </div>
+                  {operatorSignature.signatureDataUrl && (
+                    <div style={{ backgroundColor: '#ffffff', borderRadius: '6px', padding: '4px', margin: '6px 0', display: 'flex', justifyContent: 'center' }}>
+                      <img
+                        src={operatorSignature.signatureDataUrl}
+                        alt="Tanda Tangan Operator"
+                        style={{ height: '40px', objectFit: 'contain' }}
+                      />
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
+                    <div>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#f8fafc' }}>
+                        {operatorSignature.operatorName} <span style={{ fontSize: '0.68rem', color: '#67e8f9', fontWeight: 600 }}>({operatorSignature.operatorId})</span>
+                      </div>
+                      <div style={{ fontSize: '0.62rem', color: '#94a3b8' }}>
+                        {operatorSignature.signedAtFormatted || new Date(operatorSignature.signedAt).toLocaleString('id-ID')}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowOperatorSignatureModal(true)}
+                      style={{
+                        padding: '3px 7px',
+                        backgroundColor: '#1e293b',
+                        border: '1px solid #475569',
+                        borderRadius: '4px',
+                        color: '#cbd5e1',
+                        fontSize: '0.62rem',
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                      title="Ubah tanda tangan digital"
+                    >
+                      Ulangi
+                    </button>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowOperatorSignatureModal(true)}
+                  style={{
+                    padding: '10px',
+                    backgroundColor: 'rgba(6, 182, 212, 0.15)',
+                    border: '1.5px dashed #06b6d4',
+                    borderRadius: '10px',
+                    color: '#67e8f9',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '4px',
+                    width: '100%',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.76rem', fontWeight: 800 }}>
+                    <Award size={14} /> Tanda Tangan Digital Operator (Wajib)
+                  </div>
+                  <span style={{ fontSize: '0.64rem', color: '#94a3b8' }}>
+                    Klik untuk membubuhkan tanda tangan digital e-signature
+                  </span>
+                </button>
+              )}
 
               {/* Tier 2: Supervisor Approval Card */}
               {supervisorApproval.isApproved ? (
@@ -4585,30 +4981,45 @@ export default function DigitalDrawingCheckSheet() {
         </div>
       )}
 
-      {/* ─── LIMIT SAMPLE VISUAL INSPECTION GUIDE MODAL (FOR OPERATOR) ─── */}
+      {/* ─── LIMIT SAMPLE VISUAL INSPECTION GUIDE MODAL WITH ONLINE CAMERA & DECISION (FOR OPERATOR) ─── */}
       {showLimitSampleModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-2 md:p-3">
+          <div className="bg-slate-900 border-2 border-cyan-500/40 rounded-2xl w-[98vw] max-w-[1720px] h-[95vh] max-h-[95vh] flex flex-col overflow-hidden shadow-[0_25px_80px_rgba(0,0,0,0.95)] text-white">
             {/* Header */}
-            <div className="px-6 py-3.5 border-b border-slate-800 bg-slate-950 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center font-bold">
-                  <ShieldAlert size={18} />
+            <div className="px-6 py-3 border-b border-slate-800 bg-slate-950 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-500/20 to-emerald-500/20 text-cyan-400 border border-cyan-500/40 flex items-center justify-center font-bold shadow-lg">
+                  <Camera size={19} />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm text-white">Master Limit Sample (Pedoman Batas Mutu Visual)</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-sm text-white">Master Limit Sample & Kamera Inspeksi Online (Visual QC Standard)</h3>
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                      ISO 9001: 8.5.1 / IATF 16949
+                    </span>
+                  </div>
                   <p className="text-[11px] text-slate-400">
-                    Standar Batas Diterima (OK) vs Batas Ditolak (NG) untuk Verifikasi Part di Checksheet
+                    Bandingkan produk riil melalui kamera online langsung dengan Batas Diterima (OK) vs Batas Ditolak (NG)
                   </p>
                 </div>
               </div>
 
-              <button
-                onClick={() => setShowLimitSampleModal(false)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 cursor-pointer"
-              >
-                <X size={18} />
-              </button>
+              <div className="flex items-center gap-3">
+                {activePt && (
+                  <div className="hidden sm:flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase">Poin Target:</span>
+                    <strong className="text-xs text-amber-300 font-mono">#{activePt.pointNumber || 1}</strong>
+                    <span className="text-xs text-slate-200 font-semibold truncate max-w-[180px]">{activePt.title || 'Pemeriksaan Visual'}</span>
+                  </div>
+                )}
+                <button
+                  onClick={() => setShowLimitSampleModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+                  title="Tutup (Esc)"
+                >
+                  <X size={20} />
+                </button>
+              </div>
             </div>
 
             {/* Sub-Header / Selector Tabs if multiple Limit Samples exist */}
@@ -4619,38 +5030,42 @@ export default function DigitalDrawingCheckSheet() {
                   <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1">
                     Daftar Standar ({limitSamples.length})
                   </div>
-                  {limitSamples.map(sample => (
-                    <button
-                      key={sample.id}
-                      onClick={() => setSelectedLimitSample(sample)}
-                      className={`w-full text-left p-2.5 rounded-lg border transition-all cursor-pointer flex flex-col gap-1 ${
-                        (selectedLimitSample?.id || limitSamples[0]?.id) === sample.id
-                          ? 'bg-rose-500/20 border-rose-500 text-white'
-                          : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-mono text-[10px] font-bold bg-black/40 px-1.5 py-0.5 rounded text-slate-300">
-                          {sample.code}
-                        </span>
-                        <span className="text-[9px] font-bold text-emerald-400">AKTIF</span>
-                      </div>
-                      <div className="text-xs font-bold line-clamp-1">{sample.title}</div>
-                      <div className="text-[10px] text-slate-400">{sample.defect_category}</div>
-                    </button>
-                  ))}
+                  {limitSamples.map(sample => {
+                    const isSelected = (selectedLimitSample?.id || limitSamples[0]?.id) === sample.id;
+                    return (
+                      <button
+                        key={sample.id}
+                        onClick={() => setSelectedLimitSample(sample)}
+                        className={`w-full text-left p-2.5 rounded-lg border transition-all cursor-pointer flex flex-col gap-1 ${
+                          isSelected
+                            ? 'bg-cyan-500/20 border-cyan-500 text-white shadow-md'
+                            : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-[10px] font-bold bg-black/40 px-1.5 py-0.5 rounded text-cyan-300 border border-cyan-500/20">
+                            {sample.code}
+                          </span>
+                          <span className="text-[9px] font-bold text-emerald-400">AKTIF</span>
+                        </div>
+                        <div className="text-xs font-bold line-clamp-1">{sample.title}</div>
+                        <div className="text-[10px] text-slate-400">{sample.defect_category}</div>
+                      </button>
+                    );
+                  })}
                 </div>
 
-                {/* Right Stage: Split View OK vs NG */}
+                {/* Right Stage: 3-Column Split View (OK LIMIT vs ONLINE CAMERA vs NG LIMIT) */}
                 {(() => {
                   const active = selectedLimitSample || limitSamples[0];
                   if (!active) return null;
 
                   return (
-                    <div className="flex-1 flex flex-col overflow-y-auto p-6 space-y-4 bg-slate-900">
-                      <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-800">
+                    <div className="flex-1 flex flex-col overflow-y-auto p-4 md:p-5 space-y-4 bg-slate-900/90">
+                      {/* Sub-header with Title & Validity Info */}
+                      <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-800 shrink-0">
                         <div>
-                          <div className="text-xs font-bold text-rose-400 font-mono">{active.code}</div>
+                          <div className="text-xs font-bold text-cyan-400 font-mono">{active.code}</div>
                           <h4 className="text-base font-extrabold text-white">{active.title}</h4>
                         </div>
                         <div className="text-xs text-slate-400 font-medium">
@@ -4658,49 +5073,191 @@ export default function DigitalDrawingCheckSheet() {
                         </div>
                       </div>
 
-                      {/* Side by Side Split Grid */}
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        {/* OK Card */}
-                        <div className="bg-emerald-950/30 border-2 border-emerald-500/40 rounded-xl p-4 flex flex-col space-y-2">
+                      {/* 3-Column Comparison Grid: OK Limit | Live Camera Online | NG Limit */}
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5 flex-1 min-h-[420px]">
+                        {/* ── 1. OK LIMIT CARD (LEFT) ── */}
+                        <div className="bg-emerald-950/25 border-2 border-emerald-500/40 rounded-xl p-3.5 flex flex-col space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-extrabold text-emerald-400 flex items-center gap-1.5">
                               <CheckCircle2 size={15} /> 🟢 BATAS MAKSIMAL DITERIMA (OK)
                             </span>
-                            <span className="bg-emerald-500/20 text-emerald-300 font-mono text-[10px] px-2 py-0.5 rounded font-bold">
+                            <span className="bg-emerald-500/20 text-emerald-300 font-mono text-[10px] px-2 py-0.5 rounded font-bold border border-emerald-500/30">
                               PASS
                             </span>
                           </div>
-                          <div className="h-56 bg-slate-950 rounded-lg overflow-hidden flex items-center justify-center p-2 border border-emerald-900">
+
+                          <div className="h-64 bg-slate-950 rounded-lg overflow-hidden flex items-center justify-center p-2 border border-emerald-900/60 shadow-inner">
                             <img
-                              src={active.ok_photo_url}
+                              src={active.ok_photo_url || createDemoLimitSampleSvgs(active.defect_category, 'OK')}
                               alt="OK Limit"
                               className="max-h-full max-w-full object-contain"
                             />
                           </div>
-                          <div className="p-3 bg-slate-950/80 rounded-lg border border-emerald-900/60 text-xs text-emerald-200 leading-relaxed">
+
+                          <div className="p-2.5 bg-slate-950/80 rounded-lg border border-emerald-900/60 text-xs text-emerald-200 leading-relaxed flex-1">
                             <strong className="text-emerald-400 block mb-1">Kriteria Penerimaan:</strong>
                             {active.ok_criteria}
                           </div>
                         </div>
 
-                        {/* NG Card */}
-                        <div className="bg-rose-950/30 border-2 border-rose-500/40 rounded-xl p-4 flex flex-col space-y-2">
+                        {/* ── 2. ONLINE REAL-TIME CAMERA (CENTER STAGE) ── */}
+                        <div className="bg-slate-950 border-2 border-cyan-500/60 rounded-xl p-3.5 flex flex-col space-y-2 shadow-[0_0_25px_rgba(6,182,212,0.15)]">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-extrabold text-cyan-400 flex items-center gap-1.5">
+                              <Camera size={15} className="text-cyan-400" />
+                              <span>📷 KAMERA ONLINE PRODUK RIIL</span>
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              {cameraActive && !capturedInspectionPhoto && (
+                                <span className="flex items-center gap-1 bg-rose-500/20 text-rose-400 font-mono text-[9px] px-2 py-0.5 rounded font-black border border-rose-500/30 animate-pulse">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping"></span>
+                                  LIVE STREAM
+                                </span>
+                              )}
+                              {capturedInspectionPhoto && (
+                                <span className="bg-amber-500/20 text-amber-300 font-mono text-[9px] px-2 py-0.5 rounded font-bold border border-amber-500/30">
+                                  📸 FOTO BEKU
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Video / Snapshot Viewport */}
+                          <div className="relative h-64 bg-black rounded-lg overflow-hidden flex items-center justify-center border border-cyan-900/60 group">
+                            {capturedInspectionPhoto ? (
+                              <img
+                                src={capturedInspectionPhoto}
+                                alt="Inspeksi Part Riil"
+                                className="w-full h-full object-contain"
+                              />
+                            ) : (
+                              <video
+                                ref={videoRef}
+                                autoPlay
+                                playsInline
+                                muted
+                                className="w-full h-full object-cover"
+                              />
+                            )}
+
+                            {/* Alignment Reticle / Crosshair Overlay */}
+                            {showReticle && !cameraError && (
+                              <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                                {/* Center Circle Target */}
+                                <div className="w-32 h-32 rounded-full border border-cyan-400/50 border-dashed animate-spin" style={{ animationDuration: '30s' }}></div>
+                                <div className="w-16 h-16 rounded-full border-2 border-emerald-400/70 absolute"></div>
+                                {/* Crosshair lines */}
+                                <div className="absolute w-full h-[1px] bg-cyan-400/30"></div>
+                                <div className="absolute h-full w-[1px] bg-cyan-400/30"></div>
+                                <span className="absolute bottom-2 left-2 text-[9px] font-mono text-cyan-400 bg-black/60 px-1.5 py-0.5 rounded">
+                                  RETICLE ALIGNMENT: ACTIVE
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Camera Error Display */}
+                            {cameraError && (
+                              <div className="absolute inset-0 flex flex-col items-center justify-center p-4 bg-slate-950/90 text-center">
+                                <AlertTriangle size={32} className="text-amber-400 mb-2" />
+                                <p className="text-xs text-slate-300 mb-3">{cameraError}</p>
+                                <button
+                                  type="button"
+                                  onClick={() => startCamera(cameraFacingMode)}
+                                  className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-xs font-bold"
+                                >
+                                  Coba Hubungkan Ulang
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Camera Quick Controls Overlay */}
+                            <div className="absolute top-2 right-2 flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setShowReticle(prev => !prev)}
+                                className={`p-1.5 rounded bg-black/60 text-white hover:bg-black/80 border text-[10px] cursor-pointer ${
+                                  showReticle ? 'border-cyan-400 text-cyan-300' : 'border-slate-700 text-slate-400'
+                                }`}
+                                title="Toggle Grid / Reticle Target"
+                              >
+                                <Grid size={13} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={toggleCameraFacing}
+                                className="p-1.5 rounded bg-black/60 text-white hover:bg-black/80 border border-slate-700 text-[10px] cursor-pointer"
+                                title="Balik Kamera (Depan / Belakang / USB Microscope)"
+                              >
+                                <RefreshCw size={13} />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Camera Actions (Capture / Retake) */}
+                          <div className="flex items-center gap-2">
+                            {capturedInspectionPhoto ? (
+                              <button
+                                type="button"
+                                onClick={retakeSnapshot}
+                                className="flex-1 py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold border border-slate-700 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                              >
+                                <RefreshCw size={13} />
+                                <span>Ambil Ulang (Live Stream)</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={captureSnapshot}
+                                disabled={!cameraActive}
+                                className="flex-1 py-1.5 px-3 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer disabled:opacity-50"
+                              >
+                                <Camera size={13} />
+                                <span>Bekukan / Ambil Foto Part</span>
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Live Decision Buttons on Center Camera */}
+                          <div className="pt-1 border-t border-slate-800 flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleLimitSampleDecision('OK')}
+                              className="flex-1 py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white rounded-lg text-xs font-black flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(34,197,94,0.4)] cursor-pointer transition-all hover:scale-[1.02]"
+                            >
+                              <CheckCircle2 size={15} />
+                              <span>KEPUTUSAN: OK (PASS)</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleLimitSampleDecision('NG')}
+                              className="flex-1 py-2.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white rounded-lg text-xs font-black flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(239,68,68,0.4)] cursor-pointer transition-all hover:scale-[1.02]"
+                            >
+                              <AlertTriangle size={15} />
+                              <span>KEPUTUSAN: NG (REJECT)</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* ── 3. NG LIMIT CARD (RIGHT) ── */}
+                        <div className="bg-rose-950/25 border-2 border-rose-500/40 rounded-xl p-3.5 flex flex-col space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-extrabold text-rose-400 flex items-center gap-1.5">
                               <AlertTriangle size={15} /> 🔴 BATAS MINIMAL DITOLAK (NG)
                             </span>
-                            <span className="bg-rose-500/20 text-rose-300 font-mono text-[10px] px-2 py-0.5 rounded font-bold">
+                            <span className="bg-rose-500/20 text-rose-300 font-mono text-[10px] px-2 py-0.5 rounded font-bold border border-rose-500/30">
                               REJECT
                             </span>
                           </div>
-                          <div className="h-56 bg-slate-950 rounded-lg overflow-hidden flex items-center justify-center p-2 border border-rose-900">
+
+                          <div className="h-64 bg-slate-950 rounded-lg overflow-hidden flex items-center justify-center p-2 border border-rose-900/60 shadow-inner">
                             <img
-                              src={active.ng_photo_url}
+                              src={active.ng_photo_url || createDemoLimitSampleSvgs(active.defect_category, 'NG')}
                               alt="NG Limit"
                               className="max-h-full max-w-full object-contain"
                             />
                           </div>
-                          <div className="p-3 bg-slate-950/80 rounded-lg border border-rose-900/60 text-xs text-rose-200 leading-relaxed">
+
+                          <div className="p-2.5 bg-slate-950/80 rounded-lg border border-rose-900/60 text-xs text-rose-200 leading-relaxed flex-1">
                             <strong className="text-rose-400 block mb-1">Kriteria Penolakan:</strong>
                             {active.ng_criteria}
                           </div>
@@ -4708,9 +5265,9 @@ export default function DigitalDrawingCheckSheet() {
                       </div>
 
                       {/* Approval Sign-off info */}
-                      <div className="p-3 bg-slate-950 rounded-lg border border-slate-800 flex items-center justify-between text-xs text-slate-400">
-                        <span>Lokasi Rak Fisik: <strong className="text-white">{active.storage_location || 'Rak Metrologi'}</strong></span>
-                        <span>QA Lead: <strong className="text-emerald-400">{active.qa_approver || 'Approved'}</strong></span>
+                      <div className="p-3 bg-slate-950 rounded-lg border border-slate-800 flex items-center justify-between text-xs text-slate-400 shrink-0">
+                        <span>Lokasi Rak Fisik: <strong className="text-white">{active.storage_location || 'Rak QC Metrologi Box #03'}</strong></span>
+                        <span>QA Lead: <strong className="text-emerald-400">{active.qa_approver || 'Budi Santoso (QA Lead)'}</strong></span>
                       </div>
                     </div>
                   );
@@ -4726,14 +5283,36 @@ export default function DigitalDrawingCheckSheet() {
               </div>
             )}
 
-            {/* Footer */}
-            <div className="px-6 py-3 border-t border-slate-800 bg-slate-950 flex justify-end">
-              <button
-                onClick={() => setShowLimitSampleModal(false)}
-                className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold cursor-pointer"
-              >
-                Tutup Pedoman
-              </button>
+            {/* Footer with Big Decision Actions */}
+            <div className="px-6 py-3 border-t border-slate-800 bg-slate-950 flex items-center justify-between shrink-0">
+              <div className="text-xs text-slate-400 italic">
+                *Memilih OK atau NG akan otomatis menyimpan keputusan, menutup modal, dan beralih ke parameter berikutnya.
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleLimitSampleDecision('OK')}
+                  className="px-6 py-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white rounded-lg text-xs font-extrabold flex items-center gap-2 shadow-lg shadow-emerald-900/40 cursor-pointer"
+                >
+                  <CheckCircle2 size={15} />
+                  <span>🟢 KEPUTUSAN: OK (PASS & LANJUT ➔)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleLimitSampleDecision('NG')}
+                  className="px-6 py-2 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white rounded-lg text-xs font-extrabold flex items-center gap-2 shadow-lg shadow-rose-900/40 cursor-pointer"
+                >
+                  <AlertTriangle size={15} />
+                  <span>🔴 KEPUTUSAN: NG (REJECT & LANJUT ➔)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowLimitSampleModal(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold cursor-pointer"
+                >
+                  Tutup Pedoman
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -4741,10 +5320,25 @@ export default function DigitalDrawingCheckSheet() {
 
       {/* ─── METROLOGY CALIBRATION & MASTER GAUGE BLOCK MODAL (ISO 17025) ─── */}
       <CalibrationManagerModal
+        key={`${showCalibrationModal}-${calibrationModalTab}`}
         isOpen={showCalibrationModal}
         onClose={() => setShowCalibrationModal(false)}
         selectedToolId={selectedCalibrationToolId}
         onSelectTool={(id) => setSelectedCalibrationToolId(id)}
+        initialTab={calibrationModalTab}
+      />
+
+      {/* ─── VISUAL INSPECTION MODAL (PC MODE CAMERA) ─── */}
+      <VisualInspectionModal
+        isOpen={showVisualInspectionModal}
+        onClose={() => setShowVisualInspectionModal(false)}
+        onDecision={(decision, record) => {
+          if (decision && record) {
+            handleSaveVisualInspection(decision, record);
+          }
+          setShowVisualInspectionModal(false);
+        }}
+        inspectionItem={visualInspectionItem}
       />
 
       {/* ─── ISO 9001:2015 & IATF 16949 COMPLIANCE MODALS ──────────────────── */}
@@ -4781,6 +5375,21 @@ export default function DigitalDrawingCheckSheet() {
         onClose={() => setShowAuditTrailModal(false)}
         auditTrail={auditTrail}
         workOrderNo={workOrderNo}
+      />
+
+      {/* ─── TIER 1: OPERATOR DIGITAL E-SIGNATURE MODAL (ISO 9001: 8.5.1 / IATF 16949) ─── */}
+      <OperatorDigitalSignatureModal
+        isOpen={showOperatorSignatureModal}
+        onClose={() => setShowOperatorSignatureModal(false)}
+        onSign={handleOperatorSignAndSubmit}
+        stats={stats}
+        partInfo={{
+          partNo: partNo || 'PART-001',
+          partName: partName || 'Component Part',
+          workOrderNo,
+          partSerial
+        }}
+        initialOperatorName={inspectorName || 'Budi Santoso'}
       />
 
       {/* 3. Two-Tier QA Supervisor Approval Modal (Clause 8.6) */}
@@ -4823,12 +5432,10 @@ export default function DigitalDrawingCheckSheet() {
           onCommitPoint={(pointId, val) => {
             handleCommitAndAdvance(pointId, val);
           }}
-          onOpenHardwareHub={() => setShowHardwareHub(true)}
-          onOpenDefectCamera={() => setShowCameraInput(true)}
-          onOpenSignatureModal={() => setShowSupervisorModal(true)}
-          onSubmitChecksheet={() => {
-            toast.success('Inspeksi part berhasil disimpan ke database!');
-          }}
+          onOpenHardwareHub={() => {}}
+          onOpenDefectCamera={() => {}}
+          onOpenSignatureModal={() => setShowOperatorSignatureModal(true)}
+          onSubmitChecksheet={handleSubmitCheckSheet}
           onResetChecksheet={() => {
             setCheckPoints(prev => prev.map(p => ({ ...p, measuredVal: '' })));
             if (checkPoints.length > 0) setActivePointId(checkPoints[0].id);

@@ -620,11 +620,30 @@ export async function extractVectorPdfDimensions(pdfInput, canvasWidth = 1000, c
     const targetX = token.targetX;
     const targetY = token.targetY;
 
-    // Balloon circle position is placed with an aesthetic offset so it doesn't obstruct the numbers
-    const offsetDirX = targetX > canvasWidth * 0.52 ? 40 : -40;
-    const offsetDirY = targetY > canvasHeight * 0.52 ? -36 : 36;
-    const balloonX = Math.round(Math.min(Math.max(30, targetX + offsetDirX), canvasWidth - 35));
-    const balloonY = Math.round(Math.min(Math.max(30, targetY + offsetDirY), canvasHeight - 35));
+    // Balloon circle position is placed with an intelligent CAD offset into clear whitespace
+    // Upper features push balloons UP into top margin; lower features push balloons DOWN into bottom margin
+    let offsetDirX = 0;
+    let offsetDirY = 0;
+
+    if (targetY < canvasHeight * 0.35) {
+      offsetDirY = -38;
+      offsetDirX = targetX > canvasWidth * 0.5 ? 20 : -20;
+    } else if (targetY > canvasHeight * 0.65) {
+      offsetDirY = 38;
+      offsetDirX = targetX > canvasWidth * 0.5 ? 20 : -20;
+    } else if (targetX < canvasWidth * 0.35) {
+      offsetDirX = -45;
+      offsetDirY = targetY > canvasHeight * 0.5 ? 20 : -20;
+    } else if (targetX > canvasWidth * 0.65) {
+      offsetDirX = 45;
+      offsetDirY = targetY > canvasHeight * 0.5 ? -20 : 20;
+    } else {
+      offsetDirX = targetX > canvasWidth * 0.5 ? 38 : -38;
+      offsetDirY = targetY > canvasHeight * 0.5 ? 35 : -35;
+    }
+
+    const balloonX = Math.round(Math.min(Math.max(25, targetX + offsetDirX), canvasWidth - 30));
+    const balloonY = Math.round(Math.min(Math.max(25, targetY + offsetDirY), canvasHeight - 30));
 
     detectedPoints.push({
       ...parsed,
@@ -985,25 +1004,26 @@ export async function extractBlueprintDimensions(drawingInput, options = {}, onS
 
     if (!dwgName.includes('flange') && !dwgCode.includes('flg')) {
       rawDetectedPoints = [
-        { rawText: '120.00 OVERALL LENGTH', category: 'dimension', gdtSymbol: '📏', nominal: 120, upperTol: 0.20, lowerTol: -0.20, unit: 'mm', title: 'Panjang Total Shaft (Overall Length) 120.00 mm', criticality: 'Major', inspectionMethod: 'Digital Height Gauge / Caliper', toolId: 'Digital Caliper 0-150mm / Height Gauge', x: 340, y: 35, targetX: 340, targetY: 35, source: 'CAD_PROFILE' },
-        { rawText: '40.00 ±0.10', category: 'dimension', gdtSymbol: '📏', nominal: 40, upperTol: 0.10, lowerTol: -0.10, unit: 'mm', title: 'Panjang Step Depan 40.00 ±0.10 mm', criticality: 'Major', inspectionMethod: 'Digital Caliper 0-150mm', toolId: 'Digital Caliper', x: 165, y: 100, targetX: 165, targetY: 100, source: 'CAD_PROFILE' },
-        { rawText: '50.00 ±0.05', category: 'dimension', gdtSymbol: '📏', nominal: 50, upperTol: 0.05, lowerTol: -0.05, unit: 'mm', title: 'Panjang Step Tengah 50.00 ±0.05 mm', criticality: 'Major', inspectionMethod: 'Digital Caliper 0-150mm', toolId: 'Digital Caliper', x: 355, y: 100, targetX: 355, targetY: 100, source: 'CAD_PROFILE' },
-        { rawText: '30.00', category: 'dimension', gdtSymbol: '📏', nominal: 30, upperTol: 0.15, lowerTol: -0.15, unit: 'mm', title: 'Panjang Step Belakang 30.00 mm', criticality: 'Major', inspectionMethod: 'Digital Caliper 0-150mm', toolId: 'Digital Caliper', x: 520, y: 100, targetX: 520, targetY: 100, source: 'CAD_PROFILE' },
-        { rawText: 'STRAIGHTNESS 0.02 A', category: 'flatness', gdtSymbol: '—', nominal: 0.02, upperTol: 0.02, lowerTol: 0, unit: 'mm', title: 'GD&T Straightness (Kelurusan Sumbu) 0.02 mm Datum A', criticality: 'Critical (CC)', inspectionMethod: 'Dial Indicator / CMM', toolId: 'Mitutoyo Dial Test Indicator', x: 485, y: 145, targetX: 485, targetY: 145, source: 'CAD_PROFILE' },
-        { rawText: 'M18 x 1.5 - 6g (EXTERNAL THREAD)', category: 'diameter', gdtSymbol: '⌀', nominal: 18, upperTol: 0.05, lowerTol: -0.05, unit: 'mm', title: 'Ulir Drat Baut M18 x 1.5 - 6g External Thread', criticality: 'Major', inspectionMethod: 'Thread Ring Gauge M18x1.5 / Caliper', toolId: 'Thread Ring Gauge M18x1.5', x: 650, y: 215, targetX: 650, targetY: 215, source: 'CAD_PROFILE' },
-        { rawText: 'C1 x 45° (TYP 2 PLACES)', category: 'dimension', gdtSymbol: '📏', nominal: 1, upperTol: 0.1, lowerTol: -0.1, unit: 'mm', title: 'Chamfer Bevel C1.0 x 45° (2 Sisi)', criticality: 'Minor', inspectionMethod: 'Chamfer Gauge / Caliper', toolId: 'Digital Caliper', x: 145, y: 265, targetX: 145, targetY: 265, source: 'CAD_PROFILE' },
-        { rawText: 'Ø30.00 ±0.05', category: 'diameter', gdtSymbol: '⌀', nominal: 30, upperTol: 0.05, lowerTol: -0.05, unit: 'mm', title: 'Diameter Luar Shaft Utama Ø30.00 ±0.05 mm', criticality: 'Critical (CC)', inspectionMethod: 'Digital Micrometer 25-50mm', toolId: 'Digital Micrometer', x: 35, y: 365, targetX: 35, targetY: 365, source: 'CAD_PROFILE' },
-        { rawText: 'Ra 3.2', category: 'roughness', gdtSymbol: 'Ra', nominal: 3.2, upperTol: 0.5, lowerTol: -0.5, unit: 'µm', title: 'Kekasaran Permukaan Badan Ra 3.2 µm', criticality: 'Major', inspectionMethod: 'Surface Roughness Tester', toolId: 'Surftest SJ-210', x: 155, y: 460, targetX: 155, targetY: 460, source: 'CAD_PROFILE' },
-        { rawText: 'Ra 0.8 (BEARING JOURNAL)', category: 'roughness', gdtSymbol: 'Ra', nominal: 0.8, upperTol: 0.1, lowerTol: -0.1, unit: 'µm', title: 'Kekasaran Permukaan Bearing Journal Ra 0.8 µm', criticality: 'Critical (CC)', inspectionMethod: 'Surface Roughness Tester', toolId: 'Surftest SJ-210', x: 350, y: 275, targetX: 350, targetY: 275, source: 'CAD_PROFILE' },
-        { rawText: 'Ra 1.6 (THREAD)', category: 'roughness', gdtSymbol: 'Ra', nominal: 1.6, upperTol: 0.2, lowerTol: -0.2, unit: 'µm', title: 'Kekasaran Permukaan Ulir Ra 1.6 µm', criticality: 'Major', inspectionMethod: 'Surface Roughness Tester', toolId: 'Surftest SJ-210', x: 550, y: 290, targetX: 550, targetY: 290, source: 'CAD_PROFILE' },
-        { rawText: '32.00 (KEYWAY LENGTH)', category: 'dimension', gdtSymbol: '📏', nominal: 32, upperTol: 0.20, lowerTol: -0.20, unit: 'mm', title: 'Panjang Slot Pasak (Keyway Length) 32.00 mm', criticality: 'Major', inspectionMethod: 'Digital Caliper 0-150mm', toolId: 'Digital Caliper', x: 350, y: 490, targetX: 350, targetY: 490, source: 'CAD_PROFILE' },
-        { rawText: 'TOTAL RUNOUT 0.03 A|B', category: 'flatness', gdtSymbol: '↗', nominal: 0.03, upperTol: 0.03, lowerTol: 0, unit: 'mm', title: 'GD&T Total Runout ↗ 0.03 mm Datum A|B', criticality: 'Critical (CC)', inspectionMethod: 'Dial Test Indicator / CMM', toolId: 'Dial Indicator', x: 350, y: 595, targetX: 350, targetY: 595, source: 'CAD_PROFILE' },
-        { rawText: 'R1.00 FILLET (TYP 2 PLACES)', category: 'radius', gdtSymbol: 'R', nominal: 1.0, upperTol: 0.1, lowerTol: -0.1, unit: 'mm', title: 'Radius Fillet Transisi R1.00 mm (2 Tempat)', criticality: 'Minor', inspectionMethod: 'Radius Gauge Set R1-R25', toolId: 'Radius Gauge', x: 280, y: 670, targetX: 280, targetY: 670, source: 'CAD_PROFILE' },
-        { rawText: 'Ø24.00 H7 (BEARING FIT) +0.021/0', category: 'diameter', gdtSymbol: '⌀', nominal: 24, upperTol: 0.021, lowerTol: 0, unit: 'mm', title: 'Diameter Bearing Seat Ø24.00 H7 (+0.021/0 mm)', criticality: 'Critical (CC)', inspectionMethod: 'Digital Micrometer 0-25mm', toolId: 'Mitutoyo Digital Micrometer', x: 480, y: 690, targetX: 480, targetY: 690, source: 'CAD_PROFILE' },
-        { rawText: 'Ø18.00 (THREAD MINOR D)', category: 'diameter', gdtSymbol: '⌀', nominal: 18, upperTol: 0.1, lowerTol: -0.1, unit: 'mm', title: 'Diameter Minor Thread Ø18.00 mm', criticality: 'Major', inspectionMethod: 'Digital Caliper / Micrometer', toolId: 'Digital Caliper', x: 680, y: 475, targetX: 680, targetY: 475, source: 'CAD_PROFILE' },
-        { rawText: '8.00 ±0.02 (KEYWAY WIDTH)', category: 'dimension', gdtSymbol: '📏', nominal: 8, upperTol: 0.02, lowerTol: -0.02, unit: 'mm', title: 'Lebar Slot Pasak 8.00 ±0.02 mm (Detail C)', criticality: 'Critical (CC)', inspectionMethod: 'Digital Caliper / Gauge Blocks', toolId: 'Digital Caliper', x: 795, y: 320, targetX: 795, targetY: 320, source: 'CAD_PROFILE' },
-        { rawText: '4.00 ±0.02 (KEYWAY DEPTH)', category: 'depth', gdtSymbol: '⏥', nominal: 4, upperTol: 0.02, lowerTol: -0.02, unit: 'mm', title: 'Kedalaman Slot Pasak 4.00 ±0.02 mm (Detail C)', criticality: 'Critical (CC)', inspectionMethod: 'Digital Depth Gauge', toolId: 'Digital Depth Gauge', x: 835, y: 360, targetX: 835, targetY: 360, source: 'CAD_PROFILE' },
-        { rawText: 'Ø24.00 H7 (DETAIL C)', category: 'diameter', gdtSymbol: '⌀', nominal: 24, upperTol: 0.021, lowerTol: 0, unit: 'mm', title: 'Diameter Shaft Ø24.00 H7 (Detail C)', criticality: 'Critical (CC)', inspectionMethod: 'Digital Micrometer', toolId: 'Mitutoyo Micrometer', x: 765, y: 410, targetX: 765, targetY: 410, source: 'CAD_PROFILE' }
+        { rawText: '120.00 OVERALL LENGTH', category: 'dimension', gdtSymbol: '📏', nominal: 120, upperTol: 0.20, lowerTol: -0.20, unit: 'mm', title: 'Panjang Total Shaft (Overall Length) 120.00 mm', criticality: 'Major', inspectionMethod: 'Digital Height Gauge / Caliper', toolId: 'Digital Caliper 0-150mm / Height Gauge', x: 340, y: 22, targetX: 340, targetY: 58, source: 'CAD_PROFILE' },
+        { rawText: '40.00 ±0.10', category: 'dimension', gdtSymbol: '📏', nominal: 40, upperTol: 0.10, lowerTol: -0.10, unit: 'mm', title: 'Panjang Step Depan 40.00 ±0.10 mm', criticality: 'Major', inspectionMethod: 'Digital Caliper 0-150mm', toolId: 'Digital Caliper', x: 135, y: 95, targetX: 165, targetY: 138, source: 'CAD_PROFILE' },
+        { rawText: '50.00 ±0.05', category: 'dimension', gdtSymbol: '📏', nominal: 50, upperTol: 0.05, lowerTol: -0.05, unit: 'mm', title: 'Panjang Step Tengah 50.00 ±0.05 mm', criticality: 'Major', inspectionMethod: 'Digital Caliper 0-150mm', toolId: 'Digital Caliper', x: 355, y: 95, targetX: 355, targetY: 138, source: 'CAD_PROFILE' },
+        { rawText: '30.00', category: 'dimension', gdtSymbol: '📏', nominal: 30, upperTol: 0.15, lowerTol: -0.15, unit: 'mm', title: 'Panjang Step Belakang 30.00 mm', criticality: 'Major', inspectionMethod: 'Digital Caliper 0-150mm', toolId: 'Digital Caliper', x: 520, y: 95, targetX: 520, targetY: 138, source: 'CAD_PROFILE' },
+        { rawText: 'STRAIGHTNESS 0.02 A', category: 'flatness', gdtSymbol: '—', nominal: 0.02, upperTol: 0.02, lowerTol: 0, unit: 'mm', title: 'GD&T Straightness (Kelurusan Sumbu) 0.02 mm Datum A', criticality: 'Critical (CC)', inspectionMethod: 'Dial Indicator / CMM', toolId: 'Dial Indicator (0.001mm)', x: 485, y: 155, targetX: 500, targetY: 198, source: 'CAD_PROFILE' },
+        { rawText: 'M18 x 1.5 - 6g (EXTERNAL THREAD)', category: 'diameter', gdtSymbol: '⌀', nominal: 18, upperTol: 0.05, lowerTol: -0.05, unit: 'mm', title: 'Ulir Drat Baut M18 x 1.5 - 6g External Thread', criticality: 'Major', inspectionMethod: 'Thread Ring Gauge M18x1.5 / Caliper', toolId: 'Thread Ring Gauge M18x1.5', x: 690, y: 250, targetX: 630, targetY: 290, source: 'CAD_PROFILE' },
+        { rawText: 'KEYWAY 8 x 4 x 32 DIN 6885', category: 'dimension', gdtSymbol: '📏', nominal: 8, upperTol: 0.05, lowerTol: -0.05, unit: 'mm', title: 'Spesifikasi Slot Pasak 8x4x32 DIN 6885', criticality: 'Major', inspectionMethod: 'Digital Caliper 0-150mm', toolId: 'Digital Caliper 0-150mm', x: 415, y: 240, targetX: 360, targetY: 275, source: 'CAD_PROFILE' },
+        { rawText: 'C1 x 45° (TYP 2 PLACES)', category: 'dimension', gdtSymbol: '📏', nominal: 1, upperTol: 0.1, lowerTol: -0.1, unit: 'mm', title: 'Chamfer Bevel C1.0 x 45° (2 Sisi)', criticality: 'Minor', inspectionMethod: 'Chamfer Gauge / Caliper', toolId: 'Digital Caliper', x: 85, y: 340, targetX: 140, targetY: 370, source: 'CAD_PROFILE' },
+        { rawText: 'Ø30.00 ±0.05', category: 'diameter', gdtSymbol: '⌀', nominal: 30, upperTol: 0.05, lowerTol: -0.05, unit: 'mm', title: 'Diameter Luar Shaft Utama Ø30.00 ±0.05 mm', criticality: 'Critical (CC)', inspectionMethod: 'Digital Micrometer 25-50mm', toolId: 'Outside Micrometer 25-50mm', x: 45, y: 430, targetX: 25, targetY: 485, source: 'CAD_PROFILE' },
+        { rawText: 'Ra 3.2', category: 'roughness', gdtSymbol: 'Ra', nominal: 3.2, upperTol: 0.5, lowerTol: -0.5, unit: 'µm', title: 'Kekasaran Permukaan Badan Ra 3.2 µm', criticality: 'Major', inspectionMethod: 'Surface Roughness Tester', toolId: 'Surface Roughness Tester', x: 110, y: 615, targetX: 145, targetY: 620, source: 'CAD_PROFILE' },
+        { rawText: 'Ra 0.8 (BEARING JOURNAL)', category: 'roughness', gdtSymbol: 'Ra', nominal: 0.8, upperTol: 0.1, lowerTol: -0.1, unit: 'µm', title: 'Kekasaran Permukaan Bearing Journal Ra 0.8 µm', criticality: 'Critical (CC)', inspectionMethod: 'Surface Roughness Tester', toolId: 'Surface Roughness Tester', x: 350, y: 340, targetX: 350, targetY: 385, source: 'CAD_PROFILE' },
+        { rawText: 'Ra 1.6 (THREAD)', category: 'roughness', gdtSymbol: 'Ra', nominal: 1.6, upperTol: 0.2, lowerTol: -0.2, unit: 'µm', title: 'Kekasaran Permukaan Ulir Ra 1.6 µm', criticality: 'Major', inspectionMethod: 'Surface Roughness Tester', toolId: 'Surface Roughness Tester', x: 550, y: 360, targetX: 550, targetY: 405, source: 'CAD_PROFILE' },
+        { rawText: '32.00 (KEYWAY LENGTH)', category: 'dimension', gdtSymbol: '📏', nominal: 32, upperTol: 0.20, lowerTol: -0.20, unit: 'mm', title: 'Panjang Slot Pasak (Keyway Length) 32.00 mm', criticality: 'Major', inspectionMethod: 'Digital Caliper 0-150mm', toolId: 'Digital Caliper', x: 350, y: 715, targetX: 350, targetY: 665, source: 'CAD_PROFILE' },
+        { rawText: 'TOTAL RUNOUT 0.03 A|B', category: 'flatness', gdtSymbol: '↗', nominal: 0.03, upperTol: 0.03, lowerTol: 0, unit: 'mm', title: 'GD&T Total Runout ↗ 0.03 mm Datum A|B', criticality: 'Critical (CC)', inspectionMethod: 'Dial Test Indicator / CMM', toolId: 'Dial Indicator (0.001mm)', x: 350, y: 855, targetX: 350, targetY: 805, source: 'CAD_PROFILE' },
+        { rawText: 'R1.00 FILLET (TYP 2 PLACES)', category: 'radius', gdtSymbol: 'R', nominal: 1.0, upperTol: 0.1, lowerTol: -0.1, unit: 'mm', title: 'Radius Fillet Transisi R1.00 mm (2 Tempat)', criticality: 'Minor', inspectionMethod: 'Radius Gauge Set R1-R25', toolId: 'Radius Gauge', x: 230, y: 940, targetX: 270, targetY: 915, source: 'CAD_PROFILE' },
+        { rawText: 'Ø24.00 H7 (BEARING FIT) +0.021/0', category: 'diameter', gdtSymbol: '⌀', nominal: 24, upperTol: 0.021, lowerTol: 0, unit: 'mm', title: 'Diameter Bearing Seat Ø24.00 H7 (+0.021/0 mm)', criticality: 'Critical (CC)', inspectionMethod: 'Digital Micrometer 0-25mm', toolId: 'Outside Micrometer 0-25mm', x: 520, y: 900, targetX: 470, targetY: 940, source: 'CAD_PROFILE' },
+        { rawText: 'Ø18.00 (THREAD MINOR D)', category: 'diameter', gdtSymbol: '⌀', nominal: 18, upperTol: 0.1, lowerTol: -0.1, unit: 'mm', title: 'Diameter Minor Thread Ø18.00 mm', criticality: 'Major', inspectionMethod: 'Digital Caliper / Micrometer', toolId: 'Digital Caliper', x: 730, y: 635, targetX: 675, targetY: 640, source: 'CAD_PROFILE' },
+        { rawText: '8.00 ±0.02 (KEYWAY WIDTH)', category: 'dimension', gdtSymbol: '📏', nominal: 8, upperTol: 0.02, lowerTol: -0.02, unit: 'mm', title: 'Lebar Slot Pasak 8.00 ±0.02 mm (Detail C)', criticality: 'Critical (CC)', inspectionMethod: 'Digital Caliper / Gauge Blocks', toolId: 'Digital Caliper', x: 845, y: 400, targetX: 795, targetY: 435, source: 'CAD_PROFILE' },
+        { rawText: '4.00 ±0.02 (KEYWAY DEPTH)', category: 'depth', gdtSymbol: '⏥', nominal: 4, upperTol: 0.02, lowerTol: -0.02, unit: 'mm', title: 'Kedalaman Slot Pasak 4.00 ±0.02 mm (Detail C)', criticality: 'Critical (CC)', inspectionMethod: 'Digital Depth Gauge', toolId: 'Digital Depth Gauge 0-150mm', x: 875, y: 475, targetX: 825, targetY: 495, source: 'CAD_PROFILE' },
+        { rawText: 'Ø24.00 H7 (DETAIL C)', category: 'diameter', gdtSymbol: '⌀', nominal: 24, upperTol: 0.021, lowerTol: 0, unit: 'mm', title: 'Diameter Shaft Ø24.00 H7 (Detail C)', criticality: 'Critical (CC)', inspectionMethod: 'Digital Micrometer', toolId: 'Outside Micrometer 0-25mm', x: 790, y: 550, targetX: 765, targetY: 555, source: 'CAD_PROFILE' }
       ];
     } else {
       rawDetectedPoints = [

@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+import { TOOL_DEFINITIONS, detectMeasuringToolType, getCalibrationStatus } from '../utils/metrologyToolUtils';
+
 /**
  * CheckTabContent - Enterprise Inspection Studio
  * Features:
@@ -26,12 +28,19 @@ import toast from 'react-hot-toast';
  * - Direct IoT Bluetooth Gauge Sync Simulation
  * - Voice Input / Speech Recognition Dictation
  * - Piece & Cavity Sample Selector
+ * - ISO 9001: 7.1.5 Tool Calibration Expiration Detection & Input Lockout
  */
-export default function CheckTabContent({ activePt, onChange, onCommit, onToggleStatus }) {
+export default function CheckTabContent({ activePt, onChange, onCommit, onToggleStatus, onOpenCalibration }) {
   const [inputValue, setInputValue] = useState(activePt.measuredVal || '');
   const [samplePiece, setSamplePiece] = useState(1);
   const [cavityNo, setCavityNo] = useState(1);
   const [isListeningVoice, setIsListeningVoice] = useState(false);
+
+  // ISO 9001: 7.1.5 Tool Calibration Expiration Check
+  const detectedToolType = detectMeasuringToolType(activePt);
+  const toolDef = TOOL_DEFINITIONS.find(t => t.name === activePt.toolId || t.id === detectedToolType) || TOOL_DEFINITIONS[0];
+  const calStat = getCalibrationStatus(toolDef);
+  const isToolExpired = calStat.status === 'EXPIRED';
 
   // Visual Limit Sample States
   const [selectedDefectCategory, setSelectedDefectCategory] = useState(activePt.defectTag || 'Scratch / Goresan');
@@ -56,11 +65,19 @@ export default function CheckTabContent({ activePt, onChange, onCommit, onToggle
   }, [activePt.id, activePt.measuredVal, activePt.evidenceImg, activePt.defectTag]);
 
   const handleInputChange = (val) => {
+    if (!isVisualPoint && isToolExpired) {
+      toast.error(`⛔ Input Ditolak: Alat ukur "${toolDef.name}" (${toolDef.code}) EXPIRED! Kalibrasi ulang terlebih dahulu (ISO 9001: 7.1.5).`, { icon: '🔴' });
+      return;
+    }
     setInputValue(val);
     onChange(activePt.id, val);
   };
 
   const handleSubmit = () => {
+    if (!isVisualPoint && isToolExpired) {
+      toast.error(`⛔ Gagal Simpan: Alat ukur "${toolDef.name}" EXPIRED (ISO 9001: 7.1.5)!`, { icon: '🔴' });
+      return;
+    }
     onCommit(activePt.id, inputValue);
     setInputValue('');
   };
@@ -269,9 +286,78 @@ export default function CheckTabContent({ activePt, onChange, onCommit, onToggle
 
         <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '3px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>Kategori: <strong style={{ color: '#10b981' }}>{activePt.category || 'Visual & Surface'}</strong></span>
-          <span>Metode: <strong style={{ color: '#38bdf8' }}>{isVisualPoint ? 'Visual Limit Comparator' : (activePt.toolId || 'Digital Caliper')}</strong></span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            Metode: <strong style={{ color: '#38bdf8' }}>{isVisualPoint ? 'Visual Limit Comparator' : (activePt.toolId || toolDef.name)}</strong>
+            {!isVisualPoint && (
+              <button
+                type="button"
+                onClick={() => onOpenCalibration && onOpenCalibration(toolDef.id)}
+                style={{
+                  padding: '1px 6px',
+                  borderRadius: '3px',
+                  fontSize: '0.58rem',
+                  fontWeight: 900,
+                  backgroundColor: calStat.bg,
+                  border: `1px solid ${calStat.border}`,
+                  color: calStat.color,
+                  cursor: onOpenCalibration ? 'pointer' : 'default',
+                  whiteSpace: 'nowrap',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '3px'
+                }}
+                title={`Status Kalibrasi: ${calStat.label}. Klik untuk lihat detail kalibrasi.`}
+              >
+                <span>{calStat.icon}</span>
+                <span>{isToolExpired ? 'CAL EXPIRED' : calStat.status === 'VALID' ? 'CAL OK' : 'CAL DUE'}</span>
+              </button>
+            )}
+          </span>
         </div>
       </div>
+
+      {/* ⛔ TOOL CALIBRATION EXPIRED LOCKOUT BANNER (ISO 9001: 7.1.5) */}
+      {!isVisualPoint && isToolExpired && (
+        <div style={{
+          backgroundColor: 'rgba(239, 68, 68, 0.16)',
+          border: '1.5px solid #ef4444',
+          borderRadius: '8px',
+          padding: '8px 12px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          animation: 'pulse 1.8s infinite'
+        }}>
+          <span style={{ fontSize: '18px' }}>⛔</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 900, color: '#ef4444' }}>
+              KALIBRASI ALAT EXPIRED — INPUT DIBLOKIR (ISO 9001: 7.1.5)
+            </div>
+            <div style={{ fontSize: '0.62rem', color: '#fca5a5', lineHeight: 1.3 }}>
+              Alat ukur <strong>{toolDef.name} ({toolDef.code})</strong> telah kedaluwarsa sejak {toolDef.calibrationDueDate}. Input hasil ukur dinonaktifkan hingga alat dikalibrasi ulang.
+            </div>
+          </div>
+          {onOpenCalibration && (
+            <button
+              type="button"
+              onClick={() => onOpenCalibration(toolDef.id)}
+              style={{
+                padding: '5px 10px',
+                backgroundColor: '#ef4444',
+                color: 'white',
+                border: 'none',
+                borderRadius: '5px',
+                fontSize: '0.65rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              Kalibrasi Ulang
+            </button>
+          )}
+        </div>
+      )}
 
       {/* ══════════════════════════════════════════════════════════════════
           MODE A: VISUAL & SURFACE LIMIT SAMPLE COMPARATOR (ISO 9001: 8.5.1)
@@ -548,7 +634,16 @@ export default function CheckTabContent({ activePt, onChange, onCommit, onToggle
         /* ══════════════════════════════════════════════════════════════════
            MODE B: NUMERICAL DIMENSIONAL TOLERANCE & NUMPAD STUDIO
            ══════════════════════════════════════════════════════════════════ */
-        <>
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+          opacity: isToolExpired ? 0.35 : 1,
+          pointerEvents: isToolExpired ? 'none' : 'auto',
+          filter: isToolExpired ? 'grayscale(0.7)' : 'none',
+          transition: 'all 0.2s ease',
+          userSelect: isToolExpired ? 'none' : 'auto'
+        }}>
           {/* ── 3. 7-SEGMENT DIGITAL DISPLAY SCREEN ── */}
           <div style={{
             backgroundColor: '#020617',
@@ -581,7 +676,6 @@ export default function CheckTabContent({ activePt, onChange, onCommit, onToggle
                 {activePt.unit}
               </span>
             </div>
-
             {/* Real-Time Deviation Metric */}
             {hasValidInput && (
               <div style={{ marginTop: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '0.68rem', fontWeight: 800 }}>
@@ -594,38 +688,48 @@ export default function CheckTabContent({ activePt, onChange, onCommit, onToggle
                 </span>
               </div>
             )}
+            {isOutOfSpec && (
+              <div style={{
+                fontSize: '0.72rem',
+                color: '#f87171',
+                fontWeight: 800,
+                marginTop: '2px',
+                letterSpacing: '0.5px'
+              }}>
+                ⚠️ NILAI DI LUAR TOLERANSI (SPEC: {tolMin.toFixed(3)} ~ {tolMax.toFixed(3)})
+              </div>
+            )}
           </div>
 
-          {/* ── 4. ENTERPRISE REAL-TIME DYNAMIC TOLERANCE GAUGE BAR ── */}
+          {/* ── 4. ANALOG TOLERANCE SCALE (LSL, NOMINAL, USL) ── */}
           <div style={{ backgroundColor: '#0f172a', padding: '6px 10px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.64rem', fontWeight: 800, color: '#64748b', marginBottom: '3px' }}>
-              <span style={{ color: '#fca5a5' }}>LSL: {tolMin}</span>
-              <span style={{ color: '#38bdf8' }}>NOM: {nominal}</span>
-              <span style={{ color: '#fca5a5' }}>USL: {tolMax}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.62rem', color: '#94a3b8', marginBottom: '4px' }}>
+              <span>LSL: <b style={{ color: '#f87171' }}>{tolMin.toFixed(3)}</b></span>
+              <span>Nom: <b style={{ color: '#38bdf8' }}>{nominal.toFixed(3)}</b></span>
+              <span>USL: <b style={{ color: '#f87171' }}>{tolMax.toFixed(3)}</b></span>
             </div>
-
-            {/* Track Bar with Color Zones */}
-            <div style={{ position: 'relative', height: '10px', backgroundColor: '#020617', borderRadius: '5px', overflow: 'visible', border: '1px solid #334155' }}>
-              <div style={{ position: 'absolute', left: '0%', width: '20%', height: '100%', backgroundColor: 'rgba(245, 158, 11, 0.25)' }} />
-              <div style={{ position: 'absolute', left: '20%', width: '60%', height: '100%', backgroundColor: 'rgba(34, 197, 94, 0.35)' }} />
-              <div style={{ position: 'absolute', left: '80%', width: '20%', height: '100%', backgroundColor: 'rgba(245, 158, 11, 0.25)' }} />
-              <div style={{ position: 'absolute', left: '50%', top: '-2px', bottom: '-2px', width: '2px', backgroundColor: '#38bdf8', zIndex: 5 }} />
-
-              {/* Dynamic Needle Indicator */}
+            <div style={{ position: 'relative', height: '10px', backgroundColor: '#1e293b', borderRadius: '5px', overflow: 'hidden' }}>
+              <div style={{
+                position: 'absolute',
+                left: '20%',
+                right: '20%',
+                top: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(34, 197, 94, 0.3)',
+                borderLeft: '2px solid #22c55e',
+                borderRight: '2px solid #22c55e'
+              }} />
               {hasValidInput && (
                 <div
                   style={{
                     position: 'absolute',
+                    top: 0,
+                    bottom: 0,
+                    width: '4px',
+                    backgroundColor: isOutOfSpec ? '#ef4444' : '#22c55e',
                     left: `${barPercent}%`,
-                    top: '-3px',
                     transform: 'translateX(-50%)',
-                    width: '8px',
-                    height: '16px',
-                    backgroundColor: inputColor,
-                    borderRadius: '2px',
-                    boxShadow: `0 0 8px ${inputColor}`,
-                    zIndex: 10,
-                    transition: 'left 0.15s ease-out'
+                    boxShadow: '0 0 6px white'
                   }}
                 />
               )}
@@ -703,7 +807,7 @@ export default function CheckTabContent({ activePt, onChange, onCommit, onToggle
               NG
             </button>
           </div>
-        </>
+        </div>
       )}
 
       {/* ─── MODAL ZOOM LIMIT SAMPLE PHOTO ─── */}

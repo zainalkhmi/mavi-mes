@@ -52,6 +52,7 @@ const CredentialManager = lazy(() => import('./components/CredentialManager'));
 const TemplateGallery = lazy(() => import('./components/TemplateGallery'));
 const VersionControl = lazy(() => import('./components/VersionControl'));
 const MeasuringToolsManager = lazy(() => import('./components/MeasuringToolsManager'));
+const MasterDefectManager = lazy(() => import('./components/checksheet/MasterDefectManager'));
 const LiveTerminal = lazy(() => import('./components/LiveTerminal'));
 const PlcSettings = lazy(() => import('./components/PlcSettings'));
 const VisionManager = lazy(() => import('./components/VisionManager'));
@@ -190,6 +191,7 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/automations/templates" element={hasAccess('/automations') ? <TemplateGallery /> : <Navigate to="/" replace />} />
               <Route path="/automations/:id/versions" element={hasAccess('/automations') ? <VersionControl /> : <Navigate to="/" replace />} />
               <Route path="/measuring-tools" element={hasAccess('/measuring-tools') ? <MeasuringToolsManager /> : <Navigate to="/" replace />} />
+              <Route path="/defects" element={hasAccess('/measuring-tools') ? <MasterDefectManager /> : <Navigate to="/" replace />} />
               <Route path="/calibration" element={hasAccess('/measuring-tools') ? <MeasuringToolsManager /> : <Navigate to="/" replace />} />
               <Route path="/orders" element={<WorkOrderDashboard />} />
               <Route path="/functions" element={hasAccess('/functions') ? <FunctionsEditor /> : <Navigate to="/" replace />} />

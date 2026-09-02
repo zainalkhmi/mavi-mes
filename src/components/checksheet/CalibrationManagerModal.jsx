@@ -12,11 +12,13 @@ import {
   Sliders,
   CheckSquare,
   FileText,
+  FileCheck,
   Clock,
   RefreshCw,
   Search,
   Zap,
   Info,
+  ExternalLink,
   X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -35,12 +37,15 @@ export default function CalibrationManagerModal({
   isOpen,
   onClose,
   selectedToolId,
-  onSelectTool
+  onSelectTool,
+  initialTab = 'inventory'
 }) {
-  const [activeTab, setActiveTab] = useState('inventory'); // 'inventory' | 'verifier' | 'daily_check' | 'sticker'
+  const [activeTab, setActiveTab] = useState(initialTab); // 'inventory' | 'verifier' | 'daily_check' | 'sticker' | 'certificates'
   const [tools, setTools] = useState(TOOL_DEFINITIONS);
   const [activeToolId, setActiveToolId] = useState(selectedToolId || tools[0]?.id || 'caliper');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCertTool, setSelectedCertTool] = useState(null);
+  const [showCertModal, setShowCertModal] = useState(false);
 
   // Fetch Cloud Tools on modal open
   React.useEffect(() => {
@@ -107,7 +112,6 @@ export default function CalibrationManagerModal({
   if (!isOpen) return null;
 
   const currentTool = tools.find(t => t.id === activeToolId) || tools[0];
-  const calStatus = getCalibrationStatus(currentTool);
 
   // Verification calculation
   const readingNum = parseFloat(measuredReading) || selectedBlock.nominal;
@@ -187,6 +191,7 @@ export default function CalibrationManagerModal({
             { key: 'verifier', label: 'Verifikasi Master Gauge Block', icon: Sliders },
             { key: 'daily_check', label: 'Cek Harian Pra-Kerja', icon: CheckSquare },
             { key: 'sticker', label: 'Cetak Stiker Kalibrasi ISO', icon: Printer },
+            { key: 'certificates', label: 'Sertifikat Kalibrasi (ISO 17025)', icon: FileCheck },
           ].map(tab => {
             const isActive = activeTab === tab.key;
             return (
@@ -295,16 +300,29 @@ export default function CalibrationManagerModal({
                         <span className="text-slate-400 truncate max-w-[170px]" title={tool.calibratedBy}>
                           🏛️ {tool.calibratedBy}
                         </span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveToolId(tool.id);
-                            setActiveTab('verifier');
-                          }}
-                          className="px-2 py-1 bg-blue-600/30 hover:bg-blue-600 text-blue-200 rounded font-bold transition-colors cursor-pointer"
-                        >
-                          Verifikasi
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedCertTool(tool);
+                              setShowCertModal(true);
+                            }}
+                            className="px-2 py-1 bg-emerald-600/30 hover:bg-emerald-600 text-emerald-200 rounded font-bold transition-colors cursor-pointer flex items-center gap-1"
+                            title="Buka Salinan Digital Sertifikat Resmi ISO 17025"
+                          >
+                            <FileCheck size={11} /> Sertifikat
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveToolId(tool.id);
+                              setActiveTab('verifier');
+                            }}
+                            className="px-2 py-1 bg-blue-600/30 hover:bg-blue-600 text-blue-200 rounded font-bold transition-colors cursor-pointer"
+                          >
+                            Verifikasi
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -513,7 +531,7 @@ export default function CalibrationManagerModal({
                   disabled={!Object.values(checklist).every(Boolean)}
                   className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs rounded-lg shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
                 >
-                  <ShieldCheck size={15} /> Validasi Cek Harian
+                  <ShieldCheck size={15} /> {checklistSigned ? '✓ Cek Harian Tervalidasi' : 'Validasi Cek Harian'}
                 </button>
               </div>
             </div>
@@ -563,10 +581,121 @@ export default function CalibrationManagerModal({
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => window.print()}
-                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg shadow-sm flex items-center gap-2 cursor-pointer"
+                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg shadow-sm flex items-center gap-2 cursor-pointer transition-colors"
                 >
                   <Printer size={15} /> Cetak Stiker Kalibrasi
                 </button>
+                <button
+                  onClick={() => {
+                    setSelectedCertTool(currentTool);
+                    setShowCertModal(true);
+                  }}
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-sm flex items-center gap-2 cursor-pointer transition-colors"
+                >
+                  <FileCheck size={15} /> Lihat Salinan Sertifikat ISO 17025
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ═══ TAB 5: REPOSITORI SERTIFIKAT KALIBRASI ISO 17025 ═══ */}
+          {activeTab === 'certificates' && (
+            <div className="space-y-4">
+              {/* Header & Subtitle */}
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex items-center justify-between flex-wrap gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">📜</span>
+                    <h3 className="font-bold text-sm text-white">Repositori Sertifikat Kalibrasi ISO 17025</h3>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-black bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                      KAN ACCREDITED
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Dokumen resmi sertifikat kalibrasi terakreditasi KAN (Komite Akreditasi Nasional) & Traceable to SI BIPM.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="px-3 py-1 bg-slate-900 border border-slate-800 rounded-lg text-slate-300 font-mono font-bold">
+                    Total: <strong className="text-amber-400">{tools.length} Sertifikat</strong>
+                  </span>
+                </div>
+              </div>
+
+              {/* Certificate Repository Table */}
+              <div className="bg-slate-950 rounded-xl border border-slate-800 overflow-hidden shadow-xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-900/90 text-slate-400 font-bold border-b border-slate-800 uppercase tracking-wider text-[10px]">
+                        <th className="py-3 px-4">No. Sertifikat</th>
+                        <th className="py-3 px-4">Alat Ukur Target</th>
+                        <th className="py-3 px-4">Laboratorium Penguji (KAN)</th>
+                        <th className="py-3 px-4">Ketidakpastian (U)</th>
+                        <th className="py-3 px-4">Masa Berlaku</th>
+                        <th className="py-3 px-4 text-center">Status</th>
+                        <th className="py-3 px-4 text-right">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 font-sans">
+                      {tools.map((t) => {
+                        const status = getCalibrationStatus(t);
+                        const isExpired = status.status === 'EXPIRED';
+
+                        return (
+                          <tr key={t.id} className="hover:bg-slate-900/50 transition-colors">
+                            <td className="py-3 px-4 font-mono font-bold text-sky-400">
+                              {t.cert}
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="font-bold text-white flex items-center gap-1.5">
+                                <span>{t.icon}</span>
+                                <span>{t.name}</span>
+                              </div>
+                              <div className="text-[10px] text-slate-400 font-mono">
+                                ID: <strong className="text-slate-300">{t.code}</strong> • SN: {t.serial_number || 'MT-2024-881'}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-slate-300 text-[11px]">
+                              <div className="font-medium">{t.calibratedBy}</div>
+                              <div className="text-[10px] text-slate-500 font-mono">Metode: ISO/IEC 17025:2017</div>
+                            </td>
+                            <td className="py-3 px-4 font-mono font-bold text-emerald-400">
+                              ±{t.uncertainty} {t.uncertaintyUnit || 'mm'} ({t.confidenceLevel || 'k=2'})
+                            </td>
+                            <td className="py-3 px-4 text-[11px]">
+                              <div className="text-slate-300">{t.lastCalibrated} s.d.</div>
+                              <div className={`font-bold ${isExpired ? 'text-rose-400 font-mono' : 'text-slate-200 font-mono'}`}>
+                                {t.calibrationDueDate}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <span
+                                className="px-2 py-0.5 rounded-full text-[10px] font-black inline-flex items-center gap-1 border"
+                                style={{ backgroundColor: status.bg, borderColor: status.border, color: status.color }}
+                              >
+                                {status.icon} {status.status}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <button
+                                onClick={() => {
+                                  setSelectedCertTool(t);
+                                  setShowCertModal(true);
+                                }}
+                                className="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white rounded-lg font-bold text-[11px] border border-blue-500/30 hover:border-blue-500 transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-sm"
+                              >
+                                <FileCheck size={13} />
+                                <span>Lihat PDF</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
@@ -587,6 +716,177 @@ export default function CalibrationManagerModal({
         </div>
 
       </div>
+
+      {/* ─── SALINAN DIGITAL SERTIFIKAT KALIBRASI ISO 17025 (POPUP MODAL) ─── */}
+      {showCertModal && selectedCertTool && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: '20px'
+          }}
+          onClick={() => setShowCertModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '16px',
+              width: '680px',
+              maxWidth: '95vw',
+              maxHeight: '90vh',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{
+              padding: '14px 20px',
+              borderBottom: '1px solid #e2e8f0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: '#f8fafc'
+            }}>
+              <h3 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>Salinan Digital Sertifikat Kalibrasi ISO 17025</span>
+              </h3>
+              <button
+                onClick={() => setShowCertModal(false)}
+                style={{
+                  padding: '6px',
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  borderRadius: '6px',
+                  color: '#64748b'
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Certificate Paper Style */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+              <div style={{
+                border: '3px double #0284c7',
+                borderRadius: '8px',
+                padding: '24px',
+                backgroundColor: '#fafbfc',
+                fontFamily: 'system-ui, -apple-system, sans-serif'
+              }}>
+                {/* Certificate Letterhead */}
+                <div style={{ textAlign: 'center', borderBottom: '2px solid #0284c7', paddingBottom: '14px', marginBottom: '16px' }}>
+                  <div style={{ fontSize: '0.7rem', letterSpacing: '2px', color: '#0284c7', fontWeight: 900 }}>
+                    KOMITE AKREDITASI NASIONAL (KAN)
+                  </div>
+                  <h2 style={{ margin: '4px 0', fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>
+                    CERTIFICATE OF CALIBRATION
+                  </h2>
+                  <div style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '0.88rem', color: '#6366f1' }}>
+                    No: {selectedCertTool.cert}
+                  </div>
+                </div>
+
+                {/* 2-Column Specs */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '0.8rem', marginBottom: '16px' }}>
+                  <div style={{ lineHeight: 1.5 }}>
+                    <div style={{ color: '#64748b', fontSize: '0.72rem', fontWeight: 700, marginBottom: '2px' }}>
+                      IDENTITAS ALAT (INSTRUMENT)
+                    </div>
+                    <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.85rem' }}>{selectedCertTool.name}</div>
+                    <div style={{ color: '#334155' }}>Merk / Model: <strong>{selectedCertTool.manufacturer || 'Mitutoyo'} {selectedCertTool.model || 'CD-15APX'}</strong></div>
+                    <div style={{ color: '#334155' }}>Serial Number: <strong>{selectedCertTool.serial_number || 'MT-2024-881'}</strong></div>
+                    <div style={{ color: '#334155' }}>Kode ID Pabrik: <strong style={{ color: '#0284c7' }}>{selectedCertTool.code}</strong></div>
+                  </div>
+                  <div style={{ lineHeight: 1.5 }}>
+                    <div style={{ color: '#64748b', fontSize: '0.72rem', fontWeight: 700, marginBottom: '2px' }}>
+                      LABORATORIUM PENGUJI (ACCREDITED LAB)
+                    </div>
+                    <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.85rem' }}>{selectedCertTool.calibratedBy || 'PT. Kalibrasi Presisi Indonesia (KAN LP-123)'}</div>
+                    <div style={{ color: '#334155' }}>Akreditasi: <strong>KAN LP-123-IDN</strong></div>
+                    <div style={{ color: '#334155' }}>Metode Standar: <strong>ISO/IEC 17025:2017</strong></div>
+                  </div>
+                </div>
+
+                {/* Calibration Results and Uncertainty Box */}
+                <div style={{ backgroundColor: '#f1f5f9', padding: '12px 16px', borderRadius: '6px', fontSize: '0.78rem', marginBottom: '16px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <span style={{ color: '#475569' }}>Tanggal Kalibrasi: <strong style={{ color: '#0f172a' }}>{selectedCertTool.lastCalibrated}</strong></span>
+                    <span style={{ color: '#475569' }}>
+                      Jatuh Tempo: <strong style={{ color: getCalibrationStatus(selectedCertTool).status === 'EXPIRED' ? '#dc2626' : '#059669' }}>{selectedCertTool.calibrationDueDate}</strong>
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#475569' }}>
+                      Ketidakpastian (U): <strong style={{ color: '#6366f1' }}>{selectedCertTool.uncertainty} {selectedCertTool.uncertaintyUnit || 'mm'} ({selectedCertTool.confidenceLevel || 'k=2'})</strong>
+                    </span>
+                    <span style={{ color: '#475569' }}>Tingkat Kepercayaan: <strong style={{ color: '#0f172a' }}>{selectedCertTool.confidenceLevel || '95% (k=2)'}</strong></span>
+                  </div>
+                </div>
+
+                {/* Traceability & Accreditation Signatures */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: '12px', borderTop: '1px solid #cbd5e1' }}>
+                  <div style={{ fontSize: '0.68rem', color: '#64748b', lineHeight: 1.4 }}>
+                    <div>✓ Traceable to SI Meter BIPM ({selectedCertTool.traceability || 'PTB Germany'})</div>
+                    <div>Verified by Head of Metrology & Quality Assurance</div>
+                  </div>
+                  <div style={{ textAlign: 'center', fontSize: '0.74rem', fontWeight: 900, color: getCalibrationStatus(selectedCertTool).status === 'EXPIRED' ? '#dc2626' : '#059669', letterSpacing: '0.5px' }}>
+                    {getCalibrationStatus(selectedCertTool).status === 'EXPIRED' ? '[ ⚠️ EXPIRED - RE-CALIBRATION REQUIRED ]' : '[ VERIFIED & ACCREDITED ]'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div style={{ padding: '14px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '10px', backgroundColor: '#f8fafc' }}>
+              <button
+                onClick={() => setShowCertModal(false)}
+                style={{
+                  padding: '8px 16px',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  background: 'white',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  fontSize: '0.8rem',
+                  color: '#475569'
+                }}
+              >
+                Tutup
+              </button>
+              <button
+                onClick={() => window.print()}
+                style={{
+                  padding: '8px 18px',
+                  border: 'none',
+                  borderRadius: '6px',
+                  background: '#0284c7',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  fontSize: '0.8rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 4px rgba(2, 132, 199, 0.3)'
+                }}
+              >
+                <Printer size={14} /> Cetak Sertifikat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

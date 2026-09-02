@@ -2,13 +2,12 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Smartphone, Monitor, ZoomIn, ZoomOut, RotateCcw, X,
   Camera, Bluetooth, Volume2, VolumeX,
-  ChevronLeft, Check, AlertTriangle, Send, Crosshair,
+  ChevronLeft, Check, AlertTriangle, Send, Crosshair, PenTool,
   Upload, CheckCircle, RefreshCw, Zap, Sliders, Scan, Eye, Loader2, LogOut
 } from 'lucide-react';
 import Tesseract from 'tesseract.js';
 import toast from 'react-hot-toast';
-import { detectMeasuringToolType, TOOL_DEFINITIONS, getCalibrationStatus, isToolAllowedForMeasurement } from '../../utils/metrologyToolUtils';
-import { fullSPCAnalysis } from '../../utils/spcEngine';
+import { detectMeasuringToolType, TOOL_DEFINITIONS } from '../../utils/metrologyToolUtils';
 import SPCMiniChart from './SPCMiniChart';
 import SamplingPlanBadge from './SamplingPlanBadge';
 import CalibrationStatusBadge from './CalibrationStatusBadge';
@@ -348,29 +347,15 @@ export default function MobileTabletCheckSheet({
       if (activeIndex < checkPoints.length - 1) {
         handlePointChange(activeIndex + 1);
       } else {
-        // Last point: SAVE measurement and refresh drawing & checksheet for new cycle
-        if (onSubmitChecksheet) {
-          onSubmitChecksheet();
-        }
+        // Last point: SAVE measurement & trigger digital signature / submission
         if (soundEnabled) playQCSound('pass');
         triggerHaptic('success');
-        toast.success('💾 Data Disimpan! Drawing & Checksheet Berhasil Di-refresh... 🔄', { duration: 3500 });
-        
-        // 1. Reset all local measurement values so balloons return to initial clean numbered state (1, 2, 3...)
-        setLocalValues({});
-        setPointPhotos({});
-
-        // 2. Notify parent to clear measured values across all checkpoints
-        if (onResetChecksheet) {
-          onResetChecksheet();
-        } else if (onValueChange) {
-          checkPoints.forEach(p => onValueChange(p.id, ''));
+        toast.success('🎉 Seluruh Titik Ukur Selesai! Silakan tanda tangan digital.', { duration: 3000, icon: '✍️' });
+        if (onOpenSignatureModal) {
+          onOpenSignatureModal();
+        } else if (onSubmitChecksheet) {
+          onSubmitChecksheet();
         }
-        
-        // 3. Reset position to first measurement point (Poin #1) with auto-focus zoom
-        setTimeout(() => {
-          handlePointChange(0);
-        }, 300);
       }
       return;
     } else {
@@ -701,6 +686,32 @@ export default function MobileTabletCheckSheet({
             >
               <LogOut size={12} />
             </button>
+
+            {/* Operator Signature Button */}
+            {onOpenSignatureModal && (
+              <button
+                type="button"
+                onClick={onOpenSignatureModal}
+                style={{
+                  height: '26px',
+                  padding: '0 8px',
+                  borderRadius: '7px',
+                  backgroundColor: '#0c2233',
+                  border: '1px solid #0284c7',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  color: '#38bdf8',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  cursor: 'pointer'
+                }}
+                title="Tanda Tangan Digital Operator"
+              >
+                <PenTool size={11} />
+                <span>Sign</span>
+              </button>
+            )}
 
             {/* Submit Icon */}
             <button

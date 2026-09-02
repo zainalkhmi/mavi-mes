@@ -21,9 +21,12 @@ import { parseDxfContent } from '../utils/cadDxfRenderService';
 import { extractBlueprintDimensions } from '../utils/pdfDimensionExtractor';
 import { getTables, createTable } from '../utils/supabaseTablesDB';
 import { getTemplates, saveTemplates, safePersistTemplates, safeRetrieveLocalTemplates, templatesLocalDB } from '../utils/supabaseTemplateDB';
-import { getDrawingsAll, createDrawing, getDrawingRevisions, getDrawingBalloons } from '../utils/mavicorePLM';
+import { getDrawingsAll, createDrawing, getDrawingRevisions, getDrawingBalloons, getLimitSamples, createLimitSample } from '../utils/mavicorePLM';
 import { getCurrentUser } from '../utils/auth';
 import { executeReportPrintAction } from '../utils/reportPrintService';
+import { TOOL_DEFINITIONS, detectMeasuringToolType, getCalibrationStatus } from '../utils/metrologyToolUtils';
+import CalibrationManagerModal from './checksheet/CalibrationManagerModal';
+import { DEFECT_CATEGORIES, createDemoLimitSampleSvgs } from '../utils/limitSampleUtils';
 
 // GD&T Parameter Categories
 const PARAM_CATEGORIES = [
@@ -166,6 +169,81 @@ export default function InspectorDesigner() {
   const [dragMode, setDragMode] = useState('balloon'); // 'balloon' | 'target' | 'both'
   const dragStartRef = useRef({ startX: 0, startY: 0, ptX: 0, ptY: 0, targetX: 0, targetY: 0 });
   const [hoverCoords, setHoverCoords] = useState(null); // { x: number, y: number }
+  const [showCalibrationModal, setShowCalibrationModal] = useState(false);
+  const [selectedCalibrationToolId, setSelectedCalibrationToolId] = useState('caliper');
+  const [calibrationModalTab, setCalibrationModalTab] = useState('inventory');
+
+  // ─── Drawing Management Limit Samples Integration (ISO 9001: 8.5.1 / IATF 16949) ───
+  const [drawingLimitSamples, setDrawingLimitSamples] = useState([]);
+  const [selectedLimitSamplePreview, setSelectedLimitSamplePreview] = useState(null);
+  const [showLimitSamplePreviewModal, setShowLimitSamplePreviewModal] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadLimitSamplesForDrawing = async () => {
+      try {
+        const dwgId = selectedDrawing?.id;
+        let samples = [];
+        if (dwgId) {
+          samples = await getLimitSamples(dwgId);
+        }
+        if (!samples || samples.length === 0) {
+          samples = await getLimitSamples();
+        }
+        if ((!samples || samples.length === 0) && selectedDrawing) {
+          samples = [
+            {
+              id: `ls_${selectedDrawing.code || 'DWG'}_001`,
+              code: `LS-${selectedDrawing.code || 'DWG'}-001`,
+              title: 'Batas Goresan Permukaan Bodi Mesin (Scratch Boundary)',
+              defect_category: 'SCRATCH',
+              drawing_id: selectedDrawing.id,
+              ok_criteria: 'Batas goresan halus (hairline scratch) panjang < 10mm, kedalaman < 0.05mm yang tidak mempengaruhi fungsi perakitan.',
+              ng_criteria: 'Goresan dalam > 0.2mm yang menembus lapisan pelindung atau mengenai area permukaan bearing (Wajib REJECT).',
+              effective_date: new Date().toISOString().split('T')[0],
+              expiry_date: new Date(Date.now() + 180 * 86400000).toISOString().split('T')[0],
+              storage_location: 'Rak QC Metrologi #01',
+              qa_approver: 'QA Manager',
+              status: 'ACTIVE'
+            },
+            {
+              id: `ls_${selectedDrawing.code || 'DWG'}_002`,
+              code: `LS-${selectedDrawing.code || 'DWG'}-002`,
+              title: 'Batas Ketajaman Sisi / Burr Hasil Permesinan (Burr Boundary)',
+              defect_category: 'BURR',
+              drawing_id: selectedDrawing.id,
+              ok_criteria: 'Burr pada sudut chamfer <= 0.05 mm yang tidak melukai tangan dan tidak mengganggu pasak (Lolos / OK).',
+              ng_criteria: 'Geram tajam (burr) menonjol >= 0.3 mm atau serpihan rapuh berisiko rontok ke sistem hidrolik (Wajib REJECT).',
+              effective_date: new Date().toISOString().split('T')[0],
+              expiry_date: new Date(Date.now() + 180 * 86400000).toISOString().split('T')[0],
+              storage_location: 'Rak QC Metrologi #01',
+              qa_approver: 'QA Manager',
+              status: 'ACTIVE'
+            },
+            {
+              id: `ls_${selectedDrawing.code || 'DWG'}_003`,
+              code: `LS-${selectedDrawing.code || 'DWG'}-003`,
+              title: 'Batas Porositas & Pinhole Coran (Blowhole Boundary)',
+              defect_category: 'BLOWHOLE',
+              drawing_id: selectedDrawing.id,
+              ok_criteria: 'Pinhole tunggal terisolir dengan diameter <= 0.3 mm di luar area sealing (Lolos / OK).',
+              ng_criteria: 'Cluster porositas berkelompok diameter > 1.5 mm yang berpotensi bocor fluida (Wajib REJECT).',
+              effective_date: new Date().toISOString().split('T')[0],
+              expiry_date: new Date(Date.now() + 180 * 86400000).toISOString().split('T')[0],
+              storage_location: 'Rak QC Metrologi #01',
+              qa_approver: 'QA Manager',
+              status: 'ACTIVE'
+            }
+          ];
+        }
+        if (isMounted) setDrawingLimitSamples(samples || []);
+      } catch (err) {
+        console.warn('[InspectorDesigner] Error loading limit samples:', err);
+      }
+    };
+    loadLimitSamplesForDrawing();
+    return () => { isMounted = false; };
+  }, [selectedDrawing]);
 
   // ─── Drawing & Markup Annotation Tools State (Step 2 & 3) ───
   const [isDrawingMode, setIsDrawingMode] = useState(false);
@@ -230,6 +308,24 @@ export default function InspectorDesigner() {
   // Check Sheet Status (ISO 9001 Document Control)
   const [checkSheetStatus, setCheckSheetStatus] = useState('draft'); // draft, pending_approval, approved, released, archived
   const [revisionHistory, setRevisionHistory] = useState([]);
+
+  // ─── Custom Pre-Inspection Fields (Field Opsional/Wajib Sebelum Point Check) ───
+  const [preInspectionFields, setPreInspectionFields] = useState([
+    {
+      id: 'fld_lot_no',
+      label: 'Nomor Lot / Batch Part',
+      type: 'textbox', // 'textbox', 'number', 'combobox', 'option'
+      placeholder: 'Contoh: LOT-2026-X01',
+      required: true,
+      options: []
+    }
+  ]);
+  const [newFieldLabel, setNewFieldLabel] = useState('');
+  const [newFieldType, setNewFieldType] = useState('textbox');
+  const [newFieldRequired, setNewFieldRequired] = useState(true);
+  const [newFieldPlaceholder, setNewFieldPlaceholder] = useState('');
+  const [newFieldOptions, setNewFieldOptions] = useState('Shift 1, Shift 2, Shift 3');
+  const [showAddFieldForm, setShowAddFieldForm] = useState(false);
 
   // Check Sheet Management
   const [savedTemplates, setSavedTemplates] = useState([]);
@@ -592,6 +688,10 @@ export default function InspectorDesigner() {
     setCheckSheetDescription(cs.description || '');
     setWorkOrderPrefix(cs.workOrderPrefix || 'WO-2026');
     setStationId(cs.stationId || cs.station || 'ST-01');
+
+    if (cs.preInspectionFields && Array.isArray(cs.preInspectionFields)) {
+      setPreInspectionFields(cs.preInspectionFields);
+    }
 
     if (cs.checkPoints && Array.isArray(cs.checkPoints) && cs.checkPoints.length > 0) {
       setCheckPoints(cs.checkPoints);
@@ -1130,8 +1230,54 @@ export default function InspectorDesigner() {
     setCheckPoints([]);
     setActivePointId(null);
     setSelectedTemplateId(null);
+    setPreInspectionFields([
+      {
+        id: 'fld_lot_no',
+        label: 'Nomor Lot / Batch Part',
+        type: 'textbox',
+        placeholder: 'Contoh: LOT-2026-X01',
+        required: true,
+        options: []
+      }
+    ]);
     setCurrentStep(1);
     toast.success('Lembar Check Sheet Baru siap dibuat! Silakan upload drawing atau tentukan parameter.');
+  };
+
+  // ─── Custom Pre-Inspection Field Builders ───
+  const handleAddPreInspectionField = (typePreset = null) => {
+    const selectedType = typePreset || newFieldType;
+    const defaultLabel = selectedType === 'number' ? 'Nomor Seri / Qty Part' 
+      : selectedType === 'combobox' ? 'Pilihan Shift / Mesin' 
+      : selectedType === 'option' ? 'Status Material / Cavity' 
+      : 'Nomor Lot / Heat No';
+    const label = newFieldLabel.trim() || defaultLabel;
+    const newField = {
+      id: `fld_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`,
+      label: label,
+      type: selectedType,
+      placeholder: newFieldPlaceholder.trim() || (selectedType === 'number' ? '0' : `Masukkan ${label}`),
+      required: newFieldRequired,
+      options: (selectedType === 'combobox' || selectedType === 'option')
+        ? (newFieldOptions.split(',').map(s => s.trim()).filter(Boolean).length > 0
+          ? newFieldOptions.split(',').map(s => s.trim()).filter(Boolean)
+          : (selectedType === 'option' ? ['Line A', 'Line B'] : ['Shift 1', 'Shift 2', 'Shift 3']))
+        : []
+    };
+    setPreInspectionFields(prev => [...prev, newField]);
+    setNewFieldLabel('');
+    setNewFieldPlaceholder('');
+    setShowAddFieldForm(false);
+    toast.success(`Field "${label}" (${selectedType.toUpperCase()}) berhasil ditambahkan!`, { icon: '🏷️' });
+  };
+
+  const handleRemovePreInspectionField = (id) => {
+    setPreInspectionFields(prev => prev.filter(f => f.id !== id));
+    toast.success('Field pra-inspeksi dihapus');
+  };
+
+  const handleToggleFieldRequired = (id) => {
+    setPreInspectionFields(prev => prev.map(f => f.id === id ? { ...f, required: !f.required } : f));
   };
 
   // ─── Load Pre-defined QC Presets ───
@@ -1873,6 +2019,7 @@ export default function InspectorDesigner() {
 
         // Inspection Points
         checkPoints: checkPoints,
+        preInspectionFields: preInspectionFields,
         workflowSettings: {
           guidedMode,
           autoAdvance,
@@ -1991,6 +2138,7 @@ export default function InspectorDesigner() {
         measuredVal: '',
         disposition: 'Pending Inspection'
       })),
+      preInspectionFields: preInspectionFields,
       workflowSettings: {
         guidedMode,
         autoAdvance,
@@ -2870,6 +3018,342 @@ export default function InspectorDesigner() {
                     resize: 'vertical'
                   }}
                 />
+              </div>
+
+              {/* ─── CUSTOM PRE-INSPECTION HEADER FIELDS (GATE INPUT SEBELUM POINT CHECK) ─── */}
+              <div style={{
+                backgroundColor: '#0f172a',
+                border: '1.5px solid #38bdf8',
+                borderRadius: '10px',
+                padding: '12px',
+                marginBottom: '14px',
+                boxShadow: '0 4px 16px rgba(56, 189, 248, 0.12)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '6px',
+                      backgroundColor: 'rgba(56, 189, 248, 0.2)',
+                      color: '#38bdf8',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 900,
+                      fontSize: '0.75rem'
+                    }}>
+                      📋
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 900, color: '#f8fafc' }}>
+                        Field Pra-Inspeksi & Traceability Part
+                      </div>
+                      <div style={{ fontSize: '0.62rem', color: '#94a3b8' }}>
+                        Field (Lot No, Heat No, dll) yang wajib/opsional diisi di layar tengah sebelum mulai ukur
+                      </div>
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: '0.6rem',
+                    fontWeight: 800,
+                    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                    color: '#38bdf8',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    border: '1px solid rgba(56, 189, 248, 0.3)'
+                  }}>
+                    {preInspectionFields.length} Field Aktif
+                  </span>
+                </div>
+
+                {/* List of Defined Pre-Inspection Fields */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', margin: '10px 0' }}>
+                  {preInspectionFields.map((field, idx) => {
+                    return (
+                      <div
+                        key={field.id || idx}
+                        style={{
+                          backgroundColor: '#1e293b',
+                          border: '1px solid #334155',
+                          borderRadius: '7px',
+                          padding: '8px 10px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '8px'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+                          <span style={{
+                            fontSize: '0.58rem',
+                            fontWeight: 900,
+                            padding: '2px 5px',
+                            borderRadius: '3px',
+                            backgroundColor: field.type === 'number' ? '#0284c7' 
+                              : field.type === 'combobox' ? '#7c3aed' 
+                              : field.type === 'option' ? '#d97706' 
+                              : '#059669',
+                            color: 'white',
+                            textTransform: 'uppercase'
+                          }}>
+                            {field.type}
+                          </span>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#f1f5f9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {field.label}
+                            </div>
+                            <div style={{ fontSize: '0.6rem', color: '#94a3b8' }}>
+                              {field.placeholder || 'Tanpa placeholder'}
+                              {field.options?.length > 0 && ` • Opsi: [${field.options.join(', ')}]`}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleFieldRequired(field.id)}
+                            style={{
+                              fontSize: '0.58rem',
+                              fontWeight: 800,
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              border: 'none',
+                              backgroundColor: field.required ? 'rgba(239, 68, 68, 0.2)' : 'rgba(100, 116, 139, 0.2)',
+                              color: field.required ? '#f87171' : '#94a3b8',
+                              cursor: 'pointer'
+                            }}
+                            title="Klik untuk ubah status Wajib / Opsional"
+                          >
+                            {field.required ? 'WAJIB (GATE)' : 'OPSIONAL'}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePreInspectionField(field.id)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#ef4444',
+                              cursor: 'pointer',
+                              padding: '3px',
+                              display: 'flex',
+                              alignItems: 'center'
+                            }}
+                            title="Hapus field ini"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Quick Add Buttons */}
+                {!showAddFieldForm ? (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleAddPreInspectionField('textbox')}
+                      style={{
+                        flex: '1 1 auto',
+                        padding: '5px 8px',
+                        backgroundColor: '#1e293b',
+                        border: '1px solid #334155',
+                        borderRadius: '5px',
+                        color: '#38bdf8',
+                        fontSize: '0.64rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <Plus size={11} /> + Textbox
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAddPreInspectionField('number')}
+                      style={{
+                        flex: '1 1 auto',
+                        padding: '5px 8px',
+                        backgroundColor: '#1e293b',
+                        border: '1px solid #334155',
+                        borderRadius: '5px',
+                        color: '#38bdf8',
+                        fontSize: '0.64rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <Plus size={11} /> + Number
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAddPreInspectionField('combobox')}
+                      style={{
+                        flex: '1 1 auto',
+                        padding: '5px 8px',
+                        backgroundColor: '#1e293b',
+                        border: '1px solid #334155',
+                        borderRadius: '5px',
+                        color: '#a78bfa',
+                        fontSize: '0.64rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <Plus size={11} /> + Combo Box
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAddPreInspectionField('option')}
+                      style={{
+                        flex: '1 1 auto',
+                        padding: '5px 8px',
+                        backgroundColor: '#1e293b',
+                        border: '1px solid #334155',
+                        borderRadius: '5px',
+                        color: '#f59e0b',
+                        fontSize: '0.64rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <Plus size={11} /> + Option
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddFieldForm(true)}
+                      style={{
+                        padding: '5px 10px',
+                        backgroundColor: '#0284c7',
+                        border: 'none',
+                        borderRadius: '5px',
+                        color: 'white',
+                        fontSize: '0.64rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <Settings size={11} /> Kustomisasi Lengkap
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{
+                    backgroundColor: '#1e293b',
+                    border: '1px solid #475569',
+                    borderRadius: '8px',
+                    padding: '10px',
+                    marginTop: '8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#38bdf8' }}>
+                      Tambah Field Pra-Inspeksi Baru:
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '6px' }}>
+                      <div>
+                        <label style={{ fontSize: '0.6rem', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Label Field:</label>
+                        <input
+                          type="text"
+                          value={newFieldLabel}
+                          onChange={e => setNewFieldLabel(e.target.value)}
+                          placeholder="Cth: Nomor Lot / No Heat"
+                          style={{ width: '100%', padding: '5px 8px', backgroundColor: '#090d16', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '0.72rem' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.6rem', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Tipe Field:</label>
+                        <select
+                          value={newFieldType}
+                          onChange={e => setNewFieldType(e.target.value)}
+                          style={{ width: '100%', padding: '5px 8px', backgroundColor: '#090d16', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '0.72rem' }}
+                        >
+                          <option value="textbox">📝 Textbox (Teks)</option>
+                          <option value="number">🔢 Number (Angka)</option>
+                          <option value="combobox">🔽 Combo Box (Dropdown)</option>
+                          <option value="option">🔘 Option (Pilihan / Radio)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {(newFieldType === 'combobox' || newFieldType === 'option') && (
+                      <div>
+                        <label style={{ fontSize: '0.6rem', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>
+                          Daftar Pilihan (Pisahkan dengan koma):
+                        </label>
+                        <input
+                          type="text"
+                          value={newFieldOptions}
+                          onChange={e => setNewFieldOptions(e.target.value)}
+                          placeholder="Shift 1, Shift 2, Shift 3"
+                          style={{ width: '100%', padding: '5px 8px', backgroundColor: '#090d16', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '0.72rem' }}
+                        />
+                      </div>
+                    )}
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '6px', alignItems: 'center' }}>
+                      <div>
+                        <label style={{ fontSize: '0.6rem', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Placeholder / Petunjuk:</label>
+                        <input
+                          type="text"
+                          value={newFieldPlaceholder}
+                          onChange={e => setNewFieldPlaceholder(e.target.value)}
+                          placeholder="Cth: Masukkan kode batch"
+                          style={{ width: '100%', padding: '5px 8px', backgroundColor: '#090d16', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '0.72rem' }}
+                        />
+                      </div>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.65rem', color: '#f8fafc', cursor: 'pointer', marginTop: '12px' }}>
+                        <input
+                          type="checkbox"
+                          checked={newFieldRequired}
+                          onChange={e => setNewFieldRequired(e.target.checked)}
+                          style={{ accentColor: '#ef4444' }}
+                        />
+                        <span>Wajib Diisi</span>
+                      </label>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', marginTop: '4px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddFieldForm(false)}
+                        style={{ padding: '4px 8px', backgroundColor: '#334155', border: 'none', borderRadius: '4px', color: '#cbd5e1', fontSize: '0.64rem', cursor: 'pointer' }}
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAddPreInspectionField()}
+                        style={{ padding: '4px 12px', backgroundColor: '#0284c7', border: 'none', borderRadius: '4px', color: 'white', fontSize: '0.64rem', fontWeight: 800, cursor: 'pointer' }}
+                      >
+                        Tambahkan Field
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Next Step Button */}
@@ -5969,13 +6453,131 @@ export default function InspectorDesigner() {
                   ════════════════════════════════════════════════════════════════ */}
               {(activePoint.category === 'visual' || activePoint.category?.toLowerCase().includes('visual') || activePoint.inspectionMethod?.includes('Visual')) ? (
                 <div style={{ backgroundColor: '#090d16', border: '1.5px solid #10b981', borderRadius: '8px', padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {/* Header: Title & Connection Status */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ fontSize: '0.74rem', fontWeight: 900, color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       👁️ Visual Limit Sample Standard
                     </span>
-                    <span style={{ fontSize: '0.6rem', color: '#a7f3d0', backgroundColor: 'rgba(16,185,129,0.2)', padding: '1px 5px', borderRadius: '3px', fontWeight: 800 }}>
-                      ISO 9001: 8.5.1
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ fontSize: '0.6rem', color: '#a7f3d0', backgroundColor: 'rgba(16,185,129,0.2)', padding: '1px 5px', borderRadius: '3px', fontWeight: 800 }}>
+                        ISO 9001: 8.5.1
+                      </span>
+                      {activePoint.limitSampleCode && (
+                        <span style={{ fontSize: '0.58rem', color: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.2)', padding: '1px 5px', borderRadius: '3px', fontWeight: 800 }}>
+                          🔗 {activePoint.limitSampleCode}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ── Auto-Connect to Drawing Management Limit Sample Selector ── */}
+                  <div style={{ backgroundColor: '#1e293b', padding: '7px 8px', borderRadius: '6px', border: '1px solid #0284c7' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <label style={{ fontSize: '0.62rem', fontWeight: 800, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span>🔗 Sambungkan ke Master Limit Sample Drawing:</span>
+                      </label>
+                      {activePoint.limitSampleCode && (
+                        <span style={{ fontSize: '0.55rem', fontWeight: 800, color: '#22c55e' }}>
+                          🟢 AKTIF / VALID
+                        </span>
+                      )}
+                    </div>
+
+                    <select
+                      value={activePoint.limitSampleId || (drawingLimitSamples.find(s => s.code === activePoint.limitSampleCode)?.id) || ''}
+                      onChange={(e) => {
+                        const chosenId = e.target.value;
+                        if (!chosenId) {
+                          handleUpdatePoint('limitSampleId', null);
+                          handleUpdatePoint('limitSampleCode', null);
+                          handleUpdatePoint('limitSampleTitle', null);
+                          return;
+                        }
+                        const chosen = drawingLimitSamples.find(s => s.id === chosenId);
+                        if (chosen) {
+                          handleUpdatePoint('limitSampleId', chosen.id);
+                          handleUpdatePoint('limitSampleCode', chosen.code);
+                          handleUpdatePoint('limitSampleTitle', chosen.title);
+                          handleUpdatePoint('defectTag', chosen.defect_category || 'SCRATCH');
+                          handleUpdatePoint('limitSpec', chosen.ok_criteria);
+                          handleUpdatePoint('rejectSpec', chosen.ng_criteria);
+                          if (!activePoint.goldenSpec) {
+                            handleUpdatePoint('goldenSpec', 'Kondisi permukaan sempurna tanpa cacat, presisi & mulus (Golden OK).');
+                          }
+                          if (!activePoint.goldenSampleImg && chosen.ok_photo_url) {
+                            handleUpdatePoint('goldenSampleImg', chosen.ok_photo_url);
+                          }
+                          if (!activePoint.limitSampleImg) {
+                            handleUpdatePoint('limitSampleImg', chosen.ok_photo_url || createDemoLimitSampleSvgs(chosen.defect_category, 'OK'));
+                          }
+                          if (!activePoint.rejectSampleImg) {
+                            handleUpdatePoint('rejectSampleImg', chosen.ng_photo_url || createDemoLimitSampleSvgs(chosen.defect_category, 'NG'));
+                          }
+                          toast.success(`✓ Terhubung ke Drawing Limit Sample: ${chosen.code}`);
+                        }
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '5px 8px',
+                        backgroundColor: '#0f172a',
+                        border: '1px solid #334155',
+                        borderRadius: '4px',
+                        color: 'white',
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        outline: 'none',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value="">-- Pilih dari Master Limit Sample ({drawingLimitSamples.length} Terdaftar) --</option>
+                      {drawingLimitSamples.map(sample => (
+                        <option key={sample.id} value={sample.id}>
+                          {sample.code} - {sample.title} ({sample.defect_category})
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* Quick Info Bar when connected */}
+                    {activePoint.limitSampleCode && (
+                      <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.62rem', color: '#cbd5e1' }}>
+                        <span style={{ truncate: true, maxWidth: '210px' }} title={activePoint.limitSampleTitle}>
+                          Target: <strong className="text-white">{activePoint.limitSampleTitle}</strong>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const found = drawingLimitSamples.find(s => s.id === activePoint.limitSampleId || s.code === activePoint.limitSampleCode) || {
+                              code: activePoint.limitSampleCode,
+                              title: activePoint.limitSampleTitle || 'Visual Limit Sample',
+                              defect_category: activePoint.defectTag || 'SCRATCH',
+                              ok_criteria: activePoint.limitSpec,
+                              ng_criteria: activePoint.rejectSpec,
+                              ok_photo_url: activePoint.limitSampleImg,
+                              ng_photo_url: activePoint.rejectSampleImg,
+                              effective_date: new Date().toISOString().split('T')[0],
+                              expiry_date: new Date(Date.now() + 180 * 86400000).toISOString().split('T')[0],
+                              storage_location: 'Rak QC Metrologi #01',
+                              qa_approver: 'QA Manager',
+                              status: 'ACTIVE'
+                            };
+                            setSelectedLimitSamplePreview(found);
+                            setShowLimitSamplePreviewModal(true);
+                          }}
+                          style={{
+                            padding: '2px 6px',
+                            backgroundColor: 'rgba(56, 189, 248, 0.2)',
+                            color: '#38bdf8',
+                            border: '1px solid #0284c7',
+                            borderRadius: '3px',
+                            fontSize: '0.6rem',
+                            fontWeight: 800,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          🔍 Lihat Kartu Standar
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Defect Classification Tag */}
@@ -5984,24 +6586,23 @@ export default function InspectorDesigner() {
                       Jenis Cacat (Defect Classification):
                     </label>
                     <select
-                      value={activePoint.defectTag || 'Scratch / Goresan'}
+                      value={activePoint.defectTag || 'SCRATCH'}
                       onChange={e => handleUpdatePoint('defectTag', e.target.value)}
                       style={{ width: '100%', padding: '6px 8px', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#38bdf8', fontSize: '0.74rem', fontWeight: 700, outline: 'none' }}
                     >
-                      <option value="Scratch / Goresan">Scratch / Goresan</option>
-                      <option value="Painting / Cat Belang">Painting / Cat Belang (Orange Peel)</option>
-                      <option value="Burr / Ketajaman">Burr / Ketajaman Sisa Mesin</option>
-                      <option value="Pinhole / Porosi">Pinhole / Porosi Coran</option>
-                      <option value="Dent / Penyok">Dent / Penyok Benturan</option>
-                      <option value="Weld Bead">Weld Bead / Sambungan Las</option>
+                      {DEFECT_CATEGORIES.map(cat => (
+                        <option key={cat.key} value={cat.key}>{cat.icon} {cat.label}</option>
+                      ))}
                     </select>
                   </div>
 
                   {/* 1. Golden Sample Photo & Spec */}
                   <div style={{ backgroundColor: '#0f172a', padding: '6px', borderRadius: '6px', border: '1px solid #166534' }}>
-                    <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#22c55e', display: 'block', marginBottom: '3px' }}>
-                      🟢 1. Golden Sample (Kondisi Sempurna OK)
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#22c55e' }}>
+                        🟢 1. Golden Sample (Kondisi Sempurna OK)
+                      </span>
+                    </div>
                     <input
                       type="text"
                       placeholder="Spesifikasi (cth: Permukaan mulus, cat rata, bebas cacat)"
@@ -6009,33 +6610,54 @@ export default function InspectorDesigner() {
                       onChange={e => handleUpdatePoint('goldenSpec', e.target.value)}
                       style={{ width: '100%', padding: '4px 6px', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#f8fafc', fontSize: '0.68rem', outline: 'none', marginBottom: '4px' }}
                     />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      {activePoint.goldenSampleImg ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <img src={activePoint.goldenSampleImg} alt="Golden" style={{ width: '22px', height: '22px', borderRadius: '3px', objectFit: 'cover' }} />
-                          <button onClick={() => handleUpdatePoint('goldenSampleImg', null)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.6rem', cursor: 'pointer' }}>Hapus</button>
-                        </div>
-                      ) : (
-                        <label style={{ padding: '2px 6px', backgroundColor: '#1e293b', color: '#22c55e', border: '1px solid #166534', borderRadius: '3px', fontSize: '0.62rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                          <Upload size={10} /> Upload Foto Golden
-                          <input type="file" accept="image/*" onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const r = new FileReader();
-                              r.onload = ev => handleUpdatePoint('goldenSampleImg', ev.target.result);
-                              r.readAsDataURL(file);
-                            }
-                          }} style={{ display: 'none' }} />
-                        </label>
-                      )}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {activePoint.goldenSampleImg ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <img
+                              src={activePoint.goldenSampleImg}
+                              alt="Golden"
+                              style={{ width: '38px', height: '26px', borderRadius: '3px', objectFit: 'contain', border: '1px solid #22c55e', backgroundColor: '#020617' }}
+                              onClick={() => {
+                                setSelectedLimitSamplePreview({
+                                  code: activePoint.limitSampleCode || 'GOLDEN-OK',
+                                  title: activePoint.goldenSpec || 'Golden Sample',
+                                  defect_category: activePoint.defectTag,
+                                  ok_photo_url: activePoint.goldenSampleImg,
+                                  ok_criteria: activePoint.goldenSpec,
+                                  ng_photo_url: activePoint.rejectSampleImg,
+                                  ng_criteria: activePoint.rejectSpec
+                                });
+                                setShowLimitSamplePreviewModal(true);
+                              }}
+                              title="Klik untuk perbesar foto"
+                            />
+                            <button onClick={() => handleUpdatePoint('goldenSampleImg', null)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.6rem', cursor: 'pointer' }}>Hapus</button>
+                          </div>
+                        ) : (
+                          <label style={{ padding: '2px 6px', backgroundColor: '#1e293b', color: '#22c55e', border: '1px solid #166534', borderRadius: '3px', fontSize: '0.62rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                            <Upload size={10} /> Upload Foto Golden
+                            <input type="file" accept="image/*" onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const r = new FileReader();
+                                r.onload = ev => handleUpdatePoint('goldenSampleImg', ev.target.result);
+                                r.readAsDataURL(file);
+                              }
+                            }} style={{ display: 'none' }} />
+                          </label>
+                        )}
+                      </div>
                     </div>
                   </div>
 
                   {/* 2. Limit Sample Boundary Photo & Spec */}
                   <div style={{ backgroundColor: '#0f172a', padding: '6px', borderRadius: '6px', border: '1px solid #854d0e' }}>
-                    <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#f59e0b', display: 'block', marginBottom: '3px' }}>
-                      🟡 2. Limit Sample (Batas Maksimal Toleransi)
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#f59e0b' }}>
+                        🟡 2. Limit Sample (Batas Maksimal Toleransi)
+                      </span>
+                    </div>
                     <input
                       type="text"
                       placeholder="Batas batas toleransi (cth: Scratch halus ≤ 2mm, pinhole ≤ 0.3mm)"
@@ -6043,33 +6665,54 @@ export default function InspectorDesigner() {
                       onChange={e => handleUpdatePoint('limitSpec', e.target.value)}
                       style={{ width: '100%', padding: '4px 6px', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#f8fafc', fontSize: '0.68rem', outline: 'none', marginBottom: '4px' }}
                     />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      {activePoint.limitSampleImg ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <img src={activePoint.limitSampleImg} alt="Limit" style={{ width: '22px', height: '22px', borderRadius: '3px', objectFit: 'cover' }} />
-                          <button onClick={() => handleUpdatePoint('limitSampleImg', null)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.6rem', cursor: 'pointer' }}>Hapus</button>
-                        </div>
-                      ) : (
-                        <label style={{ padding: '2px 6px', backgroundColor: '#1e293b', color: '#f59e0b', border: '1px solid #854d0e', borderRadius: '3px', fontSize: '0.62rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                          <Upload size={10} /> Upload Foto Limit Sample
-                          <input type="file" accept="image/*" onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const r = new FileReader();
-                              r.onload = ev => handleUpdatePoint('limitSampleImg', ev.target.result);
-                              r.readAsDataURL(file);
-                            }
-                          }} style={{ display: 'none' }} />
-                        </label>
-                      )}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {activePoint.limitSampleImg ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <img
+                              src={activePoint.limitSampleImg}
+                              alt="Limit"
+                              style={{ width: '38px', height: '26px', borderRadius: '3px', objectFit: 'contain', border: '1px solid #f59e0b', backgroundColor: '#020617' }}
+                              onClick={() => {
+                                setSelectedLimitSamplePreview({
+                                  code: activePoint.limitSampleCode || 'LIMIT-SAMPLE',
+                                  title: activePoint.limitSpec || 'Limit Sample Boundary',
+                                  defect_category: activePoint.defectTag,
+                                  ok_photo_url: activePoint.limitSampleImg,
+                                  ok_criteria: activePoint.limitSpec,
+                                  ng_photo_url: activePoint.rejectSampleImg,
+                                  ng_criteria: activePoint.rejectSpec
+                                });
+                                setShowLimitSamplePreviewModal(true);
+                              }}
+                              title="Klik untuk perbesar foto"
+                            />
+                            <button onClick={() => handleUpdatePoint('limitSampleImg', null)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.6rem', cursor: 'pointer' }}>Hapus</button>
+                          </div>
+                        ) : (
+                          <label style={{ padding: '2px 6px', backgroundColor: '#1e293b', color: '#f59e0b', border: '1px solid #854d0e', borderRadius: '3px', fontSize: '0.62rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                            <Upload size={10} /> Upload Foto Limit Sample
+                            <input type="file" accept="image/*" onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const r = new FileReader();
+                                r.onload = ev => handleUpdatePoint('limitSampleImg', ev.target.result);
+                                r.readAsDataURL(file);
+                              }
+                            }} style={{ display: 'none' }} />
+                          </label>
+                        )}
+                      </div>
                     </div>
                   </div>
 
                   {/* 3. Reject Sample Photo & Spec */}
                   <div style={{ backgroundColor: '#0f172a', padding: '6px', borderRadius: '6px', border: '1px solid #991b1b' }}>
-                    <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#ef4444', display: 'block', marginBottom: '3px' }}>
-                      🔴 3. Reject Sample (Contoh Cacat Ditolak)
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#ef4444' }}>
+                        🔴 3. Reject Sample (Contoh Cacat Ditolak)
+                      </span>
+                    </div>
                     <input
                       type="text"
                       placeholder="Kriteria tolak (cth: Scratch > 2mm / terasa kuku, cat meleleh)"
@@ -6077,27 +6720,104 @@ export default function InspectorDesigner() {
                       onChange={e => handleUpdatePoint('rejectSpec', e.target.value)}
                       style={{ width: '100%', padding: '4px 6px', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#f8fafc', fontSize: '0.68rem', outline: 'none', marginBottom: '4px' }}
                     />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      {activePoint.rejectSampleImg ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <img src={activePoint.rejectSampleImg} alt="Reject" style={{ width: '22px', height: '22px', borderRadius: '3px', objectFit: 'cover' }} />
-                          <button onClick={() => handleUpdatePoint('rejectSampleImg', null)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.6rem', cursor: 'pointer' }}>Hapus</button>
-                        </div>
-                      ) : (
-                        <label style={{ padding: '2px 6px', backgroundColor: '#1e293b', color: '#ef4444', border: '1px solid #991b1b', borderRadius: '3px', fontSize: '0.62rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                          <Upload size={10} /> Upload Foto Reject
-                          <input type="file" accept="image/*" onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const r = new FileReader();
-                              r.onload = ev => handleUpdatePoint('rejectSampleImg', ev.target.result);
-                              r.readAsDataURL(file);
-                            }
-                          }} style={{ display: 'none' }} />
-                        </label>
-                      )}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {activePoint.rejectSampleImg ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <img
+                              src={activePoint.rejectSampleImg}
+                              alt="Reject"
+                              style={{ width: '38px', height: '26px', borderRadius: '3px', objectFit: 'contain', border: '1px solid #ef4444', backgroundColor: '#020617' }}
+                              onClick={() => {
+                                setSelectedLimitSamplePreview({
+                                  code: activePoint.limitSampleCode || 'REJECT-SAMPLE',
+                                  title: activePoint.rejectSpec || 'Reject Sample Boundary',
+                                  defect_category: activePoint.defectTag,
+                                  ok_photo_url: activePoint.limitSampleImg,
+                                  ok_criteria: activePoint.limitSpec,
+                                  ng_photo_url: activePoint.rejectSampleImg,
+                                  ng_criteria: activePoint.rejectSpec
+                                });
+                                setShowLimitSamplePreviewModal(true);
+                              }}
+                              title="Klik untuk perbesar foto"
+                            />
+                            <button onClick={() => handleUpdatePoint('rejectSampleImg', null)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.6rem', cursor: 'pointer' }}>Hapus</button>
+                          </div>
+                        ) : (
+                          <label style={{ padding: '2px 6px', backgroundColor: '#1e293b', color: '#ef4444', border: '1px solid #991b1b', borderRadius: '3px', fontSize: '0.62rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                            <Upload size={10} /> Upload Foto Reject
+                            <input type="file" accept="image/*" onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const r = new FileReader();
+                                r.onload = ev => handleUpdatePoint('rejectSampleImg', ev.target.result);
+                                r.readAsDataURL(file);
+                              }
+                            }} style={{ display: 'none' }} />
+                          </label>
+                        )}
+                      </div>
                     </div>
                   </div>
+
+                  {/* ── Action: Sync to Drawing Management Button ── */}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const dwgId = selectedDrawing?.id || 'DWG_GLOBAL';
+                        const code = activePoint.limitSampleCode || `LS-${selectedDrawing?.code || 'DWG'}-${String(drawingLimitSamples.length + 1).padStart(3, '0')}`;
+                        const title = activePoint.limitSampleTitle || `Batas ${activePoint.title || activePoint.defectTag || 'Visual Sample'}`;
+                        const payload = {
+                          code,
+                          title,
+                          defect_category: activePoint.defectTag || 'SCRATCH',
+                          drawing_id: dwgId,
+                          ok_photo_url: activePoint.limitSampleImg || activePoint.goldenSampleImg || createDemoLimitSampleSvgs(activePoint.defectTag || 'SCRATCH', 'OK'),
+                          ok_criteria: activePoint.limitSpec || activePoint.goldenSpec || 'Batas maksimal cacat visual yang masih dapat diterima fungsi rakitan.',
+                          ng_photo_url: activePoint.rejectSampleImg || createDemoLimitSampleSvgs(activePoint.defectTag || 'SCRATCH', 'NG'),
+                          ng_criteria: activePoint.rejectSpec || 'Batas minimal cacat visual yang wajib di-reject.',
+                          status: 'ACTIVE',
+                          effective_date: new Date().toISOString().split('T')[0],
+                          expiry_date: new Date(Date.now() + 180 * 86400000).toISOString().split('T')[0],
+                          storage_location: 'Rak QC Metrologi #01',
+                          qa_approver: 'QA Manager'
+                        };
+
+                        const res = await createLimitSample(payload);
+                        if (res.success) {
+                          handleUpdatePoint('limitSampleId', res.data.id);
+                          handleUpdatePoint('limitSampleCode', res.data.code);
+                          handleUpdatePoint('limitSampleTitle', res.data.title);
+                          const updated = await getLimitSamples(dwgId);
+                          setDrawingLimitSamples(updated || [res.data, ...drawingLimitSamples]);
+                          toast.success(`✓ Berhasil disinkronkan ke Drawing Management: ${res.data.code}`);
+                        }
+                      } catch (err) {
+                        toast.error(`Gagal sinkronkan limit sample: ${err.message}`);
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '6px 10px',
+                      backgroundColor: '#047857',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '5px',
+                      fontSize: '0.68rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '5px',
+                      boxShadow: '0 2px 4px rgba(4,120,87,0.3)'
+                    }}
+                    title="Simpan spesifikasi limit sample ini ke Tab Limit Sample di Drawing Management"
+                  >
+                    <span>💾 Simpan & Sinkronkan ke Drawing Management</span>
+                  </button>
                 </div>
               ) : (
                 /* Nominal & Tolerance (For Numerical Dimensions) */
@@ -6255,28 +6975,217 @@ export default function InspectorDesigner() {
                 </select>
               </div>
               
-              {/* Tool ID / Variable */}
-              <div>
-                <label style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
-                  Tool ID / Variable
-                </label>
-                <input
-                  type="text"
-                  value={activePoint.toolId}
-                  onChange={e => handleUpdatePoint('toolId', e.target.value)}
-                  placeholder="e.g., CAL-001"
-                  style={{
-                    width: '100%',
-                    padding: '8px 10px',
-                    backgroundColor: '#1e293b',
-                    border: '1px solid #334155',
-                    borderRadius: '6px',
-                    color: 'white',
-                    fontSize: '0.8rem',
-                    outline: 'none'
-                  }}
-                />
-              </div>
+              {/* ─── 6. TOOL ID & MASTER ALAT UKUR (ISO 17025 & ISO 9001: 7.1.5) ─── */}
+              {(() => {
+                const resolveMatchedTool = (toolIdStr, point) => {
+                  if (!toolIdStr && !point) return TOOL_DEFINITIONS[0];
+                  const str = String(toolIdStr || '').toLowerCase();
+                  const exact = TOOL_DEFINITIONS.find(t =>
+                    t.name.toLowerCase() === str ||
+                    t.code.toLowerCase() === str ||
+                    t.id.toLowerCase() === str
+                  );
+                  if (exact) return exact;
+                  const sub = TOOL_DEFINITIONS.find(t =>
+                    str.includes(t.name.toLowerCase()) ||
+                    str.includes(t.code.toLowerCase()) ||
+                    str.includes(t.id.toLowerCase())
+                  );
+                  if (sub) return sub;
+                  const detectedId = detectMeasuringToolType(point);
+                  return TOOL_DEFINITIONS.find(t => t.id === detectedId) || TOOL_DEFINITIONS[0];
+                };
+
+                const matchedTool = resolveMatchedTool(activePoint.toolId, activePoint);
+                const calStat = getCalibrationStatus(matchedTool);
+                const isExpired = calStat.status === 'EXPIRED';
+                const isDueSoon = calStat.status === 'DUE_SOON';
+
+                return (
+                  <div style={{
+                    backgroundColor: '#090d16',
+                    border: isExpired ? '1.5px solid #ef4444' : isDueSoon ? '1.5px solid #f59e0b' : '1px solid #334155',
+                    borderRadius: '8px',
+                    padding: '10px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                    boxShadow: isExpired ? '0 0 14px rgba(239, 68, 68, 0.25)' : 'none'
+                  }}>
+                    {/* Header: Label & Master Tool Modal Button */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <label style={{ fontSize: '0.68rem', fontWeight: 800, color: isExpired ? '#fca5a5' : '#38bdf8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span>🛠️ Alat Ukur & Master Metrology</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedCalibrationToolId(matchedTool.id);
+                          setShowCalibrationModal(true);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '2px 7px',
+                          backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                          border: '1px solid #0284c7',
+                          color: '#38bdf8',
+                          borderRadius: '4px',
+                          fontSize: '0.6rem',
+                          fontWeight: 800,
+                          cursor: 'pointer'
+                        }}
+                        title="Buka Database Master Alat Ukur & Sertifikat Kalibrasi (ISO 17025)"
+                      >
+                        <Wrench size={10} />
+                        <span>Master Tools</span>
+                      </button>
+                    </div>
+
+                    {/* Quick Dropdown: Pilih Langsung dari Master Alat Ukur */}
+                    <div>
+                      <span style={{ fontSize: '0.58rem', color: '#94a3b8', display: 'block', marginBottom: '3px' }}>
+                        Pilih dari Master Database Alat Ukur:
+                      </span>
+                      <select
+                        value={matchedTool.id}
+                        onChange={(e) => {
+                          const selectedId = e.target.value;
+                          const chosen = TOOL_DEFINITIONS.find(t => t.id === selectedId);
+                          if (chosen) {
+                            handleUpdatePoint('toolId', chosen.name);
+                            setSelectedCalibrationToolId(chosen.id);
+                          }
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '6px 8px',
+                          backgroundColor: '#1e293b',
+                          border: isExpired ? '1px solid #ef4444' : '1px solid #334155',
+                          borderRadius: '5px',
+                          color: 'white',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          outline: 'none',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {TOOL_DEFINITIONS.map(t => {
+                          const c = getCalibrationStatus(t);
+                          return (
+                            <option key={t.id} value={t.id}>
+                              {t.icon} {t.name} [{t.code}] {c.status === 'EXPIRED' ? '🔴 EXPIRED' : c.status === 'DUE_SOON' ? '⚠️ DUE SOON' : '🟢 OK'}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+
+                    {/* Tool ID / Variable Free-Text Input */}
+                    <div>
+                      <span style={{ fontSize: '0.58rem', color: '#94a3b8', display: 'block', marginBottom: '3px' }}>
+                        Tool ID / Variabel Kustom:
+                      </span>
+                      <input
+                        type="text"
+                        value={activePoint.toolId || ''}
+                        onChange={e => handleUpdatePoint('toolId', e.target.value)}
+                        placeholder="Contoh: Digital Caliper 0-150mm / CAL-003"
+                        style={{
+                          width: '100%',
+                          padding: '6px 8px',
+                          backgroundColor: '#1e293b',
+                          border: '1px solid #334155',
+                          borderRadius: '5px',
+                          color: 'white',
+                          fontSize: '0.75rem',
+                          outline: 'none'
+                        }}
+                      />
+                    </div>
+
+                    {/* ─── TAMPILAN STATUS KALIBRASI & EXPIRED WARNING (ISO 9001: 7.1.5) ─── */}
+                    <div style={{
+                      backgroundColor: calStat.bg || '#1e293b',
+                      border: `1.5px solid ${calStat.border || '#334155'}`,
+                      borderRadius: '6px',
+                      padding: '8px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '4px',
+                      animation: isExpired ? 'pulse 1.8s infinite' : 'none'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{
+                          fontSize: '0.7rem',
+                          fontWeight: 900,
+                          color: calStat.color,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          <span>{calStat.icon}</span>
+                          <span>{calStat.status === 'EXPIRED' ? 'KALIBRASI EXPIRED' : calStat.status === 'DUE_SOON' ? 'KALIBRASI DUE SOON' : 'KALIBRASI VALID'}</span>
+                        </span>
+                        <span style={{
+                          fontSize: '0.58rem',
+                          backgroundColor: isExpired ? '#ef4444' : isDueSoon ? '#f59e0b' : '#22c55e',
+                          color: isExpired || isDueSoon ? '#ffffff' : '#0f172a',
+                          padding: '1px 5px',
+                          borderRadius: '3px',
+                          fontWeight: 900
+                        }}>
+                          {matchedTool.code}
+                        </span>
+                      </div>
+
+                      {/* Expiry Details */}
+                      <div style={{ fontSize: '0.62rem', color: isExpired ? '#fca5a5' : '#cbd5e1', lineHeight: 1.35 }}>
+                        <div>
+                          <strong>Jatuh Tempo:</strong> {matchedTool.calibrationDueDate} ({isExpired ? `${Math.abs(calStat.daysRemaining)} hari yang lalu` : `${calStat.daysRemaining} hari lagi`})
+                        </div>
+                        <div>
+                          <strong>Sertifikat:</strong> {matchedTool.cert} • <strong>Ketidaktentuan:</strong> ±{matchedTool.uncertainty} {matchedTool.uncertaintyUnit}
+                        </div>
+                        {isExpired && (
+                          <div style={{ color: '#f87171', fontWeight: 800, marginTop: '2px' }}>
+                            ⚠️ Peringatan ISO 9001: 7.1.5: Alat ini berstatus EXPIRED. Pada Checksheet, input hasil ukur akan otomatis DIBLOKIR hingga dikalibrasi ulang!
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Action Button: Buka Kalibrasi / Perpanjang */}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedCalibrationToolId(matchedTool.id);
+                            setCalibrationModalTab('certificates');
+                            setShowCalibrationModal(true);
+                          }}
+                          style={{
+                            padding: '3px 8px',
+                            backgroundColor: isExpired ? '#ef4444' : '#1e293b',
+                            color: 'white',
+                            border: isExpired ? 'none' : '1px solid #475569',
+                            borderRadius: '4px',
+                            fontSize: '0.62rem',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          <Wrench size={10} />
+                          <span>{isExpired ? 'Kalibrasi Ulang Alat Ini ➔' : 'Lihat Sertifikat Kalibrasi'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
               
               {/* Notes */}
               <div>
@@ -8014,6 +8923,299 @@ export default function InspectorDesigner() {
                   }}
                 >
                   Simpan Teks
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ─── METROLOGY CALIBRATION & MASTER GAUGE BLOCK MODAL (ISO 17025) ─── */}
+      <CalibrationManagerModal
+        key={`${showCalibrationModal}-${calibrationModalTab}`}
+        isOpen={showCalibrationModal}
+        onClose={() => setShowCalibrationModal(false)}
+        selectedToolId={selectedCalibrationToolId}
+        onSelectTool={(id) => setSelectedCalibrationToolId(id)}
+        initialTab={calibrationModalTab}
+      />
+
+      {/* ─── DRAWING MANAGEMENT LIMIT SAMPLE DETAIL MODAL (IATF 16949 / ISO 9001) ─── */}
+      {showLimitSamplePreviewModal && selectedLimitSamplePreview && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.82)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+          padding: '16px'
+        }}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            color: '#0f172a',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '820px',
+            maxHeight: '90vh',
+            boxShadow: '0 25px 70px rgba(0,0,0,0.85)',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            border: '2px solid #0284c7'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              padding: '12px 18px',
+              backgroundColor: '#f8fafc',
+              borderBottom: '1px solid #e2e8f0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '1.1rem' }}>🛡️</span>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{
+                      fontSize: '0.72rem',
+                      fontFamily: 'monospace',
+                      fontWeight: 900,
+                      backgroundColor: '#0f172a',
+                      color: '#38bdf8',
+                      padding: '2px 6px',
+                      borderRadius: '4px'
+                    }}>
+                      {selectedLimitSamplePreview.code || 'LS-MASTER-001'}
+                    </span>
+                    <h3 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                      {selectedLimitSamplePreview.title || 'Limit Sample Visual Standard'}
+                    </h3>
+                  </div>
+                  <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '2px' }}>
+                    Drawing Target: <strong>{selectedDrawing?.name || 'Master Drawing'} ({selectedDrawing?.code || 'DWG-001'})</strong> • Standar IATF 16949 / ISO 9001: 8.5.1
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{
+                  fontSize: '0.65rem',
+                  fontWeight: 800,
+                  backgroundColor: '#dcfce7',
+                  color: '#15803d',
+                  padding: '3px 8px',
+                  borderRadius: '12px',
+                  border: '1px solid #86efac'
+                }}>
+                  🟢 AKTIF / VALID
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowLimitSamplePreviewModal(false)}
+                  style={{
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    fontSize: '1.2rem',
+                    color: '#64748b',
+                    cursor: 'pointer',
+                    padding: '2px 6px'
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body: 2-Column Comparison (OK vs NG) */}
+            <div style={{ padding: '16px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                {/* 1. OK Limit Card */}
+                <div style={{
+                  backgroundColor: '#f0fdf4',
+                  border: '1.5px solid #22c55e',
+                  borderRadius: '10px',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}>
+                  <div style={{
+                    padding: '6px 12px',
+                    backgroundColor: '#dcfce7',
+                    borderBottom: '1px solid #86efac',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 900, color: '#166534', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span>🟢</span>
+                      <span>BATAS MAKSIMAL DITERIMA (OK LIMIT)</span>
+                    </span>
+                    <span style={{ fontSize: '0.58rem', fontWeight: 800, backgroundColor: '#22c55e', color: 'white', padding: '1px 5px', borderRadius: '3px' }}>
+                      PASS
+                    </span>
+                  </div>
+
+                  <div style={{ padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
+                    <div style={{
+                      height: '180px',
+                      backgroundColor: '#0f172a',
+                      borderRadius: '6px',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <img
+                        src={selectedLimitSamplePreview.ok_photo_url || createDemoLimitSampleSvgs(selectedLimitSamplePreview.defect_category || 'SCRATCH', 'OK')}
+                        alt="OK Limit"
+                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                      />
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#166534', display: 'block', marginBottom: '2px' }}>
+                        Kriteria Penerimaan:
+                      </span>
+                      <p style={{ fontSize: '0.68rem', color: '#1e293b', margin: 0, lineHeight: 1.4, backgroundColor: '#ffffff', padding: '6px', borderRadius: '4px', border: '1px solid #bbf7d0' }}>
+                        {selectedLimitSamplePreview.ok_criteria || 'Batas maksimal cacat visual yang masih dapat diterima fungsi rakitan (Lolos / OK).'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. NG Reject Card */}
+                <div style={{
+                  backgroundColor: '#fef2f2',
+                  border: '1.5px solid #ef4444',
+                  borderRadius: '10px',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}>
+                  <div style={{
+                    padding: '6px 12px',
+                    backgroundColor: '#fee2e2',
+                    borderBottom: '1px solid #fca5a5',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 900, color: '#991b1b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span>🔴</span>
+                      <span>BATAS MINIMAL DITOLAK (NG LIMIT)</span>
+                    </span>
+                    <span style={{ fontSize: '0.58rem', fontWeight: 800, backgroundColor: '#ef4444', color: 'white', padding: '1px 5px', borderRadius: '3px' }}>
+                      REJECT
+                    </span>
+                  </div>
+
+                  <div style={{ padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
+                    <div style={{
+                      height: '180px',
+                      backgroundColor: '#0f172a',
+                      borderRadius: '6px',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <img
+                        src={selectedLimitSamplePreview.ng_photo_url || createDemoLimitSampleSvgs(selectedLimitSamplePreview.defect_category || 'SCRATCH', 'NG')}
+                        alt="NG Limit"
+                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                      />
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#991b1b', display: 'block', marginBottom: '2px' }}>
+                        Kriteria Penolakan:
+                      </span>
+                      <p style={{ fontSize: '0.68rem', color: '#1e293b', margin: 0, lineHeight: 1.4, backgroundColor: '#ffffff', padding: '6px', borderRadius: '4px', border: '1px solid #fecaca' }}>
+                        {selectedLimitSamplePreview.ng_criteria || 'Batas minimal cacat visual yang wajib di-reject / tidak boleh lolos.'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Metadata Table */}
+              <div style={{
+                backgroundColor: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+                padding: '10px',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: '8px',
+                fontSize: '0.65rem'
+              }}>
+                <div>
+                  <span style={{ color: '#64748b', display: 'block', fontWeight: 700 }}>Tgl Berlaku:</span>
+                  <strong style={{ color: '#0f172a', fontFamily: 'monospace' }}>{selectedLimitSamplePreview.effective_date || '2026-03-01'}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b', display: 'block', fontWeight: 700 }}>Tgl Kedaluwarsa:</span>
+                  <strong style={{ color: '#0f172a', fontFamily: 'monospace' }}>{selectedLimitSamplePreview.expiry_date || '2026-09-01'}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b', display: 'block', fontWeight: 700 }}>Lokasi Fisik:</span>
+                  <strong style={{ color: '#0f172a' }}>{selectedLimitSamplePreview.storage_location || 'Rak QC Metrologi #01'}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b', display: 'block', fontWeight: 700 }}>QA Approver:</span>
+                  <strong style={{ color: '#15803d' }}>{selectedLimitSamplePreview.qa_approver || 'QA Manager'}</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '10px 18px',
+              backgroundColor: '#f8fafc',
+              borderTop: '1px solid #e2e8f0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ fontSize: '0.62rem', color: '#64748b', fontStyle: 'italic' }}>
+                *Terkoneksi langsung ke Master Drawing Management (Tab Limit Sample)
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  style={{
+                    padding: '6px 12px',
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '6px',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    color: '#334155',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <Printer size={13} />
+                  <span>Cetak Kartu Fisik</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowLimitSamplePreviewModal(false)}
+                  style={{
+                    padding: '6px 14px',
+                    backgroundColor: '#0f172a',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    color: 'white',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Tutup
                 </button>
               </div>
             </div>

@@ -619,25 +619,39 @@ export default function VirtualMeasuringTool({
           {onAutoSetMeasurement && (
             <button
               type="button"
-              onClick={() => onAutoSetMeasurement(currentReading.toFixed(3))}
+              disabled={calStatus.status === 'EXPIRED'}
+              onClick={() => {
+                if (calStatus.status === 'EXPIRED') return;
+                onAutoSetMeasurement(currentReading.toFixed(3));
+              }}
               style={{
-                backgroundColor: isWithinTol ? '#0284c7' : '#dc2626',
-                color: 'white',
-                border: 'none',
+                backgroundColor: calStatus.status === 'EXPIRED' ? '#334155' : isWithinTol ? '#0284c7' : '#dc2626',
+                color: calStatus.status === 'EXPIRED' ? '#fca5a5' : 'white',
+                border: calStatus.status === 'EXPIRED' ? '1px solid #ef4444' : 'none',
                 padding: '4px 12px',
                 borderRadius: '6px',
                 fontSize: '0.72rem',
                 fontWeight: 900,
-                cursor: 'pointer',
+                cursor: calStatus.status === 'EXPIRED' ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '4px',
-                boxShadow: isWithinTol ? '0 2px 8px rgba(2, 132, 199, 0.4)' : '0 2px 8px rgba(220, 38, 38, 0.4)'
+                opacity: calStatus.status === 'EXPIRED' ? 0.75 : 1,
+                boxShadow: calStatus.status === 'EXPIRED' ? 'none' : isWithinTol ? '0 2px 8px rgba(2, 132, 199, 0.4)' : '0 2px 8px rgba(220, 38, 38, 0.4)'
               }}
-              title="Masukkan nilai pengukuran ke checksheet"
+              title={calStatus.status === 'EXPIRED' ? 'Alat ukur EXPIRED - Masukan diblokir sesuai ISO 9001: 7.1.5' : 'Masukkan nilai pengukuran ke checksheet'}
             >
-              <Sparkles size={12} />
-              <span>Kirim Nilai ({currentReading.toFixed(3)})</span>
+              {calStatus.status === 'EXPIRED' ? (
+                <>
+                  <span>⛔</span>
+                  <span>Kalibrasi Expired (Terkunci)</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles size={12} />
+                  <span>Kirim Nilai ({currentReading.toFixed(3)})</span>
+                </>
+              )}
             </button>
           )}
         </div>

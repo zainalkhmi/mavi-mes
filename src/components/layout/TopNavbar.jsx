@@ -7,7 +7,8 @@ import {
   FileCode, Webhook, Play, Layout, FileText, PieChart, Terminal, Bot, Clock,
   ClipboardCheck, FileSpreadsheet, Boxes, LayoutDashboard, FolderArchive, Layers,
   Workflow, ActivitySquare, Key, LayoutTemplate, GitBranch, Settings2,
-  ChevronDown, ChevronRight, Ruler, Scale, Gauge, Shield
+  ChevronDown, ChevronRight, Ruler, Scale, Gauge, Shield,
+  AlertTriangle
 } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 import { useGlobalStore } from '../../store/useGlobalStore.js';
@@ -78,7 +79,8 @@ export default function TopNavbar() {
     { path: '/drawing-checksheet', icon: <ClipboardCheck size={16} />, label: 'Digital Check Sheet' },
     { path: '/checksheets', icon: <FolderArchive size={16} />, label: 'Checksheet Management (ISO 9001)' },
     { type: 'divider' },
-    { path: '/measuring-tools', icon: <Ruler size={16} />, label: 'Master Alat Ukur & Kalibrasi (ISO 17025)' }
+    { path: '/measuring-tools', icon: <Ruler size={16} />, label: 'Master Alat Ukur & Kalibrasi (ISO 17025)' },
+    { path: '/defects', icon: <AlertTriangle size={16} />, label: 'Master Defect Library' }
   ].filter(Boolean);
 
   const shopFloorItems = [
@@ -256,3 +258,6 @@ export default function TopNavbar() {
     </nav>
   );
 }
+
+
+

@@ -39,9 +39,10 @@ import {
   getDrawingFeatures, createDrawingFeature, deleteDrawingFeature,
   getDrawingRelations, addChildDrawing, removeChildDrawing,
   getParts, getPart, createPart,
-  getLimitSamples, createLimitSample, updateLimitSample, deleteLimitSample,
+  getLimitSamples, createLimitSample, deleteLimitSample,
   generateCode
 } from '../utils/mavicorePLM';
+import { DEFECT_CATEGORIES, createDemoLimitSampleSvgs } from '../utils/limitSampleUtils';
 import { convertPdfToImageDataUrl } from '../utils/pdfRenderService';
 import { parseDxfContent } from '../utils/cadDxfRenderService';
 import { templatesLocalDB, getTemplates, safeRetrieveLocalTemplates } from '../utils/supabaseTemplateDB';
@@ -130,116 +131,6 @@ const createDemoProductPhotoSvg = (type = 'flange', angle = 'Isometric 3D') => {
     <text x="40" y="90" fill="%2394a3b8" font-family="sans-serif" font-size="13">Item: Hydraulic Flange Housing | Mat: AL-6061-T6 Anodized | View: ${angle}</text>
     <rect x="40" y="520" width="180" height="36" rx="6" fill="%2310b981" opacity="0.9"/>
     <text x="55" y="543" fill="%23ffffff" font-family="sans-serif" font-size="12" font-weight="bold">✓ 100% VISUAL QC PASSED</text>
-  </svg>`;
-};
-
-// ─── Defect Categories Config (Limit Sample / Boundary Standard) ───
-const DEFECT_CATEGORIES = [
-  { key: 'SCRATCH', label: 'Goresan (Scratch / Scuff)', icon: '⚡', color: '#f59e0b' },
-  { key: 'BURR', label: 'Geram / Ketajaman Sisi (Burr / Sharp Edge)', icon: '🔪', color: '#ef4444' },
-  { key: 'DENT', label: 'Penyok / Benturan (Dent / Impact Mark)', icon: '🔨', color: '#8b5cf6' },
-  { key: 'BLOWHOLE', label: 'Porositas / Pinhole (Casting Defect)', icon: '🫧', color: '#06b6d4' },
-  { key: 'COLOR', label: 'Warna / Anodizing Tone (Discoloration)', icon: '🎨', color: '#ec4899' },
-  { key: 'FLASH', label: 'Flash / Sirip Plastik / Parting Line', icon: '📐', color: '#10b981' },
-  { key: 'OTHER', label: 'Cacat Visual Lainnya', icon: '🔍', color: '#64748b' },
-];
-
-// ─── Limit Sample Demo SVG Generator (OK vs NG Visual Boundaries) ───
-const createDemoLimitSampleSvgs = (defectKey = 'SCRATCH', type = 'OK') => {
-  const isOk = type === 'OK';
-  const bgColor = isOk ? '%23064e3b' : '%237f1d1d';
-  const borderColor = isOk ? '%2310b981' : '%23ef4444';
-  const badgeText = isOk ? '🟢 BATAS DITERIMA (OK LIMIT)' : '🔴 BATAS DITOLAK (NG LIMIT)';
-
-  if (defectKey === 'SCRATCH') {
-    return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 450" width="600" height="450">
-      <defs>
-        <linearGradient id="metalBg1" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="%23334155"/>
-          <stop offset="50%" stop-color="%2364748b"/>
-          <stop offset="100%" stop-color="%231e293b"/>
-        </linearGradient>
-      </defs>
-      <rect width="100%" height="100%" fill="url(%23metalBg1)"/>
-      <rect x="20" y="20" width="560" height="410" rx="8" fill="none" stroke="${borderColor}" stroke-width="3"/>
-      <!-- Part Surface Mockup -->
-      <rect x="50" y="70" width="500" height="290" rx="6" fill="%23475569" stroke="%2394a3b8" stroke-width="1.5"/>
-      ${isOk
-        ? `<!-- Hairline Scratch (Acceptable) -->
-           <path d="M 180 190 Q 220 200 260 195" stroke="%23cbd5e1" stroke-width="1" opacity="0.6" stroke-dasharray="4,2"/>
-           <circle cx="220" cy="195" r="30" fill="none" stroke="%2310b981" stroke-width="2" stroke-dasharray="3,3"/>
-           <text x="260" y="170" fill="%2310b981" font-family="sans-serif" font-size="12" font-weight="bold">Panjang < 10mm, Kedalaman < 0.05mm (OK)</text>`
-        : `<!-- Severe Deep Scratch (Reject) -->
-           <path d="M 140 170 Q 280 240 420 200" stroke="%23ffffff" stroke-width="4.5"/>
-           <path d="M 140 170 Q 280 240 420 200" stroke="%23ef4444" stroke-width="2"/>
-           <circle cx="280" cy="210" r="50" fill="none" stroke="%23ef4444" stroke-width="2.5"/>
-           <text x="240" y="145" fill="%23ef4444" font-family="sans-serif" font-size="12" font-weight="bold">Goresan Dalam > 0.2mm Menembus Lapisan (REJECT)</text>`
-      }
-      <!-- Header Badge -->
-      <rect x="20" y="20" width="560" height="40" fill="${bgColor}"/>
-      <text x="40" y="46" fill="%23ffffff" font-family="sans-serif" font-size="14" font-weight="900">${badgeText}</text>
-      <text x="40" y="390" fill="%23f8fafc" font-family="sans-serif" font-size="12">Kategori: Goresan Permukaan (Surface Scratch)</text>
-      <text x="40" y="410" fill="%2394a3b8" font-family="sans-serif" font-size="10">Standar ISO/IATF Visual Master Boundary</text>
-    </svg>`;
-  }
-
-  if (defectKey === 'BURR') {
-    return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 450" width="600" height="450">
-      <defs>
-        <linearGradient id="metalBg2" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="%23334155"/>
-          <stop offset="50%" stop-color="%2364748b"/>
-          <stop offset="100%" stop-color="%231e293b"/>
-        </linearGradient>
-      </defs>
-      <rect width="100%" height="100%" fill="url(%23metalBg2)"/>
-      <rect x="20" y="20" width="560" height="410" rx="8" fill="none" stroke="${borderColor}" stroke-width="3"/>
-      <!-- Edge Chamfer Mockup -->
-      <path d="M 80 320 L 80 180 L 250 180 L 320 250 L 520 250 L 520 320 Z" fill="%23475569" stroke="%2394a3b8" stroke-width="2"/>
-      ${isOk
-        ? `<!-- Smooth Chamfer with micro burr <= 0.05mm (OK) -->
-           <circle cx="285" cy="215" r="30" fill="none" stroke="%2310b981" stroke-width="2" stroke-dasharray="4,2"/>
-           <text x="325" y="200" fill="%2310b981" font-family="sans-serif" font-size="12" font-weight="bold">Burr Chamfer <= 0.05 mm (Halus / Diterima)</text>`
-        : `<!-- Sharp Ragged Burr >= 0.3mm (NG) -->
-           <path d="M 280 210 L 290 195 L 298 215 L 310 200 L 320 220" stroke="%23ef4444" stroke-width="4" fill="none"/>
-           <circle cx="300" cy="210" r="40" fill="none" stroke="%23ef4444" stroke-width="2.5"/>
-           <text x="310" y="175" fill="%23ef4444" font-family="sans-serif" font-size="12" font-weight="bold">Geram Tajam > 0.3 mm Melukai Tangan (REJECT)</text>`
-      }
-      <rect x="20" y="20" width="560" height="40" fill="${bgColor}"/>
-      <text x="40" y="46" fill="%23ffffff" font-family="sans-serif" font-size="14" font-weight="900">${badgeText}</text>
-      <text x="40" y="390" fill="%23f8fafc" font-family="sans-serif" font-size="12">Kategori: Geram / Ketajaman Tepi (Edge Burr)</text>
-      <text x="40" y="410" fill="%2394a3b8" font-family="sans-serif" font-size="10">Standar ISO/IATF Visual Master Boundary</text>
-    </svg>`;
-  }
-
-  // Default Blowhole / Porosity
-  return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 450" width="600" height="450">
-    <defs>
-      <linearGradient id="metalBg3" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="%23334155"/>
-        <stop offset="50%" stop-color="%2364748b"/>
-        <stop offset="100%" stop-color="%231e293b"/>
-      </linearGradient>
-    </defs>
-    <rect width="100%" height="100%" fill="url(%23metalBg3)"/>
-    <rect x="20" y="20" width="560" height="410" rx="8" fill="none" stroke="${borderColor}" stroke-width="3"/>
-    <circle cx="300" cy="230" r="130" fill="%23475569" stroke="%2394a3b8" stroke-width="2"/>
-    ${isOk
-      ? `<!-- Single isolated pinhole <= 0.3mm (OK) -->
-         <circle cx="280" cy="210" r="2" fill="%230f172a" stroke="%2310b981" stroke-width="1.5"/>
-         <circle cx="280" cy="210" r="25" fill="none" stroke="%2310b981" stroke-width="2" stroke-dasharray="3,3"/>
-         <text x="315" y="195" fill="%2310b981" font-family="sans-serif" font-size="12" font-weight="bold">Pinhole Tunggal Ø <= 0.3 mm (Diterima)</text>`
-      : `<!-- Cluster blowhole > 1.5mm (NG) -->
-         <circle cx="270" cy="210" r="8" fill="%230f172a"/>
-         <circle cx="290" cy="225" r="12" fill="%230f172a"/>
-         <circle cx="310" cy="205" r="6" fill="%230f172a"/>
-         <circle cx="290" cy="215" r="45" fill="none" stroke="%23ef4444" stroke-width="2.5"/>
-         <text x="230" y="150" fill="%23ef4444" font-family="sans-serif" font-size="12" font-weight="bold">Cluster Porositas Porous Ø > 1.5 mm (REJECT)</text>`
-    }
-    <rect x="20" y="20" width="560" height="40" fill="${bgColor}"/>
-    <text x="40" y="46" fill="%23ffffff" font-family="sans-serif" font-size="14" font-weight="900">${badgeText}</text>
-    <text x="40" y="390" fill="%23f8fafc" font-family="sans-serif" font-size="12">Kategori: Porositas Pengecoran (Cast Blowhole)</text>
-    <text x="40" y="410" fill="%2394a3b8" font-family="sans-serif" font-size="10">Standar ISO/IATF Visual Master Boundary</text>
   </svg>`;
 };
 
@@ -956,7 +847,9 @@ export default function DrawingManagement() {
     try {
       const stored = localStorage.getItem(`mandor_drawing_photos_${selectedDrawing.id}`);
       if (stored) return JSON.parse(stored);
-    } catch {}
+    } catch (e) {
+      console.warn('Failed to parse drawing photos', e);
+    }
     return [];
   }, [selectedDrawing]);
 
@@ -986,7 +879,9 @@ export default function DrawingManagement() {
 
     try {
       localStorage.setItem(`mandor_drawing_photos_${selectedDrawing.id}`, JSON.stringify(newPhotos));
-    } catch {}
+    } catch (e) {
+      console.warn('Failed to save drawing photos', e);
+    }
 
     const updated = await updateDrawing(selectedDrawing.id, { product_photos: newPhotos });
     if (updated.success) {
@@ -1006,7 +901,9 @@ export default function DrawingManagement() {
     }
     try {
       localStorage.setItem(`mandor_drawing_photos_${selectedDrawing.id}`, JSON.stringify(newPhotos));
-    } catch {}
+    } catch (e) {
+      console.warn('Failed to update drawing photos', e);
+    }
     await updateDrawing(selectedDrawing.id, { product_photos: newPhotos });
     setSelectedDrawing(prev => ({ ...prev, product_photos: newPhotos }));
     setDrawings(prev => prev.map(d => d.id === selectedDrawing.id ? { ...d, product_photos: newPhotos } : d));
@@ -1024,7 +921,9 @@ export default function DrawingManagement() {
     }));
     try {
       localStorage.setItem(`mandor_drawing_photos_${selectedDrawing.id}`, JSON.stringify(newPhotos));
-    } catch {}
+    } catch (e) {
+      console.warn('Failed to update primary drawing photo', e);
+    }
     await updateDrawing(selectedDrawing.id, { product_photos: newPhotos });
     setSelectedDrawing(prev => ({ ...prev, product_photos: newPhotos }));
     setDrawings(prev => prev.map(d => d.id === selectedDrawing.id ? { ...d, product_photos: newPhotos } : d));
@@ -1047,7 +946,9 @@ export default function DrawingManagement() {
     );
     try {
       localStorage.setItem(`mandor_drawing_photos_${selectedDrawing.id}`, JSON.stringify(newPhotos));
-    } catch {}
+    } catch (e) {
+      console.warn('Failed to save photo edit', e);
+    }
     await updateDrawing(selectedDrawing.id, { product_photos: newPhotos });
     setSelectedDrawing(prev => ({ ...prev, product_photos: newPhotos }));
     setDrawings(prev => prev.map(d => d.id === selectedDrawing.id ? { ...d, product_photos: newPhotos } : d));
@@ -1095,7 +996,9 @@ export default function DrawingManagement() {
 
     try {
       localStorage.setItem(`mandor_drawing_photos_${selectedDrawing.id}`, JSON.stringify(samplePhotos));
-    } catch {}
+    } catch (e) {
+      console.warn('Failed to save sample photos', e);
+    }
     await updateDrawing(selectedDrawing.id, { product_photos: samplePhotos });
     setSelectedDrawing(prev => ({ ...prev, product_photos: samplePhotos }));
     setDrawings(prev => prev.map(d => d.id === selectedDrawing.id ? { ...d, product_photos: samplePhotos } : d));
@@ -2035,6 +1938,7 @@ export default function DrawingManagement() {
                             src={blueprintImage}
                             alt="Blueprint Canvas"
                             className="max-w-none shadow-2xl rounded-lg border border-slate-800 pointer-events-auto"
+                            onClick={handleCanvasClick}
                             style={{
                               maxHeight: '75vh',
                               maxWidth: '85vw',
