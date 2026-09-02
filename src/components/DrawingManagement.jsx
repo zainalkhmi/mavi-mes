@@ -33,7 +33,7 @@ import {
 import toast, { Toaster } from 'react-hot-toast';
 
 import {
-  getDrawings, createDrawing, updateDrawing, deleteDrawing, clearAllDrawings,
+  getDrawings, createDrawing, updateDrawing, deleteDrawing,
   getDrawingRevisions, createDrawingRevision, releaseDrawingRevision,
   getDrawingBalloons, createDrawingBalloon, deleteDrawingBalloon,
   getDrawingFeatures, createDrawingFeature, deleteDrawingFeature,
@@ -44,6 +44,7 @@ import {
 } from '../utils/mavicorePLM';
 import { convertPdfToImageDataUrl } from '../utils/pdfRenderService';
 import { parseDxfContent } from '../utils/cadDxfRenderService';
+import { templatesLocalDB, getTemplates, safeRetrieveLocalTemplates } from '../utils/supabaseTemplateDB';
 
 // ─── Realistic Demo Product Photo Generator ───
 const createDemoProductPhotoSvg = (type = 'flange', angle = 'Isometric 3D') => {
@@ -560,6 +561,8 @@ export default function DrawingManagement() {
   const [balloons, setBalloons] = useState([]);
   const [features, setFeatures] = useState([]);
   const [relations, setRelations] = useState([]);
+  const [allTemplates, setAllTemplates] = useState([]);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
 
   // Blueprint Image & Visual Canvas State
   const [blueprintImage, setBlueprintImage] = useState(null);
@@ -679,6 +682,55 @@ export default function DrawingManagement() {
     }
     setLoading(false);
   }, []);
+
+  // ─── Load Check Sheet Templates (from Supabase & IndexedDB) ───
+  const loadCheckSheetTemplates = useCallback(async () => {
+    setIsLoadingTemplates(true);
+    try {
+      const res = await getTemplates();
+      const items = Array.isArray(res) ? res : (res?.items || []);
+      if (items && items.length > 0) {
+        setAllTemplates(items);
+      } else {
+        const local = await safeRetrieveLocalTemplates();
+        setAllTemplates(local || []);
+      }
+    } catch (e) {
+      console.warn('[DrawingManagement] getTemplates error, falling back to local DB:', e);
+      const local = await safeRetrieveLocalTemplates();
+      setAllTemplates(local || []);
+    } finally {
+      setIsLoadingTemplates(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCheckSheetTemplates();
+  }, [loadCheckSheetTemplates]);
+
+  // ─── Connected Check Sheets for Selected Drawing ───
+  const connectedCheckSheets = useMemo(() => {
+    if (!selectedDrawing || !allTemplates || allTemplates.length === 0) return [];
+    const dwgId = String(selectedDrawing.id || '').toLowerCase();
+    const dwgCode = String(selectedDrawing.code || '').trim().toLowerCase();
+    const dwgName = String(selectedDrawing.name || '').trim().toLowerCase();
+
+    return allTemplates.filter(t => {
+      const tId = String(t.drawingId || t.drawing_id || '').toLowerCase();
+      const tDocNo = String(t.docNo || t.doc_no || '').trim().toLowerCase();
+      const tDwgNo = String(t.drawingNo || t.drawing_no || '').trim().toLowerCase();
+      const tPartNo = String(t.partNo || t.part_no || '').trim().toLowerCase();
+      const tName = String(t.name || t.title || '').trim().toLowerCase();
+
+      const matchId = tId && (tId === dwgId || tId === dwgCode);
+      const matchDocNo = dwgCode && (tDocNo === dwgCode || tDocNo.includes(dwgCode));
+      const matchDwgNo = dwgCode && (tDwgNo === dwgCode || tDwgNo.includes(dwgCode));
+      const matchPartNo = dwgCode && (tPartNo === dwgCode);
+      const matchName = (dwgCode && tName.includes(dwgCode)) || (dwgName && tName.includes(dwgName));
+
+      return matchId || matchDocNo || matchDwgNo || matchPartNo || matchName;
+    });
+  }, [selectedDrawing, allTemplates]);
 
   // Debounced search
   useEffect(() => {
@@ -1302,25 +1354,6 @@ export default function DrawingManagement() {
     }
   };
 
-  const handleClearAllDrawings = async () => {
-    if (!window.confirm('Hapus SEMUA drawing template & master parts dari sistem secara permanen?')) return;
-    const toastId = toast.loading('Menghapus semua drawing...');
-    try {
-      await clearAllDrawings();
-      setSelectedDrawing(null);
-      setSelectedRevision(null);
-      setSelectedPart(null);
-      setBlueprintImage(null);
-      setDrawings([]);
-      setParts([]);
-      setDrawingsTotal(0);
-      await loadInitialData();
-      toast.success('✓ Semua template drawing berhasil dihapus bersih!', { id: toastId });
-    } catch (e) {
-      toast.error('Gagal menghapus: ' + e.message, { id: toastId });
-    }
-  };
-
   // ─── Create ECN Revision Handler ───
   const handleCreateRevision = async () => {
     if (!selectedDrawing || !revFormData.revision_code.trim()) {
@@ -1482,24 +1515,34 @@ export default function DrawingManagement() {
   };
 
   // ─── Direct Launch to Inspector Designer ───
-  const handleOpenInInspector = () => {
-    if (!selectedDrawing || !selectedRevision) {
-      toast.error('Pilih drawing & revisi');
+  const handleOpenInInspector = async () => {
+    if (!selectedDrawing) {
+      toast.error('Pilih drawing terlebih dahulu');
       return;
     }
+    const revCode = selectedRevision?.revision_code || selectedDrawing.revision || selectedDrawing.revision_code || 'A';
+    const effectiveImage = blueprintImage || selectedDrawing.file_url || selectedDrawing.thumbnail_url || null;
+
     const templateData = {
       id: `insp_${Date.now()}`,
-      name: `${selectedDrawing.name} (Rev ${selectedRevision.revision_code})`,
-      docNo: selectedDrawing.code,
-      partNo: selectedPart?.code || selectedDrawing.code,
-      partName: selectedPart?.name || selectedDrawing.name,
-      revisionNo: selectedRevision.revision_code,
-      drawingFileName: selectedDrawing.file_name || `${selectedDrawing.code}.png`,
-      drawingImageUrl: blueprintImage,
-      checkPoints: balloons.map((b, i) => ({
+      name: `${selectedDrawing.name || 'Drawing'} (Rev ${revCode})`,
+      docNo: selectedDrawing.code || `DWG-${Date.now()}`,
+      partNo: selectedPart?.code || selectedDrawing.code || '',
+      partName: selectedPart?.name || selectedDrawing.name || '',
+      revisionNo: revCode,
+      drawingFileName: selectedDrawing.file_name || `${selectedDrawing.code || 'drawing'}.png`,
+      drawingImageUrl: effectiveImage,
+      drawingPreview: effectiveImage,
+      drawingSvg: effectiveImage,
+      drawingDataUrl: effectiveImage,
+      svgData: effectiveImage,
+      dataUrl: effectiveImage,
+      drawingId: selectedDrawing.id,
+      drawingName: selectedDrawing.name,
+      checkPoints: (balloons && balloons.length > 0) ? balloons.map((b, i) => ({
         id: `cp_${b.id || i}`,
         pointNumber: parseInt(b.balloon_number) || (i + 1),
-        title: b.target_feature?.feature_name || `Point ${b.balloon_number}`,
+        title: b.target_feature?.feature_name || `Point ${b.balloon_number || (i + 1)}`,
         category: 'Linear Dimension',
         nominal: b.target_feature?.nominal_value || 0,
         tolMin: b.target_feature?.lower_tolerance || 0,
@@ -1509,9 +1552,46 @@ export default function DrawingManagement() {
         y: b.position_y || 100,
         criticality: 'Major',
         inspectionMethod: 'Caliper'
-      }))
+      })) : []
     };
-    localStorage.setItem('mandor_inspector_active_template', JSON.stringify(templateData));
+
+    // 1. Save to IndexedDB (No Quota Limit)
+    try {
+      if (templatesLocalDB) {
+        await templatesLocalDB.templates.put(templateData);
+      }
+    } catch (dbErr) {
+      console.warn('[DrawingManagement] IndexedDB template cache warning:', dbErr);
+    }
+
+    // 2. Save to sessionStorage
+    try {
+      sessionStorage.setItem('mandor_inspector_active_template', JSON.stringify(templateData));
+    } catch (sErr) {
+      console.warn('[DrawingManagement] sessionStorage warning:', sErr);
+    }
+
+    // 3. Save to localStorage (with quota fallback)
+    try {
+      localStorage.setItem('mandor_inspector_active_template', JSON.stringify(templateData));
+    } catch (lsErr) {
+      console.warn('[DrawingManagement] LocalStorage quota reached, saving lightweight metadata:', lsErr);
+      try {
+        const lightweight = {
+          ...templateData,
+          drawingImageUrl: null,
+          drawingPreview: null,
+          drawingSvg: null,
+          drawingDataUrl: null,
+          svgData: null,
+          dataUrl: null
+        };
+        localStorage.setItem('mandor_inspector_active_template', JSON.stringify(lightweight));
+      } catch (e) {
+        console.warn('[DrawingManagement] LocalStorage metadata fallback warning:', e);
+      }
+    }
+
     toast.success('Membuka Inspector Designer Studio dengan blueprint ini...');
     navigate('/inspector-designer');
   };
@@ -1580,14 +1660,6 @@ export default function DrawingManagement() {
           >
             <Plus size={15} /> Buat Drawing Baru
           </button>
-          {selectedDrawing && (
-            <button
-              onClick={handleOpenInInspector}
-              className="flex items-center gap-1.5 bg-[#00A09D] hover:bg-[#008784] text-white font-semibold text-xs px-3.5 py-2 rounded-md shadow-xs transition-all cursor-pointer"
-            >
-              <FileCode size={14} /> Buka di Inspector Studio
-            </button>
-          )}
         </div>
       </div>
 
@@ -1706,15 +1778,6 @@ export default function DrawingManagement() {
             >
               <RefreshCw size={12} /> Refresh
             </button>
-            {drawings.length > 0 && (
-              <button
-                onClick={handleClearAllDrawings}
-                title="Hapus Semua Drawing"
-                className="px-2.5 py-1.5 text-[11px] font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-md transition-all cursor-pointer flex items-center gap-1"
-              >
-                <Trash2 size={12} /> Hapus Semua
-              </button>
-            )}
           </div>
         </div>
 
@@ -1809,10 +1872,16 @@ export default function DrawingManagement() {
               </div>
 
               {/* ── Odoo Notebook Tabs Navigation Bar ── */}
-              <div className="flex items-center justify-between px-6 border-b border-gray-200 bg-white shrink-0">
+              <div className="flex items-center justify-between px-6 border-b border-gray-200 bg-white shrink-0 overflow-x-auto">
                 <div className="flex items-center gap-2">
                   {[
                     { key: 'canvas', label: 'Preview Blueprint (2D)', icon: FileText },
+                    { 
+                      key: 'checksheet', 
+                      label: `Check Sheet (${connectedCheckSheets.length})`, 
+                      icon: ClipboardCheck,
+                      isConnected: connectedCheckSheets.length > 0
+                    },
                     { key: 'photos', label: `Foto Produk (${productPhotos.length})`, icon: Camera },
                     { key: 'limit_sample', label: `Limit Sample (${limitSamples.length})`, icon: ShieldAlert },
                     { key: 'revisions', label: `Revisi & ECN (${revisions.length})`, icon: GitBranch },
@@ -1822,26 +1891,21 @@ export default function DrawingManagement() {
                     <button
                       key={tab.key}
                       onClick={() => setActiveTab(tab.key)}
-                      className={`flex items-center gap-1.5 px-4 py-3 text-xs font-bold border-b-2 transition-all cursor-pointer ${activeTab === tab.key
+                      className={`flex items-center gap-1.5 px-4 py-3 text-xs font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${activeTab === tab.key
                         ? 'border-[#714B67] text-[#714B67]'
                         : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
                       }`}
                     >
-                      <tab.icon size={13} />
+                      <tab.icon size={13} className={tab.key === 'checksheet' && tab.isConnected ? 'text-emerald-600' : ''} />
                       {tab.label}
+                      {tab.key === 'checksheet' && (
+                        <span 
+                          className={`w-2 h-2 rounded-full inline-block ${tab.isConnected ? 'bg-emerald-500 ring-2 ring-emerald-100' : 'bg-amber-400'}`} 
+                          title={tab.isConnected ? 'Sudah Terkoneksi Check Sheet' : 'Belum Terkoneksi'} 
+                        />
+                      )}
                     </button>
                   ))}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {selectedDrawing && (
-                    <button
-                      onClick={handleOpenInInspector}
-                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-xs font-bold bg-[#00A09D] hover:bg-[#008784] text-white shadow-xs transition-all cursor-pointer"
-                    >
-                      <FileCode size={14} /> Atur Balon & GD&T di Inspector Studio ➔
-                    </button>
-                  )}
                 </div>
               </div>
 
@@ -1953,22 +2017,213 @@ export default function DrawingManagement() {
                           />
                         </div>
                       )}
-
-                      {/* Bottom Banner: Redirect to Inspector Studio for Ballooning */}
-                      {blueprintImage && selectedDrawing && (
-                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex flex-wrap items-center justify-center gap-3 bg-gray-900/90 backdrop-blur-md border border-gray-700 px-4 py-2 rounded-lg text-white shadow-xl max-w-xl text-center">
-                          <span className="text-xs text-gray-300">
-                            💡 Penomoran Balon, Toleransi GD&T, dan Metrologi dikelola di <strong>Inspector Designer Studio</strong>.
-                          </span>
-                          <button
-                            onClick={handleOpenInInspector}
-                            className="bg-[#00A09D] hover:bg-[#008784] text-white font-bold text-xs px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-                          >
-                            <FileCode size={13} /> Buka di Inspector Studio
-                          </button>
-                        </div>
-                      )}
                     </div>
+                  </div>
+                )}
+
+                {/* ══ CHECK SHEET INTEGRATION TAB ══ */}
+                {activeTab === 'checksheet' && (
+                  <div className="flex-1 overflow-y-auto p-6 space-y-6 max-w-6xl">
+                    {/* Header Banner */}
+                    <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-5 rounded-xl border border-gray-200 shadow-xs">
+                      <div className="flex items-center gap-3.5">
+                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold ${
+                          connectedCheckSheets.length > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                        }`}>
+                          <ClipboardCheck size={22} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2.5">
+                            <h3 className="text-base font-bold text-gray-900">
+                              Digital Quality Check Sheet (ISO 17025 / IATF 16949)
+                            </h3>
+                            {connectedCheckSheets.length > 0 ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                                <CheckCircle2 size={12} className="text-emerald-600" /> Terkoneksi ({connectedCheckSheets.length} Check Sheet)
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
+                                <AlertTriangle size={12} className="text-amber-600" /> Belum Terkoneksi
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Status integrasi blueprint drawing dengan lembar pemeriksaan dimensi digital & parameter toleransi GD&T.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={loadCheckSheetTemplates}
+                          disabled={isLoadingTemplates}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 rounded-md text-xs font-semibold shadow-2xs transition-all cursor-pointer"
+                        >
+                          <RefreshCw size={13} className={isLoadingTemplates ? 'animate-spin' : ''} /> Refresh
+                        </button>
+                        <button
+                          onClick={handleOpenInInspector}
+                          className="flex items-center gap-1.5 px-4 py-1.5 bg-[#00A09D] hover:bg-[#008784] text-white rounded-md text-xs font-bold shadow-xs transition-all cursor-pointer"
+                        >
+                          <FileCode size={13} /> {connectedCheckSheets.length > 0 ? 'Edit di Inspector Studio ➔' : '+ Buat Check Sheet Baru ➔'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Content Section: Connected Check Sheets List or Empty State */}
+                    {connectedCheckSheets.length > 0 ? (
+                      <div className="space-y-4">
+                        {connectedCheckSheets.map((cs, index) => {
+                          const pts = cs.checkPoints || cs.points || [];
+                          return (
+                            <div
+                              key={cs.id || index}
+                              className="bg-white border-2 border-emerald-500/30 rounded-xl p-6 shadow-xs space-y-5 hover:border-emerald-500 transition-colors"
+                            >
+                              {/* Card Header */}
+                              <div className="flex flex-wrap items-start justify-between gap-3 pb-4 border-b border-gray-100">
+                                <div>
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-600 text-white tracking-wider">
+                                      {cs.status || 'Active Check Sheet'}
+                                    </span>
+                                    <span className="text-xs font-mono font-bold text-gray-600 bg-gray-100 px-2 py-0.5 rounded border border-gray-200">
+                                      No. Dokumen: <strong className="text-gray-900">{cs.docNo || cs.id || cs.doc_no || 'CS-AUTO'}</strong>
+                                    </span>
+                                  </div>
+                                  <h4 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                    {cs.name || cs.title || `${selectedDrawing.name} Check Sheet`}
+                                  </h4>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => navigate(`/inspector-designer?edit=${encodeURIComponent(cs.id || cs.docNo || '')}`)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold bg-[#714B67] hover:bg-[#5C3D54] text-white shadow-xs transition-all cursor-pointer"
+                                    title="Buka & Edit Check Sheet di Inspector Designer Studio"
+                                  >
+                                    <Edit3 size={13} /> Edit di Inspector Studio
+                                  </button>
+                                  <button
+                                    onClick={() => navigate(`/drawing-checksheet?fromDrawing=true&code=${encodeURIComponent(selectedDrawing.code)}`)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all cursor-pointer"
+                                    title="Mulai Live Inspection Player"
+                                  >
+                                    <CheckSquare size={13} /> Live Inspection Player
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Details Grid */}
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-[#f8f9fa] p-4 rounded-lg border border-gray-200">
+                                <div>
+                                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Part No & Part Name</span>
+                                  <span className="text-xs font-bold text-gray-900">{cs.partNo || selectedDrawing.code}</span>
+                                  <span className="text-[11px] text-gray-500 block truncate">{cs.partName || selectedDrawing.name}</span>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Revisi & Standar Mutu</span>
+                                  <span className="text-xs font-bold text-[#714B67]">Rev {cs.revisionNo || cs.revision || selectedRevision?.revision_code || 'A'}</span>
+                                  <span className="text-[11px] text-gray-500 block">{cs.qualityStandard || 'ISO 9001:2015'}</span>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Work Order & Station</span>
+                                  <span className="text-xs font-bold text-gray-900">{cs.workOrderPrefix || 'WO-2026'}</span>
+                                  <span className="text-[11px] text-gray-500 block">Stasiun: {cs.stationId || 'ST-01'}</span>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Total Titik Ukur GD&T</span>
+                                  <span className="text-xs font-extrabold text-[#00A09D] flex items-center gap-1">
+                                    <Target size={13} /> {pts.length} Titik Ukur Balon
+                                  </span>
+                                  <span className="text-[11px] text-gray-500 block">{cs.inspectorName ? `Inspector: ${cs.inspectorName}` : 'Terkontrol Sistem'}</span>
+                                </div>
+                              </div>
+
+                              {/* Check Points Table Preview */}
+                              {pts.length > 0 && (
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <h5 className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                                      <ListOrdered size={14} className="text-[#00A09D]" />
+                                      Daftar Balon & Dimensi Ukur Terdaftar ({pts.length} Titik)
+                                    </h5>
+                                    <span className="text-[11px] text-gray-500 font-medium">Metrologi & Toleransi ISO 17025</span>
+                                  </div>
+                                  <div className="border border-gray-200 rounded-lg overflow-hidden max-h-60 overflow-y-auto">
+                                    <table className="w-full text-left text-xs border-collapse">
+                                      <thead className="bg-gray-100 text-gray-700 sticky top-0 z-10 text-[11px] uppercase tracking-wider font-bold">
+                                        <tr className="border-b border-gray-200">
+                                          <th className="py-2 px-3 text-center w-12">Balon #</th>
+                                          <th className="py-2 px-3">Fitur / Parameter Dimensi</th>
+                                          <th className="py-2 px-3">Kategori</th>
+                                          <th className="py-2 px-3 text-right">Nominal Spec</th>
+                                          <th className="py-2 px-3 text-center">Toleransi (Min/Max)</th>
+                                          <th className="py-2 px-3 text-center">Unit</th>
+                                          <th className="py-2 px-3 text-center">Alat Ukur</th>
+                                          <th className="py-2 px-3 text-center">Criticality</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-gray-100 bg-white">
+                                        {pts.map((pt, pIdx) => {
+                                          const pNum = pt.pointNumber || (pIdx + 1);
+                                          const isCrit = String(pt.criticality || '').includes('Critical');
+                                          return (
+                                            <tr key={pt.id || pIdx} className="hover:bg-gray-50">
+                                              <td className="py-2 px-3 text-center font-bold">
+                                                <span className="w-6 h-6 rounded-full bg-[#00A09D]/15 text-[#00A09D] inline-flex items-center justify-center font-mono text-xs">
+                                                  {pNum}
+                                                </span>
+                                              </td>
+                                              <td className="py-2 px-3 font-semibold text-gray-900">{pt.title || `Point ${pNum}`}</td>
+                                              <td className="py-2 px-3 text-gray-600">{pt.category || 'Linear Dimension'}</td>
+                                              <td className="py-2 px-3 text-right font-mono font-bold text-gray-900">{Number(pt.nominal || 0).toFixed(3)}</td>
+                                              <td className="py-2 px-3 text-center font-mono text-gray-600">
+                                                [{Number(pt.tolMin || 0) >= 0 ? `+${pt.tolMin}` : pt.tolMin} / {Number(pt.tolMax || 0) >= 0 ? `+${pt.tolMax}` : pt.tolMax}]
+                                              </td>
+                                              <td className="py-2 px-3 text-center text-gray-500">{pt.unit || 'mm'}</td>
+                                              <td className="py-2 px-3 text-center text-gray-700">{pt.inspectionMethod || 'Caliper'}</td>
+                                              <td className="py-2 px-3 text-center">
+                                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                                  isCrit ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                                                }`}>
+                                                  {pt.criticality || 'Major'}
+                                                </span>
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      /* Empty State: Belum Terkoneksi */
+                      <div className="border-2 border-dashed border-gray-300 bg-white rounded-xl p-12 flex flex-col items-center justify-center text-center space-y-4">
+                        <div className="w-16 h-16 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center">
+                          <ClipboardCheck size={36} />
+                        </div>
+                        <div className="max-w-md space-y-1.5">
+                          <h4 className="text-base font-bold text-gray-900">
+                            Drawing Belum Terkoneksi ke Check Sheet
+                          </h4>
+                          <p className="text-xs text-gray-500 leading-relaxed">
+                            Drawing <strong>{selectedDrawing.code}</strong> (<em>{selectedDrawing.name}</em>) belum memiliki Digital Check Sheet. Buka di <strong>Inspector Studio</strong> untuk menentukan penomoran balon, spesifikasi toleransi GD&T, dan lembar periksa inspeksi mutu.
+                          </p>
+                        </div>
+                        <button
+                          onClick={handleOpenInInspector}
+                          className="flex items-center gap-2 bg-[#00A09D] hover:bg-[#008784] text-white font-bold text-xs px-5 py-2.5 rounded-lg shadow-sm transition-all cursor-pointer"
+                        >
+                          <FileCode size={15} /> Atur Balon & Buat Check Sheet di Inspector Studio ➔
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 

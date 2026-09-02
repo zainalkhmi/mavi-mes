@@ -20,7 +20,8 @@ import { convertPdfToImageDataUrl } from '../utils/pdfRenderService';
 import { parseDxfContent } from '../utils/cadDxfRenderService';
 import { extractBlueprintDimensions, detectPdfType } from '../utils/pdfDimensionExtractor';
 import { getTables, createTable } from '../utils/supabaseTablesDB';
-import { getTemplates, saveTemplates, safePersistTemplates, safeRetrieveLocalTemplates } from '../utils/supabaseTemplateDB';
+import { getTemplates, saveTemplates, safePersistTemplates, safeRetrieveLocalTemplates, templatesLocalDB } from '../utils/supabaseTemplateDB';
+import { getDrawingsAll, createDrawing, getDrawingRevisions, getDrawingBalloons } from '../utils/mavicorePLM';
 import { getCurrentUser } from '../utils/auth';
 import { executeReportPrintAction } from '../utils/reportPrintService';
 
@@ -139,6 +140,9 @@ export default function InspectorDesigner() {
   // ─── State Management ───
   const [currentStep, setCurrentStep] = useState(1);
   const [drawingsList, setDrawingsList] = useState([]);
+  const [plmDrawings, setPlmDrawings] = useState([]);
+  const [drawingTabFilter, setDrawingTabFilter] = useState('unconnected'); // 'unconnected' | 'all'
+  const [showDirectUploadBox, setShowDirectUploadBox] = useState(false);
   const [selectedDrawing, setSelectedDrawing] = useState(null);
   const [drawingPreview, setDrawingPreview] = useState(null);
   
@@ -590,7 +594,7 @@ export default function InspectorDesigner() {
     }
 
     // Resolve drawing preview & metadata
-    const preview = cs.drawingPreview || cs.drawingSvg || cs.svgData || cs.dataUrl || cs.drawingDataUrl || null;
+    const preview = cs.drawingPreview || cs.drawingSvg || cs.svgData || cs.dataUrl || cs.drawingDataUrl || cs.drawingImageUrl || null;
     if (preview) {
       setDrawingPreview(preview);
     }
@@ -637,6 +641,15 @@ export default function InspectorDesigner() {
       }
 
       try {
+        const plmList = await getDrawingsAll();
+        if (plmList && plmList.length > 0) {
+          setPlmDrawings(plmList);
+        }
+      } catch (err) {
+        console.warn('Could not load PLM drawings:', err);
+      }
+
+      try {
         const tables = await getTables();
         if (tables && tables.length > 0) {
           setAvailableTables(tables);
@@ -669,11 +682,21 @@ export default function InspectorDesigner() {
         setSavedTemplates(local);
       }
 
-      // ── Check if there is an active checksheet requested for edit from Checksheet Management ──
-      const editTemplateJson = localStorage.getItem('mandor_inspector_active_template');
+      // ── Check if there is an active checksheet requested for edit from Checksheet Management or Drawing Management ──
+      const editTemplateJson = localStorage.getItem('mandor_inspector_active_template') || sessionStorage.getItem('mandor_inspector_active_template');
       if (editTemplateJson) {
         try {
-          const cs = JSON.parse(editTemplateJson);
+          let cs = JSON.parse(editTemplateJson);
+          // If preview was stripped for quota, recover from IndexedDB or sessionStorage
+          const hasImage = cs.drawingPreview || cs.drawingSvg || cs.drawingImageUrl || cs.svgData || cs.dataUrl || cs.drawingDataUrl;
+          if (!hasImage && cs.id && templatesLocalDB) {
+            try {
+              const fullTemplate = await templatesLocalDB.templates.get(cs.id);
+              if (fullTemplate) cs = fullTemplate;
+            } catch (e) {
+              console.warn('[InspectorDesigner] Error loading full template from IndexedDB:', e);
+            }
+          }
           loadChecksheetIntoDesigner(cs, loadedDrawings);
         } catch (err) {
           console.warn('[InspectorDesigner] Failed to parse mandor_inspector_active_template', err);
@@ -692,6 +715,86 @@ export default function InspectorDesigner() {
     };
     loadData();
   }, []);
+
+  // ─── Drawing Management (PLM) Connection Status Helpers ───
+  const isDrawingConnected = useCallback((dwg) => {
+    if (!dwg) return false;
+    return savedTemplates.some(t => {
+      const matchId = t.drawingId && (t.drawingId === dwg.id || t.drawingId === dwg.code);
+      const matchDocNo = t.docNo && dwg.code && t.docNo.trim().toLowerCase() === dwg.code.trim().toLowerCase();
+      const matchDwgNo = t.drawingNo && dwg.code && t.drawingNo.trim().toLowerCase() === dwg.code.trim().toLowerCase();
+      const matchPartNo = t.partNo && dwg.code && t.partNo.trim().toLowerCase() === dwg.code.trim().toLowerCase();
+      const matchName = t.name && dwg.code && t.name.toLowerCase().includes(dwg.code.toLowerCase());
+      return !!(matchId || matchDocNo || matchDwgNo || matchPartNo || matchName);
+    });
+  }, [savedTemplates]);
+
+  const unconnectedDrawings = useMemo(() => {
+    return plmDrawings.filter(d => !isDrawingConnected(d));
+  }, [plmDrawings, isDrawingConnected]);
+
+  const handleSelectPlmDrawing = async (dwg) => {
+    const rawImage = dwg.file_url || dwg.thumbnail_url || localStorage.getItem(`mandor_drawing_image_${dwg.id}`) || null;
+    
+    const formattedDwg = {
+      id: dwg.id,
+      name: dwg.name || 'Drawing',
+      code: dwg.code || '',
+      fileName: dwg.file_name || `${dwg.code || 'drawing'}.png`,
+      fileType: dwg.file_type || dwg.fileType || 'SVG',
+      file_url: rawImage,
+      thumbnail_url: rawImage,
+      svgData: rawImage,
+      dataUrl: rawImage,
+      dimensions: []
+    };
+
+    setSelectedDrawing(formattedDwg);
+    if (rawImage) {
+      setDrawingPreview(rawImage);
+    }
+    
+    if (dwg.code) setDrawingNo(dwg.code);
+    if (dwg.name) {
+      setPartName(dwg.name);
+      setCheckSheetName(`${dwg.name} Quality Check Sheet`);
+    }
+    if (dwg.revision || dwg.revision_code) setRevisionNo(dwg.revision || dwg.revision_code || 'A');
+
+    // Attempt to load balloons from PLM revision
+    try {
+      const revs = await getDrawingRevisions(dwg.id);
+      if (revs && revs.length > 0) {
+        const revBalloons = await getDrawingBalloons(revs[0].id);
+        if (revBalloons && revBalloons.length > 0) {
+          const mappedPoints = revBalloons.map((b, i) => ({
+            id: `cp_${b.id || i}`,
+            pointNumber: parseInt(b.balloon_number) || (i + 1),
+            title: b.target_feature?.feature_name || `Point ${b.balloon_number || (i + 1)}`,
+            category: 'dimension',
+            nominal: b.target_feature?.nominal_value || 0,
+            tolMin: b.target_feature?.lower_tolerance || 0,
+            tolMax: b.target_feature?.upper_tolerance || 0,
+            unit: b.target_feature?.unit || 'mm',
+            x: b.position_x || 100,
+            y: b.position_y || 100,
+            criticality: 'Major',
+            inspectionMethod: 'Digital Caliper',
+            required: true,
+            autoAdvance: true
+          }));
+          setCheckPoints(mappedPoints);
+          if (mappedPoints.length > 0) setActivePointId(mappedPoints[0].id);
+          toast.success(`Drawing "${dwg.name}" & ${mappedPoints.length} balon GD&T dimuat dari Drawing Management!`);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Could not load balloons for drawing:', e);
+    }
+
+    toast.success(`Drawing "${dwg.name}" dari Management Drawing berhasil dimuat!`);
+  };
 
   // ─── Proportional Canvas Auto-Fit (Zero Wasted Space) ───
   const handleFitToScreen = useCallback(() => {
@@ -1116,8 +1219,22 @@ export default function InspectorDesigner() {
         setCheckPoints(converted);
       }
 
-      // Persist to database in background
+      // Persist to PLM Drawing Management & database in background
       try {
+        const plmCode = `DRW-${Date.now().toString(36).toUpperCase()}`;
+        const plmRes = await createDrawing({
+          id: drawingId,
+          name: cleanName || fileName,
+          code: plmCode,
+          drawing_type: 'DETAIL',
+          file_name: fileName,
+          file_type: ext.toUpperCase(),
+          file_url: rawImageDataUrl || previewContent,
+          thumbnail_url: rawImageDataUrl || previewContent
+        });
+        if (plmRes?.data) {
+          setPlmDrawings(prev => [plmRes.data, ...prev]);
+        }
         await saveDrawing(newDrawing);
       } catch (saveErr) {
         console.warn('Auto-save to database failed, drawing kept in local state:', saveErr);
@@ -2592,19 +2709,315 @@ export default function InspectorDesigner() {
             </div>
           )}
 
-          {/* ─── STEP 2: Upload Drawing / Blueprint ─── */}
+          {/* ─── STEP 2: Pilih / Upload Drawing dari Management Drawing ─── */}
           {currentStep === 2 && (
             <div style={{ flex: 1, overflow: 'auto', padding: '12px' }}>
-              <div style={{ marginBottom: '16px' }}>
-                <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#f8fafc', marginBottom: '4px' }}>
-                  Upload Gambar Teknik / Blueprint
+              <div style={{ marginBottom: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <FolderOpen size={16} color="#38bdf8" />
+                    Koneksi Drawing Management (PLM)
+                  </div>
+                  <button
+                    onClick={() => navigate('/drawing-management')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: '0.65rem',
+                      fontWeight: 700,
+                      color: '#38bdf8',
+                      backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                      border: '1px solid rgba(56, 189, 248, 0.3)',
+                      padding: '3px 7px',
+                      borderRadius: '4px',
+                      cursor: 'pointer'
+                    }}
+                    title="Buka Management Drawing"
+                  >
+                    Buka PLM <ExternalLink size={10} />
+                  </button>
                 </div>
                 <div style={{ fontSize: '0.68rem', color: '#94a3b8', lineHeight: 1.4 }}>
-                  Upload blueprint PDF, DXF, SVG, atau gambar komponen yang akan diinspeksi.
+                  Hanya drawing dari <strong>Management Drawing</strong> yang belum memiliki Check Sheet yang dapat dimuat ke template ini.
                 </div>
               </div>
 
-              {/* Direct Blueprint Upload Dropzone */}
+              {/* Drawing Status Card (If Loaded) */}
+              {selectedDrawing && (
+                <div style={{
+                  padding: '12px',
+                  backgroundColor: '#1e293b',
+                  borderRadius: '8px',
+                  border: '1px solid #10b981',
+                  marginBottom: '14px',
+                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.15)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <CheckCircle2 size={15} color="#10b981" />
+                      <span style={{ fontSize: '0.76rem', fontWeight: 800, color: '#34d399' }}>
+                        Drawing Aktif Terhubung
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedDrawing(null);
+                        setDrawingPreview(null);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#ef4444',
+                        fontSize: '0.65rem',
+                        cursor: 'pointer',
+                        fontWeight: 600
+                      }}
+                    >
+                      Ganti Drawing
+                    </button>
+                  </div>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#f8fafc' }}>
+                    {selectedDrawing.name}
+                  </div>
+                  <div style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: '2px' }}>
+                    Kode: {selectedDrawing.code || selectedDrawing.id} • Format: {selectedDrawing.fileType} {checkPoints.length > 0 ? `• ${checkPoints.length} Titik Ukur Terdaftar` : ''}
+                  </div>
+                </div>
+              )}
+
+              {/* Tab Selector: Belum Terkoneksi vs Semua Drawing */}
+              <div style={{
+                display: 'flex',
+                gap: '4px',
+                backgroundColor: '#0f172a',
+                padding: '3px',
+                borderRadius: '6px',
+                marginBottom: '12px',
+                border: '1px solid #334155'
+              }}>
+                <button
+                  onClick={() => setDrawingTabFilter('unconnected')}
+                  style={{
+                    flex: 1,
+                    padding: '6px',
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    borderRadius: '4px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    backgroundColor: drawingTabFilter === 'unconnected' ? '#8b5cf6' : 'transparent',
+                    color: drawingTabFilter === 'unconnected' ? 'white' : '#94a3b8',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  Belum Terkoneksi ({unconnectedDrawings.length})
+                </button>
+                <button
+                  onClick={() => setDrawingTabFilter('all')}
+                  style={{
+                    flex: 1,
+                    padding: '6px',
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    borderRadius: '4px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    backgroundColor: drawingTabFilter === 'all' ? '#8b5cf6' : 'transparent',
+                    color: drawingTabFilter === 'all' ? 'white' : '#94a3b8',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  Semua Drawing ({plmDrawings.length})
+                </button>
+              </div>
+
+              {/* Drawing List Section */}
+              <div style={{ marginBottom: '14px' }}>
+                {drawingTabFilter === 'unconnected' && (
+                  <>
+                    {unconnectedDrawings.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {unconnectedDrawings.map((dwg) => {
+                          const isSelected = selectedDrawing?.id === dwg.id;
+                          return (
+                            <div
+                              key={dwg.id}
+                              style={{
+                                padding: '10px 12px',
+                                backgroundColor: isSelected ? 'rgba(139, 92, 246, 0.2)' : '#1e293b',
+                                border: isSelected ? '1px solid #8b5cf6' : '1px solid #334155',
+                                borderRadius: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: '8px',
+                                transition: 'all 0.15s'
+                              }}
+                            >
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                                  <span style={{
+                                    fontSize: '0.62rem',
+                                    fontWeight: 800,
+                                    backgroundColor: '#714B67',
+                                    color: 'white',
+                                    padding: '1px 5px',
+                                    borderRadius: '3px'
+                                  }}>
+                                    {dwg.code || 'PRT'}
+                                  </span>
+                                  <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {dwg.name}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: '0.63rem', color: '#94a3b8' }}>
+                                  Tipe: {dwg.drawing_type || 'DETAIL'} • File: {dwg.file_name || 'CAD Blueprint'}
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => handleSelectPlmDrawing(dwg)}
+                                style={{
+                                  padding: '5px 9px',
+                                  fontSize: '0.68rem',
+                                  fontWeight: 700,
+                                  backgroundColor: isSelected ? '#10b981' : '#00A09D',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  flexShrink: 0
+                                }}
+                              >
+                                {isSelected ? <Check size={12} /> : null}
+                                {isSelected ? 'Terpilih' : 'Gunakan'}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      /* KONDISI JIKA BELUM ADA DRAWING YANG BELUM TERKONEKSI */
+                      <div style={{
+                        padding: '16px 12px',
+                        backgroundColor: '#1e293b',
+                        border: '1px dashed #475569',
+                        borderRadius: '8px',
+                        textAlign: 'center',
+                        color: '#94a3b8'
+                      }}>
+                        <ShieldCheck size={28} color="#10b981" style={{ margin: '0 auto 6px auto' }} />
+                        <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#f8fafc', marginBottom: '3px' }}>
+                          Semua Drawing Terkoneksi
+                        </div>
+                        <div style={{ fontSize: '0.68rem', color: '#94a3b8', marginBottom: '10px', lineHeight: 1.4 }}>
+                          Semua drawing di Management Drawing telah terhubung ke Check Sheet. Silakan tambahkan drawing baru di Management Drawing.
+                        </div>
+                        <button
+                          onClick={() => navigate('/drawing-management')}
+                          style={{
+                            padding: '7px 12px',
+                            backgroundColor: '#714B67',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px'
+                          }}
+                        >
+                          <FolderOpen size={13} /> Buka Management Drawing
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {drawingTabFilter === 'all' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {plmDrawings.length > 0 ? (
+                      plmDrawings.map((dwg) => {
+                        const isConnected = isDrawingConnected(dwg);
+                        const isSelected = selectedDrawing?.id === dwg.id;
+                        return (
+                          <div
+                            key={dwg.id}
+                            style={{
+                              padding: '10px 12px',
+                              backgroundColor: isSelected ? 'rgba(139, 92, 246, 0.2)' : '#1e293b',
+                              border: isSelected ? '1px solid #8b5cf6' : '1px solid #334155',
+                              borderRadius: '8px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '8px'
+                            }}
+                          >
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                                <span style={{
+                                  fontSize: '0.62rem',
+                                  fontWeight: 800,
+                                  backgroundColor: '#714B67',
+                                  color: 'white',
+                                  padding: '1px 5px',
+                                  borderRadius: '3px'
+                                }}>
+                                  {dwg.code || 'PRT'}
+                                </span>
+                                <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {dwg.name}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: '0.63rem', color: isConnected ? '#34d399' : '#f59e0b', fontWeight: 600 }}>
+                                {isConnected ? '● Sudah Terkoneksi Check Sheet' : '○ Belum Terkoneksi'}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleSelectPlmDrawing(dwg)}
+                              style={{
+                                padding: '5px 9px',
+                                fontSize: '0.68rem',
+                                fontWeight: 700,
+                                backgroundColor: isSelected ? '#10b981' : '#00A09D',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                flexShrink: 0
+                              }}
+                            >
+                              {isSelected ? <Check size={12} /> : null}
+                              {isSelected ? 'Terpilih' : 'Muat'}
+                            </button>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: '16px', color: '#94a3b8', fontSize: '0.72rem' }}>
+                        Belum ada drawing di Management Drawing.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Direct Blueprint Upload Dropzone (Syncs to Management Drawing) */}
               <input
                 type="file"
                 ref={fileInputRef}
@@ -2613,70 +3026,60 @@ export default function InspectorDesigner() {
                 style={{ display: 'none' }}
               />
 
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                style={{
-                  padding: '24px 16px',
-                  border: '2px dashed #8b5cf6',
-                  borderRadius: '10px',
-                  backgroundColor: 'rgba(139, 92, 246, 0.08)',
-                  textAlign: 'center',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '8px',
-                  marginBottom: '16px'
-                }}
-                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 0.15)'; }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 0.08)'; }}
-              >
-                <Upload size={32} color="#a78bfa" />
-                <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#f8fafc' }}>
-                  {isUploading ? 'Memproses File CAD/PDF...' : 'Klik atau Drop File Blueprint'}
+              <div style={{
+                borderTop: '1px solid #334155',
+                paddingTop: '12px',
+                marginTop: '12px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#cbd5e1' }}>
+                    Upload & Daftarkan ke Drawing Management:
+                  </span>
+                  <button
+                    onClick={() => setShowDirectUploadBox(!showDirectUploadBox)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#a78bfa',
+                      fontSize: '0.68rem',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {showDirectUploadBox ? 'Tutup Upload' : '+ Upload File Baru'}
+                  </button>
                 </div>
-                <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
-                  Mendukung PDF Vektor, AutoCAD DXF, SVG & PNG/JPG
-                </div>
-              </div>
 
-              {/* Drawing Status Card */}
-              {selectedDrawing ? (
-                <div style={{
-                  padding: '12px',
-                  backgroundColor: '#1e293b',
-                  borderRadius: '8px',
-                  border: '1px solid #10b981',
-                  marginBottom: '16px'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                    <CheckCircle2 size={16} color="#10b981" />
-                    <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#34d399' }}>
-                      Drawing Aktif Dimuat
-                    </span>
+                {showDirectUploadBox && (
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{
+                      padding: '18px 14px',
+                      border: '2px dashed #8b5cf6',
+                      borderRadius: '8px',
+                      backgroundColor: 'rgba(139, 92, 246, 0.08)',
+                      textAlign: 'center',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '6px',
+                      marginBottom: '14px'
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 0.15)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 0.08)'; }}
+                  >
+                    <Upload size={26} color="#a78bfa" />
+                    <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#f8fafc' }}>
+                      {isUploading ? 'Memproses & Menyimpan ke PLM...' : 'Upload Blueprint ke Management Drawing'}
+                    </div>
+                    <div style={{ fontSize: '0.64rem', color: '#94a3b8' }}>
+                      File otomatis tersimpan sebagai Master Data di Management Drawing
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#f8fafc' }}>
-                    {selectedDrawing.name}
-                  </div>
-                  <div style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: '2px' }}>
-                    Format: {selectedDrawing.fileType} {selectedDrawing.dimensions?.length > 0 ? `• ${selectedDrawing.dimensions.length} dimensi terdeteksi` : ''}
-                  </div>
-                </div>
-              ) : (
-                <div style={{
-                  padding: '12px',
-                  backgroundColor: '#1e293b',
-                  borderRadius: '8px',
-                  border: '1px dashed #475569',
-                  color: '#94a3b8',
-                  fontSize: '0.72rem',
-                  textAlign: 'center',
-                  marginBottom: '16px'
-                }}>
-                  Belum ada drawing dimuat. Silakan upload file gambar teknik di atas.
-                </div>
-              )}
+                )}
+              </div>
 
               {/* Preset QC Templates */}
               <div style={{
