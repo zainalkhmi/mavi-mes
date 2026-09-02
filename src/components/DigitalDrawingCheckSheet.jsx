@@ -135,6 +135,7 @@ import { getAllDrawings, drawingsLocalDB } from '../utils/supabaseUtilityDB';
 import { getTables, addTableRecord, createTable } from '../utils/supabaseTablesDB';
 import n8nWebhook from '../utils/n8nWebhookService';
 import { getCurrentUser } from '../utils/auth';
+import PreInspectionGateModal from './checksheet/PreInspectionGateModal';
 
 // ─── ISO 9001:2015 / IATF 16949 High-Fidelity Symmetrical Casting Housing Blueprint SVG ───
 const CASTING_HOUSING_SVG = (
@@ -692,6 +693,11 @@ export default function DigitalDrawingCheckSheet() {
   const [inspectionNotes, setInspectionNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // ── Pre-Inspection Gate State ──
+  const [showPreInspectionModal, setShowPreInspectionModal] = useState(false);
+  const [preInspectionValues, setPreInspectionValues] = useState({});
+  const [preInspectionFields, setPreInspectionFields] = useState([]);
+
   // ── Part & Document Metadata (loaded from published checksheet) ──
   const [partNo, setPartNo] = useState('');
   const [partName, setPartName] = useState('');
@@ -1148,6 +1154,13 @@ export default function DigitalDrawingCheckSheet() {
           if (cs.docNo || cs.drawingNo) setDocNo(cs.drawingNo || cs.docNo);
           if (cs.revisionNo) setRevisionNo(cs.revisionNo);
           if (cs.revision && !cs.revisionNo) setRevisionNo(cs.revision);
+
+          if (cs.preInspectionFields && Array.isArray(cs.preInspectionFields)) {
+            setPreInspectionFields(cs.preInspectionFields);
+            if (cs.preInspectionFields.length > 0) {
+              setShowPreInspectionModal(true);
+            }
+          }
           if (cs.approver) setApproverName(cs.approver);
           if (cs.approverName && !cs.approver) setApproverName(cs.approverName);
 
@@ -1841,6 +1854,7 @@ export default function DigitalDrawingCheckSheet() {
       passRate: `${Math.round((passedCount / pointsToSave.length) * 100)}%`,
       cpkEstimate: failedCount > 0 ? '0.82 (Poor)' : '1.54 (Capable)',
       notes: inspectionNotes || 'Inspection conforms to ISO 2768-mK tolerances.',
+      preInspectionData: preInspectionValues,
       details: pointsToSave.map(p => ({
         pointNumber: p.pointNumber,
         title: p.title,
@@ -5458,6 +5472,19 @@ export default function DigitalDrawingCheckSheet() {
         />
       )}
 
+      {/* ─── PRE-INSPECTION GATE MODAL ───── */}
+      <PreInspectionGateModal
+        isOpen={showPreInspectionModal}
+        fields={preInspectionFields}
+        onSubmit={(values) => {
+          setPreInspectionValues(values);
+          setShowPreInspectionModal(false);
+          // If values map to specific top-level metadata fields like lot batch no, we can set them here
+          if (values['lotNo'] || values['LotNo'] || values['Lot No']) {
+            setLotBatchNo(values['lotNo'] || values['LotNo'] || values['Lot No']);
+          }
+        }}
+      />
     </div>
   );
 }
