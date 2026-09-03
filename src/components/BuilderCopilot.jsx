@@ -16,7 +16,6 @@ import { getBuilderCopilotAdvice, getBuilderVisionAdvice, streamBuilderCopilotAd
 import { sanitizeCopilotCommands } from '../utils/copilotSafety';
 import { getAllFrontlineApps } from '../utils/supabaseFrontlineDB';
 import { getSupabaseClient, isSupabaseReady } from '../utils/supabaseManualDB';
-import VibeSandpackViewer, { DEFAULT_VIBE_HMI_CODE } from './appbuilder/VibeSandpackViewer';
 
 // Widget type → icon/color mapping
 const WIDGET_META = {
@@ -304,6 +303,7 @@ const BuilderCopilot = ({
   hasSnapshot,
   selectedWidget,
   onOpenCopilot,
+  onOpenSandbox = null,
 }) => {
   const STORAGE_KEY = 'mandor_copilot_history';
 
@@ -353,12 +353,6 @@ const BuilderCopilot = ({
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [executionProgress, setExecutionProgress] = useState({ total: 0, current: 0, isActive: false });
   const recognitionRef = useRef(null);
-
-  // ─── Sandpack Vibe Engine States (Opsi 1: Canvas Mode vs Opsi 2: Sandpack Vibe) ───
-  const [vibeEngineMode, setVibeEngineMode] = useState('canvas'); // 'canvas' | 'sandpack'
-  const [sandpackCode, setSandpackCode] = useState(DEFAULT_VIBE_HMI_CODE);
-  const [showSandpackDrawer, setShowSandpackDrawer] = useState(false);
-  const [isChatCollapsed, setIsChatCollapsed] = useState(false);
 
   useEffect(() => {
     setIsSpeechSupported(typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition));
@@ -730,9 +724,8 @@ const BuilderCopilot = ({
             setStreamingText(streamedText);
             if (streamedText.includes('<vibe_code>') && streamedText.includes('</vibe_code>')) {
               const match = streamedText.match(/<vibe_code>([\s\S]*?)<\/vibe_code>/i);
-              if (match && match[1]) {
-                setSandpackCode(match[1].trim());
-                setShowSandpackDrawer(true);
+              if (match && match[1] && onOpenSandbox) {
+                onOpenSandbox(match[1].trim());
               }
             }
           });
@@ -748,10 +741,8 @@ const BuilderCopilot = ({
       // Check if response contains <vibe_code>
       if (response && response.includes('<vibe_code>')) {
         const match = response.match(/<vibe_code>([\s\S]*?)<\/vibe_code>/i);
-        if (match && match[1]) {
-          const cleanCode = match[1].trim();
-          setSandpackCode(cleanCode);
-          setShowSandpackDrawer(true);
+        if (match && match[1] && onOpenSandbox) {
+          onOpenSandbox(match[1].trim());
         }
       }
 
@@ -1133,19 +1124,27 @@ Apa yang bisa kamu bantu untuk widget ini?`;
     { label: '🖥️ Rename Screen', prompt: 'Ubah nama screen [nama lama] menjadi [nama baru]' },
     { label: '⚡ Update Fungsi', prompt: 'Update fungsi [nama fungsi] dengan logika baru: [deskripsi logika]' },
   ];
+  const sandboxChips = [
+    { label: '🏭 HMI Stamping Press', prompt: 'Buatkan UI HMI Stamping Press interaktif dengan indikator tekanan hidrolik, stroke counter, cycle time, status motor ON/OFF, dan tombol emergency stop' },
+    { label: '📹 Terminal Face ID & GPS', prompt: 'Buatkan terminal absensi operator interaktif dengan simulasi kamera scanner Face ID, verifikasi koordinat GPS pabrik, dan auto sinkronisasi operator' },
+    { label: '📊 OEE & Realtime Charts', prompt: 'Buatkan dashboard monitoring OEE live dengan visualisasi Availability, Performance, Quality, animated circular gauges, dan grafik tren produksi realtime' },
+    { label: '📋 QC Digital Checksheet', prompt: 'Buatkan digital checksheet inspeksi part dengan scoring OK/NG, input dimensi toleransi, upload bukti foto cacat, dan signature digital' },
+    { label: '⚡ PLC SCADA Telemetry', prompt: 'Buatkan panel SCADA telemetry untuk mesin CNC dengan live vibration sensor, temperature gauge, RPM motor, dan visualisasi alert threshold' },
+    { label: '🗄️ Auto Table Bridge', prompt: 'Tambahkan event postMessage({ type: "MAVICORE_TABLE_INSERT", tableName: "Produksi_Log", data: {...} }) pada setiap tombol simpan agar tersimpan ke database MaviCore' },
+  ];
   const chips = chipMode === 'build' ? buildChips : editChips;
 
   return (
     <div style={{
       position: 'fixed',
-      top: isFullScreen ? '0' : (showSandpackDrawer && vibeEngineMode === 'sandpack' ? '12px' : '64px'),
+      top: isFullScreen ? '0' : '64px',
       right: isFullScreen ? '0' : '12px',
       bottom: isFullScreen ? '0' : '12px',
-      left: isFullScreen ? '0' : (showSandpackDrawer && vibeEngineMode === 'sandpack' ? '12px' : 'auto'),
-      width: isFullScreen ? '100%' : (showSandpackDrawer && vibeEngineMode === 'sandpack' ? 'calc(100vw - 24px)' : '460px'),
-      height: isFullScreen ? '100%' : (showSandpackDrawer && vibeEngineMode === 'sandpack' ? 'calc(100vh - 24px)' : 'auto'),
+      left: isFullScreen ? '0' : 'auto',
+      width: isFullScreen ? '100%' : '460px',
+      height: isFullScreen ? '100%' : 'auto',
       backgroundColor: '#ffffff',
-      borderRadius: isFullScreen ? '0' : (showSandpackDrawer && vibeEngineMode === 'sandpack' ? '16px' : '20px'),
+      borderRadius: isFullScreen ? '0' : '20px',
       display: 'flex',
       flexDirection: 'column',
       boxShadow: isFullScreen ? 'none' : '0 32px 64px -12px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.05)',
@@ -1429,136 +1428,38 @@ Apa yang bisa kamu bantu untuk widget ini?`;
           </div>
         </div>
 
-        {/* ── VIBE ENGINE 2-OPTIONS SELECTOR ── */}
+        {/* Row 2: Status & Screen info */}
         <div style={{
-          padding: '6px 12px',
-          background: 'rgba(15, 23, 42, 0.85)',
+          padding: '6px 14px',
+          background: 'rgba(15, 23, 42, 0.75)',
           borderTop: '1px solid rgba(255, 255, 255, 0.08)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: '8px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Vibe:
-            </span>
-            <div style={{ display: 'flex', background: 'rgba(0, 0, 0, 0.35)', padding: '2px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
-              <button
-                type="button"
-                onClick={() => setVibeEngineMode('canvas')}
-                style={{
-                  padding: '3px 10px',
-                  borderRadius: '6px',
-                  border: 'none',
-                  fontSize: '0.72rem',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  transition: 'all 0.2s',
-                  background: vibeEngineMode === 'canvas' ? '#3b82f6' : 'transparent',
-                  color: vibeEngineMode === 'canvas' ? '#ffffff' : '#94a3b8'
-                }}
-                title="Opsi 1: Visual Canvas MaviCore (Drag & Drop Widget)"
-              >
-                <LayoutTemplate size={12} />
-                <span>🏭 Canvas Mode</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setVibeEngineMode('sandpack');
-                  setShowSandpackDrawer(true);
-                }}
-                style={{
-                  padding: '3px 10px',
-                  borderRadius: '6px',
-                  border: 'none',
-                  fontSize: '0.72rem',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  transition: 'all 0.2s',
-                  background: vibeEngineMode === 'sandpack' ? 'linear-gradient(135deg, #0284c7 0%, #6366f1 100%)' : 'transparent',
-                  color: vibeEngineMode === 'sandpack' ? '#ffffff' : '#94a3b8'
-                }}
-                title="Opsi 2: AI Vibe Coding langsung ke CodeSandbox Sandpack Engine"
-              >
-                <Sparkles size={12} className={vibeEngineMode === 'sandpack' ? 'animate-pulse' : ''} />
-                <span>⚡ Sandpack Vibe</span>
-              </button>
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: '#cbd5e1' }}>
+            <LayoutTemplate size={12} className="text-sky-400" />
+            <span style={{ fontWeight: 600 }}>Screen Aktif:</span>
+            <span style={{ color: '#38bdf8', fontWeight: 700 }}>{context?.currentStepName || 'Screen 1'}</span>
           </div>
-
-          {vibeEngineMode === 'sandpack' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <button
-                type="button"
-                onClick={() => setIsChatCollapsed(v => !v)}
-                style={{
-                  padding: '3px 9px',
-                  borderRadius: '6px',
-                  fontSize: '0.68rem',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  background: isChatCollapsed ? 'linear-gradient(135deg, #0284c7 0%, #6366f1 100%)' : 'rgba(255, 255, 255, 0.08)',
-                  color: isChatCollapsed ? '#ffffff' : '#94a3b8',
-                  border: isChatCollapsed ? 'none' : '1px solid rgba(255, 255, 255, 0.15)'
-                }}
-                title={isChatCollapsed ? 'Buka Panel Chat' : 'Perluas Preview Penuh (Sembunyikan Chat)'}
-              >
-                {isChatCollapsed ? <PanelLeftOpen size={12} /> : <PanelLeftClose size={12} />}
-                <span>{isChatCollapsed ? 'Buka Chat' : 'Preview Penuh'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowSandpackDrawer(v => !v)}
-                style={{
-                  padding: '3px 8px',
-                  borderRadius: '6px',
-                  fontSize: '0.68rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  background: showSandpackDrawer ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.08)',
-                  color: showSandpackDrawer ? '#38bdf8' : '#94a3b8',
-                  border: '1px solid rgba(56, 189, 248, 0.3)'
-                }}
-              >
-                <Eye size={11} />
-                <span>{showSandpackDrawer ? 'Tutup Preview' : 'Buka Preview'}</span>
-              </button>
-            </div>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.68rem', color: '#94a3b8' }}>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+            <span>Mavi Canvas</span>
+          </div>
         </div>
       </div>
 
-      {/* Main Split Area */}
-      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden', width: '100%' }}>
-        {/* Left Side: Copilot Chat Column */}
-        <div style={{
-          width: (showSandpackDrawer && vibeEngineMode === 'sandpack')
-            ? (isChatCollapsed ? '0px' : '380px')
-            : '100%',
-          display: (showSandpackDrawer && vibeEngineMode === 'sandpack' && isChatCollapsed) ? 'none' : 'flex',
-          flexDirection: 'column',
-          height: '100%',
-          minWidth: (showSandpackDrawer && vibeEngineMode === 'sandpack')
-            ? (isChatCollapsed ? '0px' : '350px')
-            : '100%',
-          borderRight: (showSandpackDrawer && vibeEngineMode === 'sandpack') ? '1px solid #e2e8f0' : 'none',
-          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-        }}>
+      {/* Main Chat Column */}
+      <div style={{
+        flex: 1,
+        minHeight: 0,
+        overflow: 'hidden',
+        width: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%'
+      }}>
 
       {/* UPGRADE 4: App Issues Panel */}
       {showIssues && appIssues.length > 0 && (
@@ -2100,638 +2001,568 @@ Apa yang bisa kamu bantu untuk widget ini?`;
           </div>
         )}
 
-        {/* Chip mode tabs */}
-        <div style={{ marginBottom: '6px' }}>
-          <div style={{ display: 'flex', gap: '3px', marginBottom: '6px', background: '#f1f5f9', padding: '2px', borderRadius: '8px', width: 'fit-content' }}>
-            {[{ id: 'build', label: '🏗️ Build' }, { id: 'edit', label: '✏️ Edit' }].map(({ id, label }) => (
-              <button
-                key={id}
-                onClick={() => setChipMode(id)}
-                style={{
-                  padding: '4px 10px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-                  fontSize: '0.68rem', fontWeight: 700,
-                  backgroundColor: chipMode === id ? '#ffffff' : 'transparent',
-                  color: chipMode === id ? '#1e293b' : '#64748b',
-                  boxShadow: chipMode === id ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
-                  transition: 'all 0.15s',
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          <div style={{
-            display: 'flex',
-            overflowX: 'auto',
-            gap: '6px',
-            paddingBottom: '4px',
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none'
-          }} className="copilot-chips-scroll">
-            <style>{`
-              .copilot-chips-scroll::-webkit-scrollbar {
-                display: none;
-              }
-            `}</style>
-            {chips.map((chip, i) => (
-              <button
-                key={i}
-                onClick={() => handlePromptChip(chip.prompt)}
-                style={{
-                  padding: '4px 10px', borderRadius: '20px',
-                  border: `1px solid ${chipMode === 'edit' ? '#fde68a' : '#e2e8f0'}`,
-                  backgroundColor: chipMode === 'edit' ? '#fefce8' : '#f8fafc',
-                  color: chipMode === 'edit' ? '#92400e' : '#475569',
-                  fontSize: '0.68rem', fontWeight: 600, cursor: 'pointer',
-                  transition: 'all 0.15s', whiteSpace: 'nowrap',
-                }}
-                onMouseEnter={e => {
-                  e.target.style.backgroundColor = chipMode === 'edit' ? '#fef3c7' : '#eff6ff';
-                  e.target.style.borderColor = chipMode === 'edit' ? '#fcd34d' : '#bfdbfe';
-                  e.target.style.color = chipMode === 'edit' ? '#78350f' : '#1d4ed8';
-                }}
-                onMouseLeave={e => {
-                  e.target.style.backgroundColor = chipMode === 'edit' ? '#fefce8' : '#f8fafc';
-                  e.target.style.borderColor = chipMode === 'edit' ? '#fde68a' : '#e2e8f0';
-                  e.target.style.color = chipMode === 'edit' ? '#92400e' : '#475569';
-                }}
-              >
-                {chip.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Unified Integrations Toolbar */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
-          {/* Buttons Row */}
-          <div style={{ display: 'flex', gap: '8px' }}>
-            {/* Related Apps Button */}
-            <div style={{ flex: 1, position: 'relative' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAppDropdown(prev => !prev);
-                  setShowCanvaDropdown(false);
-                }}
-                style={{
-                  width: '100%',
-                  background: showAppDropdown ? 'rgba(59,130,246,0.12)' : 'rgba(255,255,255,0.7)',
-                  border: `1.5px solid ${showAppDropdown ? '#3b82f6' : '#e2e8f0'}`,
-                  color: '#1e293b',
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  borderRadius: '8px',
-                  padding: '6px 10px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '4px',
-                  transition: 'all 0.15s'
-                }}
-              >
-                <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <Link size={12} color="#3b82f6" />
-                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    App Terkait ({selectedApps.length})
-                  </span>
-                </span>
-                <ChevronDown size={10} style={{ transform: showAppDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
-              </button>
-
-              {/* Dropdown Menu for Apps */}
-              {showAppDropdown && (
-                <div style={{
-                  position: 'absolute',
-                  bottom: '100%',
-                  left: 0,
-                  width: '260px',
-                  backgroundColor: '#ffffff',
-                  borderRadius: '12px',
-                  border: '1px solid #e2e8f0',
-                  boxShadow: '0 -10px 25px -5px rgba(0,0,0,0.15), 0 -8px 10px -6px rgba(0,0,0,0.15)',
-                  zIndex: 50,
-                  padding: '10px',
-                  marginBottom: '8px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px',
-                  maxHeight: '200px',
-                  overflowY: 'auto'
-                }}>
-                  <input
-                    type="text"
-                    placeholder="Cari nama aplikasi..."
-                    value={appSearchQuery}
-                    onChange={e => setAppSearchQuery(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '6px 10px',
-                      borderRadius: '6px',
-                      border: '1px solid #cbd5e1',
-                      fontSize: '0.75rem',
-                      outline: 'none',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    {allApps
-                      .filter(app => app.name.toLowerCase().includes(appSearchQuery.toLowerCase()))
-                      .map(app => {
-                        const isChecked = selectedApps.some(a => a.id === app.id);
-                        return (
-                          <label
-                            key={app.id}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '8px',
-                              fontSize: '0.75rem',
-                              color: '#334155',
-                              padding: '5px 8px',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              backgroundColor: isChecked ? 'rgba(59,130,246,0.05)' : 'transparent',
-                              transition: 'background-color 0.15s'
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = isChecked ? 'rgba(59,130,246,0.08)' : '#f8fafc' }}
-                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = isChecked ? 'rgba(59,130,246,0.05)' : 'transparent' }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => {
-                                if (isChecked) {
-                                  setSelectedApps(prev => prev.filter(a => a.id !== app.id));
-                                } else {
-                                  setSelectedApps(prev => [...prev, app]);
-                                }
-                              }}
-                              style={{
-                                width: '13px',
-                                height: '13px',
-                                accentColor: '#3b82f6',
-                                cursor: 'pointer'
-                              }}
-                            />
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <span style={{ fontWeight: 600 }}>{app.name}</span>
-                              <span style={{ fontSize: '0.62rem', color: '#64748b' }}>Kategori: {app.category || 'Shop Floor'}</span>
-                            </div>
-                          </label>
-                        );
-                      })}
-                    {allApps.filter(app => app.name.toLowerCase().includes(appSearchQuery.toLowerCase())).length === 0 && (
-                      <div style={{ fontSize: '0.72rem', color: '#94a3b8', textAlign: 'center', padding: '10px' }}>
-                        Tidak ada aplikasi ditemukan
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Canva Layout Button */}
-            <div style={{ flex: 1, position: 'relative' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCanvaDropdown(prev => !prev);
-                  setShowAppDropdown(false);
-                }}
-                style={{
-                  width: '100%',
-                  background: showCanvaDropdown ? 'rgba(124,58,237,0.12)' : 'rgba(255,255,255,0.7)',
-                  border: `1.5px solid ${showCanvaDropdown ? '#7c3aed' : '#e2e8f0'}`,
-                  color: '#1e293b',
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  borderRadius: '8px',
-                  padding: '6px 10px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '4px',
-                  transition: 'all 0.15s'
-                }}
-              >
-                <span style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0, width: '100%' }}>
-                  <LayoutTemplate size={12} color="#7c3aed" />
-                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, textAlign: 'left' }}>
-                    {selectedCanvaDesign ? selectedCanvaDesign.name : 'Desain Canva'}
-                  </span>
-                </span>
-                <ChevronDown size={10} style={{ transform: showCanvaDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
-              </button>
-
-              {/* Dropdown Menu for Canva */}
-              {showCanvaDropdown && (
-                <div style={{
-                  position: 'absolute',
-                  bottom: '100%',
-                  right: 0,
-                  width: '260px',
-                  backgroundColor: '#ffffff',
-                  borderRadius: '12px',
-                  border: '1px solid #e2e8f0',
-                  boxShadow: '0 -10px 25px -5px rgba(0,0,0,0.15), 0 -8px 10px -6px rgba(0,0,0,0.15)',
-                  zIndex: 50,
-                  padding: '10px',
-                  marginBottom: '8px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px',
-                  maxHeight: '200px',
-                  overflowY: 'auto'
-                }}>
-                  <input
-                    type="text"
-                    placeholder="Cari nama desain Canva..."
-                    value={canvaSearchQuery}
-                    onChange={e => setCanvaSearchQuery(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '6px 10px',
-                      borderRadius: '6px',
-                      border: '1px solid #cbd5e1',
-                      fontSize: '0.75rem',
-                      outline: 'none',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-
-                  {/* Loader */}
-                  {isFetchingCanva && (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px', gap: '6px', fontSize: '0.75rem', color: '#64748b' }}>
-                      <Loader2 size={12} className="animate-spin" /> Memuat dari Canva...
-                    </div>
-                  )}
-
-                  {/* Designs List */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    {!isFetchingCanva && canvaDesigns
-                      .filter(design => design.name.toLowerCase().includes(canvaSearchQuery.toLowerCase()))
-                      .map(design => {
-                        const isSelected = selectedCanvaDesign?.id === design.id;
-                        return (
-                          <button
-                            key={design.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedCanvaDesign(design);
-                              setShowCanvaDropdown(false);
-                            }}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'left',
-                              flexDirection: 'column',
-                              gap: '2px',
-                              fontSize: '0.75rem',
-                              color: '#334155',
-                              padding: '6px 8px',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              border: 'none',
-                              textAlign: 'left',
-                              backgroundColor: isSelected ? '#f5f3ff' : 'transparent',
-                              transition: 'background-color 0.15s',
-                              width: '100%'
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = isSelected ? '#ede9fe' : '#f8fafc' }}
-                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = isSelected ? '#f5f3ff' : 'transparent' }}
-                          >
-                            <span style={{ fontWeight: 600, color: isSelected ? '#6d28d9' : '#334155' }}>🎨 {design.name}</span>
-                            <span style={{ fontSize: '0.62rem', color: '#64748b' }}>ID: {design.id}</span>
-                          </button>
-                        );
-                      })}
-                    {!isFetchingCanva && canvaDesigns.filter(design => design.name.toLowerCase().includes(canvaSearchQuery.toLowerCase())).length === 0 && (
-                      <div style={{ fontSize: '0.72rem', color: '#94a3b8', textAlign: 'center', padding: '10px' }}>
-                        Tidak ada desain Canva ditemukan
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Unified selected items pill list */}
-          {(selectedApps.length > 0 || selectedCanvaDesign) && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '2px' }}>
-              {selectedApps.map(app => (
-                <div
-                  key={app.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    backgroundColor: '#eff6ff',
-                    border: '1px solid #bfdbfe',
-                    color: '#1e40af',
-                    fontSize: '0.7rem',
-                    fontWeight: 700,
-                    borderRadius: '20px',
-                    padding: '2px 8px',
-                  }}
-                >
-                  <span>📱 {app.name}</span>
+        {/* Canvas Mode Tools */}
+            {/* Chip mode tabs */}
+            <div style={{ marginBottom: '6px' }}>
+              <div style={{ display: 'flex', gap: '3px', marginBottom: '6px', background: '#f1f5f9', padding: '2px', borderRadius: '8px', width: 'fit-content' }}>
+                {[{ id: 'build', label: '🏗️ Build' }, { id: 'edit', label: '✏️ Edit' }].map(({ id, label }) => (
                   <button
-                    type="button"
-                    onClick={() => setSelectedApps(prev => prev.filter(a => a.id !== app.id))}
+                    key={id}
+                    onClick={() => setChipMode(id)}
                     style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#1e40af',
-                      cursor: 'pointer',
-                      padding: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
+                      padding: '4px 10px', borderRadius: '6px', border: 'none', cursor: 'pointer',
+                      fontSize: '0.68rem', fontWeight: 700,
+                      backgroundColor: chipMode === id ? '#ffffff' : 'transparent',
+                      color: chipMode === id ? '#1e293b' : '#64748b',
+                      boxShadow: chipMode === id ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                      transition: 'all 0.15s',
                     }}
                   >
-                    <X size={10} />
+                    {label}
                   </button>
-                </div>
-              ))}
-              {selectedCanvaDesign && (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    backgroundColor: '#f5f3ff',
-                    border: '1px solid #ddd6fe',
-                    color: '#6d28d9',
-                    fontSize: '0.7rem',
-                    fontWeight: 700,
-                    borderRadius: '20px',
-                    padding: '2px 8px',
-                  }}
-                >
-                  <span>🎨 {selectedCanvaDesign.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedCanvaDesign(null)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#6d28d9',
-                      cursor: 'pointer',
-                      padding: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                  >
-                    <X size={10} />
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Selected file preview */}
-        {selectedFile && (
-          <div style={{ marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', backgroundColor: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: '#1e40af', fontWeight: 600 }}>
-              <ImageIcon size={14} /> {selectedFile.name || 'Gambar Clipboard'}
-            </div>
-            <button onClick={() => setSelectedFile(null)} style={{ background: 'none', border: 'none', color: '#1e40af', cursor: 'pointer' }}>
-              <X size={14} />
-            </button>
-          </div>
-        )}
-
-        {/* Lovable.dev Style Quick Action Chips */}
-        {vibeEngineMode === 'sandpack' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-            <button
-              type="button"
-              onClick={() => toast.success('MaviCore Cloud connected!')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '5px',
-                padding: '4px 10px', borderRadius: '8px',
-                backgroundColor: '#ffffff', border: '1px solid #e2e8f0',
-                fontSize: '0.73rem', fontWeight: 600, color: '#334155',
-                cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
-              }}
-            >
-              <span>☁️ Connect Lovable Cloud</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => toast.success('Buka dokumentasi MaviCore')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '5px',
-                padding: '4px 10px', borderRadius: '8px',
-                backgroundColor: '#ffffff', border: '1px solid #e2e8f0',
-                fontSize: '0.73rem', fontWeight: 600, color: '#334155',
-                cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
-              }}
-            >
-              <span>↗ Visit docs</span>
-            </button>
-          </div>
-        )}
-
-        {/* Lovable.dev Style Reference Chip */}
-        {vibeEngineMode === 'sandpack' && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', padding: '0 4px', fontSize: '0.72rem', color: '#64748b' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontWeight: 600, color: '#334155' }}>@ Reuse work from other projects</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setInput('Buatkan modul Kaizen OTRS video analysis dengan deteksi motion dan grafik cycle-time')}
-              style={{ padding: '3px 8px', borderRadius: '6px', backgroundColor: '#0f172a', color: '#f8fafc', fontWeight: 700, border: 'none', cursor: 'pointer', fontSize: '0.68rem' }}
-            >
-              + Add reference
-            </button>
-          </div>
-        )}
-
-        {/* Textarea + send - Compact Pro Bar */}
-        <div style={{
-          display: 'flex', flexDirection: 'column',
-          backgroundColor: '#ffffff', borderRadius: '14px',
-          border: '1.5px solid #e2e8f0', padding: '8px 10px 6px 12px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-          transition: 'all 0.2s ease',
-        }}
-          onFocusCapture={e => { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.12)'; }}
-          onBlurCapture={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.03)'; }}
-        >
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={e => {
-              setInput(e.target.value);
-              e.target.style.height = 'auto';
-              e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
-            }}
-            onPaste={e => {
-              const items = e.clipboardData?.items;
-              if (items) {
-                for (let i = 0; i < items.length; i++) {
-                  if (items[i].type.indexOf('image') !== -1) {
-                    const file = items[i].getAsFile();
-                    if (file) {
-                      const namedFile = new File([file], file.name || `Pasted_Image_${new Date().getTime()}.png`, { type: file.type });
-                      setSelectedFile(namedFile);
-                      e.preventDefault();
-                      break;
-                    }
-                  }
-                }
-              }
-            }}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder={vibeEngineMode === 'sandpack' ? 'Ask Lovable...' : (selectedWidget
-              ? `Tanya tentang "${selectedWidget.displayName || selectedWidget.type}"...`
-              : 'Deskripsikan apa yang ingin Anda buat...')}
-            rows={1}
-            style={{
-              width: '100%', border: 'none', background: 'transparent',
-              fontSize: '0.84rem', outline: 'none', resize: 'none',
-              minHeight: '26px', maxHeight: '120px', lineHeight: 1.45,
-              fontFamily: 'inherit', color: '#1e293b', padding: '2px 0'
-            }}
-          />
-
-          {/* Horizontal Action Bar */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px', paddingTop: '4px', borderTop: '1px solid #f1f5f9' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept="image/*" />
-              
-              {/* Plus Attachment Button (Lovable style) */}
-              <button
-                onClick={() => fileInputRef.current.click()}
-                title="Add attachment"
-                style={{
-                  backgroundColor: selectedFile ? '#e0e7ff' : '#f8fafc',
-                  color: selectedFile ? '#4f46e5' : '#64748b',
-                  border: '1px solid #e2e8f0', width: '26px', height: '26px', borderRadius: '50%',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer', transition: 'all 0.15s',
-                }}
-              >
-                <Plus size={13} />
-              </button>
-
-              {/* Speech to Text button */}
-              {isSpeechSupported && (
-                <button
-                  onClick={toggleListening}
-                  title={isListening ? "Mendengarkan..." : "Voice Control"}
-                  style={{
-                    backgroundColor: isListening ? '#ef4444' : 'transparent',
-                    color: isListening ? '#fff' : '#94a3b8',
-                    border: 'none', width: '28px', height: '28px', borderRadius: '8px',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    cursor: 'pointer', transition: 'all 0.15s', position: 'relative'
-                  }}
-                  onMouseEnter={e => { if (!isListening) { e.currentTarget.style.backgroundColor = '#f1f5f9'; e.currentTarget.style.color = '#475569'; }}}
-                  onMouseLeave={e => { if (!isListening) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#94a3b8'; }}}
-                >
-                  <Mic size={14} />
-                  {isListening && (
-                    <span style={{
-                      position: 'absolute', top: '2px', right: '2px',
-                      width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ef4444',
-                      border: '1px solid #fff'
-                    }} />
-                  )}
-                </button>
-              )}
-
-              {/* Direct to Antigravity IDE button */}
-              <button
-                onClick={handleSendDirectToAntigravity}
-                disabled={!input.trim() || isLoading}
-                title="Kirim langsung ke Antigravity IDE"
-                style={{
-                  backgroundColor: 'transparent',
-                  color: input.trim() && !isLoading ? '#8b5cf6' : '#cbd5e1',
-                  border: 'none', width: '28px', height: '28px', borderRadius: '8px',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: input.trim() && !isLoading ? 'pointer' : 'default', transition: 'all 0.15s',
-                }}
-                onMouseEnter={e => { if (input.trim() && !isLoading) { e.currentTarget.style.backgroundColor = '#f3e8ff'; e.currentTarget.style.color = '#7c3aed'; }}}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = input.trim() && !isLoading ? '#8b5cf6' : '#cbd5e1'; }}
-              >
-                <BrainCircuit size={14} />
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              {/* Lovable Build mode pill */}
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: '3px',
-                padding: '3px 8px', borderRadius: '8px',
-                backgroundColor: '#f8fafc', border: '1px solid #e2e8f0',
-                fontSize: '0.72rem', fontWeight: 700, color: '#334155'
-              }}>
-                <span>Build</span>
-                <ChevronDown size={11} color="#64748b" />
+                ))}
               </div>
 
-              {/* Lovable Circular Send Button */}
-              <button
-                onClick={() => handleSend()}
-                disabled={(!input.trim() && !selectedFile) || isLoading}
-                style={{
-                  backgroundColor: (input.trim() || selectedFile) && !isLoading ? '#0f172a' : '#f1f5f9',
-                  color: (input.trim() || selectedFile) && !isLoading ? '#ffffff' : '#94a3b8',
-                  border: 'none', width: '30px', height: '30px', borderRadius: '50%',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: (input.trim() || selectedFile) && !isLoading ? 'pointer' : 'default',
-                  boxShadow: (input.trim() || selectedFile) && !isLoading ? '0 2px 6px rgba(15,23,42,0.25)' : 'none',
-                  transition: 'all 0.2s',
+              <div style={{
+                display: 'flex',
+                overflowX: 'auto',
+                gap: '6px',
+                paddingBottom: '4px',
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none'
+              }} className="copilot-chips-scroll">
+                <style>{`
+                  .copilot-chips-scroll::-webkit-scrollbar {
+                    display: none;
+                  }
+                `}</style>
+                {chips.map((chip, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handlePromptChip(chip.prompt)}
+                    style={{
+                      padding: '4px 10px', borderRadius: '20px',
+                      border: `1px solid ${chipMode === 'edit' ? '#fde68a' : '#e2e8f0'}`,
+                      backgroundColor: chipMode === 'edit' ? '#fefce8' : '#f8fafc',
+                      color: chipMode === 'edit' ? '#92400e' : '#475569',
+                      fontSize: '0.68rem', fontWeight: 600, cursor: 'pointer',
+                      transition: 'all 0.15s', whiteSpace: 'nowrap',
+                    }}
+                    onMouseEnter={e => {
+                      e.target.style.backgroundColor = chipMode === 'edit' ? '#fef3c7' : '#eff6ff';
+                      e.target.style.borderColor = chipMode === 'edit' ? '#fcd34d' : '#bfdbfe';
+                      e.target.style.color = chipMode === 'edit' ? '#78350f' : '#1d4ed8';
+                    }}
+                    onMouseLeave={e => {
+                      e.target.style.backgroundColor = chipMode === 'edit' ? '#fefce8' : '#f8fafc';
+                      e.target.style.borderColor = chipMode === 'edit' ? '#fde68a' : '#e2e8f0';
+                      e.target.style.color = chipMode === 'edit' ? '#92400e' : '#475569';
+                    }}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Unified Integrations Toolbar */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
+              {/* Buttons Row */}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {/* Related Apps Button */}
+                <div style={{ flex: 1, position: 'relative' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAppDropdown(prev => !prev);
+                      setShowCanvaDropdown(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      background: showAppDropdown ? 'rgba(59,130,246,0.12)' : 'rgba(255,255,255,0.7)',
+                      border: `1.5px solid ${showAppDropdown ? '#3b82f6' : '#e2e8f0'}`,
+                      color: '#1e293b',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      borderRadius: '8px',
+                      padding: '6px 10px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '4px',
+                      transition: 'all 0.15s'
+                    }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <Link size={12} color="#3b82f6" />
+                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        App Terkait ({selectedApps.length})
+                      </span>
+                    </span>
+                    <ChevronDown size={10} style={{ transform: showAppDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+                  </button>
+
+                  {/* Dropdown Menu for Apps */}
+                  {showAppDropdown && (
+                    <div style={{
+                      position: 'absolute',
+                      bottom: '100%',
+                      left: 0,
+                      width: '260px',
+                      backgroundColor: '#ffffff',
+                      borderRadius: '12px',
+                      border: '1px solid #e2e8f0',
+                      boxShadow: '0 -10px 25px -5px rgba(0,0,0,0.15), 0 -8px 10px -6px rgba(0,0,0,0.15)',
+                      zIndex: 50,
+                      padding: '10px',
+                      marginBottom: '8px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px',
+                      maxHeight: '200px',
+                      overflowY: 'auto'
+                    }}>
+                      <input
+                        type="text"
+                        placeholder="Cari nama aplikasi..."
+                        value={appSearchQuery}
+                        onChange={e => setAppSearchQuery(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '6px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '0.75rem',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {allApps
+                          .filter(app => app.name.toLowerCase().includes(appSearchQuery.toLowerCase()))
+                          .map(app => {
+                            const isChecked = selectedApps.some(a => a.id === app.id);
+                            return (
+                              <label
+                                key={app.id}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  fontSize: '0.75rem',
+                                  color: '#334155',
+                                  padding: '5px 8px',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  backgroundColor: isChecked ? 'rgba(59,130,246,0.05)' : 'transparent',
+                                  transition: 'background-color 0.15s'
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = isChecked ? 'rgba(59,130,246,0.08)' : '#f8fafc' }}
+                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = isChecked ? 'rgba(59,130,246,0.05)' : 'transparent' }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => {
+                                    if (isChecked) {
+                                      setSelectedApps(prev => prev.filter(a => a.id !== app.id));
+                                    } else {
+                                      setSelectedApps(prev => [...prev, app]);
+                                    }
+                                  }}
+                                  style={{
+                                    width: '13px',
+                                    height: '13px',
+                                    accentColor: '#3b82f6',
+                                    cursor: 'pointer'
+                                  }}
+                                />
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                  <span style={{ fontWeight: 600 }}>{app.name}</span>
+                                  <span style={{ fontSize: '0.62rem', color: '#64748b' }}>Kategori: {app.category || 'Shop Floor'}</span>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        {allApps.filter(app => app.name.toLowerCase().includes(appSearchQuery.toLowerCase())).length === 0 && (
+                          <div style={{ fontSize: '0.72rem', color: '#94a3b8', textAlign: 'center', padding: '10px' }}>
+                            Tidak ada aplikasi ditemukan
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Canva Layout Button */}
+                <div style={{ flex: 1, position: 'relative' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCanvaDropdown(prev => !prev);
+                      setShowAppDropdown(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      background: showCanvaDropdown ? 'rgba(124,58,237,0.12)' : 'rgba(255,255,255,0.7)',
+                      border: `1.5px solid ${showCanvaDropdown ? '#7c3aed' : '#e2e8f0'}`,
+                      color: '#1e293b',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      borderRadius: '8px',
+                      padding: '6px 10px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '4px',
+                      transition: 'all 0.15s'
+                    }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0, width: '100%' }}>
+                      <LayoutTemplate size={12} color="#7c3aed" />
+                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, textAlign: 'left' }}>
+                        {selectedCanvaDesign ? selectedCanvaDesign.name : 'Desain Canva'}
+                      </span>
+                    </span>
+                    <ChevronDown size={10} style={{ transform: showCanvaDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+                  </button>
+
+                  {/* Dropdown Menu for Canva */}
+                  {showCanvaDropdown && (
+                    <div style={{
+                      position: 'absolute',
+                      bottom: '100%',
+                      right: 0,
+                      width: '260px',
+                      backgroundColor: '#ffffff',
+                      borderRadius: '12px',
+                      border: '1px solid #e2e8f0',
+                      boxShadow: '0 -10px 25px -5px rgba(0,0,0,0.15), 0 -8px 10px -6px rgba(0,0,0,0.15)',
+                      zIndex: 50,
+                      padding: '10px',
+                      marginBottom: '8px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px',
+                      maxHeight: '200px',
+                      overflowY: 'auto'
+                    }}>
+                      <input
+                        type="text"
+                        placeholder="Cari nama desain Canva..."
+                        value={canvaSearchQuery}
+                        onChange={e => setCanvaSearchQuery(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '6px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '0.75rem',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+
+                      {/* Loader */}
+                      {isFetchingCanva && (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px', gap: '6px', fontSize: '0.75rem', color: '#64748b' }}>
+                          <Loader2 size={12} className="animate-spin" /> Memuat dari Canva...
+                        </div>
+                      )}
+
+                      {/* Designs List */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {!isFetchingCanva && canvaDesigns
+                          .filter(design => design.name.toLowerCase().includes(canvaSearchQuery.toLowerCase()))
+                          .map(design => {
+                            const isSelected = selectedCanvaDesign?.id === design.id;
+                            return (
+                              <button
+                                key={design.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedCanvaDesign(design);
+                                  setShowCanvaDropdown(false);
+                                }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'left',
+                                  flexDirection: 'column',
+                                  gap: '2px',
+                                  fontSize: '0.75rem',
+                                  color: '#334155',
+                                  padding: '6px 8px',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  border: 'none',
+                                  textAlign: 'left',
+                                  backgroundColor: isSelected ? '#f5f3ff' : 'transparent',
+                                  transition: 'background-color 0.15s',
+                                  width: '100%'
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = isSelected ? '#ede9fe' : '#f8fafc' }}
+                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = isSelected ? '#f5f3ff' : 'transparent' }}
+                              >
+                                <span style={{ fontWeight: 600, color: isSelected ? '#6d28d9' : '#334155' }}>🎨 {design.name}</span>
+                                <span style={{ fontSize: '0.62rem', color: '#64748b' }}>ID: {design.id}</span>
+                              </button>
+                            );
+                          })}
+                        {!isFetchingCanva && canvaDesigns.filter(design => design.name.toLowerCase().includes(canvaSearchQuery.toLowerCase())).length === 0 && (
+                          <div style={{ fontSize: '0.72rem', color: '#94a3b8', textAlign: 'center', padding: '10px' }}>
+                            Tidak ada desain Canva ditemukan
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Unified selected items pill list */}
+              {(selectedApps.length > 0 || selectedCanvaDesign) && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '2px' }}>
+                  {selectedApps.map(app => (
+                    <div
+                      key={app.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        backgroundColor: '#eff6ff',
+                        border: '1px solid #bfdbfe',
+                        color: '#1e40af',
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        borderRadius: '20px',
+                        padding: '2px 8px',
+                      }}
+                    >
+                      <span>📱 {app.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedApps(prev => prev.filter(a => a.id !== app.id))}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#1e40af',
+                          cursor: 'pointer',
+                          padding: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        <X size={10} />
+                      </button>
+                    </div>
+                  ))}
+                  {selectedCanvaDesign && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        backgroundColor: '#f5f3ff',
+                        border: '1px solid #ddd6fe',
+                        color: '#6d28d9',
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        borderRadius: '20px',
+                        padding: '2px 8px',
+                      }}
+                    >
+                      <span>🎨 {selectedCanvaDesign.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCanvaDesign(null)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#6d28d9',
+                          cursor: 'pointer',
+                          padding: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        <X size={10} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Selected file preview */}
+            {selectedFile && (
+              <div style={{ marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', backgroundColor: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: '#1e40af', fontWeight: 600 }}>
+                  <ImageIcon size={14} /> {selectedFile.name || 'Gambar Clipboard'}
+                </div>
+                <button onClick={() => setSelectedFile(null)} style={{ background: 'none', border: 'none', color: '#1e40af', cursor: 'pointer' }}>
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+
+            {/* Textarea + send - Compact Pro Bar */}
+            <div style={{
+              display: 'flex', flexDirection: 'column',
+              backgroundColor: '#ffffff', borderRadius: '14px',
+              border: '1.5px solid #e2e8f0', padding: '8px 10px 6px 12px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+              transition: 'all 0.2s ease',
+            }}
+              onFocusCapture={e => { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.12)'; }}
+              onBlurCapture={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.03)'; }}
+            >
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={e => {
+                  setInput(e.target.value);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
                 }}
-              >
-                {isLoading ? <Loader2 size={13} className="animate-spin" /> : <ArrowUp size={14} />}
-              </button>
+                onPaste={e => {
+                  const items = e.clipboardData?.items;
+                  if (items) {
+                    for (let i = 0; i < items.length; i++) {
+                      if (items[i].type.indexOf('image') !== -1) {
+                        const file = items[i].getAsFile();
+                        if (file) {
+                          const namedFile = new File([file], file.name || `Pasted_Image_${new Date().getTime()}.png`, { type: file.type });
+                          setSelectedFile(namedFile);
+                          e.preventDefault();
+                          break;
+                        }
+                      }
+                    }
+                  }
+                }}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                placeholder={selectedWidget
+                  ? `Tanya tentang "${selectedWidget.displayName || selectedWidget.type}"...`
+                  : 'Deskripsikan apa yang ingin Anda buat...'}
+                rows={1}
+                style={{
+                  width: '100%', border: 'none', background: 'transparent',
+                  fontSize: '0.84rem', outline: 'none', resize: 'none',
+                  minHeight: '26px', maxHeight: '120px', lineHeight: 1.45,
+                  fontFamily: 'inherit', color: '#1e293b', padding: '2px 0'
+                }}
+              />
+
+              {/* Horizontal Action Bar */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px', paddingTop: '4px', borderTop: '1px solid #f1f5f9' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept="image/*" />
+                  
+                  {/* Plus Attachment Button */}
+                  <button
+                    onClick={() => fileInputRef.current.click()}
+                    title="Add attachment"
+                    style={{
+                      backgroundColor: selectedFile ? '#e0e7ff' : '#f8fafc',
+                      color: selectedFile ? '#4f46e5' : '#64748b',
+                      border: '1px solid #e2e8f0', width: '26px', height: '26px', borderRadius: '50%',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      cursor: 'pointer', transition: 'all 0.15s',
+                    }}
+                  >
+                    <Plus size={13} />
+                  </button>
+
+                  {/* Speech to Text button */}
+                  {isSpeechSupported && (
+                    <button
+                      onClick={toggleListening}
+                      title={isListening ? "Mendengarkan..." : "Voice Control"}
+                      style={{
+                        backgroundColor: isListening ? '#ef4444' : 'transparent',
+                        color: isListening ? '#fff' : '#94a3b8',
+                        border: 'none', width: '28px', height: '28px', borderRadius: '8px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: 'pointer', transition: 'all 0.15s', position: 'relative'
+                      }}
+                      onMouseEnter={e => { if (!isListening) { e.currentTarget.style.backgroundColor = '#f1f5f9'; e.currentTarget.style.color = '#475569'; }}}
+                      onMouseLeave={e => { if (!isListening) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#94a3b8'; }}}
+                    >
+                      <Mic size={14} />
+                      {isListening && (
+                        <span style={{
+                          position: 'absolute', top: '2px', right: '2px',
+                          width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ef4444',
+                          border: '1px solid #fff'
+                        }} />
+                      )}
+                    </button>
+                  )}
+
+                  {/* Direct to Antigravity IDE button */}
+                  <button
+                    onClick={handleSendDirectToAntigravity}
+                    disabled={!input.trim() || isLoading}
+                    title="Kirim langsung ke Antigravity IDE"
+                    style={{
+                      backgroundColor: 'transparent',
+                      color: input.trim() && !isLoading ? '#8b5cf6' : '#cbd5e1',
+                      border: 'none', width: '28px', height: '28px', borderRadius: '8px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      cursor: input.trim() && !isLoading ? 'pointer' : 'default', transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={e => { if (input.trim() && !isLoading) { e.currentTarget.style.backgroundColor = '#f3e8ff'; e.currentTarget.style.color = '#7c3aed'; }}}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = input.trim() && !isLoading ? '#8b5cf6' : '#cbd5e1'; }}
+                  >
+                    <BrainCircuit size={14} />
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {/* Build mode pill */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: '3px',
+                    padding: '3px 8px', borderRadius: '8px',
+                    backgroundColor: '#f8fafc', border: '1px solid #e2e8f0',
+                    fontSize: '0.72rem', fontWeight: 700, color: '#334155'
+                  }}>
+                    <span>Build</span>
+                    <ChevronDown size={11} color="#64748b" />
+                  </div>
+
+                  {/* Send Button */}
+                  <button
+                    onClick={() => handleSend()}
+                    disabled={(!input.trim() && !selectedFile) || isLoading}
+                    style={{
+                      backgroundColor: (input.trim() || selectedFile) && !isLoading ? '#0f172a' : '#f1f5f9',
+                      color: (input.trim() || selectedFile) && !isLoading ? '#ffffff' : '#94a3b8',
+                      border: 'none', width: '30px', height: '30px', borderRadius: '50%',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      cursor: (input.trim() || selectedFile) && !isLoading ? 'pointer' : 'default',
+                      boxShadow: (input.trim() || selectedFile) && !isLoading ? '0 2px 6px rgba(15,23,42,0.25)' : 'none',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    {isLoading ? <Loader2 size={13} className="animate-spin" /> : <ArrowUp size={14} />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer info */}
+            <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', color: '#94a3b8', fontSize: '0.65rem' }}>
+              <Zap size={9} />
+              <span>
+                {aiConnector?.aiSettings?.provider || aiConnector?.config?.provider || 'Mandor Brain'} • Enter kirim, Shift+Enter baris baru
+              </span>
             </div>
           </div>
-        </div>
-
-        {/* Footer info */}
-        <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', color: '#94a3b8', fontSize: '0.65rem' }}>
-          <Zap size={9} />
-          <span>
-            {aiConnector?.aiSettings?.provider || aiConnector?.config?.provider || 'Mandor Brain'} • Enter kirim, Shift+Enter baris baru
-          </span>
-        </div>
       </div>
-      </div>
-      {/* End of Left Side Chat Column */}
-
-      {/* Right Side: Sandpack Live Vibe Viewer */}
-      {showSandpackDrawer && vibeEngineMode === 'sandpack' && (
-        <div style={{
-          flex: 1,
-          height: '100%',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          backgroundColor: '#020617',
-          borderLeft: '1px solid rgba(255, 255, 255, 0.1)'
-        }}>
-          <VibeSandpackViewer
-            code={sandpackCode}
-            onCodeChange={setSandpackCode}
-            isFullScreen={isFullScreen}
-            onToggleFullScreen={() => setIsFullScreen(v => !v)}
-          />
-        </div>
-      )}
-    </div>
-    {/* End of Main Split Area */}
     </div>
   );
 };

@@ -102,6 +102,8 @@ import {
     Minimize,
     Sparkles,
     Wand2,
+    Bot,
+    Code2,
     ShoppingBag,
     GripVertical,
     ToggleRight,
@@ -269,6 +271,8 @@ const AppDiagram = lazy(() => import('./AppDiagram'));
 const BlocklyEditor = lazy(() => import('./BlocklyEditor'));
 const AppNodeEditor = lazy(() => import('./AppNodeEditor'));
 const BuilderCopilot = lazy(() => import('./BuilderCopilot'));
+const VibeSandpackViewer = lazy(() => import('./appbuilder/VibeSandpackViewer'));
+import { DEFAULT_VIBE_HMI_CODE } from './appbuilder/VibeSandpackViewer';
 import { uploadManualImage, isSupabaseReady } from '../utils/supabaseManualDB';
 import iotConnector from '../utils/iotConnector';
 import { logEvent, AUDIT_EVENTS } from '../utils/auditLog';
@@ -408,6 +412,77 @@ const AppBuilder = () => {
     });
 
     const [publishModal, setPublishModal] = useState({ isOpen: false, url: '' });
+
+    // ─── Copilot & Sandbox Separation + Speed Dial Fly Button ───
+    const [isCopilotMenuOpen, setIsCopilotMenuOpen] = useState(false);
+    const [isSandboxOpen, setIsSandboxOpen] = useState(false);
+    const [sandpackCode, setSandpackCode] = useState(() => {
+        try {
+            return localStorage.getItem('mavi_sandbox_code') || DEFAULT_VIBE_HMI_CODE;
+        } catch {
+            return DEFAULT_VIBE_HMI_CODE;
+        }
+    });
+    const [isSandboxAiLoading, setIsSandboxAiLoading] = useState(false);
+    const [isSandboxFullScreen, setIsSandboxFullScreen] = useState(false);
+
+    const handleUpdateSandpackCode = (newCode) => {
+        setSandpackCode(newCode);
+        try {
+            localStorage.setItem('mavi_sandbox_code', newCode);
+        } catch (_) {}
+    };
+
+    const handlePromptSandbox = async (promptText) => {
+        if (!promptText || !promptText.trim()) return;
+        setIsSandboxAiLoading(true);
+        try {
+            const { getPrimaryAiConnector } = await import('../utils/database');
+            const { streamBuilderCopilotAdvice, getBuilderCopilotAdvice } = await import('../utils/aiService');
+            const connector = await getPrimaryAiConnector();
+            if (!connector) {
+                toast.error('AI Connector belum dikonfigurasi. Silakan buka Integrasi > AI Settings.');
+                return;
+            }
+            const context = {
+                appName: appName || 'Kaizen Vision',
+                vibeMode: 'sandpack',
+                currentVibeCode: sandpackCode,
+                steps: steps || [],
+                tables: tables || []
+            };
+            let fullText = '';
+            try {
+                await streamBuilderCopilotAdvice(promptText, [], context, connector, (chunk) => {
+                    fullText += chunk;
+                    if (fullText.includes('<vibe_code>') && fullText.includes('</vibe_code>')) {
+                        const match = fullText.match(/<vibe_code>([\s\S]*?)<\/vibe_code>/i);
+                        if (match && match[1]) {
+                            handleUpdateSandpackCode(match[1].trim());
+                        }
+                    }
+                });
+            } catch (streamErr) {
+                console.warn('[Sandbox] Stream error, fallback to standard call:', streamErr);
+                fullText = await getBuilderCopilotAdvice(promptText, [], context, connector);
+            }
+
+            if (fullText && fullText.includes('<vibe_code>')) {
+                const match = fullText.match(/<vibe_code>([\s\S]*?)<\/vibe_code>/i);
+                if (match && match[1]) {
+                    handleUpdateSandpackCode(match[1].trim());
+                    toast.success('⚡ Komponen React Sandbox berhasil di-update oleh AI!');
+                }
+            } else {
+                toast('AI merespon, namun tidak mendeteksi kode React baru. Silakan coba instruksi lebih spesifik.');
+            }
+        } catch (err) {
+            console.error('[Sandbox Prompt Error]', err);
+            toast.error(`Gagal update Sandbox: ${err.message || 'Error AI'}`);
+        } finally {
+            setIsSandboxAiLoading(false);
+        }
+    };
     const [proPrompt, setProPrompt] = useState({
         isOpen: false, title: '', message: '', initialValue: '', onConfirm: null
     });
@@ -29457,6 +29532,10 @@ D3:0
                 hasSnapshot={!!preCopilotSnapshot}
                 selectedWidget={selectedCompId ? (currentStep?.components || []).find(c => c.id === selectedCompId) || null : null}
                 onOpenCopilot={() => setIsCopilotOpen(true)}
+                onOpenSandbox={(code) => {
+                    if (code) handleUpdateSandpackCode(code);
+                    setIsSandboxOpen(true);
+                }}
                 context={{
                     currentStepName: currentStep?.title,
                     currentStepId: currentStepId,
@@ -29489,33 +29568,252 @@ D3:0
                 }}
             />
 
-            {/* AI Toggle Button */}
-            {copilotEnabled && !isCopilotOpen && (
-                <button
-                    onClick={() => setIsCopilotOpen(true)}
+            {/* Speed Dial Fly Button: Copilot & Sandbox */}
+            {copilotEnabled && (
+                <>
+                    {/* Click outside backdrop when speed dial menu is open */}
+                    {isCopilotMenuOpen && (
+                        <div
+                            onClick={() => setIsCopilotMenuOpen(false)}
+                            style={{
+                                position: 'fixed',
+                                inset: 0,
+                                zIndex: 998,
+                                background: 'rgba(0, 0, 0, 0.25)',
+                                backdropFilter: 'blur(2px)'
+                            }}
+                        />
+                    )}
+
+                    {/* Speed Dial Container */}
+                    <div
+                        style={{
+                            position: 'fixed',
+                            bottom: '80px',
+                            right: viewMode === 'DESIGN' ? '364px' : '24px',
+                            zIndex: 999,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'flex-end',
+                            gap: '10px',
+                            transition: 'right 0.2s ease-in-out'
+                        }}
+                    >
+                        {/* 2 Flyout Action Buttons (Copilot & Sandbox) */}
+                        {isCopilotMenuOpen && (
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '10px',
+                                    alignItems: 'flex-end',
+                                    marginBottom: '4px'
+                                }}
+                            >
+                                {/* Option 1: Copilot Mavi (Canvas) */}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsCopilotOpen(true);
+                                        setIsCopilotMenuOpen(false);
+                                    }}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px',
+                                        padding: '8px 16px 8px 12px',
+                                        borderRadius: '9999px',
+                                        background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+                                        border: '1.5px solid rgba(59, 130, 246, 0.5)',
+                                        color: '#ffffff',
+                                        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 15px rgba(59, 130, 246, 0.3)',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.transform = 'translateY(-2px) scale(1.03)';
+                                        e.currentTarget.style.borderColor = '#60a5fa';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                                        e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.5)';
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            width: '32px',
+                                            height: '32px',
+                                            borderRadius: '50%',
+                                            background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: '#ffffff',
+                                            boxShadow: '0 2px 8px rgba(59, 130, 246, 0.5)'
+                                        }}
+                                    >
+                                        <Wand2 size={16} />
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#f8fafc' }}>
+                                                Copilot Mavi
+                                            </span>
+                                            <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', backgroundColor: 'rgba(59, 130, 246, 0.25)', color: '#93c5fd' }}>
+                                                Canvas
+                                            </span>
+                                        </div>
+                                        <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
+                                            AI Architect & Widget Builder
+                                        </span>
+                                    </div>
+                                </button>
+
+                                {/* Option 2: Sandbox AI (Live Code) */}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsSandboxOpen(true);
+                                        setIsCopilotMenuOpen(false);
+                                    }}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px',
+                                        padding: '8px 16px 8px 12px',
+                                        borderRadius: '9999px',
+                                        background: 'linear-gradient(135deg, #090d16 0%, #030712 100%)',
+                                        border: '1.5px solid rgba(56, 189, 248, 0.5)',
+                                        color: '#ffffff',
+                                        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 15px rgba(56, 189, 248, 0.3)',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.transform = 'translateY(-2px) scale(1.03)';
+                                        e.currentTarget.style.borderColor = '#38bdf8';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                                        e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.5)';
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            width: '32px',
+                                            height: '32px',
+                                            borderRadius: '50%',
+                                            background: 'linear-gradient(135deg, #0284c7 0%, #a855f7 100%)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: '#ffffff',
+                                            boxShadow: '0 2px 8px rgba(2, 132, 199, 0.5)'
+                                        }}
+                                    >
+                                        <Sparkles size={16} />
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#f8fafc' }}>
+                                                Sandbox AI
+                                            </span>
+                                            <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', backgroundColor: 'rgba(56, 189, 248, 0.25)', color: '#38bdf8' }}>
+                                                Live Code
+                                            </span>
+                                        </div>
+                                        <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
+                                            React CodeSandbox & HMI Vibe
+                                        </span>
+                                    </div>
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Main Floating Action Button (Fly Button) */}
+                        {!isCopilotOpen && (
+                            <button
+                                type="button"
+                                onClick={() => setIsCopilotMenuOpen(v => !v)}
+                                style={{
+                                    width: '56px',
+                                    height: '56px',
+                                    borderRadius: '28px',
+                                    background: isCopilotMenuOpen
+                                        ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+                                        : 'linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)',
+                                    color: 'white',
+                                    border: 'none',
+                                    boxShadow: isCopilotMenuOpen
+                                        ? '0 10px 20px -3px rgba(239, 68, 68, 0.5)'
+                                        : '0 10px 20px -3px rgba(37, 99, 235, 0.5)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    transition: 'transform 0.2s, background 0.2s, box-shadow 0.2s',
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                title={isCopilotMenuOpen ? 'Tutup Menu AI' : 'Buka Menu AI (Copilot & Sandbox)'}
+                            >
+                                {isCopilotMenuOpen ? (
+                                    <X size={24} />
+                                ) : (
+                                    <Wand2 size={24} />
+                                )}
+                            </button>
+                        )}
+                    </div>
+                </>
+            )}
+
+            {/* Dedicated Sandbox Studio Window / Modal */}
+            {isSandboxOpen && (
+                <div
                     style={{
                         position: 'fixed',
-                        bottom: '80px',
-                        right: viewMode === 'DESIGN' ? '364px' : '24px',
-                        width: '56px',
-                        height: '56px',
-                        borderRadius: '28px',
-                        backgroundColor: '#3b82f6',
-                        color: 'white',
-                        border: 'none',
-                        boxShadow: '0 10px 15px -3px rgba(59, 130, 246, 0.4)',
+                        inset: 0,
+                        backgroundColor: 'rgba(2, 6, 23, 0.85)',
+                        backdropFilter: 'blur(8px)',
+                        zIndex: 9999,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        cursor: 'pointer',
-                        zIndex: 999,
-                        transition: 'transform 0.2s, right 0.2s ease-in-out'
+                        padding: isSandboxFullScreen ? '0' : '16px',
                     }}
-                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
-                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                 >
-                    <Wand2 size={24} />
-                </button>
+                    <div
+                        style={{
+                            width: '100%',
+                            height: '100%',
+                            maxWidth: isSandboxFullScreen ? '100%' : '1440px',
+                            maxHeight: isSandboxFullScreen ? '100%' : '94vh',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            borderRadius: isSandboxFullScreen ? '0' : '16px',
+                            overflow: 'hidden',
+                            boxShadow: '0 32px 64px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.1)',
+                        }}
+                    >
+                        <Suspense fallback={
+                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#020617', color: '#ffffff', gap: '12px' }}>
+                                <Loader2 size={32} className="animate-spin text-sky-400" />
+                                <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Memuat Sandbox Studio...</span>
+                            </div>
+                        }>
+                            <VibeSandpackViewer
+                                code={sandpackCode}
+                                onCodeChange={handleUpdateSandpackCode}
+                                onClose={() => setIsSandboxOpen(false)}
+                                onPromptSandbox={handlePromptSandbox}
+                                isLoading={isSandboxAiLoading}
+                                isFullScreen={isSandboxFullScreen}
+                                onToggleFullScreen={() => setIsSandboxFullScreen(v => !v)}
+                            />
+                        </Suspense>
+                    </div>
+                </div>
             )}
             {/* Help Guide Modal */}
             {isHelpGuideOpen && (

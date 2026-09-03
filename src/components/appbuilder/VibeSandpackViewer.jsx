@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   SandpackProvider,
   SandpackLayout,
@@ -34,7 +34,15 @@ import {
   Link2,
   MessageSquare,
   Search,
-  FileText
+  FileText,
+  ArrowUp,
+  Loader2,
+  History,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Trash2,
+  Bot,
+  User
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -452,7 +460,10 @@ export default function VibeSandpackViewer({
   onCodeChange = null,
   onApplyToCanvas = null,
   isFullScreen = false,
-  onToggleFullScreen = null
+  onToggleFullScreen = null,
+  onPromptSandbox = null,
+  isLoading = false,
+  onClose = null
 }) {
   const [viewMode, setViewMode] = useState('preview'); // Default to 'preview' for maximum workspace
   const [viewportSize, setViewportSize] = useState('responsive'); // 'responsive' | 'desktop' | 'tablet' | 'mobile'
@@ -460,6 +471,46 @@ export default function VibeSandpackViewer({
   const [connectedTable, setConnectedTable] = useState(null);
   const [isSyncingTable, setIsSyncingTable] = useState(false);
   const [liveRecordCount, setLiveRecordCount] = useState(0);
+  const [inlinePrompt, setInlinePrompt] = useState('');
+  const [isChatPanelOpen, setIsChatPanelOpen] = useState(true);
+  const [chatHistory, setChatHistory] = useState([]);
+  const chatEndRef = useRef(null);
+
+  // Auto-scroll chat to bottom when new messages arrive
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatHistory, isLoading]);
+
+  // Track when AI finishes generating (isLoading goes from true → false) to add AI response
+  const prevIsLoadingRef = useRef(isLoading);
+  useEffect(() => {
+    if (prevIsLoadingRef.current && !isLoading && chatHistory.length > 0) {
+      const lastMsg = chatHistory[chatHistory.length - 1];
+      if (lastMsg.role === 'user') {
+        setChatHistory(prev => [...prev, {
+          role: 'assistant',
+          content: 'Kode berhasil di-update! Lihat preview di sebelah kanan.',
+          timestamp: new Date()
+        }]);
+      }
+    }
+    prevIsLoadingRef.current = isLoading;
+  }, [isLoading]);
+
+  const handleChatSubmit = (promptText) => {
+    if (!promptText.trim() || isLoading) return;
+    // Add user message to chat history
+    setChatHistory(prev => [...prev, {
+      role: 'user',
+      content: promptText.trim(),
+      timestamp: new Date()
+    }]);
+    // Send to AI
+    onPromptSandbox(promptText.trim());
+    setInlinePrompt('');
+  };
 
   // Cara 1: postMessage listener from Sandpack to MaviCore table storage
   useEffect(() => {
@@ -757,219 +808,597 @@ button {
             <Rocket size={12} />
             <span>{deployedApp ? 'Published' : 'Publish'}</span>
           </button>
+
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 ml-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition-colors cursor-pointer"
+              title="Tutup Sandbox"
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Sandpack Provider Sandbox Container */}
-      <div className="vibe-sandpack-root flex-1 w-full overflow-hidden bg-slate-950" style={{ minHeight: '560px', height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <style>{`
-          .vibe-sandpack-root .sp-wrapper {
-            height: 100% !important;
-            flex: 1 1 0% !important;
-            display: flex !important;
-            flex-direction: column !important;
-          }
-          .vibe-sandpack-root .sp-layout {
-            height: 100% !important;
-            min-height: 100% !important;
-            flex: 1 1 0% !important;
-            --sp-layout-height: 100% !important;
-            display: flex !important;
-          }
-          .vibe-sandpack-root .sp-stack {
-            height: 100% !important;
-            min-height: 100% !important;
-            flex: 1 1 0% !important;
-          }
-          .vibe-sandpack-root .sp-preview,
-          .vibe-sandpack-root .sp-preview-container,
-          .vibe-sandpack-root .sp-preview-iframe {
-            height: 100% !important;
-            min-height: 100% !important;
-            flex: 1 1 0% !important;
-          }
-        `}</style>
-        <div className="h-full transition-all duration-300 flex flex-col flex-1">
-          <SandpackProvider
-            key={effectiveCode.slice(0, 100)}
-            template="react"
-            theme="dark"
-            files={files}
-            customSetup={{
-              dependencies: {
-                'lucide-react': 'latest',
-                'recharts': 'latest'
-              }
-            }}
-            options={{
-              activeFile: '/App.js',
-              visibleFiles: ['/App.js'],
-              externalResources: [
-                'https://cdn.tailwindcss.com',
-                'https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css',
-                'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap'
-              ]
+      {/* Main Content: Left Chat Panel + Right Sandpack Area */}
+      <div className="flex-1 w-full overflow-hidden bg-slate-950 flex" style={{ minHeight: '560px', height: '100%' }}>
+
+        {/* ═══════════ LEFT SIDE: AI CHAT PANEL ═══════════ */}
+        {onPromptSandbox && (
+          <div
+            style={{
+              width: isChatPanelOpen ? '340px' : '0px',
+              minWidth: isChatPanelOpen ? '340px' : '0px',
+              transition: 'width 0.25s ease, min-width 0.25s ease',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              borderRight: isChatPanelOpen ? '1px solid #1e293b' : 'none',
+              backgroundColor: '#0a0f1a',
             }}
           >
-            <SandpackLayout style={{ height: '100%', minHeight: '100%', border: 'none', borderRadius: 0, flex: 1, display: 'flex' }}>
-              {(viewMode === 'split' || viewMode === 'code') && (
-                <SandpackCodeEditor
-                  showLineNumbers
-                  showInlineErrors
-                  wrapContent
-                  style={{
-                    height: '100%',
-                    minHeight: '100%',
-                    width: viewMode === 'code' ? '100%' : '40%',
-                    fontFamily: 'monospace',
-                    fontSize: '12px'
-                  }}
-                />
-              )}
-              {(viewMode === 'split' || viewMode === 'preview') && (
+            {isChatPanelOpen && (
+              <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '340px' }}>
+                {/* Chat Panel Header */}
                 <div style={{
-                  position: 'relative',
-                  flex: 1,
-                  height: '100%',
-                  minHeight: '100%',
+                  padding: '12px 14px',
+                  borderBottom: '1px solid #1e293b',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  overflow: 'auto',
-                  backgroundColor: '#020617',
-                  padding: viewportSize === 'responsive' ? 0 : '16px'
+                  justifyContent: 'space-between',
+                  backgroundColor: '#0f172a',
+                  flexShrink: 0,
                 }}>
-                  {/* UNIFIED PERSISTENT DEVICE CONTAINER */}
-                  <div style={{
-                    width: viewportSize === 'mobile' ? '390px' : (viewportSize === 'tablet' ? '768px' : '100%'),
-                    maxWidth: '100%',
-                    height: '100%',
-                    maxHeight: viewportSize === 'mobile' ? '820px' : (viewportSize === 'tablet' ? '1000px' : '100%'),
-                    borderRadius: viewportSize === 'mobile' ? '44px' : (viewportSize === 'tablet' ? '24px' : (viewportSize === 'desktop' ? '12px' : '0')),
-                    border: viewportSize === 'mobile' ? '10px solid #1e293b' : (viewportSize === 'tablet' ? '12px solid #1e293b' : (viewportSize === 'desktop' ? '1px solid #1e293b' : 'none')),
-                    boxShadow: viewportSize === 'responsive' ? 'none' : '0 25px 60px -12px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden',
-                    backgroundColor: '#030712',
-                    transition: 'width 0.3s ease, max-height 0.3s ease, border-radius 0.3s ease',
-                    flexShrink: 0
-                  }}>
-                    {/* Dynamic Island for Mobile */}
-                    {viewportSize === 'mobile' && (
-                      <div style={{ height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#030712', borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
-                        <div style={{ width: '92px', height: '18px', backgroundColor: '#0f172a', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 8px' }}>
-                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#0284c7' }} />
-                          <span style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: '#334155' }} />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Camera Dot for Tablet */}
-                    {viewportSize === 'tablet' && (
-                      <div style={{ height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#030712', flexShrink: 0 }}>
-                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#334155' }} />
-                      </div>
-                    )}
-
-                    {/* Mac Chrome Bar for Desktop */}
-                    {viewportSize === 'desktop' && (
-                      <div style={{
-                        height: '34px',
-                        backgroundColor: '#0f172a',
-                        borderBottom: '1px solid #1e293b',
-                        display: 'flex',
-                        alignItems: 'center',
-                        padding: '0 12px',
-                        gap: '12px',
-                        flexShrink: 0
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
-                          <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
-                          <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#10b981' }} />
-                        </div>
-                        <div style={{
-                          flex: 1,
-                          maxWidth: '480px',
-                          margin: '0 auto',
-                          height: '22px',
-                          backgroundColor: '#030712',
-                          borderRadius: '6px',
-                          border: '1px solid #1e293b',
-                          display: 'flex',
-                          alignItems: 'center',
-                          padding: '0 8px',
-                          gap: '6px',
-                          fontSize: '0.7rem',
-                          color: '#94a3b8'
-                        }}>
-                          <Lock size={10} color="#34d399" />
-                          <span style={{ color: '#e2e8f0', fontWeight: 600 }}>https://mavicore.mes</span>
-                          <span style={{ color: '#64748b' }}>/stamping-press-04</span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* THE PERSISTENT SINGLE SANDPACK PREVIEW */}
-                    <div style={{ flex: 1, minHeight: 0, width: '100%', height: '100%', overflow: 'hidden' }}>
-                      <SandpackPreview
-                        showOpenInCodeSandbox={false}
-                        showRefreshButton={true}
-                        style={{ height: '100%', width: '100%', backgroundColor: '#030712' }}
-                      />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{
+                      width: '28px', height: '28px', borderRadius: '8px',
+                      background: 'linear-gradient(135deg, #0ea5e9, #6366f1)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <Sparkles size={14} color="#fff" />
                     </div>
-
-                    {/* Home Bar for Mobile */}
-                    {viewportSize === 'mobile' && (
-                      <div style={{ height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#030712', flexShrink: 0 }}>
-                        <div style={{ width: '120px', height: '4px', backgroundColor: '#475569', borderRadius: '9999px' }} />
+                    <div>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#f1f5f9', letterSpacing: '-0.01em' }}>
+                        Sandbox AI Chat
                       </div>
-                    )}
+                      <div style={{ fontSize: '0.62rem', color: '#64748b', fontWeight: 500 }}>
+                        {chatHistory.length > 0 ? `${chatHistory.filter(m => m.role === 'user').length} pesan` : 'Mulai percakapan'}
+                      </div>
+                    </div>
                   </div>
-
-                  {/* LOVABLE BOTTOM FLOATING INSPECTOR ISLAND */}
-                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-full px-3.5 py-1.5 shadow-2xl flex items-center gap-3 text-slate-300 text-xs select-none">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {chatHistory.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm('Hapus semua riwayat chat?')) {
+                            setChatHistory([]);
+                          }
+                        }}
+                        style={{
+                          background: 'none', border: 'none', color: '#475569',
+                          cursor: 'pointer', padding: '4px', borderRadius: '6px',
+                          transition: 'color 0.15s',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
+                        onMouseLeave={e => e.currentTarget.style.color = '#475569'}
+                        title="Hapus riwayat chat"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={() => toast('🔍 Element Inspector Active', { icon: '✨' })}
-                      className="p-1 hover:text-white rounded transition-colors flex items-center gap-1 text-[11px] cursor-pointer"
-                      title="Inspect Element"
+                      onClick={() => setIsChatPanelOpen(false)}
+                      style={{
+                        background: 'none', border: 'none', color: '#64748b',
+                        cursor: 'pointer', padding: '4px', borderRadius: '6px',
+                        transition: 'color 0.15s',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.color = '#e2e8f0'}
+                      onMouseLeave={e => e.currentTarget.style.color = '#64748b'}
+                      title="Sembunyikan panel chat"
                     >
-                      <Search size={12} />
-                    </button>
-                    <div className="w-[1px] h-3 bg-slate-700" />
-                    <button
-                      type="button"
-                      onClick={() => toast('T Text Editor Active', { icon: '✏️' })}
-                      className="p-1 hover:text-white rounded transition-colors text-[11px] cursor-pointer"
-                      title="Edit Text"
-                    >
-                      <Type size={12} />
-                    </button>
-                    <div className="w-[1px] h-3 bg-slate-700" />
-                    <button
-                      type="button"
-                      onClick={() => toast('🔗 Link Component Active', { icon: '🔗' })}
-                      className="p-1 hover:text-white rounded transition-colors text-[11px] cursor-pointer"
-                      title="Link Element"
-                    >
-                      <Link2 size={12} />
-                    </button>
-                    <div className="w-[1px] h-3 bg-slate-700" />
-                    <button
-                      type="button"
-                      onClick={() => toast('💬 Leave Feedback Note', { icon: '📝' })}
-                      className="p-1 hover:text-white rounded transition-colors text-[11px] cursor-pointer"
-                      title="Feedback Comments"
-                    >
-                      <MessageSquare size={12} />
+                      <PanelLeftClose size={16} />
                     </button>
                   </div>
                 </div>
-              )}
-            </SandpackLayout>
-          </SandpackProvider>
+
+                {/* Chat Messages Area */}
+                <div style={{
+                  flex: 1, overflowY: 'auto', padding: '12px',
+                  display: 'flex', flexDirection: 'column', gap: '10px',
+                  scrollbarWidth: 'thin', scrollbarColor: '#1e293b transparent',
+                }}>
+                  {chatHistory.length === 0 ? (
+                    /* Empty State */
+                    <div style={{
+                      flex: 1, display: 'flex', flexDirection: 'column',
+                      alignItems: 'center', justifyContent: 'center', gap: '12px',
+                      color: '#475569', padding: '24px 16px', textAlign: 'center',
+                    }}>
+                      <div style={{
+                        width: '52px', height: '52px', borderRadius: '16px',
+                        background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.1), rgba(99, 102, 241, 0.1))',
+                        border: '1px solid rgba(56, 189, 248, 0.15)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <MessageSquare size={24} style={{ color: '#38bdf8' }} />
+                      </div>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#94a3b8' }}>
+                        Mulai percakapan
+                      </div>
+                      <div style={{ fontSize: '0.72rem', lineHeight: 1.5, maxWidth: '240px' }}>
+                        Tulis instruksi di bawah untuk menghasilkan atau memodifikasi kode React Sandbox secara otomatis.
+                      </div>
+
+                      {/* Quick Suggestion Chips in empty state */}
+                      <div style={{
+                        display: 'flex', flexDirection: 'column', gap: '6px',
+                        width: '100%', marginTop: '8px',
+                      }}>
+                        {[
+                          { label: '⚡ Emergency Stop', prompt: 'Tambahkan tombol emergency stop besar warna merah dengan alert status OK/NG' },
+                          { label: '📊 Gauge OEE Live', prompt: 'Tambahkan gauge meter radial interaktif untuk OEE (Availability, Performance, Quality)' },
+                          { label: '⏱️ Cycle Time Timer', prompt: 'Tambahkan stopwatch cycle-time otomatis yang menghitung durasi per stroke' },
+                          { label: '🗄️ postMessage to DB', prompt: 'Tambahkan event postMessage MAVICORE_TABLE_INSERT pada tombol simpan' },
+                        ].map((item, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => handleChatSubmit(item.prompt)}
+                            style={{
+                              width: '100%', textAlign: 'left',
+                              fontSize: '0.72rem', padding: '8px 12px',
+                              borderRadius: '10px',
+                              backgroundColor: '#111827',
+                              border: '1px solid #1e293b',
+                              color: '#cbd5e1',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s',
+                            }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.backgroundColor = '#1e293b';
+                              e.currentTarget.style.borderColor = '#38bdf8';
+                              e.currentTarget.style.color = '#f1f5f9';
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.backgroundColor = '#111827';
+                              e.currentTarget.style.borderColor = '#1e293b';
+                              e.currentTarget.style.color = '#cbd5e1';
+                            }}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    /* Chat Messages */
+                    chatHistory.map((msg, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                          gap: '4px',
+                        }}
+                      >
+                        {/* Avatar + Label */}
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: '6px',
+                          flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
+                        }}>
+                          <div style={{
+                            width: '20px', height: '20px', borderRadius: '6px',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '0.6rem', fontWeight: 800,
+                            background: msg.role === 'user'
+                              ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
+                              : 'linear-gradient(135deg, #0ea5e9, #06b6d4)',
+                            color: '#fff',
+                          }}>
+                            {msg.role === 'user' ? <User size={11} /> : <Bot size={11} />}
+                          </div>
+                          <span style={{
+                            fontSize: '0.62rem', fontWeight: 700,
+                            color: msg.role === 'user' ? '#a5b4fc' : '#67e8f9',
+                          }}>
+                            {msg.role === 'user' ? 'Anda' : 'AI Sandbox'}
+                          </span>
+                          <span style={{ fontSize: '0.58rem', color: '#334155' }}>
+                            {msg.timestamp?.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+
+                        {/* Message Bubble */}
+                        <div style={{
+                          maxWidth: '90%',
+                          padding: '8px 12px',
+                          borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                          backgroundColor: msg.role === 'user' ? '#1e1b4b' : '#0c1929',
+                          border: `1px solid ${msg.role === 'user' ? 'rgba(99, 102, 241, 0.25)' : 'rgba(14, 165, 233, 0.2)'}`,
+                          color: msg.role === 'user' ? '#e0e7ff' : '#bae6fd',
+                          fontSize: '0.75rem',
+                          lineHeight: 1.5,
+                          wordBreak: 'break-word',
+                        }}>
+                          {msg.content}
+                        </div>
+                      </div>
+                    ))
+                  )}
+
+                  {/* AI Typing Indicator */}
+                  {isLoading && (
+                    <div style={{
+                      display: 'flex', flexDirection: 'column',
+                      alignItems: 'flex-start', gap: '4px',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <div style={{
+                          width: '20px', height: '20px', borderRadius: '6px',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          background: 'linear-gradient(135deg, #0ea5e9, #06b6d4)',
+                          color: '#fff',
+                        }}>
+                          <Bot size={11} />
+                        </div>
+                        <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#67e8f9' }}>AI Sandbox</span>
+                      </div>
+                      <div style={{
+                        padding: '10px 14px', borderRadius: '14px 14px 14px 4px',
+                        backgroundColor: '#0c1929', border: '1px solid rgba(14, 165, 233, 0.2)',
+                        display: 'flex', alignItems: 'center', gap: '8px',
+                        color: '#7dd3fc', fontSize: '0.73rem',
+                      }}>
+                        <Loader2 size={13} className="animate-spin" style={{ color: '#38bdf8' }} />
+                        <span>Menghasilkan kode...</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div ref={chatEndRef} />
+                </div>
+
+                {/* Quick Suggestion Chips (when chat has messages) */}
+                {chatHistory.length > 0 && (
+                  <div style={{
+                    padding: '6px 12px', borderTop: '1px solid #1e293b',
+                    display: 'flex', gap: '6px', overflowX: 'auto',
+                    flexShrink: 0,
+                  }}>
+                    {[
+                      { label: '⚡ Emergency Stop', prompt: 'Tambahkan tombol emergency stop besar warna merah dengan alert status OK/NG' },
+                      { label: '📊 Gauge OEE', prompt: 'Tambahkan gauge meter radial interaktif untuk OEE' },
+                      { label: '⏱️ Cycle Time', prompt: 'Tambahkan stopwatch cycle-time otomatis' },
+                      { label: '🗄️ postMessage', prompt: 'Tambahkan event postMessage MAVICORE_TABLE_INSERT' },
+                    ].map((item, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleChatSubmit(item.prompt)}
+                        disabled={isLoading}
+                        style={{
+                          whiteSpace: 'nowrap',
+                          fontSize: '0.62rem', padding: '3px 8px',
+                          borderRadius: '8px',
+                          backgroundColor: '#111827',
+                          border: '1px solid #1e293b',
+                          color: '#94a3b8',
+                          cursor: isLoading ? 'not-allowed' : 'pointer',
+                          transition: 'all 0.15s',
+                          opacity: isLoading ? 0.5 : 1,
+                        }}
+                        onMouseEnter={e => { if (!isLoading) { e.currentTarget.style.borderColor = '#38bdf8'; e.currentTarget.style.color = '#e2e8f0'; }}}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = '#1e293b'; e.currentTarget.style.color = '#94a3b8'; }}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Chat Input Area */}
+                <div style={{
+                  padding: '10px 12px', borderTop: '1px solid #1e293b',
+                  backgroundColor: '#0f172a', flexShrink: 0,
+                }}>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleChatSubmit(inlinePrompt);
+                    }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '8px',
+                      backgroundColor: '#020617',
+                      border: '1px solid #1e293b',
+                      borderRadius: '12px',
+                      padding: '6px 10px',
+                      transition: 'border-color 0.2s',
+                    }}
+                    onFocus={e => e.currentTarget.style.borderColor = '#0ea5e9'}
+                    onBlur={e => e.currentTarget.style.borderColor = '#1e293b'}
+                  >
+                    <input
+                      type="text"
+                      value={inlinePrompt}
+                      onChange={(e) => setInlinePrompt(e.target.value)}
+                      disabled={isLoading}
+                      placeholder={isLoading ? 'AI sedang menulis kode...' : 'Tulis instruksi untuk AI...'}
+                      style={{
+                        flex: 1, backgroundColor: 'transparent',
+                        border: 'none', outline: 'none',
+                        fontSize: '0.76rem', color: '#f1f5f9',
+                        fontFamily: 'inherit',
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      disabled={!inlinePrompt.trim() || isLoading}
+                      style={{
+                        width: '30px', height: '30px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: !inlinePrompt.trim() || isLoading ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.15s',
+                        background: inlinePrompt.trim() && !isLoading
+                          ? 'linear-gradient(135deg, #0ea5e9, #6366f1)'
+                          : '#1e293b',
+                        color: inlinePrompt.trim() && !isLoading ? '#fff' : '#475569',
+                        boxShadow: inlinePrompt.trim() && !isLoading ? '0 2px 8px rgba(14, 165, 233, 0.35)' : 'none',
+                      }}
+                      title="Kirim ke AI Sandbox"
+                    >
+                      {isLoading ? <Loader2 size={14} className="animate-spin" /> : <ArrowUp size={14} />}
+                    </button>
+                  </form>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Toggle Chat Panel Button (when collapsed) */}
+        {onPromptSandbox && !isChatPanelOpen && (
+          <button
+            type="button"
+            onClick={() => setIsChatPanelOpen(true)}
+            style={{
+              position: 'absolute', left: '8px', bottom: '12px', zIndex: 30,
+              width: '40px', height: '40px', borderRadius: '12px',
+              background: 'linear-gradient(135deg, #0ea5e9, #6366f1)',
+              border: '1px solid rgba(56, 189, 248, 0.4)',
+              color: '#fff', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 8px 20px rgba(14, 165, 233, 0.3)',
+              transition: 'transform 0.15s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
+            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+            title="Buka Panel AI Chat"
+          >
+            <PanelLeftOpen size={18} />
+          </button>
+        )}
+
+        {/* ═══════════ RIGHT SIDE: SANDPACK EDITOR + PREVIEW ═══════════ */}
+        <div className="vibe-sandpack-root flex-1 overflow-hidden bg-slate-950" style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
+          <style>{`
+            .vibe-sandpack-root .sp-wrapper {
+              height: 100% !important;
+              flex: 1 1 0% !important;
+              display: flex !important;
+              flex-direction: column !important;
+            }
+            .vibe-sandpack-root .sp-layout {
+              height: 100% !important;
+              min-height: 100% !important;
+              flex: 1 1 0% !important;
+              --sp-layout-height: 100% !important;
+              display: flex !important;
+            }
+            .vibe-sandpack-root .sp-stack {
+              height: 100% !important;
+              min-height: 100% !important;
+              flex: 1 1 0% !important;
+            }
+            .vibe-sandpack-root .sp-preview,
+            .vibe-sandpack-root .sp-preview-container,
+            .vibe-sandpack-root .sp-preview-iframe {
+              height: 100% !important;
+              min-height: 100% !important;
+              flex: 1 1 0% !important;
+            }
+          `}</style>
+          <div className="h-full transition-all duration-300 flex flex-col flex-1">
+            <SandpackProvider
+              key={effectiveCode.slice(0, 100)}
+              template="react"
+              theme="dark"
+              files={files}
+              customSetup={{
+                dependencies: {
+                  'lucide-react': 'latest',
+                  'recharts': 'latest'
+                }
+              }}
+              options={{
+                activeFile: '/App.js',
+                visibleFiles: ['/App.js'],
+                externalResources: [
+                  'https://cdn.tailwindcss.com',
+                  'https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css',
+                  'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap'
+                ]
+              }}
+            >
+              <SandpackLayout style={{ height: '100%', minHeight: '100%', border: 'none', borderRadius: 0, flex: 1, display: 'flex' }}>
+                {(viewMode === 'split' || viewMode === 'code') && (
+                  <SandpackCodeEditor
+                    showLineNumbers
+                    showInlineErrors
+                    wrapContent
+                    style={{
+                      height: '100%',
+                      minHeight: '100%',
+                      width: viewMode === 'code' ? '100%' : '40%',
+                      fontFamily: 'monospace',
+                      fontSize: '12px'
+                    }}
+                  />
+                )}
+                {(viewMode === 'split' || viewMode === 'preview') && (
+                  <div style={{
+                    position: 'relative',
+                    flex: 1,
+                    height: '100%',
+                    minHeight: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    overflow: 'auto',
+                    backgroundColor: '#020617',
+                    padding: viewportSize === 'responsive' ? 0 : '16px'
+                  }}>
+                    {/* UNIFIED PERSISTENT DEVICE CONTAINER */}
+                    <div style={{
+                      width: viewportSize === 'mobile' ? '390px' : (viewportSize === 'tablet' ? '768px' : '100%'),
+                      maxWidth: '100%',
+                      height: '100%',
+                      maxHeight: viewportSize === 'mobile' ? '820px' : (viewportSize === 'tablet' ? '1000px' : '100%'),
+                      borderRadius: viewportSize === 'mobile' ? '44px' : (viewportSize === 'tablet' ? '24px' : (viewportSize === 'desktop' ? '12px' : '0')),
+                      border: viewportSize === 'mobile' ? '10px solid #1e293b' : (viewportSize === 'tablet' ? '12px solid #1e293b' : (viewportSize === 'desktop' ? '1px solid #1e293b' : 'none')),
+                      boxShadow: viewportSize === 'responsive' ? 'none' : '0 25px 60px -12px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      overflow: 'hidden',
+                      backgroundColor: '#030712',
+                      transition: 'width 0.3s ease, max-height 0.3s ease, border-radius 0.3s ease',
+                      flexShrink: 0
+                    }}>
+                      {/* Dynamic Island for Mobile */}
+                      {viewportSize === 'mobile' && (
+                        <div style={{ height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#030712', borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
+                          <div style={{ width: '92px', height: '18px', backgroundColor: '#0f172a', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 8px' }}>
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#0284c7' }} />
+                            <span style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: '#334155' }} />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Camera Dot for Tablet */}
+                      {viewportSize === 'tablet' && (
+                        <div style={{ height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#030712', flexShrink: 0 }}>
+                          <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#334155' }} />
+                        </div>
+                      )}
+
+                      {/* Mac Chrome Bar for Desktop */}
+                      {viewportSize === 'desktop' && (
+                        <div style={{
+                          height: '34px',
+                          backgroundColor: '#0f172a',
+                          borderBottom: '1px solid #1e293b',
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '0 12px',
+                          gap: '12px',
+                          flexShrink: 0
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
+                            <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
+                            <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+                          </div>
+                          <div style={{
+                            flex: 1,
+                            maxWidth: '480px',
+                            margin: '0 auto',
+                            height: '22px',
+                            backgroundColor: '#030712',
+                            borderRadius: '6px',
+                            border: '1px solid #1e293b',
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: '0 8px',
+                            gap: '6px',
+                            fontSize: '0.7rem',
+                            color: '#94a3b8'
+                          }}>
+                            <Lock size={10} color="#34d399" />
+                            <span style={{ color: '#e2e8f0', fontWeight: 600 }}>https://mavicore.mes</span>
+                            <span style={{ color: '#64748b' }}>/stamping-press-04</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* THE PERSISTENT SINGLE SANDPACK PREVIEW */}
+                      <div style={{ flex: 1, minHeight: 0, width: '100%', height: '100%', overflow: 'hidden' }}>
+                        <SandpackPreview
+                          showOpenInCodeSandbox={false}
+                          showRefreshButton={true}
+                          style={{ height: '100%', width: '100%', backgroundColor: '#030712' }}
+                        />
+                      </div>
+
+                      {/* Home Bar for Mobile */}
+                      {viewportSize === 'mobile' && (
+                        <div style={{ height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#030712', flexShrink: 0 }}>
+                          <div style={{ width: '120px', height: '4px', backgroundColor: '#475569', borderRadius: '9999px' }} />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* LOVABLE BOTTOM FLOATING INSPECTOR ISLAND (only when no prompt) */}
+                    {!onPromptSandbox && (
+                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-full px-3.5 py-1.5 shadow-2xl flex items-center gap-3 text-slate-300 text-xs select-none">
+                        <button
+                          type="button"
+                          onClick={() => toast('🔍 Element Inspector Active', { icon: '✨' })}
+                          className="p-1 hover:text-white rounded transition-colors flex items-center gap-1 text-[11px] cursor-pointer"
+                          title="Inspect Element"
+                        >
+                          <Search size={12} />
+                        </button>
+                        <div className="w-[1px] h-3 bg-slate-700" />
+                        <button
+                          type="button"
+                          onClick={() => toast('T Text Editor Active', { icon: '✏️' })}
+                          className="p-1 hover:text-white rounded transition-colors text-[11px] cursor-pointer"
+                          title="Edit Text"
+                        >
+                          <Type size={12} />
+                        </button>
+                        <div className="w-[1px] h-3 bg-slate-700" />
+                        <button
+                          type="button"
+                          onClick={() => toast('🔗 Link Component Active', { icon: '🔗' })}
+                          className="p-1 hover:text-white rounded transition-colors text-[11px] cursor-pointer"
+                          title="Link Element"
+                        >
+                          <Link2 size={12} />
+                        </button>
+                        <div className="w-[1px] h-3 bg-slate-700" />
+                        <button
+                          type="button"
+                          onClick={() => toast('💬 Leave Feedback Note', { icon: '📝' })}
+                          className="p-1 hover:text-white rounded transition-colors text-[11px] cursor-pointer"
+                          title="Feedback Comments"
+                        >
+                          <MessageSquare size={12} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </SandpackLayout>
+            </SandpackProvider>
+          </div>
         </div>
       </div>
 
