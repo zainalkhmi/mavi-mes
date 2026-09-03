@@ -25,9 +25,9 @@ export const securityHeaders = {
   'Content-Security-Policy': [
     "default-src 'self'",
     // Scripts: self + inline for Vite HMR + trusted CDNs
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.supabase.co https://cdn.jsdelivr.net blob:",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.supabase.co https://cdn.jsdelivr.net https://cdn.tailwindcss.com blob:",
     // Styles: self + inline + Google Fonts
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdn.tailwindcss.com",
     // Fonts: Google Fonts
     "font-src 'self' https://fonts.gstatic.com data:",
     // Images: self + data URIs + Supabase storage + external URLs
@@ -35,7 +35,7 @@ export const securityHeaders = {
     // Connect: API endpoints, WebSockets, Supabase, AI & IoT brokers
     "connect-src 'self' http: https: ws: wss: data: blob:",
     // Frames: allow preview iframes
-    "frame-src 'self' blob: data: http://localhost:* http://127.0.0.1:* https://*.mandor.cloud https://mandor.cloud",
+    "frame-src 'self' blob: data: http://localhost:* http://127.0.0.1:* https://*.mandor.cloud https://mandor.cloud https://*.codesandbox.io https://codesandbox.io",
     "frame-ancestors 'self' http://localhost:* http://127.0.0.1:* https://*.mandor.cloud https://mandor.cloud https://*.vercel.app",
     // Media: self + blob
     "media-src 'self' blob: data: https://assets.mixkit.co https://*.mixkit.co",
@@ -62,13 +62,13 @@ export function getSecurityHeaders(isProduction = false) {
   if (!isProduction) {
     headers['Content-Security-Policy'] = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' ws://localhost:* http://localhost:* https://cdn.jsdelivr.net blob:",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' ws://localhost:* http://localhost:* https://cdn.jsdelivr.net https://cdn.tailwindcss.com blob:",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdn.tailwindcss.com",
       "font-src 'self' https://fonts.gstatic.com data:",
       "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.storage https://*.googleusercontent.com https://images.unsplash.com https://w0.peakpx.com",
       "media-src 'self' blob: data: https://assets.mixkit.co https://*.mixkit.co",
       "connect-src 'self' http: https: ws: wss: data: blob:",
-      "frame-src 'self' blob: data: http://localhost:* http://127.0.0.1:* https://*.mandor.cloud https://mandor.cloud",
+      "frame-src 'self' blob: data: http://localhost:* http://127.0.0.1:* https://*.mandor.cloud https://mandor.cloud https://*.codesandbox.io https://codesandbox.io",
       "frame-ancestors 'self' http://localhost:* http://127.0.0.1:* https://*.mandor.cloud https://mandor.cloud https://*.vercel.app",
     ].join('; ');
   }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ClipboardList, CheckCircle2, AlertCircle, X, ShieldCheck, Tag, Hash, ListFilter, Sliders } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -13,6 +13,7 @@ export default function PreInspectionGateModal({
   fields = [],
   values = {},
   onSave,
+  onSubmit,
   partInfo = {}
 }) {
   const [formData, setFormData] = useState(() => {
@@ -30,6 +31,25 @@ export default function PreInspectionGateModal({
   });
   const [errors, setErrors] = useState({});
 
+  useEffect(() => {
+    if (isOpen) {
+      setFormData(prev => {
+        const next = { ...values, ...prev };
+        fields.forEach(f => {
+          if (next[f.id] === undefined || next[f.id] === null) {
+            if (f.type === 'option' && f.options?.length > 0) {
+              next[f.id] = f.options[0];
+            } else {
+              next[f.id] = f.defaultValue || '';
+            }
+          }
+        });
+        return next;
+      });
+      setErrors({});
+    }
+  }, [isOpen, fields, values]);
+
   if (!isOpen) return null;
 
   const handleChange = (fieldId, val) => {
@@ -44,7 +64,7 @@ export default function PreInspectionGateModal({
   };
 
   const handleValidateAndSubmit = (e) => {
-    if (e) e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     const newErrors = {};
 
     fields.forEach(field => {
@@ -61,8 +81,11 @@ export default function PreInspectionGateModal({
       return;
     }
 
-    if (onSave) {
+    if (typeof onSave === 'function') {
       onSave(formData);
+    }
+    if (typeof onSubmit === 'function') {
+      onSubmit(formData);
     }
   };
 
@@ -340,6 +363,7 @@ export default function PreInspectionGateModal({
           <div style={{ marginTop: '10px' }}>
             <button
               type="submit"
+              onClick={handleValidateAndSubmit}
               style={{
                 width: '100%',
                 padding: '14px',

@@ -892,10 +892,41 @@ ${drawingsStr}
 
 IMPORTANT: When the user says "add trigger", "add function", "tambahkan trigger", "tambahkan function" WITHOUT specifying a widget name, ALWAYS target the CURRENTLY SELECTED WIDGET above. Use its exact "name" as the widgetId in CREATE_TRIGGER commands.
 
+${context.vibeMode === 'sandpack' ? `
+⚡ MODE AKTIF: VIBE CODING DENGAN SANDPACK ENGINE (REACT + TAILWIND CSS)
+Anda bertindak sebagai World-Class Frontend Architect untuk Industrial HMI & MES UI.
+Selain atau sebagai ganti builder_cmds, Anda WAJIB menyertakan kode React lengkap dan interaktif (single-file export default component) yang siap dijalankan secara live di CodeSandbox Sandpack Engine.
+Aturan Vibe Code:
+1. Gunakan React (useState, useEffect) untuk membuat komponen hidup dan interaktif (tombol bisa diklik, ada simulasi sensor real-time, status dinamis).
+2. DESAIN PREMIUM ULTRA-PRO: Tampilan WAJIB bertaraf Enterprise Industrial HMI / Cyber-SCADA berlatar gelap (#030712 / slate-950).
+3. Gunakan inline style + Tailwind CSS dengan kombinasi warna presisi: latar belakang kartu (#0f172a / border #1e293b), aksen neon Cyan/Sky (#38bdf8), Emerald (#34d399) untuk OK/Normal, Rose/Red (#f43f5e) untuk Alarm/NG, dan Amber (#f59e0b) untuk Warning.
+4. Gunakan icon dari 'lucide-react' (Cpu, Activity, AlertTriangle, Gauge, Power, CheckCircle, Flame, Layers, BarChart2, ShieldAlert).
+5. INTEGRASI TABEL MAVICORE OTOMATIS: Pada setiap tombol aksi pencatatan (misal tombol submit form, catat part OK, catat part NG, simpan checksheet), selalu sertakan pengiriman postMessage ke MaviCore:
+   if (typeof window !== 'undefined' && window.parent) {
+     window.parent.postMessage({
+       type: 'MAVICORE_TABLE_INSERT',
+       tableName: 'Nama Tabel yang Relevan',
+       data: { timestamp: new Date().toISOString(), ...dataFields }
+     }, '*');
+   }
+6. Berikan penjelasan singkat, lalu bungkus SELURUH kode React di dalam tag:
+<vibe_code>
+import React, { useState, useEffect } from 'react';
+import { ... } from 'lucide-react';
+
+export default function App() {
+  // state and handlers with postMessage table bridge
+  return (
+    // modern ultra-pro industrial UI with inline style + tailwind
+  );
+}
+</vibe_code>
+` : `
 OUTPUT: Brief explanation (Indonesian if user writes Indonesian), then <ai_plan>...</ai_plan>, then ALWAYS:
 <builder_cmds>
 {"commands": [...]}
-</builder_cmds>`;
+</builder_cmds>
+`}`;
 };
 
 /**

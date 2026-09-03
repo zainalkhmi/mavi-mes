@@ -458,6 +458,17 @@ export async function uploadManualImage(storagePath, fileOrDataUrl, overrideSett
 }
 
 /**
+ * Universal alias for uploading media/images to Supabase Storage.
+ * Supports both argument orders: (storagePath, file) or (file, storagePath).
+ */
+export async function uploadManualMedia(arg1, arg2, overrideSettings = null) {
+    if (typeof arg1 === 'string' && (arg1.startsWith('data:') || arg1.startsWith('blob:') || arg1.length > 500)) {
+        return uploadManualImage(arg2, arg1, overrideSettings);
+    }
+    return uploadManualImage(arg1, arg2, overrideSettings);
+}
+
+/**
  * Delete a file from Supabase Storage by its public URL.
  * 
  * @param {string} publicUrl 

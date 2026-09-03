@@ -16,6 +16,7 @@ import { createIncomingInspectionTemplate } from '../utils/incomingInspectionTem
 import { createProductDrawingInspectionTemplate } from '../utils/productDrawingInspectionTemplate';
 import { createQuickBuildCadVisionTemplate } from '../utils/quickbuildVisionDrawingTemplate';
 import { logout } from '../utils/auth';
+import VibeSandpackViewer from './appbuilder/VibeSandpackViewer';
 
 // ─── Performance: Cache apps in memory to avoid re-fetching ─────────────────────
 let _cachedApps = null;
@@ -1521,9 +1522,9 @@ const AppPlayer = () => {
         const guide = launchingApp?.config?.helpGuide || '';
         setShowHelpGuide(!!guide.trim());
 
-        // Arm iframe error timeout (5 s) — only start counting after guide dismissed
+        // Arm iframe error timeout (8 s) — only start counting after guide dismissed and not for vibe apps
         clearTimeout(iframeLoadTimer.current);
-        if (!guide.trim()) {
+        if (!guide.trim() && !launchingApp?.config?.vibeCode) {
             iframeLoadTimer.current = setTimeout(() => setIframeError(true), 8000);
         }
 
@@ -2854,6 +2855,13 @@ const AppPlayer = () => {
                                         </button>
                                     </div>
                                 </div>
+                            </div>
+                        ) : activeApp?.config?.vibeCode ? (
+                            <div style={{ width: '100%', height: '100%', backgroundColor: '#030712', overflow: 'hidden' }}>
+                                <VibeSandpackViewer
+                                    code={activeApp.config.vibeCode}
+                                    isFullScreen={true}
+                                />
                             </div>
                         ) : (
                             activeDevicePresetKey === 'RESPONSIVE' ? (

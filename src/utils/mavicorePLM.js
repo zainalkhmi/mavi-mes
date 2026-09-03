@@ -7,7 +7,8 @@
  * =====================================================
  */
 
-import { getSupabaseClient } from './supabaseManualDB.js';
+import { getSupabaseClient, uploadManualMedia } from './supabaseManualDB.js';
+import { saveTemplates } from './supabaseTemplateDB.js';
 import Dexie from 'dexie';
 
 // ─── Dedicated IndexedDB for PLM & Drawings (Virtually Unlimited Quota) ───
@@ -1178,6 +1179,238 @@ export async function deleteLimitSample(id, drawingId) {
   return { success: true };
 }
 
+/**
+ * Save complete drawing data (drawing, revision, balloons, features, part relations, blueprint)
+ * to Supabase tables, Supabase storage, and Supabase inspector templates with local fallback.
+ */
+export async function saveDrawingWithParametersToSupabase({
+  drawing,
+  revision,
+  balloons = [],
+  features = [],
+  part = null,
+  relations = [],
+  limitSamples = [],
+  blueprintImage = null
+}) {
+  if (!drawing || !drawing.id) {
+    return { success: false, error: 'Drawing data tidak valid atau belum dipilih' };
+  }
+
+  const client = getClient();
+  let cloudFileUrl = drawing.file_url || null;
+
+  // 1. Upload Blueprint to Supabase Storage if it's a data URL / local blob
+  if (blueprintImage && (blueprintImage.startsWith('data:') || blueprintImage.startsWith('blob:'))) {
+    try {
+      const ext = (drawing.file_type || 'png').toLowerCase();
+      const storagePath = `drawings/${drawing.code || 'DRW'}_${Date.now()}.${ext}`;
+      const uploadedUrl = await uploadManualMedia(storagePath, blueprintImage);
+      if (uploadedUrl) {
+        cloudFileUrl = uploadedUrl;
+      }
+    } catch (storageErr) {
+      console.warn('[PLM] Supabase storage upload fallback:', storageErr?.message || storageErr);
+    }
+  }
+
+  // 2. Prepare Drawing Payload
+  const drawingId = drawing.id;
+  const now = new Date().toISOString();
+  const drawingPayload = {
+    id: drawingId,
+    code: drawing.code || `DRW-${Date.now().toString(36).toUpperCase()}`,
+    name: drawing.name || 'Untitled Drawing',
+    drawing_type: drawing.drawing_type || 'DETAIL',
+    description: drawing.description || '',
+    file_name: drawing.file_name || `${drawing.code || 'drawing'}.png`,
+    file_type: drawing.file_type || 'PNG',
+    file_size: drawing.file_size || 0,
+    file_url: cloudFileUrl && cloudFileUrl.length < 200000 ? cloudFileUrl : null,
+    thumbnail_url: cloudFileUrl && cloudFileUrl.length < 200000 ? cloudFileUrl : null,
+    metadata: {
+      ...(drawing.metadata || {}),
+      part_id: part?.id || drawing.metadata?.part_id || null,
+      part_code: part?.code || drawing.metadata?.part_code || null,
+      part_name: part?.name || drawing.metadata?.part_name || null,
+      balloons_count: balloons.length,
+      features_count: features.length,
+      has_cloud_file: !!cloudFileUrl,
+      last_saved_to_supabase: now
+    },
+    updated_at: now
+  };
+
+  // 3. Upsert to Supabase 'drawings'
+  let supabaseSaved = false;
+  if (client) {
+    try {
+      const { error: dwgErr } = await client.from('drawings').upsert(drawingPayload, { onConflict: 'id' });
+      if (!dwgErr) supabaseSaved = true;
+      else console.warn('[PLM] Upsert drawing to Supabase warning:', dwgErr.message);
+    } catch (e) {
+      console.warn('[PLM] Supabase drawings upsert error:', e);
+    }
+  }
+
+  // 4. Upsert Revision
+  const revisionId = revision?.id || `rev_${drawingId}_${revision?.revision_code || 'A'}`;
+  const revPayload = {
+    id: revisionId,
+    drawing_id: drawingId,
+    revision_code: revision?.revision_code || 'A',
+    status: revision?.status || 'DRAFT',
+    description: revision?.description || 'Synchronized Revision',
+    file_url: cloudFileUrl && cloudFileUrl.length < 200000 ? cloudFileUrl : null,
+    metadata: {
+      ...(revision?.metadata || {}),
+      ecn_number: revision?.metadata?.ecn_number || `ECN-${new Date().getFullYear()}-${drawing.code || '001'}`,
+      saved_at: now
+    },
+    updated_at: now
+  };
+
+  if (client) {
+    try {
+      await client.from('drawing_revisions').upsert(revPayload, { onConflict: 'id' });
+    } catch (e) {
+      console.warn('[PLM] Supabase revision upsert error:', e);
+    }
+  }
+
+  // 5. Upsert Features (Dimensions & Tolerances)
+  if (features && features.length > 0 && client) {
+    for (const f of features) {
+      try {
+        const featPayload = {
+          id: f.id || `ft_${drawingId}_${f.feature_code || Math.random().toString(36).substr(2, 6)}`,
+          drawing_revision_id: revisionId,
+          feature_code: f.feature_code,
+          feature_name: f.feature_name || f.feature_code,
+          feature_type: f.feature_type || 'DIMENSION',
+          nominal_value: f.nominal_value !== undefined && f.nominal_value !== '' ? parseFloat(f.nominal_value) : null,
+          upper_tolerance: f.upper_tolerance !== undefined && f.upper_tolerance !== '' ? parseFloat(f.upper_tolerance) : null,
+          lower_tolerance: f.lower_tolerance !== undefined && f.lower_tolerance !== '' ? parseFloat(f.lower_tolerance) : null,
+          unit: f.unit || 'mm',
+          updated_at: now
+        };
+        await client.from('drawing_features').upsert(featPayload, { onConflict: 'id' });
+      } catch (e) {
+        console.warn('[PLM] Supabase feature upsert error:', e);
+      }
+    }
+  }
+
+  // 6. Upsert Balloons
+  if (balloons && balloons.length > 0 && client) {
+    for (const b of balloons) {
+      try {
+        const balPayload = {
+          id: b.id || `bal_${drawingId}_${b.balloon_number || Math.random().toString(36).substr(2, 6)}`,
+          drawing_revision_id: revisionId,
+          balloon_number: String(b.balloon_number),
+          position_x: b.position_x || 100,
+          position_y: b.position_y || 100,
+          color: b.color || '#3B82F6',
+          symbol: b.symbol || 'CIRCLE',
+          target_feature_id: b.target_feature_id || null,
+          target_part_id: b.target_part_id || part?.id || null,
+          notes: b.notes || '',
+          updated_at: now
+        };
+        await client.from('drawing_balloons').upsert(balPayload, { onConflict: 'id' });
+      } catch (e) {
+        console.warn('[PLM] Supabase balloon upsert error:', e);
+      }
+    }
+  }
+
+  // 7. Sync to Digital Checksheet Template (inspector_templates)
+  const effectiveImageUrl = cloudFileUrl || blueprintImage;
+  const templatePayload = {
+    id: `insp_${drawingId}`,
+    name: `${drawing.name || 'Drawing'} (Rev ${revision?.revision_code || 'A'})`,
+    docNo: drawing.code,
+    drawingNo: drawing.code,
+    partNo: part?.code || drawing.metadata?.part_code || drawing.code,
+    partName: part?.name || drawing.metadata?.part_name || drawing.name,
+    revisionNo: revision?.revision_code || 'A',
+    drawingFileName: drawing.file_name || `${drawing.code}.png`,
+    drawingImageUrl: effectiveImageUrl,
+    drawingPreview: effectiveImageUrl,
+    drawingSvg: effectiveImageUrl,
+    drawingDataUrl: effectiveImageUrl,
+    drawingId: drawingId,
+    drawingName: drawing.name,
+    checkPoints: (balloons && balloons.length > 0) ? balloons.map((b, i) => {
+      const matchedFeat = features?.find(f => f.id === b.target_feature_id || f.feature_code === b.target_feature?.feature_code) || b.target_feature;
+      return {
+        id: `cp_${b.id || i}`,
+        pointNumber: parseInt(b.balloon_number) || (i + 1),
+        title: matchedFeat?.feature_name || `Point ${b.balloon_number || (i + 1)}`,
+        category: matchedFeat?.feature_type || 'Linear Dimension',
+        nominal: matchedFeat?.nominal_value !== undefined ? parseFloat(matchedFeat.nominal_value) : 0,
+        tolMin: matchedFeat?.lower_tolerance !== undefined ? parseFloat(matchedFeat.lower_tolerance) : 0,
+        tolMax: matchedFeat?.upper_tolerance !== undefined ? parseFloat(matchedFeat.upper_tolerance) : 0,
+        unit: matchedFeat?.unit || 'mm',
+        x: b.position_x || 100,
+        y: b.position_y || 100,
+        criticality: 'Major',
+        inspectionMethod: 'Caliper'
+      };
+    }) : [],
+    status: 'APPROVED',
+    updated_at: now
+  };
+
+  try {
+    await saveTemplates([templatePayload]);
+  } catch (templateErr) {
+    console.warn('[PLM] Template sync error:', templateErr);
+  }
+
+  // 8. Update IndexedDB & Local Storage Cache
+  const fullDrawingItem = {
+    ...drawing,
+    ...drawingPayload,
+    file_url: effectiveImageUrl,
+    thumbnail_url: effectiveImageUrl
+  };
+
+  if (plmLocalDB) {
+    try {
+      if (plmLocalDB.drawings) await plmLocalDB.drawings.put(fullDrawingItem);
+      if (plmLocalDB.drawing_revisions) await plmLocalDB.drawing_revisions.put({ ...revPayload, file_url: effectiveImageUrl });
+      if (balloons.length > 0 && plmLocalDB.drawing_balloons) {
+        for (const b of balloons) {
+          await plmLocalDB.drawing_balloons.put({ ...b, drawing_revision_id: revisionId });
+        }
+      }
+      if (features.length > 0 && plmLocalDB.drawing_features) {
+        for (const f of features) {
+          await plmLocalDB.drawing_features.put({ ...f, drawing_revision_id: revisionId });
+        }
+      }
+    } catch (idbErr) {
+      console.warn('[PLM] IndexedDB cache error:', idbErr);
+    }
+  }
+
+  invalidateCache('drawings');
+  invalidateCache('drawing', drawingId);
+
+  return {
+    success: true,
+    supabaseSaved,
+    fileUrl: effectiveImageUrl,
+    cloudFileUrl,
+    drawing: fullDrawingItem,
+    balloonsCount: balloons.length,
+    featuresCount: features.length,
+    timestamp: now
+  };
+}
+
 export default {
   getProducts, getProduct, createProduct, updateProduct, deleteProduct,
   getParts, getPart, createPart, updatePart,
@@ -1188,5 +1421,6 @@ export default {
   getDrawingBalloons, createDrawingBalloon, updateDrawingBalloon, deleteDrawingBalloon,
   getInspectionLinks, linkToInspector, linkToChecksheet,
   getLimitSamples, createLimitSample, updateLimitSample, deleteLimitSample,
+  saveDrawingWithParametersToSupabase,
   generateCode, getDrawingTree, searchPLM
 };

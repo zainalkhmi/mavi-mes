@@ -5498,14 +5498,31 @@ export default function DigitalDrawingCheckSheet() {
       {/* ─── PRE-INSPECTION GATE MODAL ───── */}
       <PreInspectionGateModal
         isOpen={showPreInspectionModal}
+        onClose={() => setShowPreInspectionModal(false)}
         fields={preInspectionFields}
+        values={preInspectionValues}
+        partInfo={{
+          partNo: partNo || docNo || 'PART-001',
+          partName: partName || 'Precision Component',
+          workOrderNo: workOrderNo || 'WO-2026'
+        }}
+        onSave={(values) => {
+          setPreInspectionValues(values);
+          setShowPreInspectionModal(false);
+          const lotVal = values['lotNo'] || values['LotNo'] || values['Lot No'] || values['lot_number'] || values['lotNumber'] || values['no_lot'];
+          if (lotVal) {
+            setLotBatchNo(lotVal);
+          }
+          toast.success('✓ Data lot & traceability tersimpan! Silakan mulai inspeksi.', { icon: '🟢' });
+        }}
         onSubmit={(values) => {
           setPreInspectionValues(values);
           setShowPreInspectionModal(false);
-          // If values map to specific top-level metadata fields like lot batch no, we can set them here
-          if (values['lotNo'] || values['LotNo'] || values['Lot No']) {
-            setLotBatchNo(values['lotNo'] || values['LotNo'] || values['Lot No']);
+          const lotVal = values['lotNo'] || values['LotNo'] || values['Lot No'] || values['lot_number'] || values['lotNumber'] || values['no_lot'];
+          if (lotVal) {
+            setLotBatchNo(lotVal);
           }
+          toast.success('✓ Data lot & traceability tersimpan! Silakan mulai inspeksi.', { icon: '🟢' });
         }}
       />
     </div>

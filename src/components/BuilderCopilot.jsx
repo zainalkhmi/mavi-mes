@@ -8,7 +8,7 @@ import {
   Type, BarChart3, Table, ToggleLeft, Camera, Hash,
   Square, Circle, Gauge, Bell, SlidersHorizontal,
   Stethoscope, History, Eye, EyeOff, Link, Database, ClipboardList,
-  Check, Edit3, Mic, Download, Maximize2, Minimize2
+  Check, Edit3, Mic, Download, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, ArrowUp
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { getPrimaryAiConnector, saveIntegrationConnector } from '../utils/database';
@@ -16,6 +16,7 @@ import { getBuilderCopilotAdvice, getBuilderVisionAdvice, streamBuilderCopilotAd
 import { sanitizeCopilotCommands } from '../utils/copilotSafety';
 import { getAllFrontlineApps } from '../utils/supabaseFrontlineDB';
 import { getSupabaseClient, isSupabaseReady } from '../utils/supabaseManualDB';
+import VibeSandpackViewer, { DEFAULT_VIBE_HMI_CODE } from './appbuilder/VibeSandpackViewer';
 
 // Widget type → icon/color mapping
 const WIDGET_META = {
@@ -352,6 +353,12 @@ const BuilderCopilot = ({
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [executionProgress, setExecutionProgress] = useState({ total: 0, current: 0, isActive: false });
   const recognitionRef = useRef(null);
+
+  // ─── Sandpack Vibe Engine States (Opsi 1: Canvas Mode vs Opsi 2: Sandpack Vibe) ───
+  const [vibeEngineMode, setVibeEngineMode] = useState('canvas'); // 'canvas' | 'sandpack'
+  const [sandpackCode, setSandpackCode] = useState(DEFAULT_VIBE_HMI_CODE);
+  const [showSandpackDrawer, setShowSandpackDrawer] = useState(false);
+  const [isChatCollapsed, setIsChatCollapsed] = useState(false);
 
   useEffect(() => {
     setIsSpeechSupported(typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition));
@@ -704,6 +711,7 @@ const BuilderCopilot = ({
           ...context,
           selectedWidget: selectedWidget || null,
           sessionSummary,
+          vibeMode: vibeEngineMode,
           relatedApps: selectedApps.map(app => ({
             id: app.id,
             name: app.name,
@@ -720,6 +728,13 @@ const BuilderCopilot = ({
           await streamBuilderCopilotAdvice(text, history, enrichedContext, aiConnector, (chunk) => {
             streamedText += chunk;
             setStreamingText(streamedText);
+            if (streamedText.includes('<vibe_code>') && streamedText.includes('</vibe_code>')) {
+              const match = streamedText.match(/<vibe_code>([\s\S]*?)<\/vibe_code>/i);
+              if (match && match[1]) {
+                setSandpackCode(match[1].trim());
+                setShowSandpackDrawer(true);
+              }
+            }
           });
           response = streamedText;
           setStreamingText('');
@@ -727,6 +742,16 @@ const BuilderCopilot = ({
           console.warn('[Copilot] Streaming failed, falling back to non-streaming:', streamErr.message);
           setStreamingText('');
           response = await getBuilderCopilotAdvice(text, history, enrichedContext, aiConnector);
+        }
+      }
+
+      // Check if response contains <vibe_code>
+      if (response && response.includes('<vibe_code>')) {
+        const match = response.match(/<vibe_code>([\s\S]*?)<\/vibe_code>/i);
+        if (match && match[1]) {
+          const cleanCode = match[1].trim();
+          setSandpackCode(cleanCode);
+          setShowSandpackDrawer(true);
         }
       }
 
@@ -1113,13 +1138,14 @@ Apa yang bisa kamu bantu untuk widget ini?`;
   return (
     <div style={{
       position: 'fixed',
-      top: isFullScreen ? '0' : '64px',
-      right: isFullScreen ? '0' : '16px',
-      bottom: isFullScreen ? '0' : '16px',
-      left: isFullScreen ? '0' : 'auto',
-      width: isFullScreen ? '100%' : '460px',
+      top: isFullScreen ? '0' : (showSandpackDrawer && vibeEngineMode === 'sandpack' ? '12px' : '64px'),
+      right: isFullScreen ? '0' : '12px',
+      bottom: isFullScreen ? '0' : '12px',
+      left: isFullScreen ? '0' : (showSandpackDrawer && vibeEngineMode === 'sandpack' ? '12px' : 'auto'),
+      width: isFullScreen ? '100%' : (showSandpackDrawer && vibeEngineMode === 'sandpack' ? 'calc(100vw - 24px)' : '460px'),
+      height: isFullScreen ? '100%' : (showSandpackDrawer && vibeEngineMode === 'sandpack' ? 'calc(100vh - 24px)' : 'auto'),
       backgroundColor: '#ffffff',
-      borderRadius: isFullScreen ? '0' : '20px',
+      borderRadius: isFullScreen ? '0' : (showSandpackDrawer && vibeEngineMode === 'sandpack' ? '16px' : '20px'),
       display: 'flex',
       flexDirection: 'column',
       boxShadow: isFullScreen ? 'none' : '0 32px 64px -12px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.05)',
@@ -1402,7 +1428,137 @@ Apa yang bisa kamu bantu untuk widget ini?`;
             </button>
           </div>
         </div>
+
+        {/* ── VIBE ENGINE 2-OPTIONS SELECTOR ── */}
+        <div style={{
+          padding: '6px 12px',
+          background: 'rgba(15, 23, 42, 0.85)',
+          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '8px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Vibe:
+            </span>
+            <div style={{ display: 'flex', background: 'rgba(0, 0, 0, 0.35)', padding: '2px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+              <button
+                type="button"
+                onClick={() => setVibeEngineMode('canvas')}
+                style={{
+                  padding: '3px 10px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  transition: 'all 0.2s',
+                  background: vibeEngineMode === 'canvas' ? '#3b82f6' : 'transparent',
+                  color: vibeEngineMode === 'canvas' ? '#ffffff' : '#94a3b8'
+                }}
+                title="Opsi 1: Visual Canvas MaviCore (Drag & Drop Widget)"
+              >
+                <LayoutTemplate size={12} />
+                <span>🏭 Canvas Mode</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setVibeEngineMode('sandpack');
+                  setShowSandpackDrawer(true);
+                }}
+                style={{
+                  padding: '3px 10px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  transition: 'all 0.2s',
+                  background: vibeEngineMode === 'sandpack' ? 'linear-gradient(135deg, #0284c7 0%, #6366f1 100%)' : 'transparent',
+                  color: vibeEngineMode === 'sandpack' ? '#ffffff' : '#94a3b8'
+                }}
+                title="Opsi 2: AI Vibe Coding langsung ke CodeSandbox Sandpack Engine"
+              >
+                <Sparkles size={12} className={vibeEngineMode === 'sandpack' ? 'animate-pulse' : ''} />
+                <span>⚡ Sandpack Vibe</span>
+              </button>
+            </div>
+          </div>
+
+          {vibeEngineMode === 'sandpack' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                type="button"
+                onClick={() => setIsChatCollapsed(v => !v)}
+                style={{
+                  padding: '3px 9px',
+                  borderRadius: '6px',
+                  fontSize: '0.68rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  background: isChatCollapsed ? 'linear-gradient(135deg, #0284c7 0%, #6366f1 100%)' : 'rgba(255, 255, 255, 0.08)',
+                  color: isChatCollapsed ? '#ffffff' : '#94a3b8',
+                  border: isChatCollapsed ? 'none' : '1px solid rgba(255, 255, 255, 0.15)'
+                }}
+                title={isChatCollapsed ? 'Buka Panel Chat' : 'Perluas Preview Penuh (Sembunyikan Chat)'}
+              >
+                {isChatCollapsed ? <PanelLeftOpen size={12} /> : <PanelLeftClose size={12} />}
+                <span>{isChatCollapsed ? 'Buka Chat' : 'Preview Penuh'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowSandpackDrawer(v => !v)}
+                style={{
+                  padding: '3px 8px',
+                  borderRadius: '6px',
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  background: showSandpackDrawer ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                  color: showSandpackDrawer ? '#38bdf8' : '#94a3b8',
+                  border: '1px solid rgba(56, 189, 248, 0.3)'
+                }}
+              >
+                <Eye size={11} />
+                <span>{showSandpackDrawer ? 'Tutup Preview' : 'Buka Preview'}</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Main Split Area */}
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden', width: '100%' }}>
+        {/* Left Side: Copilot Chat Column */}
+        <div style={{
+          width: (showSandpackDrawer && vibeEngineMode === 'sandpack')
+            ? (isChatCollapsed ? '0px' : '380px')
+            : '100%',
+          display: (showSandpackDrawer && vibeEngineMode === 'sandpack' && isChatCollapsed) ? 'none' : 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          minWidth: (showSandpackDrawer && vibeEngineMode === 'sandpack')
+            ? (isChatCollapsed ? '0px' : '350px')
+            : '100%',
+          borderRight: (showSandpackDrawer && vibeEngineMode === 'sandpack') ? '1px solid #e2e8f0' : 'none',
+          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+        }}>
 
       {/* UPGRADE 4: App Issues Panel */}
       {showIssues && appIssues.length > 0 && (
@@ -1495,6 +1651,7 @@ Apa yang bisa kamu bantu untuk widget ini?`;
           const cleanContent = msg.content
             .replace(/<builder_cmds>[\s\S]*?<\/builder_cmds>/gi, '')
             .replace(/<ai_plan>[\s\S]*?<\/ai_plan>/gi, '')
+            .replace(/<vibe_code>[\s\S]*?<\/vibe_code>/gi, '')
             .trim();
 
           return (
@@ -1547,6 +1704,42 @@ Apa yang bisa kamu bantu untuk widget ini?`;
                 whiteSpace: 'pre-wrap',
               }}>
                  {cleanContent}
+
+                {/* Vibe Code Quick Apply to Sandpack Action */}
+                {msg.content && msg.content.includes('<vibe_code>') && (
+                  <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #e2e8f0' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const match = msg.content.match(/<vibe_code>([\s\S]*?)<\/vibe_code>/i);
+                        if (match && match[1]) {
+                          setSandpackCode(match[1].trim());
+                          setVibeEngineMode('sandpack');
+                          setShowSandpackDrawer(true);
+                        }
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        background: 'linear-gradient(135deg, #0284c7 0%, #6366f1 100%)',
+                        color: 'white',
+                        borderRadius: '8px',
+                        border: 'none',
+                        fontSize: '0.75rem',
+                        fontWeight: 800,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)'
+                      }}
+                    >
+                      <Sparkles size={14} />
+                      <span>⚡ Buka di Sandpack Live Preview ➔</span>
+                    </button>
+                  </div>
+                )}
 
                 {msg.role === 'assistant' && !msg.isError && (
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px', borderTop: '1px dashed #e2e8f0', paddingTop: '6px' }}>
@@ -2314,6 +2507,54 @@ Apa yang bisa kamu bantu untuk widget ini?`;
           </div>
         )}
 
+        {/* Lovable.dev Style Quick Action Chips */}
+        {vibeEngineMode === 'sandpack' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+            <button
+              type="button"
+              onClick={() => toast.success('MaviCore Cloud connected!')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '5px',
+                padding: '4px 10px', borderRadius: '8px',
+                backgroundColor: '#ffffff', border: '1px solid #e2e8f0',
+                fontSize: '0.73rem', fontWeight: 600, color: '#334155',
+                cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+              }}
+            >
+              <span>☁️ Connect Lovable Cloud</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => toast.success('Buka dokumentasi MaviCore')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '5px',
+                padding: '4px 10px', borderRadius: '8px',
+                backgroundColor: '#ffffff', border: '1px solid #e2e8f0',
+                fontSize: '0.73rem', fontWeight: 600, color: '#334155',
+                cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+              }}
+            >
+              <span>↗ Visit docs</span>
+            </button>
+          </div>
+        )}
+
+        {/* Lovable.dev Style Reference Chip */}
+        {vibeEngineMode === 'sandpack' && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', padding: '0 4px', fontSize: '0.72rem', color: '#64748b' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontWeight: 600, color: '#334155' }}>@ Reuse work from other projects</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setInput('Buatkan modul Kaizen OTRS video analysis dengan deteksi motion dan grafik cycle-time')}
+              style={{ padding: '3px 8px', borderRadius: '6px', backgroundColor: '#0f172a', color: '#f8fafc', fontWeight: 700, border: 'none', cursor: 'pointer', fontSize: '0.68rem' }}
+            >
+              + Add reference
+            </button>
+          </div>
+        )}
+
         {/* Textarea + send - Compact Pro Bar */}
         <div style={{
           display: 'flex', flexDirection: 'column',
@@ -2350,9 +2591,9 @@ Apa yang bisa kamu bantu untuk widget ini?`;
               }
             }}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder={selectedWidget
+            placeholder={vibeEngineMode === 'sandpack' ? 'Ask Lovable...' : (selectedWidget
               ? `Tanya tentang "${selectedWidget.displayName || selectedWidget.type}"...`
-              : 'Deskripsikan apa yang ingin Anda buat...'}
+              : 'Deskripsikan apa yang ingin Anda buat...')}
             rows={1}
             style={{
               width: '100%', border: 'none', background: 'transparent',
@@ -2364,9 +2605,24 @@ Apa yang bisa kamu bantu untuk widget ini?`;
 
           {/* Horizontal Action Bar */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px', paddingTop: '4px', borderTop: '1px solid #f1f5f9' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept="image/*" />
               
+              {/* Plus Attachment Button (Lovable style) */}
+              <button
+                onClick={() => fileInputRef.current.click()}
+                title="Add attachment"
+                style={{
+                  backgroundColor: selectedFile ? '#e0e7ff' : '#f8fafc',
+                  color: selectedFile ? '#4f46e5' : '#64748b',
+                  border: '1px solid #e2e8f0', width: '26px', height: '26px', borderRadius: '50%',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', transition: 'all 0.15s',
+                }}
+              >
+                <Plus size={13} />
+              </button>
+
               {/* Speech to Text button */}
               {isSpeechSupported && (
                 <button
@@ -2393,23 +2649,6 @@ Apa yang bisa kamu bantu untuk widget ini?`;
                 </button>
               )}
 
-              {/* Upload image button */}
-              <button
-                onClick={() => fileInputRef.current.click()}
-                title="Upload gambar/mockup"
-                style={{
-                  backgroundColor: selectedFile ? '#e0e7ff' : 'transparent',
-                  color: selectedFile ? '#4f46e5' : '#94a3b8',
-                  border: 'none', width: '28px', height: '28px', borderRadius: '8px',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer', transition: 'all 0.15s',
-                }}
-                onMouseEnter={e => { if (!selectedFile) { e.currentTarget.style.backgroundColor = '#f1f5f9'; e.currentTarget.style.color = '#475569'; }}}
-                onMouseLeave={e => { if (!selectedFile) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#94a3b8'; }}}
-              >
-                <ImageIcon size={14} />
-              </button>
-
               {/* Direct to Antigravity IDE button */}
               <button
                 onClick={handleSendDirectToAntigravity}
@@ -2429,24 +2668,35 @@ Apa yang bisa kamu bantu untuk widget ini?`;
               </button>
             </div>
 
-            {/* Send Button */}
-            <button
-              onClick={() => handleSend()}
-              disabled={(!input.trim() && !selectedFile) || isLoading}
-              style={{
-                background: (input.trim() || selectedFile) && !isLoading
-                  ? 'linear-gradient(135deg, #6366f1, #3b82f6)'
-                  : '#f1f5f9',
-                color: (input.trim() || selectedFile) && !isLoading ? 'white' : '#94a3b8',
-                border: 'none', width: '30px', height: '30px', borderRadius: '9px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: (input.trim() || selectedFile) && !isLoading ? 'pointer' : 'default',
-                boxShadow: (input.trim() || selectedFile) && !isLoading ? '0 2px 8px rgba(99,102,241,0.35)' : 'none',
-                transition: 'all 0.2s',
-              }}
-            >
-              {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {/* Lovable Build mode pill */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '3px',
+                padding: '3px 8px', borderRadius: '8px',
+                backgroundColor: '#f8fafc', border: '1px solid #e2e8f0',
+                fontSize: '0.72rem', fontWeight: 700, color: '#334155'
+              }}>
+                <span>Build</span>
+                <ChevronDown size={11} color="#64748b" />
+              </div>
+
+              {/* Lovable Circular Send Button */}
+              <button
+                onClick={() => handleSend()}
+                disabled={(!input.trim() && !selectedFile) || isLoading}
+                style={{
+                  backgroundColor: (input.trim() || selectedFile) && !isLoading ? '#0f172a' : '#f1f5f9',
+                  color: (input.trim() || selectedFile) && !isLoading ? '#ffffff' : '#94a3b8',
+                  border: 'none', width: '30px', height: '30px', borderRadius: '50%',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: (input.trim() || selectedFile) && !isLoading ? 'pointer' : 'default',
+                  boxShadow: (input.trim() || selectedFile) && !isLoading ? '0 2px 6px rgba(15,23,42,0.25)' : 'none',
+                  transition: 'all 0.2s',
+                }}
+              >
+                {isLoading ? <Loader2 size={13} className="animate-spin" /> : <ArrowUp size={14} />}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -2458,6 +2708,30 @@ Apa yang bisa kamu bantu untuk widget ini?`;
           </span>
         </div>
       </div>
+      </div>
+      {/* End of Left Side Chat Column */}
+
+      {/* Right Side: Sandpack Live Vibe Viewer */}
+      {showSandpackDrawer && vibeEngineMode === 'sandpack' && (
+        <div style={{
+          flex: 1,
+          height: '100%',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          backgroundColor: '#020617',
+          borderLeft: '1px solid rgba(255, 255, 255, 0.1)'
+        }}>
+          <VibeSandpackViewer
+            code={sandpackCode}
+            onCodeChange={setSandpackCode}
+            isFullScreen={isFullScreen}
+            onToggleFullScreen={() => setIsFullScreen(v => !v)}
+          />
+        </div>
+      )}
+    </div>
+    {/* End of Main Split Area */}
     </div>
   );
 };

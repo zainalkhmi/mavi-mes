@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@blockly/field-colour": "^6.0.12",
+    "@codesandbox/sandpack-react": "^2.20.0",
     "@mlightcad/cad-agent-plugin": "^1.6.1",
     "@mlightcad/cad-html-plugin": "^1.6.1",
     "@mlightcad/cad-pdf-plugin": "^1.6.1",

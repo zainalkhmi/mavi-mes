@@ -40,6 +40,7 @@ import {
   getDrawingRelations, addChildDrawing, removeChildDrawing,
   getParts, getPart, createPart,
   getLimitSamples, createLimitSample, deleteLimitSample,
+  saveDrawingWithParametersToSupabase,
   generateCode
 } from '../utils/mavicorePLM';
 import { DEFECT_CATEGORIES, createDemoLimitSampleSvgs } from '../utils/limitSampleUtils';
@@ -458,6 +459,8 @@ export default function DrawingManagement() {
   // Blueprint Image & Visual Canvas State
   const [blueprintImage, setBlueprintImage] = useState(null);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
+  const [isSavingToSupabase, setIsSavingToSupabase] = useState(false);
+  const [lastCloudSyncTime, setLastCloudSyncTime] = useState(null);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -1417,6 +1420,57 @@ export default function DrawingManagement() {
     }
   };
 
+  // ─── Save Drawing & Parameters to Supabase Handler ───
+  const handleSaveToSupabase = async () => {
+    if (!selectedDrawing) {
+      toast.error('Pilih drawing terlebih dahulu untuk disimpan');
+      return;
+    }
+
+    setIsSavingToSupabase(true);
+    const toastId = toast.loading(`Menyimpan drawing ${selectedDrawing.code} & parameter ke Supabase...`);
+
+    try {
+      const cachedImage = localStorage.getItem(`mandor_drawing_image_${selectedDrawing.id}`);
+      const effectiveImage = blueprintImage || selectedRevision?.file_url || selectedDrawing.file_url || selectedDrawing.thumbnail_url || cachedImage || null;
+
+      const res = await saveDrawingWithParametersToSupabase({
+        drawing: selectedDrawing,
+        revision: selectedRevision,
+        balloons,
+        features,
+        part: selectedPart,
+        relations,
+        limitSamples,
+        blueprintImage: effectiveImage
+      });
+
+      if (res.success) {
+        setLastCloudSyncTime(res.timestamp || new Date().toISOString());
+        if (res.drawing) {
+          setSelectedDrawing(res.drawing);
+          setDrawings(prev => prev.map(d => d.id === res.drawing.id ? res.drawing : d));
+        }
+        if (res.fileUrl && !blueprintImage) {
+          setBlueprintImage(res.fileUrl);
+        }
+        await loadCheckSheetTemplates();
+
+        toast.success(
+          `✓ Berhasil! Drawing "${selectedDrawing.name}" beserta ${balloons.length} balon & ${features.length} parameter tersimpan di Supabase!`,
+          { id: toastId, duration: 4500 }
+        );
+      } else {
+        toast.error(`Gagal menyimpan: ${res.error || 'Unknown error'}`, { id: toastId });
+      }
+    } catch (err) {
+      console.error('[DrawingManagement] Save to Supabase error:', err);
+      toast.error(`Gagal menyimpan ke Supabase: ${err.message}`, { id: toastId });
+    } finally {
+      setIsSavingToSupabase(false);
+    }
+  };
+
   // ─── Direct Launch to Inspector Designer ───
   const handleOpenInInspector = async () => {
     if (!selectedDrawing) {
@@ -1770,11 +1824,25 @@ export default function DrawingManagement() {
                         <span>Balloons: <strong className="text-[#00A09D]">{balloons.length}</strong></span>
                         <span>•</span>
                         <span>File: <strong className="text-gray-700">{selectedDrawing.file_name || (blueprintImage ? 'Blueprint Dimuat' : 'Belum Ada File')}</strong></span>
+                        <span>•</span>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <CheckCircle2 size={10} className="text-emerald-600" />
+                          {lastCloudSyncTime ? 'Tersimpan di Supabase' : (selectedDrawing.metadata?.last_saved_to_supabase ? 'Tersimpan di Cloud' : 'Siap Disimpan')}
+                        </span>
                       </div>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleSaveToSupabase}
+                      disabled={isSavingToSupabase}
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#00A09D] hover:bg-[#008784] text-white text-xs font-bold rounded-md shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+                      title="Simpan Drawing, File Blueprint, Balon & Parameter ke Cloud Supabase"
+                    >
+                      <Save size={13} className={isSavingToSupabase ? 'animate-spin' : ''} />
+                      {isSavingToSupabase ? 'Menyimpan...' : 'Simpan ke Supabase'}
+                    </button>
                     <button
                       onClick={() => setShowPartModal(true)}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-gray-50 text-[#00A09D] border border-gray-300 text-xs font-semibold rounded-md shadow-2xs transition-all cursor-pointer"
@@ -1880,6 +1948,16 @@ export default function DrawingManagement() {
                         className="text-[11px] font-bold text-[#00A09D] hover:text-[#008784] px-2 py-1 rounded bg-teal-50 flex items-center gap-1 cursor-pointer"
                       >
                         <Upload size={12} /> Upload File
+                      </button>
+                      <div className="w-px h-4 bg-gray-200 mx-1" />
+                      <button
+                        onClick={handleSaveToSupabase}
+                        disabled={isSavingToSupabase}
+                        className="text-[11px] font-bold text-white bg-[#00A09D] hover:bg-[#008784] px-2.5 py-1 rounded flex items-center gap-1 cursor-pointer transition-all shadow-2xs disabled:opacity-50"
+                        title="Simpan Balon & Blueprint ke Supabase"
+                      >
+                        <Save size={12} className={isSavingToSupabase ? 'animate-spin' : ''} />
+                        {isSavingToSupabase ? 'Menyimpan...' : 'Simpan Supabase'}
                       </button>
                     </div>
 
