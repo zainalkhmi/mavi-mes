@@ -424,7 +424,7 @@ const AppBuilder = () => {
         }
     });
     const [isSandboxAiLoading, setIsSandboxAiLoading] = useState(false);
-    const [isSandboxFullScreen, setIsSandboxFullScreen] = useState(false);
+    const [isSandboxFullScreen, setIsSandboxFullScreen] = useState(true);
 
     const handleUpdateSandpackCode = (newCode) => {
         setSandpackCode(newCode);

@@ -52,405 +52,86 @@ import {
   extractTableSchemaFromCode
 } from '../../utils/vibeTableBridge';
 
-export const DEFAULT_VIBE_HMI_CODE = `import React, { useState, useEffect } from 'react';
-import { Activity, AlertTriangle, CheckCircle, Flame, Gauge, Power, RefreshCw, ShieldAlert, Cpu, Layers, BarChart2 } from 'lucide-react';
+export const DEFAULT_VIBE_HMI_CODE = `import React, { useState } from 'react';
+import { 
+  IonApp, IonHeader, IonToolbar, IonTitle, IonContent, 
+  IonCard, IonCardHeader, IonCardTitle, IonCardContent,
+  IonButton, IonIcon, IonGrid, IonRow, IonCol,
+  setupIonicReact 
+} from '@ionic/react';
+import { addCircleOutline, warningOutline, constructOutline } from 'ionicons/icons';
 
-export default function IndustrialHMI() {
-  const [running, setRunning] = useState(true);
-  const [temperature, setTemperature] = useState(72);
-  const [pressure, setPressure] = useState(4.2);
-  const [partsPassed, setPartsPassed] = useState(842);
-  const [partsRejected, setPartsRejected] = useState(14);
-  const [alert, setAlert] = useState(null);
+// Core CSS required for Ionic components to work properly
+import '@ionic/react/css/core.css';
+import '@ionic/react/css/normalize.css';
+import '@ionic/react/css/structure.css';
+import '@ionic/react/css/typography.css';
 
-  // Live industrial telemetry simulation
-  useEffect(() => {
-    if (!running) return;
-    const interval = setInterval(() => {
-      setTemperature(t => {
-        const next = Math.round(t + (Math.random() * 4 - 2));
-        if (next > 84) setAlert('OVERHEAT ALERT: Suhu hidrolik melebihi batas aman (84°C)!');
-        else if (next < 80) setAlert(null);
-        return Math.max(50, Math.min(95, next));
-      });
-      setPressure(p => parseFloat((p + (Math.random() * 0.2 - 0.1)).toFixed(2)));
-      if (Math.random() > 0.4) {
-        setPartsPassed(c => c + 1);
-      }
-    }, 1200);
-    return () => clearInterval(interval);
-  }, [running]);
+setupIonicReact();
 
-  const handleInspectPass = () => {
-    setPartsPassed(c => c + 1);
-    try {
-      if (typeof window !== 'undefined' && window.parent) {
-        window.parent.postMessage({
-          type: 'MAVICORE_TABLE_INSERT',
-          tableName: 'Stasiun Stamping Press 04',
-          data: {
-            workOrder: 'WO-2026-STAMP-890',
-            operator: 'Rian Kurniawan',
-            temperature,
-            pressure,
-            status: 'OK',
-            timestamp: new Date().toISOString()
-          }
-        }, '*');
-      }
-    } catch (_) {}
+export default function IndustrialApp() {
+  const [productionCount, setProductionCount] = useState(1452);
+  const [rejectCount, setRejectCount] = useState(12);
+
+  const handleLogProduction = () => {
+    setProductionCount(prev => prev + 1);
   };
 
-  const handleInspectReject = () => {
-    setPartsRejected(c => c + 1);
-    try {
-      if (typeof window !== 'undefined' && window.parent) {
-        window.parent.postMessage({
-          type: 'MAVICORE_TABLE_INSERT',
-          tableName: 'Stasiun Stamping Press 04',
-          data: {
-            workOrder: 'WO-2026-STAMP-890',
-            operator: 'Rian Kurniawan',
-            temperature,
-            pressure,
-            status: 'NG',
-            timestamp: new Date().toISOString()
-          }
-        }, '*');
-      }
-    } catch (_) {}
+  const handleLogReject = () => {
+    setRejectCount(prev => prev + 1);
   };
-
-  const total = partsPassed + partsRejected;
-  const yieldRate = total > 0 ? ((partsPassed / total) * 100).toFixed(1) : 100;
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      backgroundColor: '#030712',
-      color: '#f8fafc',
-      fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
-      padding: '24px',
-      boxSizing: 'border-box'
-    }}>
-      {/* Top Header Bar */}
-      <header style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '16px',
-        paddingBottom: '20px',
-        borderBottom: '1px solid #1f2937'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{
-            width: '44px',
-            height: '44px',
-            borderRadius: '12px',
-            background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.2) 0%, rgba(99, 102, 241, 0.2) 100%)',
-            border: '1px solid rgba(56, 189, 248, 0.4)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#38bdf8'
-          }}>
-            <Cpu size={24} />
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, letterSpacing: '-0.025em', color: '#ffffff' }}>
-                STASIUN STAMPING PRESS 04
-              </h1>
-              <span style={{
-                fontSize: '0.65rem',
-                fontWeight: 800,
-                letterSpacing: '0.05em',
-                padding: '3px 10px',
-                borderRadius: '9999px',
-                backgroundColor: running ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                color: running ? '#34d399' : '#f87171',
-                border: running ? '1px solid rgba(52, 211, 153, 0.3)' : '1px solid rgba(248, 113, 113, 0.3)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px'
-              }}>
-                <span style={{
-                  width: '6px',
-                  height: '6px',
-                  borderRadius: '50%',
-                  backgroundColor: running ? '#10b981' : '#ef4444',
-                  boxShadow: running ? '0 0 8px #10b981' : 'none'
-                }} />
-                {running ? 'LIVE OPERATING' : 'STANDBY'}
-              </span>
-            </div>
-            <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: '#9ca3af' }}>
-              Work Order: <strong style={{ color: '#e5e7eb' }}>#WO-2026-STAMP-890</strong> • Operator: <strong style={{ color: '#38bdf8' }}>Rian Kurniawan</strong> • Line: Press 2
-            </p>
-          </div>
+    <IonApp>
+      <IonHeader>
+        <IonToolbar color="dark">
+          <IonTitle>Stasiun Assembly A1</IonTitle>
+        </IonToolbar>
+      </IonHeader>
+      <IonContent className="ion-padding" style={{ '--background': '#f4f5f8' }}>
+        
+        <div style={{ padding: '10px 0', textAlign: 'center', color: '#666' }}>
+          <h4>Status Lini: Aktif <IonIcon icon={constructOutline} /></h4>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <button
-            onClick={() => setRunning(!running)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '10px 18px',
-              borderRadius: '10px',
-              fontSize: '0.78rem',
-              fontWeight: 800,
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              border: running ? '1px solid rgba(244, 63, 94, 0.4)' : 'none',
-              background: running
-                ? 'rgba(225, 29, 72, 0.15)'
-                : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-              color: running ? '#fda4af' : '#ffffff',
-              boxShadow: running ? 'none' : '0 4px 16px rgba(16, 185, 129, 0.35)'
-            }}
-          >
-            <Power size={15} />
-            {running ? 'Hentikan Mesin' : 'Nyalakan Mesin'}
-          </button>
-        </div>
-      </header>
+        <IonGrid>
+          <IonRow>
+            {/* Kartu Produksi OK */}
+            <IonCol size="12" sizeMd="6">
+              <IonCard color="success">
+                <IonCardHeader>
+                  <IonCardTitle>Produksi Sesuai (OK)</IonCardTitle>
+                </IonCardHeader>
+                <IonCardContent>
+                  <h1 style={{ fontSize: '3rem', margin: '10px 0' }}>{productionCount}</h1>
+                  <IonButton fill="solid" color="light" onClick={handleLogProduction}>
+                    <IonIcon slot="start" icon={addCircleOutline} />
+                    Catat Part OK
+                  </IonButton>
+                </IonCardContent>
+              </IonCard>
+            </IonCol>
 
-      {/* Alert Banner */}
-      {alert && (
-        <div style={{
-          marginTop: '16px',
-          padding: '12px 16px',
-          backgroundColor: 'rgba(136, 19, 55, 0.35)',
-          border: '1px solid #f43f5e',
-          borderRadius: '12px',
-          color: '#fecdd3',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          fontSize: '0.8rem',
-          fontWeight: 700
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <AlertTriangle size={18} color="#fb7185" />
-            <span>{alert}</span>
-          </div>
-          <button
-            onClick={() => setAlert(null)}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#fda4af',
-              textDecoration: 'underline',
-              fontSize: '0.75rem',
-              cursor: 'pointer',
-              fontWeight: 800
-            }}
-          >
-            Acknowledge
-          </button>
-        </div>
-      )}
+            {/* Kartu Defect / NG */}
+            <IonCol size="12" sizeMd="6">
+              <IonCard color="danger">
+                <IonCardHeader>
+                  <IonCardTitle>Produksi Cacat (NG)</IonCardTitle>
+                </IonCardHeader>
+                <IonCardContent>
+                  <h1 style={{ fontSize: '3rem', margin: '10px 0' }}>{rejectCount}</h1>
+                  <IonButton fill="solid" color="light" onClick={handleLogReject}>
+                    <IonIcon slot="start" icon={warningOutline} />
+                    Catat NG
+                  </IonButton>
+                </IonCardContent>
+              </IonCard>
+            </IonCol>
+          </IonRow>
+        </IonGrid>
 
-      {/* Telemetry KPI Cards Grid */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-        gap: '16px',
-        marginTop: '20px'
-      }}>
-        {/* Temperature Card */}
-        <div style={{
-          padding: '18px',
-          backgroundColor: '#0f172a',
-          borderRadius: '14px',
-          border: '1px solid #1e293b',
-          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 700 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Flame size={15} color="#f59e0b" /> Suhu Hidrolik
-            </span>
-            <span style={{ fontSize: '0.68rem', color: '#64748b' }}>Max 85°C</span>
-          </div>
-          <div style={{ marginTop: '10px', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-            <span style={{
-              fontSize: '2.2rem',
-              fontWeight: 900,
-              letterSpacing: '-0.03em',
-              color: temperature > 80 ? '#f43f5e' : '#fbbf24'
-            }}>
-              {temperature}
-            </span>
-            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#64748b' }}>°C</span>
-          </div>
-          <div style={{ width: '100%', height: '6px', backgroundColor: '#1e293b', borderRadius: '9999px', marginTop: '14px', overflow: 'hidden' }}>
-            <div style={{
-              height: '100%',
-              width: \`\${Math.min(100, (temperature / 100) * 100)}%\`,
-              backgroundColor: temperature > 80 ? '#f43f5e' : '#f59e0b',
-              transition: 'all 0.5s ease-out'
-            }} />
-          </div>
-        </div>
-
-        {/* Pressure Card */}
-        <div style={{
-          padding: '18px',
-          backgroundColor: '#0f172a',
-          borderRadius: '14px',
-          border: '1px solid #1e293b',
-          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 700 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Gauge size={15} color="#38bdf8" /> Tekanan Utama
-            </span>
-            <span style={{ fontSize: '0.68rem', color: '#64748b' }}>Nominal 4.0 Bar</span>
-          </div>
-          <div style={{ marginTop: '10px', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-            <span style={{ fontSize: '2.2rem', fontWeight: 900, letterSpacing: '-0.03em', color: '#38bdf8' }}>
-              {pressure}
-            </span>
-            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#64748b' }}>BAR</span>
-          </div>
-          <div style={{ width: '100%', height: '6px', backgroundColor: '#1e293b', borderRadius: '9999px', marginTop: '14px', overflow: 'hidden' }}>
-            <div style={{
-              height: '100%',
-              width: \`\${Math.min(100, (pressure / 6) * 100)}%\`,
-              backgroundColor: '#0284c7',
-              transition: 'all 0.5s ease-out'
-            }} />
-          </div>
-        </div>
-
-        {/* Parts Passed (OK) */}
-        <div style={{
-          padding: '18px',
-          backgroundColor: '#0f172a',
-          borderRadius: '14px',
-          border: '1px solid #1e293b',
-          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 700 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <CheckCircle size={15} color="#34d399" /> Part Sesuai (OK)
-            </span>
-            <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#34d399', background: 'rgba(16, 185, 129, 0.1)', padding: '2px 6px', borderRadius: '6px' }}>
-              {yieldRate}% Yield
-            </span>
-          </div>
-          <div style={{ marginTop: '10px', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-            <span style={{ fontSize: '2.2rem', fontWeight: 900, letterSpacing: '-0.03em', color: '#34d399' }}>
-              {partsPassed}
-            </span>
-            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#64748b' }}>PCS</span>
-          </div>
-          <button
-            onClick={handleInspectPass}
-            style={{
-              width: '100%',
-              marginTop: '12px',
-              padding: '8px 12px',
-              backgroundColor: 'rgba(16, 185, 129, 0.15)',
-              border: '1px solid rgba(52, 211, 153, 0.3)',
-              color: '#34d399',
-              borderRadius: '8px',
-              fontSize: '0.75rem',
-              fontWeight: 800,
-              cursor: 'pointer',
-              transition: 'all 0.15s'
-            }}
-          >
-            + Catat Part OK
-          </button>
-        </div>
-
-        {/* Parts Rejected (NG) */}
-        <div style={{
-          padding: '18px',
-          backgroundColor: '#0f172a',
-          borderRadius: '14px',
-          border: '1px solid #1e293b',
-          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 700 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <ShieldAlert size={15} color="#fb7185" /> Part Cacat (NG)
-            </span>
-            <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#fb7185', background: 'rgba(244, 63, 94, 0.1)', padding: '2px 6px', borderRadius: '6px' }}>
-              {total > 0 ? ((partsRejected / total) * 100).toFixed(1) : 0}% Defect
-            </span>
-          </div>
-          <div style={{ marginTop: '10px', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-            <span style={{ fontSize: '2.2rem', fontWeight: 900, letterSpacing: '-0.03em', color: '#fb7185' }}>
-              {partsRejected}
-            </span>
-            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#64748b' }}>PCS</span>
-          </div>
-          <button
-            onClick={handleInspectReject}
-            style={{
-              width: '100%',
-              marginTop: '12px',
-              padding: '8px 12px',
-              backgroundColor: 'rgba(225, 29, 72, 0.15)',
-              border: '1px solid rgba(251, 113, 133, 0.3)',
-              color: '#fda4af',
-              borderRadius: '8px',
-              fontSize: '0.75rem',
-              fontWeight: 800,
-              cursor: 'pointer',
-              transition: 'all 0.15s'
-            }}
-          >
-            + Catat NG (Defect)
-          </button>
-        </div>
-      </div>
-
-      {/* Production Telemetry Footer Card */}
-      <div style={{
-        marginTop: '20px',
-        padding: '16px 20px',
-        backgroundColor: '#0f172a',
-        borderRadius: '14px',
-        border: '1px solid #1e293b'
-      }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          paddingBottom: '12px',
-          borderBottom: '1px solid #1e293b',
-          fontSize: '0.75rem',
-          fontWeight: 800,
-          color: '#cbd5e1'
-        }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Activity size={16} color="#38bdf8" /> Real-Time Telemetry & Line Status
-          </span>
-          <span style={{ color: '#64748b' }}>Shift Target: 1,200 PCS</span>
-        </div>
-        <div style={{
-          marginTop: '12px',
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          gap: '20px',
-          fontSize: '0.75rem',
-          color: '#94a3b8'
-        }}>
-          <div>Pencapaian Target: <strong style={{ color: '#ffffff' }}>{((partsPassed / 1200) * 100).toFixed(1)}%</strong></div>
-          <div style={{ color: '#334155' }}>•</div>
-          <div>Cycle Time: <strong style={{ color: '#38bdf8' }}>1.8 Detik / Stroke</strong></div>
-          <div style={{ color: '#334155' }}>•</div>
-          <div>Koneksi PLC: <strong style={{ color: '#34d399' }}>● OPC-UA Online (2ms latency)</strong></div>
-        </div>
-      </div>
-    </div>
+      </IonContent>
+    </IonApp>
   );
 }
 `;
@@ -471,6 +152,8 @@ export default function VibeSandpackViewer({
   const [connectedTable, setConnectedTable] = useState(null);
   const [isSyncingTable, setIsSyncingTable] = useState(false);
   const [liveRecordCount, setLiveRecordCount] = useState(0);
+  const [isFullScreenLocal, setIsFullScreenLocal] = useState(false);
+  const containerRef = useRef(null);
   const [inlinePrompt, setInlinePrompt] = useState('');
   const [isChatPanelOpen, setIsChatPanelOpen] = useState(true);
   const [chatHistory, setChatHistory] = useState([]);
@@ -643,103 +326,97 @@ button {
 
   return (
     <div className="w-full h-full flex flex-col bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl">
-      {/* LOVABLE.DEV ULTRA-PRO TOP NAVBAR */}
-      <div className="flex items-center justify-between px-4 py-2 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 text-slate-300 select-none gap-2">
-        {/* Left: Lovable Branding & Branch */}
-        <div className="flex items-center gap-2.5 shrink-0">
-          {/* Lovable Gradient Flame Icon */}
-          <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-rose-500 via-amber-500 to-violet-500 flex items-center justify-center text-white shadow-sm shadow-rose-500/20">
-            <Sparkles size={13} className="text-white" />
+      {/* TOP NAVBAR - Inline styled for guaranteed visibility */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '8px 16px', backgroundColor: 'rgba(15, 23, 42, 0.95)',
+        backdropFilter: 'blur(12px)', borderBottom: '1px solid #1e293b',
+        color: '#cbd5e1', userSelect: 'none', gap: '8px', flexShrink: 0
+      }}>
+        {/* Left: Branding */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+          <div style={{
+            width: '24px', height: '24px', borderRadius: '8px',
+            background: 'linear-gradient(135deg, #f43f5e, #f59e0b, #8b5cf6)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}>
+            <Sparkles size={13} color="#fff" />
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="font-bold text-white text-sm tracking-tight">{deployedApp?.name || 'Kaizen Vision'}</span>
-            <button
-              type="button"
-              className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700/60 transition-colors"
-              title="Branch: main"
-            >
-              <span>main</span>
-              <ChevronDown size={11} className="text-slate-400" />
-            </button>
-          </div>
-          <div className="flex items-center gap-0.5 text-slate-500">
-            <button type="button" className="p-1 hover:text-slate-200 rounded transition-colors" title="Revision History">
-              <RotateCcw size={13} />
-            </button>
-            <button type="button" className="p-1 hover:text-slate-200 rounded transition-colors" title="Toggle Layout">
-              <Columns size={13} />
-            </button>
-          </div>
+          <span style={{ fontWeight: 700, color: '#fff', fontSize: '0.875rem' }}>{deployedApp?.name || 'Kaizen Vision'}</span>
+          <button type="button" style={{
+            display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 8px',
+            borderRadius: '6px', backgroundColor: '#1e293b', border: '1px solid rgba(51,65,85,0.6)',
+            color: '#cbd5e1', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer'
+          }} title="Branch: main">
+            <span>main</span>
+            <ChevronDown size={11} color="#94a3b8" />
+          </button>
         </div>
 
-        {/* Center: Lovable Segmented Pills & Device Controls */}
-        <div className="flex items-center gap-2">
-          {/* Main Segmented Mode Pills */}
-          <div className="flex items-center bg-slate-950 p-0.5 rounded-xl border border-slate-800">
-            <button
-              type="button"
-              onClick={() => setViewMode('preview')}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                viewMode === 'preview'
-                  ? 'bg-sky-500/20 text-sky-400 border border-sky-500/40 shadow-sm'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Globe size={13} />
-              <span>Preview</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('code')}
-              className={`p-1.5 rounded-lg text-xs transition-all cursor-pointer ${
-                viewMode === 'code' ? 'bg-slate-800 text-white font-bold' : 'text-slate-400 hover:text-white'
-              }`}
-              title="Code Editor"
-            >
-              <Code size={13} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('split')}
-              className={`p-1.5 rounded-lg text-xs transition-all cursor-pointer ${
-                viewMode === 'split' ? 'bg-slate-800 text-white font-bold' : 'text-slate-400 hover:text-white'
-              }`}
-              title="Split View"
-            >
-              <Columns size={13} />
-            </button>
+        {/* Center: View Mode + Device + Reload */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+
+          {/* View Mode Switcher: Preview / Code / Split */}
+          <div style={{
+            display: 'flex', alignItems: 'center', backgroundColor: '#020617',
+            padding: '3px', borderRadius: '12px', border: '1px solid #1e293b'
+          }}>
+            {[
+              { key: 'preview', label: 'Preview', icon: <Globe size={13} /> },
+              { key: 'code', label: 'Code', icon: <Code size={13} /> },
+              { key: 'split', label: 'Split', icon: <Columns size={13} /> },
+            ].map(item => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setViewMode(item.key)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  padding: '5px 12px', borderRadius: '9px', fontSize: '0.75rem',
+                  fontWeight: viewMode === item.key ? 700 : 500, cursor: 'pointer',
+                  border: viewMode === item.key ? '1px solid rgba(14,165,233,0.4)' : '1px solid transparent',
+                  backgroundColor: viewMode === item.key ? 'rgba(14,165,233,0.15)' : 'transparent',
+                  color: viewMode === item.key ? '#38bdf8' : '#94a3b8',
+                  transition: 'all 0.15s'
+                }}
+                title={item.label}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+              </button>
+            ))}
           </div>
 
-          {/* Device Switcher (Desktop, Tablet, Mobile) */}
-          <div className="hidden sm:flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-xs">
-            <button
-              type="button"
-              onClick={() => setViewportSize('desktop')}
-              className={`p-1.5 rounded transition-all cursor-pointer ${viewportSize === 'desktop' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'}`}
-              title="Desktop View"
-            >
-              <Monitor size={13} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewportSize('tablet')}
-              className={`p-1.5 rounded transition-all cursor-pointer ${viewportSize === 'tablet' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'}`}
-              title="Tablet View"
-            >
-              <Tablet size={13} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewportSize('mobile')}
-              className={`p-1.5 rounded transition-all cursor-pointer ${viewportSize === 'mobile' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'}`}
-              title="Mobile View"
-            >
-              <Smartphone size={13} />
-            </button>
+          {/* Device Switcher: Desktop / Tablet / Mobile */}
+          <div style={{
+            display: 'flex', alignItems: 'center', backgroundColor: '#020617',
+            padding: '3px', borderRadius: '8px', border: '1px solid #1e293b'
+          }}>
+            {[
+              { key: 'desktop', icon: <Monitor size={14} />, label: 'Desktop' },
+              { key: 'tablet', icon: <Tablet size={14} />, label: 'Tablet' },
+              { key: 'mobile', icon: <Smartphone size={14} />, label: 'Mobile' },
+            ].map(item => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setViewportSize(item.key)}
+                style={{
+                  padding: '5px 8px', borderRadius: '6px', cursor: 'pointer',
+                  border: 'none',
+                  backgroundColor: viewportSize === item.key ? '#1e293b' : 'transparent',
+                  color: viewportSize === item.key ? '#fff' : '#64748b',
+                  transition: 'all 0.15s', display: 'flex', alignItems: 'center'
+                }}
+                title={`${item.label} View`}
+              >
+                {item.icon}
+              </button>
+            ))}
           </div>
 
-          {/* Route Selector Dropdown & Reload */}
-          <div className="hidden md:flex items-center gap-1">
+          {/* Reload + Route */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <button
               type="button"
               onClick={() => {
@@ -747,63 +424,83 @@ button {
                 if (ifr && ifr.contentWindow) ifr.contentWindow.location.reload();
                 else toast.success('Reloaded preview');
               }}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+              style={{
+                padding: '5px', color: '#94a3b8', background: 'none', border: 'none',
+                borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center'
+              }}
               title="Reload Preview"
             >
-              <RotateCw size={13} />
+              <RotateCw size={14} />
             </button>
-            <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-950 border border-slate-800 rounded-lg text-xs font-medium text-slate-300">
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 12px',
+              backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '8px',
+              fontSize: '0.75rem', fontWeight: 500, color: '#cbd5e1'
+            }}>
               <span>Homepage</span>
-              <ChevronDown size={11} className="text-slate-500" />
+              <ChevronDown size={11} color="#64748b" />
             </div>
             {onToggleFullScreen && (
               <button
                 type="button"
                 onClick={onToggleFullScreen}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
-                title={isFullScreen ? 'Exit Full Screen' : 'Open in New Screen'}
+                style={{
+                  padding: '5px', color: '#94a3b8', background: 'none', border: 'none',
+                  borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center'
+                }}
+                title={isFullScreen ? 'Exit Full Screen' : 'Full Screen'}
               >
-                <ExternalLink size={13} />
+                {isFullScreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
               </button>
             )}
           </div>
         </div>
 
-        {/* Right: Lovable Action Buttons */}
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Share Pill */}
+        {/* Right: Action Buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
           <button
             type="button"
             onClick={handleCopyCode}
-            className="px-3.5 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
-            title="Share or Copy React Code"
+            style={{
+              padding: '5px 14px', borderRadius: '9999px', backgroundColor: '#1e293b',
+              border: '1px solid #334155', color: '#e2e8f0', fontSize: '0.75rem',
+              fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px',
+              cursor: 'pointer', transition: 'all 0.15s'
+            }}
+            title="Copy Code"
           >
-            {copied ? <Check size={12} className="text-emerald-400" /> : null}
+            {copied ? <Check size={12} color="#34d399" /> : null}
             <span>Share</span>
           </button>
 
-          {/* Connect DB Pill (Purple) */}
           <button
             type="button"
             onClick={handleSyncTable}
             disabled={isSyncingTable}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm ${
-              connectedTable
-                ? 'bg-purple-600/20 text-purple-300 border border-purple-500/40 hover:bg-purple-600/30'
-                : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-900/30'
-            }`}
-            title="Connect MaviCore Database Table"
+            style={{
+              padding: '5px 14px', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 700,
+              display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer',
+              transition: 'all 0.15s',
+              backgroundColor: connectedTable ? 'rgba(147,51,234,0.15)' : '#9333ea',
+              color: connectedTable ? '#c4b5fd' : '#fff',
+              border: connectedTable ? '1px solid rgba(147,51,234,0.4)' : 'none',
+            }}
+            title="Connect MaviCore Database"
           >
             <Database size={12} className={isSyncingTable ? 'animate-spin' : ''} />
-            <span>{connectedTable ? `${connectedTable.name}` : 'Connect DB'}</span>
+            <span>{connectedTable ? connectedTable.name : 'Connect DB'}</span>
           </button>
 
-          {/* Iconic Lovable Blue Publish Pill */}
           <button
             type="button"
             onClick={handleOpenDeployModal}
-            className="px-4 py-1.5 rounded-full bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-bold shadow-md shadow-blue-900/30 flex items-center gap-1.5 transition-all cursor-pointer hover:scale-105 active:scale-95"
-            title="Publish to MaviCore Shop Floor Stations"
+            style={{
+              padding: '5px 16px', borderRadius: '9999px', backgroundColor: '#2563eb',
+              color: '#fff', fontSize: '0.75rem', fontWeight: 700, border: 'none',
+              display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(37,99,235,0.3)', transition: 'all 0.15s'
+            }}
+            title="Publish"
           >
             <Rocket size={12} />
             <span>{deployedApp ? 'Published' : 'Publish'}</span>
@@ -813,7 +510,11 @@ button {
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 ml-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition-colors cursor-pointer"
+              style={{
+                padding: '4px', marginLeft: '4px', color: '#94a3b8', background: 'none',
+                border: 'none', borderRadius: '9999px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center'
+              }}
               title="Tutup Sandbox"
             >
               <X size={16} />
@@ -1223,6 +924,8 @@ button {
               files={files}
               customSetup={{
                 dependencies: {
+                  '@ionic/react': '^7.0.0',
+                  'ionicons': '^7.0.0',
                   'lucide-react': 'latest',
                   'recharts': 'latest'
                 }
