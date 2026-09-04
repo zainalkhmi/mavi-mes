@@ -74,14 +74,201 @@ import AiChangesReviewModal from '../../vibe/components/AiChangesReviewModal';
 import ManufacturingTemplatesModal from '../../vibe/components/ManufacturingTemplatesModal';
 import BuildModal from '../../vibe/components/BuildModal';
 
-export const DEFAULT_VIBE_HMI_CODE = `import React, { useState } from 'react';
+// ═══════════════════════════════════════════════════════════════════
+// 🔌 MaviCore Real-time Data Bridge Helper
+// ═══════════════════════════════════════════════════════════════════
+// This code will be INJECTED into the Vibe sandbox template
+
+export const MAVICORE_BRIDGE_CODE = `
+// MaviCore Table Bridge - Real-time Data Sync
+// Auto-injected into every Vibe app
+// Supports: INSERT, READ, UPDATE, DELETE, SUBSCRIBE
+
+const MaviCoreBridge = {
+  // ─── INSERT: Save data to MaviCore table ───
+  save: (tableName, data) => {
+    const payload = {
+      type: 'MAVICORE_TABLE_INSERT',
+      tableName: tableName,
+      data: {
+        timestamp: new Date().toISOString(),
+        ...data
+      }
+    };
+
+    // Send to parent (MaviCore app)
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage(payload, '*');
+    }
+
+    // Also dispatch for standalone mode
+    window.dispatchEvent(new CustomEvent('mavicore_save', { detail: payload }));
+    console.log('[MaviCore] 📊 Record saved to', tableName, data);
+    return true;
+  },
+
+  // ─── READ: Fetch records from MaviCore table ───
+  read: async (tableName) => {
+    return new Promise((resolve, reject) => {
+      const payload = {
+        type: 'MAVICORE_TABLE_READ',
+        tableName: tableName
+      };
+
+      // Send to parent
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage(payload, '*');
+      }
+
+      // Listen for response
+      const handler = (event) => {
+        if (event.data?.type === 'MAVICORE_TABLE_READ_RESPONSE' &&
+            event.data?.tableName === tableName) {
+          window.removeEventListener('message', handler);
+          resolve(event.data.records || []);
+        }
+      };
+
+      window.addEventListener('message', handler);
+
+      // Timeout fallback
+      setTimeout(() => {
+        window.removeEventListener('message', handler);
+        resolve([]);
+      }, 3000);
+    });
+  },
+
+  // ─── UPDATE: Update a record in MaviCore table ───
+  update: (tableName, recordId, data) => {
+    const payload = {
+      type: 'MAVICORE_TABLE_UPDATE',
+      tableName: tableName,
+      recordId: recordId,
+      data: {
+        updatedAt: new Date().toISOString(),
+        ...data
+      }
+    };
+
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage(payload, '*');
+    }
+
+    window.dispatchEvent(new CustomEvent('mavicore_update', { detail: payload }));
+    console.log('[MaviCore] ✏️ Record updated in', tableName, { recordId, data });
+    return true;
+  },
+
+  // ─── DELETE: Delete a record from MaviCore table ───
+  delete: (tableName, recordId) => {
+    const payload = {
+      type: 'MAVICORE_TABLE_DELETE',
+      tableName: tableName,
+      recordId: recordId
+    };
+
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage(payload, '*');
+    }
+
+    window.dispatchEvent(new CustomEvent('mavicore_delete', { detail: payload }));
+    console.log('[MaviCore] 🗑️ Record deleted from', tableName, { recordId });
+    return true;
+  },
+
+  // ─── LISTEN: Subscribe to real-time updates ───
+  onRecord: (tableName, callback) => {
+    const handler = (event) => {
+      if (event.data?.type === 'MAVICORE_RECORD_SAVED' &&
+          event.data?.table === tableName) {
+        callback(event.data.record);
+      }
+    };
+
+    window.addEventListener('message', handler);
+
+    // Also listen for local events
+    const localHandler = (e) => {
+      if (e.detail?.tableName === tableName) {
+        callback(e.detail.data);
+      }
+    };
+    window.addEventListener('mavicore_save', localHandler);
+
+    // Return cleanup function
+    return () => {
+      window.removeEventListener('message', handler);
+      window.removeEventListener('mavicore_save', localHandler);
+    };
+  },
+
+  // ─── CREATE TABLE: Create a new table ───
+  createTable: (tableName, fields) => {
+    const payload = {
+      type: 'MAVICORE_TABLE_CREATE',
+      tableName: tableName,
+      fields: fields || []
+    };
+
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage(payload, '*');
+    }
+
+    window.dispatchEvent(new CustomEvent('mavicore_create_table', { detail: payload }));
+    console.log('[MaviCore] 🆕 Table created:', tableName, fields);
+    return true;
+  }
+};
+
+// Expose globally
+window.MaviCoreBridge = MaviCoreBridge;
+console.log('[MaviCore] 🔌 Real-time data bridge ready - CRUD operations enabled');
+`;
+
+// Default table name for the template
+export const DEFAULT_TABLE_NAME = 'Stasiun Assembly A1 Log';
+
+export const DEFAULT_VIBE_HMI_CODE = `import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity, CheckCircle2, XCircle, TrendingUp, Users, Settings,
-  Bell, ChevronRight, Play, Pause, RotateCcw, Zap, Factory
+  Bell, ChevronRight, Play, Pause, RotateCcw, Zap, Factory, RefreshCw
 } from 'lucide-react';
 
-// Tailwind CSS
+// ─── Inject MaviCore Bridge ───
+${MAVICORE_BRIDGE_CODE}
+
+// ─── Custom Hook for Real-time Data ───
+function useMaviCoreData(tableName) {
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // Initial load
+    const loadData = async () => {
+      if (window.MaviCoreBridge) {
+        setLoading(true);
+        const data = await window.MaviCoreBridge.read(tableName);
+        setRecords(data);
+        setLoading(false);
+      }
+    };
+    loadData();
+
+    // Subscribe to real-time updates
+    if (window.MaviCoreBridge) {
+      const cleanup = window.MaviCoreBridge.onRecord(tableName, (newRecord) => {
+        setRecords(prev => [newRecord, ...prev]);
+      });
+      return cleanup;
+    }
+  }, [tableName]);
+
+  return { records, loading };
+}
+
+// ─── Tailwind CSS Styles ───
 const styles = \`
 @import url('https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css');
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
@@ -135,20 +322,69 @@ body {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin { animation: spin 1s linear infinite; }
 \`;
+
+const TABLE_NAME = '${DEFAULT_TABLE_NAME}';
 
 export default function IndustrialDashboard() {
   const [productionCount, setProductionCount] = useState(1452);
   const [rejectCount, setRejectCount] = useState(12);
   const [isRunning, setIsRunning] = useState(true);
   const [selectedTab, setSelectedTab] = useState('overview');
+  const [lastSync, setLastSync] = useState(null);
+
+  // ─── Real-time Data Hook ───
+  const { records: productionLogs, loading: isLoadingLogs } = useMaviCoreData(TABLE_NAME);
+
+  // Update counts from real data when available
+  useEffect(() => {
+    if (productionLogs.length > 0) {
+      const okCount = productionLogs.filter(r => r.type === 'OK' || r.status === 'OK').length;
+      const ngCount = productionLogs.filter(r => r.type === 'NG' || r.status === 'NG').length;
+      if (okCount > 0) setProductionCount(prev => Math.max(prev, okCount));
+      if (ngCount > 0) setRejectCount(prev => Math.max(prev, ngCount));
+    }
+  }, [productionLogs]);
 
   const handleLogProduction = () => {
-    setProductionCount(prev => prev + 1);
+    const newCount = productionCount + 1;
+    setProductionCount(newCount);
+    setLastSync(new Date());
+
+    // ─── SAVE TO MAVICORE TABLE ───
+    if (window.MaviCoreBridge) {
+      window.MaviCoreBridge.save(TABLE_NAME, {
+        type: 'OK',
+        status: 'PASS',
+        total: newCount,
+        station: 'Assembly A1',
+        operator: 'Auto Logged'
+      });
+    }
   };
 
   const handleLogReject = () => {
-    setRejectCount(prev => prev + 1);
+    const newCount = rejectCount + 1;
+    setRejectCount(newCount);
+    setLastSync(new Date());
+
+    // ─── SAVE TO MAVICORE TABLE ───
+    if (window.MaviCoreBridge) {
+      window.MaviCoreBridge.save(TABLE_NAME, {
+        type: 'NG',
+        status: 'FAIL',
+        total: newCount,
+        station: 'Assembly A1',
+        operator: 'Auto Logged'
+      });
+    }
   };
 
   const efficiency = ((productionCount / (productionCount + rejectCount)) * 100).toFixed(1);
@@ -182,6 +418,18 @@ export default function IndustrialDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {/* Sync Status */}
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
+              <span className={\`w-2 h-2 rounded-full \${isLoadingLogs ? 'bg-yellow-500 animate-spin' : 'bg-green-500'}\`} />
+              <span className="text-xs text-gray-400">
+                {isLoadingLogs ? 'Syncing...' : lastSync ? 'Synced' : 'Ready'}
+              </span>
+              {lastSync && (
+                <span className="text-xs text-gray-500">
+                  {lastSync.toLocaleTimeString()}
+                </span>
+              )}
+            </div>
             <button className="p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition">
               <Bell className="w-5 h-5 text-gray-400" />
             </button>
@@ -299,6 +547,45 @@ export default function IndustrialDashboard() {
           </motion.div>
         </div>
 
+        {/* Real-time Log Preview */}
+        {productionLogs.length > 0 && (
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="mt-6 glass-card p-4"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-sm font-semibold text-white">Real-time Log</h4>
+              <span className="text-xs text-gray-500">{productionLogs.length} records</span>
+            </div>
+            <div className="max-h-40 overflow-y-auto space-y-2">
+              {productionLogs.slice(0, 5).map((record, i) => (
+                <div key={i} className="flex items-center gap-3 text-xs">
+                  <span className={\`px-2 py-0.5 rounded-full text-xs font-medium \${record.type === 'OK' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}\`}>
+                    {record.type}
+                  </span>
+                  <span className="text-gray-500">{new Date(record.timestamp).toLocaleTimeString()}</span>
+                  <span className="text-gray-400 flex-1">{record.station || 'Assembly A1'}</span>
+                  {/* Delete Button */}
+                  <button
+                    onClick={() => {
+                      if (window.MaviCoreBridge) {
+                        window.MaviCoreBridge.delete(TABLE_NAME, record.id || record.recordId);
+                        // Remove from local state
+                        setProductionLogs(prev => prev.filter(r => r.id !== record.id && r.recordId !== record.recordId));
+                      }
+                    }}
+                    className="p-1 rounded hover:bg-red-500/20 transition"
+                    title="Hapus record"
+                  >
+                    <Trash2 className="w-3 h-3 text-red-400" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
         {/* Control Bar */}
         <motion.div
           initial={{ y: 20, opacity: 0 }}
@@ -323,6 +610,79 @@ export default function IndustrialDashboard() {
             Reset Counter
           </button>
         </motion.div>
+
+        {/* Data Source Info & CRUD Controls */}
+        <div className="mt-4 glass-card p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <span className="text-xs text-gray-400">🔌 Database: </span>
+              <span className="text-xs text-indigo-400 font-medium">{TABLE_NAME}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-green-500 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-green-500" /> Real-time
+              </span>
+            </div>
+          </div>
+
+          {/* CRUD Buttons */}
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => {
+                if (window.MaviCoreBridge) {
+                  window.MaviCoreBridge.createTable('New Table', [
+                    { name: 'name', type: 'text' },
+                    { name: 'value', type: 'number' }
+                  ]);
+                }
+              }}
+              className="px-3 py-1.5 text-xs rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 hover:bg-indigo-500/30 transition flex items-center gap-1"
+            >
+              <span>+</span> Create Table
+            </button>
+            <button
+              onClick={async () => {
+                if (window.MaviCoreBridge) {
+                  const data = await window.MaviCoreBridge.read(TABLE_NAME);
+                  setProductionLogs(data);
+                }
+              }}
+              className="px-3 py-1.5 text-xs rounded-lg bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30 transition flex items-center gap-1"
+            >
+              <RefreshCw className="w-3 h-3" /> Read Data
+            </button>
+            <button
+              onClick={() => {
+                if (window.MaviCoreBridge) {
+                  window.MaviCoreBridge.save(TABLE_NAME, { note: 'Manual entry', status: 'TEST' });
+                }
+              }}
+              className="px-3 py-1.5 text-xs rounded-lg bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500/30 transition flex items-center gap-1"
+            >
+              <span>+</span> Insert
+            </button>
+            <button
+              onClick={() => {
+                const lastRecord = productionLogs[0];
+                if (lastRecord && window.MaviCoreBridge) {
+                  const idToDelete = lastRecord.id || lastRecord.recordId;
+                  window.MaviCoreBridge.delete(TABLE_NAME, idToDelete);
+                  setProductionLogs(prev => prev.slice(1));
+                }
+              }}
+              className="px-3 py-1.5 text-xs rounded-lg bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition flex items-center gap-1"
+            >
+              <Trash2 className="w-3 h-3" /> Delete Last
+            </button>
+          </div>
+
+          {/* Record Count */}
+          <div className="mt-3 pt-3 border-t border-white/5 text-center">
+            <span className="text-xs text-gray-500">
+              Total records in database: <span className="text-white font-medium">{productionLogs.length}</span>
+            </span>
+          </div>
+        </div>
       </div>
     </>
   );
@@ -461,6 +821,23 @@ button {
       } catch (e) { /* ignore */ }
     }
   }, [isStandalone]);
+
+  // Initialize postMessage listener for real-time data sync
+  useEffect(() => {
+    const cleanup = initVibeMessageListener((table, record) => {
+      setLiveRecordCount(prev => prev + 1);
+      // Broadcast to sandbox iframe
+      const iframe = document.querySelector('iframe[sandbox]');
+      if (iframe?.contentWindow) {
+        iframe.contentWindow.postMessage({
+          type: 'MAVICORE_RECORD_SAVED',
+          table: table.name,
+          record: record
+        }, '*');
+      }
+    });
+    return cleanup;
+  }, []);
 
   // Generate companion link when modal opens
   useEffect(() => {

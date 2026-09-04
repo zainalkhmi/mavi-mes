@@ -1,4 +1,4 @@
-import { getTables, createTable, addTableRecord, getTableRecords } from './supabaseTablesDB';
+import { getTables, createTable, addTableRecord, getTableRecords, deleteTableRecord, updateTableRecord } from './supabaseTablesDB';
 import toast from 'react-hot-toast';
 
 /**
@@ -200,15 +200,19 @@ export async function saveVibeRecord(tableNameOrId, recordData = {}) {
 
 /**
  * Initializes the global postMessage listener for Sandpack Vibe apps.
+ * Supports:
+ *  - MAVICORE_TABLE_INSERT: Save a record to a table
+ *  - MAVICORE_TABLE_READ: Read records from a table
  * @param {Function} onRecordSaved callback (table, record) => void
  * @returns {Function} cleanup function to remove event listener
  */
 export function initVibeMessageListener(onRecordSaved) {
   const handleMessage = async (event) => {
-    // Accept messages of type MAVICORE_TABLE_INSERT
+    // Accept messages of type MAVICORE_TABLE_INSERT or MAVICORE_TABLE_READ
     if (!event.data || typeof event.data !== 'object') return;
     const { type, table, tableName, data } = event.data;
 
+    // ─── INSERT: Save record to table ───
     if (type === 'MAVICORE_TABLE_INSERT' && data) {
       const targetName = table || tableName || 'Vibe App Records';
       try {
@@ -223,6 +227,186 @@ export function initVibeMessageListener(onRecordSaved) {
       } catch (err) {
         console.error('[vibeTableBridge] Gagal menyimpan record dari Sandpack:', err);
         toast.error(`Gagal menyimpan record ke tabel: ${err.message || 'Database error'}`);
+      }
+    }
+
+    // ─── READ: Fetch records from table ───
+    if (type === 'MAVICORE_TABLE_READ') {
+      const targetName = table || tableName;
+      if (!targetName) return;
+
+      try {
+        // Find the table
+        const tables = await getTables();
+        const targetTable = (tables || []).find(
+          t => t.id === targetName || t.name?.toLowerCase().trim() === String(targetName || '').toLowerCase().trim()
+        );
+
+        if (!targetTable) {
+          // Table doesn't exist yet - return empty array
+          event.source?.postMessage({
+            type: 'MAVICORE_TABLE_READ_RESPONSE',
+            tableName: targetName,
+            records: []
+          }, '*');
+          return;
+        }
+
+        // Fetch records
+        const records = await getTableRecords(targetTable.id);
+
+        // Send response back to sandbox iframe
+        event.source?.postMessage({
+          type: 'MAVICORE_TABLE_READ_RESPONSE',
+          tableName: targetName,
+          records: records || []
+        }, '*');
+      } catch (err) {
+        console.error('[vibeTableBridge] Gagal membaca record dari Sandpack:', err);
+        event.source?.postMessage({
+          type: 'MAVICORE_TABLE_READ_RESPONSE',
+          tableName: targetName,
+          records: [],
+          error: err.message
+        }, '*');
+      }
+    }
+
+    // ─── DELETE: Delete a record from table ───
+    if (type === 'MAVICORE_TABLE_DELETE') {
+      const targetName = table || tableName;
+      const { recordId, recordInternalId } = event.data;
+
+      if (!targetName) return;
+
+      try {
+        // Find the table first
+        const tables = await getTables();
+        const targetTable = (tables || []).find(
+          t => t.id === targetName || t.name?.toLowerCase().trim() === String(targetName || '').toLowerCase().trim()
+        );
+
+        if (!targetTable) {
+          toast.error(`Tabel "${targetName}" tidak ditemukan`);
+          return;
+        }
+
+        // Get records to find the internal ID
+        const records = await getTableRecords(targetTable.id);
+        const recordToDelete = (records || []).find(
+          r => r.id === recordId || r.record_id === recordId
+        );
+
+        if (!recordToDelete) {
+          toast.error(`Record tidak ditemukan`);
+          return;
+        }
+
+        // Delete the record
+        await deleteTableRecord(recordToDelete.id);
+
+        toast.success(`🗑️ Record berhasil dihapus dari "${targetTable.name}"`, {
+          duration: 2500,
+          icon: '✅'
+        });
+
+        // Notify callback
+        if (typeof onRecordSaved === 'function') {
+          onRecordSaved(targetTable, { deleted: true, recordId });
+        }
+      } catch (err) {
+        console.error('[vibeTableBridge] Gagal menghapus record:', err);
+        toast.error(`Gagal menghapus record: ${err.message || 'Database error'}`);
+      }
+    }
+
+    // ─── UPDATE: Update a record in table ───
+    if (type === 'MAVICORE_TABLE_UPDATE') {
+      const targetName = table || tableName;
+      const { recordId, data: updateData } = event.data;
+
+      if (!targetName || !recordId) return;
+
+      try {
+        // Find the table
+        const tables = await getTables();
+        const targetTable = (tables || []).find(
+          t => t.id === targetName || t.name?.toLowerCase().trim() === String(targetName || '').toLowerCase().trim()
+        );
+
+        if (!targetTable) {
+          toast.error(`Tabel "${targetName}" tidak ditemukan`);
+          return;
+        }
+
+        // Get records to find the internal ID
+        const records = await getTableRecords(targetTable.id);
+        const recordToUpdate = (records || []).find(
+          r => r.id === recordId || r.record_id === recordId
+        );
+
+        if (!recordToUpdate) {
+          toast.error(`Record tidak ditemukan`);
+          return;
+        }
+
+        // Update the record
+        await updateTableRecord(recordToUpdate.id, updateData);
+
+        toast.success(`✏️ Record berhasil diupdate di "${targetTable.name}"`, {
+          duration: 2500,
+          icon: '✅'
+        });
+
+        if (typeof onRecordSaved === 'function') {
+          onRecordSaved(targetTable, { updated: true, recordId });
+        }
+      } catch (err) {
+        console.error('[vibeTableBridge] Gagal mengupdate record:', err);
+        toast.error(`Gagal mengupdate record: ${err.message || 'Database error'}`);
+      }
+    }
+
+    // ─── CREATE TABLE: Create a new table ───
+    if (type === 'MAVICORE_TABLE_CREATE') {
+      const { tableName: newTableName, fields } = event.data;
+
+      if (!newTableName) return;
+
+      try {
+        // Check if table already exists
+        const existingTables = await getTables();
+        const exists = (existingTables || []).some(
+          t => t.name?.toLowerCase().trim() === newTableName.toLowerCase().trim()
+        );
+
+        if (exists) {
+          toast.success(`📋 Tabel "${newTableName}" sudah ada!`);
+          return;
+        }
+
+        // Create the table
+        const newTable = await createTable({
+          name: newTableName,
+          description: `Tabel dibuat dari Vibe Sandbox App`,
+          fields: fields || [
+            { name: 'recordId', type: 'text' },
+            { name: 'timestamp', type: 'datetime' },
+            { name: 'status', type: 'text' }
+          ]
+        });
+
+        toast.success(`🆕 Tabel "${newTable.name}" berhasil dibuat!`, {
+          duration: 3000,
+          icon: '✅'
+        });
+
+        if (typeof onRecordSaved === 'function') {
+          onRecordSaved(newTable, { created: true });
+        }
+      } catch (err) {
+        console.error('[vibeTableBridge] Gagal membuat tabel:', err);
+        toast.error(`Gagal membuat tabel: ${err.message || 'Database error'}`);
       }
     }
   };
