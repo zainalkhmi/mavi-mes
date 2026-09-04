@@ -259,6 +259,19 @@ export const executeIntegrationAction = async (connector, action, data) => ({ su
 export const getIntegrationLogs = async (connectorId) => [];
 
 export async function getPrimaryAiConnector() {
+    const sanitizeConnector = (conn) => {
+        if (!conn) return conn;
+        const aiSet = conn.aiSettings || conn.config || {};
+        const isGemini = !aiSet.provider || String(aiSet.provider).toLowerCase().includes('gemini');
+        if (isGemini && aiSet.modelId && (
+            String(aiSet.modelId).toLowerCase().includes('gemini-2.0') ||
+            String(aiSet.modelId).toLowerCase().includes('gemini-1.5-pro')
+        )) {
+            aiSet.modelId = 'gemini-3.6-flash';
+        }
+        return conn;
+    };
+
     try {
         const supabase = getSupabaseClient();
         const { data, error } = await supabase
@@ -269,7 +282,7 @@ export async function getPrimaryAiConnector() {
             .maybeSingle();
         
         if (!error && data) {
-            const camel = snakeToCamel(data);
+            const camel = sanitizeConnector(snakeToCamel(data));
             try {
                 localStorage.setItem('mandor_primary_ai_connector', JSON.stringify(camel));
             } catch {}
@@ -285,11 +298,15 @@ export async function getPrimaryAiConnector() {
     // Fallback to cached local storage
     try {
         const local = localStorage.getItem('mandor_primary_ai_connector');
-        if (local) return JSON.parse(local);
+        if (local) {
+            const parsed = sanitizeConnector(JSON.parse(local));
+            try { localStorage.setItem('mandor_primary_ai_connector', JSON.stringify(parsed)); } catch {}
+            return parsed;
+        }
 
         const allConnectors = JSON.parse(localStorage.getItem('mandor_integration_connectors') || '[]');
         const found = allConnectors.find(c => c.type === 'AI_ASSISTANT');
-        if (found) return found;
+        if (found) return sanitizeConnector(found);
     } catch {}
 
     return null;

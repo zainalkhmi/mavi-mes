@@ -46,7 +46,7 @@ export function MaviCard({ title, subtitle, children, badge = null, badgeColor =
       {(title || subtitle || badge || actions) && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
           <div>
-            {badge && <span style={{ fontSize: '0.65rem', fontWeight: 800, color: badgeColor, backgroundColor: `${badgeColor}15`, padding: '2px 8px', borderRadius: '6px' }}>{badge}</span>}
+            {badge && <span style={{ fontSize: '0.65rem', fontWeight: 800, color: badgeColor, backgroundColor: \`\${badgeColor}15\`, padding: '2px 8px', borderRadius: '6px' }}>{badge}</span>}
             {title && <h3 style={{ margin: '4px 0 0', fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>{title}</h3>}
             {subtitle && <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: '#64748b' }}>{subtitle}</p>}
           </div>
@@ -84,7 +84,7 @@ export function MaviStatus({ status = 'RUNNING', label = null }) {
   }[status.toUpperCase()] || { color: '#475569', bg: '#f1f5f9', border: '#cbd5e1' };
 
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: cfg.bg, color: cfg.color, border: \`1px solid \${cfg.border}\` }}>
       <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: cfg.color }} />
       {label || status}
     </span>
@@ -102,8 +102,8 @@ export function MaviChecklist({ items = [], onItemToggle }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
       {list.map((item, idx) => (
-        <div key={idx} onClick={() => toggle(idx)} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', backgroundColor: item.checked ? '#f0fdf4' : '#ffffff', border: `1px solid ${item.checked ? '#bbf7d0' : '#e2e8f0'}`, borderRadius: '12px', cursor: 'pointer', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
-          <div style={{ width: '20px', height: '20px', borderRadius: '6px', backgroundColor: item.checked ? '#10b981' : '#f8fafc', border: `1px solid ${item.checked ? '#10b981' : '#cbd5e1'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div key={idx} onClick={() => toggle(idx)} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', backgroundColor: item.checked ? '#f0fdf4' : '#ffffff', border: \`1px solid \${item.checked ? '#bbf7d0' : '#e2e8f0'}\`, borderRadius: '12px', cursor: 'pointer', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+          <div style={{ width: '20px', height: '20px', borderRadius: '6px', backgroundColor: item.checked ? '#10b981' : '#f8fafc', border: \`1px solid \${item.checked ? '#10b981' : '#cbd5e1'}\`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {item.checked && <Check size={14} color="#fff" />}
           </div>
           <span style={{ fontSize: '0.88rem', color: item.checked ? '#15803d' : '#0f172a', textDecoration: item.checked ? 'line-through' : 'none', fontWeight: item.checked ? 600 : 500 }}>{item.label || item.text}</span>
@@ -136,7 +136,7 @@ export function MaviInspection({ parameterName = 'Toleransi Dimensi (mm)', stand
         <input type="number" step="0.01" placeholder="Nilai aktual..." value={measuredValue} onChange={e => { setMeasuredValue(e.target.value); setResult(null); }} style={{ flex: 1, backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 14px', color: '#0f172a', outline: 'none' }} />
         <MaviButton variant="primary" onClick={handleEvaluate}>Periksa</MaviButton>
       </div>
-      {result && <div style={{ marginTop: '12px', padding: '10px 14px', borderRadius: '10px', backgroundColor: result === 'PASS' ? '#dcfce7' : '#fee2e2', border: `1px solid ${result === 'PASS' ? '#86efac' : '#fca5a5'}`, color: result === 'PASS' ? '#15803d' : '#b91c1c', fontWeight: 700 }}>Hasil: {result === 'PASS' ? '✅ PASS' : '❌ FAIL'}</div>}
+      {result && <div style={{ marginTop: '12px', padding: '10px 14px', borderRadius: '10px', backgroundColor: result === 'PASS' ? '#dcfce7' : '#fee2e2', border: \`1px solid \${result === 'PASS' ? '#86efac' : '#fca5a5'}\`, color: result === 'PASS' ? '#15803d' : '#b91c1c', fontWeight: 700 }}>Hasil: {result === 'PASS' ? '✅ PASS' : '❌ FAIL'}</div>}
     </div>
   );
 }

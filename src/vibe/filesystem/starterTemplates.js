@@ -125,7 +125,7 @@ export default function App() {
             fontWeight: 700,
             backgroundColor: lineStatus === 'RUNNING' ? '#dcfce7' : '#fee2e2',
             color: lineStatus === 'RUNNING' ? '#15803d' : '#b91c1c',
-            border: `1px solid ${lineStatus === 'RUNNING' ? '#bbf7d0' : '#fecaca'}`
+            border: \`1px solid \${lineStatus === 'RUNNING' ? '#bbf7d0' : '#fecaca'}\`
           }}>
             <span style={{
               width: '8px',
@@ -194,7 +194,7 @@ export default function App() {
           </div>
           <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#059669' }}>{yieldRate}%</div>
           <div style={{ width: '100%', height: '6px', backgroundColor: '#f1f5f9', borderRadius: '9999px', marginTop: '8px', overflow: 'hidden' }}>
-            <div style={{ width: `${Math.min(100, Number(yieldRate))}%`, height: '100%', background: 'linear-gradient(90deg, #10b981, #059669)', borderRadius: '9999px' }} />
+            <div style={{ width: \`\${Math.min(100, Number(yieldRate))}%\`, height: '100%', background: 'linear-gradient(90deg, #10b981, #059669)', borderRadius: '9999px' }} />
           </div>
         </div>
       </div>

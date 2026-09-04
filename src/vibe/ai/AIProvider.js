@@ -24,6 +24,20 @@ export class AIProvider {
     return 'custom';
   }
 
+  static sanitizeGeminiModel(m) {
+    if (!m) return 'gemini-3.6-flash';
+    let clean = String(m).trim().replace(/^models\//, '');
+    if (clean.includes('/')) clean = clean.split('/').pop();
+    if (
+      !clean ||
+      clean.toLowerCase().includes('gemini-2.0') ||
+      clean.toLowerCase().includes('gemini-1.5-pro')
+    ) {
+      return 'gemini-3.6-flash';
+    }
+    return clean;
+  }
+
   /**
    * Resolves the active AI connector configuration from MaviCore database
    * @param {object} [overrideConnector]
@@ -35,6 +49,11 @@ export class AIProvider {
       const primarySettings = primary?.aiSettings || primary?.config || primary || {};
       const overrideSettings = overrideConnector?.aiSettings || overrideConnector?.config || overrideConnector || {};
       const effectiveApiKey = overrideSettings.apiKey || primarySettings.apiKey;
+      const prov = overrideSettings.provider || primarySettings.provider || 'gemini';
+      let rawModel = overrideSettings.modelId || primarySettings.modelId || 'gemini-3.6-flash';
+      if (this.normalizeProvider(prov) === 'gemini') {
+        rawModel = this.sanitizeGeminiModel(rawModel);
+      }
       if (primary || effectiveApiKey) {
         return {
           ...(primary || {}),
@@ -43,14 +62,17 @@ export class AIProvider {
             ...primarySettings,
             ...overrideSettings,
             apiKey: effectiveApiKey,
-            provider: overrideSettings.provider || primarySettings.provider || 'gemini',
-            modelId: overrideSettings.modelId || primarySettings.modelId || 'gemini-2.0-flash'
+            provider: prov,
+            modelId: rawModel
           }
         };
       }
     }
     if (!primary) {
       throw new Error('AI Connector belum dikonfigurasi. Buka Integrasi > AI Settings.');
+    }
+    if (primary.aiSettings?.modelId && this.normalizeProvider(primary.aiSettings?.provider) === 'gemini') {
+      primary.aiSettings.modelId = this.sanitizeGeminiModel(primary.aiSettings.modelId);
     }
     return primary;
   }
@@ -71,14 +93,17 @@ export class AIProvider {
 
     // 1. Google Gemini SSE streaming
     if (provider === 'gemini') {
-      const primaryModel = modelId.includes('/') ? modelId.split('/').pop() : (modelId || 'gemini-1.5-flash');
+      const primaryModel = this.sanitizeGeminiModel(modelId);
+
+      const isRetired = (m) => !m || m.toLowerCase().includes('gemini-2.0') || m.toLowerCase().includes('gemini-1.5-pro');
+
       const candidateModels = [
         primaryModel,
-        'gemini-2.0-flash',
-        'gemini-1.5-flash-8b',
+        'gemini-3.6-flash',
+        'gemini-2.5-flash',
         'gemini-1.5-flash',
-        'gemini-1.5-pro'
-      ].filter((m, idx, arr) => arr.indexOf(m) === idx);
+        'gemini-1.5-flash-8b'
+      ].filter((m, idx, arr) => arr.indexOf(m) === idx && !isRetired(m));
 
       const systemMsg = messages.find(m => m.role === 'system');
       const userAndAssistant = messages
@@ -102,45 +127,69 @@ export class AIProvider {
       let response = null;
       let lastError = null;
 
-      for (const currentModel of candidateModels) {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:streamGenerateContent?key=${apiKey}&alt=sse`;
+      modelLoop:
+      for (let i = 0; i < candidateModels.length; i++) {
+        const currentModel = candidateModels[i];
+        if (isRetired(currentModel)) continue;
 
-        for (let attempt = 0; attempt < 2; attempt++) {
-          try {
-            response = await fetch(url, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
-            });
+        // Try both v1beta and v1
+        const versionsToTry = currentModel.startsWith('gemini-3.')
+          ? ['v1beta', 'v1']
+          : ['v1', 'v1beta'];
 
-            if (response.ok) {
+        for (const apiVer of versionsToTry) {
+          const url = `https://generativelanguage.googleapis.com/${apiVer}/models/${currentModel}:streamGenerateContent?key=${apiKey}&alt=sse`;
+
+          for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+              response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+              });
+
+              if (response.ok) {
+                break modelLoop;
+              }
+
+              const errJson = await response.json().catch(() => ({}));
+              const errMsg = errJson.error?.message || `Gemini API error (${response.status})`;
+              const err = new Error(errMsg);
+              lastError = err;
+
+              // Extract recommended replacement models from Google's response
+              const matches = [...errMsg.matchAll(/models\/([a-zA-Z0-9.-]+)/g)].map(x => x[1]);
+              const recModel = matches.find(x => !isRetired(x) && !candidateModels.includes(x));
+              if (recModel) {
+                candidateModels.splice(i + 1, 0, recModel);
+              }
+
+              const isUnavailable = response.status === 404 ||
+                                    errMsg.toLowerCase().includes('not found') ||
+                                    errMsg.toLowerCase().includes('no longer available') ||
+                                    errMsg.toLowerCase().includes('not supported');
+
+              if (isUnavailable) {
+                break; // try next apiVer or next candidate
+              }
+
+              const isHighDemand = response.status === 503 ||
+                                   response.status === 429 ||
+                                   errMsg.toLowerCase().includes('high demand') ||
+                                   errMsg.toLowerCase().includes('overloaded') ||
+                                   errMsg.toLowerCase().includes('resource_exhausted');
+
+              if (isHighDemand && attempt === 0) {
+                await new Promise(r => setTimeout(r, 1200));
+                continue;
+              }
+
+              break;
+            } catch (netErr) {
+              lastError = netErr;
               break;
             }
-
-            const errJson = await response.json().catch(() => ({}));
-            const errMsg = errJson.error?.message || `Gemini API error (${response.status})`;
-            lastError = new Error(errMsg);
-
-            const isHighDemand = response.status === 503 ||
-                                 response.status === 429 ||
-                                 errMsg.toLowerCase().includes('high demand') ||
-                                 errMsg.toLowerCase().includes('overloaded') ||
-                                 errMsg.toLowerCase().includes('resource_exhausted');
-
-            if (isHighDemand && attempt === 0) {
-              await new Promise(r => setTimeout(r, 1200));
-              continue;
-            }
-
-            break;
-          } catch (netErr) {
-            lastError = netErr;
-            break;
           }
-        }
-
-        if (response && response.ok) {
-          break;
         }
       }
 

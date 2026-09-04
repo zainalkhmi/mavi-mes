@@ -27,10 +27,10 @@ import { streamVibeAI, generateVibeCode } from '../../utils/ai/VibeAIStreamServi
 
 export const PROVIDER_MODELS = {
   Gemini: [
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', desc: 'Super Cepat, Cerdas & Stabil (Rekomendasi)', tag: 'Recommended' },
+    { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', desc: 'Model terbaru, super cerdas & cepat (Rekomendasi)', tag: 'Recommended' },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', desc: 'Generasi 2.5 stabil & responsif' },
     { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', desc: 'Model standar serbaguna' },
-    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', desc: 'Arsitektur & penalaran mendalam' },
-    { id: 'gemini-1.5-flash-8b', name: 'Gemini 1.5 Flash 8B', desc: 'Sangat ringan & instan' }
+    { id: 'gemini-1.5-flash-8b', name: 'Gemini 1.5 Flash-8B', desc: 'Throughput tinggi untuk tugas ringan' }
   ],
   OpenAI: [
     { id: 'gpt-4o-mini', name: 'GPT-4o Mini', desc: 'Efisien, cepat & cerdas', tag: 'Fast' },
@@ -43,20 +43,23 @@ export const PROVIDER_MODELS = {
   ],
   Groq: [
     { id: 'llama-3.1-70b-versatile', name: 'Llama 3.1 70B', desc: 'High capability via Groq LPU' },
-    { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B', desc: 'Respon instan dalam milidetik' }
+    { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B Instant', desc: 'Kecepatan ekstra via Groq' }
   ],
   OpenRouter: [
-    { id: 'google/gemini-flash-1.5', name: 'Gemini 1.5 Flash (OpenRouter)', desc: 'Multi-provider routing' },
-    { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet (OpenRouter)', desc: 'Coding kualitas premium' },
-    { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini (OpenRouter)', desc: 'Hemat & stabil' }
-  ],
-  Ollama: [
-    { id: 'llama3', name: 'Llama 3 (Local)', desc: 'Model offline mandiri' },
-    { id: 'gemma2', name: 'Gemma 2 (Local)', desc: 'Model Google lokal' }
+    { id: 'google/gemini-flash-1.5', name: 'Gemini 1.5 Flash (OpenRouter)', desc: 'Routing fleksibel via OpenRouter' },
+    { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini (OpenRouter)', desc: 'OpenAI via OpenRouter gateway' },
+    { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet (OpenRouter)', desc: 'Claude via OpenRouter gateway' }
   ]
 };
 
+const isRetiredGemini = (id) => {
+  if (!id) return false;
+  const s = String(id).toLowerCase();
+  return s.includes('gemini-2.0') || s.includes('gemini-1.5-pro');
+};
+
 export default function VibeChatPanel({
+  isOpen = false,
   context = {},
   settings = {},
   onCodeGenerated = () => {},
@@ -73,7 +76,7 @@ export default function VibeChatPanel({
   // Active AI Model & Provider state
   const [activeConnector, setActiveConnector] = useState(null);
   const [selectedProvider, setSelectedProvider] = useState('Gemini');
-  const [selectedModelId, setSelectedModelId] = useState('gemini-2.0-flash');
+  const [selectedModelId, setSelectedModelId] = useState('gemini-3.6-flash');
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const modelDropdownRef = useRef(null);
@@ -82,19 +85,29 @@ export default function VibeChatPanel({
   useEffect(() => {
     async function loadActiveModel() {
       try {
-        const savedProvider = localStorage.getItem('vibe_active_provider');
-        const savedModel = localStorage.getItem('vibe_active_model');
+        let savedProvider = localStorage.getItem('vibe_active_provider') || 'Gemini';
+        let savedModel = localStorage.getItem('vibe_active_model');
+        if (isRetiredGemini(savedModel)) {
+          savedModel = 'gemini-3.6-flash';
+          localStorage.setItem('vibe_active_model', 'gemini-3.6-flash');
+        }
+
         const connector = await getPrimaryAiConnector().catch(() => null);
         if (connector) {
-          setActiveConnector(connector);
           const aiSet = connector.aiSettings || connector.config || connector || {};
+          if (isRetiredGemini(aiSet.modelId)) {
+            aiSet.modelId = 'gemini-3.6-flash';
+          }
+          setActiveConnector(connector);
           const p = savedProvider || aiSet.provider || 'Gemini';
-          const m = savedModel || aiSet.modelId || (p === 'OpenAI' ? 'gpt-4o-mini' : 'gemini-2.0-flash');
+          const m = !isRetiredGemini(savedModel)
+            ? (savedModel || 'gemini-3.6-flash')
+            : (!isRetiredGemini(aiSet.modelId) ? aiSet.modelId : (p === 'OpenAI' ? 'gpt-4o-mini' : 'gemini-3.6-flash'));
           setSelectedProvider(p);
           setSelectedModelId(m);
-        } else if (savedProvider && savedModel) {
+        } else {
           setSelectedProvider(savedProvider);
-          setSelectedModelId(savedModel);
+          setSelectedModelId(savedModel || 'gemini-3.6-flash');
         }
       } catch (err) {
         console.warn('[VibeChatPanel] Failed to load active AI connector:', err);

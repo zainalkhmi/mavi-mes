@@ -48,11 +48,20 @@ const fileToBase64 = (file) => new Promise((resolve, reject) => {
     reader.readAsDataURL(file);
 });
 
+const sanitizeGeminiModelId = (modelId) => {
+    let clean = String(modelId || '').trim().replace(/^models\//, '');
+    if (clean.includes('/')) clean = clean.split('/').pop();
+    if (!clean || clean.toLowerCase().includes('gemini-2.0') || clean.toLowerCase().includes('gemini-1.5-pro')) {
+        return 'gemini-3.6-flash';
+    }
+    return clean;
+};
+
 async function callGemini(file, settings) {
     const { apiKey, modelId } = settings;
     const base64Data = await fileToBase64(file);
     const mimeType = file.type;
-    const cleanModelId = modelId.includes('/') ? modelId.split('/').pop() : modelId;
+    const cleanModelId = sanitizeGeminiModelId(modelId);
     const url = `https://generativelanguage.googleapis.com/v1/models/${cleanModelId}:generateContent?key=${apiKey}`;
 
     const payload = {
@@ -210,7 +219,7 @@ export const getChatCompletion = async (messages, connector) => {
     }
 
     if (provider === 'gemini') {
-        const cleanModelId = modelId.includes('/') ? modelId.split('/').pop() : modelId;
+        const cleanModelId = sanitizeGeminiModelId(modelId);
         const url = `https://generativelanguage.googleapis.com/v1/models/${cleanModelId}:generateContent?key=${apiKey}`;
         const payload = {
             contents: messages.map(m => ({
@@ -994,7 +1003,7 @@ export const streamBuilderCopilotAdvice = async (userInput, messageHistory, cont
     ];
 
     if (provider === 'gemini') {
-        const cleanModelId = modelId.includes('/') ? modelId.split('/').pop() : modelId;
+        const cleanModelId = sanitizeGeminiModelId(modelId);
         const url = `https://generativelanguage.googleapis.com/v1/models/${cleanModelId}:streamGenerateContent?key=${apiKey}&alt=sse`;
         
         const combinedSystemPrompt = summaryBlock
@@ -1128,7 +1137,7 @@ Identify: Buttons (BUTTON), Labels (TEXT), Inputs (TEXT_INPUT), Images (IMAGE), 
     const modelId = settings.modelId;
 
     if (provider === 'gemini') {
-        const cleanModelId = modelId.includes('/') ? modelId.split('/').pop() : modelId;
+        const cleanModelId = sanitizeGeminiModelId(modelId);
         const url = `https://generativelanguage.googleapis.com/v1/models/${cleanModelId}:generateContent?key=${settings.apiKey}`;
         const payload = {
             contents: [{ role: 'user', parts: [{ text: systemPrompt }, { inline_data: { mime_type: mimeType, data: base64Data } }] }],

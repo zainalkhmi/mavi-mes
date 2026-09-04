@@ -8,8 +8,8 @@ export const MODEL_CONFIG = {
     default: 'gpt-4-turbo'
   },
   gemini: {
-    models: ['gemini-1.5-pro', 'gemini-1.5-flash'],
-    default: 'gemini-1.5-flash'
+    models: ['gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-1.5-flash'],
+    default: 'gemini-3.6-flash'
   }
 };
 

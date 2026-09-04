@@ -24,11 +24,10 @@ const PROVIDERS = [
 
 const DEFAULT_MODELS = {
   Gemini: [
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Recommended - Super Fast & Reliable)' },
+    { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash (Recommended - Latest & Super Fast)' },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Fast & Stable)' },
     { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Standard)' },
-    { id: 'gemini-1.5-flash-8b', name: 'Gemini 1.5 Flash-8B (High Speed)' },
-    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro (High Intelligence)' },
-    { id: 'gemini-1.5-flash-002', name: 'Gemini 1.5 Flash-002' }
+    { id: 'gemini-1.5-flash-8b', name: 'Gemini 1.5 Flash-8B (High Speed)' }
   ],
   OpenAI: [
     { id: 'gpt-4o-mini', name: 'GPT-4o Mini (Fast & Cost-Efficient)' },
@@ -91,13 +90,16 @@ const AiSettings = () => {
         setActiveProvider(provider);
         setApiKey(aiSettings.apiKey || '');
         setBaseUrl(aiSettings.baseUrl || '');
-        const mid = aiSettings.modelId || (provider === 'Gemini' ? 'gemini-1.5-flash' : 'gpt-4o-mini');
+        let mid = aiSettings.modelId || (provider === 'Gemini' ? 'gemini-3.6-flash' : 'gpt-4o-mini');
+        if (provider === 'Gemini' && (mid.includes('gemini-2.0') || mid.includes('gemini-1.5-pro'))) {
+          mid = 'gemini-3.6-flash';
+        }
         setModelId(mid);
 
         // Build initial models list from defaults
         const defaults = DEFAULT_MODELS[provider] || [];
         const combined = [...defaults];
-        if (mid && !combined.find(m => m.id === mid)) {
+        if (mid && !combined.find(m => m.id === mid) && !mid.includes('gemini-2.0') && !mid.includes('gemini-1.5-pro')) {
           combined.unshift({ id: mid, name: `${mid} (Current)` });
         }
         setAvailableModels(combined);
