@@ -73,6 +73,7 @@ import FileTreeExplorer from '../../vibe/components/FileTreeExplorer';
 import AiChangesReviewModal from '../../vibe/components/AiChangesReviewModal';
 import ManufacturingTemplatesModal from '../../vibe/components/ManufacturingTemplatesModal';
 import BuildModal from '../../vibe/components/BuildModal';
+import VibeChatPanel from '../../vibe/components/VibeChatPanel';
 
 // ═══════════════════════════════════════════════════════════════════
 // 🔌 MaviCore Real-time Data Bridge Helper
@@ -1717,166 +1718,26 @@ button {
           </SandpackProvider>
         </div>
 
-                        {/* RIGHT PANEL: PROMPT INPUT - COMPACT PRO */}
+                        {/*  {/* RIGHT PANEL: VIBECHAT STREAMING */}
         {isStandalone && (
-          <div style={{
-            width: '340px', minWidth: '340px', flexShrink: 0,
-            display: 'flex', flexDirection: 'column',
-            backgroundColor: '#0f172a',
-            borderLeft: '1px solid #1e293b',
-            padding: '10px'
-          }}>
-            {/* Chat History */}
-            {chatHistory.length > 0 && (
-              <div style={{ flex: 1, overflowY: 'auto', marginBottom: '8px', display: 'flex', flexDirection: 'column', gap: '6px', minHeight: 0 }}>
-                {chatHistory.map((msg, idx) => (
-                  <div key={idx} style={{
-                    display: 'flex', gap: '7px', alignItems: 'flex-start',
-                    padding: '6px 8px', borderRadius: '7px',
-                    backgroundColor: msg.role === 'user' ? 'rgba(59,130,246,0.07)' : 'rgba(16,185,129,0.05)',
-                    border: `1px solid ${msg.role === 'user' ? 'rgba(59,130,246,0.12)' : 'rgba(16,185,129,0.1)'}`,
-                  }}>
-                    <div style={{
-                      width: '18px', height: '18px', borderRadius: '50%', flexShrink: 0,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '1px',
-                      backgroundColor: msg.role === 'user' ? '#3b82f6' : '#10b981'
-                    }}>
-                      {msg.role === 'user' ? <User size={10} color="#fff" /> : <Bot size={10} color="#fff" />}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '0.65rem', fontWeight: 600, color: msg.role === 'user' ? '#60a5fa' : '#34d399', marginBottom: '1px' }}>
-                        {msg.role === 'user' ? 'You' : 'AI'}
-                      </div>
-                      <div style={{
-                        fontSize: '0.72rem', color: '#cbd5e1', lineHeight: 1.35, wordBreak: 'break-word',
-                        maxHeight: '48px', overflow: 'hidden'
-                      }}>
-                        {typeof msg.content === 'string' ? msg.content.slice(0, 120) + (msg.content.length > 120 ? '...' : '') : ''}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                <div ref={chatEndRef} />
-              </div>
-            )}
-
-            {/* Empty state when no chat yet */}
-            {chatHistory.length === 0 && (
-              <div style={{
-                flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                opacity: 0.4, gap: '6px', paddingBottom: '20px'
-              }}>
-                <Bot size={28} color="#64748b" />
-                <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 500 }}>Start building with AI</span>
-              </div>
-            )}
-
-            {/* Quick Actions - Compact Pills */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px', flexShrink: 0 }}>
-              {[
-                { label: 'Checksheet', prompt: 'Buatkan aplikasi Digital Checksheet untuk inspeksi 5 poin mesin' },
-                { label: 'OEE Gauge', prompt: 'Tambahkan gauge OEE real-time dan timeline status lini' },
-                { label: 'Emergency', prompt: 'Tambahkan tombol emergency stop besar warna merah' },
-                { label: 'Mobile', prompt: 'Konversikan tampilan menjadi mobile app Ionic' },
-              ].map((item, idx) => (
-                <button key={idx} type="button"
-                  onClick={() => {
-                    setInlinePrompt(item.prompt);
-                    handleChatSubmit(item.prompt);
-                  }}
-                  disabled={internalAiLoading || isLoading}
-                  style={{
-                    fontSize: '0.66rem', padding: '3px 9px', borderRadius: '10px',
-                    backgroundColor: '#1e293b', border: '1px solid #334155', color: '#94a3b8',
-                    cursor: internalAiLoading || isLoading ? 'not-allowed' : 'pointer',
-                    fontWeight: 500, opacity: internalAiLoading || isLoading ? 0.45 : 1,
-                    transition: 'all 0.12s', whiteSpace: 'nowrap'
-                  }}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Compact Input Bar */}
-            <div style={{ flexShrink: 0 }}>
-              {/* Model Selector - Inline */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px' }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const currentIdx = aiModels.findIndex(m => m.id === selectedAIModel);
-                    const nextIdx = (currentIdx + 1) % aiModels.length;
-                    setSelectedAIModel(aiModels[nextIdx].id);
-                  }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '4px',
-                    padding: '3px 8px', borderRadius: '5px',
-                    backgroundColor: '#1e293b', border: '1px solid #334155',
-                    color: '#e2e8f0', fontSize: '0.68rem', fontWeight: 600, cursor: 'pointer'
-                  }}
-                >
-                  <span style={{ fontSize: '0.75rem' }}>{aiModels.find(m => m.id === selectedAIModel)?.icon}</span>
-                  <span>{selectedAIModel}</span>
-                  <ChevronDown size={10} />
-                </button>
-                {(internalAiLoading || isLoading) && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.66rem', color: '#60a5fa' }}>
-                    <Loader2 size={11} className="animate-spin" />
-                    <span>Generating...</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Input + Send */}
-              <div style={{
-                display: 'flex', alignItems: 'flex-end', gap: '5px',
-                backgroundColor: '#020617', border: '1px solid #334155',
-                borderRadius: '10px', padding: '5px 5px 5px 10px'
-              }}>
-                <textarea
-                  value={inlinePrompt}
-                  onChange={(e) => setInlinePrompt(e.target.value)}
-                  disabled={internalAiLoading || isLoading}
-                  placeholder="What do you want to build?"
-                  rows={2}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      if (inlinePrompt.trim()) handleChatSubmit(inlinePrompt);
-                    }
-                  }}
-                  style={{
-                    flex: 1, backgroundColor: 'transparent', border: 'none', outline: 'none',
-                    fontSize: '0.78rem', color: '#f1f5f9', resize: 'none',
-                    fontFamily: 'Inter, sans-serif', lineHeight: '1.35', minHeight: '34px', maxHeight: '72px'
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (inlinePrompt.trim()) handleChatSubmit(inlinePrompt);
-                  }}
-                  disabled={!inlinePrompt.trim() || internalAiLoading || isLoading}
-                  style={{
-                    width: '30px', height: '30px', borderRadius: '7px', border: 'none', flexShrink: 0,
-                    background: inlinePrompt.trim() && !(internalAiLoading || isLoading)
-                      ? 'linear-gradient(135deg, #3b82f6, #6366f1)' : '#1e293b',
-                    color: '#fff', cursor: inlinePrompt.trim() && !(internalAiLoading || isLoading) ? 'pointer' : 'default',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    transition: 'all 0.15s'
-                  }}
-                >
-                  {internalAiLoading || isLoading ? (
-                    <Loader2 size={13} className="animate-spin" />
-                  ) : (
-                    <ArrowUp size={13} />
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
+          <VibeChatPanel
+            context={{
+              appName: appName,
+              files: filesRecord,
+              tables: []
+            }}
+            settings={{
+              provider: selectedAIModel,
+              apiKey: ''
+            }}
+            onCodeGenerated={(code) => {
+              vfs.writeFile('/App.js', code);
+              setFilesRecord(vfs.getAllFilesRecord());
+              toast.success('AI code applied!');
+            }}
+          />
         )}
+}
         </div>
 
       {/* ═══════════ MODALS ═══════════ */}
