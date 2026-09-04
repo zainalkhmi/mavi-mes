@@ -29769,6 +29769,54 @@ D3:0
                 </>
             )}
 
+            {/* Dedicated Sandbox Studio Window / Modal */}
+            {isSandboxOpen && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        backgroundColor: 'rgba(2, 6, 23, 0.85)',
+                        backdropFilter: 'blur(8px)',
+                        zIndex: 9999,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: isSandboxFullScreen ? '0' : '16px',
+                    }}
+                >
+                    <div
+                        style={{
+                            width: '100%',
+                            height: '100%',
+                            maxWidth: isSandboxFullScreen ? '100%' : '1440px',
+                            maxHeight: isSandboxFullScreen ? '100%' : '94vh',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            borderRadius: isSandboxFullScreen ? '0' : '16px',
+                            overflow: 'hidden',
+                            boxShadow: '0 32px 64px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.1)',
+                        }}
+                    >
+                        <Suspense fallback={
+                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#020617', color: '#ffffff', gap: '12px' }}>
+                                <Loader2 size={32} className="animate-spin text-sky-400" />
+                                <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Memuat Sandbox Studio...</span>
+                            </div>
+                        }>
+                            <VibeSandpackViewer
+                                code={sandpackCode}
+                                onCodeChange={handleUpdateSandpackCode}
+                                onClose={() => setIsSandboxOpen(false)}
+                                onPromptSandbox={handlePromptSandbox}
+                                isLoading={isSandboxAiLoading}
+                                isFullScreen={isSandboxFullScreen}
+                                onToggleFullScreen={() => setIsSandboxFullScreen(v => !v)}
+                            />
+                        </Suspense>
+                    </div>
+                </div>
+            )}
+
             {/* Help Guide Modal */}
             {isHelpGuideOpen && (
                 <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

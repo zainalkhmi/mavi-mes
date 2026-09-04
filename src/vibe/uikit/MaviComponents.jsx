@@ -477,3 +477,230 @@ export function MaviBarcode({ onScan }) {
     </div>
   );
 }
+
+/* ─── 16. MaviNumpad ─── */
+export function MaviNumpad({ onConfirm, onCancel, initialValue = '', maxLength = 10, title = 'Input Angka' }) {
+  const [value, setValue] = useState(initialValue);
+
+  const handleKey = (key) => {
+    if (key === 'DEL') { setValue(v => v.slice(0, -1)); return; }
+    if (key === 'CLR') { setValue(''); return; }
+    if (value.length < maxLength) setValue(v => v + key);
+  };
+
+  const keys = ['7','8','9','4','5','6','1','2','3','.','0','DEL'];
+
+  return (
+    <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '14px', padding: '18px' }}>
+      {title && <h4 style={{ margin: '0 0 10px', fontSize: '0.9rem', color: '#f8fafc' }}>{title}</h4>}
+      <div style={{ backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', padding: '14px', marginBottom: '12px', textAlign: 'right' }}>
+        <span style={{ fontSize: value.length > 8 ? '1.6rem' : '2.2rem', fontWeight: 800, color: '#38bdf8', fontVariantNumeric: 'tabular-nums' }}>
+          {value || '0'}
+        </span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+        {keys.map(k => (
+          <button key={k} type="button" onClick={() => handleKey(k)} style={{
+            padding: '14px 0', borderRadius: '10px', border: 'none', fontSize: '1.1rem', fontWeight: 700,
+            backgroundColor: k === 'DEL' ? '#dc2626' : '#1e293b', color: '#fff', cursor: 'pointer',
+            transition: 'all 0.1s'
+          }}>{k}</button>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+        {onCancel && <MaviButton variant="secondary" fullWidth onClick={() => onCancel()}>Batal</MaviButton>}
+        <MaviButton variant="success" fullWidth onClick={() => onConfirm && onConfirm(value)}>Konfirmasi</MaviButton>
+      </div>
+    </div>
+  );
+}
+
+/* ─── 17. MaviTimer ─── */
+export function MaviTimer({ targetSeconds = 60, onTargetReached, showMilliseconds = false, label = 'Cycle Time' }) {
+  const [elapsed, setElapsed] = useState(0);
+  const [running, setRunning] = useState(false);
+  const intervalRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (running) {
+      intervalRef.current = setInterval(() => setElapsed(e => e + 10), 10);
+    } else {
+      clearInterval(intervalRef.current);
+    }
+    return () => clearInterval(intervalRef.current);
+  }, [running]);
+
+  React.useEffect(() => {
+    if (targetSeconds && elapsed / 1000 >= targetSeconds && onTargetReached) {
+      onTargetReached(elapsed);
+    }
+  }, [elapsed, targetSeconds]);
+
+  const format = (ms) => {
+    const mins = Math.floor(ms / 60000);
+    const secs = Math.floor((ms % 60000) / 1000);
+    const milli = Math.floor((ms % 1000) / 10);
+    if (showMilliseconds) return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${String(milli).padStart(2, '0')}`;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
+
+  const ratio = targetSeconds ? Math.min(1, elapsed / (targetSeconds * 1000)) : 0;
+  const isOverTarget = targetSeconds && elapsed / 1000 > targetSeconds;
+
+  return (
+    <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '14px', padding: '18px', textAlign: 'center' }}>
+      {label && <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', marginBottom: '8px' }}>{label}</div>}
+      <div style={{ fontSize: '2.8rem', fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: isOverTarget ? '#f87171' : '#38bdf8', marginBottom: '12px' }}>
+        {format(elapsed)}
+      </div>
+      {targetSeconds > 0 && (
+        <div style={{ backgroundColor: '#1e293b', borderRadius: '6px', height: '6px', marginBottom: '12px', overflow: 'hidden' }}>
+          <div style={{ width: `${ratio * 100}%`, height: '100%', backgroundColor: isOverTarget ? '#ef4444' : '#38bdf8', borderRadius: '6px', transition: 'width 0.1s' }} />
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+        <MaviButton variant={running ? 'warning' : 'success'} size="sm" onClick={() => setRunning(r => !r)}>
+          {running ? 'Pause' : 'Start'}
+        </MaviButton>
+        <MaviButton variant="secondary" size="sm" onClick={() => { setRunning(false); setElapsed(0); }}>
+          Reset
+        </MaviButton>
+      </div>
+    </div>
+  );
+}
+
+/* ─── 18. MaviGauge ─── */
+export function MaviGauge({ value = 0, max = 100, label = 'OEE', unit = '%', size = 140, status = 'neutral' }) {
+  const color = { ok: '#34d399', ng: '#f43f5e', warning: '#f59e0b', neutral: '#38bdf8' }[status] || '#38bdf8';
+  const pct = Math.min(1, Math.max(0, value / max));
+  const radius = (size - 16) / 2;
+  const circumference = Math.PI * radius;
+  const dashOffset = circumference * (1 - pct);
+
+  return (
+    <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '14px', padding: '18px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <svg width={size} height={size / 2 + 16} viewBox={`0 0 ${size} ${size / 2 + 16}`}>
+        <path d={`M 8 ${size / 2 + 8} A ${radius} ${radius} 0 0 1 ${size - 8} ${size / 2 + 8}`} fill="none" stroke="#1e293b" strokeWidth="10" strokeLinecap="round" />
+        <path d={`M 8 ${size / 2 + 8} A ${radius} ${radius} 0 0 1 ${size - 8} ${size / 2 + 8}`} fill="none" stroke={color} strokeWidth="10" strokeLinecap="round"
+          strokeDasharray={circumference} strokeDashoffset={dashOffset} style={{ transition: 'stroke-dashoffset 0.5s ease' }} />
+      </svg>
+      <div style={{ marginTop: '-20px', textAlign: 'center' }}>
+        <div style={{ fontSize: '1.6rem', fontWeight: 800, color }}>{typeof value === 'number' ? value.toFixed(1) : value}{unit}</div>
+      </div>
+      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', marginTop: '6px' }}>{label}</div>
+    </div>
+  );
+}
+
+/* ─── 19. MaviToast (functional wrapper) ─── */
+export function MaviToast({ message, type = 'success', onClose }) {
+  const cfg = {
+    success: { bg: '#064e3b', border: '#059669', icon: '\u2705' },
+    error: { bg: '#7f1d1d', border: '#dc2626', icon: '\u274C' },
+    warning: { bg: '#78350f', border: '#d97706', icon: '\u26A0\uFE0F' },
+    info: { bg: '#1e3a5f', border: '#3b82f6', icon: '\u2139\uFE0F' }
+  }[type] || { bg: '#064e3b', border: '#059669', icon: '\u2705' };
+
+  if (!message) return null;
+  return (
+    <div style={{
+      position: 'fixed', top: '16px', right: '16px', zIndex: 99999, maxWidth: '360px',
+      backgroundColor: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: '10px',
+      padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px',
+      boxShadow: '0 8px 24px rgba(0,0,0,0.4)', fontSize: '0.82rem', color: '#fff', fontWeight: 500
+    }}>
+      <span>{cfg.icon}</span>
+      <span style={{ flex: 1 }}>{message}</span>
+      {onClose && <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X size={16} /></button>}
+    </div>
+  );
+}
+
+/* ─── 20. MaviProgress ─── */
+export function MaviProgress({ value = 0, max = 100, label = '', color = '#38bdf8', showPercentage = true, height = 8 }) {
+  const pct = Math.min(100, Math.max(0, (value / max) * 100));
+  return (
+    <div style={{ width: '100%' }}>
+      {(label || showPercentage) && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.75rem', fontWeight: 600 }}>
+          <span style={{ color: '#94a3b8' }}>{label}</span>
+          {showPercentage && <span style={{ color }}>{pct.toFixed(0)}%</span>}
+        </div>
+      )}
+      <div style={{ backgroundColor: '#1e293b', borderRadius: height / 2 + 'px', height: height + 'px', overflow: 'hidden' }}>
+        <div style={{ width: pct + '%', height: '100%', backgroundColor: color, borderRadius: height / 2 + 'px', transition: 'width 0.4s ease' }} />
+      </div>
+    </div>
+  );
+}
+
+/* ─── 21. MaviTimeline ─── */
+export function MaviTimeline({ events = [] }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0', padding: '4px 0' }}>
+      {events.map((ev, idx) => (
+        <div key={idx} style={{ display: 'flex', gap: '12px', position: 'relative' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '20px', flexShrink: 0 }}>
+            <div style={{
+              width: '12px', height: '12px', borderRadius: '50%',
+              backgroundColor: ev.status === 'done' ? '#059669' : ev.status === 'active' ? '#38bdf8' : '#475569',
+              border: `2px solid ${ev.status === 'done' ? '#059669' : ev.status === 'active' ? '#38bdf8' : '#64748b'}`,
+              zIndex: 1
+            }} />
+            {idx < events.length - 1 && (
+              <div style={{ width: '2px', flex: 1, backgroundColor: ev.status === 'done' ? '#05966933' : '#1e293b', minHeight: '24px' }} />
+            )}
+          </div>
+          <div style={{ paddingBottom: '16px', flex: 1 }}>
+            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#f1f5f9' }}>{ev.title}</div>
+            {ev.time && <div style={{ fontSize: '0.68rem', color: '#64748b', marginTop: '2px' }}>{ev.time}</div>}
+            {ev.description && <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '4px' }}>{ev.description}</div>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ─── 22. MaviImageCapture ─── */
+export function MaviImageCapture({ onCapture, captureText = 'Ambil Foto', placeholderText = 'Belum ada foto' }) {
+  const fileRef = React.useRef(null);
+  const [preview, setPreview] = useState(null);
+
+  const handleFile = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const url = ev.target.result;
+      setPreview(url);
+      if (onCapture) onCapture(url);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '14px', overflow: 'hidden' }}>
+      <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handleFile} style={{ display: 'none' }} />
+      {preview ? (
+        <div style={{ position: 'relative' }}>
+          <img src={preview} alt="Captured" style={{ width: '100%', height: '200px', objectFit: 'cover' }} />
+          <button type="button" onClick={() => { setPreview(null); if (fileRef.current) fileRef.current.value = ''; }} style={{
+            position: 'absolute', top: '8px', right: '8px', background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}><X size={14} /></button>
+        </div>
+      ) : (
+        <div style={{ padding: '24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+          <Camera size={28} color="#64748b" />
+          <span style={{ fontSize: '0.78rem', color: '#64748b' }}>{placeholderText}</span>
+        </div>
+      )}
+      <div style={{ padding: '10px' }}>
+        <MaviButton variant="primary" fullWidth size="sm" onClick={() => fileRef.current && fileRef.current.click()}>
+          <Camera size={14} /> {captureText}
+        </MaviButton>
+      </div>
+    </div>
+  );
+}

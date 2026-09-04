@@ -9,7 +9,7 @@
  * - Manufacturing domain knowledge and postMessage table bridges
  */
 
-import { ProjectMemory } from './ProjectMemory';
+import { ProjectMemory } from './ProjectMemory.js';
 
 export class AgenticPromptEngine {
   /**
@@ -37,14 +37,61 @@ ATURAN KHUSUS MOBILE APP:
 1. Gunakan komponen dari '@ionic/react' (IonApp, IonHeader, IonToolbar, IonTitle, IonContent, IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonIcon, IonGrid, IonRow, IonCol, IonBadge, IonList, IonItem, IonLabel, IonInput, IonModal, IonTabs, IonTabBar, IonTabButton).
 2. Gunakan icon dari 'ionicons/icons'.
 3. Desain dioptimalkan untuk mobile phone & industrial rugged tablet (handheld PDA/scanner, Android Zebra, Honeywell).
-4. Sediakan tombol besar yang ramah sentuhan (touch-friendly) untuk operator yang memakai sarung tangan kerja.
+4. Sediakan tombol besar yang ramah sentuhan (touch-friendly) dengan warna cerah dan kontras tinggi.
 ` : `
 ATURAN KHUSUS WEB APP:
 1. Gunakan React (useState, useEffect, useMemo) dengan styling Tailwind CSS dan inline styles.
-2. Palet warna: Slate 950 (#030712) background, kartu Slate 900 (#0f172a), border #1e293b.
-3. Aksen status industri: Cyan/Sky (#38bdf8) untuk active/info, Emerald (#34d399 / #10b981) untuk OK/Normal, Rose/Red (#f43f5e / #ef4444) untuk Alarm/Defect/NG, Amber (#f59e0b) untuk Warning/Pending.
-4. Gunakan icon dari 'lucide-react'.
+2. Gunakan icon dari 'lucide-react'.
 `}
+
+════════════════════════════════════════════════
+🎨 STANDAR VISUAL ESTETIKA: WAJIB VIBRANT, MODERN & BERWARNA (DILARANG HITAM-PUTIH / MONOKROM!)
+════════════════════════════════════════════════
+PERINGATAN KERAS: JANGAN SEKALI-KALI membuat tampilan hitam-putih, wireframe kaku, atau kotak monokrom polos! Pengguna menginginkan antarmuka yang "GOOD & BEAUTIFUL", kaya warna, modern, dan memukau:
+
+1. 🌈 BACKGROUND & CARD AESTHETICS (TIDAK BOLEH HITAM PEKAT POLOS):
+   - Background Utama: Gunakan deep slate/navy mesh gradient mewah:
+     \`background: 'linear-gradient(135deg, #0b0f19 0%, #0f172a 40%, #1e1b4b 100%)'\` atau \`radial-gradient(ellipse at top, #1e293b 0%, #0a0e1a 100%)\`. JANGAN pakai #000000 atau #ffffff polos!
+   - Kartu / Panels: Desain glassmorphism bergradasi halus dengan border glow lembut:
+     \`background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.85) 100%)'\`
+     \`backdropFilter: 'blur(16px)'\`, \`border: '1px solid rgba(255, 255, 255, 0.08)'\`, \`borderRadius: '16px'\`
+     \`boxShadow: '0 10px 30px -5px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1)'\`
+
+2. 🟢🔴 TOMBOL AKSI HARUS KAYA WARNA & GRADASI (DILARANG TOMBOL KOTAK HITAM DENGAN TEKS PUTIH!):
+   - Tombol PRODUKSI OK / PASS / CATAT OK:
+     Wajib gradasi hijau emerald cerah berkilau:
+     \`background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)'\`
+     \`boxShadow: '0 6px 20px rgba(16, 185, 129, 0.4)'\`, \`border: '1px solid rgba(52, 211, 153, 0.4)'\`, \`color: '#ffffff'\`
+     Hover & active: scale 1.02, glow lebih terang!
+   - Tombol PRODUKSI NG / REJECT / DEFECT / CATAT NG:
+     Wajib gradasi merah crimson/rose mencolok:
+     \`background: 'linear-gradient(135deg, #f43f5e 0%, #dc2626 100%)'\`
+     \`boxShadow: '0 6px 20px rgba(244, 63, 94, 0.4)'\`, \`border: '1px solid rgba(251, 113, 133, 0.4)'\`, \`color: '#ffffff'\`
+   - Tombol Kategori Defect / Pilihan:
+     Beri aksen warna-warni spesifik untuk tiap kategori, JANGAN kotak hitam putih:
+     - Dimensi/Ukuran: \`background: 'rgba(56, 189, 248, 0.12)'\`, border: \`#0284c7\`, teks: \`#38bdf8\`
+     - Scratch/Visual: \`background: 'rgba(245, 158, 11, 0.12)'\`, border: \`#d97706\`, teks: \`#fbbf24\`
+     - Welding/Material: \`background: 'rgba(168, 85, 247, 0.12)'\`, border: \`#7c3aed\`, teks: \`#c084fc\`
+     - Saat tombol dipilih (selected): Jadikan background gradien penuh dengan teks putih dan glow!
+
+3. 📊 STAT CARDS / METRICS DENGAN AKSEN WARNA-WARNI CERAH:
+   - Setiap kartu metrik harus memiliki aksen warna cerah yang hidup:
+     - Total Produksi: Badge/Ikon Sky Blue (\`#38bdf8\`, container bg: \`rgba(14, 165, 233, 0.15)\`)
+     - Good Parts (OK): Badge/Ikon Emerald Green (\`#34d399\`, container bg: \`rgba(16, 185, 129, 0.15)\`)
+     - Defect Parts (NG): Badge/Ikon Coral Rose (\`#f87171\`, container bg: \`rgba(239, 68, 68, 0.15)\`)
+     - Yield / Efisiensi: Badge/Ikon Violet (\`#c084fc\`, container bg: \`rgba(139, 92, 246, 0.15)\`)
+   - Tambahkan indikator progress bar warna-warni yang mencerminkan capaian target!
+
+4. 📋 TABEL REAL-TIME & LOG DATA YANG CANTIK:
+   - Header tabel: \`background: 'rgba(30, 41, 59, 0.85)'\`, teks \`#94a3b8\`, border halus.
+   - Baris tabel: zebra striping halus dengan efek hover glow (\`rgba(56, 189, 248, 0.06)\`).
+   - Badge Status: Gunakan pill badge berwarna dengan dot indikator:
+     - "OK" -> \`backgroundColor: 'rgba(16, 185, 129, 0.18)'\`, \`color: '#34d399'\`, border \`1px solid rgba(16, 185, 129, 0.3)\`
+     - "NG" -> \`backgroundColor: 'rgba(239, 68, 68, 0.18)'\`, \`color: '#f87171'\`, border \`1px solid rgba(239, 68, 68, 0.3)\`
+
+5. 💡 STATUS ANDON & KONTROL:
+   - Gunakan indikator lampu status yang berkedip/glowing (Running: Hijau glowing, Warning: Kuning, Stop: Merah).
+   - Pastikan visual terasa hidup, interaktif, elegan, dan membuat pengguna kagum (WOW).
 
 ════════════════════════════════════════════════
 🏭 INTEGRASI MAVICORE DATABASE & HARDWARE

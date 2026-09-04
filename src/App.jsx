@@ -27,6 +27,7 @@ const AppPlayer = lazy(() => import('./components/AppPlayer'));
 const MandorMobilePlayer = lazy(() => import('./components/MandorMobilePlayer'));
 const DozukiMobileCheckSheet = lazy(() => import('./components/DozukiMobileCheckSheet'));
 const LiveTerminal = lazy(() => import('./components/LiveTerminal'));
+const VibeSandpackViewer = lazy(() => import('./components/appbuilder/VibeSandpackViewer'));
 
 export default function App() {
   const user = useGlobalStore((state) => state.user);
@@ -38,6 +39,8 @@ export default function App() {
 
   const isOperatorRoute = location.pathname.startsWith('/player') || location.pathname.startsWith('/terminal');
   const isChecksheetRoute = 
+    location.pathname.startsWith('/sandbox') ||
+    window.location.hash.includes('sandbox') ||
     location.pathname.startsWith('/drawing-checksheet') ||
     location.pathname.startsWith('/qa-checksheet') ||
     location.pathname.startsWith('/live-checksheet') ||
@@ -119,6 +122,7 @@ export default function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/store" element={<LandingPage initialTab="store" />} />
             <Route path="/builder" element={<LandingPage initialTab="builder" />} />
+            <Route path="/sandbox" element={<VibeSandpackViewer isStandalone={true} />} />
             <Route path="/pricing" element={<LandingPage initialTab="pricing" />} />
             <Route path="/faq" element={<LandingPage initialTab="faq" />} />
             <Route path="/player" element={<AppPlayer />} />
