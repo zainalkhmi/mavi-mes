@@ -50,6 +50,7 @@ import {
   FolderOpen,
   Wrench
 } from 'lucide-react';
+import { QRCodeCanvas } from 'qrcode.react';
 import toast from 'react-hot-toast';
 import {
   syncVibeAppToTable,
@@ -267,11 +268,67 @@ button {
   const [connectedTable, setConnectedTable] = useState(null);
   const [isSyncingTable, setIsSyncingTable] = useState(false);
   const [liveRecordCount, setLiveRecordCount] = useState(0);
+  const [isCompanionOpen, setIsCompanionOpen] = useState(false);
+  const [companionLink, setCompanionLink] = useState('');
+  const [lastSaved, setLastSaved] = useState(null);
+
+  // Auto-save to localStorage every 5 seconds when code changes
+  useEffect(() => {
+    const saveTimer = setTimeout(() => {
+      try {
+        const currentCode = vfs.readFile('/App.js') || vfs.readFile('/App.jsx');
+        if (currentCode) {
+          localStorage.setItem('vibe_sandbox_autosave', currentCode);
+          localStorage.setItem('vibe_sandbox_autosave_time', new Date().toISOString());
+          setLastSaved(new Date());
+        }
+      } catch (e) { /* localStorage full */ }
+    }, 3000);
+    return () => clearTimeout(saveTimer);
+  }, [filesRecord]);
+
+  // Restore from localStorage on mount (standalone mode only)
+  useEffect(() => {
+    if (isStandalone) {
+      try {
+        const saved = localStorage.getItem('vibe_sandbox_autosave');
+        if (saved && saved !== effectiveInitialCode) {
+          vfs.writeFile('/App.js', saved);
+          setFilesRecord(vfs.getAllFilesRecord());
+          setFileTree(vfs.getFileTree());
+          toast.success('💾 Kode terakhir dipulihkan dari auto-save!');
+        }
+      } catch (e) { /* ignore */ }
+    }
+  }, [isStandalone]);
+
+  // Generate companion link when modal opens
+  useEffect(() => {
+    if (isCompanionOpen) {
+      const code = vfs.readFile('/App.js') || effectiveInitialCode;
+      const sessionId = 'vibe_' + Date.now();
+      try {
+        sessionStorage.setItem(sessionId, code);
+      } catch (e) {
+        // sessionStorage full, use shorter ID
+      }
+      const baseUrl = window.location.origin + window.location.pathname;
+      setCompanionLink(`${baseUrl}#/player?session=${sessionId}`);
+    }
+  }, [isCompanionOpen]);
 
   // Panels state
   const [isFilesPanelOpen, setIsFilesPanelOpen] = useState(true);
-  const [isChatPanelOpen, setIsChatPanelOpen] = useState(true);
+  const [isChatPanelOpen, setIsChatPanelOpen] = useState(isStandalone ? false : true);
   const [isTerminalPanelOpen, setIsTerminalPanelOpen] = useState(false);
+  const [selectedAIModel, setSelectedAIModel] = useState('MiniMax-M2.7');
+
+  const aiModels = [
+    { id: 'MiniMax-M2.7', name: 'MiniMax-M2.7', icon: '🤖', color: '#10b981' },
+    { id: 'MiniMax-M1.5', name: 'MiniMax-M1.5', icon: '⚡', color: '#f59e0b' },
+    { id: 'GPT-4o', name: 'GPT-4o', icon: '🧠', color: '#6366f1' },
+    { id: 'Claude-3.5', name: 'Claude 3.5', icon: '💎', color: '#ec4899' },
+  ];
 
   // Modals state
   const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
@@ -537,7 +594,7 @@ button {
   };
 
   return (
-    <div className={isStandalone ? "w-screen h-screen flex flex-col" : "w-full h-full flex flex-col bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl"} style={isStandalone ? { backgroundColor: '#f0f0f0' } : { minHeight: 0, height: '100%' }}>
+    <div className={isStandalone ? "w-screen h-screen flex flex-col" : "w-full h-full flex flex-col bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl"} style={isStandalone ? { backgroundColor: '#0f172a', display: 'flex', flexDirection: 'column' } : { minHeight: 0, height: '100%' }}>
 
       {/* Hide scrollbar on top navbar */}
       <style>{`
@@ -546,312 +603,197 @@ button {
         body { margin: 0; padding: 0; overflow: hidden; }
       `}</style>
 
-      {/* ═══════════ TOP NAVBAR - ODOO STYLE COLORFUL ═══════════ */}
+      {/* ═══════════ TOP NAVBAR - ODOO ICON ONLY ═══════════ */}
       <div className="vibe-top-navbar" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 16px', height: '60px', minHeight: '60px', maxHeight: '60px', flexShrink: 0,
-        backgroundColor: '#017E84', borderBottom: '3px solid #014a51',
-        color: '#fff', userSelect: 'none', gap: '12px', zIndex: 40,
+        padding: '0 8px', height: '44px', minHeight: '44px', maxHeight: '44px', flexShrink: 0,
+        backgroundColor: '#017E84', borderBottom: '2px solid #014a51',
+        color: '#fff', userSelect: 'none', gap: '6px', zIndex: 40,
         position: 'relative', width: '100%', boxSizing: 'border-box',
-        overflowX: 'visible', overflowY: 'hidden',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+        overflowX: 'auto', overflowY: 'hidden',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
       }}>
-        {/* Left: Branding & Mode Switcher & Undo AI */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, minWidth: 0 }}>
-          {/* Sparkles icon */}
+        {/* Left: Branding */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
           <div style={{
-            width: '36px', height: '36px', borderRadius: '10px',
+            width: '30px', height: '30px', borderRadius: '8px',
             background: 'linear-gradient(135deg, #f43f5e, #f59e0b, #8b5cf6)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
           }}>
-            <Sparkles size={16} color="#fff" />
+            <Sparkles size={13} color="#fff" />
           </div>
-          {/* App name */}
           <span style={{
-            fontWeight: 800, color: '#fff', fontSize: '0.95rem',
-            maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            textShadow: '0 1px 2px rgba(0,0,0,0.3)'
-          }} title={deployedApp?.name || 'MaviCore Copilot Engine'}>
-            {deployedApp?.name || 'MaviCore Studio'}
+            fontWeight: 700, color: '#fff', fontSize: '0.82rem',
+            maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+          }}>
+            {deployedApp?.name || 'Sandbox'}
           </span>
 
-          {/* Mode Switcher: Web App vs Mobile App */}
-          <div style={{
-            display: 'flex', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.2)',
-            padding: '3px', borderRadius: '10px',
-            boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.2)'
-          }}>
-            <button
-              type="button"
-              onClick={() => handleSwitchAppMode('web')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '6px',
-                padding: '8px 16px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 700,
-                border: 'none', cursor: 'pointer',
-                backgroundColor: appMode === 'web' ? '#21b799' : 'transparent',
-                color: '#fff',
-                boxShadow: appMode === 'web' ? '0 2px 6px rgba(0,0,0,0.3)' : 'none',
-                transition: 'all 0.2s',
-                textShadow: '0 1px 2px rgba(0,0,0,0.2)'
-              }}
-              title="Mode Web App (React + Tailwind)"
-            >
-              <Globe size={14} />
-              <span>WEB APP</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSwitchAppMode('mobile')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '6px',
-                padding: '8px 16px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 700,
-                border: 'none', cursor: 'pointer',
-                backgroundColor: appMode === 'mobile' ? '#714b67' : 'transparent',
-                color: '#fff',
-                boxShadow: appMode === 'mobile' ? '0 2px 6px rgba(0,0,0,0.3)' : 'none',
-                transition: 'all 0.2s',
-                textShadow: '0 1px 2px rgba(0,0,0,0.2)'
-              }}
-              title="Mode Mobile App (Ionic + Capacitor)"
-            >
-              <Smartphone size={14} />
-              <span>MOBILE APP</span>
-            </button>
-          </div>
-
-          {/* Undo AI Change */}
-          <button
-            type="button"
-            onClick={handleUndo}
-            disabled={!versionControl.canUndo()}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px',
-              borderRadius: '8px',
-              backgroundColor: '#e74c3c',
-              border: 'none',
-              color: '#fff', fontSize: '0.85rem', fontWeight: 700,
-              cursor: versionControl.canUndo() ? 'pointer' : 'not-allowed',
-              opacity: versionControl.canUndo() ? 1 : 0.5,
-              boxShadow: versionControl.canUndo() ? '0 2px 6px rgba(231,76,60,0.4)' : 'none',
-              transition: 'all 0.2s',
-              textShadow: '0 1px 2px rgba(0,0,0,0.2)'
-            }}
-            title="Undo perubahan AI terakhir"
-          >
-            <RotateCcw size={14} />
-            <span>Undo AI</span>
-          </button>
-        </div>
-
-        {/* Center: View Mode + Device Selector + Reload */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-          {/* View Mode Switcher: Preview / Code / Split */}
-          <div style={{
-            display: 'flex', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.2)',
-            padding: '3px', borderRadius: '10px',
-            boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.2)'
-          }}>
-            {[
-              { key: 'preview', label: 'Preview', icon: <Eye size={15} />, color: '#3498db' },
-              { key: 'code', label: 'Code', icon: <Code size={15} />, color: '#f39c12' },
-              { key: 'split', label: 'Split', icon: <Columns size={15} />, color: '#9b59b6' },
-            ].map(item => (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => setViewMode(item.key)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '6px',
-                  padding: '8px 16px', borderRadius: '8px', fontSize: '0.85rem',
-                  fontWeight: 700, cursor: 'pointer',
-                  border: 'none',
-                  backgroundColor: viewMode === item.key ? item.color : 'transparent',
-                  color: '#fff',
-                  boxShadow: viewMode === item.key ? '0 2px 6px rgba(0,0,0,0.3)' : 'none',
-                  transition: 'all 0.2s',
-                  textShadow: '0 1px 2px rgba(0,0,0,0.2)'
-                }}
-                title={item.label}
-              >
-                {item.icon}
-                <span>{item.label}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Device Switcher: Desktop / Tablet / Mobile */}
-          <div style={{
-            display: 'flex', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.2)',
-            padding: '3px', borderRadius: '10px',
-            boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.2)'
-          }}>
-            {[
-              { key: 'desktop', icon: <Monitor size={16} />, label: 'Desktop' },
-              { key: 'tablet', icon: <Tablet size={16} />, label: 'Tablet' },
-              { key: 'mobile', icon: <Smartphone size={16} />, label: 'Mobile' },
-            ].map(item => (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => setViewportSize(item.key)}
-                style={{
-                  padding: '8px 12px', borderRadius: '8px', cursor: 'pointer',
-                  border: 'none',
-                  backgroundColor: viewportSize === item.key ? '#ffffff' : 'transparent',
-                  color: viewportSize === item.key ? '#017E84' : '#fff',
-                  boxShadow: viewportSize === item.key ? '0 2px 6px rgba(0,0,0,0.3)' : 'none',
-                  transition: 'all 0.2s',
-                  display: 'flex', alignItems: 'center',
-                  fontWeight: viewportSize === item.key ? 700 : 500,
-                  fontSize: '0.85rem'
-                }}
-                title={`${item.label} View`}
-              >
-                {item.icon}
-              </button>
-            ))}
-          </div>
-
-          {/* Reload button */}
-          <button
-            type="button"
-            onClick={() => {
-              const ifr = document.querySelector('.sp-preview-iframe');
-              if (ifr && ifr.contentWindow) ifr.contentWindow.location.reload();
-              else toast.success('Reloaded preview');
-            }}
-            style={{
-              padding: '8px 14px', color: '#fff', backgroundColor: 'rgba(0,0,0,0.2)',
-              border: 'none', borderRadius: '8px',
-              cursor: 'pointer', display: 'flex', alignItems: 'center',
-              fontSize: '0.85rem', fontWeight: 600,
-              boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)',
-              transition: 'all 0.2s'
-            }}
-            title="Reload Preview"
-          >
-            <RotateCw size={15} />
-          </button>
-
-          {/* Fullscreen */}
-          {onToggleFullScreen && (
-            <button
-              type="button"
-              onClick={onToggleFullScreen}
-              style={{
-                padding: '8px 14px', color: '#fff', backgroundColor: 'rgba(0,0,0,0.2)',
-                border: 'none', borderRadius: '8px',
-                cursor: 'pointer', display: 'flex', alignItems: 'center',
-                fontSize: '0.85rem', fontWeight: 600,
-                boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)',
-                transition: 'all 0.2s'
-              }}
-              title={isFullScreen ? 'Exit Full Screen' : 'Full Screen'}
-            >
-              {isFullScreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-            </button>
+          {/* Auto-save indicator */}
+          {lastSaved && (
+            <div style={{
+              padding: '2px 8px', borderRadius: '4px',
+              backgroundColor: 'rgba(39,174,96,0.3)', border: '1px solid rgba(39,174,96,0.5)',
+              color: '#fff', fontSize: '0.68rem', fontWeight: 600
+            }}>
+              💾
+            </div>
           )}
-        </div>
 
-        {/* Right: Actions (Build APK, Copy, Table Sync, Frontline Publish) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-          {/* Build APK / Mobile Button */}
-          <button
-            type="button"
-            onClick={() => setIsBuildModalOpen(true)}
+          {/* Mode Switcher - ICON ONLY */}
+          <button onClick={() => handleSwitchAppMode(appMode === 'web' ? 'mobile' : 'web')}
             style={{
-              padding: '8px 18px', borderRadius: '8px',
-              background: 'linear-gradient(135deg, #e67e22, #d35400)',
-              border: 'none',
-              color: '#fff', fontSize: '0.85rem', fontWeight: 700,
-              display: 'flex', alignItems: 'center', gap: '6px',
-              cursor: 'pointer', transition: 'all 0.2s',
-              boxShadow: '0 3px 8px rgba(230,126,34,0.4)',
-              textShadow: '0 1px 2px rgba(0,0,0,0.2)'
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: '32px', height: '32px', borderRadius: '6px', border: 'none', cursor: 'pointer',
+              backgroundColor: appMode === 'web' ? '#21b799' : '#714b67',
+              color: '#fff', transition: 'all 0.15s'
             }}
-            title="Build APK / AAB / Web Package"
+            title={appMode === 'web' ? 'Web Mode - Tap untuk Mobile' : 'Mobile Mode - Tap untuk Web'}
           >
-            <Smartphone size={15} />
-            <span>Build APK</span>
+            {appMode === 'web' ? <Globe size={14} /> : <Smartphone size={14} />}
           </button>
 
-          {/* Copy Code */}
-          <button
-            type="button"
-            onClick={handleCopyCode}
+          {/* Undo AI - ICON ONLY */}
+          <button onClick={handleUndo} disabled={!versionControl.canUndo()}
             style={{
-              padding: '8px 16px', borderRadius: '8px',
-              background: 'linear-gradient(135deg, #95a5a6, #7f8c8d)',
-              border: 'none',
-              color: '#fff', fontSize: '0.85rem', fontWeight: 600,
-              display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer',
-              boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
-              textShadow: '0 1px 2px rgba(0,0,0,0.2)'
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: '32px', height: '32px', borderRadius: '6px', border: 'none',
+              backgroundColor: '#e74c3c', color: '#fff',
+              cursor: versionControl.canUndo() ? 'pointer' : 'not-allowed',
+              opacity: versionControl.canUndo() ? 1 : 0.4, transition: 'all 0.15s'
             }}
+            title="Undo AI"
+          >
+            <RotateCcw size={13} />
+          </button>
+        </div>
+
+        {/* Center: View Mode + Device Selector */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+          {/* View Mode - ICON ONLY */}
+          <div style={{ display: 'flex', backgroundColor: 'rgba(0,0,0,0.2)', padding: '2px', borderRadius: '8px' }}>
+            {[
+              { key: 'preview', icon: <Eye size={14} />, color: '#3498db' },
+              { key: 'code', icon: <Code size={14} />, color: '#f39c12' },
+              { key: 'split', icon: <Columns size={14} />, color: '#9b59b6' },
+            ].map(item => (
+              <button key={item.key} onClick={() => setViewMode(item.key)}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: '32px', height: '32px', borderRadius: '6px', border: 'none', cursor: 'pointer',
+                  backgroundColor: viewMode === item.key ? item.color : 'transparent',
+                  color: '#fff', transition: 'all 0.15s'
+                }}
+                title={item.key}
+              >
+                {item.icon}
+              </button>
+            ))}
+          </div>
+
+          {/* Device Switcher - ICON ONLY */}
+          <div style={{ display: 'flex', backgroundColor: 'rgba(0,0,0,0.2)', padding: '2px', borderRadius: '8px' }}>
+            {[
+              { key: 'responsive', icon: <Maximize2 size={13} /> },
+              { key: 'desktop', icon: <Monitor size={13} /> },
+              { key: 'tablet', icon: <Tablet size={13} /> },
+              { key: 'mobile', icon: <Smartphone size={13} /> },
+            ].map(item => (
+              <button key={item.key} onClick={() => setViewportSize(item.key)}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: '32px', height: '32px', borderRadius: '6px', border: 'none', cursor: 'pointer',
+                  backgroundColor: viewportSize === item.key ? '#fff' : 'transparent',
+                  color: viewportSize === item.key ? '#017E84' : '#fff',
+                  transition: 'all 0.15s'
+                }}
+                title={item.key}
+              >
+                {item.icon}
+              </button>
+            ))}
+          </div>
+
+          {/* Reload */}
+          <button onClick={() => { const ifr = document.querySelector('.sp-preview-iframe'); if (ifr && ifr.contentWindow) ifr.contentWindow.location.reload(); else toast.success('Reloaded'); }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '6px', border: 'none', backgroundColor: 'rgba(0,0,0,0.2)', color: '#fff', cursor: 'pointer' }}
+            title="Reload"
+          >
+            <RotateCw size={13} />
+          </button>
+        </div>
+
+        {/* Right: Actions - ICON ONLY */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+          {/* Companion QR */}
+          <button onClick={() => setIsCompanionOpen(true)}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '6px', border: 'none', background: 'linear-gradient(135deg, #00b894, #00cec9)', color: '#fff', cursor: 'pointer' }}
+            title="Companion - QR Code"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+              <rect x="3" y="14" width="7" height="7"/>
+              <rect x="14" y="14" width="3" height="3"/><rect x="18" y="14" width="3" height="3"/>
+              <rect x="14" y="18" width="3" height="3"/><rect x="18" y="18" width="3" height="3"/>
+            </svg>
+          </button>
+
+          {/* Connect DB */}
+          <button onClick={handleSyncTable} disabled={isSyncingTable}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '6px', border: 'none', background: 'linear-gradient(135deg, #9b59b6, #714b67)', color: '#fff', cursor: 'pointer' }}
+            title="Connect DB"
+          >
+            <Database size={13} className={isSyncingTable ? 'animate-spin' : ''} />
+          </button>
+
+          {/* Save Draft */}
+          <button onClick={async () => {
+            const code = vfs.readFile('/App.js') || vfs.readFile('/App.jsx') || effectiveInitialCode;
+            try {
+              const result = await deployVibeAppToFrontline({ name: 'Draft - ' + new Date().toLocaleDateString(), code, isPublished: false });
+              if (result) toast.success('💾 Draft saved!');
+            } catch (e) { toast.error('Save failed'); }
+          }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '6px', border: 'none', backgroundColor: '#7f8c8d', color: '#fff', cursor: 'pointer' }}
+            title="Save Draft"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+            </svg>
+          </button>
+
+          {/* Publish */}
+          <button onClick={handleOpenDeployModal}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '6px', border: 'none', background: 'linear-gradient(135deg, #27ae60, #1e8449)', color: '#fff', cursor: 'pointer' }}
+            title="Publish"
+          >
+            <Rocket size={13} />
+          </button>
+
+          {/* Build APK */}
+          <button onClick={() => setIsBuildModalOpen(true)}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '6px', border: 'none', background: 'linear-gradient(135deg, #e67e22, #d35400)', color: '#fff', cursor: 'pointer' }}
+            title="Build APK"
+          >
+            <Smartphone size={13} />
+          </button>
+
+          {/* Copy */}
+          <button onClick={handleCopyCode}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '6px', border: 'none', backgroundColor: '#34495e', color: '#fff', cursor: 'pointer' }}
             title="Copy Code"
           >
-            {copied ? <Check size={14} color="#2ecc71" /> : <Copy size={14} />}
-            <span>{copied ? 'Copied!' : 'Copy'}</span>
+            {copied ? <Check size={13} /> : <Copy size={13} />}
           </button>
 
-          {/* Table Sync / Connect DB */}
-          <button
-            type="button"
-            onClick={handleSyncTable}
-            disabled={isSyncingTable}
-            style={{
-              padding: '8px 18px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 700,
-              display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer',
-              background: connectedTable ? 'linear-gradient(135deg, #8e44ad, #714b67)' : 'linear-gradient(135deg, #9b59b6, #714b67)',
-              border: 'none',
-              color: '#fff',
-              boxShadow: '0 3px 8px rgba(155,89,182,0.4)',
-              textShadow: '0 1px 2px rgba(0,0,0,0.2)',
-              transition: 'all 0.2s'
-            }}
-            title="Connect MaviCore Database & Table Sync"
-          >
-            <Database size={14} className={isSyncingTable ? 'animate-spin' : ''} />
-            <span>{isSyncingTable ? 'Syncing...' : connectedTable ? `${connectedTable.name}${liveRecordCount > 0 ? ` (${liveRecordCount})` : ''}` : 'Connect DB'}</span>
-          </button>
-
-          {/* Frontline Publish */}
-          <button
-            type="button"
-            onClick={handleOpenDeployModal}
-            style={{
-              padding: '8px 18px', borderRadius: '8px',
-              background: 'linear-gradient(135deg, #27ae60, #1e8449)',
-              border: 'none',
-              color: '#fff', fontSize: '0.85rem', fontWeight: 700,
-              display: 'flex', alignItems: 'center', gap: '6px',
-              cursor: 'pointer',
-              boxShadow: '0 3px 8px rgba(39,174,96,0.4)',
-              transition: 'all 0.2s',
-              textShadow: '0 1px 2px rgba(0,0,0,0.2)'
-            }}
-            title="Publish ke Frontline Apps"
-          >
-            <Rocket size={15} />
-            <span>{deployedApp ? 'Published ✓' : 'Publish'}</span>
-          </button>
-
+          {/* Close */}
           {onClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                padding: '8px 14px', color: '#fff', backgroundColor: 'rgba(0,0,0,0.2)',
-                border: 'none', borderRadius: '8px',
-                cursor: 'pointer', display: 'flex', alignItems: 'center',
-                fontSize: '0.85rem',
-                boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)',
-                transition: 'all 0.2s'
-              }}
-              title="Tutup Studio"
+            <button onClick={onClose}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '6px', border: 'none', backgroundColor: 'rgba(0,0,0,0.2)', color: '#fff', cursor: 'pointer' }}
+              title="Close"
             >
-              <X size={16} />
+              <X size={14} />
             </button>
           )}
         </div>
@@ -906,7 +848,7 @@ button {
         </button>
 
         {/* 2. CENTER: SANDPACK EDITOR + LIVE PREVIEW */}
-        <div className="vibe-sandpack-root flex-1 overflow-hidden bg-slate-950 flex flex-col" style={{ minWidth: 0, height: '100%', position: 'relative' }}>
+        <div className="vibe-sandpack-root flex-1 overflow-hidden flex flex-col" style={{ minWidth: 0, flex: 1, position: 'relative', backgroundColor: '#0f172a' }}>
           <style>{`
             .vibe-sandpack-root .sp-wrapper {
               height: 100% !important;
@@ -972,7 +914,7 @@ button {
               }}
             />
 
-            <SandpackLayout style={{ height: '100%', minHeight: '100%', border: 'none', borderRadius: 0, flex: 1, display: 'flex' }}>
+            <SandpackLayout style={{ height: '100%', minHeight: '100%', border: 'none', borderRadius: 0, flex: 1, display: 'flex', alignSelf: 'stretch' }}>
               {(viewMode === 'split' || viewMode === 'code') && (
                 <SandpackCodeEditor
                   showLineNumbers
@@ -1071,6 +1013,116 @@ button {
             </SandpackLayout>
           </SandpackProvider>
 
+          {/* FLOATING PROMPT INPUT - ODOO STYLE */}
+          {isStandalone && (
+            <div style={{
+              padding: '12px 16px',
+              backgroundColor: '#0f172a',
+              borderTop: '1px solid #1e293b',
+              flexShrink: 0
+            }}>
+              {/* Model Selector + Generate */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                {/* Model Selector */}
+                <div style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const currentIdx = aiModels.findIndex(m => m.id === selectedAIModel);
+                      const nextIdx = (currentIdx + 1) % aiModels.length;
+                      setSelectedAIModel(aiModels[nextIdx].id);
+                    }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '6px',
+                      padding: '6px 12px', borderRadius: '8px',
+                      backgroundColor: '#1e293b', border: '1px solid #334155',
+                      color: '#fff', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer'
+                    }}
+                  >
+                    <span>{aiModels.find(m => m.id === selectedAIModel)?.icon}</span>
+                    <span>{selectedAIModel}</span>
+                    <ChevronDown size={12} />
+                  </button>
+                </div>
+
+                {/* Quick Actions */}
+                <div style={{ display: 'flex', gap: '6px', flex: 1, overflowX: 'auto' }}>
+                  {[
+                    { label: '📋 Checksheet', prompt: 'Buatkan aplikasi Digital Checksheet untuk inspeksi 5 poin mesin' },
+                    { label: '📊 OEE Gauge', prompt: 'Tambahkan gauge OEE real-time dan timeline status lini' },
+                    { label: '🔴 Emergency', prompt: 'Tambahkan tombol emergency stop besar warna merah' },
+                    { label: '📱 Mobile', prompt: 'Konversikan tampilan menjadi mobile app Ionic' },
+                  ].map((item, idx) => (
+                    <button key={idx} type="button"
+                      onClick={() => {
+                        setInlinePrompt(item.prompt);
+                        handleChatSubmit(item.prompt);
+                      }}
+                      disabled={internalAiLoading || isLoading}
+                      style={{
+                        whiteSpace: 'nowrap', fontSize: '0.72rem', padding: '5px 10px', borderRadius: '6px',
+                        backgroundColor: '#111827', border: '1px solid #1e293b', color: '#94a3b8',
+                        cursor: 'pointer', fontWeight: 500
+                      }}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Main Prompt Input */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (inlinePrompt.trim()) handleChatSubmit(inlinePrompt);
+                }}
+                style={{
+                  display: 'flex', alignItems: 'flex-end', gap: '10px',
+                  backgroundColor: '#020617', border: '1px solid #334155',
+                  borderRadius: '12px', padding: '10px 12px'
+                }}
+              >
+                <textarea
+                  value={inlinePrompt}
+                  onChange={(e) => setInlinePrompt(e.target.value)}
+                  disabled={internalAiLoading || isLoading}
+                  placeholder="What do you want to build?"
+                  rows={2}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      if (inlinePrompt.trim()) handleChatSubmit(inlinePrompt);
+                    }
+                  }}
+                  style={{
+                    flex: 1, backgroundColor: 'transparent', border: 'none', outline: 'none',
+                    fontSize: '0.88rem', color: '#f1f5f9', resize: 'none', lineHeight: '1.5',
+                    fontFamily: 'inherit'
+                  }}
+                />
+                <button
+                  type="submit"
+                  disabled={!inlinePrompt.trim() || internalAiLoading || isLoading}
+                  style={{
+                    padding: '10px 20px', borderRadius: '10px', border: 'none',
+                    background: inlinePrompt.trim() && !(internalAiLoading || isLoading)
+                      ? 'linear-gradient(135deg, #3b82f6, #6366f1)' : '#1e293b',
+                    color: '#fff', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {internalAiLoading || isLoading ? (
+                    <><Loader2 size={14} className="animate-spin" /> Generating...</>
+                  ) : (
+                    <><ArrowUp size={14} /> Generate</>
+                  )}
+                </button>
+              </form>
+            </div>
+          )}
+
           {/* 3. BOTTOM TERMINAL & AUTO-FIX PANEL */}
           <BottomTerminalPanel
             isOpen={isTerminalPanelOpen}
@@ -1090,7 +1142,7 @@ button {
           minWidth: isChatPanelOpen ? '340px' : '0px',
           transition: 'width 0.25s ease, min-width 0.25s ease',
           overflow: 'hidden',
-          display: 'flex',
+          display: isChatPanelOpen ? 'flex' : 'none',
           flexDirection: 'column',
           borderLeft: isChatPanelOpen ? '1px solid #1e293b' : 'none',
           backgroundColor: '#0a0f1a'
@@ -1272,6 +1324,72 @@ button {
         projectFiles={filesRecord}
         appName={deployedApp?.name || 'MaviCore App'}
       />
+
+      {/* 3. Companion - QR Code Modal */}
+      {isCompanionOpen && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '16px', maxWidth: '520px', width: '100%', padding: '24px' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, color: '#fff', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '1.2rem' }}>📱</span> Device Companion
+              </h3>
+              <button type="button" onClick={() => setIsCompanionOpen(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+            </div>
+
+            {/* QR Code Section */}
+            <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
+              {/* QR Code */}
+              <div style={{ flex: '0 0 auto', backgroundColor: '#fff', padding: '12px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
+                <QRCodeCanvas
+                  value={companionLink || window.location.origin}
+                  size={180}
+                  bgColor="#ffffff"
+                  fgColor="#000000"
+                  level="M"
+                  includeMargin={true}
+                />
+              </div>
+
+              {/* Instructions */}
+              <div style={{ flex: 1 }}>
+                <h4 style={{ margin: '0 0 12px', color: '#fff', fontSize: '0.95rem' }}>Cara Pakai:</h4>
+                <ol style={{ margin: 0, paddingLeft: '16px', color: '#94a3b8', fontSize: '0.82rem', lineHeight: '1.8' }}>
+                  <li>Buka <strong style={{ color: '#00cec9' }}>kamera HP</strong> atau <strong style={{ color: '#00cec9' }}>QR scanner</strong></li>
+                  <li>Arahkan ke <strong style={{ color: '#fff' }}>QR Code</strong> di samping</li>
+                  <li>T tap link yang muncul</li>
+                  <li>App akan terbuka di <strong style={{ color: '#fff' }}>browser HP</strong></li>
+                </ol>
+
+                <div style={{ marginTop: '16px', padding: '12px', backgroundColor: 'rgba(0,206,201,0.1)', borderRadius: '8px', border: '1px solid rgba(0,206,201,0.3)' }}>
+                  <p style={{ margin: 0, color: '#00cec9', fontSize: '0.78rem' }}>
+                    💡 <strong>Tips:</strong> Simpan link ini untuk akses cepat dari HP!
+                  </p>
+                </div>
+
+                {/* Direct Link */}
+                <div style={{ marginTop: '12px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(companionLink || window.location.origin);
+                      toast.success('Link copied!');
+                    }}
+                    style={{
+                      padding: '8px 16px', borderRadius: '8px',
+                      background: 'linear-gradient(135deg, #00b894, #00cec9)',
+                      border: 'none', color: '#fff', fontSize: '0.8rem', fontWeight: 700,
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                    }}
+                  >
+                    📋 Copy Link
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 4. Deploy to Frontline Modal */}
       {isDeployModalOpen && (

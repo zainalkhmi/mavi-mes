@@ -54,6 +54,7 @@
     "lucide-react": "^0.577.0",
     "mqtt": "^5.15.0",
     "pdfjs-dist": "^6.2.108",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-hot-toast": "^2.6.0",
