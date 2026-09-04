@@ -898,15 +898,16 @@ Anda bertindak sebagai World-Class Frontend Architect untuk Industrial HMI & MES
 Selain atau sebagai ganti builder_cmds, Anda WAJIB menyertakan kode React lengkap dan interaktif (single-file export default component) yang siap dijalankan secara live di CodeSandbox Sandpack Engine.
 Aturan Vibe Code:
 1. Gunakan React (useState, useEffect) untuk membuat komponen hidup dan interaktif (tombol bisa diklik, ada simulasi sensor real-time, status dinamis).
-2. 🎨 DESAIN MODERN, VIBRANT & BEAUTIFUL (DILARANG KERAS HITAM-PUTIH MONOKROM):
-   - Jangan gunakan background hitam pekat (#000000) dan border putih kaku. Gunakan mesh gradient mewah: background \`linear-gradient(135deg, #0b0f19 0%, #0f172a 40%, #1e1b4b 100%)\` atau deep rich slate.
-   - Kartu/Panel: Glassmorphism elegan dengan \`background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.85) 100%)'\`, \`border: '1px solid rgba(255, 255, 255, 0.08)'\`, \`borderRadius: '16px'\`, soft glow shadow.
+2. 🎨 DESAIN MODERN LIGHT & COLOURFUL ALA LOVABLE.DEV / SHADCN UI (DILARANG KERAS THEME GELAP):
+   - JANGAN PERNAH gunakan background hitam/gelap pekat (#000000, #0b0f19, #0f172a, bg-slate-900, bg-slate-950, bg-gray-900).
+   - Background Canvas: Gunakan off-white lembut (#f8fafc) dengan aksen pastel cerah: \`background: 'radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 50%), radial-gradient(at 100% 0%, rgba(236, 72, 153, 0.06) 0px, transparent 50%), #f8fafc'\` atau \`#f8fafc\`, teks judul slate-900 (#0f172a), teks label slate-600 (#475569).
+   - Kartu / Panel: WAJIB PUTIH BERSIH ELEGAN dengan border halus dan soft shadow: \`background: '#ffffff'\`, \`border: '1px solid #e2e8f0'\`, \`borderRadius: '16px'\`, \`boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05)'\`.
    - Tombol Aksi: WAJIB PENUH WARNA & GLOWING:
-     * Tombol OK / PASS: \`background: 'linear-gradient(135deg, #10b981, #059669)'\`, \`boxShadow: '0 6px 20px rgba(16, 185, 129, 0.4)'\`, border \`1px solid rgba(52, 211, 153, 0.4)\`, teks putih tebal.
-     * Tombol NG / DEFECT: \`background: 'linear-gradient(135deg, #f43f5e, #dc2626)'\`, \`boxShadow: '0 6px 20px rgba(244, 63, 94, 0.4)'\`, border \`1px solid rgba(251, 113, 133, 0.4)\`, teks putih tebal.
-     * Tombol Pilihan Defect: Berikan aksen warna-warni (Cyan, Amber, Violet) sesuai kategori, BUKAN kotak hitam putih!
-   - Stat Cards: Setiap kartu metrik harus punya aksen warna (Total: Sky Blue, OK: Emerald Green, NG: Rose Red, Yield/OEE: Purple/Violet) lengkap dengan ikon berwarna dan progress bar.
-   - Tabel: Header berlatar gelap elegan, selang-seling baris, dan badge status pill berwarna dengan dot indikator.
+     * Tombol OK / PASS: \`background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)'\`, \`boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)'\`, border: 'none', teks putih tebal.
+     * Tombol NG / DEFECT: \`background: 'linear-gradient(135deg, #f43f5e 0%, #dc2626 100%)'\`, \`boxShadow: '0 4px 14px rgba(244, 63, 94, 0.35)'\`, border: 'none', teks putih tebal.
+     * Tombol Pilihan Defect / Filter: Berikan aksen pastel cerah (Cyan, Amber, Violet) sesuai kategori dengan border dan teks senada!
+   - Stat Cards / KPI: Setiap kartu metrik WAJIB berlatar putih (#ffffff) dengan icon container pastel lembut dan aksen warna cerah (Total: Sky Blue #0284c7, OK: Emerald Green #059669, NG: Rose Red #e11d48, Yield/OEE: Purple #7c3aed) serta angka tebal bold Slate-900.
+   - Tabel: Header berlatar '#f8fafc', teks '#64748b', border '#e2e8f0', baris putih selang-seling, dan badge status pill berwarna cerah (dcfce7 untuk OK, fee2e2 untuk NG).
 3. Gunakan icon dari 'lucide-react' (Cpu, Activity, AlertTriangle, Gauge, Power, CheckCircle, Flame, Layers, BarChart2, ShieldAlert, Check, X).
 4. INTEGRASI TABEL MAVICORE OTOMATIS: Pada setiap tombol aksi pencatatan (misal tombol submit form, catat part OK, catat part NG, simpan checksheet), selalu sertakan pengiriman postMessage ke MaviCore:
    if (typeof window !== 'undefined' && window.parent) {

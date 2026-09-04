@@ -7,6 +7,7 @@ import {
   Sparkles,
   X,
   ChevronDown,
+  ChevronUp,
   Copy,
   Check,
   Trash2,
@@ -15,9 +16,45 @@ import {
   ListTodo,
   RotateCcw,
   ShieldCheck,
-  FileCode
+  FileCode,
+  Cpu,
+  Mic,
+  MicOff
 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { getPrimaryAiConnector, saveIntegrationConnector } from '../../utils/database';
 import { streamVibeAI, generateVibeCode } from '../../utils/ai/VibeAIStreamService';
+
+export const PROVIDER_MODELS = {
+  Gemini: [
+    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', desc: 'Super Cepat, Cerdas & Stabil (Rekomendasi)', tag: 'Recommended' },
+    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', desc: 'Model standar serbaguna' },
+    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', desc: 'Arsitektur & penalaran mendalam' },
+    { id: 'gemini-1.5-flash-8b', name: 'Gemini 1.5 Flash 8B', desc: 'Sangat ringan & instan' }
+  ],
+  OpenAI: [
+    { id: 'gpt-4o-mini', name: 'GPT-4o Mini', desc: 'Efisien, cepat & cerdas', tag: 'Fast' },
+    { id: 'gpt-4o', name: 'GPT-4o', desc: 'Flagship performa maksimal' },
+    { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', desc: 'Analisis logika mendalam' }
+  ],
+  Anthropic: [
+    { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', desc: 'Kualitas kode frontend terbaik', tag: 'Best Code' },
+    { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', desc: 'Ringan & respon cepat' }
+  ],
+  Groq: [
+    { id: 'llama-3.1-70b-versatile', name: 'Llama 3.1 70B', desc: 'High capability via Groq LPU' },
+    { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B', desc: 'Respon instan dalam milidetik' }
+  ],
+  OpenRouter: [
+    { id: 'google/gemini-flash-1.5', name: 'Gemini 1.5 Flash (OpenRouter)', desc: 'Multi-provider routing' },
+    { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet (OpenRouter)', desc: 'Coding kualitas premium' },
+    { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini (OpenRouter)', desc: 'Hemat & stabil' }
+  ],
+  Ollama: [
+    { id: 'llama3', name: 'Llama 3 (Local)', desc: 'Model offline mandiri' },
+    { id: 'gemma2', name: 'Gemma 2 (Local)', desc: 'Model Google lokal' }
+  ]
+};
 
 export default function VibeChatPanel({
   context = {},
@@ -32,6 +69,128 @@ export default function VibeChatPanel({
   const [planFirstMode, setPlanFirstMode] = useState(true);
   const chatEndRef = useRef(null);
   const textareaRef = useRef(null);
+
+  // Active AI Model & Provider state
+  const [activeConnector, setActiveConnector] = useState(null);
+  const [selectedProvider, setSelectedProvider] = useState('Gemini');
+  const [selectedModelId, setSelectedModelId] = useState('gemini-2.0-flash');
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const modelDropdownRef = useRef(null);
+
+  // Initialize active model & connector from DB / localStorage
+  useEffect(() => {
+    async function loadActiveModel() {
+      try {
+        const savedProvider = localStorage.getItem('vibe_active_provider');
+        const savedModel = localStorage.getItem('vibe_active_model');
+        const connector = await getPrimaryAiConnector().catch(() => null);
+        if (connector) {
+          setActiveConnector(connector);
+          const aiSet = connector.aiSettings || connector.config || connector || {};
+          const p = savedProvider || aiSet.provider || 'Gemini';
+          const m = savedModel || aiSet.modelId || (p === 'OpenAI' ? 'gpt-4o-mini' : 'gemini-2.0-flash');
+          setSelectedProvider(p);
+          setSelectedModelId(m);
+        } else if (savedProvider && savedModel) {
+          setSelectedProvider(savedProvider);
+          setSelectedModelId(savedModel);
+        }
+      } catch (err) {
+        console.warn('[VibeChatPanel] Failed to load active AI connector:', err);
+      }
+    }
+    loadActiveModel();
+  }, []);
+
+  // Close model dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (modelDropdownRef.current && !modelDropdownRef.current.contains(event.target)) {
+        setIsModelDropdownOpen(false);
+      }
+    }
+    if (isModelDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isModelDropdownOpen]);
+
+  const handleSelectModel = async (provider, model) => {
+    setSelectedProvider(provider);
+    setSelectedModelId(model.id);
+    setIsModelDropdownOpen(false);
+    try {
+      localStorage.setItem('vibe_active_provider', provider);
+      localStorage.setItem('vibe_active_model', model.id);
+      if (activeConnector) {
+        const updated = {
+          ...activeConnector,
+          aiSettings: {
+            ...(activeConnector.aiSettings || activeConnector.config || {}),
+            provider,
+            modelId: model.id
+          }
+        };
+        setActiveConnector(updated);
+        await saveIntegrationConnector(updated).catch(() => {});
+      }
+      toast.success(`Model aktif: ${model.name}`);
+    } catch (e) {
+      console.warn('Failed to persist model:', e);
+    }
+  };
+
+  const getActiveModelDisplayName = () => {
+    const list = PROVIDER_MODELS[selectedProvider] || [];
+    const found = list.find(m => m.id === selectedModelId);
+    if (found) return `${found.name}`;
+    return `${selectedProvider} ${selectedModelId}`;
+  };
+
+  // Toggle voice dictation
+  const handleToggleMic = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      toast('Speech recognition tidak didukung di browser ini.');
+      return;
+    }
+
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'id-ID';
+      recognition.continuous = false;
+      recognition.interimResults = false;
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        toast('Mendengarkan suara...', { icon: '🎙️' });
+      };
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        setInput(prev => prev ? `${prev} ${transcript}` : transcript);
+        setIsListening(false);
+      };
+
+      recognition.onerror = () => {
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognition.start();
+    } catch {
+      setIsListening(false);
+    }
+  };
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -67,6 +226,15 @@ Current Files: ${Object.keys(context.files || {}).join(', ')}
 Existing MaviCore Database Tables:
 ${tablesList || 'No custom tables yet'}`;
 
+      const effectiveSettings = {
+        ...(activeConnector || {}),
+        aiSettings: {
+          ...(activeConnector?.aiSettings || activeConnector?.config || {}),
+          provider: selectedProvider,
+          modelId: selectedModelId
+        }
+      };
+
       if (planFirstMode) {
         // ─── 1. ANTIGRAVITY PLANNING MODE ───
         const planSystemPrompt = `You are MaviCore Vibe Planner (Antigravity Mode).
@@ -90,7 +258,7 @@ Create a clear, professional, structured IMPLEMENTATION PLAN in markdown:
 1. **Ringkasan KPI / Status Bar**: (Metrik-metrik kunci, indikator visual status)
 2. **Formulir Interaktif**: (Input field, validasi, tombol aksi)
 3. **Tabel Data & Pencarian**: (Tabel real-time, badge status, filter)
-4. **Desain & Tema**: (Dark industrial theme, glassmorphism, glowing badges)
+4. **Desain & Tema**: Modern Light & Colourful ala Lovable.dev / shadcn/ui: background off-white lembut (#f8fafc), surface card putih bersih (#ffffff) dengan soft elevated shadow dan border halus (#e2e8f0), teks judul slate-900 (#0f172a), serta tombol aksi dan badge status kaya warna cerah (Emerald, Rose, Indigo, Sky). DILARANG menggunakan background gelap/hitam pekat kecuali user secara eksplisit meminta dark mode!
 
 ## 🛡️ Verification Plan
 - Kompilasi React bebas error di Sandpack preview
@@ -103,7 +271,7 @@ Sampaikan bahwa pengguna dapat mereview plan ini dan menekan tombol **Proceed** 
             { role: 'system', content: planSystemPrompt },
             { role: 'user', content: `Context:\n${contextString}\n\nTask: ${userMessage}` }
           ],
-          settings: (settings && (settings.apiKey || settings.config?.apiKey || settings.aiSettings?.apiKey)) ? settings : null,
+          settings: effectiveSettings,
           onChunk: (chunk) => {
             setCurrentStream(prev => prev + chunk);
           },
@@ -130,7 +298,14 @@ CRITICAL EXECUTION CONSTRAINTS:
 2. DO NOT output package.json, terminal commands, or instructions on how to install or run the project (like npm install or creating directories).
 3. Output ONLY a single, complete, self-contained React component for /App.js that exports default function App().
 4. ALWAYS wrap the entire runnable React component inside <vibe_code> ... </vibe_code> tags.
-5. Create rich, vibrant, modern, dark-themed industrial UI with glassmorphism, responsive controls, realistic initial data, and functional state (add, edit, filter, delete).
+5. VISUAL AESTHETICS: WAJIB MODERN LIGHT THEME & COLOURFUL ALA LOVABLE.DEV / SHADCN UI:
+   - DILARANG KERAS BACKGROUND GELAP/HITAM: Jangan gunakan bg-slate-900, bg-slate-950, bg-gray-900, bg-black, #000000, #030712, #0b0f19, #0f172a pada root container atau kartu!
+   - Root Container: WAJIB <div className="min-h-screen p-4 sm:p-6" style={{ backgroundColor: '#f8fafc', color: '#0f172a' }}>
+   - Card/Panels: WAJIB putih bersih (#ffffff), border halus (#e2e8f0), soft shadow (box-shadow: 0 4px 20px -2px rgba(0,0,0,0.05)), rounded-2xl
+   - Typography: Judul Slate-900 (#0f172a) font-bold, Subjudul Slate-600 (#475569) font-medium (DILARANG teks putih di canvas terang)
+   - Vibrant Action Buttons: OK/Pass (emerald gradient #10b981 to #059669 with soft glow), NG/Reject (rose gradient #f43f5e to #dc2626), Primary actions (indigo #6366f1 to #4f46e5)
+   - KPI & Metrics: Kartu putih murni dengan icon box pastel cerah dan angka tebal besar (bukan kartu hitam/navy)
+   - Terapkan gaya modern, bersih, cerah dan penuh warna persis seperti lovable.dev atau dashboard Vercel!
 
 DATABASE & TABLE INTEGRATION (MAVICORE BRIDGE):
 MaviCore provides an auto-injected real-time database bridge at window.MaviCoreBridge.
@@ -147,7 +322,7 @@ When creating or updating apps, always integrate with the MaviCore table system:
             { role: 'system', content: directSystemPrompt },
             { role: 'user', content: `Context:\n${contextString}\n\nTask: ${userMessage}` }
           ],
-          settings: (settings && (settings.apiKey || settings.config?.apiKey || settings.aiSettings?.apiKey)) ? settings : null,
+          settings: effectiveSettings,
           onChunk: (chunk) => {
             setCurrentStream(prev => prev + chunk);
           },
@@ -210,14 +385,29 @@ CRITICAL EXECUTION CONSTRAINTS:
 3. Output ONLY a single, complete, self-contained React component for /App.js that exports default function App().
 4. ALWAYS wrap the entire runnable React component inside <vibe_code> ... </vibe_code> tags.
 5. Strictly implement the database table and fields defined in the plan using window.MaviCoreBridge (createTable, save, read, update, delete, onRecord).
-6. Create rich, vibrant, modern, dark-themed industrial UI with glassmorphism, responsive controls, and functional state.`;
+6. VISUAL AESTHETICS: WAJIB MODERN LIGHT THEME & COLOURFUL ALA LOVABLE.DEV / SHADCN UI:
+   - DILARANG KERAS BACKGROUND GELAP/HITAM: Jangan gunakan bg-slate-900, bg-slate-950, bg-gray-900, bg-black, #000000, #030712, #0b0f19, #0f172a pada root container atau kartu!
+   - Root Container: WAJIB <div className="min-h-screen p-4 sm:p-6" style={{ backgroundColor: '#f8fafc', color: '#0f172a' }}>
+   - Card/Panels: WAJIB putih bersih (#ffffff), border halus (#e2e8f0), soft elevated shadow (0 4px 20px -2px rgba(0,0,0,0.05)), rounded-2xl
+   - High-contrast crisp typography: Slate-900 (#0f172a) untuk judul, Slate-600 (#475569) untuk teks sekunder
+   - Vibrant colorful gradient buttons and status badges (Emerald, Rose, Indigo, Amber, Sky)
+   - Stat Cards / KPI: Kartu putih bersih dengan icon container pastel dan angka bold Slate-900;`;
+
+      const effectiveSettings = {
+        ...(activeConnector || {}),
+        aiSettings: {
+          ...(activeConnector?.aiSettings || activeConnector?.config || {}),
+          provider: selectedProvider,
+          modelId: selectedModelId
+        }
+      };
 
       const result = await streamVibeAI({
         messages: [
           { role: 'system', content: execSystemPrompt },
           { role: 'user', content: 'Execute the approved plan and generate the complete code for /App.js.' }
         ],
-        settings: (settings && (settings.apiKey || settings.config?.apiKey || settings.aiSettings?.apiKey)) ? settings : null,
+        settings: effectiveSettings,
         onChunk: (chunk) => {
           setCurrentStream(prev => prev + chunk);
         },
@@ -457,30 +647,163 @@ CRITICAL EXECUTION CONSTRAINTS:
 
       {/* Input */}
       <form onSubmit={handleSubmit} style={{
-        padding: '10px 14px',
+        padding: '12px 14px',
         borderTop: '1px solid #334155',
-        backgroundColor: '#1e293b'
+        backgroundColor: '#1e293b',
+        position: 'relative'
       }}>
+        {/* Model Selector Popover */}
+        {isModelDropdownOpen && (
+          <div
+            ref={modelDropdownRef}
+            style={{
+              position: 'absolute',
+              bottom: '100%',
+              left: '12px',
+              right: '12px',
+              marginBottom: '8px',
+              backgroundColor: '#0f172a',
+              border: '1px solid #334155',
+              borderRadius: '12px',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08)',
+              zIndex: 100,
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              maxHeight: '360px'
+            }}
+          >
+            {/* Popover Header */}
+            <div style={{
+              padding: '10px 14px',
+              backgroundColor: '#1e293b',
+              borderBottom: '1px solid #334155',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Cpu size={14} color="#38bdf8" /> Pilih Provider & Model AI
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsModelDropdownOpen(false)}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px' }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* Provider Tabs */}
+            <div style={{
+              display: 'flex',
+              gap: '4px',
+              padding: '8px 10px',
+              borderBottom: '1px solid #1e293b',
+              backgroundColor: '#0b1120',
+              overflowX: 'auto'
+            }}>
+              {Object.keys(PROVIDER_MODELS).map((prov) => (
+                <button
+                  key={prov}
+                  type="button"
+                  onClick={() => setSelectedProvider(prov)}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: selectedProvider === prov ? 700 : 500,
+                    backgroundColor: selectedProvider === prov ? '#3b82f6' : 'transparent',
+                    color: selectedProvider === prov ? '#ffffff' : '#94a3b8',
+                    border: 'none',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  {prov}
+                </button>
+              ))}
+            </div>
+
+            {/* Model List */}
+            <div style={{ overflowY: 'auto', padding: '6px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {(PROVIDER_MODELS[selectedProvider] || []).map((m) => {
+                const isSelected = selectedModelId === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => handleSelectModel(selectedProvider, m)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 10px',
+                      borderRadius: '8px',
+                      backgroundColor: isSelected ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
+                      border: isSelected ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid transparent',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.15s'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.04)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: isSelected ? '#38bdf8' : '#f8fafc' }}>
+                          {m.name}
+                        </span>
+                        {m.tag && (
+                          <span style={{
+                            fontSize: '9px', fontWeight: 700, padding: '1px 5px', borderRadius: '4px',
+                            backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)'
+                          }}>
+                            {m.tag}
+                          </span>
+                        )}
+                      </div>
+                      <span style={{ fontSize: '10px', color: '#64748b' }}>{m.desc}</span>
+                    </div>
+                    {isSelected && <Check size={14} color="#38bdf8" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Textarea container */}
         <div style={{
+          backgroundColor: '#0f172a',
+          border: '1px solid #334155',
+          borderRadius: '12px',
+          padding: '10px 12px 8px 12px',
           display: 'flex',
+          flexDirection: 'column',
           gap: '8px',
-          alignItems: 'flex-end'
+          transition: 'border-color 0.2s',
+          boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.2)'
         }}>
           <textarea
             ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={planFirstMode ? "Jelaskan app yang ingin dibuat (akan dibuatkan plan dulu)..." : "Ketik prompt kode..."}
+            placeholder={planFirstMode ? "Jelaskan app yang ingin dibuat (akan dibuatkan plan dulu)..." : "Ketik prompt instruksi kode..."}
             disabled={isLoading}
             style={{
-              flex: 1,
-              backgroundColor: '#0f172a',
-              border: '1px solid #334155',
-              borderRadius: '8px',
-              padding: '9px 12px',
+              width: '100%',
+              backgroundColor: 'transparent',
+              border: 'none',
+              padding: 0,
               color: '#f8fafc',
-              fontSize: '12px',
+              fontSize: '12.5px',
               fontFamily: 'inherit',
               resize: 'none',
               outline: 'none',
@@ -488,36 +811,136 @@ CRITICAL EXECUTION CONSTRAINTS:
               lineHeight: '1.5'
             }}
           />
-          <button
-            type="submit"
-            disabled={isLoading || !input.trim()}
-            style={{
-              padding: '9px 13px',
-              backgroundColor: isLoading || !input.trim() ? '#334155' : '#8b5cf6',
-              border: 'none',
-              borderRadius: '8px',
-              color: '#fff',
-              cursor: isLoading || !input.trim() ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              transition: 'all 0.2s'
-            }}
-          >
-            {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-          </button>
+
+          {/* Bottom Bar inside Prompt Box (Matches user screenshot!) */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingTop: '6px',
+            borderTop: '1px solid rgba(255,255,255,0.05)',
+            gap: '8px'
+          }}>
+            {/* Active Model Selector Button */}
+            <button
+              type="button"
+              onClick={() => setIsModelDropdownOpen(v => !v)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 8px',
+                borderRadius: '6px',
+                backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                color: '#94a3b8',
+                fontSize: '11px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+                maxWidth: '220px'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                e.currentTarget.style.color = '#f8fafc';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.04)';
+                e.currentTarget.style.color = '#94a3b8';
+              }}
+              title="Pilih Model / Provider AI"
+            >
+              <span style={{ color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {getActiveModelDisplayName()}
+              </span>
+              <ChevronUp
+                size={12}
+                color="#64748b"
+                style={{
+                  transform: isModelDropdownOpen ? 'rotate(180deg)' : 'none',
+                  transition: 'transform 0.15s',
+                  flexShrink: 0
+                }}
+              />
+            </button>
+
+            {/* Right Tools: Mic & Send Button */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {/* Mic Dictation */}
+              <button
+                type="button"
+                onClick={handleToggleMic}
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '50%',
+                  border: 'none',
+                  backgroundColor: isListening ? '#ef4444' : 'transparent',
+                  color: isListening ? '#ffffff' : '#64748b',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.15s'
+                }}
+                title={isListening ? "Sedang mendengarkan... (Klik untuk stop)" : "Dikte Suara (Voice Input)"}
+              >
+                {isListening ? <MicOff size={14} /> : <Mic size={14} />}
+              </button>
+
+              {/* Send Button */}
+              <button
+                type="submit"
+                disabled={isLoading || !input.trim()}
+                style={{
+                  width: '30px',
+                  height: '30px',
+                  backgroundColor: isLoading || !input.trim() ? '#334155' : '#0284c7',
+                  border: 'none',
+                  borderRadius: '50%',
+                  color: '#fff',
+                  cursor: isLoading || !input.trim() ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.2s',
+                  boxShadow: input.trim() ? '0 2px 8px rgba(2, 132, 199, 0.4)' : 'none'
+                }}
+                title="Kirim Prompt"
+              >
+                {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={13} />}
+              </button>
+            </div>
+          </div>
         </div>
+
+        {/* Footer info */}
         <div style={{
-          margin: '5px 0 0',
+          margin: '6px 0 0',
           fontSize: '10px',
           color: '#64748b',
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center'
+          alignItems: 'center',
+          padding: '0 2px'
         }}>
           <span>Shift+Enter untuk baris baru</span>
-          <span style={{ color: planFirstMode ? '#34d399' : '#94a3b8' }}>
-            {planFirstMode ? '✓ Antigravity Plan Mode' : 'Instant Mode'}
-          </span>
+          <button
+            type="button"
+            onClick={() => setPlanFirstMode(v => !v)}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '10px',
+              padding: 0,
+              color: planFirstMode ? '#34d399' : '#94a3b8',
+              fontWeight: 600
+            }}
+            title="Klik untuk toggle mode"
+          >
+            {planFirstMode ? '✓ Antigravity Plan Mode' : '⚡ Instant Mode'}
+          </button>
         </div>
       </form>
 

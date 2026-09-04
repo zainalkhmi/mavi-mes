@@ -278,42 +278,46 @@ const styles = \`
 * { font-family: 'Inter', system-ui, sans-serif; }
 
 body {
-  background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+  background: #f8fafc;
   min-height: 100vh;
   margin: 0;
-  color: #f8fafc;
+  color: #0f172a;
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 24px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
 }
 
-.glow-green { box-shadow: 0 0 40px rgba(16, 185, 129, 0.3); }
-.glow-red { box-shadow: 0 0 40px rgba(239, 68, 68, 0.3); }
-.glow-purple { box-shadow: 0 0 40px rgba(139, 92, 246, 0.3); }
+.glow-green { box-shadow: 0 4px 20px rgba(16, 185, 129, 0.25); }
+.glow-red { box-shadow: 0 4px 20px rgba(239, 68, 68, 0.25); }
+.glow-purple { box-shadow: 0 4px 20px rgba(99, 102, 241, 0.25); }
 
 .stat-card {
-  background: linear-gradient(135deg, rgba(30, 30, 50, 0.8), rgba(20, 20, 40, 0.9));
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.3s ease;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.04);
+  transition: all 0.25s ease;
 }
 
 .stat-card:hover {
-  transform: translateY(-4px);
-  border-color: rgba(139, 92, 246, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.08);
+  border-color: #cbd5e1;
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
   transition: all 0.2s ease;
 }
 
 .btn-primary:hover {
   transform: scale(1.02);
-  box-shadow: 0 8px 30px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.45);
 }
 
 .pulse-dot {
@@ -384,7 +388,7 @@ export default function IndustrialDashboard() {
         status: 'FAIL',
         total: newCount,
         station: 'Assembly A1',
-        operator: 'Auto Logged'
+        timestamp: new Date().toISOString()
       });
     }
   };
@@ -400,7 +404,7 @@ export default function IndustrialDashboard() {
   return (
     <>
       <style>{styles}</style>
-      <div className="min-h-screen p-6">
+      <div className="min-h-screen p-6 bg-slate-50 text-slate-900">
         {/* Header */}
         <motion.div
           initial={{ y: -20, opacity: 0 }}
@@ -408,46 +412,46 @@ export default function IndustrialDashboard() {
           className="flex items-center justify-between mb-8"
         >
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-500/20">
               <Factory className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white">Stasiun Assembly A1</h1>
+              <h1 className="text-2xl font-bold text-slate-900">Stasiun Assembly A1</h1>
               <div className="flex items-center gap-2 mt-1">
                 <span className="w-2 h-2 rounded-full bg-green-500 pulse-dot" />
-                <span className="text-sm text-gray-400">{isRunning ? 'Lini Aktif - Produksi Normal' : 'Lini Berhenti'}</span>
+                <span className="text-sm text-slate-500">{isRunning ? 'Lini Aktif - Produksi Normal' : 'Lini Berhenti'}</span>
               </div>
             </div>
           </div>
           <div className="flex items-center gap-3">
             {/* Sync Status */}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-slate-200 shadow-sm">
               <span className={\`w-2 h-2 rounded-full \${isLoadingLogs ? 'bg-yellow-500 animate-spin' : 'bg-green-500'}\`} />
-              <span className="text-xs text-gray-400">
+              <span className="text-xs font-semibold text-slate-600">
                 {isLoadingLogs ? 'Syncing...' : lastSync ? 'Synced' : 'Ready'}
               </span>
               {lastSync && (
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-slate-400">
                   {lastSync.toLocaleTimeString()}
                 </span>
               )}
             </div>
-            <button className="p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition">
-              <Bell className="w-5 h-5 text-gray-400" />
+            <button className="p-3 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 shadow-sm transition">
+              <Bell className="w-5 h-5 text-slate-600" />
             </button>
-            <button className="p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition">
-              <Settings className="w-5 h-5 text-gray-400" />
+            <button className="p-3 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 shadow-sm transition">
+              <Settings className="w-5 h-5 text-slate-600" />
             </button>
           </div>
         </motion.div>
 
         {/* Navigation Tabs */}
-        <div className="flex gap-2 mb-6 p-1 bg-white/5 rounded-2xl w-fit">
+        <div className="flex gap-2 mb-6 p-1 bg-slate-200/70 rounded-2xl w-fit">
           {['overview', 'production', 'quality'].map((tab) => (
             <button
               key={tab}
               onClick={() => setSelectedTab(tab)}
-              className={\`px-6 py-2 rounded-xl text-sm font-medium transition-all \${selectedTab === tab ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}\`}
+              className={\`px-6 py-2 rounded-xl text-sm font-medium transition-all \${selectedTab === tab ? 'bg-white text-slate-900 shadow-md font-semibold' : 'text-slate-600 hover:text-slate-900'}\`}
             >
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
@@ -465,13 +469,13 @@ export default function IndustrialDashboard() {
               className="stat-card rounded-2xl p-5"
             >
               <div className="flex items-center justify-between mb-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: stat.color + '20' }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: stat.color + '18' }}>
                   <stat.icon className="w-5 h-5" style={{ color: stat.color }} />
                 </div>
-                <span className="text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-400 font-medium">{stat.trend}</span>
+                <span className="text-xs px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-200 font-semibold">{stat.trend}</span>
               </div>
-              <div className="text-3xl font-bold text-white mb-1">{stat.value}</div>
-              <div className="text-sm text-gray-400">{stat.label}</div>
+              <div className="text-3xl font-extrabold text-slate-900 mb-1">{stat.value}</div>
+              <div className="text-sm font-medium text-slate-500">{stat.label}</div>
             </motion.div>
           ))}
         </div>
@@ -483,15 +487,15 @@ export default function IndustrialDashboard() {
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.2 }}
-            className="glass-card glow-green p-6"
+            className="glass-card p-6"
           >
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h3 className="text-lg font-semibold text-white">Produksi Sesuai (OK)</h3>
-                <p className="text-sm text-gray-400 mt-1">Part yang memenuhi standar kualitas</p>
+                <h3 className="text-lg font-bold text-slate-900">Produksi Sesuai (OK)</h3>
+                <p className="text-sm text-slate-500 mt-1">Part yang memenuhi standar kualitas</p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
-                <CheckCircle2 className="w-6 h-6 text-green-400" />
+              <div className="w-12 h-12 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+                <CheckCircle2 className="w-6 h-6 text-emerald-600" />
               </div>
             </div>
             <AnimatePresence mode="wait">
@@ -499,17 +503,17 @@ export default function IndustrialDashboard() {
                 key={productionCount}
                 initial={{ scale: 1.2, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="text-6xl font-black text-white text-center mb-6"
+                className="text-6xl font-black text-slate-900 text-center mb-6"
               >
                 {productionCount.toLocaleString()}
               </motion.div>
             </AnimatePresence>
             <button
               onClick={handleLogProduction}
-              className="btn-primary w-full py-4 rounded-2xl text-white font-semibold flex items-center justify-center gap-2"
+              className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-green-600 text-white font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition"
             >
               <Zap className="w-5 h-5" />
-              Catat Part OK
+              Catat Part OK (+1)
             </button>
           </motion.div>
 
@@ -518,15 +522,15 @@ export default function IndustrialDashboard() {
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.3 }}
-            className="glass-card glow-red p-6"
+            className="glass-card p-6"
           >
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h3 className="text-lg font-semibold text-white">Produksi Cacat (NG)</h3>
-                <p className="text-sm text-gray-400 mt-1">Part yang tidak memenuhi standar</p>
+                <h3 className="text-lg font-bold text-slate-900">Produksi Cacat (NG)</h3>
+                <p className="text-sm text-slate-500 mt-1">Part yang tidak memenuhi standar</p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
-                <XCircle className="w-6 h-6 text-red-400" />
+              <div className="w-12 h-12 rounded-full bg-rose-50 border border-rose-200 flex items-center justify-center">
+                <XCircle className="w-6 h-6 text-rose-600" />
               </div>
             </div>
             <AnimatePresence mode="wait">
@@ -534,17 +538,17 @@ export default function IndustrialDashboard() {
                 key={rejectCount}
                 initial={{ scale: 1.2, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="text-6xl font-black text-white text-center mb-6"
+                className="text-6xl font-black text-rose-600 text-center mb-6"
               >
                 {rejectCount.toLocaleString()}
               </motion.div>
             </AnimatePresence>
             <button
               onClick={handleLogReject}
-              className="w-full py-4 rounded-2xl bg-gradient-to-r from-red-500 to-rose-600 text-white font-semibold flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-red-500/30 transition"
+              className="w-full py-4 rounded-2xl bg-gradient-to-r from-rose-500 to-red-600 text-white font-bold flex items-center justify-center gap-2 shadow-lg shadow-rose-500/25 hover:shadow-rose-500/40 transition"
             >
               <XCircle className="w-5 h-5" />
-              Catat NG
+              Catat Part NG
             </button>
           </motion.div>
         </div>
@@ -557,18 +561,17 @@ export default function IndustrialDashboard() {
             className="mt-6 glass-card p-4"
           >
             <div className="flex items-center justify-between mb-4">
-              <h4 className="text-sm font-semibold text-white">Real-time Log</h4>
-              <span className="text-xs text-gray-500">{productionLogs.length} records</span>
+              <h4 className="text-sm font-bold text-slate-900">Real-time Log</h4>
+              <span className="text-xs text-slate-500">{productionLogs.length} records</span>
             </div>
             <div className="max-h-40 overflow-y-auto space-y-2">
               {productionLogs.slice(0, 5).map((record, i) => (
-                <div key={i} className="flex items-center gap-3 text-xs">
-                  <span className={\`px-2 py-0.5 rounded-full text-xs font-medium \${record.type === 'OK' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}\`}>
+                <div key={i} className="flex items-center gap-3 text-xs bg-slate-50 p-2 rounded-lg border border-slate-200">
+                  <span className={\`px-2.5 py-0.5 rounded-full text-xs font-bold \${record.type === 'OK' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}\`}>
                     {record.type}
                   </span>
-                  <span className="text-gray-500">{new Date(record.timestamp).toLocaleTimeString()}</span>
-                  <span className="text-gray-400 flex-1">{record.station || 'Assembly A1'}</span>
-                  {/* Delete Button */}
+                  <span className="text-slate-400 font-mono">{record.timestamp ? new Date(record.timestamp).toLocaleTimeString() : '--:--'}</span>
+                  <span className="text-slate-700 font-medium flex-1">{record.station || 'Assembly A1'}</span>
                   <button
                     onClick={() => {
                       if (window.MaviCoreBridge) {
@@ -738,40 +741,39 @@ html, body, #root {
   margin: 0;
   padding: 0;
   min-height: 100%;
-  background: radial-gradient(circle at 50% 0%, #1e293b 0%, #0f172a 45%, #0b0f19 100%);
-  color: #f8fafc;
+  background-color: #f8fafc;
+  color: #0f172a;
   -webkit-font-smoothing: antialiased;
 }
 button {
   font-family: inherit;
 }
-/* Beautiful Industrial UI Utilities */
+/* Beautiful Modern Light UI Utilities */
 .glass-panel {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.85) 100%);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
   border-radius: 16px;
-  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
 }
 .btn-ok {
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
-  border: 1px solid rgba(52, 211, 153, 0.4);
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+  border: none;
   color: #ffffff;
 }
 .btn-ok:hover {
   transform: translateY(-1px) scale(1.02);
-  box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
 }
 .btn-ng {
   background: linear-gradient(135deg, #f43f5e 0%, #dc2626 100%);
-  box-shadow: 0 6px 20px rgba(244, 63, 94, 0.4);
-  border: 1px solid rgba(251, 113, 133, 0.4);
+  box-shadow: 0 4px 14px rgba(244, 63, 94, 0.35);
+  border: none;
   color: #ffffff;
 }
 .btn-ng:hover {
   transform: translateY(-1px) scale(1.02);
-  box-shadow: 0 8px 25px rgba(244, 63, 94, 0.5);
+  box-shadow: 0 6px 20px rgba(244, 63, 94, 0.45);
 }
 `,
       '/package.json': JSON.stringify({
@@ -1667,13 +1669,13 @@ button {
                     display: 'flex',
                     flexDirection: 'column',
                     overflow: 'hidden',
-                    backgroundColor: '#030712',
+                    backgroundColor: '#f8fafc',
                     transition: 'width 0.3s ease, max-height 0.3s ease',
                     flexShrink: 0
                   }}>
                     {/* Dynamic Island for Mobile */}
                     {viewportSize === 'mobile' && (
-                      <div style={{ height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#030712', borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
+                      <div style={{ height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', borderBottom: '1px solid rgba(0,0,0,0.05)', flexShrink: 0 }}>
                         <div style={{ width: '92px', height: '18px', backgroundColor: '#0f172a', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 8px' }}>
                           <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#0284c7' }} />
                           <span style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: '#334155' }} />
@@ -1683,15 +1685,15 @@ button {
 
                     {/* Camera Dot for Tablet */}
                     {viewportSize === 'tablet' && (
-                      <div style={{ height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#030712', flexShrink: 0 }}>
-                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#334155' }} />
+                      <div style={{ height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', flexShrink: 0 }}>
+                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#cbd5e1' }} />
                       </div>
                     )}
 
                     {/* Mac Chrome Bar for Desktop */}
                     {viewportSize === 'desktop' && (
                       <div style={{
-                        height: '34px', backgroundColor: '#0f172a', borderBottom: '1px solid #1e293b',
+                        height: '34px', backgroundColor: '#ffffff', borderBottom: '1px solid #e2e8f0',
                         display: 'flex', alignItems: 'center', padding: '0 12px', gap: '12px', flexShrink: 0
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1700,13 +1702,13 @@ button {
                           <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#10b981' }} />
                         </div>
                         <div style={{
-                          flex: 1, maxWidth: '480px', margin: '0 auto', height: '22px', backgroundColor: '#030712',
-                          borderRadius: '6px', border: '1px solid #1e293b', display: 'flex', alignItems: 'center',
-                          padding: '0 8px', gap: '6px', fontSize: '0.7rem', color: '#94a3b8'
+                          flex: 1, maxWidth: '480px', margin: '0 auto', height: '22px', backgroundColor: '#f1f5f9',
+                          borderRadius: '6px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center',
+                          padding: '0 8px', gap: '6px', fontSize: '0.7rem', color: '#64748b'
                         }}>
-                          <Lock size={10} color="#34d399" />
-                          <span style={{ color: '#e2e8f0', fontWeight: 600 }}>https://mavicore.mes</span>
-                          <span style={{ color: '#64748b' }}>/runtime</span>
+                          <Lock size={10} color="#10b981" />
+                          <span style={{ color: '#0f172a', fontWeight: 600 }}>https://mavicore.mes</span>
+                          <span style={{ color: '#94a3b8' }}>/runtime</span>
                         </div>
                       </div>
                     )}
@@ -1716,7 +1718,7 @@ button {
                       <SandpackPreview
                         showOpenInCodeSandbox={false}
                         showRefreshButton={true}
-                        style={{ height: '100%', width: '100%', backgroundColor: '#030712' }}
+                        style={{ height: '100%', width: '100%', backgroundColor: '#f8fafc' }}
                       />
                     </div>
                   </div>

@@ -45,53 +45,62 @@ ATURAN KHUSUS WEB APP:
 `}
 
 ════════════════════════════════════════════════
-🎨 STANDAR VISUAL ESTETIKA: WAJIB VIBRANT, MODERN & BERWARNA (DILARANG HITAM-PUTIH / MONOKROM!)
+🎨 STANDAR VISUAL ESTETIKA: MODERN LIGHT, COLOURFUL & CLEAN (ALA LOVABLE.DEV / SHADCN UI)
 ════════════════════════════════════════════════
-PERINGATAN KERAS: JANGAN SEKALI-KALI membuat tampilan hitam-putih, wireframe kaku, atau kotak monokrom polos! Pengguna menginginkan antarmuka yang "GOOD & BEAUTIFUL", kaya warna, modern, dan memukau:
+Pengguna menginginkan antarmuka yang "CLEAN, COLOURFUL, MODERN & STUNNING" seperti hasil kreasi Lovable.dev, Linear, dan Vercel (bukan dark theme kusam, bukan monokrom polos):
 
-1. 🌈 BACKGROUND & CARD AESTHETICS (TIDAK BOLEH HITAM PEKAT POLOS):
-   - Background Utama: Gunakan deep slate/navy mesh gradient mewah:
-     \`background: 'linear-gradient(135deg, #0b0f19 0%, #0f172a 40%, #1e1b4b 100%)'\` atau \`radial-gradient(ellipse at top, #1e293b 0%, #0a0e1a 100%)\`. JANGAN pakai #000000 atau #ffffff polos!
-   - Kartu / Panels: Desain glassmorphism bergradasi halus dengan border glow lembut:
-     \`background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.85) 100%)'\`
-     \`backdropFilter: 'blur(16px)'\`, \`border: '1px solid rgba(255, 255, 255, 0.08)'\`, \`borderRadius: '16px'\`
-     \`boxShadow: '0 10px 30px -5px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1)'\`
+1. 🌈 BACKGROUND & ATMOSPHERE (SEGAR, BERSIH DENGAN SOFT COLORFUL MESH):
+   - Background Utama: Gunakan soft off-white/light slate canvas dengan subtle colorful pastel radial mesh di sudut layar:
+     \`background: 'radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 50%), radial-gradient(at 100% 0%, rgba(236, 72, 153, 0.06) 0px, transparent 50%), radial-gradient(at 50% 100%, rgba(14, 165, 233, 0.08) 0px, transparent 50%), #f8fafc'\`
+     atau \`background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)'\`.
+     Teks Utama: \`#0f172a\` (Slate 900) untuk heading, \`#475569\` (Slate 600) untuk deskripsi/label.
+     (JANGAN gunakan background hitam pekat/dark pekat kecuali user secara eksplisit meminta 'dark mode').
 
-2. 🟢🔴 TOMBOL AKSI HARUS KAYA WARNA & GRADASI (DILARANG TOMBOL KOTAK HITAM DENGAN TEKS PUTIH!):
-   - Tombol PRODUKSI OK / PASS / CATAT OK:
-     Wajib gradasi hijau emerald cerah berkilau:
+2. 🎴 KARTU, PANEL & SURFACES (ELEVATED CLEAN WHITE DENGAN SOFT SHADOW):
+   - Kartu / Panels: Desain kartu putih bersih yang melayang dengan border halus dan bayangan elegan:
+     \`background: '#ffffff'\`
+     \`border: '1px solid #e2e8f0'\` (atau \`border: '1px solid rgba(226, 232, 240, 0.8)'\`)
+     \`borderRadius: '16px'\`
+     \`boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.02)'\`
+
+3. 🟢🔴 TOMBOL AKSI HARUS KAYA WARNA & GRADASI VIBRANT (ALA LOVABLE.DEV):
+   - Tombol PRODUKSI OK / PASS / SIMPAN / CATAT OK:
+     Wajib gradasi cerah emerald/teal berkilau:
      \`background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)'\`
-     \`boxShadow: '0 6px 20px rgba(16, 185, 129, 0.4)'\`, \`border: '1px solid rgba(52, 211, 153, 0.4)'\`, \`color: '#ffffff'\`
-     Hover & active: scale 1.02, glow lebih terang!
+     \`boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)'\`, \`border: 'none'\`, \`color: '#ffffff'\`, \`fontWeight: 700\`, \`borderRadius: '12px'\`
+     Hover: scale 1.02, glow lebih terang!
    - Tombol PRODUKSI NG / REJECT / DEFECT / CATAT NG:
-     Wajib gradasi merah crimson/rose mencolok:
-     \`background: 'linear-gradient(135deg, #f43f5e 0%, #dc2626 100%)'\`
-     \`boxShadow: '0 6px 20px rgba(244, 63, 94, 0.4)'\`, \`border: '1px solid rgba(251, 113, 133, 0.4)'\`, \`color: '#ffffff'\`
-   - Tombol Kategori Defect / Pilihan:
-     Beri aksen warna-warni spesifik untuk tiap kategori, JANGAN kotak hitam putih:
-     - Dimensi/Ukuran: \`background: 'rgba(56, 189, 248, 0.12)'\`, border: \`#0284c7\`, teks: \`#38bdf8\`
-     - Scratch/Visual: \`background: 'rgba(245, 158, 11, 0.12)'\`, border: \`#d97706\`, teks: \`#fbbf24\`
-     - Welding/Material: \`background: 'rgba(168, 85, 247, 0.12)'\`, border: \`#7c3aed\`, teks: \`#c084fc\`
-     - Saat tombol dipilih (selected): Jadikan background gradien penuh dengan teks putih dan glow!
+     Wajib gradasi merah coral/rose mencolok:
+     \`background: 'linear-gradient(135deg, #f43f5e 0%, #e11d48 100%)'\`
+     \`boxShadow: '0 4px 14px rgba(244, 63, 94, 0.35)'\`, \`border: 'none'\`, \`color: '#ffffff'\`, \`fontWeight: 700\`, \`borderRadius: '12px'\`
+   - Tombol Aksi Utama / Primary / Filter:
+     \`background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)'\`, \`boxShadow: '0 4px 14px rgba(99, 102, 241, 0.35)'\`, \`color: '#ffffff'\`
+   - Tombol Kategori Defect / Pilihan Chips:
+     Beri aksen pastel berwarna cerah dengan border & teks senada:
+     - Dimensi/Ukuran: \`background: '#f0f9ff'\`, \`border: '1px solid #bae6fd'\`, \`color: '#0284c7'\`
+     - Scratch/Visual: \`background: '#fffbeb'\`, \`border: '1px solid #fde68a'\`, \`color: '#d97706'\`
+     - Welding/Material: \`background: '#faf5ff'\`, \`border: '1px solid #e9d5ff'\`, \`color: '#7e22ce'\`
+     - Saat tombol dipilih (selected): Jadikan background gradien warna penuh dengan teks putih dan soft shadow!
 
-3. 📊 STAT CARDS / METRICS DENGAN AKSEN WARNA-WARNI CERAH:
-   - Setiap kartu metrik harus memiliki aksen warna cerah yang hidup:
-     - Total Produksi: Badge/Ikon Sky Blue (\`#38bdf8\`, container bg: \`rgba(14, 165, 233, 0.15)\`)
-     - Good Parts (OK): Badge/Ikon Emerald Green (\`#34d399\`, container bg: \`rgba(16, 185, 129, 0.15)\`)
-     - Defect Parts (NG): Badge/Ikon Coral Rose (\`#f87171\`, container bg: \`rgba(239, 68, 68, 0.15)\`)
-     - Yield / Efisiensi: Badge/Ikon Violet (\`#c084fc\`, container bg: \`rgba(139, 92, 246, 0.15)\`)
-   - Tambahkan indikator progress bar warna-warni yang mencerminkan capaian target!
+4. 📊 STAT CARDS / METRICS DENGAN AKSEN WARNA-WARNI CERAH:
+   - Setiap kartu metrik berlatar putih dengan icon container berwarna lembut (soft pastel background):
+     - Total Produksi: Icon container \`background: '#e0f2fe'\`, icon color \`#0284c7\`, nilai angka \`#0f172a\` (bold & besar)
+     - Good Parts (OK): Icon container \`background: '#d1fae5'\`, icon color \`#059669\`, nilai angka \`#059669\`
+     - Defect Parts (NG): Icon container \`background: '#ffe4e6'\`, icon color \`#e11d48\`, nilai angka \`#e11d48\`
+     - Yield / Efisiensi: Icon container \`background: '#ede9fe'\`, icon color \`#7c3aed\`, nilai angka \`#7c3aed\`
+   - Tambahkan progress bar warna-warni (track \`#f1f5f9\`, fill gradien \`#10b981\` atau \`#6366f1\`)!
 
-4. 📋 TABEL REAL-TIME & LOG DATA YANG CANTIK:
-   - Header tabel: \`background: 'rgba(30, 41, 59, 0.85)'\`, teks \`#94a3b8\`, border halus.
-   - Baris tabel: zebra striping halus dengan efek hover glow (\`rgba(56, 189, 248, 0.06)\`).
-   - Badge Status: Gunakan pill badge berwarna dengan dot indikator:
-     - "OK" -> \`backgroundColor: 'rgba(16, 185, 129, 0.18)'\`, \`color: '#34d399'\`, border \`1px solid rgba(16, 185, 129, 0.3)\`
-     - "NG" -> \`backgroundColor: 'rgba(239, 68, 68, 0.18)'\`, \`color: '#f87171'\`, border \`1px solid rgba(239, 68, 68, 0.3)\`
+5. 📋 TABEL REAL-TIME & LOG DATA YANG BERSIH & RAPI:
+   - Header tabel: \`background: '#f8fafc'\`, teks \`#64748b\`, border bawah \`1px solid #e2e8f0\`.
+   - Baris tabel: background putih, alternate baris \`#fcfcfd\`, hover \`background: '#f1f5f9'\`.
+   - Badge Status: Gunakan pill badge berwarna cerah:
+     - "OK" / "PASS" -> \`backgroundColor: '#dcfce7'\`, \`color: '#15803d'\`, \`border: '1px solid #bbf7d0'\`
+     - "NG" / "DEFECT" -> \`backgroundColor: '#fee2e2'\`, \`color: '#b91c1c'\`, \`border: '1px solid #fecaca'\`
+     - "RUNNING" -> \`backgroundColor: '#e0f2fe'\`, \`color: '#0369a1'\`, \`border: '1px solid #bae6fd'\`
 
-5. 💡 STATUS ANDON & KONTROL:
-   - Gunakan indikator lampu status yang berkedip/glowing (Running: Hijau glowing, Warning: Kuning, Stop: Merah).
-   - Pastikan visual terasa hidup, interaktif, elegan, dan membuat pengguna kagum (WOW).
+6. 💡 STATUS ANDON & KONTROL:
+   - Gunakan badge status dinamis dengan dot indikator berkedip (Running: Hijau glowing, Warning: Kuning, Stop: Merah).
+   - Pastikan visual terasa hidup, bersih, modern, dan memberikan impresi WOW ala Lovable.dev.
 
 ════════════════════════════════════════════════
 🏭 INTEGRASI MAVICORE DATABASE & HARDWARE

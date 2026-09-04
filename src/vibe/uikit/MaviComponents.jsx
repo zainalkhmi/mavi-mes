@@ -76,29 +76,29 @@ export function MaviCard({
   subtitle,
   children,
   badge = null,
-  badgeColor = '#38bdf8',
+  badgeColor = '#0284c7',
   actions = null,
   style = {}
 }) {
   return (
     <div style={{
-      backgroundColor: '#0f172a',
-      border: '1px solid #1e293b',
-      borderRadius: '14px',
+      backgroundColor: '#ffffff',
+      border: '1px solid #e2e8f0',
+      borderRadius: '16px',
       padding: '20px',
-      boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+      boxShadow: '0 4px 20px -2px rgba(0,0,0,0.05)',
       ...style
     }}>
       {(title || subtitle || badge || actions) && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px' }}>
           <div>
             {badge && (
-              <span style={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', color: badgeColor, backgroundColor: `${badgeColor}18`, padding: '2px 8px', borderRadius: '6px', marginBottom: '4px', display: 'inline-block' }}>
+              <span style={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', color: badgeColor, backgroundColor: `${badgeColor}15`, padding: '2px 8px', borderRadius: '6px', marginBottom: '4px', display: 'inline-block' }}>
                 {badge}
               </span>
             )}
-            {title && <h3 style={{ margin: '2px 0 0', fontSize: '1rem', fontWeight: 700, color: '#f8fafc' }}>{title}</h3>}
-            {subtitle && <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748b' }}>{subtitle}</p>}
+            {title && <h3 style={{ margin: '2px 0 0', fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>{title}</h3>}
+            {subtitle && <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: '#64748b' }}>{subtitle}</p>}
           </div>
           {actions && <div>{actions}</div>}
         </div>
@@ -118,24 +118,30 @@ export function MaviKPI({
   icon = null
 }) {
   const color = {
-    ok: '#34d399',
-    ng: '#f43f5e',
-    warning: '#f59e0b',
-    neutral: '#38bdf8'
-  }[status] || '#38bdf8';
+    ok: '#059669',
+    ng: '#e11d48',
+    warning: '#d97706',
+    neutral: '#0284c7'
+  }[status] || '#0284c7';
+  const iconBg = {
+    ok: '#d1fae5',
+    ng: '#ffe4e6',
+    warning: '#fef3c7',
+    neutral: '#e0f2fe'
+  }[status] || '#e0f2fe';
 
   return (
-    <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '14px', padding: '18px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8' }}>{label}</span>
-        {icon && <span style={{ color }}>{icon}</span>}
+    <div style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '18px', boxShadow: '0 4px 20px -2px rgba(0,0,0,0.05)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</span>
+        {icon && <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color }}>{icon}</div>}
       </div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-        <span style={{ fontSize: '2rem', fontWeight: 800, color }}>{value}</span>
+        <span style={{ fontSize: '1.85rem', fontWeight: 800, color: '#0f172a' }}>{value}</span>
         {unit && <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>{unit}</span>}
       </div>
       {trend && (
-        <span style={{ fontSize: '0.72rem', color: trend.startsWith('+') ? '#34d399' : '#f43f5e', fontWeight: 700 }}>
+        <span style={{ fontSize: '0.72rem', color: trend.startsWith('+') ? '#059669' : '#e11d48', fontWeight: 700 }}>
           {trend} dari target
         </span>
       )}
@@ -149,11 +155,11 @@ export function MaviStatus({
   label = null
 }) {
   const cfg = {
-    RUNNING: { color: '#10b981', bg: 'rgba(16,185,129,0.15)', border: '#059669' },
-    IDLE: { color: '#f59e0b', bg: 'rgba(245,158,11,0.15)', border: '#d97706' },
-    FAULT: { color: '#ef4444', bg: 'rgba(239,68,68,0.15)', border: '#dc2626' },
-    MAINTENANCE: { color: '#8b5cf6', bg: 'rgba(139,92,246,0.15)', border: '#7c3aed' }
-  }[status.toUpperCase()] || { color: '#64748b', bg: '#1e293b', border: '#475569' };
+    RUNNING: { color: '#059669', bg: '#d1fae5', border: '#86efac' },
+    IDLE: { color: '#d97706', bg: '#fef3c7', border: '#fde68a' },
+    FAULT: { color: '#dc2626', bg: '#fee2e2', border: '#fca5a5' },
+    MAINTENANCE: { color: '#7c3aed', bg: '#ede9fe', border: '#ddd6fe' }
+  }[status.toUpperCase()] || { color: '#475569', bg: '#f1f5f9', border: '#cbd5e1' };
 
   return (
     <span style={{
@@ -198,24 +204,26 @@ export function MaviChecklist({ items = [], onItemToggle, onComplete }) {
             alignItems: 'center',
             gap: '12px',
             padding: '12px 16px',
-            backgroundColor: item.checked ? '#064e3b20' : '#0f172a',
-            border: `1px solid ${item.checked ? '#05966960' : '#1e293b'}`,
-            borderRadius: '10px',
-            cursor: 'pointer'
+            backgroundColor: item.checked ? '#f0fdf4' : '#ffffff',
+            border: `1px solid ${item.checked ? '#bbf7d0' : '#e2e8f0'}`,
+            borderRadius: '12px',
+            cursor: 'pointer',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
           }}
         >
           <div style={{
             width: '20px', height: '20px', borderRadius: '6px',
-            backgroundColor: item.checked ? '#059669' : '#1e293b',
-            border: `1px solid ${item.checked ? '#059669' : '#475569'}`,
+            backgroundColor: item.checked ? '#10b981' : '#f8fafc',
+            border: `1px solid ${item.checked ? '#10b981' : '#cbd5e1'}`,
             display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}>
             {item.checked && <Check size={14} color="#fff" />}
           </div>
           <span style={{
             fontSize: '0.88rem',
-            color: item.checked ? '#a7f3d0' : '#e2e8f0',
+            color: item.checked ? '#15803d' : '#0f172a',
             textDecoration: item.checked ? 'line-through' : 'none',
+            fontWeight: item.checked ? 600 : 500,
             flex: 1
           }}>
             {item.label || item.text}
@@ -259,10 +267,10 @@ export function MaviInspection({
   };
 
   return (
-    <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '14px', padding: '18px' }}>
+    <div style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '18px', boxShadow: '0 4px 20px -2px rgba(0,0,0,0.05)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-        <h4 style={{ margin: 0, fontSize: '0.95rem', color: '#f8fafc' }}>{parameterName}</h4>
-        <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>Std: {standardValue} ± {tolerance} ({min} - {max})</span>
+        <h4 style={{ margin: 0, fontSize: '0.95rem', color: '#0f172a', fontWeight: 700 }}>{parameterName}</h4>
+        <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Std: {standardValue} ± {tolerance} ({min} - {max})</span>
       </div>
       <div style={{ display: 'flex', gap: '8px' }}>
         <input
@@ -272,18 +280,18 @@ export function MaviInspection({
           value={measuredValue}
           onChange={e => { setMeasuredValue(e.target.value); setResult(null); }}
           style={{
-            flex: 1, backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px',
-            padding: '10px 14px', color: '#fff', fontSize: '0.9rem', outline: 'none'
+            flex: 1, backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px',
+            padding: '10px 14px', color: '#0f172a', fontSize: '0.9rem', outline: 'none'
           }}
         />
         <MaviButton variant="primary" onClick={handleEvaluate}>Periksa</MaviButton>
       </div>
       {result && (
         <div style={{
-          marginTop: '12px', padding: '10px 14px', borderRadius: '8px',
-          backgroundColor: result === 'PASS' ? '#064e3b30' : '#7f1d1d30',
-          border: `1px solid ${result === 'PASS' ? '#059669' : '#dc2626'}`,
-          color: result === 'PASS' ? '#34d399' : '#f87171',
+          marginTop: '12px', padding: '10px 14px', borderRadius: '10px',
+          backgroundColor: result === 'PASS' ? '#dcfce7' : '#fee2e2',
+          border: `1px solid ${result === 'PASS' ? '#86efac' : '#fca5a5'}`,
+          color: result === 'PASS' ? '#15803d' : '#b91c1c',
           fontWeight: 700, fontSize: '0.85rem'
         }}>
           Hasil Inspeksi: {result === 'PASS' ? '✅ MEMENUHI STANDAR (PASS)' : '❌ MELEBIHI TOLERANSI (FAIL)'}
@@ -296,16 +304,16 @@ export function MaviInspection({
 /* ─── 7. MaviDataTable ─── */
 export function MaviDataTable({ columns = [], data = [], title = 'Tabel Data' }) {
   return (
-    <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '14px', overflow: 'hidden' }}>
+    <div style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 4px 20px -2px rgba(0,0,0,0.05)' }}>
       {title && (
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid #1e293b', fontWeight: 700, fontSize: '0.9rem', color: '#f1f5f9' }}>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid #e2e8f0', fontWeight: 700, fontSize: '0.9rem', color: '#0f172a' }}>
           {title}
         </div>
       )}
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem' }}>
           <thead>
-            <tr style={{ backgroundColor: '#020617', borderBottom: '1px solid #1e293b', color: '#94a3b8' }}>
+            <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b' }}>
               {columns.map((c, i) => (
                 <th key={i} style={{ padding: '10px 14px', fontWeight: 600 }}>{c.header || c.name}</th>
               ))}
@@ -314,13 +322,13 @@ export function MaviDataTable({ columns = [], data = [], title = 'Tabel Data' })
           <tbody>
             {data.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>
+                <td colSpan={columns.length} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>
                   Tidak ada data tersimpan
                 </td>
               </tr>
             ) : (
               data.map((row, rIdx) => (
-                <tr key={rIdx} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', color: '#e2e8f0' }}>
+                <tr key={rIdx} style={{ borderBottom: '1px solid #f1f5f9', color: '#334155' }}>
                   {columns.map((c, cIdx) => (
                     <td key={cIdx} style={{ padding: '10px 14px' }}>
                       {String(row[c.accessor || c.name] ?? '')}

@@ -26,7 +26,7 @@ export class SandpackRuntimeProvider {
     this.files = { ...filesRecord };
     // Ensure styles.css and App.jsx exist
     if (!this.files['/styles.css']) {
-      this.files['/styles.css'] = `body { margin: 0; background: #030712; color: #f8fafc; font-family: sans-serif; }`;
+      this.files['/styles.css'] = `body { margin: 0; background: #f8fafc; color: #0f172a; font-family: sans-serif; }`;
     }
     this.addLog('[SandpackRuntime] Proyek berhasil dimounting ke Sandpack Sandbox.');
     this.status = 'running';

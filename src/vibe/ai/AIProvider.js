@@ -30,11 +30,25 @@ export class AIProvider {
    * @returns {Promise<object>}
    */
   static async resolveConnector(overrideConnector = null) {
-    const overrideKey = overrideConnector?.apiKey || overrideConnector?.config?.apiKey || overrideConnector?.aiSettings?.apiKey;
-    if (overrideKey && String(overrideKey).trim()) {
-      return overrideConnector;
+    const primary = await getPrimaryAiConnector().catch(() => null);
+    if (overrideConnector) {
+      const primarySettings = primary?.aiSettings || primary?.config || primary || {};
+      const overrideSettings = overrideConnector?.aiSettings || overrideConnector?.config || overrideConnector || {};
+      const effectiveApiKey = overrideSettings.apiKey || primarySettings.apiKey;
+      if (primary || effectiveApiKey) {
+        return {
+          ...(primary || {}),
+          ...overrideConnector,
+          aiSettings: {
+            ...primarySettings,
+            ...overrideSettings,
+            apiKey: effectiveApiKey,
+            provider: overrideSettings.provider || primarySettings.provider || 'gemini',
+            modelId: overrideSettings.modelId || primarySettings.modelId || 'gemini-2.0-flash'
+          }
+        };
+      }
     }
-    const primary = await getPrimaryAiConnector();
     if (!primary) {
       throw new Error('AI Connector belum dikonfigurasi. Buka Integrasi > AI Settings.');
     }
