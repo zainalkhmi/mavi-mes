@@ -48,7 +48,8 @@ import {
   Download,
   Server,
   FolderOpen,
-  Wrench
+  Wrench,
+  PenTool
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import toast from 'react-hot-toast';
@@ -70,104 +71,260 @@ import { MAVICORE_SDK_VIRTUAL_FILE } from '../../vibe/sdk';
 
 import FileTreeExplorer from '../../vibe/components/FileTreeExplorer';
 import AiChangesReviewModal from '../../vibe/components/AiChangesReviewModal';
-import BottomTerminalPanel from '../../vibe/components/BottomTerminalPanel';
 import ManufacturingTemplatesModal from '../../vibe/components/ManufacturingTemplatesModal';
 import BuildModal from '../../vibe/components/BuildModal';
 
 export const DEFAULT_VIBE_HMI_CODE = `import React, { useState } from 'react';
-import { 
-  IonApp, IonHeader, IonToolbar, IonTitle, IonContent, 
-  IonCard, IonCardHeader, IonCardTitle, IonCardContent,
-  IonButton, IonIcon, IonGrid, IonRow, IonCol,
-  setupIonicReact 
-} from '@ionic/react';
-import { addCircleOutline, warningOutline, constructOutline } from 'ionicons/icons';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Activity, CheckCircle2, XCircle, TrendingUp, Users, Settings,
+  Bell, ChevronRight, Play, Pause, RotateCcw, Zap, Factory
+} from 'lucide-react';
 
-// Core CSS required for Ionic components to work properly
-import '@ionic/react/css/core.css';
-import '@ionic/react/css/normalize.css';
-import '@ionic/react/css/structure.css';
-import '@ionic/react/css/typography.css';
+// Tailwind CSS
+const styles = \`
+@import url('https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 
-setupIonicReact();
+* { font-family: 'Inter', system-ui, sans-serif; }
 
-export default function IndustrialApp() {
+body {
+  background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+  min-height: 100vh;
+  margin: 0;
+  color: #f8fafc;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+}
+
+.glow-green { box-shadow: 0 0 40px rgba(16, 185, 129, 0.3); }
+.glow-red { box-shadow: 0 0 40px rgba(239, 68, 68, 0.3); }
+.glow-purple { box-shadow: 0 0 40px rgba(139, 92, 246, 0.3); }
+
+.stat-card {
+  background: linear-gradient(135deg, rgba(30, 30, 50, 0.8), rgba(20, 20, 40, 0.9));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(139, 92, 246, 0.5);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  transform: scale(1.02);
+  box-shadow: 0 8px 30px rgba(99, 102, 241, 0.4);
+}
+
+.pulse-dot {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+\`;
+
+export default function IndustrialDashboard() {
   const [productionCount, setProductionCount] = useState(1452);
   const [rejectCount, setRejectCount] = useState(12);
+  const [isRunning, setIsRunning] = useState(true);
+  const [selectedTab, setSelectedTab] = useState('overview');
 
   const handleLogProduction = () => {
     setProductionCount(prev => prev + 1);
-    if (typeof window !== 'undefined' && window.parent) {
-      window.parent.postMessage({
-        type: 'MAVICORE_TABLE_INSERT',
-        tableName: 'Stasiun Assembly A1 Log',
-        data: { timestamp: new Date().toISOString(), type: 'OK', total: productionCount + 1 }
-      }, '*');
-    }
   };
 
   const handleLogReject = () => {
     setRejectCount(prev => prev + 1);
-    if (typeof window !== 'undefined' && window.parent) {
-      window.parent.postMessage({
-        type: 'MAVICORE_TABLE_INSERT',
-        tableName: 'Stasiun Assembly A1 Defect Log',
-        data: { timestamp: new Date().toISOString(), type: 'NG', total: rejectCount + 1 }
-      }, '*');
-    }
   };
 
+  const efficiency = ((productionCount / (productionCount + rejectCount)) * 100).toFixed(1);
+
+  const stats = [
+    { label: 'Total Output', value: productionCount + rejectCount, icon: Factory, color: '#6366f1', trend: '+12%' },
+    { label: 'Efisiensi', value: efficiency + '%', icon: TrendingUp, color: '#10b981', trend: '+3.2%' },
+    { label: 'Operator Aktif', value: '8', icon: Users, color: '#f59e0b', trend: '+2' },
+  ];
+
   return (
-    <IonApp>
-      <IonHeader>
-        <IonToolbar color="dark">
-          <IonTitle>Stasiun Assembly A1</IonTitle>
-        </IonToolbar>
-      </IonHeader>
-      <IonContent className="ion-padding" style={{ '--background': '#030712', color: '#f8fafc' }}>
-        
-        <div style={{ padding: '10px 0', textAlign: 'center', color: '#94a3b8' }}>
-          <h4 style={{ margin: 0 }}>Status Lini: <span style={{ color: '#34d399' }}>Aktif Normal</span></h4>
+    <>
+      <style>{styles}</style>
+      <div className="min-h-screen p-6">
+        {/* Header */}
+        <motion.div
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="flex items-center justify-between mb-8"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+              <Factory className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Stasiun Assembly A1</h1>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="w-2 h-2 rounded-full bg-green-500 pulse-dot" />
+                <span className="text-sm text-gray-400">{isRunning ? 'Lini Aktif - Produksi Normal' : 'Lini Berhenti'}</span>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button className="p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition">
+              <Bell className="w-5 h-5 text-gray-400" />
+            </button>
+            <button className="p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition">
+              <Settings className="w-5 h-5 text-gray-400" />
+            </button>
+          </div>
+        </motion.div>
+
+        {/* Navigation Tabs */}
+        <div className="flex gap-2 mb-6 p-1 bg-white/5 rounded-2xl w-fit">
+          {['overview', 'production', 'quality'].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setSelectedTab(tab)}
+              className={\`px-6 py-2 rounded-xl text-sm font-medium transition-all \${selectedTab === tab ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}\`}
+            >
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </button>
+          ))}
         </div>
 
-        <IonGrid>
-          <IonRow>
-            {/* Kartu Produksi OK */}
-            <IonCol size="12" sizeMd="6">
-              <IonCard color="dark" style={{ border: '1px solid #1e293b', borderRadius: '16px' }}>
-                <IonCardHeader>
-                  <IonCardTitle style={{ color: '#34d399' }}>Produksi Sesuai (OK)</IonCardTitle>
-                </IonCardHeader>
-                <IonCardContent>
-                  <h1 style={{ fontSize: '3rem', margin: '10px 0', color: '#f8fafc' }}>{productionCount}</h1>
-                  <IonButton fill="solid" color="success" onClick={handleLogProduction}>
-                    <IonIcon slot="start" icon={addCircleOutline} />
-                    Catat Part OK
-                  </IonButton>
-                </IonCardContent>
-              </IonCard>
-            </IonCol>
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {stats.map((stat, i) => (
+            <motion.div
+              key={stat.label}
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: i * 0.1 }}
+              className="stat-card rounded-2xl p-5"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: stat.color + '20' }}>
+                  <stat.icon className="w-5 h-5" style={{ color: stat.color }} />
+                </div>
+                <span className="text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-400 font-medium">{stat.trend}</span>
+              </div>
+              <div className="text-3xl font-bold text-white mb-1">{stat.value}</div>
+              <div className="text-sm text-gray-400">{stat.label}</div>
+            </motion.div>
+          ))}
+        </div>
 
-            {/* Kartu Defect / NG */}
-            <IonCol size="12" sizeMd="6">
-              <IonCard color="dark" style={{ border: '1px solid #1e293b', borderRadius: '16px' }}>
-                <IonCardHeader>
-                  <IonCardTitle style={{ color: '#f43f5e' }}>Produksi Cacat (NG)</IonCardTitle>
-                </IonCardHeader>
-                <IonCardContent>
-                  <h1 style={{ fontSize: '3rem', margin: '10px 0', color: '#f8fafc' }}>{rejectCount}</h1>
-                  <IonButton fill="solid" color="danger" onClick={handleLogReject}>
-                    <IonIcon slot="start" icon={warningOutline} />
-                    Catat NG
-                  </IonButton>
-                </IonCardContent>
-              </IonCard>
-            </IonCol>
-          </IonRow>
-        </IonGrid>
+        {/* Main Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Production Card */}
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="glass-card glow-green p-6"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-semibold text-white">Produksi Sesuai (OK)</h3>
+                <p className="text-sm text-gray-400 mt-1">Part yang memenuhi standar kualitas</p>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
+                <CheckCircle2 className="w-6 h-6 text-green-400" />
+              </div>
+            </div>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={productionCount}
+                initial={{ scale: 1.2, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="text-6xl font-black text-white text-center mb-6"
+              >
+                {productionCount.toLocaleString()}
+              </motion.div>
+            </AnimatePresence>
+            <button
+              onClick={handleLogProduction}
+              className="btn-primary w-full py-4 rounded-2xl text-white font-semibold flex items-center justify-center gap-2"
+            >
+              <Zap className="w-5 h-5" />
+              Catat Part OK
+            </button>
+          </motion.div>
 
-      </IonContent>
-    </IonApp>
+          {/* Defect Card */}
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            className="glass-card glow-red p-6"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-semibold text-white">Produksi Cacat (NG)</h3>
+                <p className="text-sm text-gray-400 mt-1">Part yang tidak memenuhi standar</p>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
+                <XCircle className="w-6 h-6 text-red-400" />
+              </div>
+            </div>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={rejectCount}
+                initial={{ scale: 1.2, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="text-6xl font-black text-white text-center mb-6"
+              >
+                {rejectCount.toLocaleString()}
+              </motion.div>
+            </AnimatePresence>
+            <button
+              onClick={handleLogReject}
+              className="w-full py-4 rounded-2xl bg-gradient-to-r from-red-500 to-rose-600 text-white font-semibold flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-red-500/30 transition"
+            >
+              <XCircle className="w-5 h-5" />
+              Catat NG
+            </button>
+          </motion.div>
+        </div>
+
+        {/* Control Bar */}
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          className="mt-6 glass-card p-4 flex items-center justify-between"
+        >
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsRunning(!isRunning)}
+              className={\`p-3 rounded-xl transition \${isRunning ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'}\`}
+            >
+              {isRunning ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+            </button>
+            <div>
+              <div className="text-sm font-medium text-white">{isRunning ? 'Lini Produksi Aktif' : 'Lini Berhenti'}</div>
+              <div className="text-xs text-gray-400">Mesin: Press Hydraulik #3 | Speed: 45 cycles/min</div>
+            </div>
+          </div>
+          <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 transition">
+            <RotateCcw className="w-4 h-4" />
+            Reset Counter
+          </button>
+        </motion.div>
+      </div>
+    </>
   );
 }
 `;
@@ -251,6 +408,9 @@ button {
   const [activeFilePath, setActiveFilePath] = useState('/App.js');
   const [fileTree, setFileTree] = useState(() => vfs.getFileTree());
   const [appMode, setAppMode] = useState('web'); // 'web' | 'mobile'
+  const [appName, setAppName] = useState('Sandbox');
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [tempAppName, setTempAppName] = useState('');
 
   // Sync external code prop if updated externally
   useEffect(() => {
@@ -622,12 +782,71 @@ button {
           }}>
             <Sparkles size={13} color="#fff" />
           </div>
-          <span style={{
-            fontWeight: 700, color: '#fff', fontSize: '0.82rem',
-            maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
-          }}>
-            {deployedApp?.name || 'Sandbox'}
-          </span>
+
+          {/* Editable App Name */}
+          {isEditingName ? (
+            <input
+              type="text"
+              value={tempAppName}
+              onChange={(e) => setTempAppName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const newName = tempAppName.trim() || 'Sandbox';
+                  setAppName(newName);
+                  setIsEditingName(false);
+                }
+                if (e.key === 'Escape') {
+                  setIsEditingName(false);
+                }
+              }}
+              onBlur={() => {
+                const newName = tempAppName.trim() || 'Sandbox';
+                setAppName(newName);
+                setIsEditingName(false);
+              }}
+              autoFocus
+              style={{
+                background: 'rgba(255,255,255,0.15)',
+                border: '1px solid rgba(99,102,241,0.5)',
+                borderRadius: '6px',
+                padding: '4px 8px',
+                color: '#fff',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                outline: 'none',
+                maxWidth: '140px'
+              }}
+            />
+          ) : (
+            <button
+              onClick={() => {
+                setTempAppName(appName);
+                setIsEditingName(true);
+              }}
+              title="Klik untuk rename app"
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '4px 6px',
+                borderRadius: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                transition: 'background 0.15s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <span style={{
+                fontWeight: 700, color: '#fff', fontSize: '0.82rem',
+                maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+              }}>
+                {appName}
+              </span>
+              <PenTool size={11} color="#94a3b8" />
+            </button>
+          )}
 
           {/* Auto-save indicator */}
           {lastSaved && (
@@ -750,8 +969,8 @@ button {
           <button onClick={async () => {
             const code = vfs.readFile('/App.js') || vfs.readFile('/App.jsx') || effectiveInitialCode;
             try {
-              const result = await deployVibeAppToFrontline({ name: 'Draft - ' + new Date().toLocaleDateString(), code, isPublished: false });
-              if (result) toast.success('💾 Draft saved!');
+              const result = await deployVibeAppToFrontline({ name: appName, code, isPublished: false });
+              if (result) toast.success(`💾 "${appName}" saved as draft!`);
             } catch (e) { toast.error('Save failed'); }
           }}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '6px', border: 'none', backgroundColor: '#7f8c8d', color: '#fff', cursor: 'pointer' }}
@@ -800,7 +1019,7 @@ button {
       </div>
 
       {/* ═══════════ MAIN WORKSPACE (LEFT FILES + CENTER SANDPACK + RIGHT COPILOT) ═══════════ */}
-      <div className="flex-1 w-full overflow-hidden flex" style={{ minHeight: 0, backgroundColor: '#f0f0f0' }}>
+      <div className="flex-1 w-full overflow-hidden flex" style={{ minHeight: 0, backgroundColor: '#0f172a' }}>
 
         {/* 1. LEFT FILE TREE PANEL (Collapsible) */}
         <div style={{
@@ -887,11 +1106,20 @@ button {
                 'react': '^18.2.0',
                 'react-dom': '^18.2.0',
                 'react-is': '^18.2.0',
-                '@ionic/react': '^7.0.0',
-                'ionicons': '^7.0.0',
+                // NextUI + Framer Motion
+                '@nextui-org/react': '^2.2.0',
+                'framer-motion': '^10.16.0',
+                // Icons & Utilities
                 'lucide-react': 'latest',
+                'clsx': '^2.0.0',
+                'tailwind-merge': '^2.0.0',
+                'class-variance-authority': '^0.7.0',
+                // Charts
                 'recharts': '^2.10.0',
-                'prop-types': '^15.8.1'
+                // Tailwind CSS
+                'tailwindcss': '^3.4.0',
+                'autoprefixer': '^10.4.0',
+                'postcss': '^8.4.0'
               }
             }}
             options={{
@@ -899,7 +1127,7 @@ button {
               visibleFiles: [activeFilePath],
               externalResources: [
                 'https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css',
-                'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap'
+                'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap'
               ]
             }}
           >
@@ -1012,77 +1240,125 @@ button {
               )}
             </SandpackLayout>
           </SandpackProvider>
+        </div>
 
-          {/* FLOATING PROMPT INPUT - ODOO STYLE */}
-          {isStandalone && (
-            <div style={{
-              padding: '12px 16px',
-              backgroundColor: '#0f172a',
-              borderTop: '1px solid #1e293b',
-              flexShrink: 0
-            }}>
-              {/* Model Selector + Generate */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                {/* Model Selector */}
-                <div style={{ position: 'relative' }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const currentIdx = aiModels.findIndex(m => m.id === selectedAIModel);
-                      const nextIdx = (currentIdx + 1) % aiModels.length;
-                      setSelectedAIModel(aiModels[nextIdx].id);
-                    }}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '6px',
-                      padding: '6px 12px', borderRadius: '8px',
-                      backgroundColor: '#1e293b', border: '1px solid #334155',
-                      color: '#fff', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer'
-                    }}
-                  >
-                    <span>{aiModels.find(m => m.id === selectedAIModel)?.icon}</span>
-                    <span>{selectedAIModel}</span>
-                    <ChevronDown size={12} />
-                  </button>
-                </div>
+                        {/* RIGHT PANEL: PROMPT INPUT - COMPACT PRO */}
+        {isStandalone && (
+          <div style={{
+            width: '340px', minWidth: '340px', flexShrink: 0,
+            display: 'flex', flexDirection: 'column',
+            backgroundColor: '#0f172a',
+            borderLeft: '1px solid #1e293b',
+            padding: '10px'
+          }}>
+            {/* Chat History */}
+            {chatHistory.length > 0 && (
+              <div style={{ flex: 1, overflowY: 'auto', marginBottom: '8px', display: 'flex', flexDirection: 'column', gap: '6px', minHeight: 0 }}>
+                {chatHistory.map((msg, idx) => (
+                  <div key={idx} style={{
+                    display: 'flex', gap: '7px', alignItems: 'flex-start',
+                    padding: '6px 8px', borderRadius: '7px',
+                    backgroundColor: msg.role === 'user' ? 'rgba(59,130,246,0.07)' : 'rgba(16,185,129,0.05)',
+                    border: `1px solid ${msg.role === 'user' ? 'rgba(59,130,246,0.12)' : 'rgba(16,185,129,0.1)'}`,
+                  }}>
+                    <div style={{
+                      width: '18px', height: '18px', borderRadius: '50%', flexShrink: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '1px',
+                      backgroundColor: msg.role === 'user' ? '#3b82f6' : '#10b981'
+                    }}>
+                      {msg.role === 'user' ? <User size={10} color="#fff" /> : <Bot size={10} color="#fff" />}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.65rem', fontWeight: 600, color: msg.role === 'user' ? '#60a5fa' : '#34d399', marginBottom: '1px' }}>
+                        {msg.role === 'user' ? 'You' : 'AI'}
+                      </div>
+                      <div style={{
+                        fontSize: '0.72rem', color: '#cbd5e1', lineHeight: 1.35, wordBreak: 'break-word',
+                        maxHeight: '48px', overflow: 'hidden'
+                      }}>
+                        {typeof msg.content === 'string' ? msg.content.slice(0, 120) + (msg.content.length > 120 ? '...' : '') : ''}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <div ref={chatEndRef} />
+              </div>
+            )}
 
-                {/* Quick Actions */}
-                <div style={{ display: 'flex', gap: '6px', flex: 1, overflowX: 'auto' }}>
-                  {[
-                    { label: '📋 Checksheet', prompt: 'Buatkan aplikasi Digital Checksheet untuk inspeksi 5 poin mesin' },
-                    { label: '📊 OEE Gauge', prompt: 'Tambahkan gauge OEE real-time dan timeline status lini' },
-                    { label: '🔴 Emergency', prompt: 'Tambahkan tombol emergency stop besar warna merah' },
-                    { label: '📱 Mobile', prompt: 'Konversikan tampilan menjadi mobile app Ionic' },
-                  ].map((item, idx) => (
-                    <button key={idx} type="button"
-                      onClick={() => {
-                        setInlinePrompt(item.prompt);
-                        handleChatSubmit(item.prompt);
-                      }}
-                      disabled={internalAiLoading || isLoading}
-                      style={{
-                        whiteSpace: 'nowrap', fontSize: '0.72rem', padding: '5px 10px', borderRadius: '6px',
-                        backgroundColor: '#111827', border: '1px solid #1e293b', color: '#94a3b8',
-                        cursor: 'pointer', fontWeight: 500
-                      }}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
+            {/* Empty state when no chat yet */}
+            {chatHistory.length === 0 && (
+              <div style={{
+                flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                opacity: 0.4, gap: '6px', paddingBottom: '20px'
+              }}>
+                <Bot size={28} color="#64748b" />
+                <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 500 }}>Start building with AI</span>
+              </div>
+            )}
+
+            {/* Quick Actions - Compact Pills */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px', flexShrink: 0 }}>
+              {[
+                { label: 'Checksheet', prompt: 'Buatkan aplikasi Digital Checksheet untuk inspeksi 5 poin mesin' },
+                { label: 'OEE Gauge', prompt: 'Tambahkan gauge OEE real-time dan timeline status lini' },
+                { label: 'Emergency', prompt: 'Tambahkan tombol emergency stop besar warna merah' },
+                { label: 'Mobile', prompt: 'Konversikan tampilan menjadi mobile app Ionic' },
+              ].map((item, idx) => (
+                <button key={idx} type="button"
+                  onClick={() => {
+                    setInlinePrompt(item.prompt);
+                    handleChatSubmit(item.prompt);
+                  }}
+                  disabled={internalAiLoading || isLoading}
+                  style={{
+                    fontSize: '0.66rem', padding: '3px 9px', borderRadius: '10px',
+                    backgroundColor: '#1e293b', border: '1px solid #334155', color: '#94a3b8',
+                    cursor: internalAiLoading || isLoading ? 'not-allowed' : 'pointer',
+                    fontWeight: 500, opacity: internalAiLoading || isLoading ? 0.45 : 1,
+                    transition: 'all 0.12s', whiteSpace: 'nowrap'
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Compact Input Bar */}
+            <div style={{ flexShrink: 0 }}>
+              {/* Model Selector - Inline */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentIdx = aiModels.findIndex(m => m.id === selectedAIModel);
+                    const nextIdx = (currentIdx + 1) % aiModels.length;
+                    setSelectedAIModel(aiModels[nextIdx].id);
+                  }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '4px',
+                    padding: '3px 8px', borderRadius: '5px',
+                    backgroundColor: '#1e293b', border: '1px solid #334155',
+                    color: '#e2e8f0', fontSize: '0.68rem', fontWeight: 600, cursor: 'pointer'
+                  }}
+                >
+                  <span style={{ fontSize: '0.75rem' }}>{aiModels.find(m => m.id === selectedAIModel)?.icon}</span>
+                  <span>{selectedAIModel}</span>
+                  <ChevronDown size={10} />
+                </button>
+                {(internalAiLoading || isLoading) && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.66rem', color: '#60a5fa' }}>
+                    <Loader2 size={11} className="animate-spin" />
+                    <span>Generating...</span>
+                  </div>
+                )}
               </div>
 
-              {/* Main Prompt Input */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (inlinePrompt.trim()) handleChatSubmit(inlinePrompt);
-                }}
-                style={{
-                  display: 'flex', alignItems: 'flex-end', gap: '10px',
-                  backgroundColor: '#020617', border: '1px solid #334155',
-                  borderRadius: '12px', padding: '10px 12px'
-                }}
-              >
+              {/* Input + Send */}
+              <div style={{
+                display: 'flex', alignItems: 'flex-end', gap: '5px',
+                backgroundColor: '#020617', border: '1px solid #334155',
+                borderRadius: '10px', padding: '5px 5px 5px 10px'
+              }}>
                 <textarea
                   value={inlinePrompt}
                   onChange={(e) => setInlinePrompt(e.target.value)}
@@ -1097,209 +1373,36 @@ button {
                   }}
                   style={{
                     flex: 1, backgroundColor: 'transparent', border: 'none', outline: 'none',
-                    fontSize: '0.88rem', color: '#f1f5f9', resize: 'none', lineHeight: '1.5',
-                    fontFamily: 'inherit'
+                    fontSize: '0.78rem', color: '#f1f5f9', resize: 'none',
+                    fontFamily: 'Inter, sans-serif', lineHeight: '1.35', minHeight: '34px', maxHeight: '72px'
                   }}
                 />
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={() => {
+                    if (inlinePrompt.trim()) handleChatSubmit(inlinePrompt);
+                  }}
                   disabled={!inlinePrompt.trim() || internalAiLoading || isLoading}
                   style={{
-                    padding: '10px 20px', borderRadius: '10px', border: 'none',
+                    width: '30px', height: '30px', borderRadius: '7px', border: 'none', flexShrink: 0,
                     background: inlinePrompt.trim() && !(internalAiLoading || isLoading)
                       ? 'linear-gradient(135deg, #3b82f6, #6366f1)' : '#1e293b',
-                    color: '#fff', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: '6px',
-                    transition: 'all 0.2s'
+                    color: '#fff', cursor: inlinePrompt.trim() && !(internalAiLoading || isLoading) ? 'pointer' : 'default',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'all 0.15s'
                   }}
                 >
                   {internalAiLoading || isLoading ? (
-                    <><Loader2 size={14} className="animate-spin" /> Generating...</>
+                    <Loader2 size={13} className="animate-spin" />
                   ) : (
-                    <><ArrowUp size={14} /> Generate</>
+                    <ArrowUp size={13} />
                   )}
                 </button>
-              </form>
-            </div>
-          )}
-
-          {/* 3. BOTTOM TERMINAL & AUTO-FIX PANEL */}
-          <BottomTerminalPanel
-            isOpen={isTerminalPanelOpen}
-            onToggleOpen={() => setIsTerminalPanelOpen(v => !v)}
-            logs={logs}
-            errors={errors}
-            aiActivity={aiActivity}
-            isAutoFixing={isAutoFixing}
-            onTriggerAutoFix={handleTriggerAutoFix}
-            onClearLogs={() => setLogs([])}
-          />
-        </div>
-
-        {/* 4. RIGHT SIDE: AI COPILOT CHAT PANEL */}
-        <div style={{
-          width: isChatPanelOpen ? '340px' : '0px',
-          minWidth: isChatPanelOpen ? '340px' : '0px',
-          transition: 'width 0.25s ease, min-width 0.25s ease',
-          overflow: 'hidden',
-          display: isChatPanelOpen ? 'flex' : 'none',
-          flexDirection: 'column',
-          borderLeft: isChatPanelOpen ? '1px solid #1e293b' : 'none',
-          backgroundColor: '#0a0f1a'
-        }}>
-          {isChatPanelOpen && (
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '340px' }}>
-              {/* Header */}
-              <div style={{
-                padding: '12px 14px', borderBottom: '1px solid #1e293b',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ width: '26px', height: '26px', borderRadius: '8px', background: 'linear-gradient(135deg, #0ea5e9, #6366f1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Bot size={15} color="#fff" />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#f1f5f9' }}>MaviCore Copilot</div>
-                    <div style={{ fontSize: '0.65rem', color: '#64748b' }}>AI Coding Agent • Multi-File</div>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsChatPanelOpen(false)}
-                  style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}
-                >
-                  <PanelLeftClose size={15} />
-                </button>
-              </div>
-
-              {/* Chat messages */}
-              <div style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {chatHistory.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '24px 10px', color: '#64748b' }}>
-                    <Sparkles size={28} color="#38bdf8" style={{ margin: '0 auto 10px' }} />
-                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#e2e8f0', marginBottom: '4px' }}>
-                      Halo! Saya MaviCore Copilot
-                    </div>
-                    <div style={{ fontSize: '0.72rem', lineHeight: '1.4' }}>
-                      Deskripsikan aplikasi manufaktur yang ingin dibuat atau dimodifikasi, dan saya akan merancang kode multi-file secara otomatis.
-                    </div>
-                  </div>
-                ) : (
-                  chatHistory.map((msg, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        display: 'flex', flexDirection: 'column',
-                        alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start', gap: '4px'
-                      }}
-                    >
-                      <div style={{
-                        maxWidth: '92%', padding: '10px 14px',
-                        borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                        backgroundColor: msg.role === 'user' ? '#1e1b4b' : '#0c1929',
-                        border: `1px solid ${msg.role === 'user' ? 'rgba(99, 102, 241, 0.3)' : 'rgba(14, 165, 233, 0.25)'}`,
-                        color: msg.role === 'user' ? '#e0e7ff' : '#bae6fd',
-                        fontSize: '0.75rem', lineHeight: 1.5, wordBreak: 'break-word', whiteSpace: 'pre-wrap'
-                      }}>
-                        {msg.content}
-                      </div>
-                    </div>
-                  ))
-                )}
-
-                {(internalAiLoading || isLoading) && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', backgroundColor: '#0c1929', borderRadius: '12px', border: '1px solid rgba(14,165,233,0.2)' }}>
-                    <Loader2 size={14} className="animate-spin text-sky-400" />
-                    <span style={{ fontSize: '0.72rem', color: '#7dd3fc' }}>
-                      {aiActivity?.message || 'Menganalisis & merancang kode...'}
-                    </span>
-                  </div>
-                )}
-                <div ref={chatEndRef} />
-              </div>
-
-              {/* Suggestions chips */}
-              <div style={{ padding: '6px 12px', borderTop: '1px solid #1e293b', display: 'flex', gap: '6px', overflowX: 'auto', flexShrink: 0 }}>
-                {[
-                  { label: '📋 Digital Checksheet', prompt: 'Buatkan aplikasi Digital Checksheet untuk inspeksi 5 poin mesin' },
-                  { label: '📊 Gauge OEE', prompt: 'Tambahkan gauge OEE real-time dan timeline status lini' },
-                  { label: '🔍 Toleransi Part', prompt: 'Tambahkan verifikasi toleransi dimensi part PASS/FAIL' },
-                  { label: '📱 Mode Mobile', prompt: 'Konversikan tampilan menjadi mobile app Ionic ramah sentuhan' }
-                ].map((item, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleChatSubmit(item.prompt)}
-                    disabled={internalAiLoading || isLoading}
-                    style={{
-                      whiteSpace: 'nowrap', fontSize: '0.62rem', padding: '4px 8px', borderRadius: '6px',
-                      backgroundColor: '#111827', border: '1px solid #1e293b', color: '#94a3b8', cursor: 'pointer'
-                    }}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Chat Input form */}
-              <div style={{ padding: '10px 12px', borderTop: '1px solid #1e293b', backgroundColor: '#0f172a', flexShrink: 0 }}>
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleChatSubmit(inlinePrompt);
-                  }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '8px',
-                    backgroundColor: '#020617', border: '1px solid #1e293b',
-                    borderRadius: '12px', padding: '6px 10px'
-                  }}
-                >
-                  <input
-                    type="text"
-                    value={inlinePrompt}
-                    onChange={(e) => setInlinePrompt(e.target.value)}
-                    disabled={internalAiLoading || isLoading}
-                    placeholder={internalAiLoading || isLoading ? 'AI sedang menulis...' : 'Instruksikan Copilot...'}
-                    style={{ flex: 1, backgroundColor: 'transparent', border: 'none', outline: 'none', fontSize: '0.76rem', color: '#f1f5f9' }}
-                  />
-                  <button
-                    type="submit"
-                    disabled={!inlinePrompt.trim() || internalAiLoading || isLoading}
-                    style={{
-                      width: '30px', height: '30px', borderRadius: '8px', border: 'none',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: inlinePrompt.trim() && !(internalAiLoading || isLoading) ? 'linear-gradient(135deg, #0ea5e9, #6366f1)' : '#1e293b',
-                      color: inlinePrompt.trim() && !(internalAiLoading || isLoading) ? '#fff' : '#475569',
-                      cursor: inlinePrompt.trim() && !(internalAiLoading || isLoading) ? 'pointer' : 'not-allowed'
-                    }}
-                  >
-                    {internalAiLoading || isLoading ? <Loader2 size={14} className="animate-spin" /> : <ArrowUp size={14} />}
-                  </button>
-                </form>
               </div>
             </div>
-          )}
-        </div>
-
-        {/* Toggle Chat panel when closed */}
-        {!isChatPanelOpen && (
-          <button
-            type="button"
-            onClick={() => setIsChatPanelOpen(true)}
-            style={{
-              position: 'absolute', right: '12px', bottom: '16px', zIndex: 30,
-              width: '40px', height: '40px', borderRadius: '12px',
-              background: 'linear-gradient(135deg, #0ea5e9, #6366f1)',
-              border: '1px solid rgba(56, 189, 248, 0.4)',
-              color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 8px 20px rgba(14, 165, 233, 0.3)'
-            }}
-            title="Buka AI Copilot"
-          >
-            <Bot size={18} />
-          </button>
+          </div>
         )}
-      </div>
+        </div>
 
       {/* ═══════════ MODALS ═══════════ */}
       {/* 1. AI Changes Review Modal */}
@@ -1322,7 +1425,7 @@ button {
         isOpen={isBuildModalOpen}
         onClose={() => setIsBuildModalOpen(false)}
         projectFiles={filesRecord}
-        appName={deployedApp?.name || 'MaviCore App'}
+        appName={appName}
       />
 
       {/* 3. Companion - QR Code Modal */}

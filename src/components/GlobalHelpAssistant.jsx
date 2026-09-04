@@ -1469,6 +1469,17 @@ export default function GlobalHelpAssistant() {
   ]);
   const [isMcpLoading, setIsMcpLoading] = useState(false);
 
+  // Model selector state
+  const [selectedModel, setSelectedModel] = useState('MiniMax M2.7');
+  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
+
+  const AI_MODELS = [
+    { id: 'MiniMax M2.7', name: 'MiniMax M2.7', provider: 'MiniMax', icon: '🔮', description: 'Latest flagship model' },
+    { id: 'MiniMax M2', name: 'MiniMax M2', provider: 'MiniMax', icon: '✨', description: 'Stable performance' },
+    { id: 'Claude 3.5', name: 'Claude 3.5 Sonnet', provider: 'Anthropic', icon: '🧠', description: 'Best for reasoning' },
+    { id: 'GPT-4o', name: 'GPT-4o', provider: 'OpenAI', icon: '🤖', description: 'Balanced powerhouse' },
+  ];
+
   // Load stations on activeTab = 'mcp_console'
   useEffect(() => {
     if (activeTab === 'mcp_console') {
@@ -1493,6 +1504,19 @@ export default function GlobalHelpAssistant() {
       } catch (e) {}
     }
   }, []);
+
+  // Close model dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (modelDropdownOpen && !e.target.closest('.model-dropdown-container')) {
+        setModelDropdownOpen(false);
+      }
+    };
+    if (modelDropdownOpen) {
+      document.addEventListener('click', handleClickOutside);
+    }
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [modelDropdownOpen]);
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
@@ -1846,7 +1870,7 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
 
       {/* ─── TWO COLUMN MAIN CONTENT WORKSPACE ────────────────────── */}
       <div style={{ flex: 1, display: 'flex', gap: '24px', minHeight: 0 }}>
-        
+
         {/* Left Column depending on Active Tab */}
         {activeTab === 'assistant' ? (
           /* Assistant Left Column: Guides and Docs */
@@ -1942,104 +1966,21 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
               )}
             </div>
           </div>
-        ) : (
-          /* MCP Console Left Column: Local Shop Floor & Terminal Dashboard */
-          <div style={{ flex: '1.2', display: 'flex', flexDirection: 'column', gap: '16px', minHeight: 0 }}>
-            {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ padding: '10px', backgroundColor: 'rgba(139, 92, 246, 0.1)', borderRadius: '12px' }}>
-                  <BrainCircuit size={24} color="#8b5cf6" />
-                </div>
-                <div>
-                  <h2 style={{ margin: 0, fontSize: '1.1rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    Shop Floor Live MCP Monitor
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', animation: 'chatPulseGlow 2s infinite' }} />
-                  </h2>
-                  <p style={{ margin: 0, fontSize: '0.75rem', color: '#64748b' }}>Status stasiun & telemetri sensor local terintegrasi.</p>
-                </div>
-              </div>
-              <button 
-                onClick={loadMcpStations}
-                style={{ padding: '6px 12px', fontSize: '0.75rem', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', color: '#475569', fontWeight: 600 }}
-              >
-                <RotateCw size={12} /> REFRESH
-              </button>
-            </div>
-
-            {/* Live Stations list */}
-            <div style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Stasiun Kerja Aktif</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px' }}>
-                {mcpStations.length === 0 ? (
-                  <div style={{ gridColumn: '1/-1', fontSize: '0.8rem', color: '#94a3b8', textAlign: 'center', padding: '12px' }}>Tidak ada stasiun ditemukan.</div>
-                ) : (
-                  mcpStations.slice(0, 4).map(station => {
-                    const statusColors = {
-                      RUNNING: { bg: '#ecfdf5', text: '#10b981', light: '#10b981' },
-                      IDLE: { bg: '#fffbeb', text: '#d97706', light: '#f59e0b' },
-                      STOPPED: { bg: '#fef2f2', text: '#ef4444', light: '#ef4444' },
-                      SETUP: { bg: '#f0f9ff', text: '#0284c7', light: '#0ea5e9' }
-                    };
-                    const color = statusColors[station.status] || statusColors.RUNNING;
-                    return (
-                      <div key={station.id} style={{ padding: '10px', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{station.name}</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', color: '#64748b' }}>
-                          <span style={{ fontSize: '0.9rem' }}>👤</span>
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{station.active_operator || 'None'}</span>
-                        </div>
-                        <div style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 6px', borderRadius: '4px', backgroundColor: color.bg, color: color.text, fontSize: '0.6rem', fontWeight: 800 }}>
-                          <span style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: color.light }} />
-                          {station.status || 'RUNNING'}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            {/* Live Terminal Log Viewer */}
-            <div style={{ flex: 1, backgroundColor: '#090d16', borderRadius: '16px', border: '1px solid #1e293b', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', overflow: 'hidden', fontFamily: 'monospace' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1e293b', paddingBottom: '8px' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#38bdf8' }}>console@antigravity-mcp-server:~</span>
-                <span style={{ fontSize: '0.65rem', color: '#475569' }}>v1.0.0 (Localhost)</span>
-              </div>
-              <div className="mandor-chat-scroll" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.7rem' }}>
-                <div style={{ color: '#64748b' }}>[System] Initializing Antigravity local collaboration pipeline...</div>
-                <div style={{ color: '#10b981' }}>[Success] Connection established with Supabase Frontline DB.</div>
-                <div style={{ color: '#a855f7' }}>[Ready] Listening to AI Agent tool calls via Model Context Protocol.</div>
-                
-                {mcpLogs.map((log, idx) => {
-                  let color = '#94a3b8';
-                  if (log.type === 'MCP_CALL') color = '#c084fc'; // Violet
-                  if (log.type === 'MCP_RESP') color = '#22c55e'; // Green
-                  if (log.type === 'ERROR') color = '#ef4444'; // Red
-                  return (
-                    <div key={idx} style={{ display: 'flex', gap: '8px' }}>
-                      <span style={{ color: '#475569' }}>[{log.timestamp}]</span>
-                      <span style={{ color, fontWeight: 'bold' }}>[{log.type}]</span>
-                      <span style={{ color: '#e2e8f0', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{log.message}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
+        ) : null}
 
         {/* Right Column: AI Chat Panel (Switched style based on Active Tab) */}
-        <div style={{ 
-          flex: '1', 
-          display: 'flex', 
-          flexDirection: 'column', 
-          backgroundColor: activeTab === 'mcp_console' ? '#090d16' : '#0f172a',
-          borderRadius: '16px',
+        <div style={{
+          flex: '1',
+          display: 'flex',
+          flexDirection: 'column',
+          background: activeTab === 'mcp_console'
+            ? 'linear-gradient(180deg, #090d16 0%, #0a0d14 100%)'
+            : 'linear-gradient(180deg, #13111c 0%, #1a1830 100%)',
+          borderRadius: '20px',
           overflow: 'hidden',
-          boxShadow: '0 20px 60px -15px rgba(0,0,0,0.3)',
+          boxShadow: '0 25px 80px -20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)',
           position: 'relative',
-          border: activeTab === 'mcp_console' ? '1px solid #1e293b' : 'none'
+          border: activeTab === 'mcp_console' ? '1px solid #1e293b' : '1px solid rgba(148,163,184,0.08)'
         }}>
           {/* Inline CSS for animations */}
           <style>{`
@@ -2060,10 +2001,10 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
               100% { background-position: 200% 0; }
             }
             .mandor-chat-msg { animation: chatFadeSlideIn 0.3s ease-out forwards; }
-            .mandor-chat-input:focus { border-color: #6366f1 !important; box-shadow: 0 0 0 3px rgba(99,102,241,0.15) !important; }
+            .mandor-chat-input:focus { border-color: rgba(99,102,241,0.5) !important; box-shadow: 0 0 0 3px rgba(99,102,241,0.12) !important; }
             .mandor-chat-suggestion:hover { background: rgba(99,102,241,0.15) !important; border-color: #6366f1 !important; transform: translateY(-1px); }
-            .mandor-chat-send:hover:not(:disabled) { transform: scale(1.05); box-shadow: 0 4px 15px rgba(99,102,241,0.4); }
-            .mandor-chat-attach:hover { background: rgba(255,255,255,0.1) !important; border-color: rgba(148,163,184,0.4) !important; color: #a5b4fc !important; }
+            .mandor-chat-send:hover:not(:disabled) { transform: scale(1.08); box-shadow: 0 6px 20px rgba(99,102,241,0.45); }
+            .mandor-chat-attach:hover { background: rgba(99,102,241,0.15) !important; border-color: rgba(99,102,241,0.4) !important; color: #a5b4fc !important; }
             .mandor-chat-scroll::-webkit-scrollbar { width: 4px; }
             .mandor-chat-scroll::-webkit-scrollbar-track { background: transparent; }
             .mandor-chat-scroll::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.25); border-radius: 4px; }
@@ -2071,34 +2012,35 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
           `}</style>
 
           {/* ── Chat Header ── */}
-          <div style={{ 
-            padding: '16px 20px', 
-            background: activeTab === 'mcp_console' 
-              ? 'linear-gradient(135deg, #0f172a 0%, #090d16 100%)'
-              : 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-            borderBottom: '1px solid rgba(148,163,184,0.1)',
+          <div style={{
+            padding: '16px 20px',
+            background: activeTab === 'mcp_console'
+              ? 'linear-gradient(135deg, rgba(15,23,42,0.8) 0%, rgba(9,13,22,0.9) 100%)'
+              : 'linear-gradient(135deg, rgba(30,27,50,0.6) 0%, rgba(19,17,28,0.8) 100%)',
+            borderBottom: '1px solid rgba(148,163,184,0.06)',
+            backdropFilter: 'blur(12px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             zIndex: 2
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ 
-                width: '38px', height: '38px', borderRadius: '12px',
+              <div style={{
+                width: '40px', height: '40px', borderRadius: '14px',
                 background: activeTab === 'mcp_console'
                   ? 'linear-gradient(135deg, #a855f7, #8b5cf6)'
                   : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 4px 12px rgba(99,102,241,0.2)'
+                boxShadow: '0 4px 16px rgba(99,102,241,0.3), inset 0 1px 0 rgba(255,255,255,0.1)'
               }}>
                 {activeTab === 'mcp_console' ? <BrainCircuit size={18} color="#fff" /> : <Bot size={18} color="#fff" />}
               </div>
               <div>
-                <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#ffffff', letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#ffffff', letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   {activeTab === 'mcp_console' ? 'Antigravity MCP Agent' : 'Mandor AI Assistant'}
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', animation: 'chatPulseGlow 2s infinite' }} />
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', boxShadow: '0 0 12px rgba(16,185,129,0.6)', animation: 'chatPulseGlow 2s infinite' }} />
                 </div>
-                <div style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: '1px' }}>
+                <div style={{ fontSize: '0.68rem', color: '#64748b', marginTop: '2px', fontWeight: 500 }}>
                   {activeTab === 'mcp_console' ? 'Interactive local tool calls active' : 'Panduan instan & tanya jawab sistem Mandor'}
                 </div>
               </div>
@@ -2296,26 +2238,143 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
           }}>
             
             {/* Knowledge Base Chips (only in assistant mode) */}
+            {/* Model Selector Bar */}
+            <div style={{
+              padding: '10px 14px',
+              background: 'linear-gradient(135deg, rgba(19,17,28,0.95) 0%, rgba(26,24,48,0.9) 100%)',
+              borderBottom: '1px solid rgba(148,163,184,0.08)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              position: 'relative'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sparkles size={14} style={{ color: '#a5b4fc' }} />
+                <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Model:</span>
+
+                {/* Model Dropdown */}
+                <div style={{ position: 'relative' }} className="model-dropdown-container">
+                  <button
+                    onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '6px 12px',
+                      background: 'rgba(99,102,241,0.15)',
+                      border: '1px solid rgba(99,102,241,0.3)',
+                      borderRadius: '10px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      color: '#e2e8f0'
+                    }}
+                  >
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>
+                      {AI_MODELS.find(m => m.id === selectedModel)?.icon} {selectedModel}
+                    </span>
+                    <ChevronDown size={14} style={{
+                      color: '#94a3b8',
+                      transform: modelDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.2s ease'
+                    }} />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {modelDropdownOpen && (
+                    <div style={{
+                      position: 'absolute',
+                      bottom: '100%',
+                      left: 0,
+                      marginBottom: '6px',
+                      background: 'linear-gradient(135deg, #1e1b2e 0%, #252036 100%)',
+                      border: '1px solid rgba(148,163,184,0.15)',
+                      borderRadius: '12px',
+                      padding: '6px',
+                      minWidth: '220px',
+                      zIndex: 100,
+                      boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                      backdropFilter: 'blur(16px)'
+                    }}>
+                      {AI_MODELS.map(model => (
+                        <button
+                          key={model.id}
+                          onClick={() => {
+                            setSelectedModel(model.id);
+                            setModelDropdownOpen(false);
+                          }}
+                          style={{
+                            width: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '10px 12px',
+                            background: selectedModel === model.id ? 'rgba(99,102,241,0.2)' : 'transparent',
+                            border: 'none',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                            textAlign: 'left'
+                          }}
+                          onMouseEnter={(e) => {
+                            if (selectedModel !== model.id) {
+                              e.currentTarget.style.background = 'rgba(148,163,184,0.1)';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (selectedModel !== model.id) {
+                              e.currentTarget.style.background = 'transparent';
+                            }
+                          }}
+                        >
+                          <span style={{ fontSize: '1.1rem' }}>{model.icon}</span>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#e2e8f0' }}>{model.name}</div>
+                            <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '1px' }}>{model.description}</div>
+                          </div>
+                          {selectedModel === model.id && (
+                            <div style={{
+                              width: '6px', height: '6px', borderRadius: '50%',
+                              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)'
+                            }} />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Token count indicator */}
+              <div style={{
+                fontSize: '0.65rem',
+                color: '#475569',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}>
+                <Activity size={10} />
+                <span>{input.length} chars</span>
+              </div>
+            </div>
+
+            {/* Knowledge Files Bar */}
             {(activeTab === 'assistant' && knowledgeFiles.length > 0) && (
-              <div style={{ 
-                padding: '8px 12px', 
-                backgroundColor: 'rgba(30,41,59,0.6)', 
-                borderRadius: '12px 12px 0 0', 
-                display: 'flex', gap: '8px', flexWrap: 'wrap', 
-                border: '1px solid rgba(148,163,184,0.1)', 
-                borderBottom: 'none',
-                marginBottom: '-1px'
+              <div style={{
+                padding: '8px 12px',
+                backgroundColor: 'rgba(30,41,59,0.6)',
+                display: 'flex', gap: '8px', flexWrap: 'wrap',
+                borderBottom: '1px solid rgba(148,163,184,0.06)'
               }}>
                 <span style={{ fontSize: '0.7rem', color: '#64748b', display: 'flex', alignItems: 'center', marginRight: '4px', fontWeight: 600 }}>
                   <BookOpen size={12} style={{ marginRight: '4px' }}/> Referensi:
                 </span>
                 {knowledgeFiles.map(f => (
-                  <div key={f.id} style={{ 
-                    display: 'flex', alignItems: 'center', gap: '4px', 
-                    padding: '3px 8px', 
-                    backgroundColor: 'rgba(99,102,241,0.1)', 
-                    border: '1px solid rgba(99,102,241,0.2)', 
-                    borderRadius: '8px', fontSize: '0.72rem', color: '#a5b4fc' 
+                  <div key={f.id} style={{
+                    display: 'flex', alignItems: 'center', gap: '4px',
+                    padding: '3px 8px',
+                    backgroundColor: 'rgba(99,102,241,0.1)',
+                    border: '1px solid rgba(99,102,241,0.2)',
+                    borderRadius: '8px', fontSize: '0.72rem', color: '#a5b4fc'
                   }}>
                     <span style={{ maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.name}>{f.name}</span>
                     <button onClick={() => handleDeleteFile(f.id)} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0 2px' }}>
@@ -2326,42 +2385,45 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
               </div>
             )}
 
-            <div 
+            {/* Prompt Input Area */}
+            <div
               className="mandor-chat-input"
-              style={{ 
-                display: 'flex', 
-                alignItems: 'flex-end', 
-                gap: '8px', 
-                backgroundColor: 'rgba(30,41,59,0.6)',
-                borderRadius: (activeTab === 'assistant' && knowledgeFiles.length > 0) ? '0 0 14px 14px' : '14px',
-                border: '1px solid rgba(148,163,184,0.12)',
-                padding: '8px 8px 8px 16px',
+              style={{
+                display: 'flex',
+                alignItems: 'flex-end',
+                gap: '10px',
+                background: 'linear-gradient(135deg, rgba(19,17,28,0.6) 0%, rgba(26,24,48,0.5) 100%)',
+                borderRadius: knowledgeFiles.length > 0 ? '0 0 16px 16px' : '16px',
+                border: '1px solid rgba(148,163,184,0.1)',
+                borderTop: knowledgeFiles.length > 0 ? 'none' : '1px solid rgba(148,163,184,0.1)',
+                padding: '12px 12px 12px 16px',
                 transition: 'all 0.25s ease',
-                backdropFilter: 'blur(12px)'
+                backdropFilter: 'blur(16px)',
+                margin: '12px'
               }}
             >
               <textarea
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={activeTab === 'mcp_console' ? "Perintahkan pencarian status, log, atau set PLC..." : "Tanya apapun tentang cara kerja Mandor..."}
+                placeholder={activeTab === 'mcp_console' ? "Perintahkan pencarian status, log, atau set PLC..." : "Ask anything..."}
                 rows={1}
                 style={{
                   flex: 1,
                   backgroundColor: 'transparent',
                   border: 'none',
                   color: '#e2e8f0',
-                  fontSize: '0.9rem',
+                  fontSize: '0.92rem',
                   outline: 'none',
                   resize: 'none',
-                  maxHeight: '120px',
-                  paddingTop: '7px',
+                  maxHeight: '140px',
+                  paddingTop: '8px',
                   fontFamily: activeTab === 'mcp_console' ? 'monospace' : 'inherit',
-                  lineHeight: '1.4'
+                  lineHeight: '1.5'
                 }}
                 onInput={(e) => {
                   e.target.style.height = 'auto';
-                  e.target.style.height = (e.target.scrollHeight <= 120 ? e.target.scrollHeight : 120) + 'px';
+                  e.target.style.height = (e.target.scrollHeight <= 140 ? e.target.scrollHeight : 140) + 'px';
                 }}
               />
               {activeTab === 'assistant' && (
@@ -2372,7 +2434,7 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
                     onClick={() => fileInputRef.current?.click()}
                     title="Unggah Dokumen Referensi"
                     style={{
-                      width: '36px', height: '36px', borderRadius: '10px',
+                      width: '38px', height: '38px', borderRadius: '10px',
                       backgroundColor: 'transparent', color: '#64748b',
                       border: '1px solid rgba(148,163,184,0.15)', cursor: 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -2388,26 +2450,115 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
                 onClick={activeTab === 'mcp_console' ? () => handleMcpSend() : handleSend}
                 disabled={(activeTab === 'assistant' ? isLoading : isMcpLoading) || !input.trim()}
                 style={{
-                  width: '36px', height: '36px', borderRadius: '10px',
-                  background: ((activeTab === 'assistant' ? isLoading : isMcpLoading) || !input.trim()) 
-                    ? 'rgba(51,65,85,0.5)' 
+                  width: '40px', height: '40px', borderRadius: '12px',
+                  background: ((activeTab === 'assistant' ? isLoading : isMcpLoading) || !input.trim())
+                    ? 'rgba(51,65,85,0.5)'
                     : activeTab === 'mcp_console'
                       ? 'linear-gradient(135deg, #a855f7, #8b5cf6)'
                       : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
                   color: ((activeTab === 'assistant' ? isLoading : isMcpLoading) || !input.trim()) ? '#475569' : '#ffffff',
-                  border: 'none', 
+                  border: 'none',
                   cursor: ((activeTab === 'assistant' ? isLoading : isMcpLoading) || !input.trim()) ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   transition: 'all 0.25s ease', flexShrink: 0,
-                  boxShadow: ((activeTab === 'assistant' ? isLoading : isMcpLoading) || !input.trim()) ? 'none' : '0 2px 10px rgba(99,102,241,0.3)'
+                  boxShadow: ((activeTab === 'assistant' ? isLoading : isMcpLoading) || !input.trim()) ? 'none' : '0 4px 16px rgba(99,102,241,0.35)'
                 }}
               >
-                {(activeTab === 'assistant' ? isLoading : isMcpLoading) ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                {(activeTab === 'assistant' ? isLoading : isMcpLoading) ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
               </button>
             </div>
 
-            <div style={{ 
-              textAlign: 'center', marginTop: '8px', 
+            {/* Shop Floor Live MCP Monitor - Below Prompt */}
+            {activeTab === 'mcp_console' && (
+              <div style={{
+                margin: '0 12px 12px 12px',
+                background: 'linear-gradient(135deg, rgba(30,27,50,0.6) 0%, rgba(19,17,28,0.8) 100%)',
+                borderRadius: '14px',
+                border: '1px solid rgba(148,163,184,0.08)',
+                padding: '14px',
+                backdropFilter: 'blur(12px)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'rgba(139, 92, 246, 0.15)', borderRadius: '10px' }}>
+                      <BrainCircuit size={18} color="#8b5cf6" />
+                    </div>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '0.85rem', color: '#e2e8f0', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        Shop Floor Live MCP Monitor
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', animation: 'chatPulseGlow 2s infinite' }} />
+                      </h3>
+                      <p style={{ margin: 0, fontSize: '0.65rem', color: '#64748b' }}>Status stasiun & telemetri sensor local terintegrasi.</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={loadMcpStations}
+                    style={{ padding: '5px 10px', fontSize: '0.7rem', border: '1px solid rgba(148,163,184,0.15)', borderRadius: '6px', backgroundColor: 'rgba(99,102,241,0.1)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', color: '#a5b4fc', fontWeight: 600 }}
+                  >
+                    <RotateCw size={11} /> REFRESH
+                  </button>
+                </div>
+
+                {/* Live Stations Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '8px' }}>
+                  {mcpStations.length === 0 ? (
+                    <div style={{ gridColumn: '1/-1', fontSize: '0.75rem', color: '#64748b', textAlign: 'center', padding: '16px' }}>Tidak ada stasiun ditemukan.</div>
+                  ) : (
+                    mcpStations.slice(0, 6).map(station => {
+                      const statusColors = {
+                        RUNNING: { bg: 'rgba(16,185,129,0.15)', text: '#10b981', light: '#10b981' },
+                        IDLE: { bg: 'rgba(217,119,6,0.15)', text: '#f59e0b', light: '#f59e0b' },
+                        STOPPED: { bg: 'rgba(239,68,68,0.15)', text: '#ef4444', light: '#ef4444' },
+                        SETUP: { bg: 'rgba(2,132,199,0.15)', text: '#0ea5e9', light: '#0ea5e9' }
+                      };
+                      const color = statusColors[station.status] || statusColors.RUNNING;
+                      return (
+                        <div key={station.id} style={{ padding: '10px', borderRadius: '10px', border: '1px solid rgba(148,163,184,0.1)', backgroundColor: 'rgba(15,23,42,0.4)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#e2e8f0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{station.name}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.62rem', color: '#64748b' }}>
+                            <span>👤</span>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{station.active_operator || 'None'}</span>
+                          </div>
+                          <div style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 6px', borderRadius: '4px', backgroundColor: color.bg, color: color.text, fontSize: '0.58rem', fontWeight: 800 }}>
+                            <span style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: color.light }} />
+                            {station.status || 'RUNNING'}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Live Terminal Log */}
+                <div style={{ marginTop: '12px', backgroundColor: 'rgba(9,13,22,0.6)', borderRadius: '10px', border: '1px solid rgba(30,41,59,0.8)', padding: '12px', fontFamily: 'monospace' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(30,41,59,0.8)', paddingBottom: '8px', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#38bdf8' }}>console@antigravity-mcp-server:~</span>
+                    <span style={{ fontSize: '0.6rem', color: '#475569' }}>v1.0.0</span>
+                  </div>
+                  <div style={{ maxHeight: '100px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.65rem' }}>
+                    <div style={{ color: '#64748b' }}>[System] Initializing Antigravity local collaboration pipeline...</div>
+                    <div style={{ color: '#10b981' }}>[Success] Connection established with Supabase Frontline DB.</div>
+                    <div style={{ color: '#a855f7' }}>[Ready] Listening to AI Agent tool calls via Model Context Protocol.</div>
+                    {mcpLogs.slice(-3).map((log, idx) => {
+                      let color = '#94a3b8';
+                      if (log.type === 'MCP_CALL') color = '#c084fc';
+                      if (log.type === 'MCP_RESP') color = '#22c55e';
+                      if (log.type === 'ERROR') color = '#ef4444';
+                      return (
+                        <div key={idx} style={{ display: 'flex', gap: '6px' }}>
+                          <span style={{ color: '#475569' }}>[{log.timestamp}]</span>
+                          <span style={{ color, fontWeight: 'bold' }}>[{log.type}]</span>
+                          <span style={{ color: '#e2e8f0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{log.message}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div style={{
+              textAlign: 'center', marginTop: '8px',
               fontSize: '0.62rem', color: '#475569', fontWeight: 500,
               letterSpacing: '0.03em'
             }}>
