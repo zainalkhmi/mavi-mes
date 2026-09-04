@@ -1,10 +1,6 @@
-/**
- * VibeAIStreamService.js
- * Simplified AI Streaming for VibeCode - uses built-in fetch/OpenAI-compatible API
- */
-
 import { useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
+import { AIProvider } from '../../vibe/ai/AIProvider';
 
 export const MODEL_CONFIG = {
   openai: {
@@ -25,54 +21,14 @@ export async function streamVibeAI({
   onComplete,
   onError
 }) {
-  const { provider = 'gemini', apiKey, modelId } = settings;
-  const model = modelId || MODEL_CONFIG[provider]?.default || 'gemini-1.5-flash';
-
   try {
-    let fullText = '';
-
-    // Simple fetch-based streaming for Gemini
-    if (provider === 'gemini' && apiKey) {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}&alt=sse`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: messages.map(m => ({
-              role: m.role === 'user' ? 'user' : 'model',
-              parts: [{ text: m.content }]
-            }))
-          })
-        }
-      );
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-              if (text) {
-                fullText += text;
-                onChunk?.(text);
-              }
-            } catch {}
-          }
-        }
-      }
-    } else {
-      // Fallback: OpenAI-compatible
-      fullText = 'AI streaming ready. Connect AI provider in settings.';
-      onChunk?.(fullText);
-    }
+    const fullText = await AIProvider.streamCompletion(
+      messages,
+      (chunk) => {
+        onChunk?.(chunk);
+      },
+      settings
+    );
 
     onComplete?.({ text: fullText });
     return { text: fullText };
@@ -83,7 +39,23 @@ export async function streamVibeAI({
 }
 
 export async function generateVibeCode({ prompt, context = {} }) {
-  return { text: 'Code generation ready' };
+  try {
+    const messages = [
+      {
+        role: 'system',
+        content: 'You are an expert React developer specializing in industrial HMI applications. Output clean React component code wrapped in <vibe_code>...</vibe_code> tags.'
+      },
+      {
+        role: 'user',
+        content: `Context:\n${JSON.stringify(context, null, 2)}\n\nPrompt: ${prompt}`
+      }
+    ];
+    const text = await AIProvider.getCompletion(messages);
+    return { text };
+  } catch (err) {
+    console.error('generateVibeCode error:', err);
+    throw err;
+  }
 }
 
 export function useVibeAIStream() {
@@ -97,7 +69,7 @@ export function useVibeAIStream() {
     try {
       await streamVibeAI({
         messages: [{ role: 'user', content: prompt }],
-        settings: {},
+        settings: null,
         onChunk: (chunk) => setMessage(prev => prev + chunk),
         onComplete: () => setIsLoading(false),
         onError: (e) => { setError(e); setIsLoading(false); }
@@ -112,3 +84,4 @@ export function useVibeAIStream() {
 }
 
 export default { streamVibeAI, generateVibeCode, useVibeAIStream, MODEL_CONFIG };
+

@@ -30,7 +30,8 @@ export class AIProvider {
    * @returns {Promise<object>}
    */
   static async resolveConnector(overrideConnector = null) {
-    if (overrideConnector && (overrideConnector.aiSettings || overrideConnector.config || overrideConnector.apiKey)) {
+    const overrideKey = overrideConnector?.apiKey || overrideConnector?.config?.apiKey || overrideConnector?.aiSettings?.apiKey;
+    if (overrideKey && String(overrideKey).trim()) {
       return overrideConnector;
     }
     const primary = await getPrimaryAiConnector();
@@ -56,8 +57,14 @@ export class AIProvider {
 
     // 1. Google Gemini SSE streaming
     if (provider === 'gemini') {
-      const cleanModelId = modelId.includes('/') ? modelId.split('/').pop() : (modelId || 'gemini-1.5-flash');
-      const url = `https://generativelanguage.googleapis.com/v1/models/${cleanModelId}:streamGenerateContent?key=${apiKey}&alt=sse`;
+      const primaryModel = modelId.includes('/') ? modelId.split('/').pop() : (modelId || 'gemini-1.5-flash');
+      const candidateModels = [
+        primaryModel,
+        'gemini-2.0-flash',
+        'gemini-1.5-flash-8b',
+        'gemini-1.5-flash',
+        'gemini-1.5-pro'
+      ].filter((m, idx, arr) => arr.indexOf(m) === idx);
 
       const systemMsg = messages.find(m => m.role === 'system');
       const userAndAssistant = messages
@@ -78,15 +85,53 @@ export class AIProvider {
         };
       }
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      let response = null;
+      let lastError = null;
 
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({}));
-        throw new Error(errJson.error?.message || `Gemini API error (${response.status})`);
+      for (const currentModel of candidateModels) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:streamGenerateContent?key=${apiKey}&alt=sse`;
+
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            response = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+              break;
+            }
+
+            const errJson = await response.json().catch(() => ({}));
+            const errMsg = errJson.error?.message || `Gemini API error (${response.status})`;
+            lastError = new Error(errMsg);
+
+            const isHighDemand = response.status === 503 ||
+                                 response.status === 429 ||
+                                 errMsg.toLowerCase().includes('high demand') ||
+                                 errMsg.toLowerCase().includes('overloaded') ||
+                                 errMsg.toLowerCase().includes('resource_exhausted');
+
+            if (isHighDemand && attempt === 0) {
+              await new Promise(r => setTimeout(r, 1200));
+              continue;
+            }
+
+            break;
+          } catch (netErr) {
+            lastError = netErr;
+            break;
+          }
+        }
+
+        if (response && response.ok) {
+          break;
+        }
+      }
+
+      if (!response || !response.ok) {
+        throw lastError || new Error(`Gemini API error (${response?.status || 'Unknown'})`);
       }
 
       const reader = response.body.getReader();

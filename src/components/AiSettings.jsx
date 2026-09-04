@@ -24,9 +24,10 @@ const PROVIDERS = [
 
 const DEFAULT_MODELS = {
   Gemini: [
-    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Recommended - Fast)' },
+    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Recommended - Super Fast & Reliable)' },
+    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Standard)' },
+    { id: 'gemini-1.5-flash-8b', name: 'Gemini 1.5 Flash-8B (High Speed)' },
     { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro (High Intelligence)' },
-    { id: 'gemini-1.0-pro', name: 'Gemini 1.0 Pro' },
     { id: 'gemini-1.5-flash-002', name: 'Gemini 1.5 Flash-002' }
   ],
   OpenAI: [

@@ -1,3 +1,4 @@
+export { getTables, createTable, addTableRecord, getTableRecords, deleteTableRecord, updateTableRecord } from './supabaseTablesDB';
 import { getTables, createTable, addTableRecord, getTableRecords, deleteTableRecord, updateTableRecord } from './supabaseTablesDB';
 import toast from 'react-hot-toast';
 

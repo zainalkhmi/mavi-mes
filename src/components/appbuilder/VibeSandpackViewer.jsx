@@ -57,7 +57,8 @@ import {
   syncVibeAppToTable,
   initVibeMessageListener,
   deployVibeAppToFrontline,
-  extractTableSchemaFromCode
+  extractTableSchemaFromCode,
+  getTables
 } from '../../utils/vibeTableBridge';
 
 import { ProjectFileSystem } from '../../vibe/filesystem/ProjectFileSystem';
@@ -901,6 +902,13 @@ button {
   const [isBuildModalOpen, setIsBuildModalOpen] = useState(false);
   const [pendingFileActions, setPendingFileActions] = useState([]);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [availableTables, setAvailableTables] = useState([]);
+
+  useEffect(() => {
+    getTables().then(tbls => {
+      if (Array.isArray(tbls)) setAvailableTables(tbls);
+    }).catch(err => console.warn('Failed to fetch tables:', err));
+  }, []);
 
   // Chat & AI state
   const [inlinePrompt, setInlinePrompt] = useState('');
@@ -1718,27 +1726,54 @@ button {
           </SandpackProvider>
         </div>
 
-                        {/*  {/* RIGHT PANEL: VIBECHAT STREAMING */}
+        {/* RIGHT PANEL: VIBECHAT STREAMING */}
         {isStandalone && (
-          <VibeChatPanel
-            context={{
-              appName: appName,
-              files: filesRecord,
-              tables: []
-            }}
-            settings={{
-              provider: selectedAIModel,
-              apiKey: ''
-            }}
-            onCodeGenerated={(code) => {
-              vfs.writeFile('/App.js', code);
-              setFilesRecord(vfs.getAllFilesRecord());
-              toast.success('AI code applied!');
-            }}
-          />
+          <div style={{
+            width: '420px',
+            minWidth: '380px',
+            maxWidth: '480px',
+            height: '100%',
+            borderLeft: '1px solid #1e293b',
+            display: 'flex',
+            flexDirection: 'column',
+            flexShrink: 0,
+            overflow: 'hidden',
+            backgroundColor: '#0f172a'
+          }}>
+            <VibeChatPanel
+              context={{
+                appName: appName,
+                files: filesRecord,
+                tables: availableTables
+              }}
+              settings={null}
+              onCodeGenerated={async (code) => {
+                vfs.writeFile('/App.js', code);
+                setFilesRecord(vfs.getAllFilesRecord());
+                toast.success('AI code applied to /App.js!');
+                try {
+                  const res = await syncVibeAppToTable(code);
+                  if (res?.table) {
+                    setConnectedTable(res.table);
+                    setLiveRecordCount(res.recordCount);
+                    toast.success(
+                      res.isNew
+                        ? `Tabel "${res.table.name}" berhasil dibuat di Database MaviCore!`
+                        : `Tabel "${res.table.name}" tersinkronisasi (${res.recordCount} data tersimpan)!`,
+                      { duration: 4000 }
+                    );
+                    getTables().then(tbls => {
+                      if (Array.isArray(tbls)) setAvailableTables(tbls);
+                    });
+                  }
+                } catch (syncErr) {
+                  console.warn('Auto table sync error:', syncErr);
+                }
+              }}
+            />
+          </div>
         )}
-}
-        </div>
+      </div>
 
       {/* ═══════════ MODALS ═══════════ */}
       {/* 1. AI Changes Review Modal */}

@@ -184,16 +184,36 @@ export async function deleteInterface(id) {
 
 // ── Integration Connectors ────────────────────────────────────────────────────
 export async function getIntegrationConnectors() {
-    const supabase = getSupabaseClient();
-    const { data, error } = await supabase.from('integration_connectors').select('*');
-    if (error) {
-        console.error('[Supabase] getIntegrationConnectors error:', error);
-        return [];
+    try {
+        const supabase = getSupabaseClient();
+        const { data, error } = await supabase.from('integration_connectors').select('*');
+        if (!error && data && data.length > 0) {
+            return snakeToCamel(data);
+        }
+        if (error) {
+            console.warn('[Supabase] getIntegrationConnectors error:', error);
+        }
+    } catch (err) {
+        console.warn('[Supabase] getIntegrationConnectors exception:', err);
     }
-    return snakeToCamel(data || []);
+    // Fallback: check local storage
+    try {
+        const allConnectors = JSON.parse(localStorage.getItem('mandor_integration_connectors') || '[]');
+        const primary = JSON.parse(localStorage.getItem('mandor_primary_ai_connector') || 'null');
+        if (primary && !allConnectors.find(c => c.type === 'AI_ASSISTANT')) {
+            allConnectors.push(primary);
+        }
+        return allConnectors;
+    } catch {}
+    return [];
 }
 
 export async function saveIntegrationConnector(connector) {
+    if (connector.type === 'AI_ASSISTANT') {
+        try {
+            localStorage.setItem('mandor_primary_ai_connector', JSON.stringify(connector));
+        } catch {}
+    }
     const supabase = getSupabaseClient();
     const payload = camelToSnake({ ...connector, updated_at: new Date().toISOString() });
     const id = connector.id;
@@ -205,14 +225,22 @@ export async function saveIntegrationConnector(connector) {
             console.error('[Supabase] saveIntegrationConnector (update) error:', error);
             throw error;
         }
-        return snakeToCamel(data);
+        const res = snakeToCamel(data);
+        if (connector.type === 'AI_ASSISTANT') {
+            try { localStorage.setItem('mandor_primary_ai_connector', JSON.stringify(res)); } catch {}
+        }
+        return res;
     } else {
         const { data, error } = await supabase.from('integration_connectors').insert({ ...payload, created_at: new Date().toISOString() }).select().single();
         if (error) {
             console.error('[Supabase] saveIntegrationConnector (insert) error:', error);
             throw error;
         }
-        return snakeToCamel(data);
+        const res = snakeToCamel(data);
+        if (connector.type === 'AI_ASSISTANT') {
+            try { localStorage.setItem('mandor_primary_ai_connector', JSON.stringify(res)); } catch {}
+        }
+        return res;
     }
 }
 
@@ -231,19 +259,40 @@ export const executeIntegrationAction = async (connector, action, data) => ({ su
 export const getIntegrationLogs = async (connectorId) => [];
 
 export async function getPrimaryAiConnector() {
-    const supabase = getSupabaseClient();
-    const { data, error } = await supabase
-        .from('integration_connectors')
-        .select('*')
-        .eq('type', 'AI_ASSISTANT')
-        .limit(1)
-        .maybeSingle();
-    
-    if (error) {
-        console.warn('[Supabase] Failed to fetch AI connector:', error);
-        return null;
+    try {
+        const supabase = getSupabaseClient();
+        const { data, error } = await supabase
+            .from('integration_connectors')
+            .select('*')
+            .eq('type', 'AI_ASSISTANT')
+            .limit(1)
+            .maybeSingle();
+        
+        if (!error && data) {
+            const camel = snakeToCamel(data);
+            try {
+                localStorage.setItem('mandor_primary_ai_connector', JSON.stringify(camel));
+            } catch {}
+            return camel;
+        }
+        if (error) {
+            console.warn('[Supabase] Failed to fetch AI connector:', error);
+        }
+    } catch (err) {
+        console.warn('[Supabase] getPrimaryAiConnector error:', err);
     }
-    return snakeToCamel(data);
+
+    // Fallback to cached local storage
+    try {
+        const local = localStorage.getItem('mandor_primary_ai_connector');
+        if (local) return JSON.parse(local);
+
+        const allConnectors = JSON.parse(localStorage.getItem('mandor_integration_connectors') || '[]');
+        const found = allConnectors.find(c => c.type === 'AI_ASSISTANT');
+        if (found) return found;
+    } catch {}
+
+    return null;
 }
 
 // ── Edge Devices ──────────────────────────────────────────────────────────────
