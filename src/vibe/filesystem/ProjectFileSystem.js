@@ -4,6 +4,8 @@
  * Supports file CRUD, folder hierarchy, file search, tree generation, and package.json synchronization.
  */
 
+import { cleanVibeCode } from '../utils/codeCleaner.js';
+
 export class VirtualFile {
   constructor(path, content = '', isBinary = false) {
     this.path = this.normalizePath(path);
@@ -42,8 +44,12 @@ export class ProjectFileSystem {
     this.files.clear();
     for (const [path, content] of Object.entries(initialFiles)) {
       const norm = this.normalizePath(path);
-      const isBin = typeof content !== 'string';
-      this.files.set(norm, new VirtualFile(norm, content, isBin));
+      let finalContent = content;
+      if (typeof content === 'string' && (norm === '/App.js' || norm === '/App.jsx')) {
+        finalContent = cleanVibeCode(content);
+      }
+      const isBin = typeof finalContent !== 'string';
+      this.files.set(norm, new VirtualFile(norm, finalContent, isBin));
     }
     this.notify();
   }
@@ -67,8 +73,12 @@ export class ProjectFileSystem {
    */
   writeFile(path, content) {
     const norm = this.normalizePath(path);
-    const isBin = typeof content !== 'string';
-    const file = new VirtualFile(norm, content, isBin);
+    let finalContent = content;
+    if (typeof content === 'string' && (norm === '/App.js' || norm === '/App.jsx')) {
+      finalContent = cleanVibeCode(content);
+    }
+    const isBin = typeof finalContent !== 'string';
+    const file = new VirtualFile(norm, finalContent, isBin);
     this.files.set(norm, file);
     this.notify({ type: 'write', path: norm, file });
     return file;

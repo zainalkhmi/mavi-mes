@@ -847,9 +847,13 @@ button {
       try {
         const saved = localStorage.getItem('vibe_sandbox_autosave');
         if (saved && saved !== effectiveInitialCode) {
-          vfs.writeFile('/App.js', saved);
+          const cleaned = cleanVibeCode(saved);
+          vfs.writeFile('/App.js', cleaned);
           setFilesRecord(vfs.getAllFilesRecord());
           setFileTree(vfs.getFileTree());
+          if (cleaned !== saved) {
+            try { localStorage.setItem('vibe_sandbox_autosave', cleaned); } catch {}
+          }
           toast.success('💾 Kode terakhir dipulihkan dari auto-save!');
         }
       } catch (e) { /* ignore */ }
@@ -1328,6 +1332,31 @@ button {
           >
             <RotateCcw size={12} />
             <span>Undo AI</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              vfs.writeFile('/App.js', DEFAULT_VIBE_HMI_CODE);
+              setFilesRecord(vfs.getAllFilesRecord());
+              setFileTree(vfs.getFileTree());
+              setErrors([]);
+              try { localStorage.removeItem('vibe_sandbox_autosave'); } catch {}
+              toast.success('Template awal berhasil dimuat ulang!');
+            }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '4px',
+              padding: '4px 8px', borderRadius: '6px',
+              backgroundColor: 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              color: '#94a3b8',
+              cursor: 'pointer',
+              fontSize: '0.72rem', fontWeight: 600, transition: 'all 0.15s'
+            }}
+            title="Reset ke template bawaan yang bersih & stabil"
+          >
+            <RotateCcw size={12} />
+            <span>Reset App</span>
           </button>
         </div>
 
