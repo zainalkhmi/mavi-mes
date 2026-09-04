@@ -75,6 +75,8 @@ import AiChangesReviewModal from '../../vibe/components/AiChangesReviewModal';
 import ManufacturingTemplatesModal from '../../vibe/components/ManufacturingTemplatesModal';
 import BuildModal from '../../vibe/components/BuildModal';
 import VibeChatPanel from '../../vibe/components/VibeChatPanel';
+import BottomTerminalPanel from '../../vibe/components/BottomTerminalPanel';
+import { cleanVibeCode } from '../../vibe/utils/codeCleaner';
 
 // ═══════════════════════════════════════════════════════════════════
 // 🔌 MaviCore Real-time Data Bridge Helper
@@ -1726,6 +1728,18 @@ button {
               )}
             </SandpackLayout>
           </SandpackProvider>
+
+          {/* Bottom Terminal & Auto-Fix Panel */}
+          <BottomTerminalPanel
+            isOpen={isTerminalPanelOpen}
+            onToggleOpen={() => setIsTerminalPanelOpen(prev => !prev)}
+            logs={logs}
+            errors={errors}
+            aiActivity={aiActivity}
+            onTriggerAutoFix={handleTriggerAutoFix}
+            isAutoFixing={isAutoFixing}
+            onClearLogs={() => { setLogs([]); setErrors([]); }}
+          />
         </div>
 
         {/* RIGHT PANEL: VIBECHAT STREAMING */}
@@ -1749,9 +1763,11 @@ button {
                 tables: availableTables
               }}
               settings={null}
-              onCodeGenerated={async (code) => {
+              onCodeGenerated={async (rawCode) => {
+                const code = cleanVibeCode(rawCode);
                 vfs.writeFile('/App.js', code);
                 setFilesRecord(vfs.getAllFilesRecord());
+                setErrors([]);
                 toast.success('AI code applied to /App.js!');
                 try {
                   const res = await syncVibeAppToTable(code);

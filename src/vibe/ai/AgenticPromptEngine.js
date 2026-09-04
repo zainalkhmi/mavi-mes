@@ -10,6 +10,7 @@
  */
 
 import { ProjectMemory } from './ProjectMemory.js';
+import { cleanVibeCode } from '../utils/codeCleaner.js';
 
 export class AgenticPromptEngine {
   /**
@@ -213,7 +214,7 @@ INSTRUKSI:
     while ((match = fileActionRegex.exec(responseText)) !== null) {
       const path = match[1].trim();
       const action = (match[2] || 'modify').toLowerCase().trim();
-      const content = match[3].trim();
+      const content = cleanVibeCode(match[3]);
       fileActions.push({ path, action, content });
     }
 
@@ -224,7 +225,7 @@ INSTRUKSI:
         fileActions.push({
           path: '/App.jsx',
           action: 'modify',
-          content: vibeCodeMatch[1].trim()
+          content: cleanVibeCode(vibeCodeMatch[1])
         });
       }
     }

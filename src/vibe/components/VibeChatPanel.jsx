@@ -24,6 +24,7 @@ import {
 import toast from 'react-hot-toast';
 import { getPrimaryAiConnector, saveIntegrationConnector } from '../../utils/database';
 import { streamVibeAI, generateVibeCode } from '../../utils/ai/VibeAIStreamService';
+import { cleanVibeCode } from '../utils/codeCleaner';
 
 export const PROVIDER_MODELS = {
   Gemini: [
@@ -310,7 +311,7 @@ CRITICAL EXECUTION CONSTRAINTS:
 1. The preview runs directly in-browser using Sandpack. React, Tailwind CSS, Lucide React icons, and Framer Motion are ALREADY pre-installed and available.
 2. DO NOT output package.json, terminal commands, or instructions on how to install or run the project (like npm install or creating directories).
 3. Output ONLY a single, complete, self-contained React component for /App.js that exports default function App().
-4. ALWAYS wrap the entire runnable React component inside <vibe_code> ... </vibe_code> tags.
+4. ALWAYS wrap the entire runnable React component inside <vibe_code> ... </vibe_code> tags. DILARANG KERAS menyertakan markdown code fences (\`\`\`jsx atau \`\`\`) di dalam tag <vibe_code>. Tulis langsung kode JSX mentah di dalamnya.
 5. VISUAL AESTHETICS: WAJIB MODERN LIGHT THEME & COLOURFUL ALA LOVABLE.DEV / SHADCN UI:
    - DILARANG KERAS BACKGROUND GELAP/HITAM: Jangan gunakan bg-slate-900, bg-slate-950, bg-gray-900, bg-black, #000000, #030712, #0b0f19, #0f172a pada root container atau kartu!
    - Root Container: WAJIB <div className="min-h-screen p-4 sm:p-6" style={{ backgroundColor: '#f8fafc', color: '#0f172a' }}>
@@ -343,11 +344,11 @@ When creating or updating apps, always integrate with the MaviCore table system:
             let extractedCode = null;
             const codeMatch = result.text.match(/<vibe_code>([\s\S]*?)<\/vibe_code>/i);
             if (codeMatch) {
-              extractedCode = codeMatch[1].trim();
+              extractedCode = cleanVibeCode(codeMatch[1]);
             } else {
               const mdMatch = result.text.match(/```(?:jsx|javascript|js|tsx)?\s*([\s\S]*?)```/i);
               if (mdMatch && (mdMatch[1].includes('export default') || mdMatch[1].includes('return') || mdMatch[1].includes('function'))) {
-                extractedCode = mdMatch[1].trim();
+                extractedCode = cleanVibeCode(mdMatch[1]);
               }
             }
 
@@ -396,7 +397,7 @@ CRITICAL EXECUTION CONSTRAINTS:
 1. The preview runs directly in-browser using Sandpack. React, Tailwind CSS, Lucide React icons, and Framer Motion are ALREADY pre-installed and available.
 2. DO NOT output package.json, terminal commands, or setup instructions.
 3. Output ONLY a single, complete, self-contained React component for /App.js that exports default function App().
-4. ALWAYS wrap the entire runnable React component inside <vibe_code> ... </vibe_code> tags.
+4. ALWAYS wrap the entire runnable React component inside <vibe_code> ... </vibe_code> tags. DILARANG KERAS menyertakan markdown code fences (\`\`\`jsx atau \`\`\`) di dalam tag <vibe_code>. Tulis langsung kode JSX mentah di dalamnya.
 5. Strictly implement the database table and fields defined in the plan using window.MaviCoreBridge (createTable, save, read, update, delete, onRecord).
 6. VISUAL AESTHETICS: WAJIB MODERN LIGHT THEME & COLOURFUL ALA LOVABLE.DEV / SHADCN UI:
    - DILARANG KERAS BACKGROUND GELAP/HITAM: Jangan gunakan bg-slate-900, bg-slate-950, bg-gray-900, bg-black, #000000, #030712, #0b0f19, #0f172a pada root container atau kartu!
@@ -428,11 +429,11 @@ CRITICAL EXECUTION CONSTRAINTS:
           let extractedCode = null;
           const codeMatch = res.text.match(/<vibe_code>([\s\S]*?)<\/vibe_code>/i);
           if (codeMatch) {
-            extractedCode = codeMatch[1].trim();
+            extractedCode = cleanVibeCode(codeMatch[1]);
           } else {
             const mdMatch = res.text.match(/```(?:jsx|javascript|js|tsx)?\s*([\s\S]*?)```/i);
             if (mdMatch && (mdMatch[1].includes('export default') || mdMatch[1].includes('return') || mdMatch[1].includes('function'))) {
-              extractedCode = mdMatch[1].trim();
+              extractedCode = cleanVibeCode(mdMatch[1]);
             }
           }
 
