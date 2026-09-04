@@ -199,7 +199,8 @@ export default function VibeSandpackViewer({
   onToggleFullScreen = null,
   onPromptSandbox = null,
   isLoading = false,
-  onClose = null
+  onClose = null,
+  isStandalone = false
 }) {
   const effectiveInitialCode = code && code.trim().length > 0 ? code : DEFAULT_VIBE_HMI_CODE;
 
@@ -536,88 +537,125 @@ button {
   };
 
   return (
-    <div className="w-full h-full flex flex-col bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl" style={{ minHeight: '580px' }}>
-      
-      {/* ═══════════ TOP NAVBAR ═══════════ */}
-      <div style={{
+    <div className={isStandalone ? "w-screen h-screen flex flex-col" : "w-full h-full flex flex-col bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl"} style={isStandalone ? { backgroundColor: '#f0f0f0' } : { minHeight: 0, height: '100%' }}>
+
+      {/* Hide scrollbar on top navbar */}
+      <style>{`
+        .vibe-top-navbar::-webkit-scrollbar { display: none; }
+        .vibe-top-navbar { -ms-overflow-style: none; scrollbar-width: none; }
+        body { margin: 0; padding: 0; overflow: hidden; }
+      `}</style>
+
+      {/* ═══════════ TOP NAVBAR - ODOO STYLE COLORFUL ═══════════ */}
+      <div className="vibe-top-navbar" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '8px 16px', backgroundColor: 'rgba(15, 23, 42, 0.95)',
-        backdropFilter: 'blur(12px)', borderBottom: '1px solid #1e293b',
-        color: '#cbd5e1', userSelect: 'none', gap: '8px', flexShrink: 0
+        padding: '0 16px', height: '60px', minHeight: '60px', maxHeight: '60px', flexShrink: 0,
+        backgroundColor: '#017E84', borderBottom: '3px solid #014a51',
+        color: '#fff', userSelect: 'none', gap: '12px', zIndex: 40,
+        position: 'relative', width: '100%', boxSizing: 'border-box',
+        overflowX: 'visible', overflowY: 'hidden',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
       }}>
-        {/* Left: Branding & Mode Switcher */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+        {/* Left: Branding & Mode Switcher & Undo AI */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, minWidth: 0 }}>
+          {/* Sparkles icon */}
           <div style={{
-            width: '24px', height: '24px', borderRadius: '8px',
+            width: '36px', height: '36px', borderRadius: '10px',
             background: 'linear-gradient(135deg, #f43f5e, #f59e0b, #8b5cf6)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
           }}>
-            <Sparkles size={13} color="#fff" />
+            <Sparkles size={16} color="#fff" />
           </div>
-          <span style={{ fontWeight: 800, color: '#fff', fontSize: '0.875rem' }}>
-            {deployedApp?.name || 'MaviCore Copilot Engine'}
+          {/* App name */}
+          <span style={{
+            fontWeight: 800, color: '#fff', fontSize: '0.95rem',
+            maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)'
+          }} title={deployedApp?.name || 'MaviCore Copilot Engine'}>
+            {deployedApp?.name || 'MaviCore Studio'}
           </span>
 
           {/* Mode Switcher: Web App vs Mobile App */}
           <div style={{
-            display: 'flex', alignItems: 'center', backgroundColor: '#020617',
-            padding: '2px', borderRadius: '8px', border: '1px solid #1e293b', marginLeft: '6px'
+            display: 'flex', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.2)',
+            padding: '3px', borderRadius: '10px',
+            boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.2)'
           }}>
             <button
               type="button"
               onClick={() => handleSwitchAppMode('web')}
               style={{
-                padding: '3px 8px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: appMode === 'web' ? 700 : 500,
+                display: 'flex', alignItems: 'center', gap: '6px',
+                padding: '8px 16px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 700,
                 border: 'none', cursor: 'pointer',
-                backgroundColor: appMode === 'web' ? '#1e293b' : 'transparent',
-                color: appMode === 'web' ? '#38bdf8' : '#64748b'
+                backgroundColor: appMode === 'web' ? '#21b799' : 'transparent',
+                color: '#fff',
+                boxShadow: appMode === 'web' ? '0 2px 6px rgba(0,0,0,0.3)' : 'none',
+                transition: 'all 0.2s',
+                textShadow: '0 1px 2px rgba(0,0,0,0.2)'
               }}
+              title="Mode Web App (React + Tailwind)"
             >
-              WEB APP
+              <Globe size={14} />
+              <span>WEB APP</span>
             </button>
             <button
               type="button"
               onClick={() => handleSwitchAppMode('mobile')}
               style={{
-                padding: '3px 8px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: appMode === 'mobile' ? 700 : 500,
+                display: 'flex', alignItems: 'center', gap: '6px',
+                padding: '8px 16px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 700,
                 border: 'none', cursor: 'pointer',
-                backgroundColor: appMode === 'mobile' ? '#1e293b' : 'transparent',
-                color: appMode === 'mobile' ? '#a5b4fc' : '#64748b'
+                backgroundColor: appMode === 'mobile' ? '#714b67' : 'transparent',
+                color: '#fff',
+                boxShadow: appMode === 'mobile' ? '0 2px 6px rgba(0,0,0,0.3)' : 'none',
+                transition: 'all 0.2s',
+                textShadow: '0 1px 2px rgba(0,0,0,0.2)'
               }}
+              title="Mode Mobile App (Ionic + Capacitor)"
             >
-              MOBILE APP
+              <Smartphone size={14} />
+              <span>MOBILE APP</span>
             </button>
           </div>
 
           {/* Undo AI Change */}
-          {versionControl.canUndo() && (
-            <button
-              type="button"
-              onClick={handleUndo}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 8px',
-                borderRadius: '6px', backgroundColor: '#1e293b', border: '1px solid rgba(51,65,85,0.6)',
-                color: '#cbd5e1', fontSize: '0.72rem', cursor: 'pointer'
-              }}
-              title="Undo perubahan AI"
-            >
-              <RotateCcw size={11} />
-              <span>Undo AI</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleUndo}
+            disabled={!versionControl.canUndo()}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px',
+              borderRadius: '8px',
+              backgroundColor: '#e74c3c',
+              border: 'none',
+              color: '#fff', fontSize: '0.85rem', fontWeight: 700,
+              cursor: versionControl.canUndo() ? 'pointer' : 'not-allowed',
+              opacity: versionControl.canUndo() ? 1 : 0.5,
+              boxShadow: versionControl.canUndo() ? '0 2px 6px rgba(231,76,60,0.4)' : 'none',
+              transition: 'all 0.2s',
+              textShadow: '0 1px 2px rgba(0,0,0,0.2)'
+            }}
+            title="Undo perubahan AI terakhir"
+          >
+            <RotateCcw size={14} />
+            <span>Undo AI</span>
+          </button>
         </div>
 
-        {/* Center: View Mode + Device + Reload */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {/* Center: View Mode + Device Selector + Reload */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
           {/* View Mode Switcher: Preview / Code / Split */}
           <div style={{
-            display: 'flex', alignItems: 'center', backgroundColor: '#020617',
-            padding: '3px', borderRadius: '12px', border: '1px solid #1e293b'
+            display: 'flex', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.2)',
+            padding: '3px', borderRadius: '10px',
+            boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.2)'
           }}>
             {[
-              { key: 'preview', label: 'Preview', icon: <Globe size={13} /> },
-              { key: 'code', label: 'Code', icon: <Code size={13} /> },
-              { key: 'split', label: 'Split', icon: <Columns size={13} /> },
+              { key: 'preview', label: 'Preview', icon: <Eye size={15} />, color: '#3498db' },
+              { key: 'code', label: 'Code', icon: <Code size={15} />, color: '#f39c12' },
+              { key: 'split', label: 'Split', icon: <Columns size={15} />, color: '#9b59b6' },
             ].map(item => (
               <button
                 key={item.key}
@@ -625,12 +663,14 @@ button {
                 onClick={() => setViewMode(item.key)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '6px',
-                  padding: '5px 12px', borderRadius: '9px', fontSize: '0.75rem',
-                  fontWeight: viewMode === item.key ? 700 : 500, cursor: 'pointer',
-                  border: viewMode === item.key ? '1px solid rgba(14,165,233,0.4)' : '1px solid transparent',
-                  backgroundColor: viewMode === item.key ? 'rgba(14,165,233,0.15)' : 'transparent',
-                  color: viewMode === item.key ? '#38bdf8' : '#94a3b8',
-                  transition: 'all 0.15s'
+                  padding: '8px 16px', borderRadius: '8px', fontSize: '0.85rem',
+                  fontWeight: 700, cursor: 'pointer',
+                  border: 'none',
+                  backgroundColor: viewMode === item.key ? item.color : 'transparent',
+                  color: '#fff',
+                  boxShadow: viewMode === item.key ? '0 2px 6px rgba(0,0,0,0.3)' : 'none',
+                  transition: 'all 0.2s',
+                  textShadow: '0 1px 2px rgba(0,0,0,0.2)'
                 }}
                 title={item.label}
               >
@@ -642,24 +682,29 @@ button {
 
           {/* Device Switcher: Desktop / Tablet / Mobile */}
           <div style={{
-            display: 'flex', alignItems: 'center', backgroundColor: '#020617',
-            padding: '3px', borderRadius: '8px', border: '1px solid #1e293b'
+            display: 'flex', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.2)',
+            padding: '3px', borderRadius: '10px',
+            boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.2)'
           }}>
             {[
-              { key: 'desktop', icon: <Monitor size={14} />, label: 'Desktop' },
-              { key: 'tablet', icon: <Tablet size={14} />, label: 'Tablet' },
-              { key: 'mobile', icon: <Smartphone size={14} />, label: 'Mobile' },
+              { key: 'desktop', icon: <Monitor size={16} />, label: 'Desktop' },
+              { key: 'tablet', icon: <Tablet size={16} />, label: 'Tablet' },
+              { key: 'mobile', icon: <Smartphone size={16} />, label: 'Mobile' },
             ].map(item => (
               <button
                 key={item.key}
                 type="button"
                 onClick={() => setViewportSize(item.key)}
                 style={{
-                  padding: '5px 8px', borderRadius: '6px', cursor: 'pointer',
+                  padding: '8px 12px', borderRadius: '8px', cursor: 'pointer',
                   border: 'none',
-                  backgroundColor: viewportSize === item.key ? '#1e293b' : 'transparent',
-                  color: viewportSize === item.key ? '#fff' : '#64748b',
-                  transition: 'all 0.15s', display: 'flex', alignItems: 'center'
+                  backgroundColor: viewportSize === item.key ? '#ffffff' : 'transparent',
+                  color: viewportSize === item.key ? '#017E84' : '#fff',
+                  boxShadow: viewportSize === item.key ? '0 2px 6px rgba(0,0,0,0.3)' : 'none',
+                  transition: 'all 0.2s',
+                  display: 'flex', alignItems: 'center',
+                  fontWeight: viewportSize === item.key ? 700 : 500,
+                  fontSize: '0.85rem'
                 }}
                 title={`${item.label} View`}
               >
@@ -668,54 +713,66 @@ button {
             ))}
           </div>
 
-          {/* Reload + Fullscreen */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {/* Reload button */}
+          <button
+            type="button"
+            onClick={() => {
+              const ifr = document.querySelector('.sp-preview-iframe');
+              if (ifr && ifr.contentWindow) ifr.contentWindow.location.reload();
+              else toast.success('Reloaded preview');
+            }}
+            style={{
+              padding: '8px 14px', color: '#fff', backgroundColor: 'rgba(0,0,0,0.2)',
+              border: 'none', borderRadius: '8px',
+              cursor: 'pointer', display: 'flex', alignItems: 'center',
+              fontSize: '0.85rem', fontWeight: 600,
+              boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)',
+              transition: 'all 0.2s'
+            }}
+            title="Reload Preview"
+          >
+            <RotateCw size={15} />
+          </button>
+
+          {/* Fullscreen */}
+          {onToggleFullScreen && (
             <button
               type="button"
-              onClick={() => {
-                const ifr = document.querySelector('.sp-preview-iframe');
-                if (ifr && ifr.contentWindow) ifr.contentWindow.location.reload();
-                else toast.success('Reloaded preview');
-              }}
+              onClick={onToggleFullScreen}
               style={{
-                padding: '5px', color: '#94a3b8', background: 'none', border: 'none',
-                borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center'
+                padding: '8px 14px', color: '#fff', backgroundColor: 'rgba(0,0,0,0.2)',
+                border: 'none', borderRadius: '8px',
+                cursor: 'pointer', display: 'flex', alignItems: 'center',
+                fontSize: '0.85rem', fontWeight: 600,
+                boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)',
+                transition: 'all 0.2s'
               }}
-              title="Reload Preview"
+              title={isFullScreen ? 'Exit Full Screen' : 'Full Screen'}
             >
-              <RotateCw size={14} />
+              {isFullScreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
             </button>
-            {onToggleFullScreen && (
-              <button
-                type="button"
-                onClick={onToggleFullScreen}
-                style={{
-                  padding: '5px', color: '#94a3b8', background: 'none', border: 'none',
-                  borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center'
-                }}
-                title={isFullScreen ? 'Exit Full Screen' : 'Full Screen'}
-              >
-                {isFullScreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-              </button>
-            )}
-          </div>
+          )}
         </div>
 
-        {/* Right: Actions (Build APK, Connect DB, Publish) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+        {/* Right: Actions (Build APK, Copy, Table Sync, Frontline Publish) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
           {/* Build APK / Mobile Button */}
           <button
             type="button"
             onClick={() => setIsBuildModalOpen(true)}
             style={{
-              padding: '5px 12px', borderRadius: '9999px', backgroundColor: '#1e293b',
-              border: '1px solid #334155', color: '#38bdf8', fontSize: '0.72rem',
-              fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px',
-              cursor: 'pointer', transition: 'all 0.15s'
+              padding: '8px 18px', borderRadius: '8px',
+              background: 'linear-gradient(135deg, #e67e22, #d35400)',
+              border: 'none',
+              color: '#fff', fontSize: '0.85rem', fontWeight: 700,
+              display: 'flex', alignItems: 'center', gap: '6px',
+              cursor: 'pointer', transition: 'all 0.2s',
+              boxShadow: '0 3px 8px rgba(230,126,34,0.4)',
+              textShadow: '0 1px 2px rgba(0,0,0,0.2)'
             }}
-            title="Build APK / AAB / Web"
+            title="Build APK / AAB / Web Package"
           >
-            <MobileIcon size={12} />
+            <Smartphone size={15} />
             <span>Build APK</span>
           </button>
 
@@ -724,48 +781,60 @@ button {
             type="button"
             onClick={handleCopyCode}
             style={{
-              padding: '5px 12px', borderRadius: '9999px', backgroundColor: '#1e293b',
-              border: '1px solid #334155', color: '#e2e8f0', fontSize: '0.72rem',
-              fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer'
+              padding: '8px 16px', borderRadius: '8px',
+              background: 'linear-gradient(135deg, #95a5a6, #7f8c8d)',
+              border: 'none',
+              color: '#fff', fontSize: '0.85rem', fontWeight: 600,
+              display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+              textShadow: '0 1px 2px rgba(0,0,0,0.2)'
             }}
             title="Copy Code"
           >
-            {copied ? <Check size={12} color="#34d399" /> : null}
-            <span>Copy</span>
+            {copied ? <Check size={14} color="#2ecc71" /> : <Copy size={14} />}
+            <span>{copied ? 'Copied!' : 'Copy'}</span>
           </button>
 
-          {/* Connect DB */}
+          {/* Table Sync / Connect DB */}
           <button
             type="button"
             onClick={handleSyncTable}
             disabled={isSyncingTable}
             style={{
-              padding: '5px 12px', borderRadius: '9999px', fontSize: '0.72rem', fontWeight: 700,
+              padding: '8px 18px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 700,
               display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer',
-              backgroundColor: connectedTable ? 'rgba(147,51,234,0.15)' : '#9333ea',
-              color: connectedTable ? '#c4b5fd' : '#fff',
-              border: connectedTable ? '1px solid rgba(147,51,234,0.4)' : 'none',
+              background: connectedTable ? 'linear-gradient(135deg, #8e44ad, #714b67)' : 'linear-gradient(135deg, #9b59b6, #714b67)',
+              border: 'none',
+              color: '#fff',
+              boxShadow: '0 3px 8px rgba(155,89,182,0.4)',
+              textShadow: '0 1px 2px rgba(0,0,0,0.2)',
+              transition: 'all 0.2s'
             }}
-            title="Connect MaviCore Database"
+            title="Connect MaviCore Database & Table Sync"
           >
-            <Database size={12} className={isSyncingTable ? 'animate-spin' : ''} />
-            <span>{connectedTable ? `${connectedTable.name}${liveRecordCount > 0 ? ` (${liveRecordCount})` : ''}` : 'Connect DB'}</span>
+            <Database size={14} className={isSyncingTable ? 'animate-spin' : ''} />
+            <span>{isSyncingTable ? 'Syncing...' : connectedTable ? `${connectedTable.name}${liveRecordCount > 0 ? ` (${liveRecordCount})` : ''}` : 'Connect DB'}</span>
           </button>
 
-          {/* Publish */}
+          {/* Frontline Publish */}
           <button
             type="button"
             onClick={handleOpenDeployModal}
             style={{
-              padding: '5px 14px', borderRadius: '9999px', backgroundColor: '#2563eb',
-              color: '#fff', fontSize: '0.72rem', fontWeight: 700, border: 'none',
-              display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(37,99,235,0.3)', transition: 'all 0.15s'
+              padding: '8px 18px', borderRadius: '8px',
+              background: 'linear-gradient(135deg, #27ae60, #1e8449)',
+              border: 'none',
+              color: '#fff', fontSize: '0.85rem', fontWeight: 700,
+              display: 'flex', alignItems: 'center', gap: '6px',
+              cursor: 'pointer',
+              boxShadow: '0 3px 8px rgba(39,174,96,0.4)',
+              transition: 'all 0.2s',
+              textShadow: '0 1px 2px rgba(0,0,0,0.2)'
             }}
-            title="Publish"
+            title="Publish ke Frontline Apps"
           >
-            <Rocket size={12} />
-            <span>{deployedApp ? 'Published' : 'Publish'}</span>
+            <Rocket size={15} />
+            <span>{deployedApp ? 'Published ✓' : 'Publish'}</span>
           </button>
 
           {onClose && (
@@ -773,8 +842,12 @@ button {
               type="button"
               onClick={onClose}
               style={{
-                padding: '4px', marginLeft: '4px', color: '#94a3b8', background: 'none',
-                border: 'none', borderRadius: '9999px', cursor: 'pointer', display: 'flex', alignItems: 'center'
+                padding: '8px 14px', color: '#fff', backgroundColor: 'rgba(0,0,0,0.2)',
+                border: 'none', borderRadius: '8px',
+                cursor: 'pointer', display: 'flex', alignItems: 'center',
+                fontSize: '0.85rem',
+                boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)',
+                transition: 'all 0.2s'
               }}
               title="Tutup Studio"
             >
@@ -785,7 +858,7 @@ button {
       </div>
 
       {/* ═══════════ MAIN WORKSPACE (LEFT FILES + CENTER SANDPACK + RIGHT COPILOT) ═══════════ */}
-      <div className="flex-1 w-full overflow-hidden bg-slate-950 flex" style={{ minHeight: 0, height: '100%' }}>
+      <div className="flex-1 w-full overflow-hidden flex" style={{ minHeight: 0, backgroundColor: '#f0f0f0' }}>
 
         {/* 1. LEFT FILE TREE PANEL (Collapsible) */}
         <div style={{
@@ -869,17 +942,20 @@ button {
             files={filesRecord}
             customSetup={{
               dependencies: {
+                'react': '^18.2.0',
+                'react-dom': '^18.2.0',
+                'react-is': '^18.2.0',
                 '@ionic/react': '^7.0.0',
                 'ionicons': '^7.0.0',
                 'lucide-react': 'latest',
-                'recharts': 'latest'
+                'recharts': '^2.10.0',
+                'prop-types': '^15.8.1'
               }
             }}
             options={{
               activeFile: activeFilePath,
               visibleFiles: [activeFilePath],
               externalResources: [
-                'https://cdn.tailwindcss.com',
                 'https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css',
                 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap'
               ]

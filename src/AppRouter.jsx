@@ -42,6 +42,7 @@ const TableManager = lazy(() => import('./components/TableManager'));
 const ConnectorManager = lazy(() => import('./components/ConnectorManager'));
 const UserManager = lazy(() => import('./components/UserManager'));
 const AppBuilder = lazy(() => import('./components/AppBuilder'));
+const VibeSandpackViewer = lazy(() => import('./components/appbuilder/VibeSandpackViewer'));
 const AppPlayer = lazy(() => import('./components/AppPlayer'));
 const MandorMobilePlayer = lazy(() => import('./components/MandorMobilePlayer'));
 const DozukiMobileCheckSheet = lazy(() => import('./components/DozukiMobileCheckSheet'));
@@ -152,6 +153,7 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/iot-hub" element={hasAccess('/iot-hub') ? <IoTHubManager /> : <Navigate to="/" replace />} />
               <Route path="/plc-settings" element={hasAccess('/plc-settings') ? <PlcSettings /> : <Navigate to="/" replace />} />
               <Route path="/builder" element={hasAccess('/builder') ? <AppBuilder /> : <Navigate to="/" replace />} />
+              <Route path="/sandbox" element={<VibeSandpackViewer isStandalone={true} />} />
               <Route path="/file-explorer" element={hasAccess('/file-explorer') ? <FileExplorer /> : <Navigate to="/" replace />} />
               <Route path="/store" element={hasAccess('/store') ? <AppStore /> : <Navigate to="/" replace />} />
               <Route path="/checksheets" element={<CheckSheetManager />} />
