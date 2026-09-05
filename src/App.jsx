@@ -24,6 +24,7 @@ const SimpleCheckSheetDemo = lazy(() => import('./components/SimpleCheckSheetDem
 const DrawingManagement = lazy(() => import('./components/DrawingManagement'));
 const PLMIntegrationDashboard = lazy(() => import('./components/PLMIntegrationDashboard'));
 const AppPlayer = lazy(() => import('./components/AppPlayer'));
+const GluestackAppPlayer = lazy(() => import('./ui-engine/preview/GluestackAppPlayer'));
 const MandorMobilePlayer = lazy(() => import('./components/MandorMobilePlayer'));
 const DozukiMobileCheckSheet = lazy(() => import('./components/DozukiMobileCheckSheet'));
 const LiveTerminal = lazy(() => import('./components/LiveTerminal'));
@@ -37,7 +38,7 @@ export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const isOperatorRoute = location.pathname.startsWith('/player') || location.pathname.startsWith('/terminal');
+  const isOperatorRoute = location.pathname.startsWith('/player') || location.pathname.startsWith('/app-player') || location.pathname.startsWith('/terminal');
   const isChecksheetRoute = 
     location.pathname.startsWith('/sandbox') ||
     window.location.hash.includes('sandbox') ||
@@ -47,6 +48,8 @@ export default function App() {
     location.pathname.startsWith('/live-player') ||
     location.pathname.startsWith('/simple-checksheet') ||
     location.pathname.startsWith('/player') ||
+    location.pathname.startsWith('/app-player') ||
+    window.location.hash.includes('app-player') ||
     location.pathname.startsWith('/terminal') ||
     location.pathname.startsWith('/mobile-player') ||
     location.pathname.startsWith('/tulip-player') ||
@@ -132,6 +135,7 @@ export default function App() {
             <Route path="/pricing" element={<LandingPage initialTab="pricing" />} />
             <Route path="/faq" element={<LandingPage initialTab="faq" />} />
             <Route path="/player" element={<AppPlayer />} />
+            <Route path="/app-player" element={<GluestackAppPlayer />} />
             <Route path="/mobile-player" element={<MandorMobilePlayer />} />
             <Route path="/mandor-player" element={<DozukiMobileCheckSheet />} />
             <Route path="/mandor-checksheet" element={<DozukiMobileCheckSheet />} />

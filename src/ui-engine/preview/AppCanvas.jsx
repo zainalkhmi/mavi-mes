@@ -8,7 +8,17 @@ import {
   Progress,
   Spinner,
   Avatar, AvatarFallbackText,
-  TriggerEditorModal
+  TriggerEditorModal,
+  Image as UiImage,
+  PDFViewer as UiPDFViewer,
+  Chart as UiChart,
+  Timer as UiTimer,
+  Counter as UiCounter,
+  NumberInput as UiNumberInput,
+  DateTimePicker as UiDateTimePicker,
+  Gauge as UiGauge,
+  Signature as UiSignature,
+  ListItem as UiListItem
 } from '../components';
 import {
   Plus, Trash2, Move, Copy, ChevronDown, ChevronUp,
@@ -34,7 +44,7 @@ import {
   AlignLeft, ListFilter, Columns, AppWindow, PanelRightClose,
   Loader2, Tag, Compass, ChevronsUpDown, MousePointerClick,
   QrCode, Video, Film, ScanLine, Cast, ExternalLink,
-  Bot, Wand2
+  Bot, Wand2, PenTool
 } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import BuilderCopilot from '../../components/BuilderCopilot';
@@ -320,6 +330,28 @@ const COMPONENT_GROUPS = [
     ]
   },
   {
+    category: 'Embed',
+    icon: Code2,
+    theme: {
+      idle: 'bg-violet-100 hover:bg-violet-200/90 text-violet-700 border-violet-300/80',
+      active: 'bg-violet-600 text-white border-violet-700 shadow-md ring-2 ring-violet-400/50',
+      iconColor: 'text-violet-700',
+      headerText: 'text-violet-700'
+    },
+    items: [
+      { type: 'Timer', label: 'Timer / Countdown', icon: Timer, color: 'text-amber-600', bg: 'bg-amber-50', desc: 'Untuk cycle time, takt time' },
+      { type: 'Counter', label: 'Counter', icon: Hash, color: 'text-emerald-600', bg: 'bg-emerald-50', desc: 'Good parts / Bad parts counter' },
+      { type: 'NumberInput', label: 'NumberInput / Stepper', icon: PlusCircle, color: 'text-blue-600', bg: 'bg-blue-50', desc: 'Input quantity presisi' },
+      { type: 'DateTimePicker', label: 'DateTimePicker', icon: Calendar, color: 'text-indigo-600', bg: 'bg-indigo-50', desc: 'Schedule maintenance mesin' },
+      { type: 'Gauge', label: 'Gauge / Dial', icon: Gauge, color: 'text-orange-600', bg: 'bg-orange-50', desc: 'RPM, Temperature visualization' },
+      { type: 'Image', label: 'Image', icon: Image, color: 'text-pink-600', bg: 'bg-pink-50', desc: 'Drawing, defect photos' },
+      { type: 'PDFViewer', label: 'PDFViewer', icon: FileText, color: 'text-red-600', bg: 'bg-red-50', desc: 'Work instruction & SOP digital' },
+      { type: 'Signature', label: 'Signature', icon: PenTool, color: 'text-teal-600', bg: 'bg-teal-50', desc: 'QC approval tanda tangan' },
+      { type: 'ListItem', label: 'ListItem', icon: List, color: 'text-cyan-600', bg: 'bg-cyan-50', desc: 'Data list rows operasional' },
+      { type: 'Chart', label: 'LineChart / BarChart', icon: BarChart3, color: 'text-violet-600', bg: 'bg-violet-50', desc: 'KPI dashboard & OEE trend' }
+    ]
+  },
+  {
     category: 'Media & Devices',
     icon: Video,
     theme: {
@@ -556,6 +588,10 @@ export default function AppCanvas({
   const [zoom, setZoom] = useState(100);
   const [isCanvasLocked, setIsCanvasLocked] = useState(false);
   const [isPreview, setIsPreview] = useState(false);
+  const [previewFormValues, setPreviewFormValues] = useState({});
+  const [previewCounters, setPreviewCounters] = useState({});
+  const [previewTabsState, setPreviewTabsState] = useState({});
+  const [previewAccordionState, setPreviewAccordionState] = useState({});
   const [openPalette, setOpenPalette] = useState(null); // 'COMPONENTS' | null
   const [componentSearch, setComponentSearch] = useState('');
   const [templateSearch, setTemplateSearch] = useState('');
@@ -871,11 +907,11 @@ export default function AppCanvas({
     return () => clearTimeout(timer);
   }, [activeToast]);
 
-  // Companion URL helper
+  // Companion URL helper (Clean live real device runner)
   const getCompanionUrl = useCallback(() => {
     const origin = window.location.origin || '';
     const pathname = window.location.pathname || '';
-    return `${origin}${pathname}#/app-player?appId=${encodeURIComponent(currentAppId || 'app_1')}&mode=companion&devMode=true`;
+    return `${origin}${pathname}#/app-player?appId=${encodeURIComponent(currentAppId || 'app_1')}&mode=companion`;
   }, [currentAppId]);
 
   // Save App to localStorage AND Supabase
@@ -1866,20 +1902,33 @@ export default function AppCanvas({
         const curIdx = screens.findIndex(s => s.id === currentScreenId);
         if (curIdx >= 0 && curIdx < screens.length - 1) {
           setCurrentScreenId(screens[curIdx + 1].id);
+          setActiveToast({ message: `Beralih ke: ${screens[curIdx + 1].title}`, type: 'INFO' });
+        } else {
+          setActiveToast({ message: 'Ini adalah layar terakhir', type: 'INFO' });
         }
       } else if (comp.props.action === 'PREV_SCREEN') {
         const curIdx = screens.findIndex(s => s.id === currentScreenId);
         if (curIdx > 0) {
           setCurrentScreenId(screens[curIdx - 1].id);
+          setActiveToast({ message: `Kembali ke: ${screens[curIdx - 1].title}`, type: 'INFO' });
         }
       } else if (comp.props.action === 'GO_TO_SCREEN' && comp.props.targetScreenId) {
+        const targetScr = screens.find(s => s.id === comp.props.targetScreenId);
         setCurrentScreenId(comp.props.targetScreenId);
+        if (targetScr) {
+          setActiveToast({ message: `Beralih ke: ${targetScr.title}`, type: 'INFO' });
+        }
       } else if (comp.props.action === 'COMPLETE_APP') {
         setActiveToast({
           message: 'Work Order / Aplikasi Berhasil Diselesaikan!',
           type: 'SUCCESS'
         });
       }
+    } else if (eventType === 'ON_CLICK' && comp.type === 'Button' && (!comp.triggers || comp.triggers.length === 0)) {
+      setActiveToast({
+        message: `Tombol "${comp.props.text || comp.props.label || 'Button'}" aktif`,
+        type: 'SUCCESS'
+      });
     }
 
     if (!comp.triggers || comp.triggers.length === 0) return;
@@ -2019,13 +2068,19 @@ export default function AppCanvas({
         return (
           <button
             type="button"
-            className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 ${
+            onClick={(e) => {
+              if (isPreview) {
+                e.stopPropagation();
+                executeComponentTriggers(comp, 'ON_CLICK');
+              }
+            }}
+            className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 active:scale-98 ${
               comp.props.variant === 'primary' ? 'bg-[#008784] text-white hover:bg-[#007471]' :
               comp.props.variant === 'secondary' ? 'bg-slate-800 text-white' :
               comp.props.variant === 'positive' ? 'bg-emerald-600 text-white' :
               comp.props.variant === 'danger' ? 'bg-rose-600 text-white' :
               'border border-slate-300 text-slate-700 bg-white'
-            }`}
+            } ${isPreview ? 'cursor-pointer' : ''}`}
           >
             <span>{comp.props.text || comp.props.label || 'Action Button'}</span>
           </button>
@@ -2040,7 +2095,15 @@ export default function AppCanvas({
       case 'FAB':
         return (
           <div className="flex justify-end p-1">
-            <div className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-[#008784] text-white text-xs font-bold shadow-md cursor-pointer hover:bg-[#007471]">
+            <div
+              onClick={(e) => {
+                if (isPreview) {
+                  e.stopPropagation();
+                  executeComponentTriggers(comp, 'ON_CLICK');
+                }
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-[#008784] text-white text-xs font-bold shadow-md cursor-pointer hover:bg-[#007471] active:scale-95"
+            >
               <PlusCircle className="w-4 h-4" />
               <span>{comp.props.label || 'Scan QR'}</span>
             </div>
@@ -2052,46 +2115,108 @@ export default function AppCanvas({
         return (
           <div className="space-y-1 w-full">
             <label className="text-xs font-semibold text-slate-600 block">{comp.props.label || 'Input Field'}</label>
-            <div className="p-2 border border-slate-300 rounded-lg bg-white text-xs text-slate-500 shadow-2xs">
-              {comp.props.placeholder || 'Enter text...'}
-            </div>
+            {isPreview ? (
+              <input
+                type={comp.props.isPassword ? 'password' : 'text'}
+                value={previewFormValues[comp.id] !== undefined ? previewFormValues[comp.id] : (comp.props.defaultValue || '')}
+                onChange={(e) => setPreviewFormValues(prev => ({ ...prev, [comp.id]: e.target.value }))}
+                placeholder={comp.props.placeholder || 'Enter text...'}
+                className="w-full p-2 border border-teal-500/80 rounded-lg bg-white text-xs text-slate-800 shadow-2xs outline-none ring-2 ring-teal-500/20"
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <div className="p-2 border border-slate-300 rounded-lg bg-white text-xs text-slate-500 shadow-2xs">
+                {comp.props.placeholder || 'Enter text...'}
+              </div>
+            )}
           </div>
         );
       case 'Textarea':
         return (
           <div className="space-y-1 w-full">
             <label className="text-xs font-semibold text-slate-600 block">{comp.props.label || 'Keterangan Detail'}</label>
-            <div className="p-2 border border-slate-300 rounded-lg bg-white text-xs text-slate-400 min-h-[60px] shadow-2xs">
-              {comp.props.placeholder || 'Tulis catatan inspeksi...'}
-            </div>
+            {isPreview ? (
+              <textarea
+                rows={comp.props.rows || 3}
+                value={previewFormValues[comp.id] !== undefined ? previewFormValues[comp.id] : (comp.props.defaultValue || '')}
+                onChange={(e) => setPreviewFormValues(prev => ({ ...prev, [comp.id]: e.target.value }))}
+                placeholder={comp.props.placeholder || 'Tulis catatan inspeksi...'}
+                className="w-full p-2 border border-teal-500/80 rounded-lg bg-white text-xs text-slate-800 shadow-2xs outline-none ring-2 ring-teal-500/20 resize-none"
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <div className="p-2 border border-slate-300 rounded-lg bg-white text-xs text-slate-400 min-h-[60px] shadow-2xs">
+                {comp.props.placeholder || 'Tulis catatan inspeksi...'}
+              </div>
+            )}
           </div>
         );
       case 'Select':
         return (
           <div className="space-y-1 w-full">
             <label className="text-xs font-semibold text-slate-600 block">{comp.props.label || 'Pilih Opsi'}</label>
-            <div className="p-2 border border-slate-300 rounded-lg bg-white text-xs text-slate-700 flex items-center justify-between shadow-2xs">
-              <span>{comp.props.options?.[0] || 'Shift 1 (Pagi)'}</span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-            </div>
+            {isPreview ? (
+              <div className="relative" onClick={(e) => e.stopPropagation()}>
+                <select
+                  value={previewFormValues[comp.id] !== undefined ? previewFormValues[comp.id] : (comp.props.options?.[0] || '')}
+                  onChange={(e) => setPreviewFormValues(prev => ({ ...prev, [comp.id]: e.target.value }))}
+                  className="w-full p-2 border border-teal-500/80 rounded-lg bg-white text-xs text-slate-800 shadow-2xs outline-none appearance-none pr-7 cursor-pointer"
+                >
+                  {(comp.props.options || ['Shift 1 (Pagi)', 'Shift 2 (Siang)', 'Shift 3 (Malam)']).map((opt, i) => (
+                    <option key={i} value={opt}>{opt}</option>
+                  ))}
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            ) : (
+              <div className="p-2 border border-slate-300 rounded-lg bg-white text-xs text-slate-700 flex items-center justify-between shadow-2xs">
+                <span>{comp.props.options?.[0] || 'Shift 1 (Pagi)'}</span>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              </div>
+            )}
           </div>
         );
-      case 'Checkbox':
+      case 'Checkbox': {
+        const isChecked = previewFormValues[comp.id] !== undefined ? !!previewFormValues[comp.id] : !!comp.props.checked;
         return (
-          <div className="flex items-center gap-2.5 p-1">
-            <input type="checkbox" checked={comp.props.checked} readOnly className="w-4 h-4 rounded text-[#008784] border-slate-300 pointer-events-none" />
+          <div
+            onClick={(e) => {
+              if (isPreview) {
+                e.stopPropagation();
+                setPreviewFormValues(prev => ({ ...prev, [comp.id]: !isChecked }));
+              }
+            }}
+            className={`flex items-center gap-2.5 p-1 ${isPreview ? 'cursor-pointer hover:bg-slate-50 rounded-lg' : ''}`}
+          >
+            <input
+              type="checkbox"
+              checked={isChecked}
+              readOnly
+              className={`w-4 h-4 rounded text-[#008784] border-slate-300 ${!isPreview ? 'pointer-events-none' : 'cursor-pointer'}`}
+            />
             <span className="text-xs font-medium text-slate-700">{comp.props.label || 'Pemeriksaan Visual - OK'}</span>
           </div>
         );
-      case 'Switch':
+      }
+      case 'Switch': {
+        const isSwitched = previewFormValues[comp.id] !== undefined ? !!previewFormValues[comp.id] : (comp.props.value !== undefined ? !!comp.props.value : true);
         return (
-          <div className="flex items-center justify-between p-1">
+          <div
+            onClick={(e) => {
+              if (isPreview) {
+                e.stopPropagation();
+                setPreviewFormValues(prev => ({ ...prev, [comp.id]: !isSwitched }));
+              }
+            }}
+            className={`flex items-center justify-between p-1 ${isPreview ? 'cursor-pointer hover:bg-slate-50 rounded-lg' : ''}`}
+          >
             <span className="text-xs font-medium text-slate-700">{comp.props.label || 'Status Aktif'}</span>
-            <div className={`w-8 h-4.5 rounded-full transition-colors relative ${comp.props.value ? 'bg-[#008784]' : 'bg-slate-300'}`}>
-              <div className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-transform ${comp.props.value ? 'left-4' : 'left-0.5'}`} />
+            <div className={`w-8 h-4.5 rounded-full transition-colors relative cursor-pointer ${isSwitched ? 'bg-[#008784]' : 'bg-slate-300'}`}>
+              <div className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-transform ${isSwitched ? 'left-4' : 'left-0.5'}`} />
             </div>
           </div>
         );
+      }
       case 'Form':
         return (
           <div className="p-3 bg-white rounded-xl border border-dashed border-slate-300 shadow-2xs space-y-2">
@@ -2127,6 +2252,22 @@ export default function AppCanvas({
               <div className="p-2 bg-slate-900/80 border-t border-slate-800 flex items-center justify-between text-[10px] text-slate-400 px-3">
                 <span className="flex items-center gap-1 font-mono">Torch: AUTO</span>
                 <span className="text-teal-400 font-bold">Html5Qrcode Ready</span>
+              </div>
+            )}
+            {isPreview && (
+              <div className="p-2 bg-slate-900 border-t border-slate-800 flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const mockCode = `LOT-${Math.floor(1000 + Math.random() * 9000)}`;
+                    setActiveToast({ message: `QR Code Terdeteksi: ${mockCode}`, type: 'SUCCESS' });
+                    executeComponentTriggers(comp, 'ON_SCAN');
+                  }}
+                  className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm cursor-pointer active:scale-95"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Simulasi Scan Barcode (OK)</span>
+                </button>
               </div>
             )}
           </div>
@@ -2203,18 +2344,32 @@ export default function AppCanvas({
             <div className="text-xs text-slate-600 whitespace-pre-wrap">{comp.props.content || 'Konten spesifikasi part...'}</div>
           </div>
         );
-      case 'Accordion':
+      case 'Accordion': {
+        const isAccOpen = previewAccordionState[comp.id] !== undefined ? previewAccordionState[comp.id] : true;
         return (
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
-            <div className="p-2.5 bg-slate-50 flex items-center justify-between text-xs font-bold text-slate-800">
+            <div
+              onClick={(e) => {
+                if (isPreview) {
+                  e.stopPropagation();
+                  setPreviewAccordionState(prev => ({ ...prev, [comp.id]: !isAccOpen }));
+                }
+              }}
+              className={`p-2.5 bg-slate-50 flex items-center justify-between text-xs font-bold text-slate-800 ${
+                isPreview ? 'cursor-pointer hover:bg-slate-100' : ''
+              }`}
+            >
               <span>{comp.props.title || '1. Verifikasi Parameter Awal'}</span>
               <ChevronsUpDown className="w-3.5 h-3.5 text-slate-400" />
             </div>
-            <div className="p-2.5 text-xs text-slate-600 border-t border-slate-100">
-              {comp.props.content || 'Periksa kelengkapan fixture dan pastikan sensor berfungsi normal.'}
-            </div>
+            {isAccOpen && (
+              <div className="p-2.5 text-xs text-slate-600 border-t border-slate-100">
+                {comp.props.content || 'Periksa kelengkapan fixture dan pastikan sensor berfungsi normal.'}
+              </div>
+            )}
           </div>
         );
+      }
 
       // DATA DISPLAY
       case 'Badge':
@@ -2306,14 +2461,24 @@ export default function AppCanvas({
         );
 
       // NAVIGATION
-      case 'Tabs':
+      case 'Tabs': {
+        const tabsList = comp.props.tabs || ['Info Part', 'Spesifikasi', 'Riwayat'];
+        const activeTabIdx = previewTabsState[comp.id] !== undefined ? previewTabsState[comp.id] : (comp.props.activeIndex || 0);
         return (
           <div className="flex border-b border-slate-200 bg-slate-50/50 rounded-lg overflow-hidden">
-            {(comp.props.tabs || ['Info Part', 'Spesifikasi', 'Riwayat']).map((tab, i) => (
+            {tabsList.map((tab, i) => (
               <div
                 key={i}
-                className={`flex-1 py-1.5 text-center text-xs font-bold border-b-2 ${
-                  i === (comp.props.activeIndex || 0) ? 'border-[#008784] text-[#008784] bg-white' : 'border-transparent text-slate-500'
+                onClick={(e) => {
+                  if (isPreview) {
+                    e.stopPropagation();
+                    setPreviewTabsState(prev => ({ ...prev, [comp.id]: i }));
+                  }
+                }}
+                className={`flex-1 py-1.5 text-center text-xs font-bold border-b-2 transition-colors ${
+                  isPreview ? 'cursor-pointer hover:text-[#008784]' : ''
+                } ${
+                  i === activeTabIdx ? 'border-[#008784] text-[#008784] bg-white' : 'border-transparent text-slate-500'
                 }`}
               >
                 {tab}
@@ -2321,6 +2486,7 @@ export default function AppCanvas({
             ))}
           </div>
         );
+      }
       case 'Command':
         return (
           <div className="p-2 border border-slate-200 rounded-xl bg-slate-50 flex items-center gap-2 text-xs text-slate-400">
@@ -2392,15 +2558,39 @@ export default function AppCanvas({
             </span>
           </div>
         );
-      case 'Counter':
+      case 'Counter': {
+        const countVal = previewCounters[comp.id] !== undefined ? previewCounters[comp.id] : (Number(comp.props.value) || 0);
         return (
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-600">{comp.props.label}</span>
-            <span className="text-sm font-extrabold font-mono text-teal-700 bg-teal-50 border border-teal-200 px-2.5 py-0.5 rounded-lg">
-              {comp.props.value}
-            </span>
+            {isPreview ? (
+              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  onClick={() => setPreviewCounters(prev => ({ ...prev, [comp.id]: Math.max(0, countVal - 1) }))}
+                  className="w-6 h-6 rounded bg-white hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center border border-slate-300 cursor-pointer"
+                >
+                  -
+                </button>
+                <span className="text-sm font-extrabold font-mono text-teal-700 bg-teal-50 border border-teal-200 px-2.5 py-0.5 rounded-lg min-w-[32px] text-center">
+                  {countVal}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPreviewCounters(prev => ({ ...prev, [comp.id]: countVal + 1 }))}
+                  className="w-6 h-6 rounded bg-[#008784] hover:bg-[#007471] text-white font-bold flex items-center justify-center cursor-pointer"
+                >
+                  +
+                </button>
+              </div>
+            ) : (
+              <span className="text-sm font-extrabold font-mono text-teal-700 bg-teal-50 border border-teal-200 px-2.5 py-0.5 rounded-lg">
+                {comp.props.value}
+              </span>
+            )}
           </div>
         );
+      }
       default:
         return (
           <div className="p-2 bg-slate-100 rounded text-xs text-slate-600">
@@ -2607,9 +2797,10 @@ export default function AppCanvas({
       {/* ======================================================== */}
       <div className="flex-1 flex overflow-hidden">
         {/* ------------------------------------------------------ */}
-        {/* LEFT PANE: SCREENS | RECORDS (Mavi Core LeftPane)     */}
+        {/* LEFT PANE: SCREENS | RECORDS (Hidden in Preview Mode)  */}
         {/* ------------------------------------------------------ */}
-        <aside className="w-80 border-r border-slate-200 bg-white flex flex-col shrink-0 shadow-2xs">
+        {!isPreview && (
+          <aside className="w-80 border-r border-slate-200 bg-white flex flex-col shrink-0 shadow-2xs">
           {/* Left Pane Top Tabs: SCREENS | RECORDS */}
           <div className="flex border-b border-slate-200 bg-slate-50/50">
             <button
@@ -3033,11 +3224,52 @@ export default function AppCanvas({
             </div>
           )}
         </aside>
+        )}
 
         {/* ------------------------------------------------------ */}
         {/* CENTER PANE: GLUESTACK INTERACTIVE CANVAS PREVIEW      */}
         {/* ------------------------------------------------------ */}
-        <main className="flex-1 bg-slate-100 dark:bg-[#090a0f] flex flex-col overflow-hidden relative">
+        <main className={`flex-1 bg-slate-100 dark:bg-[#090a0f] flex flex-col overflow-hidden relative ${isPreview ? 'w-full' : ''}`}>
+          {/* Top Preview Banner when Preview Mode is Active */}
+          {isPreview && (
+            <div className="bg-emerald-600 text-white px-4 py-2 flex items-center justify-between shadow-md shrink-0 z-30">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+                <span className="text-xs font-black uppercase tracking-wider">Preview Mode (Interactive Running App)</span>
+                <span className="text-xs text-emerald-100 hidden sm:inline">| {currentScreen?.title}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <select
+                  value={currentScreenId}
+                  onChange={(e) => setCurrentScreenId(e.target.value)}
+                  className="bg-emerald-700 text-white text-xs rounded-lg px-2.5 py-1 border border-emerald-500 font-bold outline-none cursor-pointer"
+                >
+                  {screens.map((s, idx) => (
+                    <option key={s.id} value={s.id}>{idx + 1}. {s.title}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPreviewFormValues({});
+                    setPreviewCounters({});
+                    setActiveToast({ message: 'Form state di-reset', type: 'INFO' });
+                  }}
+                  className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Reset Form
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsPreview(false)}
+                  className="px-3 py-1 bg-white text-emerald-800 hover:bg-emerald-50 rounded-lg text-xs font-black transition-colors flex items-center gap-1 shadow-sm cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Exit Preview</span>
+                </button>
+              </div>
+            </div>
+          )}
           {/* Scrollable Canvas Viewport */}
           <div className="flex-1 overflow-y-auto py-3 px-4 pb-16 flex flex-col items-center justify-center">
             {/* Device Viewport Mockup (Responds to Device Switcher) */}
@@ -3138,8 +3370,8 @@ export default function AppCanvas({
                         className={`p-2 rounded-xl transition-all relative group ${
                           !isPreview && selectedId === comp.id
                             ? 'ring-2 ring-[#714b67] bg-[#714b67]/5 shadow-xs'
-                            : 'hover:ring-1 hover:ring-slate-300'
-                        } ${isBlinking ? 'animate-pulse' : ''} cursor-pointer`}
+                            : !isPreview ? 'hover:ring-1 hover:ring-slate-300' : ''
+                        } ${isBlinking ? 'animate-pulse' : ''} ${!isPreview ? 'cursor-pointer' : ''}`}
                       >
                       {/* Floating component actions on hover */}
                       {!isPreview && selectedId === comp.id && (
@@ -3219,9 +3451,10 @@ export default function AppCanvas({
         </main>
 
         {/* ------------------------------------------------------ */}
-        {/* RIGHT PANE: WIDGET | SCREEN | APP (Mavi Core RightPane)*/}
+        {/* RIGHT PANE: WIDGET | SCREEN | APP (Hidden in Preview)  */}
         {/* ------------------------------------------------------ */}
-        <aside className="w-84 border-l border-slate-200 bg-white flex flex-col shrink-0 shadow-2xs">
+        {!isPreview && (
+          <aside className="w-84 border-l border-slate-200 bg-white flex flex-col shrink-0 shadow-2xs">
           {/* Right Pane Top Tabs: WIDGET | SCREEN | APP */}
           <div className="flex border-b border-slate-200 bg-slate-50/50">
             {['WIDGET', 'SCREEN', 'APP'].map(t => (
@@ -3538,6 +3771,7 @@ export default function AppCanvas({
             </div>
           )}
         </aside>
+        )}
       </div>
 
       {/* ======================================================== */}

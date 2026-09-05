@@ -415,5 +415,201 @@ export const COMPONENT_REGISTRY = [
     example: `<Camera label="Inspeksi Part Cacat" onCapture={(img) => console.log(img)} />`,
     sourceFile: 'src/ui-engine/components/Camera.jsx',
     dependencies: ['lucide-react']
+  },
+  {
+    name: 'Timer',
+    category: 'Data Display',
+    description: 'Countdown, countup, and stopwatch timer for cycle time, takt time, and shift tracking.',
+    subComponents: [],
+    props: {
+      value: { type: 'number', default: 0 },
+      duration: { type: 'number', default: 0 },
+      mode: { type: 'enum', options: ['countdown', 'countup', 'stopwatch'], default: 'countdown' },
+      size: { type: 'enum', options: ['sm', 'md', 'lg'], default: 'md' },
+      variant: { type: 'enum', options: ['default', 'pill', 'large'], default: 'default' },
+      label: { type: 'string' },
+      autoStart: { type: 'boolean', default: false },
+      showHours: { type: 'boolean', default: true }
+    },
+    variants: ['default', 'pill', 'large'],
+    responsiveBehavior: 'Centered display with touch-friendly controls',
+    example: `<Timer value={0} duration={300} mode="countdown" label="Takt Time" onComplete={() => alert('Time is up!')} />`,
+    sourceFile: 'src/ui-engine/components/Timer.jsx',
+    dependencies: []
+  },
+  {
+    name: 'Counter',
+    category: 'Data Display',
+    description: 'Incremental/decremental counter for part counting, good/bad parts, and quantity input.',
+    subComponents: [],
+    props: {
+      value: { type: 'number', default: 0 },
+      min: { type: 'number', default: 0 },
+      max: { type: 'number', default: 99999 },
+      step: { type: 'number', default: 1 },
+      label: { type: 'string' },
+      size: { type: 'enum', options: ['sm', 'md', 'lg'], default: 'md' },
+      variant: { type: 'enum', options: ['default', 'pill', 'card', 'compact'], default: 'default' },
+      showButtons: { type: 'boolean', default: true },
+      colorScheme: { type: 'enum', options: ['default', 'success', 'warning', 'danger'], default: 'default' }
+    },
+    variants: ['default', 'pill', 'card', 'compact'],
+    responsiveBehavior: 'Large touch targets for shop floor use',
+    example: `<Counter value={0} min={0} max={1000} label="Good Parts" colorScheme="success" />`,
+    sourceFile: 'src/ui-engine/components/Counter.jsx',
+    dependencies: []
+  },
+  {
+    name: 'NumberInput',
+    category: 'Forms',
+    description: 'Numeric input with increment/decrement stepper buttons for quantity and measurement entry.',
+    subComponents: [],
+    props: {
+      value: { type: 'number', default: 0 },
+      min: { type: 'number', default: 0 },
+      max: { type: 'number', default: 999999 },
+      step: { type: 'number', default: 1 },
+      label: { type: 'string' },
+      placeholder: { type: 'string', default: '0' },
+      size: { type: 'enum', options: ['sm', 'md', 'lg'], default: 'md' },
+      variant: { type: 'enum', options: ['outline', 'rounded', 'underlined'], default: 'outline' },
+      prefix: { type: 'string' },
+      suffix: { type: 'string' },
+      decimals: { type: 'number', default: 0 },
+      showStepper: { type: 'boolean', default: true }
+    },
+    variants: ['outline', 'rounded', 'underlined'],
+    responsiveBehavior: 'Touch-friendly stepper with clear visual feedback',
+    example: `<NumberInput value={0} min={0} max={100} step={1} label="Quantity" suffix="pcs" />`,
+    sourceFile: 'src/ui-engine/components/NumberInput.jsx',
+    dependencies: []
+  },
+  {
+    name: 'DateTimePicker',
+    category: 'Forms',
+    description: 'Date, time, and datetime picker for scheduling maintenance, shift times, and delivery dates.',
+    subComponents: [],
+    props: {
+      value: { type: 'string' },
+      mode: { type: 'enum', options: ['date', 'time', 'datetime'], default: 'date' },
+      label: { type: 'string' },
+      placeholder: { type: 'string', default: 'Select date...' },
+      size: { type: 'enum', options: ['sm', 'md', 'lg'], default: 'md' },
+      format: { type: 'enum', options: ['MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD'], default: 'MM/DD/YYYY' },
+      showNowButton: { type: 'boolean', default: true },
+      showClearButton: { type: 'boolean', default: true }
+    },
+    variants: ['default'],
+    responsiveBehavior: 'Calendar popup with touch-optimized date/time selection',
+    example: `<DateTimePicker mode="datetime" label="Scheduled Maintenance" />`,
+    sourceFile: 'src/ui-engine/components/DateTimePicker.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'Gauge',
+    category: 'Data Display',
+    description: 'Circular gauge/dial for visualizing RPM, temperature, speed, and other sensor readings.',
+    subComponents: [],
+    props: {
+      value: { type: 'number', default: 0 },
+      min: { type: 'number', default: 0 },
+      max: { type: 'number', default: 100 },
+      label: { type: 'string' },
+      unit: { type: 'string' },
+      size: { type: 'number', default: 200 },
+      warningThreshold: { type: 'number' },
+      dangerThreshold: { type: 'number' },
+      color: { type: 'string', default: '#714b67' },
+      showValue: { type: 'boolean', default: true },
+      showMinMax: { type: 'boolean', default: true },
+      decimals: { type: 'number', default: 0 }
+    },
+    variants: ['default'],
+    responsiveBehavior: 'Auto-scaling gauge with animated value transitions',
+    example: `<Gauge value={75} min={0} max={100} label="RPM" unit="rpm" warningThreshold={80} dangerThreshold={95} />`,
+    sourceFile: 'src/ui-engine/components/Gauge.jsx',
+    dependencies: []
+  },
+  {
+    name: 'ListItem',
+    category: 'Data Display',
+    description: 'List row with icon, title, subtitle, badge, and action for data lists and menus.',
+    subComponents: [],
+    props: {
+      title: { type: 'string' },
+      subtitle: { type: 'string' },
+      description: { type: 'string' },
+      leftIcon: { type: 'component' },
+      leftAvatar: { type: 'string' },
+      leftBadge: { type: 'string' },
+      rightContent: { type: 'component' },
+      rightBadge: { type: 'string' },
+      status: { type: 'enum', options: ['success', 'warning', 'error', 'pending', 'info'] },
+      size: { type: 'enum', options: ['sm', 'md', 'lg'], default: 'md' },
+      variant: { type: 'enum', options: ['default', 'bordered', 'filled', 'card'], default: 'default' }
+    },
+    variants: ['default', 'bordered', 'filled', 'card'],
+    responsiveBehavior: 'Touch-friendly row with swipe actions support',
+    example: `<ListItem title="Work Order #WO-9921" subtitle="Part: Flange Bracket A" status="success" rightBadge="Completed" />`,
+    sourceFile: 'src/ui-engine/components/ListItem.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'EmptyState',
+    category: 'Feedback',
+    description: 'Placeholder display when there is no data, no results, or an error occurred.',
+    subComponents: [],
+    props: {
+      icon: { type: 'component' },
+      title: { type: 'string' },
+      description: { type: 'string' },
+      actionLabel: { type: 'string' },
+      size: { type: 'enum', options: ['sm', 'md', 'lg'], default: 'md' }
+    },
+    variants: ['default'],
+    responsiveBehavior: 'Centered layout with clear call-to-action',
+    example: `<EmptyState icon={FileText} title="No Records" description="Create your first record" actionLabel="Create" />`,
+    sourceFile: 'src/ui-engine/components/EmptyState.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'Skeleton',
+    category: 'Feedback',
+    description: 'Loading placeholder shimmer animation while data is being fetched.',
+    subComponents: ['SkeletonList', 'SkeletonCard', 'SkeletonTable'],
+    props: {
+      variant: { type: 'enum', options: ['text', 'circular', 'rectangular', 'card'], default: 'text' },
+      width: { type: 'number' },
+      height: { type: 'number' },
+      animation: { type: 'enum', options: ['pulse', 'wave', 'none'], default: 'pulse' },
+      lines: { type: 'number', default: 3 }
+    },
+    variants: ['text', 'circular', 'rectangular', 'card'],
+    responsiveBehavior: 'Matches the shape of actual content',
+    example: `<Skeleton variant="card" lines={4} />`,
+    sourceFile: 'src/ui-engine/components/Skeleton.jsx',
+    dependencies: []
+  },
+  {
+    name: 'Signature',
+    category: 'Forms',
+    description: 'Canvas-based digital signature capture for quality approvals and sign-offs.',
+    subComponents: [],
+    props: {
+      value: { type: 'string' },
+      label: { type: 'string', default: 'Signature' },
+      placeholder: { type: 'string', default: 'Sign here' },
+      width: { type: 'number', default: 400 },
+      height: { type: 'number', default: 200 },
+      strokeColor: { type: 'string', default: '#0f172a' },
+      required: { type: 'boolean', default: false },
+      showClearButton: { type: 'boolean', default: true },
+      showDownloadButton: { type: 'boolean', default: false }
+    },
+    variants: ['default'],
+    responsiveBehavior: 'Touch-friendly signature drawing with clear controls',
+    example: `<Signature label="QC Approval" required onChange={(sig) => console.log(sig)} />`,
+    sourceFile: 'src/ui-engine/components/Signature.jsx',
+    dependencies: []
   }
 ];

@@ -1,6 +1,10 @@
 export const hasAccess = (user, path) => {
-  // Frontline runtime routes are universally accessible
-  if (path === '/player' || path.startsWith('/player') || path === '/terminal' || path.startsWith('/terminal')) {
+  // Frontline and mobile companion runtime routes are universally accessible
+  if (
+    path === '/player' || path.startsWith('/player') ||
+    path === '/app-player' || path.startsWith('/app-player') ||
+    path === '/terminal' || path.startsWith('/terminal')
+  ) {
     return true;
   }
 

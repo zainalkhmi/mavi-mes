@@ -101,6 +101,7 @@ const InspectorDesigner = lazy(() => import('./components/InspectorDesigner'));
 const CheckSheetManager = lazy(() => import('./components/CheckSheetManager'));
 const MachineMonitoringDashboard = lazy(() => import('./components/MachineMonitoringDashboard'));
 const UiEngineStudio = lazy(() => import('./ui-engine/preview/UiEngineStudio'));
+const GluestackAppPlayer = lazy(() => import('./ui-engine/preview/GluestackAppPlayer'));
 
 export default function AppRouter({ user, isOperator }) {
   const hasAccess = (path) => checkRoleAccess(user, path);
@@ -115,6 +116,7 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/terminal" element={<LiveTerminal />} />
               <Route path="/terminal/:appId" element={<LiveTerminal />} />
               <Route path="/player" element={<AppPlayer />} />
+              <Route path="/app-player" element={<GluestackAppPlayer />} />
               <Route path="/mobile-player" element={<MandorMobilePlayer />} />
               <Route path="/tulip-player" element={<MandorMobilePlayer />} />
               <Route path="/mandor-player" element={<DozukiMobileCheckSheet />} />
@@ -204,6 +206,7 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/terminal/:appId" element={<LiveTerminal />} />
               <Route path="/scada" element={<SCADADashboard />} />
               <Route path="/player" element={<AppPlayer />} />
+              <Route path="/app-player" element={<GluestackAppPlayer />} />
               <Route path="/mobile-player" element={<MandorMobilePlayer />} />
               <Route path="/tulip-player" element={<MandorMobilePlayer />} />
               <Route path="/mandor-player" element={<DozukiMobileCheckSheet />} />

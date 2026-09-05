@@ -17,6 +17,7 @@ import { createProductDrawingInspectionTemplate } from '../utils/productDrawingI
 import { createQuickBuildCadVisionTemplate } from '../utils/quickbuildVisionDrawingTemplate';
 import { logout } from '../utils/auth';
 import VibeSandpackViewer from './appbuilder/VibeSandpackViewer';
+import GluestackAppPlayer from '../ui-engine/preview/GluestackAppPlayer';
 
 // ─── Performance: Cache apps in memory to avoid re-fetching ─────────────────────
 let _cachedApps = null;
@@ -1363,8 +1364,37 @@ const AppPlayer = () => {
             }
 
             const urlAppId = params.get('appId') || params.get('app');
-            if (urlAppId && appRows && appRows.length > 0) {
-                const app = appRows.find(a => a.id === urlAppId);
+            if (urlAppId) {
+                let app = appRows ? appRows.find(a => a.id === urlAppId) : null;
+                if (!app) {
+                    const localJson = localStorage.getItem(`mavi_app_${urlAppId}`);
+                    if (localJson) {
+                        try {
+                            const parsed = JSON.parse(localJson);
+                            app = {
+                                id: parsed.id || urlAppId,
+                                name: parsed.name || 'GlueStack App',
+                                builder_type: 'gluestack',
+                                config: {
+                                    components: parsed.screens || [],
+                                    variables: parsed.variables || []
+                                },
+                                approval_status: 'PUBLISHED'
+                            };
+                            setApps(prev => [app, ...prev.filter(a => a.id !== urlAppId)]);
+                        } catch (e) {}
+                    } else if (urlAppId === 'app_1' || urlAppId.startsWith('app_')) {
+                        app = {
+                            id: urlAppId,
+                            name: 'GlueStack App',
+                            builder_type: 'gluestack',
+                            config: { components: [] },
+                            approval_status: 'PUBLISHED'
+                        };
+                        setApps(prev => [app, ...prev.filter(a => a.id !== urlAppId)]);
+                    }
+                }
+
                 if (app) {
                     setOperator(params.get('operator') || 'Designer');
                     setStationIdFilter(urlStation || 'Test Station 1');
@@ -1376,7 +1406,9 @@ const AppPlayer = () => {
                     setIsPaused(false);
                     setSessionComments([]);
                     clearTimeout(iframeLoadTimer.current);
-                    iframeLoadTimer.current = setTimeout(() => setIframeError(true), 8000);
+                    if (app.builder_type !== 'gluestack') {
+                        iframeLoadTimer.current = setTimeout(() => setIframeError(true), 8000);
+                    }
                 }
             }
         } catch (err) {
@@ -2861,6 +2893,17 @@ const AppPlayer = () => {
                                 <VibeSandpackViewer
                                     code={activeApp.config.vibeCode}
                                     isFullScreen={true}
+                                />
+                            </div>
+                        ) : (activeApp?.builder_type === 'gluestack' || activeApp?.config?.builder_type === 'gluestack' || (activeApp?.config?.components && Array.isArray(activeApp.config.components)) || activeAppId === 'app_1' || localStorage.getItem(`mavi_app_${activeAppId}`) !== null) ? (
+                            <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+                                <GluestackAppPlayer
+                                    appId={activeAppId}
+                                    mode={searchParams.get('mode') || 'companion'}
+                                    devMode={devMode}
+                                    initialAppData={activeApp}
+                                    embedded={true}
+                                    onClose={stopSession}
                                 />
                             </div>
                         ) : (

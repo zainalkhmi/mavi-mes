@@ -35,9 +35,11 @@ export default function TopNavbar() {
     location.search.includes('hideHeader=true') ||
     location.search.includes('mode=companion') ||
     window.location.hash.includes('standalone=true') ||
-    window.location.hash.includes('mode=companion');
+    window.location.hash.includes('mode=companion') ||
+    location.pathname.startsWith('/app-player') ||
+    window.location.hash.includes('app-player');
 
-  const isOperatorRoute = location.pathname.startsWith('/player') || location.pathname.startsWith('/terminal');
+  const isOperatorRoute = location.pathname.startsWith('/player') || location.pathname.startsWith('/app-player') || location.pathname.startsWith('/terminal');
   const hasAccess = (path) => checkRoleAccess(user, path);
 
   // Logic dropdown state
