@@ -25,17 +25,16 @@ export class AIProvider {
   }
 
   static sanitizeGeminiModel(m) {
-    if (!m) return 'gemini-2.0-flash';
+    if (!m) return 'gemini-3.6-flash';
     let clean = String(m).trim().replace(/^models\//, '');
     if (clean.includes('/')) clean = clean.split('/').pop();
     const lower = clean.toLowerCase();
     if (
-      lower.includes('gemini-3.') ||
       lower.includes('flash-latest') ||
       lower === 'gemini-flash' ||
       lower === 'gemini'
     ) {
-      return 'gemini-2.0-flash';
+      return 'gemini-3.6-flash';
     }
     return clean;
   }
@@ -99,9 +98,10 @@ export class AIProvider {
 
       const candidateModels = [
         primaryModel,
+        'gemini-3.6-flash',
+        'gemini-2.5-flash',
         'gemini-2.0-flash',
         'gemini-1.5-flash',
-        'gemini-2.5-flash',
         'gemini-1.5-pro',
         'gemini-2.0-flash-lite-preview-02-05'
       ].filter((m, idx, arr) => arr.indexOf(m) === idx);

@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { getPrimaryAiConnector, saveIntegrationConnector } from '../utils/database';
-import { getBuilderCopilotAdvice, getBuilderVisionAdvice, streamBuilderCopilotAdvice, diagnoseApp } from '../utils/aiService';
+import { getBuilderCopilotAdvice, getBuilderVisionAdvice, streamBuilderCopilotAdvice, diagnoseApp, updateSharedAiModel } from '../utils/aiService';
 import { sanitizeCopilotCommands } from '../utils/copilotSafety';
 import { getAllFrontlineApps } from '../utils/supabaseFrontlineDB';
 import { getSupabaseClient, isSupabaseReady } from '../utils/supabaseManualDB';
@@ -474,28 +474,14 @@ const BuilderCopilot = ({
   }, [isOpen]);
 
   const currentProvider = aiConnector?.aiSettings?.provider || aiConnector?.config?.provider || 'Gemini';
-  const currentModelId = aiConnector?.aiSettings?.modelId || aiConnector?.config?.modelId || 'gemini-1.5-flash';
+  const currentModelId = aiConnector?.aiSettings?.modelId || aiConnector?.config?.modelId || 'gemini-3.6-flash';
 
   const handleModelChange = async (newModelId) => {
-    if (!aiConnector) return;
-    
-    // Update local state config
-    const updatedConnector = {
-      ...aiConnector,
-      config: {
-        ...(aiConnector.config || {}),
-        modelId: newModelId
-      },
-      aiSettings: {
-        ...(aiConnector.aiSettings || {}),
-        modelId: newModelId
-      }
-    };
-    setAiConnector(updatedConnector);
-
-    // Save configuration update to database
     try {
-      await saveIntegrationConnector(updatedConnector);
+      const updatedConnector = await updateSharedAiModel(newModelId, currentProvider);
+      if (updatedConnector) {
+        setAiConnector(updatedConnector);
+      }
     } catch (err) {
       console.warn('Failed to save updated model to database:', err);
     }
@@ -511,10 +497,11 @@ const BuilderCopilot = ({
     // Fallback static list
     const defaults = {
       Gemini: [
+        { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash (Recommended)' },
+        { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
+        { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash' },
         { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
-        { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
-        { id: 'gemini-1.0-pro', name: 'Gemini 1.0 Pro' },
-        { id: 'gemini-1.5-flash-002', name: 'Gemini 1.5 Flash-002' }
+        { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' }
       ],
       OpenAI: [
         { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
@@ -617,6 +604,17 @@ const BuilderCopilot = ({
       setAiConnector(aiConn);
     };
     if (isOpen) loadAiConfig();
+
+    const handleSync = (e) => {
+      const updated = e?.detail?.connector;
+      if (updated) {
+        setAiConnector(updated);
+      } else {
+        loadAiConfig();
+      }
+    };
+    window.addEventListener('mavicore_ai_connector_updated', handleSync);
+    return () => window.removeEventListener('mavicore_ai_connector_updated', handleSync);
   }, [isOpen]);
 
   useEffect(() => {

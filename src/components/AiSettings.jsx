@@ -282,6 +282,15 @@ const AiSettings = () => {
       const saved = await saveIntegrationConnector(payload);
       if (saved && saved.id) setConnectorId(saved.id);
       setDbSettings(payload.aiSettings);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('mavicore_ai_connector_updated', {
+          detail: {
+            connector: saved || payload,
+            modelId: payload.aiSettings?.modelId,
+            provider: payload.aiSettings?.provider
+          }
+        }));
+      }
       alert('AI Configuration saved successfully!');
     } catch (err) {
       console.error('Failed to save AI configuration:', err);

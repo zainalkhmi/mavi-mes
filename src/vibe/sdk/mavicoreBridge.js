@@ -456,7 +456,7 @@ if (typeof window !== 'undefined') {
 
     const tagName = effectiveTarget.tagName.toLowerCase();
     const rawText = (effectiveTarget.innerText || target.innerText || '').trim();
-    const firstLine = rawText.split(/[\r\n]+/)[0]?.trim() || '';
+    const firstLine = (rawText.split('\n')[0] || rawText.split('\r')[0] || rawText).trim();
     const placeholder = target.getAttribute('placeholder') || effectiveTarget.getAttribute('placeholder') || '';
     const name = target.getAttribute('name') || effectiveTarget.getAttribute('name') || '';
     const id = target.id || effectiveTarget.id || '';

@@ -12,7 +12,7 @@ import {
 import toast from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
 import { getPrimaryAiConnector } from '../utils/database';
-import { getChatCompletion } from '../utils/aiService';
+import { getChatCompletion, SHARED_AI_MODELS, updateSharedAiModel } from '../utils/aiService';
 import { Link } from 'react-router-dom';
 import { getStations, getTables } from '../utils/supabaseFrontlineDB';
 import { getTableRecords, addTableRecord } from '../utils/supabaseTablesDB'; // For internal linking if needed, though markdown links handle href well
@@ -1470,15 +1470,10 @@ export default function GlobalHelpAssistant() {
   const [isMcpLoading, setIsMcpLoading] = useState(false);
 
   // Model selector state
-  const [selectedModel, setSelectedModel] = useState('MiniMax M2.7');
+  const [selectedModel, setSelectedModel] = useState('gemini-3.6-flash');
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
 
-  const AI_MODELS = [
-    { id: 'MiniMax M2.7', name: 'MiniMax M2.7', provider: 'MiniMax', icon: '🔮', description: 'Latest flagship model' },
-    { id: 'MiniMax M2', name: 'MiniMax M2', provider: 'MiniMax', icon: '✨', description: 'Stable performance' },
-    { id: 'Claude 3.5', name: 'Claude 3.5 Sonnet', provider: 'Anthropic', icon: '🧠', description: 'Best for reasoning' },
-    { id: 'GPT-4o', name: 'GPT-4o', provider: 'OpenAI', icon: '🤖', description: 'Balanced powerhouse' },
-  ];
+  const AI_MODELS = SHARED_AI_MODELS;
 
   // Load stations on activeTab = 'mcp_console'
   useEffect(() => {
@@ -1558,11 +1553,26 @@ export default function GlobalHelpAssistant() {
       try {
         const connector = await getPrimaryAiConnector();
         setAiConnector(connector);
+        const activeModel = connector?.aiSettings?.modelId || connector?.config?.modelId || 'gemini-3.6-flash';
+        setSelectedModel(activeModel);
       } catch (err) {
         console.warn("Could not load AI connector:", err);
       }
     };
     initAi();
+
+    const handleSync = (e) => {
+      const updated = e?.detail?.connector;
+      if (updated) {
+        setAiConnector(updated);
+        const m = updated?.aiSettings?.modelId || updated?.config?.modelId || e?.detail?.modelId;
+        if (m) setSelectedModel(m);
+      } else {
+        initAi();
+      }
+    };
+    window.addEventListener('mavicore_ai_connector_updated', handleSync);
+    return () => window.removeEventListener('mavicore_ai_connector_updated', handleSync);
   }, []);
 
   useEffect(() => {
@@ -1580,9 +1590,24 @@ export default function GlobalHelpAssistant() {
     setIsLoading(true);
 
     try {
-      if (!aiConnector || !aiConnector.config?.apiKey) {
+      const effectiveSettings = aiConnector?.aiSettings || aiConnector?.config || {};
+      const apiKey = effectiveSettings?.apiKey;
+      if (!apiKey) {
         throw new Error('AI Connector belum dikonfigurasi. Silakan setting AI di halaman Integrasi terlebih dahulu.');
       }
+
+      const callingConnector = {
+        ...aiConnector,
+        aiSettings: {
+          ...effectiveSettings,
+          modelId: selectedModel || effectiveSettings.modelId || 'gemini-3.6-flash'
+        },
+        config: {
+          ...(aiConnector?.config || {}),
+          ...effectiveSettings,
+          modelId: selectedModel || effectiveSettings.modelId || 'gemini-3.6-flash'
+        }
+      };
 
       const history = messages.slice(-10).map(m => ({ role: m.role, content: m.content }));
       
@@ -1600,7 +1625,7 @@ export default function GlobalHelpAssistant() {
         { role: 'user', content: userMessage.content }
       ];
 
-      const response = await getChatCompletion(payload, aiConnector);
+      const response = await getChatCompletion(payload, callingConnector);
       
       setMessages(prev => [...prev, { role: 'assistant', content: response }]);
     } catch (err) {
@@ -1642,9 +1667,24 @@ export default function GlobalHelpAssistant() {
     }]);
 
     try {
-      if (!aiConnector || !aiConnector.config?.apiKey) {
+      const effectiveSettings = aiConnector?.aiSettings || aiConnector?.config || {};
+      const apiKey = effectiveSettings?.apiKey;
+      if (!apiKey) {
         throw new Error('AI Connector belum dikonfigurasi. Silakan setting AI di halaman Integrasi terlebih dahulu.');
       }
+
+      const callingConnector = {
+        ...aiConnector,
+        aiSettings: {
+          ...effectiveSettings,
+          modelId: selectedModel || effectiveSettings.modelId || 'gemini-3.6-flash'
+        },
+        config: {
+          ...(aiConnector?.config || {}),
+          ...effectiveSettings,
+          modelId: selectedModel || effectiveSettings.modelId || 'gemini-3.6-flash'
+        }
+      };
 
       const history = mcpMessages.slice(-10).map(m => ({ role: m.role, content: m.content }));
       
@@ -1669,7 +1709,7 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
         { role: 'user', content: userMessage.content }
       ];
 
-      const response = await getChatCompletion(payload, aiConnector);
+      const response = await getChatCompletion(payload, callingConnector);
       
       setMcpMessages(prev => [...prev, { role: 'assistant', content: response }]);
 
@@ -1823,7 +1863,7 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
           { role: 'user', content: `[SYSTEM: Tool execution output for ${toolName} is: ${toolOutput}. Jelaskan hasil ini kepada pengguna dalam bahasa Indonesia.]` }
         ];
 
-        const finalResponse = await getChatCompletion(followUpPayload, aiConnector);
+        const finalResponse = await getChatCompletion(followUpPayload, callingConnector);
         setMcpMessages(prev => [...prev, { role: 'assistant', content: finalResponse }]);
       }
     } catch (err) {
@@ -2298,9 +2338,16 @@ Jika status stasiun berhasil diubah, pastikan mengonfirmasi bahwa relai PLC kont
                       {AI_MODELS.map(model => (
                         <button
                           key={model.id}
-                          onClick={() => {
+                          onClick={async () => {
                             setSelectedModel(model.id);
                             setModelDropdownOpen(false);
+                            try {
+                              const updated = await updateSharedAiModel(model.id, model.provider);
+                              if (updated) setAiConnector(updated);
+                              toast.success(`Model aktif: ${model.name}`);
+                            } catch (e) {
+                              console.warn('Failed to sync model change:', e);
+                            }
                           }}
                           style={{
                             width: '100%',

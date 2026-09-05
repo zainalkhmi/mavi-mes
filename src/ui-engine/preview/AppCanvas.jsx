@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import BuilderCopilot from '../../components/BuilderCopilot';
+import GluestackWidgetProperties from './GluestackWidgetProperties';
 import { saveFrontlineApp } from '../../utils/supabaseFrontlineDB';
 
 // Pre-built App Templates available for quick load into canvas (16 Total)
@@ -812,6 +813,26 @@ export default function AppCanvas({
       next[idx + 1] = temp;
       updateComponents(next);
     }
+  };
+
+  // Reorder component stack (Bring to Front, Send to Back, Forward, Backward)
+  const reorderComponent = (id, action) => {
+    const idx = screenComponents.findIndex(c => c.id === id);
+    if (idx === -1) return;
+    const next = [...screenComponents];
+    const item = next.splice(idx, 1)[0];
+    if (action === 'FRONT') {
+      next.push(item);
+    } else if (action === 'BACK') {
+      next.unshift(item);
+    } else if (action === 'FORWARD') {
+      const newIdx = Math.min(next.length, idx + 1);
+      next.splice(newIdx, 0, item);
+    } else if (action === 'BACKWARD') {
+      const newIdx = Math.max(0, idx - 1);
+      next.splice(newIdx, 0, item);
+    }
+    updateComponents(next);
   };
 
   // Update component props
@@ -1837,11 +1858,35 @@ export default function AppCanvas({
   }, [variables, screens]);
 
   const executeComponentTriggers = useCallback((comp, eventType = 'ON_CLICK') => {
-    if (!comp || !comp.triggers || comp.triggers.length === 0) return;
+    if (!comp) return;
+
+    // Built-in Button Action Navigation (NEXT_SCREEN, PREV_SCREEN, GO_TO_SCREEN, COMPLETE_APP)
+    if (eventType === 'ON_CLICK' && comp.props?.action) {
+      if (comp.props.action === 'NEXT_SCREEN') {
+        const curIdx = screens.findIndex(s => s.id === currentScreenId);
+        if (curIdx >= 0 && curIdx < screens.length - 1) {
+          setCurrentScreenId(screens[curIdx + 1].id);
+        }
+      } else if (comp.props.action === 'PREV_SCREEN') {
+        const curIdx = screens.findIndex(s => s.id === currentScreenId);
+        if (curIdx > 0) {
+          setCurrentScreenId(screens[curIdx - 1].id);
+        }
+      } else if (comp.props.action === 'GO_TO_SCREEN' && comp.props.targetScreenId) {
+        setCurrentScreenId(comp.props.targetScreenId);
+      } else if (comp.props.action === 'COMPLETE_APP') {
+        setActiveToast({
+          message: 'Work Order / Aplikasi Berhasil Diselesaikan!',
+          type: 'SUCCESS'
+        });
+      }
+    }
+
+    if (!comp.triggers || comp.triggers.length === 0) return;
     comp.triggers.forEach(trig => {
       runTrigger(trig, eventType);
     });
-  }, [runTrigger]);
+  }, [screens, currentScreenId, runTrigger]);
 
   // Screens Operations
   const addScreen = (screenType = 'Screen') => {
@@ -3049,23 +3094,53 @@ export default function AppCanvas({
                     </button>
                   </div>
                 ) : (
-                  screenComponents.map((comp) => (
-                    <div
-                      key={comp.id}
-                      onClick={() => {
-                        if (!isPreview && !isCanvasLocked) {
-                          setSelectedId(comp.id);
-                          setActiveRightTab('WIDGET');
-                        } else if (isPreview) {
-                          executeComponentTriggers(comp, 'ON_CLICK');
-                        }
-                      }}
-                      className={`p-2 rounded-xl transition-all relative group ${
-                        !isPreview && selectedId === comp.id
-                          ? 'ring-2 ring-[#714b67] bg-[#714b67]/5 shadow-xs'
-                          : 'hover:ring-1 hover:ring-slate-300'
-                      } cursor-pointer`}
-                    >
+                  screenComponents.map((comp) => {
+                    // Check visibility condition in preview mode
+                    if (isPreview && comp.props?.visibilityCondition) {
+                      const vc = comp.props.visibilityCondition;
+                      if (vc.variable) {
+                        const foundVar = variables.find(v => v.name === vc.variable || v.id === vc.variable);
+                        const varVal = foundVar ? String(foundVar.value ?? '') : '';
+                        const targetVal = String(vc.value ?? '');
+                        let isVisible = true;
+                        if (vc.operator === '==') isVisible = varVal.toLowerCase() === targetVal.toLowerCase();
+                        else if (vc.operator === '!=') isVisible = varVal.toLowerCase() !== targetVal.toLowerCase();
+                        else if (vc.operator === '>') isVisible = Number(varVal) > Number(targetVal);
+                        else if (vc.operator === '<') isVisible = Number(varVal) < Number(targetVal);
+                        else if (vc.operator === 'contains') isVisible = varVal.toLowerCase().includes(targetVal.toLowerCase());
+                        if (!isVisible) return null;
+                      }
+                    }
+
+                    const isBlinking = comp.props?.isBlinking;
+                    const customStyle = {
+                      ...(comp.props?.backgroundColor && comp.props.backgroundColor !== 'transparent' ? { backgroundColor: comp.props.backgroundColor } : {}),
+                      ...(comp.props?.color ? { color: comp.props.color } : {}),
+                      ...(comp.props?.fontSize ? { fontSize: `${comp.props.fontSize}px` } : {}),
+                      ...(comp.props?.fontWeight === 'bold' ? { fontWeight: 'bold' } : {}),
+                      ...(comp.props?.fontStyle === 'italic' ? { fontStyle: 'italic' } : {}),
+                      ...(comp.props?.textDecoration === 'underline' ? { textDecoration: 'underline' } : {}),
+                      ...(comp.props?.textAlign ? { textAlign: comp.props.textAlign } : {})
+                    };
+
+                    return (
+                      <div
+                        key={comp.id}
+                        style={customStyle}
+                        onClick={() => {
+                          if (!isPreview && !isCanvasLocked) {
+                            setSelectedId(comp.id);
+                            setActiveRightTab('WIDGET');
+                          } else if (isPreview) {
+                            executeComponentTriggers(comp, 'ON_CLICK');
+                          }
+                        }}
+                        className={`p-2 rounded-xl transition-all relative group ${
+                          !isPreview && selectedId === comp.id
+                            ? 'ring-2 ring-[#714b67] bg-[#714b67]/5 shadow-xs'
+                            : 'hover:ring-1 hover:ring-slate-300'
+                        } ${isBlinking ? 'animate-pulse' : ''} cursor-pointer`}
+                      >
                       {/* Floating component actions on hover */}
                       {!isPreview && selectedId === comp.id && (
                         <div className="absolute top-1 right-1 flex items-center gap-1 bg-white/90 backdrop-blur-xs p-1 rounded-lg shadow-md z-20 border border-slate-200">
@@ -3105,7 +3180,8 @@ export default function AppCanvas({
                       )}
                       {renderPreview(comp)}
                     </div>
-                  ))
+                  );
+                  })
                 )}
               </div>
 
@@ -3162,306 +3238,39 @@ export default function AppCanvas({
             ))}
           </div>
 
-          {/* Right Pane Content: WIDGET */}
+          {/* Right Pane Content: WIDGET (Complete Mavi AppBuilder Properties System for Gluestack) */}
           {activeRightTab === 'WIDGET' && (
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 divide-y divide-slate-100">
-              {!selectedComponent ? (
-                <div className="flex flex-col items-center justify-center h-64 text-slate-400 space-y-2 text-center p-4">
-                  <Box className="w-10 h-10 opacity-30" />
-                  <div className="text-xs font-bold text-slate-600">No Widget Selected</div>
-                  <div className="text-[11px] text-slate-400">Click any widget on the canvas to configure its properties, data binding, and triggers.</div>
-                </div>
-              ) : (
-                <div className="space-y-4 pt-1">
-                  {/* Widget Header */}
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">SELECTED WIDGET</span>
-                      <div className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-                        <Box className="w-4 h-4 text-[#008784]" />
-                        <span>{selectedComponent.type}</span>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeComponent(selectedComponent.id)}
-                      className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-                      title="Delete Widget"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  {/* Basic Properties */}
-                  <div className="space-y-3">
-                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">PROPERTIES</span>
-
-                    {/* Text Props */}
-                    {'text' in selectedComponent.props && (
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-slate-600 block">Text Content</label>
-                        <input
-                          type="text"
-                          value={selectedComponent.props.text}
-                          onChange={(e) => updateProps(selectedComponent.id, { text: e.target.value })}
-                          className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white"
-                        />
-                      </div>
-                    )}
-
-                    {/* Label Props */}
-                    {'label' in selectedComponent.props && (
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-slate-600 block">Label</label>
-                        <input
-                          type="text"
-                          value={selectedComponent.props.label}
-                          onChange={(e) => updateProps(selectedComponent.id, { label: e.target.value })}
-                          className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white"
-                        />
-                      </div>
-                    )}
-
-                    {/* Title Props */}
-                    {'title' in selectedComponent.props && (
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-slate-600 block">Title</label>
-                        <input
-                          type="text"
-                          value={selectedComponent.props.title}
-                          onChange={(e) => updateProps(selectedComponent.id, { title: e.target.value })}
-                          className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white"
-                        />
-                      </div>
-                    )}
-
-                    {/* Content Props */}
-                    {'content' in selectedComponent.props && (
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-slate-600 block">Content</label>
-                        <textarea
-                          rows={2}
-                          value={selectedComponent.props.content}
-                          onChange={(e) => updateProps(selectedComponent.id, { content: e.target.value })}
-                          className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white resize-none"
-                        />
-                      </div>
-                    )}
-
-                    {/* Subtitle Props */}
-                    {'subtitle' in selectedComponent.props && (
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-slate-600 block">Subtitle / Petunjuk</label>
-                        <input
-                          type="text"
-                          value={selectedComponent.props.subtitle}
-                          onChange={(e) => updateProps(selectedComponent.id, { subtitle: e.target.value })}
-                          className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white"
-                        />
-                      </div>
-                    )}
-
-                    {/* Source URL Props */}
-                    {'src' in selectedComponent.props && (
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-slate-600 block">Source URL (Video/Stream)</label>
-                        <input
-                          type="text"
-                          value={selectedComponent.props.src}
-                          onChange={(e) => updateProps(selectedComponent.id, { src: e.target.value })}
-                          className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white font-mono text-[11px]"
-                        />
-                      </div>
-                    )}
-
-                    {/* Poster Image Props */}
-                    {'poster' in selectedComponent.props && (
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-slate-600 block">Poster Thumbnail URL</label>
-                        <input
-                          type="text"
-                          value={selectedComponent.props.poster}
-                          onChange={(e) => updateProps(selectedComponent.id, { poster: e.target.value })}
-                          className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white font-mono text-[11px]"
-                        />
-                      </div>
-                    )}
-
-                    {/* Aspect Ratio Props */}
-                    {'aspectRatio' in selectedComponent.props && (
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-slate-600 block">Aspect Ratio</label>
-                        <select
-                          value={selectedComponent.props.aspectRatio}
-                          onChange={(e) => updateProps(selectedComponent.id, { aspectRatio: e.target.value })}
-                          className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white"
-                        >
-                          <option value="square">1:1 Square (Mobile HUD)</option>
-                          <option value="16:9">16:9 Widescreen (HD Video)</option>
-                          <option value="4:3">4:3 Standard</option>
-                        </select>
-                      </div>
-                    )}
-
-                    {/* Show Grid Toggle */}
-                    {'showGrid' in selectedComponent.props && (
-                      <div className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-200">
-                        <span className="text-xs font-semibold text-slate-700">Tampilkan Grid Alignment</span>
-                        <input
-                          type="checkbox"
-                          checked={selectedComponent.props.showGrid}
-                          onChange={(e) => updateProps(selectedComponent.id, { showGrid: e.target.checked })}
-                          className="w-4 h-4 rounded text-[#008784]"
-                        />
-                      </div>
-                    )}
-
-                    {/* Value Props */}
-                    {'value' in selectedComponent.props && typeof selectedComponent.props.value === 'number' && (
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-slate-600 block">Value</label>
-                        <input
-                          type="number"
-                          value={selectedComponent.props.value}
-                          onChange={(e) => updateProps(selectedComponent.id, { value: Number(e.target.value) })}
-                          className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Table Connection & Record Placeholder (Mavi Core Requirement) */}
-                  <div className="pt-3 space-y-2">
-                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">DATA BINDING / RECORD PLACEHOLDER</span>
-                    <div className="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                      <div>
-                        <label className="text-xs font-semibold text-slate-600 block mb-1">Record Placeholder</label>
-                        <select
-                          value={selectedComponent.dataSource?.recordPlaceholderId || ''}
-                          onChange={(e) => updateDataSource(selectedComponent.id, { recordPlaceholderId: e.target.value })}
-                          className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white"
-                        >
-                          <option value="">-- None (Static) --</option>
-                          {recordPlaceholders.map(rp => (
-                            <option key={rp.id} value={rp.id}>{rp.name} ({rp.field})</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="text-xs font-semibold text-slate-600 block mb-1">Target Table</label>
-                        <select
-                          value={selectedComponent.dataSource?.tableId || ''}
-                          onChange={(e) => updateDataSource(selectedComponent.id, { tableId: e.target.value })}
-                          className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white"
-                        >
-                          <option value="">-- None --</option>
-                          {tables.map(tbl => (
-                            <option key={tbl.id} value={tbl.id}>{tbl.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Component Triggers (Mavi Core Standard Trigger System) */}
-                  <div className="pt-3 space-y-2 border-t border-slate-100">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">TRIGGERS & LOGIC</span>
-                        <span className="text-[9px] text-slate-400 font-medium">Mavi AppBuilder Triggers</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => openAddTrigger('WIDGET', selectedComponent.id)}
-                        className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-extrabold flex items-center gap-1 shadow-2xs transition-all active:scale-95 cursor-pointer"
-                      >
-                        <Plus className="w-3 h-3" />
-                        <span>Add Trigger</span>
-                      </button>
-                    </div>
-
-                    <div className="space-y-2">
-                      {(selectedComponent.triggers || []).length === 0 ? (
-                        <div className="text-[11px] text-slate-400 bg-slate-50/80 p-3 rounded-xl border border-dashed border-slate-200 text-center space-y-1.5">
-                          <Zap className="w-4 h-4 mx-auto text-slate-300" />
-                          <div className="text-slate-500 font-medium">No triggers configured for this widget.</div>
-                          <button
-                            type="button"
-                            onClick={() => openAddTrigger('WIDGET', selectedComponent.id)}
-                            className="text-[10px] font-bold text-indigo-600 hover:underline inline-flex items-center gap-1 cursor-pointer"
-                          >
-                            <Plus className="w-3 h-3" /> Add first trigger
-                          </button>
-                        </div>
-                      ) : (
-                        selectedComponent.triggers.map((trig, idx) => {
-                          const clauseCount = (trig.clauses || []).length;
-                          let totalActions = (trig.elseActions || []).length;
-                          (trig.clauses || []).forEach(c => {
-                            totalActions += (c.actions || []).length;
-                          });
-                          const isActive = trig.enabled !== false;
-
-                          return (
-                            <div
-                              key={trig.id || idx}
-                              onClick={() => openEditTrigger(trig, idx, 'WIDGET', selectedComponent.id)}
-                              className={`p-2.5 rounded-xl border transition-all cursor-pointer group hover:shadow-xs ${
-                                isActive ? 'bg-white border-slate-200 hover:border-indigo-300' : 'bg-slate-50/70 border-slate-200 opacity-60'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between gap-1 mb-1">
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                  <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wide shrink-0 ${
-                                    isActive ? 'bg-purple-100 text-purple-700' : 'bg-slate-200 text-slate-500'
-                                  }`}>
-                                    {isActive ? 'ACTIVE' : 'OFF'}
-                                  </span>
-                                  <span className="font-bold text-slate-800 text-xs truncate">
-                                    {trig.name || 'New Trigger'}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-1 shrink-0">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openEditTrigger(trig, idx, 'WIDGET', selectedComponent.id);
-                                    }}
-                                    className="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-colors"
-                                    title="Edit Trigger"
-                                  >
-                                    <Edit3 className="w-3 h-3" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteTrigger(trig.id);
-                                    }}
-                                    className="p-1 rounded text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
-                                    title="Delete Trigger"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                  </button>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-100">
-                                <span className="font-mono text-indigo-600 font-semibold bg-indigo-50 px-1.5 py-0.2 rounded text-[9px]">
-                                  {trig.event || 'ON_CLICK'}
-                                </span>
-                                <span>{clauseCount} clause{clauseCount !== 1 ? 's' : ''} • {totalActions} action{totalActions !== 1 ? 's' : ''}</span>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
+            <div className="flex-1 overflow-y-auto p-4">
+              <GluestackWidgetProperties
+                selectedComponent={selectedComponent}
+                updateProps={updateProps}
+                updateDataSource={updateDataSource}
+                updateComponentName={(id, name) => {
+                  const next = screenComponents.map(c => c.id === id ? { ...c, name } : c);
+                  updateComponents(next);
+                }}
+                updateComponentDisplayName={(id, displayName) => {
+                  const next = screenComponents.map(c => c.id === id ? { ...c, displayName } : c);
+                  updateComponents(next);
+                }}
+                removeComponent={removeComponent}
+                duplicateComponent={duplicateComponent}
+                reorderComponent={reorderComponent}
+                moveComponent={moveComponent}
+                screens={screens}
+                currentScreenId={currentScreenId}
+                variables={variables}
+                setVariables={setVariables}
+                tables={tables}
+                recordPlaceholders={recordPlaceholders}
+                openAddTrigger={openAddTrigger}
+                openEditTrigger={openEditTrigger}
+                handleDeleteTrigger={handleDeleteTrigger}
+                onOpenCopilot={(comp) => {
+                  if (comp) setSelectedId(comp.id);
+                  setIsCopilotOpen(true);
+                }}
+              />
             </div>
           )}
 

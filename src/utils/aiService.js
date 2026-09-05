@@ -3,6 +3,82 @@
  * Supports Google Gemini, OpenAI, Anthropic, and Meta/Groq 
  */
 
+import { getPrimaryAiConnector, saveIntegrationConnector } from './database';
+
+export const SHARED_AI_MODELS = [
+  // Google Gemini
+  { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', provider: 'Gemini', icon: '⚡', description: 'Google Resmi Terbaru, Super Cepat & Cerdas (Rekomendasi)' },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'Gemini', icon: '🧠', description: 'Generasi Mutakhir Penalaran Tinggi' },
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'Gemini', icon: '✨', description: 'Multimodal & Stabil' },
+  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: 'Gemini', icon: '🚀', description: 'Efisien & Cepat' },
+  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'Gemini', icon: '🔬', description: 'Analisis Logika Mendalam' },
+  // OpenAI
+  { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI', icon: '🤖', description: 'Efisien, Cepat & Terjangkau' },
+  { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI', icon: '🔥', description: 'Flagship Performa Maksimal' },
+  { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', provider: 'OpenAI', icon: '🧠', description: 'Penalaran Kompleks' },
+  // Anthropic Claude
+  { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', provider: 'Claude', icon: '🎭', description: 'Kualitas Kode & Logika Terbaik' },
+  { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', provider: 'Claude', icon: '⚡', description: 'Ringan & Respons Cepat' },
+  // Groq
+  { id: 'llama-3.1-70b-versatile', name: 'Llama 3.1 70B', provider: 'Groq', icon: '⚡', description: 'Kecepatan Tinggi LPU Groq' },
+  // OpenRouter
+  { id: 'google/gemini-flash-1.5', name: 'Gemini 1.5 Flash', provider: 'OpenRouter', icon: '🌐', description: 'Routing Fleksibel OpenRouter' }
+];
+
+export async function updateSharedAiModel(newModelId, newProvider = null) {
+  try {
+    const primary = await getPrimaryAiConnector();
+    if (!primary) return null;
+
+    const currentSettings = primary.aiSettings || primary.config || {};
+    
+    let effectiveProvider = newProvider;
+    if (!effectiveProvider) {
+      const foundModel = SHARED_AI_MODELS.find(m => m.id === newModelId);
+      if (foundModel) effectiveProvider = foundModel.provider;
+      else if (newModelId.toLowerCase().includes('gemini')) effectiveProvider = 'Gemini';
+      else if (newModelId.toLowerCase().includes('gpt')) effectiveProvider = 'OpenAI';
+      else if (newModelId.toLowerCase().includes('claude')) effectiveProvider = 'Claude';
+      else effectiveProvider = currentSettings.provider || 'Gemini';
+    }
+
+    const updatedSettings = {
+      ...currentSettings,
+      provider: effectiveProvider,
+      modelId: newModelId
+    };
+
+    const updatedConnector = {
+      ...primary,
+      config: updatedSettings,
+      aiSettings: updatedSettings
+    };
+
+    try {
+      localStorage.setItem('mandor_primary_ai_connector', JSON.stringify(updatedConnector));
+      localStorage.setItem('vibe_active_provider', effectiveProvider);
+      localStorage.setItem('vibe_active_model', newModelId);
+    } catch (_) {}
+
+    await saveIntegrationConnector(updatedConnector).catch(() => {});
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('mavicore_ai_connector_updated', {
+        detail: {
+          connector: updatedConnector,
+          provider: effectiveProvider,
+          modelId: newModelId
+        }
+      }));
+    }
+
+    return updatedConnector;
+  } catch (err) {
+    console.warn('[updateSharedAiModel] Error:', err);
+    return null;
+  }
+}
+
 const SYSTEM_PROMPT = `
 You are a Manufacturing Systems Engineer specializing in Digital Work Instructions and MES (Manufacturing Execution Systems).
 Analyze the provided document (SOP, PDF, or Image) and extract the manufacturing process into a structured digital application.
@@ -52,8 +128,8 @@ const sanitizeGeminiModelId = (modelId) => {
     let clean = String(modelId || '').trim().replace(/^models\//, '');
     if (clean.includes('/')) clean = clean.split('/').pop();
     const lower = clean.toLowerCase();
-    if (!clean || lower.includes('gemini-3.') || lower.includes('flash-latest') || lower === 'gemini-flash') {
-        return 'gemini-2.0-flash';
+    if (!clean || lower.includes('flash-latest') || lower === 'gemini-flash') {
+        return 'gemini-3.6-flash';
     }
     return clean;
 };
@@ -220,8 +296,15 @@ export const getChatCompletion = async (messages, connector) => {
     }
 
     if (provider === 'gemini') {
-        const cleanModelId = sanitizeGeminiModelId(modelId);
-        const url = `https://generativelanguage.googleapis.com/v1/models/${cleanModelId}:generateContent?key=${apiKey}`;
+        const primaryModel = sanitizeGeminiModelId(modelId) || 'gemini-3.6-flash';
+        const candidateModels = [
+            primaryModel,
+            'gemini-3.6-flash',
+            'gemini-2.5-flash',
+            'gemini-2.0-flash',
+            'gemini-1.5-flash'
+        ].filter((m, i, a) => a.indexOf(m) === i);
+
         const payload = {
             contents: messages.map(m => ({
                 role: m.role === 'assistant' ? 'model' : 'user',
@@ -229,14 +312,57 @@ export const getChatCompletion = async (messages, connector) => {
             })),
             generationConfig: { temperature: 0.7 }
         };
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        if (!response.ok) throw new Error((await response.json()).error?.message || 'Gemini Chat Error');
-        const result = await response.json();
-        return result.candidates[0].content.parts[0].text;
+
+        let lastErr = null;
+        let hasDiscovered = false;
+
+        for (let i = 0; i < candidateModels.length; i++) {
+            const currentModel = candidateModels[i];
+            for (const apiVer of ['v1beta', 'v1']) {
+                try {
+                    const url = `https://generativelanguage.googleapis.com/${apiVer}/models/${currentModel}:generateContent?key=${apiKey}`;
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (response.ok) {
+                        const result = await response.json();
+                        const answer = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                        if (answer) return answer;
+                    }
+                    const errJson = await response.json().catch(() => ({}));
+                    const errMsg = errJson.error?.message || `Gemini Error ${response.status}`;
+                    lastErr = new Error(errMsg);
+
+                    // Extract replacement model if Google suggested one (e.g. models/gemini-3.6-flash)
+                    const matches = [...errMsg.matchAll(/models\/([a-zA-Z0-9.-]+)/g)].map(x => x[1]);
+                    const rec = matches.find(x => !candidateModels.includes(x));
+                    if (rec) {
+                        candidateModels.splice(i + 1, 0, rec);
+                    }
+
+                    if (!hasDiscovered && (errMsg.includes('not found') || errMsg.includes('no longer available') || response.status === 404)) {
+                        hasDiscovered = true;
+                        try {
+                            const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+                            if (listRes.ok) {
+                                const listData = await listRes.json();
+                                const live = (listData.models || [])
+                                    .filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+                                    .map(m => m.name.replace(/^models\//, ''));
+                                for (const m of live) {
+                                    if (!candidateModels.includes(m)) candidateModels.push(m);
+                                }
+                            }
+                        } catch (_) {}
+                    }
+                } catch (netErr) {
+                    lastErr = netErr;
+                }
+            }
+        }
+        throw lastErr || new Error('Gemini Chat Error');
     }
 
     // OpenAI, Groq, OpenRouter, Ollama, Custom (OpenAI-compatible)
@@ -1180,8 +1306,14 @@ export const streamBuilderCopilotAdvice = async (userInput, messageHistory, cont
     ];
 
     if (provider === 'gemini') {
-        const cleanModelId = sanitizeGeminiModelId(modelId);
-        const url = `https://generativelanguage.googleapis.com/v1/models/${cleanModelId}:streamGenerateContent?key=${apiKey}&alt=sse`;
+        const primaryModel = sanitizeGeminiModelId(modelId) || 'gemini-3.6-flash';
+        const candidateModels = [
+            primaryModel,
+            'gemini-3.6-flash',
+            'gemini-2.5-flash',
+            'gemini-2.0-flash',
+            'gemini-1.5-flash'
+        ].filter((m, i, a) => a.indexOf(m) === i);
         
         const combinedSystemPrompt = summaryBlock
             ? `${fullSystemPrompt}\n\n📋 SESSION SUMMARY:\n${context.sessionSummary}`
@@ -1196,29 +1328,74 @@ export const streamBuilderCopilotAdvice = async (userInput, messageHistory, cont
             },
             generationConfig: { temperature: 0.7 }
         };
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        if (!response.ok) throw new Error('Gemini Stream Error');
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let fullText = '';
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
-            for (const line of lines) {
+
+        let lastErr = null;
+        let hasDiscovered = false;
+
+        modelLoop:
+        for (let i = 0; i < candidateModels.length; i++) {
+            const currentModel = candidateModels[i];
+            for (const apiVer of ['v1beta', 'v1']) {
                 try {
-                    const data = JSON.parse(line.slice(6));
-                    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-                    if (text) { fullText += text; onChunk(text); }
-                } catch { /* skip malformed chunks */ }
+                    const url = `https://generativelanguage.googleapis.com/${apiVer}/models/${currentModel}:streamGenerateContent?key=${apiKey}&alt=sse`;
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (response.ok) {
+                        const reader = response.body.getReader();
+                        const decoder = new TextDecoder();
+                        let fullText = '';
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+                            const chunk = decoder.decode(value, { stream: true });
+                            const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
+                            for (const line of lines) {
+                                try {
+                                    const data = JSON.parse(line.slice(6));
+                                    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                                    if (text) { fullText += text; onChunk(text); }
+                                } catch { /* skip malformed chunks */ }
+                            }
+                        }
+                        if (fullText) return fullText;
+                    }
+
+                    const errJson = await response.json().catch(() => ({}));
+                    const errMsg = errJson.error?.message || `Gemini Stream Error (${response.status})`;
+                    lastErr = new Error(errMsg);
+
+                    // Auto extract replacement model suggested by Google
+                    const matches = [...errMsg.matchAll(/models\/([a-zA-Z0-9.-]+)/g)].map(x => x[1]);
+                    const rec = matches.find(x => !candidateModels.includes(x));
+                    if (rec) {
+                        candidateModels.splice(i + 1, 0, rec);
+                    }
+
+                    if (!hasDiscovered && (errMsg.includes('not found') || errMsg.includes('no longer available') || response.status === 404)) {
+                        hasDiscovered = true;
+                        try {
+                            const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+                            if (listRes.ok) {
+                                const listData = await listRes.json();
+                                const live = (listData.models || [])
+                                    .filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+                                    .map(m => m.name.replace(/^models\//, ''));
+                                for (const m of live) {
+                                    if (!candidateModels.includes(m)) candidateModels.push(m);
+                                }
+                            }
+                        } catch (_) {}
+                    }
+                } catch (netErr) {
+                    lastErr = netErr;
+                }
             }
         }
-        return fullText;
+        throw lastErr || new Error('Gemini Stream Error');
     }
 
     // OpenAI-compatible streaming (OpenAI, Groq, OpenRouter, Ollama, Custom)
