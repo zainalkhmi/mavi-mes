@@ -61,8 +61,8 @@ import {
   extractTableSchemaFromCode,
   getTables
 } from '../../utils/vibeTableBridge';
-import { getFrontlineAppById } from '../../utils/supabaseFrontlineDB';
-import { checkBuilderCompatibility, BUILDER_TYPES } from '../../utils/builderType';
+import { getFrontlineAppById, getAllFrontlineApps, deleteFrontlineApp } from '../../utils/supabaseFrontlineDB';
+import { checkBuilderCompatibility, BUILDER_TYPES, getAppBuilderType } from '../../utils/builderType';
 
 import { ProjectFileSystem } from '../../vibe/filesystem/ProjectFileSystem';
 import { ProjectVersionControl } from '../../vibe/filesystem/ProjectVersionControl';
@@ -71,7 +71,7 @@ import { AgenticPromptEngine } from '../../vibe/ai/AgenticPromptEngine';
 import { RuntimeManager } from '../../vibe/runtime/RuntimeManager';
 import { ErrorFixEngine } from '../../vibe/autofix/ErrorFixEngine';
 import { MAVICORE_UIKIT_VIRTUAL_FILE } from '../../vibe/uikit';
-import { MAVICORE_SDK_VIRTUAL_FILE } from '../../vibe/sdk';
+import { MAVICORE_SDK_VIRTUAL_FILE, MAVICORE_BRIDGE_VIRTUAL_FILE } from '../../vibe/sdk';
 
 import FileTreeExplorer from '../../vibe/components/FileTreeExplorer';
 import AiChangesReviewModal from '../../vibe/components/AiChangesReviewModal';
@@ -228,9 +228,84 @@ const MaviCoreBridge = {
   }
 };
 
+// Auto report device/iframe runtime errors to parent Sandbox
+if (typeof window !== 'undefined') {
+  window.addEventListener('error', (e) => {
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({
+          type: 'MAVICORE_DEVICE_ERROR',
+          error: e.message || String(e),
+          stack: e.error?.stack || '',
+          filename: e.filename || '',
+          lineno: e.lineno || 0
+        }, '*');
+      }
+    } catch (_) {}
+  });
+
+  window.addEventListener('unhandledrejection', (e) => {
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({
+          type: 'MAVICORE_DEVICE_ERROR',
+          error: e.reason?.message || String(e.reason || 'Unhandled Promise Rejection'),
+          stack: e.reason?.stack || ''
+        }, '*');
+      }
+    } catch (_) {}
+  });
+}
+
 // Expose globally
 window.MaviCoreBridge = MaviCoreBridge;
 console.log('[MaviCore] 🔌 Real-time data bridge ready - CRUD operations enabled');
+`;
+
+// Clean, blank starter component for new Sandbox sessions
+export const CLEAN_BLANK_APP_CODE = `import React from 'react';
+
+export default function App() {
+  return (
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '24px',
+      background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+      color: '#334155',
+      fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+      textAlign: 'center'
+    }}>
+      <div style={{
+        width: '64px',
+        height: '64px',
+        borderRadius: '16px',
+        background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: '16px',
+        boxShadow: '0 8px 24px -4px rgba(14, 165, 233, 0.35)',
+        color: '#ffffff'
+      }}>
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="m18 16 4-4-4-4"/>
+          <path d="m6 8-4 4 4 4"/>
+          <path d="m14.5 4-5 16"/>
+        </svg>
+      </div>
+      <h2 style={{ margin: '0 0 8px 0', fontSize: '1.25rem', fontWeight: 700, color: '#0f172a' }}>
+        Sandbox Siap Digunakan
+      </h2>
+      <p style={{ margin: 0, fontSize: '0.875rem', color: '#64748b', maxWidth: '320px', lineHeight: 1.5 }}>
+        Belum ada aplikasi yang aktif. Tulis prompt di panel kanan untuk generate app baru atau pilih dari daftar aplikasi di bawah tab files.
+      </p>
+    </div>
+  );
+}
 `;
 
 // Default table name for the template
@@ -779,7 +854,7 @@ function SandpackLiveBridge({ onBridgeReady }) {
 }
 
 export default function VibeSandpackViewer({
-  code = DEFAULT_VIBE_HMI_CODE,
+  code = null,
   onCodeChange = null,
   isFullScreen = false,
   onToggleFullScreen = null,
@@ -788,7 +863,7 @@ export default function VibeSandpackViewer({
   onClose = null,
   isStandalone = false
 }) {
-  const effectiveInitialCode = code && code.trim().length > 0 ? code : DEFAULT_VIBE_HMI_CODE;
+  const effectiveInitialCode = code && code.trim().length > 0 ? code : CLEAN_BLANK_APP_CODE;
   const sandpackBridgeRef = useRef(null);
   const handleBridgeReady = useCallback((bridge) => {
     sandpackBridgeRef.current = bridge;
@@ -855,7 +930,8 @@ button {
         }
       }, null, 2),
       '/mavicore-ui.jsx': MAVICORE_UIKIT_VIRTUAL_FILE,
-      '/mavicore-sdk.js': MAVICORE_SDK_VIRTUAL_FILE
+      '/mavicore-sdk.js': MAVICORE_SDK_VIRTUAL_FILE,
+      '/mavicore-bridge.js': MAVICORE_BRIDGE_VIRTUAL_FILE
     };
     return new ProjectFileSystem(initialFiles);
   });
@@ -871,6 +947,7 @@ button {
   const [fileTree, setFileTree] = useState(() => vfs.getFileTree());
   const [appMode, setAppMode] = useState('web'); // 'web' | 'mobile'
   const [appName, setAppName] = useState('Sandbox');
+  const [deployedApp, setDeployedApp] = useState(null);
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempAppName, setTempAppName] = useState('');
 
@@ -955,45 +1032,106 @@ button {
     return () => clearTimeout(saveTimer);
   }, [filesRecord]);
 
-  // Restore from localStorage on mount (standalone mode only)
-  useEffect(() => {
-    if (isStandalone) {
-      try {
-        const saved = localStorage.getItem('vibe_sandbox_autosave');
-        if (saved && saved !== effectiveInitialCode) {
-          const cleaned = cleanVibeCode(saved);
-          if (cleaned && (cleaned.includes('function') || cleaned.includes('const')) && cleaned.includes('return')) {
-            vfs.writeFile('/App.js', cleaned);
-            setFilesRecord(vfs.getAllFilesRecord());
-            setFileTree(vfs.getFileTree());
-            if (cleaned !== saved) {
-              try { localStorage.setItem('vibe_sandbox_autosave', cleaned); } catch {}
-            }
-            toast.success('💾 Kode terakhir dipulihkan dari auto-save!');
-          } else {
-            // Corrupted or truncated saved code, safely reset to clean default code
-            localStorage.removeItem('vibe_sandbox_autosave');
-            vfs.writeFile('/App.js', DEFAULT_VIBE_HMI_CODE);
-            setFilesRecord(vfs.getAllFilesRecord());
-            setFileTree(vfs.getFileTree());
-          }
-        }
-      } catch (e) { /* ignore */ }
-    }
-  }, [isStandalone]);
+  // ─── Apps Sandbox List Management (Tampil di bawah tab files) ───
+  const [sandboxAppsList, setSandboxAppsList] = useState([]);
+  const [isLoadingSandboxApps, setIsLoadingSandboxApps] = useState(false);
 
-  // Initialize postMessage listener for real-time data sync
+  const loadSandboxApps = useCallback(async () => {
+    setIsLoadingSandboxApps(true);
+    try {
+      const apps = await getAllFrontlineApps();
+      const filtered = (apps || []).filter(app => getAppBuilderType(app) === BUILDER_TYPES.SANDBOX);
+      setSandboxAppsList(filtered);
+    } catch (err) {
+      console.warn('[VibeSandpackViewer] Failed to load sandbox apps:', err);
+    } finally {
+      setIsLoadingSandboxApps(false);
+    }
+  }, []);
+
   useEffect(() => {
-    const cleanup = initVibeMessageListener((table, record) => {
+    loadSandboxApps();
+  }, [loadSandboxApps]);
+
+  const handleSelectSandboxApp = useCallback(async (app) => {
+    if (!app) return;
+    try {
+      const compatibility = checkBuilderCompatibility(BUILDER_TYPES.SANDBOX, app);
+      if (!compatibility.allowed) {
+        setIncompatibleNotice(compatibility);
+        return;
+      }
+      setAppName(app.name || 'Sandbox App');
+      setDeployedApp(app);
+      const savedCode = app.config?.vibeCode || (typeof app.config === 'string' ? app.config : null);
+      if (savedCode) {
+        const cleaned = cleanVibeCode(savedCode) || savedCode;
+        vfs.writeFile('/App.js', cleaned);
+        setFilesRecord(vfs.getAllFilesRecord());
+        setFileTree(vfs.getFileTree());
+        lastKnownExternalCodeRef.current = cleaned;
+        if (sandpackBridgeRef.current) {
+          sandpackBridgeRef.current.updateFile('/App.js', cleaned);
+        }
+        if (onCodeChange) onCodeChange(cleaned);
+        const url = new URL(window.location.href);
+        url.searchParams.set('appId', app.id);
+        window.history.pushState({}, '', url.toString());
+        setErrors([]);
+        toast.success(`Aplikasi "${app.name}" berhasil dibuka!`);
+      }
+    } catch (err) {
+      console.error('[VibeSandpackViewer] Gagal membuka app:', err);
+      toast.error('Gagal membuka aplikasi terpilih');
+    }
+  }, [vfs, onCodeChange]);
+
+  const handleNewBlankApp = useCallback(() => {
+    setAppName('Sandbox App');
+    setDeployedApp(null);
+    vfs.writeFile('/App.js', CLEAN_BLANK_APP_CODE);
+    setFilesRecord(vfs.getAllFilesRecord());
+    setFileTree(vfs.getFileTree());
+    lastKnownExternalCodeRef.current = CLEAN_BLANK_APP_CODE;
+    if (sandpackBridgeRef.current) {
+      sandpackBridgeRef.current.updateFile('/App.js', CLEAN_BLANK_APP_CODE);
+    }
+    if (onCodeChange) onCodeChange(CLEAN_BLANK_APP_CODE);
+    try { localStorage.removeItem('vibe_sandbox_autosave'); } catch {}
+    const url = new URL(window.location.href);
+    url.searchParams.delete('appId');
+    window.history.pushState({}, '', url.toString());
+    setErrors([]);
+    toast.success('✨ Sandbox bersih siap digunakan untuk aplikasi baru!');
+  }, [vfs, onCodeChange]);
+
+  const handleDeleteSandboxApp = useCallback(async (appId, appTitle) => {
+    const confirmDel = window.confirm(`Hapus aplikasi "${appTitle || 'Sandbox App'}" secara permanen?`);
+    if (!confirmDel) return;
+    try {
+      await deleteFrontlineApp(appId);
+      toast.success(`Aplikasi "${appTitle}" berhasil dihapus.`);
+      if (deployedApp?.id === appId) {
+        handleNewBlankApp();
+      }
+      loadSandboxApps();
+    } catch (err) {
+      console.error('[VibeSandpackViewer] Gagal menghapus app:', err);
+      toast.error('Gagal menghapus aplikasi dari database.');
+    }
+  }, [deployedApp, handleNewBlankApp, loadSandboxApps]);
+
+  // Initialize postMessage listener for real-time data & CRUD sync
+  useEffect(() => {
+    const cleanup = initVibeMessageListener((table, change) => {
+      setConnectedTable(table);
       setLiveRecordCount(prev => prev + 1);
-      // Broadcast to sandbox iframe
-      const iframe = document.querySelector('iframe[sandbox]');
-      if (iframe?.contentWindow) {
-        iframe.contentWindow.postMessage({
-          type: 'MAVICORE_RECORD_SAVED',
-          table: table.name,
-          record: record
-        }, '*');
+      if (change?.deleted) {
+        setLogs(prev => [...prev, { timestamp: new Date(), text: `[Table CRUD] 🗑️ Record dihapus dari tabel "${table.name}"` }]);
+      } else if (change?.updated) {
+        setLogs(prev => [...prev, { timestamp: new Date(), text: `[Table CRUD] ✏️ Record diupdate di tabel "${table.name}"` }]);
+      } else {
+        setLogs(prev => [...prev, { timestamp: new Date(), text: `[Table CRUD] 📊 Record baru tersimpan di tabel "${table.name}"` }]);
       }
     });
     return cleanup;
@@ -1052,45 +1190,37 @@ button {
   const [aiActivity, setAiActivity] = useState(null);
   const [isAutoFixing, setIsAutoFixing] = useState(false);
 
-  const handleSandpackError = useCallback((err) => {
-    setErrors(prev => (prev.includes(err) ? prev : [err, ...prev.slice(0, 4)]));
-    setIsTerminalPanelOpen(true);
+  // ─── Automated Device Error Analysis & Auto-Repair Loop ───
+  const autoFixAttemptsRef = useRef(0);
+  const isAutoFixingRef = useRef(false);
+  const autoFixDebounceTimerRef = useRef(null);
+  const healthyCheckTimerRef = useRef(null);
+  const activeFilePathRef = useRef(activeFilePath);
+  activeFilePathRef.current = activeFilePath;
+  const errorsRef = useRef(errors);
+  errorsRef.current = errors;
 
-    // Instant auto-heal for missing imports (e.g. ReferenceError: Trash2 is not defined)
-    try {
-      const currentCode = vfs.readFile('/App.js') || vfs.readFile('/App.jsx');
-      if (currentCode) {
-        const importFixed = autoFixMissingImports(currentCode, err);
-        if (importFixed && importFixed.trim() !== currentCode.trim()) {
-          vfs.writeFile('/App.js', importFixed);
-          setFilesRecord(vfs.getAllFilesRecord());
-          setFileTree(vfs.getFileTree());
-          lastKnownExternalCodeRef.current = importFixed;
-          if (sandpackBridgeRef.current) {
-            sandpackBridgeRef.current.updateFile('/App.js', importFixed);
-          }
-          try { localStorage.setItem('vibe_sandbox_autosave', importFixed); } catch {}
-          if (onCodeChange) onCodeChange(importFixed);
-          setErrors([]);
-          setLogs(prev => [...prev, { timestamp: new Date(), text: `[Auto-Fix] ✅ Berhasil menambahkan import otomatis untuk "${err}"` }]);
-          toast.success('⚡ Berhasil memperbaiki import yang hilang otomatis!');
-        }
+  // Verifies that code runs on device without errors
+  const scheduleHealthyCheck = useCallback(() => {
+    if (healthyCheckTimerRef.current) clearTimeout(healthyCheckTimerRef.current);
+    healthyCheckTimerRef.current = setTimeout(() => {
+      if (errorsRef.current.length === 0) {
+        autoFixAttemptsRef.current = 0;
+        setLogs(prev => [...prev, {
+          timestamp: new Date(),
+          text: '[Device Verification] ✅ Aplikasi berjalan sempurna di device tanpa error!'
+        }]);
+        toast.success('🎉 Aplikasi berjalan sempurna di device!', { id: 'device-run-success' });
       }
-    } catch (e) {
-      console.warn('Auto-fix missing import failed:', e);
-    }
-  }, [vfs, onCodeChange]);
-
-  const handleSandpackLog = useCallback((text) => {
-    setLogs(prev => [...prev.slice(-49), { timestamp: new Date(), text }]);
+    }, 2500);
   }, []);
 
   const errorFixEngine = useMemo(() => {
-    const engine = new ErrorFixEngine(vfs, runtimeManager, 3);
+    const engine = new ErrorFixEngine(vfs, runtimeManager, 4);
     engine.onProgress((event) => {
       setAiActivity(event);
       if (event.message) {
-        setLogs(prev => [...prev, { timestamp: new Date(), text: `[Auto-Fix] ${event.message}` }]);
+        setLogs(prev => [...prev, { timestamp: new Date(), text: `[Auto-Fix AI] ${event.message}` }]);
       }
       if (event.stage === 'success') {
         const updatedFiles = vfs.getAllFilesRecord();
@@ -1107,14 +1237,150 @@ button {
         }
         setErrors([]);
         setIsAutoFixing(false);
+        isAutoFixingRef.current = false;
         toast.success(event.message);
+        scheduleHealthyCheck();
       } else if (event.stage === 'error' || event.stage === 'failed') {
         setIsAutoFixing(false);
+        isAutoFixingRef.current = false;
         toast.error(event.message);
       }
     });
     return engine;
-  }, [vfs, runtimeManager]);
+  }, [vfs, runtimeManager, onCodeChange, scheduleHealthyCheck]);
+
+  const handleSandpackError = useCallback((err) => {
+    if (!err) return;
+    const cleanErrMsg = typeof err === 'string' ? err : (err?.message || JSON.stringify(err));
+    setErrors(prev => (prev.includes(cleanErrMsg) ? prev : [cleanErrMsg, ...prev.slice(0, 4)]));
+    setIsTerminalPanelOpen(true);
+
+    if (healthyCheckTimerRef.current) {
+      clearTimeout(healthyCheckTimerRef.current);
+    }
+
+    if (isAutoFixingRef.current) {
+      return;
+    }
+
+    if (autoFixDebounceTimerRef.current) {
+      clearTimeout(autoFixDebounceTimerRef.current);
+    }
+
+    // Debounce to collect rapid cascading errors and run full auto-repair loop
+    autoFixDebounceTimerRef.current = setTimeout(async () => {
+      if (autoFixAttemptsRef.current >= 4) {
+        setLogs(prev => [...prev, {
+          timestamp: new Date(),
+          text: `[Auto-Fix] ⚠️ Batas percobaan auto-fix (4x) tercapai. Silakan cek kode di tab editor.`
+        }]);
+        toast.error('Batas auto-fix 4x tercapai. Silakan periksa pesan error di terminal.');
+        return;
+      }
+
+      autoFixAttemptsRef.current += 1;
+      isAutoFixingRef.current = true;
+      setIsAutoFixing(true);
+
+      const targetPath = activeFilePathRef.current || '/App.js';
+      const currentCode = vfs.readFile(targetPath) || vfs.readFile('/App.js') || vfs.readFile('/App.jsx');
+
+      setLogs(prev => [...prev, {
+        timestamp: new Date(),
+        text: `[Auto-Fix #${autoFixAttemptsRef.current}/4] 🔍 Mengambil kode dari device untuk dianalisis & diperbaiki...`
+      }]);
+
+      // 1. Quick Heuristic Missing Imports
+      try {
+        if (currentCode) {
+          const importFixed = autoFixMissingImports(currentCode, cleanErrMsg);
+          if (importFixed && importFixed.trim() !== currentCode.trim()) {
+            vfs.writeFile(targetPath, importFixed);
+            const updatedFiles = vfs.getAllFilesRecord();
+            setFilesRecord(updatedFiles);
+            setFileTree(vfs.getFileTree());
+            lastKnownExternalCodeRef.current = importFixed;
+            if (sandpackBridgeRef.current) {
+              sandpackBridgeRef.current.updateFile(targetPath, importFixed);
+            }
+            try { localStorage.setItem('vibe_sandbox_autosave', importFixed); } catch {}
+            if (onCodeChange) onCodeChange(importFixed);
+            setErrors([]);
+            isAutoFixingRef.current = false;
+            setIsAutoFixing(false);
+            setLogs(prev => [...prev, {
+              timestamp: new Date(),
+              text: `[Auto-Fix] ✅ Berhasil menambahkan import otomatis (${targetPath}). Menjalankan ulang di device...`
+            }]);
+            toast.success('⚡ Berhasil memperbaiki import otomatis! Re-running...');
+            scheduleHealthyCheck();
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('Heuristic import auto-fix failed:', e);
+      }
+
+      // 2. Quick Heuristic Syntax Auto-Heal
+      try {
+        if (currentCode) {
+          const healed = healTruncatedReactCode(currentCode);
+          if (healed && healed.trim() !== currentCode.trim()) {
+            vfs.writeFile(targetPath, healed);
+            const updatedFiles = vfs.getAllFilesRecord();
+            setFilesRecord(updatedFiles);
+            setFileTree(vfs.getFileTree());
+            lastKnownExternalCodeRef.current = healed;
+            if (sandpackBridgeRef.current) {
+              sandpackBridgeRef.current.updateFile(targetPath, healed);
+            }
+            try { localStorage.setItem('vibe_sandbox_autosave', healed); } catch {}
+            if (onCodeChange) onCodeChange(healed);
+            setErrors([]);
+            isAutoFixingRef.current = false;
+            setIsAutoFixing(false);
+            setLogs(prev => [...prev, {
+              timestamp: new Date(),
+              text: `[Auto-Fix] ✅ Sintaks kode diperbaiki instan oleh Healer (${targetPath}). Menjalankan ulang di device...`
+            }]);
+            toast.success('⚡ Sintaks diperbaiki otomatis! Re-running...');
+            scheduleHealthyCheck();
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('Heuristic syntax auto-fix failed:', e);
+      }
+
+      // 3. AI Error Fix Engine
+      setLogs(prev => [...prev, {
+        timestamp: new Date(),
+        text: `[Auto-Fix] 🤖 Menganalisis kode dan error dengan AI Debugger...`
+      }]);
+      errorFixEngine.attemptAutoFix(cleanErrMsg, targetPath);
+    }, 600);
+  }, [vfs, onCodeChange, errorFixEngine, scheduleHealthyCheck]);
+
+  // Listen to postMessage from device/companion/iframe
+  useEffect(() => {
+    const handleDeviceMessage = (event) => {
+      if (!event.data) return;
+      if (
+        event.data.type === 'MAVICORE_DEVICE_ERROR' ||
+        event.data.type === 'DEVICE_ERROR' ||
+        event.data.type === 'SANDPACK_RUNTIME_ERROR'
+      ) {
+        const errorMsg = event.data.error || event.data.message || 'Device runtime error';
+        handleSandpackError(errorMsg);
+      }
+    };
+    window.addEventListener('message', handleDeviceMessage);
+    return () => window.removeEventListener('message', handleDeviceMessage);
+  }, [handleSandpackError]);
+
+  const handleSandpackLog = useCallback((text) => {
+    setLogs(prev => [...prev.slice(-49), { timestamp: new Date(), text }]);
+  }, []);
 
   // Auto-scroll chat
   useEffect(() => {
@@ -1123,15 +1389,6 @@ button {
     }
   }, [chatHistory, internalAiLoading, isLoading]);
 
-  // Listen to postMessage from Sandpack to MaviCore table storage
-  useEffect(() => {
-    const cleanup = initVibeMessageListener((table) => {
-      setConnectedTable(table);
-      setLiveRecordCount(c => c + 1);
-      setLogs(prev => [...prev, { timestamp: new Date(), text: `[Table Synced] Record baru tersimpan di tabel "${table.name}"` }]);
-    });
-    return cleanup;
-  }, []);
 
   // AI Prompt execution
   const handleChatSubmit = async (promptText) => {
@@ -1250,65 +1507,15 @@ button {
     }
   };
 
-  // Auto-Fix Error trigger
+  // Auto-Fix Error trigger (Manual button)
   const handleTriggerAutoFix = async () => {
-    setIsAutoFixing(true);
-    setLogs(prev => [...prev, { timestamp: new Date(), text: '[Auto-Fix] Memulai pemeriksaan dan perbaikan error...' }]);
-
-    // 1. Instant heuristic syntax auto-heal
-    const currentCode = vfs.readFile('/App.js') || vfs.readFile('/App.jsx');
-    if (currentCode) {
-      const healed = healTruncatedReactCode(currentCode);
-      if (healed && healed.trim() !== currentCode.trim()) {
-        vfs.writeFile('/App.js', healed);
-        const updatedFiles = vfs.getAllFilesRecord();
-        setFilesRecord(updatedFiles);
-        setFileTree(vfs.getFileTree());
-        lastKnownExternalCodeRef.current = healed;
-        if (sandpackBridgeRef.current) {
-          sandpackBridgeRef.current.updateFile('/App.js', healed);
-        }
-        try { localStorage.setItem('vibe_sandbox_autosave', healed); } catch {}
-        if (onCodeChange) onCodeChange(healed);
-        setErrors([]);
-        setIsAutoFixing(false);
-        setLogs(prev => [...prev, { timestamp: new Date(), text: '[Auto-Fix] ✅ Syntax Healer berhasil memulihkan kode secara instan!' }]);
-        toast.success('⚡ Error sintaks berhasil dipulihkan otomatis!');
-        return;
-      }
-    }
-
-    // 1.5. Instant heuristic missing imports auto-heal
-    if (currentCode && errors.length > 0) {
-      const importFixed = autoFixMissingImports(currentCode, errors[0]);
-      if (importFixed && importFixed.trim() !== currentCode.trim()) {
-        vfs.writeFile('/App.js', importFixed);
-        const updatedFiles = vfs.getAllFilesRecord();
-        setFilesRecord(updatedFiles);
-        setFileTree(vfs.getFileTree());
-        lastKnownExternalCodeRef.current = importFixed;
-        if (sandpackBridgeRef.current) {
-          sandpackBridgeRef.current.updateFile('/App.js', importFixed);
-        }
-        try { localStorage.setItem('vibe_sandbox_autosave', importFixed); } catch {}
-        if (onCodeChange) onCodeChange(importFixed);
-        setErrors([]);
-        setIsAutoFixing(false);
-        setLogs(prev => [...prev, { timestamp: new Date(), text: '[Auto-Fix] ✅ Berhasil mengimpor identifier yang belum terdefinisi secara instan!' }]);
-        toast.success('⚡ Error import berhasil dipulihkan otomatis!');
-        return;
-      }
-    }
-
-    // 2. If errors array is empty and code couldn't be healed
     if (errors.length === 0) {
-      setIsAutoFixing(false);
       toast('Tidak ada error aktif untuk diperbaiki.');
       return;
     }
-
-    // 3. AI Error Fix Engine
-    errorFixEngine.attemptAutoFix(errors[0], activeFilePath);
+    autoFixAttemptsRef.current = 0;
+    isAutoFixingRef.current = false;
+    handleSandpackError(errors[0]);
   };
 
   // Table Sync
@@ -1338,7 +1545,6 @@ button {
   const [deployCategory, setDeployCategory] = useState('Shop Floor');
   const [deployPublish, setDeployPublish] = useState(true);
   const [isDeploying, setIsDeploying] = useState(false);
-  const [deployedApp, setDeployedApp] = useState(null);
 
   const handleOpenDeployModal = () => {
     const mainCode = vfs.readFile('/App.js') || vfs.readFile('/App.jsx') || effectiveInitialCode;
@@ -1364,6 +1570,7 @@ button {
         isPublished: deployPublish
       });
       setDeployedApp(saved);
+      loadSandboxApps();
       setIsDeployModalOpen(false);
       toast.success(`🚀 Aplikasi "${saved.name}" berhasil di-deploy ke Frontline Apps!`, { duration: 5000, icon: '🎉' });
     } catch (err) {
@@ -1570,14 +1777,7 @@ button {
 
           <button
             type="button"
-            onClick={() => {
-              vfs.writeFile('/App.js', DEFAULT_VIBE_HMI_CODE);
-              setFilesRecord(vfs.getAllFilesRecord());
-              setFileTree(vfs.getFileTree());
-              setErrors([]);
-              try { localStorage.removeItem('vibe_sandbox_autosave'); } catch {}
-              toast.success('Template awal berhasil dimuat ulang!');
-            }}
+            onClick={handleNewBlankApp}
             style={{
               display: 'flex', alignItems: 'center', gap: '4px',
               padding: '4px 8px', borderRadius: '6px',
@@ -1587,10 +1787,10 @@ button {
               cursor: 'pointer',
               fontSize: '0.72rem', fontWeight: 600, transition: 'all 0.15s'
             }}
-            title="Reset ke template bawaan yang bersih & stabil"
+            title="Bersihkan Sandbox (mulai aplikasi baru dari awal)"
           >
             <RotateCcw size={12} />
-            <span>Reset App</span>
+            <span>Reset Kosong</span>
           </button>
         </div>
 
@@ -1774,8 +1974,8 @@ button {
 
         {/* 1. LEFT FILE TREE PANEL (Collapsible) */}
         <div style={{
-          width: isFilesPanelOpen ? '200px' : '0px',
-          minWidth: isFilesPanelOpen ? '200px' : '0px',
+          width: isFilesPanelOpen ? '230px' : '0px',
+          minWidth: isFilesPanelOpen ? '230px' : '0px',
           transition: 'width 0.2s ease, min-width 0.2s ease',
           overflow: 'hidden',
           display: 'flex',
@@ -1799,6 +1999,12 @@ button {
                 if (activeFilePath === delPath) setActiveFilePath('/App.js');
               }}
               onOpenTemplates={() => setIsTemplatesModalOpen(true)}
+              sandboxApps={sandboxAppsList}
+              activeAppId={deployedApp?.id || null}
+              onSelectApp={handleSelectSandboxApp}
+              onDeleteApp={handleDeleteSandboxApp}
+              onNewApp={handleNewBlankApp}
+              isLoadingApps={isLoadingSandboxApps}
             />
           )}
         </div>

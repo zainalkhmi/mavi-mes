@@ -273,7 +273,7 @@ const BlocklyEditor = lazy(() => import('./BlocklyEditor'));
 const AppNodeEditor = lazy(() => import('./AppNodeEditor'));
 const BuilderCopilot = lazy(() => import('./BuilderCopilot'));
 const VibeSandpackViewer = lazy(() => import('./appbuilder/VibeSandpackViewer'));
-import { DEFAULT_VIBE_HMI_CODE } from './appbuilder/VibeSandpackViewer';
+import { DEFAULT_VIBE_HMI_CODE, CLEAN_BLANK_APP_CODE } from './appbuilder/VibeSandpackViewer';
 import { uploadManualImage, isSupabaseReady } from '../utils/supabaseManualDB';
 import iotConnector from '../utils/iotConnector';
 import { logEvent, AUDIT_EVENTS } from '../utils/auditLog';
@@ -418,11 +418,7 @@ const AppBuilder = () => {
     const [isCopilotMenuOpen, setIsCopilotMenuOpen] = useState(false);
     const [isSandboxOpen, setIsSandboxOpen] = useState(false);
     const [sandpackCode, setSandpackCode] = useState(() => {
-        try {
-            return localStorage.getItem('mavi_sandbox_code') || DEFAULT_VIBE_HMI_CODE;
-        } catch {
-            return DEFAULT_VIBE_HMI_CODE;
-        }
+        return CLEAN_BLANK_APP_CODE;
     });
     const [isSandboxAiLoading, setIsSandboxAiLoading] = useState(false);
     const [isSandboxFullScreen, setIsSandboxFullScreen] = useState(true);

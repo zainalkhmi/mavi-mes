@@ -144,12 +144,17 @@ export class ErrorFixEngine {
           message: `Menerapkan perbaikan pada file ${action.path}...`
         });
 
-        if (action.action === 'delete') {
-          this.vfs.deleteFile(action.path);
-        } else {
-          this.vfs.writeFile(action.path, action.content);
+        let targetPath = action.path;
+        if (targetPath === '/App.jsx' && !this.vfs.exists('/App.jsx') && this.vfs.exists('/App.js')) {
+          targetPath = '/App.js';
         }
-        applied.push(action.path);
+
+        if (action.action === 'delete') {
+          this.vfs.deleteFile(targetPath);
+        } else {
+          this.vfs.writeFile(targetPath, action.content);
+        }
+        applied.push(targetPath);
       }
 
       // 5. Update Runtime

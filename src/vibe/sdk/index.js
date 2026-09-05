@@ -1,17 +1,22 @@
-/**
- * @mavicore/sdk
- * Official client SDK for MaviCore manufacturing applications.
- * Provides modules for API, Auth, Inspection, Checksheet, Inventory, OEE, IoT, Hardware, and Workflow.
- */
+export { MAVICORE_BRIDGE_VIRTUAL_FILE } from './mavicoreBridge.js';
 
 export const MAVICORE_SDK_VIRTUAL_FILE = `
 // @mavicore/sdk v2.0 — Real implementations for manufacturing apps
 
-// Internal postMessage helper
+// Internal postMessage helper (posts to both parent and top to escape nested iframes)
 const _postMessage = (type, payload) => {
-  if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
-    window.parent.postMessage({ type, ...payload }, '*');
-  }
+  if (typeof window === 'undefined') return;
+  const msg = { type, ...payload };
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage(msg, '*');
+    }
+  } catch (_) {}
+  try {
+    if (window.top && window.top !== window && window.top !== window.parent) {
+      window.top.postMessage(msg, '*');
+    }
+  } catch (_) {}
 };
 
 // Local storage helper for offline data

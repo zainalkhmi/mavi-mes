@@ -8,6 +8,7 @@
 
 export const BUILDER_TYPES = {
   MAVI: 'app_builder',
+  APP_BUILDER: 'app_builder',
   GLUESTACK: 'gluestack',
   SANDBOX: 'sandbox'
 };

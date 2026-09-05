@@ -1,16 +1,23 @@
 import React, { useState } from 'react';
 import {
   Folder, FolderOpen, FileCode, FileText, Plus, Trash2, Edit2,
-  FileJson, Check, X, ChevronRight, ChevronDown, Sparkles
+  FileJson, Check, X, ChevronRight, ChevronDown, Sparkles, Box, Smartphone
 } from 'lucide-react';
 
 export default function FileTreeExplorer({
   tree = [],
-  activePath = '/App.jsx',
+  activePath = '/App.js',
   onSelectFile,
   onCreateFile,
   onDeleteFile,
-  onOpenTemplates
+  onOpenTemplates,
+  // Apps Sandbox section props
+  sandboxApps = [],
+  activeAppId = null,
+  onSelectApp,
+  onDeleteApp,
+  onNewApp,
+  isLoadingApps = false
 }) {
   const [newFileName, setNewFileName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -75,7 +82,7 @@ export default function FileTreeExplorer({
           <span>{item.name}</span>
         </div>
 
-        {item.path !== '/App.jsx' && item.path !== '/package.json' && item.path !== '/styles.css' && (
+        {item.path !== '/App.js' && item.path !== '/App.jsx' && item.path !== '/package.json' && item.path !== '/styles.css' && (
           <button
             type="button"
             onClick={(e) => {
@@ -96,7 +103,7 @@ export default function FileTreeExplorer({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#070b14', borderRight: '1px solid #1e293b' }}>
-      {/* Header */}
+      {/* ─── SECTION 1: FILES ─── */}
       <div style={{ padding: '10px 12px', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>
           Files
@@ -155,8 +162,154 @@ export default function FileTreeExplorer({
       )}
 
       {/* Tree Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
+      <div style={{ flex: '1 1 50%', minHeight: '120px', maxHeight: '50%', overflowY: 'auto', padding: '6px 0', borderBottom: '1px solid #1e293b' }}>
         {tree.map(item => renderItem(item, 0))}
+      </div>
+
+      {/* ─── SECTION 2: APLIKASI SANDBOX TERSIMPAN (DIBAWAH TAB FILE) ─── */}
+      <div style={{ padding: '10px 12px 6px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Sparkles size={13} color="#f59e0b" />
+          <span style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#f59e0b' }}>
+            Apps Sandbox
+          </span>
+          <span style={{
+            fontSize: '0.65rem',
+            padding: '1px 5px',
+            borderRadius: '9999px',
+            backgroundColor: 'rgba(245, 158, 11, 0.2)',
+            color: '#f59e0b',
+            fontWeight: 700
+          }}>
+            {sandboxApps.length}
+          </span>
+        </div>
+
+        {onNewApp && (
+          <button
+            type="button"
+            onClick={onNewApp}
+            style={{
+              padding: '2px 7px',
+              borderRadius: '4px',
+              backgroundColor: 'rgba(245, 158, 11, 0.15)',
+              border: '1px solid rgba(245, 158, 11, 0.35)',
+              color: '#f59e0b',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '3px',
+              fontSize: '0.65rem',
+              fontWeight: 700,
+              transition: 'all 0.15s'
+            }}
+            title="Buka Lembar Kerja Kosong (App Baru)"
+          >
+            <Plus size={11} />
+            <span>App Baru</span>
+          </button>
+        )}
+      </div>
+
+      {/* Apps List Content */}
+      <div style={{ flex: '1 1 50%', overflowY: 'auto', padding: '4px 6px 12px 6px' }}>
+        {isLoadingApps ? (
+          <div style={{ padding: '16px', textAlign: 'center', fontSize: '0.72rem', color: '#64748b' }}>
+            Memuat aplikasi...
+          </div>
+        ) : sandboxApps.length === 0 ? (
+          <div style={{
+            padding: '16px 10px',
+            textAlign: 'center',
+            fontSize: '0.7rem',
+            color: '#64748b',
+            lineHeight: 1.4,
+            border: '1px dashed #1e293b',
+            borderRadius: '8px',
+            margin: '4px 6px'
+          }}>
+            Belum ada aplikasi tersimpan.<br />
+            Klik <b>Frontline Publish</b> untuk menyimpan.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {sandboxApps.map(app => {
+              const isActive = activeAppId === app.id;
+              return (
+                <div
+                  key={app.id}
+                  onClick={() => onSelectApp && onSelectApp(app)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 10px',
+                    borderRadius: '8px',
+                    backgroundColor: isActive ? 'rgba(245, 158, 11, 0.16)' : 'rgba(255, 255, 255, 0.02)',
+                    border: isActive ? '1px solid rgba(245, 158, 11, 0.5)' : '1px solid rgba(255, 255, 255, 0.05)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.02)';
+                  }}
+                >
+                  <div style={{ minWidth: 0, flex: 1, marginRight: '6px' }}>
+                    <div style={{
+                      fontSize: '0.76rem',
+                      fontWeight: isActive ? 800 : 600,
+                      color: isActive ? '#fbbf24' : '#e2e8f0',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {app.name || 'Untitled Sandbox'}
+                    </div>
+                    <div style={{ fontSize: '0.62rem', color: '#64748b', marginTop: '2px' }}>
+                      {app.updated_at ? new Date(app.updated_at).toLocaleDateString() : 'Draft'}
+                    </div>
+                  </div>
+
+                  {onDeleteApp && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteApp(app.id, app.name);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#64748b',
+                        cursor: 'pointer',
+                        padding: '4px',
+                        borderRadius: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.15s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = '#ef4444';
+                        e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = '#64748b';
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                      title="Hapus Aplikasi"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -104,18 +104,106 @@ Pengguna menginginkan antarmuka yang "CLEAN, COLOURFUL, MODERN & STUNNING" seper
    - Pastikan visual terasa hidup, bersih, modern, dan memberikan impresi WOW ala Lovable.dev.
 
 ════════════════════════════════════════════════
-🏭 INTEGRASI MAVICORE DATABASE & HARDWARE
+🏭 INTEGRASI MAVICORE DATABASE & FULL CRUD REAL-TIME
 ════════════════════════════════════════════════
-Setiap kali ada aksi simpan form, pencatatan produksi OK, reject NG, inspeksi toleransi, atau checksheet, SELALU sertakan pengiriman postMessage ke MaviCore database:
+Setiap aplikasi yang berhubungan dengan data, pencatatan produksi, checksheet, inventaris, audit, atau logbook HARUS mendukung operasi CRUD (Create, Read, Update, Delete) lengkap ke MaviCore Table.
+
+Tersedia hook bawaan './mavicore-bridge' atau './mavicore-sdk' yang otomatis terhubung ke database MaviCore:
+
+METODE 1: MENGGUNAKAN HOOK \`useMaviCoreData\` (SANGAT DIREKOMENDASIKAN):
 \`\`\`javascript
-if (typeof window !== 'undefined' && window.parent) {
-  window.parent.postMessage({
-    type: 'MAVICORE_TABLE_INSERT',
-    tableName: 'Nama Tabel yang Spesifik',
-    data: { timestamp: new Date().toISOString(), ...dataFields }
-  }, '*');
+import React, { useState } from 'react';
+import { useMaviCoreData } from './mavicore-bridge';
+import { Plus, Trash2, Edit3, RefreshCw, CheckCircle2, Search } from 'lucide-react';
+
+const TABLE_NAME = 'Log Produksi Harian';
+
+export default function App() {
+  const { records, loading, insert, update, remove, refresh } = useMaviCoreData(TABLE_NAME);
+  const [form, setForm] = useState({ partName: '', operator: 'Operator 1', status: 'OK', qty: 1 });
+  const [editingId, setEditingId] = useState(null);
+
+  // 1. CREATE (Insert data baru)
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (!form.partName) return;
+    if (editingId) {
+      await update(editingId, form);
+      setEditingId(null);
+    } else {
+      await insert(form);
+    }
+    setForm({ partName: '', operator: 'Operator 1', status: 'OK', qty: 1 });
+  };
+
+  // 2. DELETE (Hapus baris)
+  const handleDelete = async (rowId) => {
+    if (confirm('Hapus baris ini?')) {
+      await remove(rowId);
+    }
+  };
+
+  // 3. EDIT (Mempersiapkan form update)
+  const handleEdit = (row) => {
+    setEditingId(row.recordId || row.id);
+    setForm({ partName: row.partName, operator: row.operator, status: row.status, qty: row.qty });
+  };
+
+  return (
+    <div className="p-6 max-w-5xl mx-auto font-sans">
+      {/* Form Input (Create & Update) */}
+      <form onSubmit={handleSave} className="bg-white p-4 rounded-xl border mb-6 shadow-sm flex gap-3">
+        <input 
+          placeholder="Nama Part..." 
+          value={form.partName} 
+          onChange={e => setForm({...form, partName: e.target.value})} 
+          className="border px-3 py-2 rounded-lg flex-1"
+        />
+        <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-lg font-bold">
+          {editingId ? 'Update Data' : 'Tambah Data'}
+        </button>
+      </form>
+
+      {/* Tabel Data (Read) */}
+      <table className="w-full bg-white border rounded-xl overflow-hidden shadow-sm">
+        <thead className="bg-slate-50 border-b">
+          <tr>
+            <th className="p-3 text-left">Waktu</th>
+            <th className="p-3 text-left">Nama Part</th>
+            <th className="p-3 text-left">Status</th>
+            <th className="p-3 text-center">Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {records.map(row => (
+            <tr key={row.recordId || row.id} className="border-b hover:bg-slate-50">
+              <td className="p-3 text-sm text-slate-500">{new Date(row.timestamp || row.createdAt).toLocaleTimeString()}</td>
+              <td className="p-3 font-semibold">{row.partName}</td>
+              <td className="p-3"><span className="px-2 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">{row.status}</span></td>
+              <td className="p-3 text-center space-x-2">
+                <button onClick={() => handleEdit(row)} className="text-blue-600 hover:text-blue-800"><Edit3 size={16} /></button>
+                <button onClick={() => handleDelete(row.recordId || row.id)} className="text-red-600 hover:text-red-800"><Trash2 size={16} /></button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 \`\`\`
+
+METODE 2: MENGGUNAKAN \`window.MaviCoreBridge\` SECARA LANGSUNG:
+- \`await window.MaviCoreBridge.read('Nama Tabel')\` -> Mengambil seluruh record tabel
+- \`await window.MaviCoreBridge.save('Nama Tabel', { partName: 'Shaft 01', status: 'OK' })\` -> Menyimpan record baru
+- \`await window.MaviCoreBridge.update('Nama Tabel', recordId, { status: 'REWORK' })\` -> Update record
+- \`await window.MaviCoreBridge.delete('Nama Tabel', recordId)\` -> Hapus record
+- \`window.MaviCoreBridge.onRecord('Nama Tabel', (change) => { /* update local state */ })\` -> Real-time subscription
+
+⚠️ ATURAN PENTING STRUKTUR DATA FORM KE TABEL (WAJIB DIPATUHI):
+1. Kolom tabel MaviCore HARUS persis sama dengan field-field input formulir yang dibuat (misal: line, shift, operator, parameter, standard, actual, judgment, notes).
+2. DILARANG KERAS memasukkan variabel UI kontrol (seperti logs, bridgeReady, search, isModalOpen, selectedLine, selectedJudgment, filter, loading) ke dalam tabel atau payload data insert!
+3. Simpan nilai form dalam objek state khusus (misal \`formData\` atau \`form\`) dan kirimkan hanya objek tersebut saat \`insert(formData)\`.
 
 ════════════════════════════════════════════════
 📦 FORMAT OUTPUT (WAJIB DIIKUTI)
@@ -223,9 +311,27 @@ INSTRUKSI:
       const vibeCodeMatch = responseText.match(/<vibe_code>([\s\S]*?)<\/vibe_code>/i);
       if (vibeCodeMatch && vibeCodeMatch[1]) {
         fileActions.push({
-          path: '/App.jsx',
+          path: '/App.js',
           action: 'modify',
           content: cleanVibeCode(vibeCodeMatch[1])
+        });
+      }
+    }
+
+    // 3. Robust fallback: Check for markdown code blocks or direct React component code
+    if (fileActions.length === 0) {
+      const codeBlockMatch = responseText.match(/```(?:jsx|javascript|js|react|tsx)?\s*([\s\S]*?)```/i);
+      if (codeBlockMatch && codeBlockMatch[1] && (codeBlockMatch[1].includes('export default') || codeBlockMatch[1].includes('return'))) {
+        fileActions.push({
+          path: '/App.js',
+          action: 'modify',
+          content: cleanVibeCode(codeBlockMatch[1])
+        });
+      } else if (responseText.includes('export default function') || responseText.includes('export default const')) {
+        fileActions.push({
+          path: '/App.js',
+          action: 'modify',
+          content: cleanVibeCode(responseText)
         });
       }
     }

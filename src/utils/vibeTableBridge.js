@@ -1,5 +1,5 @@
-export { getTables, createTable, addTableRecord, getTableRecords, deleteTableRecord, updateTableRecord } from './supabaseTablesDB';
-import { getTables, createTable, addTableRecord, getTableRecords, deleteTableRecord, updateTableRecord } from './supabaseTablesDB';
+export { getTables, createTable, updateTable, addTableRecord, getTableRecords, deleteTableRecord, updateTableRecord } from './supabaseTablesDB';
+import { getTables, createTable, updateTable, addTableRecord, getTableRecords, deleteTableRecord, updateTableRecord } from './supabaseTablesDB';
 import toast from 'react-hot-toast';
 
 /**
@@ -10,8 +10,49 @@ import toast from 'react-hot-toast';
  *  - Cara 2: Automatic schema extraction and table creation in MaviCore database.
  */
 
+// Blacklist of UI-only state variables that should NEVER be treated as database table columns
+export const UI_STATE_BLACKLIST = new Set([
+  'logs', 'setlogs',
+  'bridgeready', 'isbridgeready', 'ready', 'setready',
+  'search', 'searchterm', 'searchquery', 'query', 'filter', 'filters', 'filterstatus',
+  'selectedline', 'selectedjudgment', 'selectedtab', 'selecteditem', 'selectedid', 'selectedindex', 'selectedrow', 'selectedstatus',
+  'ismodalopen', 'modalopen', 'isopen', 'open', 'showmodal', 'openmodal', 'dialogopen', 'isdialogopen',
+  'copied', 'viewmode', 'viewportsize', 'loading', 'isloading', 'submitting', 'issubmitting', 'saving', 'issaving',
+  'error', 'errors', 'activetab', 'currentstep', 'step', 'theme', 'darkmode', 'mode',
+  'history', 'expanded', 'preview', 'tab', 'activeid', 'page', 'pagesize', 'sort', 'sortby', 'sortorder',
+  'records', 'data', 'items', 'rows', 'list', 'tabledata', 'editingid', 'isediting', 'editid',
+  'initialfiles', 'filetree', 'activefilepath'
+]);
+
+export function isJunkUiField(fieldName = '') {
+  const f = String(fieldName || '').toLowerCase().trim();
+  return UI_STATE_BLACKLIST.has(f);
+}
+
+export function inferFieldType(key = '', initialVal = '') {
+  const k = String(key || '').toLowerCase();
+  const v = String(initialVal || '').trim();
+
+  if (v === 'true' || v === 'false') return 'boolean';
+  if (!isNaN(Number(v)) && v !== '') {
+    return Number.isInteger(Number(v)) ? 'integer' : 'number';
+  }
+
+  if (/temp|pressure|speed|count|qty|rpm|passed|rejected|yield|val|num|standar|standard|actual|hasil|nilai|berat|weight|panjang|tebal|lebar|arus|volt|amp/i.test(k)) {
+    return 'number';
+  }
+  if (/time|date|waktu|tanggal|jam/i.test(k)) {
+    return 'datetime';
+  }
+  if (/^is[A-Z]|^has[A-Z]|enabled|active|running|pass|lulus|checked/i.test(k)) {
+    return 'boolean';
+  }
+  return 'text';
+}
+
 /**
- * Extracts a proposed table schema (name, description, fields) from React code
+ * Extracts a proposed table schema (name, description, fields) from React code.
+ * Accurately extracts actual form input fields and ignores UI state variables (like logs, isModalOpen, search, etc.).
  * @param {string} reactCode
  * @returns {{ name: string, description: string, fields: Array<{ name: string, type: string }> }}
  */
@@ -32,10 +73,34 @@ export function extractTableSchemaFromCode(reactCode = '') {
   // 1. Detect Table Name
   let tableName = '';
 
+  // Look for useMaviCoreData('...')
+  const hookLiteralMatch = reactCode.match(/useMaviCoreData\(\s*['"`]([^'"`]+)['"`]\s*\)/i);
+  if (hookLiteralMatch) {
+    tableName = hookLiteralMatch[1].trim();
+  }
+
+  // Look for const TABLE_NAME = '...' or const tableName = '...'
+  if (!tableName) {
+    const tableConstMatch = reactCode.match(/const\s+(?:TABLE_NAME|tableName|targetTable)\s*=\s*['"`]([^'"`]+)['"`]/i);
+    if (tableConstMatch) {
+      tableName = tableConstMatch[1].trim();
+    }
+  }
+
+  // Look for MaviCoreBridge.(read|save|update|delete|onRecord)('...')
+  if (!tableName) {
+    const bridgeMatch = reactCode.match(/MaviCoreBridge\.(?:read|save|update|delete|onRecord)\(\s*['"`]([^'"`]+)['"`]/i);
+    if (bridgeMatch) {
+      tableName = bridgeMatch[1].trim();
+    }
+  }
+
   // Look for tableName in postMessage: tableName: '...'
-  const pmMatch = reactCode.match(/tableName\s*:\s*['"`]([^'"`]+)['"`]/i);
-  if (pmMatch) {
-    tableName = pmMatch[1].trim();
+  if (!tableName) {
+    const pmMatch = reactCode.match(/tableName\s*:\s*['"`]([^'"`]+)['"`]/i);
+    if (pmMatch) {
+      tableName = pmMatch[1].trim();
+    }
   }
 
   // If not found, look for <h1> title: <h1>...</h1>
@@ -58,63 +123,108 @@ export function extractTableSchemaFromCode(reactCode = '') {
     tableName = 'Vibe MES App Data';
   }
 
-  // 2. Detect Fields from useState and postMessage
+  // 2. Detect Fields - Focus strictly on genuine Form inputs & ignore UI states
   const fieldMap = new Map();
 
-  // Always include baseline fields
+  // Baseline fields
   fieldMap.set('recordId', { name: 'recordId', type: 'text' });
   fieldMap.set('timestamp', { name: 'timestamp', type: 'datetime' });
 
-  // Detect postMessage payload fields
+  // A. Detect Form State Objects in useState({ ... })
+  // e.g. const [form, setForm] = useState({ line: 'Line A', shift: 'Shift 1', operator: '', ... })
+  const formObjectStateRegex = /const\s+\[([a-zA-Z0-9_]+),\s*set[a-zA-Z0-9_]+\]\s*=\s*useState\s*\(\s*\{([\s\S]*?)\}\s*\)/g;
+  let formObjMatch;
+  while ((formObjMatch = formObjectStateRegex.exec(reactCode)) !== null) {
+    const stateName = formObjMatch[1].toLowerCase();
+    if (isJunkUiField(stateName)) continue;
+
+    const objBody = formObjMatch[2];
+    const keyValRegex = /([a-zA-Z0-9_]+)\s*:\s*([^,\n}]+)/g;
+    let kvMatch;
+    while ((kvMatch = keyValRegex.exec(objBody)) !== null) {
+      const key = kvMatch[1].trim();
+      const val = kvMatch[2].trim();
+      if (!isJunkUiField(key) && !fieldMap.has(key)) {
+        fieldMap.set(key, { name: key, type: inferFieldType(key, val) });
+      }
+    }
+  }
+
+  // B. Detect Form Input elements in JSX: <input name="foo" />, <select name="foo" />, <textarea name="foo" />
+  const inputNameRegex = /<(?:input|select|textarea)[^>]+name\s*=\s*['"`]([a-zA-Z0-9_]+)['"`]/gi;
+  let inputNameMatch;
+  while ((inputNameMatch = inputNameRegex.exec(reactCode)) !== null) {
+    const key = inputNameMatch[1].trim();
+    if (!isJunkUiField(key) && !fieldMap.has(key)) {
+      fieldMap.set(key, { name: key, type: inferFieldType(key, '') });
+    }
+  }
+
+  // C. Detect form property references in JSX: form.operator, formData.parameter, etc.
+  const formPropRegex = /(?:formData|form|entry|item|record|input)\.([a-zA-Z0-9_]+)/g;
+  let propMatch;
+  while ((propMatch = formPropRegex.exec(reactCode)) !== null) {
+    const key = propMatch[1].trim();
+    if (!isJunkUiField(key) && !['id', 'recordId', 'timestamp', 'createdAt'].includes(key) && !fieldMap.has(key)) {
+      fieldMap.set(key, { name: key, type: inferFieldType(key, '') });
+    }
+  }
+
+  // D. Detect payload objects in insert({ ... }) or save(TABLE, { ... }) or data: { ... }
+  const payloadBlockRegex = /(?:insert|save)\s*\(\s*(?:['"`][^'"`]+['"`]\s*,\s*)?\{\s*([\s\S]*?)\s*\}\s*\)/g;
+  let payloadMatch;
+  while ((payloadMatch = payloadBlockRegex.exec(reactCode)) !== null) {
+    const body = payloadMatch[1];
+    const keys = body.match(/([a-zA-Z0-9_]+)\s*:/g);
+    if (keys) {
+      keys.forEach(k => {
+        const cleanKey = k.replace(':', '').trim();
+        if (!isJunkUiField(cleanKey) && !fieldMap.has(cleanKey)) {
+          fieldMap.set(cleanKey, { name: cleanKey, type: inferFieldType(cleanKey, '') });
+        }
+      });
+    }
+  }
+
+  // E. Detect postMessage data: { ... }
   const dataBlockMatch = reactCode.match(/data\s*:\s*\{([^}]+)\}/);
   if (dataBlockMatch) {
     const keys = dataBlockMatch[1].match(/([a-zA-Z0-9_]+)\s*:/g);
     if (keys) {
       keys.forEach(k => {
         const cleanKey = k.replace(':', '').trim();
-        if (cleanKey && !fieldMap.has(cleanKey)) {
-          let type = 'text';
-          if (/temp|pressure|speed|count|qty|rpm|passed|rejected|yield|val|num/i.test(cleanKey)) {
-            type = 'number';
-          } else if (/time|date/i.test(cleanKey)) {
-            type = 'datetime';
-          } else if (/is|has|enabled|active|running/i.test(cleanKey)) {
-            type = 'boolean';
-          }
-          fieldMap.set(cleanKey, { name: cleanKey, type });
+        if (!isJunkUiField(cleanKey) && !fieldMap.has(cleanKey)) {
+          fieldMap.set(cleanKey, { name: cleanKey, type: inferFieldType(cleanKey, '') });
         }
       });
     }
   }
 
-  // Detect useState hooks: const [foo, setFoo] = useState(initialVal)
+  // F. Detect scalar useState hooks ONLY if they are NOT in the UI state blacklist
   const stateRegex = /const\s+\[([a-zA-Z0-9_]+),\s*set[a-zA-Z0-9_]+\]\s*=\s*useState\(([^)]*)\)/g;
   let match;
   while ((match = stateRegex.exec(reactCode)) !== null) {
     const varName = match[1];
     const initialVal = match[2].trim();
 
-    if (['copied', 'viewMode', 'viewportSize', 'loading', 'modalOpen'].includes(varName)) {
+    if (isJunkUiField(varName)) {
       continue;
     }
 
-    let type = 'text';
-    if (!isNaN(Number(initialVal)) && initialVal !== '') {
-      type = Number.isInteger(Number(initialVal)) ? 'integer' : 'number';
-    } else if (initialVal === 'true' || initialVal === 'false') {
-      type = 'boolean';
-    } else if (initialVal.startsWith('{') || initialVal.startsWith('[')) {
+    if (initialVal.startsWith('{') || initialVal.startsWith('[')) {
       continue;
     }
 
     if (!fieldMap.has(varName)) {
-      fieldMap.set(varName, { name: varName, type });
+      fieldMap.set(varName, { name: varName, type: inferFieldType(varName, initialVal) });
     }
   }
 
-  // Always ensure status field
-  if (!fieldMap.has('status')) {
+  // If after all extraction only baseline fields exist, provide standard frontline fields
+  if (fieldMap.size <= 2) {
+    fieldMap.set('operator', { name: 'operator', type: 'text' });
     fieldMap.set('status', { name: 'status', type: 'text' });
+    fieldMap.set('notes', { name: 'notes', type: 'text' });
   }
 
   return {
@@ -126,6 +236,7 @@ export function extractTableSchemaFromCode(reactCode = '') {
 
 /**
  * Creates or synchronizes a MaviCore database table for the given Vibe app code.
+ * Cleans out any obsolete UI state fields and ensures real form fields are present.
  * @param {string} reactCode
  * @returns {Promise<{ table: object, isNew: boolean, recordCount: number }>}
  */
@@ -147,9 +258,29 @@ export async function syncVibeAppToTable(reactCode) {
       fields: schema.fields
     });
     isNew = true;
+  } else {
+    // 3. Clean up legacy junk UI fields and merge new form fields
+    const currentFields = targetTable.fields || [];
+    const cleaned = currentFields.filter(f => !isJunkUiField(f.name));
+    let fieldsChanged = cleaned.length !== currentFields.length;
+
+    for (const sf of schema.fields) {
+      if (!cleaned.some(f => f.name.toLowerCase() === sf.name.toLowerCase())) {
+        cleaned.push(sf);
+        fieldsChanged = true;
+      }
+    }
+
+    if (fieldsChanged) {
+      try {
+        targetTable = await updateTable(targetTable.id, { fields: cleaned });
+      } catch (err) {
+        console.warn('[vibeTableBridge] Could not update existing table schema:', err);
+      }
+    }
   }
 
-  // 3. Get current record count
+  // 4. Get current record count
   let recordCount = 0;
   try {
     const records = await getTableRecords(targetTable.id);
@@ -167,6 +298,7 @@ export async function syncVibeAppToTable(reactCode) {
 
 /**
  * Records an entry from Sandpack Vibe into the matched MaviCore table.
+ * Automatically synchronizes clean form fields and ignores UI states.
  * @param {string} tableNameOrId
  * @param {object} recordData
  * @returns {Promise<object>}
@@ -177,22 +309,63 @@ export async function saveVibeRecord(tableNameOrId, recordData = {}) {
     t => t.id === tableNameOrId || t.name?.toLowerCase().trim() === String(tableNameOrId || '').toLowerCase().trim()
   );
 
+  const incomingKeys = Object.keys(recordData).filter(
+    k => !['recordId', 'timestamp', 'id', 'ID', 'Id', 'createdAt', 'tableId'].includes(k) && !isJunkUiField(k)
+  );
+
   if (!targetTable) {
-    // Auto create if not found
+    // Auto create if not found with clean form fields
+    const initialFields = [
+      { name: 'recordId', type: 'text' },
+      { name: 'timestamp', type: 'datetime' },
+      ...incomingKeys.map(k => ({
+        name: k,
+        type: inferFieldType(k, recordData[k])
+      }))
+    ];
+
     targetTable = await createTable({
       name: String(tableNameOrId || 'Vibe App Records'),
       description: 'Auto-created table from Sandpack live recording',
-      fields: Object.keys(recordData).map(k => ({
-        name: k,
-        type: typeof recordData[k] === 'number' ? 'number' : (typeof recordData[k] === 'boolean' ? 'boolean' : 'text')
-      }))
+      fields: initialFields
     });
+  } else {
+    // Sync any newly discovered clean fields and remove junk UI fields
+    const currentFields = targetTable.fields || [];
+    const cleaned = currentFields.filter(f => !isJunkUiField(f.name));
+    let fieldsChanged = cleaned.length !== currentFields.length;
+
+    for (const k of incomingKeys) {
+      if (!cleaned.some(f => f.name.toLowerCase() === k.toLowerCase())) {
+        cleaned.push({
+          name: k,
+          type: inferFieldType(k, recordData[k])
+        });
+        fieldsChanged = true;
+      }
+    }
+
+    if (fieldsChanged) {
+      try {
+        targetTable = await updateTable(targetTable.id, { fields: cleaned });
+      } catch (e) {
+        console.warn('[vibeTableBridge] Could not sync new fields to table:', e);
+      }
+    }
+  }
+
+  // Filter out any UI state fields from the record payload before saving
+  const cleanPayload = {};
+  for (const [k, v] of Object.entries(recordData)) {
+    if (!isJunkUiField(k)) {
+      cleanPayload[k] = v;
+    }
   }
 
   const payload = {
     recordId: recordData.recordId || recordData.id || `VIBE_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
     timestamp: recordData.timestamp || new Date().toISOString(),
-    ...recordData
+    ...cleanPayload
   };
 
   const saved = await addTableRecord(targetTable.id, payload);
@@ -209,9 +382,21 @@ export async function saveVibeRecord(tableNameOrId, recordData = {}) {
  */
 export function initVibeMessageListener(onRecordSaved) {
   const handleMessage = async (event) => {
-    // Accept messages of type MAVICORE_TABLE_INSERT or MAVICORE_TABLE_READ
     if (!event.data || typeof event.data !== 'object') return;
     const { type, table, tableName, data } = event.data;
+
+    // Helper to broadcast response back to event.source and all iframes in the document
+    const broadcastToSandpack = (msg) => {
+      try { event.source?.postMessage(msg, '*'); } catch (_) {}
+      if (typeof window !== 'undefined') {
+        try { window.postMessage(msg, '*'); } catch (_) {}
+      }
+      if (typeof document !== 'undefined') {
+        document.querySelectorAll('iframe').forEach(ifr => {
+          try { ifr.contentWindow?.postMessage(msg, '*'); } catch (_) {}
+        });
+      }
+    };
 
     // ─── INSERT: Save record to table ───
     if (type === 'MAVICORE_TABLE_INSERT' && data) {
@@ -222,6 +407,15 @@ export function initVibeMessageListener(onRecordSaved) {
           duration: 3500,
           icon: '✅'
         });
+        broadcastToSandpack({
+          type: 'MAVICORE_RECORD_SAVED',
+          table: matchedTable.name,
+          tableName: matchedTable.name,
+          tableId: matchedTable.id,
+          record: saved,
+          data: saved,
+          reqId: event.data.reqId
+        });
         if (typeof onRecordSaved === 'function') {
           onRecordSaved(matchedTable, saved);
         }
@@ -231,8 +425,8 @@ export function initVibeMessageListener(onRecordSaved) {
       }
     }
 
-    // ─── READ: Fetch records from table ───
-    if (type === 'MAVICORE_TABLE_READ') {
+    // ─── READ / QUERY: Fetch records from table ───
+    if (type === 'MAVICORE_TABLE_READ' || type === 'MAVICORE_TABLE_QUERY') {
       const targetName = table || tableName;
       if (!targetName) return;
 
@@ -244,41 +438,60 @@ export function initVibeMessageListener(onRecordSaved) {
         );
 
         if (!targetTable) {
-          // Table doesn't exist yet - return empty array
-          event.source?.postMessage({
+          broadcastToSandpack({
             type: 'MAVICORE_TABLE_READ_RESPONSE',
             tableName: targetName,
+            table: targetName,
             records: []
-          }, '*');
+          });
+          if (event.data.reqId) {
+            broadcastToSandpack({
+              type: 'MAVICORE_TABLE_RESULT',
+              tableName: targetName,
+              table: targetName,
+              reqId: event.data.reqId,
+              records: []
+            });
+          }
           return;
         }
 
         // Fetch records
         const records = await getTableRecords(targetTable.id);
 
-        // Send response back to sandbox iframe
-        event.source?.postMessage({
+        broadcastToSandpack({
           type: 'MAVICORE_TABLE_READ_RESPONSE',
           tableName: targetName,
+          table: targetName,
           records: records || []
-        }, '*');
+        });
+
+        if (event.data.reqId) {
+          broadcastToSandpack({
+            type: 'MAVICORE_TABLE_RESULT',
+            tableName: targetName,
+            table: targetName,
+            reqId: event.data.reqId,
+            records: records || []
+          });
+        }
       } catch (err) {
         console.error('[vibeTableBridge] Gagal membaca record dari Sandpack:', err);
-        event.source?.postMessage({
+        broadcastToSandpack({
           type: 'MAVICORE_TABLE_READ_RESPONSE',
           tableName: targetName,
           records: [],
           error: err.message
-        }, '*');
+        });
       }
     }
 
     // ─── DELETE: Delete a record from table ───
     if (type === 'MAVICORE_TABLE_DELETE') {
       const targetName = table || tableName;
-      const { recordId, recordInternalId } = event.data;
+      const { recordId } = event.data;
 
-      if (!targetName) return;
+      if (!targetName || !recordId) return;
 
       try {
         // Find the table first
@@ -295,7 +508,7 @@ export function initVibeMessageListener(onRecordSaved) {
         // Get records to find the internal ID
         const records = await getTableRecords(targetTable.id);
         const recordToDelete = (records || []).find(
-          r => r.id === recordId || r.record_id === recordId
+          r => r.id === recordId || r.recordId === recordId || r.record_id === recordId || String(r.id) === String(recordId) || String(r.recordId) === String(recordId)
         );
 
         if (!recordToDelete) {
@@ -309,6 +522,14 @@ export function initVibeMessageListener(onRecordSaved) {
         toast.success(`🗑️ Record berhasil dihapus dari "${targetTable.name}"`, {
           duration: 2500,
           icon: '✅'
+        });
+
+        broadcastToSandpack({
+          type: 'MAVICORE_RECORD_DELETED',
+          table: targetTable.name,
+          tableName: targetTable.name,
+          recordId: recordId,
+          reqId: event.data.reqId
         });
 
         // Notify callback
@@ -343,7 +564,7 @@ export function initVibeMessageListener(onRecordSaved) {
         // Get records to find the internal ID
         const records = await getTableRecords(targetTable.id);
         const recordToUpdate = (records || []).find(
-          r => r.id === recordId || r.record_id === recordId
+          r => r.id === recordId || r.recordId === recordId || r.record_id === recordId || String(r.id) === String(recordId) || String(r.recordId) === String(recordId)
         );
 
         if (!recordToUpdate) {
@@ -352,15 +573,25 @@ export function initVibeMessageListener(onRecordSaved) {
         }
 
         // Update the record
-        await updateTableRecord(recordToUpdate.id, updateData);
+        const updated = await updateTableRecord(recordToUpdate.id, updateData);
 
         toast.success(`✏️ Record berhasil diupdate di "${targetTable.name}"`, {
           duration: 2500,
           icon: '✅'
         });
 
+        broadcastToSandpack({
+          type: 'MAVICORE_RECORD_UPDATED',
+          table: targetTable.name,
+          tableName: targetTable.name,
+          recordId: recordId,
+          data: updateData,
+          record: updated,
+          reqId: event.data.reqId
+        });
+
         if (typeof onRecordSaved === 'function') {
-          onRecordSaved(targetTable, { updated: true, recordId });
+          onRecordSaved(targetTable, { updated: true, recordId, record: updated });
         }
       } catch (err) {
         console.error('[vibeTableBridge] Gagal mengupdate record:', err);
