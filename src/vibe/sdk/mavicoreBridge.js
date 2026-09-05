@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 export const MAVICORE_BRIDGE_VIRTUAL_FILE = `import React, { useState, useEffect, useCallback, useRef } from 'react';
 
-// Safe cross-frame postMessage sender
+// Safe cross-frame postMessage sender (posts to both parent and top to escape nested Sandpack iframes)
 function postToMaviCore(payload) {
   if (typeof window === 'undefined') return;
   try {
@@ -20,16 +20,82 @@ function postToMaviCore(payload) {
   } catch (_) {}
 }
 
+// Local storage helper for instant offline/caching in Sandpack
+const _store = {
+  get(key) {
+    try {
+      const v = localStorage.getItem('mc_' + key);
+      return v ? JSON.parse(v) : null;
+    } catch { return null; }
+  },
+  set(key, val) {
+    try {
+      localStorage.setItem('mc_' + key, JSON.stringify(val));
+    } catch {}
+  },
+  append(key, item) {
+    const arr = this.get(key) || [];
+    const itemId = item.recordId || item.id;
+    const existingIdx = arr.findIndex(r => (r.recordId || r.id) === itemId);
+    if (existingIdx >= 0) {
+      arr[existingIdx] = { ...arr[existingIdx], ...item };
+    } else {
+      arr.unshift(item);
+    }
+    this.set(key, arr);
+  },
+  update(key, recordId, updatedFields) {
+    const arr = this.get(key) || [];
+    const targetIdx = arr.findIndex(r => (r.recordId || r.id) === recordId || String(r.id) === String(recordId) || String(r.recordId) === String(recordId));
+    if (targetIdx >= 0) {
+      arr[targetIdx] = { ...arr[targetIdx], ...updatedFields, updatedAt: new Date().toISOString() };
+      this.set(key, arr);
+      return arr[targetIdx];
+    }
+    return null;
+  },
+  remove(key, recordId) {
+    const arr = this.get(key) || [];
+    const filtered = arr.filter(r => (r.recordId || r.id) !== recordId && String(r.id) !== String(recordId) && String(r.recordId) !== String(recordId));
+    this.set(key, filtered);
+    return filtered;
+  }
+};
+
 export const MaviCoreBridge = {
+  // CREATE TABLE
+  createTable: (tableName, fields = []) => {
+    const payload = {
+      type: 'MAVICORE_TABLE_CREATE',
+      tableName,
+      table: tableName,
+      fields: fields || []
+    };
+    postToMaviCore(payload);
+    window.dispatchEvent(new CustomEvent('mavicore_create_table', { detail: payload }));
+    console.log('[MaviCoreBridge] 🆕 Table created:', tableName, fields);
+    return true;
+  },
+
   // CREATE / INSERT
-  save: async (tableName, data) => {
+  save: async (tableName, data = {}) => {
+    const recordId = data.recordId || data.id || ('REC_' + Date.now() + '_' + Math.floor(Math.random() * 1000));
+    const payloadData = {
+      recordId,
+      timestamp: data.timestamp || new Date().toISOString(),
+      ...data
+    };
+
+    // 1. Immediately cache in local store for instant UI reactivity
+    _store.append('table_' + tableName, payloadData);
+
+    // 2. Dispatch local events for instant subscription updates
+    window.dispatchEvent(new CustomEvent('mavicore_save', { detail: { tableName, data: payloadData } }));
+    window.dispatchEvent(new CustomEvent('mavicore_record_change', {
+      detail: { type: 'MAVICORE_RECORD_SAVED', table: tableName, tableName, record: payloadData }
+    }));
+
     return new Promise((resolve) => {
-      const recordId = data.recordId || data.id || ('REC_' + Date.now() + '_' + Math.floor(Math.random() * 1000));
-      const payloadData = {
-        recordId,
-        timestamp: new Date().toISOString(),
-        ...data
-      };
       const reqId = 'INS_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
 
       const handler = (event) => {
@@ -52,17 +118,18 @@ export const MaviCoreBridge = {
         data: payloadData
       });
 
-      // Timeout fallback
+      // Quick fallback resolves with payloadData
       setTimeout(() => {
         window.removeEventListener('message', handler);
         resolve(payloadData);
-      }, 1500);
+      }, 500);
     });
   },
 
   // READ / SELECT ALL
   read: async (tableName) => {
     return new Promise((resolve) => {
+      const cached = _store.get('table_' + tableName) || [];
       const reqId = 'READ_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
 
       const handler = (event) => {
@@ -73,7 +140,13 @@ export const MaviCoreBridge = {
           (tName === tableName || tbl === tableName)
         ) {
           window.removeEventListener('message', handler);
-          resolve(Array.isArray(records) ? records : []);
+          const serverRecords = Array.isArray(records) ? records : [];
+          if (serverRecords.length > 0) {
+            _store.set('table_' + tableName, serverRecords);
+            resolve(serverRecords);
+          } else {
+            resolve(cached);
+          }
         }
       };
       window.addEventListener('message', handler);
@@ -91,16 +164,22 @@ export const MaviCoreBridge = {
         reqId
       });
 
-      // Timeout fallback
+      // Quick fallback resolves with cached records
       setTimeout(() => {
         window.removeEventListener('message', handler);
-        resolve([]);
-      }, 2500);
+        resolve(cached);
+      }, 600);
     });
   },
 
   // UPDATE
-  update: async (tableName, recordId, data) => {
+  update: async (tableName, recordId, data = {}) => {
+    _store.update('table_' + tableName, recordId, data);
+    window.dispatchEvent(new CustomEvent('mavicore_update', { detail: { tableName, recordId, data } }));
+    window.dispatchEvent(new CustomEvent('mavicore_record_change', {
+      detail: { type: 'MAVICORE_RECORD_UPDATED', table: tableName, tableName, recordId, data }
+    }));
+
     return new Promise((resolve) => {
       const handler = (event) => {
         if (!event.data) return;
@@ -125,12 +204,18 @@ export const MaviCoreBridge = {
       setTimeout(() => {
         window.removeEventListener('message', handler);
         resolve(true);
-      }, 1500);
+      }, 500);
     });
   },
 
   // DELETE
   delete: async (tableName, recordId) => {
+    _store.remove('table_' + tableName, recordId);
+    window.dispatchEvent(new CustomEvent('mavicore_delete', { detail: { tableName, recordId } }));
+    window.dispatchEvent(new CustomEvent('mavicore_record_change', {
+      detail: { type: 'MAVICORE_RECORD_DELETED', table: tableName, tableName, recordId }
+    }));
+
     return new Promise((resolve) => {
       const handler = (event) => {
         if (!event.data) return;
@@ -154,7 +239,7 @@ export const MaviCoreBridge = {
       setTimeout(() => {
         window.removeEventListener('message', handler);
         resolve(true);
-      }, 1500);
+      }, 500);
     });
   },
 
@@ -171,11 +256,22 @@ export const MaviCoreBridge = {
       }
     };
     window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
+
+    const localChangeHandler = (e) => {
+      if (e.detail?.table === tableName || e.detail?.tableName === tableName) {
+        callback(e.detail);
+      }
+    };
+    window.addEventListener('mavicore_record_change', localChangeHandler);
+
+    return () => {
+      window.removeEventListener('message', handler);
+      window.removeEventListener('mavicore_record_change', localChangeHandler);
+    };
   }
 };
 
-// Global attachment on window
+// Global attachment on window for auto-injection in Sandpack preview
 if (typeof window !== 'undefined') {
   window.MaviCoreBridge = MaviCoreBridge;
 }
@@ -183,11 +279,16 @@ if (typeof window !== 'undefined') {
 /**
  * Custom React Hook for live CRUD operations with MaviCore Tables
  * @param {string} tableName Name of the table
- * @returns {{ records, loading, error, refresh, insert, update, remove, setRecords }}
+ * @returns {{ records, loading, error, refresh, insert, save, update, delete, remove, setRecords }}
  */
 export function useMaviCoreData(tableName) {
-  const [records, setRecords] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [records, setRecords] = useState(() => {
+    try {
+      const c = localStorage.getItem('mc_table_' + tableName);
+      return c ? JSON.parse(c) : [];
+    } catch { return []; }
+  });
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const tableNameRef = useRef(tableName);
   tableNameRef.current = tableName;
@@ -215,11 +316,28 @@ export function useMaviCoreData(tableName) {
     const cleanup = MaviCoreBridge.onRecord(tableName, (change) => {
       if (change.type === 'MAVICORE_RECORD_SAVED' && change.record) {
         setRecords(prev => {
-          const exists = prev.some(r => (r.recordId || r.id) === (change.record.recordId || change.record.id));
-          return exists ? prev.map(r => ((r.recordId || r.id) === (change.record.recordId || change.record.id) ? change.record : r)) : [change.record, ...prev];
+          const rec = change.record;
+          const recId = rec.recordId || rec.id;
+          const exists = prev.some(r => (r.recordId || r.id) === recId);
+          return exists
+            ? prev.map(r => ((r.recordId || r.id) === recId ? { ...r, ...rec } : r))
+            : [rec, ...prev];
         });
-      } else if (change.type === 'MAVICORE_RECORD_DELETED' && change.recordId) {
-        setRecords(prev => prev.filter(r => (r.recordId || r.id) !== change.recordId));
+      } else if (change.type === 'MAVICORE_RECORD_UPDATED') {
+        const recId = change.recordId || change.record?.recordId || change.record?.id;
+        const patch = change.data || change.record || {};
+        if (recId) {
+          setRecords(prev => prev.map(r => ((r.recordId || r.id) === recId ? { ...r, ...patch } : r)));
+        } else {
+          refresh();
+        }
+      } else if (change.type === 'MAVICORE_RECORD_DELETED') {
+        const delId = change.recordId;
+        if (delId) {
+          setRecords(prev => prev.filter(r => (r.recordId || r.id) !== delId && String(r.id) !== String(delId) && String(r.recordId) !== String(delId)));
+        } else {
+          refresh();
+        }
       } else {
         refresh();
       }
@@ -236,12 +354,12 @@ export function useMaviCoreData(tableName) {
 
   const update = useCallback(async (recordId, updatedFields) => {
     await MaviCoreBridge.update(tableName, recordId, updatedFields);
-    setRecords(prev => prev.map(r => ((r.recordId || r.id) === recordId ? { ...r, ...updatedFields } : r)));
+    setRecords(prev => prev.map(r => ((r.recordId || r.id) === recordId || String(r.id) === String(recordId) ? { ...r, ...updatedFields } : r)));
   }, [tableName]);
 
   const remove = useCallback(async (recordId) => {
     await MaviCoreBridge.delete(tableName, recordId);
-    setRecords(prev => prev.filter(r => (r.recordId || r.id) !== recordId));
+    setRecords(prev => prev.filter(r => (r.recordId || r.id) !== recordId && String(r.id) !== String(recordId)));
   }, [tableName]);
 
   return {
@@ -258,5 +376,11 @@ export function useMaviCoreData(tableName) {
   };
 }
 
+if (typeof window !== 'undefined') {
+  window.useMaviCoreData = useMaviCoreData;
+}
+
 export default MaviCoreBridge;
 `;
+
+export default MAVICORE_BRIDGE_VIRTUAL_FILE;

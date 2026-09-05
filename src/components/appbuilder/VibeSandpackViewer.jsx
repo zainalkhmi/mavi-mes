@@ -929,9 +929,24 @@ button {
           'recharts': 'latest'
         }
       }, null, 2),
+      '/index.js': `import React, { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import "./styles.css";
+import "./mavicore-bridge.js";
+
+import App from "./App";
+
+const root = createRoot(document.getElementById("root"));
+root.render(
+  <StrictMode>
+    <App />
+  </StrictMode>
+);
+`,
       '/mavicore-ui.jsx': MAVICORE_UIKIT_VIRTUAL_FILE,
       '/mavicore-sdk.js': MAVICORE_SDK_VIRTUAL_FILE,
-      '/mavicore-bridge.js': MAVICORE_BRIDGE_VIRTUAL_FILE
+      '/mavicore-bridge.js': MAVICORE_BRIDGE_VIRTUAL_FILE,
+      '/mavicore-bridge': MAVICORE_BRIDGE_VIRTUAL_FILE
     };
     return new ProjectFileSystem(initialFiles);
   });
@@ -1545,11 +1560,39 @@ button {
   const [deployCategory, setDeployCategory] = useState('Shop Floor');
   const [deployPublish, setDeployPublish] = useState(true);
   const [isDeploying, setIsDeploying] = useState(false);
+  const [isSavingApp, setIsSavingApp] = useState(false);
+
+  const handleSaveSandboxApp = async () => {
+    setIsSavingApp(true);
+    const mainCode = vfs.readFile('/App.js') || vfs.readFile('/App.jsx') || effectiveInitialCode;
+    const cleanName = appName.trim() || 'Sandbox App';
+    try {
+      const saved = await deployVibeAppToFrontline({
+        id: deployedApp?.id,
+        name: cleanName,
+        category: deployedApp?.category || 'Shop Floor',
+        code: mainCode,
+        isPublished: deployedApp?.is_published ?? true
+      });
+      setDeployedApp(saved);
+      setAppName(saved.name);
+      loadSandboxApps();
+      const url = new URL(window.location.href);
+      url.searchParams.set('appId', saved.id);
+      window.history.pushState({}, '', url.toString());
+      toast.success(`💾 Aplikasi "${saved.name}" berhasil disimpan ke Apps Sandbox!`, { duration: 3500, icon: '✅' });
+    } catch (err) {
+      console.error('Failed to save sandbox app:', err);
+      toast.error(`Gagal menyimpan aplikasi: ${err.message || 'Database error'}`);
+    } finally {
+      setIsSavingApp(false);
+    }
+  };
 
   const handleOpenDeployModal = () => {
     const mainCode = vfs.readFile('/App.js') || vfs.readFile('/App.jsx') || effectiveInitialCode;
     const schema = extractTableSchemaFromCode(mainCode);
-    setDeployName(schema.name || 'HMI Stamping Press 04');
+    setDeployName(appName !== 'Sandbox' ? appName : (schema.name || 'HMI Stamping Press 04'));
     setIsDeployModalOpen(true);
   };
 
@@ -1652,20 +1695,50 @@ button {
               type="text"
               value={tempAppName}
               onChange={(e) => setTempAppName(e.target.value)}
-              onKeyDown={(e) => {
+              onKeyDown={async (e) => {
                 if (e.key === 'Enter') {
                   const newName = tempAppName.trim() || 'Sandbox';
                   setAppName(newName);
                   setIsEditingName(false);
+                  if (deployedApp?.id && newName !== deployedApp.name) {
+                    try {
+                      const mainCode = vfs.readFile('/App.js') || vfs.readFile('/App.jsx') || effectiveInitialCode;
+                      const saved = await deployVibeAppToFrontline({
+                        id: deployedApp.id,
+                        name: newName,
+                        category: deployedApp.category || 'Shop Floor',
+                        code: mainCode,
+                        isPublished: deployedApp.is_published ?? true
+                      });
+                      setDeployedApp(saved);
+                      loadSandboxApps();
+                      toast.success(`Nama aplikasi diubah: "${newName}"`);
+                    } catch (_) {}
+                  }
                 }
                 if (e.key === 'Escape') {
                   setIsEditingName(false);
                 }
               }}
-              onBlur={() => {
+              onBlur={async () => {
                 const newName = tempAppName.trim() || 'Sandbox';
                 setAppName(newName);
                 setIsEditingName(false);
+                if (deployedApp?.id && newName !== deployedApp.name) {
+                  try {
+                    const mainCode = vfs.readFile('/App.js') || vfs.readFile('/App.jsx') || effectiveInitialCode;
+                    const saved = await deployVibeAppToFrontline({
+                      id: deployedApp.id,
+                      name: newName,
+                      category: deployedApp.category || 'Shop Floor',
+                      code: mainCode,
+                      isPublished: deployedApp.is_published ?? true
+                    });
+                    setDeployedApp(saved);
+                    loadSandboxApps();
+                    toast.success(`Nama aplikasi diubah: "${newName}"`);
+                  } catch (_) {}
+                }
               }}
               autoFocus
               style={{
@@ -1914,6 +1987,26 @@ button {
           >
             <Smartphone size={12} />
             <span>Build APK</span>
+          </button>
+
+          {/* Save Sandbox App button */}
+          <button
+            type="button"
+            onClick={handleSaveSandboxApp}
+            disabled={isSavingApp}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '5px',
+              padding: '5px 11px', borderRadius: '6px', border: 'none',
+              background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+              color: '#fff', fontSize: '0.72rem', fontWeight: 700,
+              cursor: isSavingApp ? 'not-allowed' : 'pointer',
+              boxShadow: '0 2px 6px rgba(2, 132, 199, 0.35)',
+              transition: 'all 0.15s'
+            }}
+            title={deployedApp ? "Simpan perubahan aplikasi saat ini" : "Simpan sebagai aplikasi baru di Apps Sandbox"}
+          >
+            {isSavingApp ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+            <span>{isSavingApp ? 'Menyimpan...' : deployedApp ? 'Simpan App' : 'Simpan Baru'}</span>
           </button>
 
           {/* 6. Frontline Publish button */}

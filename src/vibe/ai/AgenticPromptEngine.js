@@ -285,9 +285,10 @@ INSTRUKSI:
   /**
    * Parses the AI response text into a plan and a list of file actions
    * @param {string} responseText
+   * @param {string} [defaultPath='/App.jsx']
    * @returns {{ plan: string | null, fileActions: Array<{ path: string, action: 'create'|'modify'|'delete', content: string }> }}
    */
-  static parseResponse(responseText = '') {
+  static parseResponse(responseText = '', defaultPath = '/App.jsx') {
     let plan = null;
     const planMatch = responseText.match(/<ai_plan>([\s\S]*?)<\/ai_plan>/i);
     if (planMatch && planMatch[1]) {
@@ -311,7 +312,7 @@ INSTRUKSI:
       const vibeCodeMatch = responseText.match(/<vibe_code>([\s\S]*?)<\/vibe_code>/i);
       if (vibeCodeMatch && vibeCodeMatch[1]) {
         fileActions.push({
-          path: '/App.js',
+          path: defaultPath,
           action: 'modify',
           content: cleanVibeCode(vibeCodeMatch[1])
         });
@@ -323,13 +324,13 @@ INSTRUKSI:
       const codeBlockMatch = responseText.match(/```(?:jsx|javascript|js|react|tsx)?\s*([\s\S]*?)```/i);
       if (codeBlockMatch && codeBlockMatch[1] && (codeBlockMatch[1].includes('export default') || codeBlockMatch[1].includes('return'))) {
         fileActions.push({
-          path: '/App.js',
+          path: defaultPath,
           action: 'modify',
           content: cleanVibeCode(codeBlockMatch[1])
         });
       } else if (responseText.includes('export default function') || responseText.includes('export default const')) {
         fileActions.push({
-          path: '/App.js',
+          path: defaultPath,
           action: 'modify',
           content: cleanVibeCode(responseText)
         });

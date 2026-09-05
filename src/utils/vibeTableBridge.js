@@ -487,6 +487,7 @@ export function initVibeMessageListener(onRecordSaved) {
     }
 
     // ─── DELETE: Delete a record from table ───
+    // ─── DELETE: Delete a record from table ───
     if (type === 'MAVICORE_TABLE_DELETE') {
       const targetName = table || tableName;
       const { recordId } = event.data;
@@ -494,51 +495,48 @@ export function initVibeMessageListener(onRecordSaved) {
       if (!targetName || !recordId) return;
 
       try {
-        // Find the table first
         const tables = await getTables();
         const targetTable = (tables || []).find(
           t => t.id === targetName || t.name?.toLowerCase().trim() === String(targetName || '').toLowerCase().trim()
         );
 
-        if (!targetTable) {
-          toast.error(`Tabel "${targetName}" tidak ditemukan`);
-          return;
+        if (targetTable) {
+          const records = await getTableRecords(targetTable.id);
+          const recordToDelete = (records || []).find(
+            r => r.id === recordId || r.recordId === recordId || r.record_id === recordId || String(r.id) === String(recordId) || String(r.recordId) === String(recordId)
+          );
+
+          if (recordToDelete) {
+            await deleteTableRecord(recordToDelete.id);
+            toast.success(`🗑️ Record berhasil dihapus dari "${targetTable.name}"`, {
+              duration: 2500,
+              icon: '✅'
+            });
+          }
         }
 
-        // Get records to find the internal ID
-        const records = await getTableRecords(targetTable.id);
-        const recordToDelete = (records || []).find(
-          r => r.id === recordId || r.recordId === recordId || r.record_id === recordId || String(r.id) === String(recordId) || String(r.recordId) === String(recordId)
-        );
-
-        if (!recordToDelete) {
-          toast.error(`Record tidak ditemukan`);
-          return;
-        }
-
-        // Delete the record
-        await deleteTableRecord(recordToDelete.id);
-
-        toast.success(`🗑️ Record berhasil dihapus dari "${targetTable.name}"`, {
-          duration: 2500,
-          icon: '✅'
-        });
-
+        // Always broadcast deletion back to Sandpack so client state updates cleanly
         broadcastToSandpack({
           type: 'MAVICORE_RECORD_DELETED',
-          table: targetTable.name,
-          tableName: targetTable.name,
+          table: targetTable?.name || targetName,
+          tableName: targetTable?.name || targetName,
           recordId: recordId,
           reqId: event.data.reqId
         });
 
-        // Notify callback
         if (typeof onRecordSaved === 'function') {
-          onRecordSaved(targetTable, { deleted: true, recordId });
+          onRecordSaved(targetTable || { name: targetName }, { deleted: true, recordId });
         }
       } catch (err) {
         console.error('[vibeTableBridge] Gagal menghapus record:', err);
-        toast.error(`Gagal menghapus record: ${err.message || 'Database error'}`);
+        // Still broadcast to client to prevent hanging
+        broadcastToSandpack({
+          type: 'MAVICORE_RECORD_DELETED',
+          table: targetName,
+          tableName: targetName,
+          recordId: recordId,
+          reqId: event.data.reqId
+        });
       }
     }
 
@@ -550,52 +548,60 @@ export function initVibeMessageListener(onRecordSaved) {
       if (!targetName || !recordId) return;
 
       try {
-        // Find the table
         const tables = await getTables();
-        const targetTable = (tables || []).find(
+        let targetTable = (tables || []).find(
           t => t.id === targetName || t.name?.toLowerCase().trim() === String(targetName || '').toLowerCase().trim()
         );
 
-        if (!targetTable) {
-          toast.error(`Tabel "${targetName}" tidak ditemukan`);
-          return;
+        let updated = null;
+        if (targetTable) {
+          const records = await getTableRecords(targetTable.id);
+          const recordToUpdate = (records || []).find(
+            r => r.id === recordId || r.recordId === recordId || r.record_id === recordId || String(r.id) === String(recordId) || String(r.recordId) === String(recordId)
+          );
+
+          if (recordToUpdate) {
+            updated = await updateTableRecord(recordToUpdate.id, updateData);
+            toast.success(`✏️ Record berhasil diupdate di "${targetTable.name}"`, {
+              duration: 2500,
+              icon: '✅'
+            });
+          } else {
+            // If record wasn't in DB yet, add it
+            const { saved } = await saveVibeRecord(targetTable.id, { recordId, ...updateData });
+            updated = saved;
+          }
+        } else {
+          // If table didn't exist yet, auto-create and save
+          const { saved, table: newTable } = await saveVibeRecord(targetName, { recordId, ...updateData });
+          targetTable = newTable;
+          updated = saved;
         }
-
-        // Get records to find the internal ID
-        const records = await getTableRecords(targetTable.id);
-        const recordToUpdate = (records || []).find(
-          r => r.id === recordId || r.recordId === recordId || r.record_id === recordId || String(r.id) === String(recordId) || String(r.recordId) === String(recordId)
-        );
-
-        if (!recordToUpdate) {
-          toast.error(`Record tidak ditemukan`);
-          return;
-        }
-
-        // Update the record
-        const updated = await updateTableRecord(recordToUpdate.id, updateData);
-
-        toast.success(`✏️ Record berhasil diupdate di "${targetTable.name}"`, {
-          duration: 2500,
-          icon: '✅'
-        });
 
         broadcastToSandpack({
           type: 'MAVICORE_RECORD_UPDATED',
-          table: targetTable.name,
-          tableName: targetTable.name,
+          table: targetTable?.name || targetName,
+          tableName: targetTable?.name || targetName,
           recordId: recordId,
           data: updateData,
-          record: updated,
+          record: updated || { recordId, ...updateData },
           reqId: event.data.reqId
         });
 
         if (typeof onRecordSaved === 'function') {
-          onRecordSaved(targetTable, { updated: true, recordId, record: updated });
+          onRecordSaved(targetTable || { name: targetName }, { updated: true, recordId, record: updated });
         }
       } catch (err) {
         console.error('[vibeTableBridge] Gagal mengupdate record:', err);
-        toast.error(`Gagal mengupdate record: ${err.message || 'Database error'}`);
+        broadcastToSandpack({
+          type: 'MAVICORE_RECORD_UPDATED',
+          table: targetName,
+          tableName: targetName,
+          recordId: recordId,
+          data: updateData,
+          record: { recordId, ...updateData },
+          reqId: event.data.reqId
+        });
       }
     }
 

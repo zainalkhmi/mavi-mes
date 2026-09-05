@@ -343,15 +343,20 @@ CRITICAL EXECUTION CONSTRAINTS:
    - PRIORITAS UTAMA BLOK RETURN JSX: Segera masuk ke blok return JSX untuk merender seluruh tampilan (Header, KPI Cards, Filter/Pencarian, Tabel Utama, Dialog/Modal Tambah Data).
    - Pastikan seluruh tag penutup tertutup rapi dan diakhiri \`export default function App() { return (...); }\` sebelum menutup dengan </vibe_code>.
 
-DATABASE & TABLE INTEGRATION (MAVICORE BRIDGE):
-MaviCore provides an auto-injected real-time database bridge at window.MaviCoreBridge.
-When creating or updating apps, always integrate with the MaviCore table system:
-- Define a table constant: const TABLE_NAME = '...'; (e.g. 'Inventory_Log', 'Material_Stock', or one of the existing database tables).
-- Create / ensure the table exists on mount via window.MaviCoreBridge.createTable(TABLE_NAME, fields).
-- Save record to table on add/submit via window.MaviCoreBridge.save(TABLE_NAME, newItem).
-- Update record via window.MaviCoreBridge.update(TABLE_NAME, recordId, updatedFields).
-- Delete record via window.MaviCoreBridge.delete(TABLE_NAME, recordId).
-- Read initial data and listen to real-time events via window.MaviCoreBridge.read and onRecord.`;
+DATABASE & TABLE INTEGRATION & COMPLETE WORKING CRUD (CREATE, READ, UPDATE, DELETE):
+MaviCore provides an auto-injected real-time database bridge at window.MaviCoreBridge and import { useMaviCoreData } from './mavicore-bridge'.
+Setiap aplikasi yang mencatat atau mengelola data WAJIB memiliki fungsi CRUD lengkap yang berfungsi 100% nyata dan responsif:
+- Rekomendasi Hook: import { useMaviCoreData } from './mavicore-bridge';
+  const { records, loading, insert, update, remove } = useMaviCoreData('NamaTabel');
+  // insert(data), update(id, patch), remove(id)
+- Atau Rekomendasi Bridge Langsung dengan local state:
+  const TABLE_NAME = 'NamaTabel';
+  const [items, setItems] = useState([ /* 2 mock data ringkas */ ]);
+  - CREATE / Tambah: Tambahkan item ke state lokal setItems(prev => [newRow, ...prev]) dan panggil window.MaviCoreBridge?.save(TABLE_NAME, newRow);
+  - READ / Ambil data: Pada useEffect panggil window.MaviCoreBridge?.read(TABLE_NAME).then(data => { if (data?.length) setItems(data); });
+  - UPDATE / Edit: Update item di state lokal setItems(prev => prev.map(r => (r.id === editId || r.recordId === editId) ? { ...r, ...patch } : r)) dan panggil window.MaviCoreBridge?.update(TABLE_NAME, editId, patch);
+  - DELETE / Hapus: Hapus dari state lokal setItems(prev => prev.filter(r => (r.id !== delId && r.recordId !== delId))) dan panggil window.MaviCoreBridge?.delete(TABLE_NAME, delId);
+- KELENGKAPAN UI: Selalu sertakan Form/Modal Tambah (Create), Tabel/List (Read), Tombol Edit (Update), dan Tombol Hapus/Trash (Delete). Selalu update state React secara instan (optimistic UI) agar perubahan langsung terlihat di layar!`;
 
         await streamVibeAI({
           messages: [
@@ -410,7 +415,10 @@ CRITICAL EXECUTION CONSTRAINTS:
 2. DO NOT output package.json, terminal commands, or setup instructions.
 3. Output ONLY a single, complete, self-contained React component for /App.js that exports default function App().
 4. ALWAYS wrap the entire runnable React component inside <vibe_code> ... </vibe_code> tags. DILARANG KERAS menyertakan markdown code fences (\`\`\`jsx atau \`\`\`) di dalam tag <vibe_code>. Tulis langsung kode JSX mentah di dalamnya.
-5. Strictly implement the database table and fields defined in the plan using window.MaviCoreBridge (createTable, save, read, update, delete, onRecord).
+5. STRICTLY IMPLEMENT FULL WORKING CRUD (Create, Read, Update, Delete):
+   - Gunakan window.MaviCoreBridge (save, read, update, delete, onRecord) atau import { useMaviCoreData } from './mavicore-bridge'.
+   - Wajib sediakan form/modal Tambah Data, tabel/list Tampil Data, tombol/modal Edit Data, dan tombol Hapus Data.
+   - Wajib perbarui state React lokal secara instan pada aksi Tambah/Edit/Hapus agar UI reaktif dan tidak macet!
 6. VISUAL AESTHETICS: WAJIB MODERN LIGHT THEME & COLOURFUL ALA LOVABLE.DEV / SHADCN UI:
    - DILARANG KERAS BACKGROUND GELAP/HITAM: Jangan gunakan bg-slate-900, bg-slate-950, bg-gray-900, bg-black, #000000, #030712, #0b0f19, #0f172a pada root container atau kartu!
    - Root Container: WAJIB <div className="min-h-screen p-4 sm:p-6" style={{ backgroundColor: '#f8fafc', color: '#0f172a' }}>
