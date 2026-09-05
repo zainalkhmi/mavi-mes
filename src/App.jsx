@@ -63,6 +63,12 @@ export default function App() {
     window.location.hash.includes('standalone=true') ||
     window.location.hash.includes('mode=companion');
 
+  const isUiEngineRoute = 
+    location.pathname.startsWith('/ui-engine') ||
+    location.pathname.startsWith('/gluestack') ||
+    window.location.hash.includes('ui-engine') ||
+    window.location.hash.includes('gluestack');
+
   const isOperator = user?.role === 'OPERATOR' || user?.role === 'STATION_OPERATOR';
 
   const { zoomLevel, setZoomLevel, isZoomCollapsed, setIsZoomCollapsed } = useZoom();
@@ -171,7 +177,7 @@ export default function App() {
       
       <AppRouter user={currentUser} isOperator={isOperator} />
 
-      {!isChecksheetRoute && (
+      {!isChecksheetRoute && !isUiEngineRoute && (
         <ZoomWidget 
           zoomLevel={zoomLevel} 
           setZoomLevel={setZoomLevel} 

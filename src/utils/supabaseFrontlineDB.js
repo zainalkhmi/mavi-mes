@@ -107,6 +107,7 @@ export async function saveFrontlineApp(app) {
         is_published: app.is_published ?? false,
         approval_status: app.approval_status || 'DRAFT',
         version: app.version || 1,
+        builder_type: app.builder_type || 'app_builder', // 'app_builder' | 'gluestack' | 'sandbox'
         updated_at: new Date().toISOString()
     };
 
@@ -133,6 +134,12 @@ export async function saveFrontlineApp(app) {
     if (result.error && String(result.error.message || '').includes('category')) {
         const fallbackPayload = { ...payload };
         delete fallbackPayload.category;
+        result = await saveWithPayload(fallbackPayload);
+    }
+
+    if (result.error && String(result.error.message || '').includes('builder_type')) {
+        const fallbackPayload = { ...payload };
+        delete fallbackPayload.builder_type;
         result = await saveWithPayload(fallbackPayload);
     }
 

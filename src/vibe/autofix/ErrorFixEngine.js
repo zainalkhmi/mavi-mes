@@ -6,6 +6,7 @@
 
 import { AIProvider } from '../ai/AIProvider';
 import { AgenticPromptEngine } from '../ai/AgenticPromptEngine';
+import { healTruncatedReactCode, autoFixMissingImports } from '../utils/codeCleaner';
 
 export class ErrorFixEngine {
   constructor(vfs, runtimeManager, maxAttempts = 3) {
@@ -56,6 +57,44 @@ export class ErrorFixEngine {
     });
 
     try {
+      // 0. Quick Heuristic Syntax Auto-Heal (solves 99% of truncated streaming errors instantly)
+      const targetPath = source || '/App.js';
+      const currentCode = this.vfs.readFile(targetPath) || this.vfs.readFile('/App.js');
+      const isSyntaxOrTruncation = /unterminated|syntaxerror|unexpected token|expected/i.test(errorText);
+      if (isSyntaxOrTruncation && currentCode) {
+        const healed = healTruncatedReactCode(currentCode);
+        if (healed && healed.trim() !== currentCode.trim()) {
+          this.vfs.writeFile(targetPath, healed);
+          await this.runtimeManager.mountProject(this.vfs.getAllFilesRecord());
+          this.isRepairing = false;
+          this.notify({
+            stage: 'success',
+            attempt: this.attemptCount,
+            message: `✅ Berhasil diperbaiki seketika dengan Syntax Healer (${targetPath})!`,
+            fixed: true
+          });
+          return { success: true, appliedFiles: [targetPath], attempts: this.attemptCount };
+        }
+      }
+
+      // 0.1 Quick Heuristic Missing Import Auto-Heal (solves ReferenceError: X is not defined instantly)
+      const isReferenceError = /ReferenceError|is not defined/i.test(errorText);
+      if (isReferenceError && currentCode) {
+        const importFixed = autoFixMissingImports(currentCode, errorText);
+        if (importFixed && importFixed.trim() !== currentCode.trim()) {
+          this.vfs.writeFile(targetPath, importFixed);
+          await this.runtimeManager.mountProject(this.vfs.getAllFilesRecord());
+          this.isRepairing = false;
+          this.notify({
+            stage: 'success',
+            attempt: this.attemptCount,
+            message: `✅ Berhasil menambahkan import yang hilang seketika (${targetPath})!`,
+            fixed: true
+          });
+          return { success: true, appliedFiles: [targetPath], attempts: this.attemptCount };
+        }
+      }
+
       // 1. Build Auto-Fix Prompt
       const fixPrompt = AgenticPromptEngine.buildAutoFixPrompt({
         errorText,

@@ -100,6 +100,7 @@ const ShiftHandoffSettings = lazy(() => import('./components/ShiftHandoffSetting
 const InspectorDesigner = lazy(() => import('./components/InspectorDesigner'));
 const CheckSheetManager = lazy(() => import('./components/CheckSheetManager'));
 const MachineMonitoringDashboard = lazy(() => import('./components/MachineMonitoringDashboard'));
+const UiEngineStudio = lazy(() => import('./ui-engine/preview/UiEngineStudio'));
 
 export default function AppRouter({ user, isOperator }) {
   const hasAccess = (path) => checkRoleAccess(user, path);
@@ -134,6 +135,8 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/checksheet-management" element={<CheckSheetManager />} />
               <Route path="/checksheet-manager" element={<CheckSheetManager />} />
               <Route path="/inspector-designer" element={<InspectorDesigner />} />
+              <Route path="/ui-engine" element={<UiEngineStudio />} />
+              <Route path="/gluestack" element={<UiEngineStudio />} />
               <Route path="*" element={<Navigate to="/terminal" replace />} />
             </>
           ) : (
@@ -222,6 +225,9 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/plant-dashboard" element={<ProductionPlantDashboard />} />
               <Route path="/machine-activity-tracker" element={<MachineActivityYieldTracker />} />
               <Route path="/yield-tracker" element={<MachineActivityYieldTracker />} />
+              <Route path="/ui-engine" element={<UiEngineStudio />} />
+              <Route path="/gluestack" element={<UiEngineStudio />} />
+              <Route path="/gluestack/canvas" element={<UiEngineStudio canvasMode={true} />} />
               <Route path="*" element={<Home />} />
             </>
           )}

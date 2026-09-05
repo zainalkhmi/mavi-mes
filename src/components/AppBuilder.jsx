@@ -29728,6 +29728,65 @@ D3:0
                                         </span>
                                     </div>
                                 </button>
+
+                                {/* Option 3: Mobile Native (Gluestack UI) */}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        window.open('/#/gluestack', '_blank');
+                                        setIsCopilotMenuOpen(false);
+                                    }}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px',
+                                        padding: '8px 16px 8px 12px',
+                                        borderRadius: '9999px',
+                                        background: 'linear-gradient(135deg, #2a1625 0%, #0f172a 100%)',
+                                        border: '1.5px solid rgba(168, 85, 247, 0.5)',
+                                        color: '#ffffff',
+                                        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 15px rgba(168, 85, 247, 0.3)',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.transform = 'translateY(-2px) scale(1.03)';
+                                        e.currentTarget.style.borderColor = '#c084fc';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                                        e.currentTarget.style.borderColor = 'rgba(168, 85, 247, 0.5)';
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            width: '32px',
+                                            height: '32px',
+                                            borderRadius: '50%',
+                                            background: 'linear-gradient(135deg, #714b67 0%, #008784 100%)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: '#ffffff',
+                                            boxShadow: '0 2px 8px rgba(113, 75, 103, 0.5)'
+                                        }}
+                                    >
+                                        <Smartphone size={16} />
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#f8fafc' }}>
+                                                Mobile Native
+                                            </span>
+                                            <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', backgroundColor: 'rgba(168, 85, 247, 0.25)', color: '#d8b4fe' }}>
+                                                Gluestack
+                                            </span>
+                                        </div>
+                                        <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
+                                            Gluestack UI & Mobile Engine
+                                        </span>
+                                    </div>
+                                </button>
                             </div>
                         )}
 

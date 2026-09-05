@@ -15,23 +15,24 @@ import {
   CheckCircle2,
   ListTodo,
   RotateCcw,
+  RefreshCw,
   ShieldCheck,
   FileCode,
   Cpu,
   Mic,
   MicOff
 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import toast, { Toaster } from 'react-hot-toast';
 import { getPrimaryAiConnector, saveIntegrationConnector } from '../../utils/database';
-import { streamVibeAI, generateVibeCode } from '../../utils/ai/VibeAIStreamService';
-import { cleanVibeCode } from '../utils/codeCleaner';
+import { streamVibeAI, generateVibeCode, isTruncatedResponse } from '../../utils/ai/VibeAIStreamService';
+import { cleanVibeCode, extractVibeCode } from '../utils/codeCleaner';
 
 export const PROVIDER_MODELS = {
   Gemini: [
-    { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', desc: 'Model terbaru, super cerdas & cepat (Rekomendasi)', tag: 'Recommended' },
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', desc: 'Generasi 2.5 stabil & responsif' },
-    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', desc: 'Model standar serbaguna' },
-    { id: 'gemini-1.5-flash-8b', name: 'Gemini 1.5 Flash-8B', desc: 'Throughput tinggi untuk tugas ringan' }
+    { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', desc: 'Model terbaru, super cerdas & cepat (Rekomendasi)', tag: 'Recommended' },
+    { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash', desc: 'Generasi 3.7 stabil & cepat' },
+    { id: 'gemini-flash-latest', name: 'Gemini Flash Latest', desc: 'Versi flash stabil otomatis' },
+    { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', desc: 'Generasi 3.6 responsif' }
   ],
   OpenAI: [
     { id: 'gpt-4o-mini', name: 'GPT-4o Mini', desc: 'Efisien, cepat & cerdas', tag: 'Fast' },
@@ -56,12 +57,14 @@ export const PROVIDER_MODELS = {
 const isRetiredGemini = (id) => {
   if (!id) return false;
   const s = String(id).toLowerCase();
-  return s.includes('gemini-2.0') || s.includes('gemini-1.5-pro');
+  return s.includes('gemini-1.5') || s.includes('gemini-2.0') || s.includes('gemini-2.5');
 };
 
 export default function VibeChatPanel({
   isOpen = false,
   context = {},
+  initialPrompt = '',
+  onPromptConsumed = () => {},
   settings = {},
   onCodeGenerated = () => {},
   onClose = () => {}
@@ -74,10 +77,21 @@ export default function VibeChatPanel({
   const chatEndRef = useRef(null);
   const textareaRef = useRef(null);
 
+  // Consume initialPrompt if passed externally
+  useEffect(() => {
+    if (initialPrompt && initialPrompt.trim()) {
+      setInput(initialPrompt);
+      onPromptConsumed?.();
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
+    }
+  }, [initialPrompt]);
+
   // Active AI Model & Provider state
   const [activeConnector, setActiveConnector] = useState(null);
   const [selectedProvider, setSelectedProvider] = useState('Gemini');
-  const [selectedModelId, setSelectedModelId] = useState('gemini-3.6-flash');
+  const [selectedModelId, setSelectedModelId] = useState('gemini-3.8-flash');
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const modelDropdownRef = useRef(null);
@@ -89,26 +103,26 @@ export default function VibeChatPanel({
         let savedProvider = localStorage.getItem('vibe_active_provider') || 'Gemini';
         let savedModel = localStorage.getItem('vibe_active_model');
         if (isRetiredGemini(savedModel)) {
-          savedModel = 'gemini-3.6-flash';
-          localStorage.setItem('vibe_active_model', 'gemini-3.6-flash');
+          savedModel = 'gemini-3.8-flash';
+          localStorage.setItem('vibe_active_model', 'gemini-3.8-flash');
         }
 
         const connector = await getPrimaryAiConnector().catch(() => null);
         if (connector) {
           const aiSet = connector.aiSettings || connector.config || connector || {};
           if (isRetiredGemini(aiSet.modelId)) {
-            aiSet.modelId = 'gemini-3.6-flash';
+            aiSet.modelId = 'gemini-3.8-flash';
           }
           setActiveConnector(connector);
           const p = savedProvider || aiSet.provider || 'Gemini';
           const m = !isRetiredGemini(savedModel)
-            ? (savedModel || 'gemini-3.6-flash')
-            : (!isRetiredGemini(aiSet.modelId) ? aiSet.modelId : (p === 'OpenAI' ? 'gpt-4o-mini' : 'gemini-3.6-flash'));
+            ? (savedModel || 'gemini-3.8-flash')
+            : (!isRetiredGemini(aiSet.modelId) ? aiSet.modelId : (p === 'OpenAI' ? 'gpt-4o-mini' : 'gemini-3.8-flash'));
           setSelectedProvider(p);
           setSelectedModelId(m);
         } else {
           setSelectedProvider(savedProvider);
-          setSelectedModelId(savedModel || 'gemini-3.6-flash');
+          setSelectedModelId(savedModel || 'gemini-3.8-flash');
         }
       } catch (err) {
         console.warn('[VibeChatPanel] Failed to load active AI connector:', err);
@@ -254,7 +268,7 @@ ${tablesList || 'No custom tables yet'}`;
         const planSystemPrompt = `You are MaviCore Vibe Planner (Antigravity Mode).
 The user wants to build or modify an industrial MES / HMI application.
 DO NOT WRITE FULL CODE YET.
-Create a clear, professional, structured IMPLEMENTATION PLAN in markdown:
+Create a clear, compact, professional, structured IMPLEMENTATION PLAN in markdown:
 
 # 📋 Implementation Plan: [Nama Aplikasi yang Jelas]
 
@@ -264,21 +278,24 @@ Create a clear, professional, structured IMPLEMENTATION PLAN in markdown:
 ## 🗄️ Rencana Database & Kolom Tabel MaviCore
 - **Nama Tabel**: \`[NamaTabel_Log]\`
 - **Kolom Data**:
-  - \`field1\` (text/number/datetime) - deskripsi
-  - \`field2\` (text/number/datetime) - deskripsi
-- **Operasi CRUD**: (Jelaskan aksi simpan barang, ambil data, dan sinkronisasi real-time)
+  - \`recordId\` (text) - ID unik record
+  - \`field1\` (text/number/datetime) - keterangan
+  - \`field2\` (text/number/datetime) - keterangan
+  - \`status\` (text) - Pass/Reject/Open/Closed
+  - \`timestamp\` (datetime) - waktu pencatatan
+- **Operasi CRUD**: (Jelaskan aksi simpan, ambil data, dan sinkronisasi real-time)
 
 ## 🧩 Fitur & Komponen UI
-1. **Ringkasan KPI / Status Bar**: (Metrik-metrik kunci, indikator visual status)
-2. **Formulir Interaktif**: (Input field, validasi, tombol aksi)
-3. **Tabel Data & Pencarian**: (Tabel real-time, badge status, filter)
-4. **Desain & Tema**: Modern Light & Colourful ala Lovable.dev / shadcn/ui: background off-white lembut (#f8fafc), surface card putih bersih (#ffffff) dengan soft elevated shadow dan border halus (#e2e8f0), teks judul slate-900 (#0f172a), serta tombol aksi dan badge status kaya warna cerah (Emerald, Rose, Indigo, Sky). DILARANG menggunakan background gelap/hitam pekat kecuali user secara eksplisit meminta dark mode!
+1. **Ringkasan KPI / Status Bar**: Indikator visual metrik kunci & status bridge
+2. **Formulir Interaktif**: Input data, validasi, dan tombol aksi
+3. **Tabel Data & Pencarian**: Real-time table, filter status, pencarian cepat
+4. **Desain & Tema**: Modern Light & Colourful ala Lovable.dev / shadcn/ui: background off-white (#f8fafc), card putih (#ffffff) dengan border halus (#e2e8f0) dan shadow lembut, typography slate-900/600, badge warna cerah (Emerald, Rose, Amber, Sky). DILARANG background gelap!
 
 ## 🛡️ Verification Plan
 - Kompilasi React bebas error di Sandpack preview
 - Uji simpan record data ke MaviCore database bridge
 
-Sampaikan bahwa pengguna dapat mereview plan ini dan menekan tombol **Proceed** untuk mulai mengenerate koding.`;
+PENTING & WAJIB: Tuntaskan seluruh 4 bagian plan di atas secara lengkap sampai bagian Verification Plan selesai. Jangan berhenti sebelum seluruh dokumen tuntas!`;
 
         await streamVibeAI({
           messages: [
@@ -305,7 +322,7 @@ Sampaikan bahwa pengguna dapat mereview plan ini dan menekan tombol **Proceed** 
         });
       } else {
         // ─── 2. DIRECT CODING MODE ───
-        const directSystemPrompt = `You are MaviCore Vibe Coding Engine — an expert React engineer specializing in industrial MES and HMI frontends.
+        const directSystemPrompt = `You are MaviCore Vibe Coding Engine — an expert React engineer.
 
 CRITICAL EXECUTION CONSTRAINTS:
 1. The preview runs directly in-browser using Sandpack. React, Tailwind CSS, Lucide React icons, and Framer Motion are ALREADY pre-installed and available.
@@ -320,6 +337,11 @@ CRITICAL EXECUTION CONSTRAINTS:
    - Vibrant Action Buttons: OK/Pass (emerald gradient #10b981 to #059669 with soft glow), NG/Reject (rose gradient #f43f5e to #dc2626), Primary actions (indigo #6366f1 to #4f46e5)
    - KPI & Metrics: Kartu putih murni dengan icon box pastel cerah dan angka tebal besar (bukan kartu hitam/navy)
    - Terapkan gaya modern, bersih, cerah dan penuh warna persis seperti lovable.dev atau dashboard Vercel!
+6. WAJIB STRUKTUR KODE TERATUR, COMPACT & TUNTAS (ANTI-TRUNCATION):
+   - Mock Data Singkat: Cukup 2 item contoh ringkas saja (DILARANG membuat array dummy panjang yang menghabiskan token!).
+   - State & Handlers Ringkas: Buat state dan handler secukupnya.
+   - PRIORITAS UTAMA BLOK RETURN JSX: Segera masuk ke blok return JSX untuk merender seluruh tampilan (Header, KPI Cards, Filter/Pencarian, Tabel Utama, Dialog/Modal Tambah Data).
+   - Pastikan seluruh tag penutup tertutup rapi dan diakhiri \`export default function App() { return (...); }\` sebelum menutup dengan </vibe_code>.
 
 DATABASE & TABLE INTEGRATION (MAVICORE BRIDGE):
 MaviCore provides an auto-injected real-time database bridge at window.MaviCoreBridge.
@@ -341,17 +363,7 @@ When creating or updating apps, always integrate with the MaviCore table system:
             setCurrentStream(prev => prev + chunk);
           },
           onComplete: (result) => {
-            let extractedCode = null;
-            const codeMatch = result.text.match(/<vibe_code>([\s\S]*?)<\/vibe_code>/i);
-            if (codeMatch) {
-              extractedCode = cleanVibeCode(codeMatch[1]);
-            } else {
-              const mdMatch = result.text.match(/```(?:jsx|javascript|js|tsx)?\s*([\s\S]*?)```/i);
-              if (mdMatch && (mdMatch[1].includes('export default') || mdMatch[1].includes('return') || mdMatch[1].includes('function'))) {
-                extractedCode = cleanVibeCode(mdMatch[1]);
-              }
-            }
-
+            const extractedCode = extractVibeCode(result.text);
             if (extractedCode) {
               onCodeGenerated(extractedCode);
             }
@@ -389,7 +401,7 @@ When creating or updating apps, always integrate with the MaviCore table system:
     }]);
 
     try {
-      const execSystemPrompt = `You are MaviCore Vibe Coding Engine — an expert React engineer specializing in industrial MES and HMI frontends.
+      const execSystemPrompt = `You are MaviCore Vibe Coding Engine — an expert React engineer specializing in industrial MES, mobile, and HMI frontends.
 The user has REVIEWED and APPROVED the following Implementation Plan:
 ${targetPlan.content}
 
@@ -405,7 +417,12 @@ CRITICAL EXECUTION CONSTRAINTS:
    - Card/Panels: WAJIB putih bersih (#ffffff), border halus (#e2e8f0), soft elevated shadow (0 4px 20px -2px rgba(0,0,0,0.05)), rounded-2xl
    - High-contrast crisp typography: Slate-900 (#0f172a) untuk judul, Slate-600 (#475569) untuk teks sekunder
    - Vibrant colorful gradient buttons and status badges (Emerald, Rose, Indigo, Amber, Sky)
-   - Stat Cards / KPI: Kartu putih bersih dengan icon container pastel dan angka bold Slate-900;`;
+   - Stat Cards / KPI: Kartu putih bersih dengan icon container pastel dan angka bold Slate-900
+7. WAJIB STRUKTUR KODE TERATUR, COMPACT & TUNTAS (ANTI-TRUNCATION):
+   - Mock Data Singkat: Cukup 2 item contoh ringkas saja (DILARANG membuat array dummy panjang yang menghabiskan token!).
+   - State & Handlers Ringkas: Buat state dan handler secukupnya.
+   - PRIORITAS UTAMA BLOK RETURN JSX: Segera masuk ke blok return JSX untuk merender seluruh tampilan (Header, KPI Cards, Filter/Pencarian, Tabel Utama, Dialog/Modal Tambah Data).
+   - Pastikan seluruh tag penutup tertutup rapi dan diakhiri \`export default function App() { return (...); }\` sebelum menutup dengan </vibe_code>.`;
 
       const effectiveSettings = {
         ...(activeConnector || {}),
@@ -419,27 +436,13 @@ CRITICAL EXECUTION CONSTRAINTS:
       const result = await streamVibeAI({
         messages: [
           { role: 'system', content: execSystemPrompt },
-          { role: 'user', content: 'Execute the approved plan and generate the complete code for /App.js.' }
+          { role: 'user', content: 'Execute the approved plan and generate the complete code for /App.js wrapped inside <vibe_code> ... </vibe_code> tags.' }
         ],
         settings: effectiveSettings,
         onChunk: (chunk) => {
           setCurrentStream(prev => prev + chunk);
         },
         onComplete: (res) => {
-          let extractedCode = null;
-          const codeMatch = res.text.match(/<vibe_code>([\s\S]*?)<\/vibe_code>/i);
-          if (codeMatch) {
-            extractedCode = cleanVibeCode(codeMatch[1]);
-          } else {
-            const mdMatch = res.text.match(/```(?:jsx|javascript|js|tsx)?\s*([\s\S]*?)```/i);
-            if (mdMatch && (mdMatch[1].includes('export default') || mdMatch[1].includes('return') || mdMatch[1].includes('function'))) {
-              extractedCode = cleanVibeCode(mdMatch[1]);
-            }
-          }
-
-          if (extractedCode) {
-            onCodeGenerated(extractedCode);
-          }
           setCurrentStream('');
         },
         onError: (err) => {
@@ -448,12 +451,17 @@ CRITICAL EXECUTION CONSTRAINTS:
         }
       });
 
-      // Extract title from plan for walkthrough
-      const titleMatch = targetPlan.content.match(/#+\s*(?:📋)?\s*Implementation Plan:?\s*([^\n\r]+)/i);
-      const appTitle = titleMatch ? titleMatch[1].trim() : (context.appName || 'Aplikasi MES');
+      const rawRes = result?.text || '';
+      let extractedCode = extractVibeCode(rawRes) || cleanVibeCode(rawRes);
+      if (extractedCode && (extractedCode.includes('return') || extractedCode.includes('export default function') || extractedCode.includes('function App'))) {
+        onCodeGenerated(extractedCode);
 
-      // Add code and walkthrough messages
-      const walkthroughContent = `### 🛡️ Antigravity Walkthrough & Verification
+        // Extract title from plan for walkthrough
+        const titleMatch = targetPlan.content.match(/#+\s*(?:📋)?\s*Implementation Plan:?\s*([^\n\r]+)/i);
+        const appTitle = titleMatch ? titleMatch[1].trim() : (context.appName || 'Aplikasi MES');
+
+        // Add code and walkthrough messages
+        const walkthroughContent = `### 🛡️ Antigravity Walkthrough & Verification
 
 #### 📦 Yang Berhasil Dibuat
 - **Aplikasi**: **${appTitle}** berhasil dibuat dan diterapkan ke \`/App.js\`.
@@ -469,13 +477,77 @@ CRITICAL EXECUTION CONSTRAINTS:
 2. **Tambah / Ubah Data**: Coba isi formulir input dan klik simpan untuk menguji pencatatan data.
 3. **Cek Table Sync**: Klik tombol **Table Sync** di toolbar atas untuk memastikan data tercatat di database MaviCore.`;
 
-      setMessages(prev => [
-        ...prev,
-        { role: 'assistant', type: 'code', content: result.text },
-        { role: 'assistant', type: 'walkthrough', content: walkthroughContent }
-      ]);
+        setMessages(prev => [
+          ...prev,
+          { role: 'assistant', type: 'code', content: result.text },
+          { role: 'assistant', type: 'walkthrough', content: walkthroughContent }
+        ]);
+      } else {
+        setMessages(prev => [
+          ...prev,
+          { role: 'assistant', type: 'code', content: result?.text || '' },
+          {
+            role: 'assistant',
+            type: 'error',
+            content: `⚠️ **Kode Belum Otomatis Diterapkan ke /App.js**\n\nRespon AI tidak menyertakan tag kode \`<vibe_code>\` yang lengkap atau koding terpotong.\n\nSilakan gunakan tombol **"⚡ Terapkan ke /App.js"** di kartu kode di atas untuk memasang koding secara manual, atau klik tombol **"🔄 Lanjutkan Koding"** untuk melengkapi kode.`
+          }
+        ]);
+      }
     } catch (err) {
       setMessages(prev => [...prev, { role: 'assistant', content: `Gagal mengeksekusi plan: ${err.message}` }]);
+    } finally {
+      setIsLoading(false);
+      setCurrentStream('');
+    }
+  };
+
+  const handleContinueGeneration = async (msgIndex) => {
+    const targetMsg = messages[msgIndex];
+    if (!targetMsg || isLoading) return;
+
+    const isPlan = targetMsg.type === 'plan';
+    setIsLoading(true);
+    setCurrentStream('');
+
+    try {
+      const prompt = isPlan
+        ? 'Respons Implementation Plan Anda terpotong di tengah jalan. Lanjutkan penulisan SEGERA tepat dari kata terakhir yang terhenti tanpa mengulang teks sebelumnya, dan tuntaskan seluruh bagian plan sampai selesai termasuk ## 🛡️ Verification Plan.'
+        : 'Your previous React code output was cut off mid-code due to token length limits. Continue outputting IMMEDIATELY from the exact point you stopped without repeating previous imports or code lines. Complete the remaining JSX return and function closing, and terminate with </vibe_code>.';
+
+      const effectiveSettings = {
+        ...(activeConnector || {}),
+        aiSettings: {
+          ...(activeConnector?.aiSettings || activeConnector?.config || {}),
+          provider: selectedProvider,
+          modelId: selectedModelId
+        }
+      };
+
+      const result = await streamVibeAI({
+        messages: [
+          { role: 'assistant', content: targetMsg.content },
+          { role: 'user', content: prompt }
+        ],
+        settings: effectiveSettings,
+        onChunk: (chunk) => {
+          setCurrentStream(prev => prev + chunk);
+        }
+      });
+
+      const fullMerged = targetMsg.content + (result?.text || '');
+      setMessages(prev => prev.map((m, idx) => idx === msgIndex ? { ...m, content: fullMerged } : m));
+
+      if (!isPlan) {
+        const code = extractVibeCode(fullMerged) || cleanVibeCode(fullMerged);
+        if (code) {
+          onCodeGenerated(code);
+          toast.success('⚡ Koding berhasil diselesaikan dan diterapkan ke /App.js!');
+        }
+      } else {
+        toast.success('📋 Implementation Plan berhasil dilengkapi!');
+      }
+    } catch (err) {
+      toast.error(`Gagal melanjutkan: ${err.message}`);
     } finally {
       setIsLoading(false);
       setCurrentStream('');
@@ -596,6 +668,7 @@ CRITICAL EXECUTION CONSTRAINTS:
         gap: '12px',
         minWidth: 0
       }}>
+        <Toaster position="top-right" toastOptions={{ style: { background: '#1e293b', color: '#f8fafc', border: '1px solid #334155' } }} />
         {messages.length === 0 && !isLoading && (
           <div style={{
             textAlign: 'center',
@@ -624,6 +697,9 @@ CRITICAL EXECUTION CONSTRAINTS:
             onCopy={copyMessage}
             onProceed={() => handleProceedPlan(i)}
             onRequestRevision={() => handleRequestRevision(i)}
+            onApplyCode={(code) => onCodeGenerated(code)}
+            onContinue={() => handleContinueGeneration(i)}
+            isLoading={isLoading}
           />
         ))}
 
@@ -999,8 +1075,16 @@ function formatInline(str) {
 // Markdown parser and formatter
 function renderFormattedText(text) {
   if (!text) return null;
+  let normalized = text;
+  if (normalized.includes('<vibe_code>') && !normalized.includes('</vibe_code>')) {
+    normalized += '\n</vibe_code>';
+  }
+  const openFences = (normalized.match(/```/g) || []).length;
+  if (openFences % 2 !== 0) {
+    normalized += '\n```';
+  }
   const regex = /(<vibe_code>[\s\S]*?<\/vibe_code>|```(?:[a-zA-Z0-9_-]+)?\s*[\s\S]*?```)/gi;
-  const parts = text.split(regex);
+  const parts = normalized.split(regex);
 
   return parts.map((part, i) => {
     if (!part) return null;
@@ -1133,12 +1217,17 @@ function MessageBubble({
   isStreaming,
   onCopy,
   onProceed,
-  onRequestRevision
+  onRequestRevision,
+  onApplyCode,
+  onContinue,
+  isLoading
 }) {
   const [copied, setCopied] = useState(false);
+  const [applied, setApplied] = useState(false);
   const isAssistant = role === 'assistant';
   const isPlan = type === 'plan';
   const isWalkthrough = type === 'walkthrough';
+  const isTruncated = isAssistant && !isStreaming && isTruncatedResponse(content, isPlan);
 
   const handleCopy = () => {
     onCopy(content);
@@ -1336,24 +1425,156 @@ function MessageBubble({
                   <RotateCcw size={12} />
                   <span>Minta Revisi</span>
                 </button>
+                {isTruncated && onContinue && (
+                  <button
+                    type="button"
+                    onClick={onContinue}
+                    disabled={isLoading}
+                    style={{
+                      background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '7px',
+                      padding: '7px 12px',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      cursor: isLoading ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      boxShadow: '0 2px 8px rgba(139, 92, 246, 0.35)'
+                    }}
+                  >
+                    <RefreshCw size={12} className={isLoading ? "animate-spin" : ""} />
+                    <span>🔄 Lanjutkan Plan (Auto-Continue)</span>
+                  </button>
+                )}
               </div>
             ) : (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                color: '#34d399',
-                fontSize: '11.5px',
-                fontWeight: 600,
-                padding: '4px 8px',
-                backgroundColor: 'rgba(16, 185, 129, 0.12)',
-                borderRadius: '6px',
-                width: 'fit-content'
-              }}>
-                <CheckCircle2 size={13} />
-                <span>Plan Disetujui & Telah Dieksekusi</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  color: '#34d399',
+                  fontSize: '11.5px',
+                  fontWeight: 600,
+                  padding: '4px 8px',
+                  backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                  borderRadius: '6px',
+                  width: 'fit-content'
+                }}>
+                  <CheckCircle2 size={13} />
+                  <span>Plan Disetujui & Telah Dieksekusi</span>
+                </div>
+                {isTruncated && onContinue && (
+                  <button
+                    type="button"
+                    onClick={onContinue}
+                    disabled={isLoading}
+                    style={{
+                      background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '4px 8px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: isLoading ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <RefreshCw size={11} className={isLoading ? "animate-spin" : ""} />
+                    <span>Lengkapi Plan</span>
+                  </button>
+                )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Interactive Apply Code button if code is present in assistant message */}
+        {isAssistant && !isStreaming && onApplyCode && (type === 'code' || (content && (content.includes('export default') || content.includes('<vibe_code>') || content.includes('<vibe-code>') || content.includes('```') || content.includes('import ') || content.includes('function ')))) && (
+          <div style={{
+            marginTop: '10px',
+            paddingTop: '8px',
+            borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px',
+            flexWrap: 'wrap'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const code = extractVibeCode(content) || cleanVibeCode(content);
+                  if (code && code.trim().length > 20) {
+                    onApplyCode(code);
+                    setApplied(true);
+                    toast.success('⚡ Kode berhasil diterapkan ke /App.js dan layar preview!');
+                    setTimeout(() => setApplied(false), 3000);
+                  } else {
+                    toast.error('Gagal mengekstrak kode yang lengkap dari pesan ini.');
+                  }
+                }}
+                style={{
+                  background: applied
+                    ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                    : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '7px',
+                  padding: '6px 12px',
+                  fontSize: '11.5px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  boxShadow: applied
+                    ? '0 2px 10px rgba(16, 185, 129, 0.45)'
+                    : '0 2px 8px rgba(37, 99, 235, 0.35)',
+                  transition: 'all 0.2s'
+                }}
+              >
+                {applied ? <CheckCircle2 size={12} color="#fff" /> : <Play size={12} fill="#fff" />}
+                <span>{applied ? '✓ Berhasil Diterapkan ke Layar!' : '⚡ Terapkan ke /App.js (Live Preview)'}</span>
+              </button>
+
+              {isTruncated && onContinue && (
+                <button
+                  type="button"
+                  onClick={onContinue}
+                  disabled={isLoading}
+                  style={{
+                    background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '7px',
+                    padding: '6px 12px',
+                    fontSize: '11.5px',
+                    fontWeight: 700,
+                    cursor: isLoading ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    boxShadow: '0 2px 8px rgba(139, 92, 246, 0.35)',
+                    transition: 'all 0.2s'
+                  }}
+                  title="Minta AI melanjutkan koding yang terpotong"
+                >
+                  <RefreshCw size={12} className={isLoading ? "animate-spin" : ""} />
+                  <span>🔄 Lanjutkan Koding</span>
+                </button>
+              )}
+            </div>
+            <span style={{ fontSize: '10px', color: applied ? '#34d399' : '#94a3b8' }}>
+              {applied ? 'Layar device telah terupdate!' : 'Pasang langsung ke editor'}
+            </span>
           </div>
         )}
 

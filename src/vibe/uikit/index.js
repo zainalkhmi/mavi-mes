@@ -167,3 +167,4 @@ export function MaviDataTable({ columns = [], data = [], title = 'Tabel Data' })
   );
 }
 `;
+

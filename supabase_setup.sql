@@ -29,10 +29,47 @@ CREATE TABLE IF NOT EXISTS public.frontline_apps (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
     category TEXT DEFAULT 'Shop Floor',
+    description TEXT,
     config JSONB DEFAULT '{"components": []}',
+    published_config JSONB,
+    is_published BOOLEAN DEFAULT FALSE,
+    approval_status TEXT DEFAULT 'DRAFT',
+    approved_by TEXT,
+    approved_at TIMESTAMPTZ,
+    builder_type TEXT DEFAULT 'app_builder', -- 'app_builder' | 'gluestack' | 'sandbox'
+    version INTEGER DEFAULT 1,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Add new columns if they don't exist (for existing tables)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'frontline_apps' AND column_name = 'builder_type') THEN
+        ALTER TABLE public.frontline_apps ADD COLUMN builder_type TEXT DEFAULT 'app_builder';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'frontline_apps' AND column_name = 'published_config') THEN
+        ALTER TABLE public.frontline_apps ADD COLUMN published_config JSONB;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'frontline_apps' AND column_name = 'is_published') THEN
+        ALTER TABLE public.frontline_apps ADD COLUMN is_published BOOLEAN DEFAULT FALSE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'frontline_apps' AND column_name = 'approval_status') THEN
+        ALTER TABLE public.frontline_apps ADD COLUMN approval_status TEXT DEFAULT 'DRAFT';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'frontline_apps' AND column_name = 'approved_by') THEN
+        ALTER TABLE public.frontline_apps ADD COLUMN approved_by TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'frontline_apps' AND column_name = 'approved_at') THEN
+        ALTER TABLE public.frontline_apps ADD COLUMN approved_at TIMESTAMPTZ;
+    END IF;
+END $$;
+
+-- RLS for frontline_apps
+ALTER TABLE public.frontline_apps ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all frontline_apps" ON public.frontline_apps;
+CREATE POLICY "Allow all frontline_apps" ON public.frontline_apps FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.frontline_apps TO anon, authenticated;
 
 -- 3. Table: production_queue
 CREATE TABLE IF NOT EXISTS public.production_queue (

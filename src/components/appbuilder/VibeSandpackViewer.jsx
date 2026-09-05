@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   SandpackProvider,
   SandpackLayout,
@@ -37,6 +37,7 @@ import {
   Search,
   FileText,
   ArrowUp,
+  ArrowLeft,
   Loader2,
   History,
   PanelLeftClose,
@@ -52,7 +53,7 @@ import {
   PenTool
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
-import toast from 'react-hot-toast';
+import toast, { Toaster } from 'react-hot-toast';
 import {
   syncVibeAppToTable,
   initVibeMessageListener,
@@ -76,7 +77,7 @@ import ManufacturingTemplatesModal from '../../vibe/components/ManufacturingTemp
 import BuildModal from '../../vibe/components/BuildModal';
 import VibeChatPanel from '../../vibe/components/VibeChatPanel';
 import BottomTerminalPanel from '../../vibe/components/BottomTerminalPanel';
-import { cleanVibeCode } from '../../vibe/utils/codeCleaner';
+import { cleanVibeCode, healTruncatedReactCode, extractVibeCode, autoFixMissingImports } from '../../vibe/utils/codeCleaner';
 
 // ═══════════════════════════════════════════════════════════════════
 // 🔌 MaviCore Real-time Data Bridge Helper
@@ -237,7 +238,7 @@ export const DEFAULT_VIBE_HMI_CODE = `import React, { useState, useEffect } from
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity, CheckCircle2, XCircle, TrendingUp, Users, Settings,
-  Bell, ChevronRight, Play, Pause, RotateCcw, Zap, Factory, RefreshCw
+  Bell, ChevronRight, Play, Pause, RotateCcw, Zap, Factory, RefreshCw, Trash2
 } from 'lucide-react';
 
 // ─── Inject MaviCore Bridge ───
@@ -269,7 +270,7 @@ function useMaviCoreData(tableName) {
     }
   }, [tableName]);
 
-  return { records, loading };
+  return { records, loading, setRecords };
 }
 
 // ─── Tailwind CSS Styles ───
@@ -349,7 +350,7 @@ export default function IndustrialDashboard() {
   const [lastSync, setLastSync] = useState(null);
 
   // ─── Real-time Data Hook ───
-  const { records: productionLogs, loading: isLoadingLogs } = useMaviCoreData(TABLE_NAME);
+  const { records: productionLogs, loading: isLoadingLogs, setRecords: setProductionLogs } = useMaviCoreData(TABLE_NAME);
 
   // Update counts from real data when available
   useEffect(() => {
@@ -701,18 +702,76 @@ export default function IndustrialDashboard() {
  */
 function SandpackErrorListener({ onError, onLog }) {
   const { sandpack } = useSandpack();
-  const prevErrorsRef = useRef([]);
+  const prevErrorsRef = useRef('');
+  const onErrorRef = useRef(onError);
+  const onLogRef = useRef(onLog);
+  onErrorRef.current = onError;
+  onLogRef.current = onLog;
 
   useEffect(() => {
     const errs = sandpack?.errors || [];
-    if (errs.length > 0 && JSON.stringify(errs) !== JSON.stringify(prevErrorsRef.current)) {
-      prevErrorsRef.current = errs;
-      const first = errs[0];
-      const msg = typeof first === 'string' ? first : first.message || JSON.stringify(first);
-      if (onError) onError(msg);
-      if (onLog) onLog(`[Sandpack Error] ${msg}`);
+    let errKey = '';
+    try {
+      errKey = errs.map(e => (typeof e === 'string' ? e : e?.message || '')).join('|');
+    } catch {
+      errKey = String(errs.length);
     }
-  }, [sandpack?.errors, onError, onLog]);
+
+    if (errs.length > 0 && errKey !== prevErrorsRef.current) {
+      prevErrorsRef.current = errKey;
+      const first = errs[0];
+      const msg = typeof first === 'string' ? first : first?.message || JSON.stringify(first);
+      if (onErrorRef.current) onErrorRef.current(msg);
+      if (onLogRef.current) onLogRef.current(`[Sandpack Error] ${msg}`);
+    } else if (errs.length === 0) {
+      prevErrorsRef.current = '';
+    }
+  }, [sandpack?.errors]);
+
+  return null;
+}
+
+/**
+ * Live Bridge to push files directly into Sandpack's in-memory bundler without remounting
+ */
+function SandpackLiveBridge({ onBridgeReady }) {
+  const { sandpack } = useSandpack();
+  const sandpackRef = useRef(sandpack);
+  sandpackRef.current = sandpack;
+  const onBridgeReadyRef = useRef(onBridgeReady);
+  onBridgeReadyRef.current = onBridgeReady;
+
+  useEffect(() => {
+    if (onBridgeReadyRef.current) {
+      onBridgeReadyRef.current({
+        updateFile: (path, content) => {
+          try {
+            // Guard: skip if the file in Sandpack already has the exact same content
+            const currentCode = sandpackRef.current?.files?.[path]?.code;
+            if (currentCode === content) {
+              return;
+            }
+            sandpackRef.current?.updateFile(path, content, true);
+          } catch (e) {
+            console.error('Sandpack updateFile error:', e);
+          }
+        },
+        openFile: (path) => {
+          try {
+            sandpackRef.current?.openFile(path);
+          } catch (e) {}
+        },
+        runSandpack: () => {
+          try {
+            sandpackRef.current?.runSandpack?.();
+          } catch (e) {}
+        },
+        get sandpack() {
+          return sandpackRef.current;
+        }
+      });
+    }
+  }, []); // Run only once on mount of this Sandpack instance
 
   return null;
 }
@@ -728,6 +787,11 @@ export default function VibeSandpackViewer({
   isStandalone = false
 }) {
   const effectiveInitialCode = code && code.trim().length > 0 ? code : DEFAULT_VIBE_HMI_CODE;
+  const sandpackBridgeRef = useRef(null);
+  const handleBridgeReady = useCallback((bridge) => {
+    sandpackBridgeRef.current = bridge;
+  }, []);
+  const lastKnownExternalCodeRef = useRef(effectiveInitialCode);
 
   // 1. Virtual File System & Version Control
   const [vfs] = useState(() => {
@@ -799,6 +863,8 @@ button {
 
   // Project state
   const [filesRecord, setFilesRecord] = useState(() => vfs.getAllFilesRecord());
+  const [filesRevision, setFilesRevision] = useState(0);
+  const [chatInitialPrompt, setChatInitialPrompt] = useState('');
   const [activeFilePath, setActiveFilePath] = useState('/App.js');
   const [fileTree, setFileTree] = useState(() => vfs.getFileTree());
   const [appMode, setAppMode] = useState('web'); // 'web' | 'mobile'
@@ -808,10 +874,14 @@ button {
 
   // Sync external code prop if updated externally
   useEffect(() => {
-    if (code && code.trim() && code !== vfs.readFile('/App.js')) {
+    if (code && code.trim() && code !== lastKnownExternalCodeRef.current) {
+      lastKnownExternalCodeRef.current = code;
       vfs.writeFile('/App.js', code);
       setFilesRecord(vfs.getAllFilesRecord());
       setFileTree(vfs.getFileTree());
+      if (sandpackBridgeRef.current) {
+        sandpackBridgeRef.current.updateFile('/App.js', code);
+      }
     }
   }, [code, vfs]);
 
@@ -848,13 +918,21 @@ button {
         const saved = localStorage.getItem('vibe_sandbox_autosave');
         if (saved && saved !== effectiveInitialCode) {
           const cleaned = cleanVibeCode(saved);
-          vfs.writeFile('/App.js', cleaned);
-          setFilesRecord(vfs.getAllFilesRecord());
-          setFileTree(vfs.getFileTree());
-          if (cleaned !== saved) {
-            try { localStorage.setItem('vibe_sandbox_autosave', cleaned); } catch {}
+          if (cleaned && (cleaned.includes('function') || cleaned.includes('const')) && cleaned.includes('return')) {
+            vfs.writeFile('/App.js', cleaned);
+            setFilesRecord(vfs.getAllFilesRecord());
+            setFileTree(vfs.getFileTree());
+            if (cleaned !== saved) {
+              try { localStorage.setItem('vibe_sandbox_autosave', cleaned); } catch {}
+            }
+            toast.success('💾 Kode terakhir dipulihkan dari auto-save!');
+          } else {
+            // Corrupted or truncated saved code, safely reset to clean default code
+            localStorage.removeItem('vibe_sandbox_autosave');
+            vfs.writeFile('/App.js', DEFAULT_VIBE_HMI_CODE);
+            setFilesRecord(vfs.getAllFilesRecord());
+            setFileTree(vfs.getFileTree());
           }
-          toast.success('💾 Kode terakhir dipulihkan dari auto-save!');
         }
       } catch (e) { /* ignore */ }
     }
@@ -930,6 +1008,39 @@ button {
   const [aiActivity, setAiActivity] = useState(null);
   const [isAutoFixing, setIsAutoFixing] = useState(false);
 
+  const handleSandpackError = useCallback((err) => {
+    setErrors(prev => (prev.includes(err) ? prev : [err, ...prev.slice(0, 4)]));
+    setIsTerminalPanelOpen(true);
+
+    // Instant auto-heal for missing imports (e.g. ReferenceError: Trash2 is not defined)
+    try {
+      const currentCode = vfs.readFile('/App.js') || vfs.readFile('/App.jsx');
+      if (currentCode) {
+        const importFixed = autoFixMissingImports(currentCode, err);
+        if (importFixed && importFixed.trim() !== currentCode.trim()) {
+          vfs.writeFile('/App.js', importFixed);
+          setFilesRecord(vfs.getAllFilesRecord());
+          setFileTree(vfs.getFileTree());
+          lastKnownExternalCodeRef.current = importFixed;
+          if (sandpackBridgeRef.current) {
+            sandpackBridgeRef.current.updateFile('/App.js', importFixed);
+          }
+          try { localStorage.setItem('vibe_sandbox_autosave', importFixed); } catch {}
+          if (onCodeChange) onCodeChange(importFixed);
+          setErrors([]);
+          setLogs(prev => [...prev, { timestamp: new Date(), text: `[Auto-Fix] ✅ Berhasil menambahkan import otomatis untuk "${err}"` }]);
+          toast.success('⚡ Berhasil memperbaiki import yang hilang otomatis!');
+        }
+      }
+    } catch (e) {
+      console.warn('Auto-fix missing import failed:', e);
+    }
+  }, [vfs, onCodeChange]);
+
+  const handleSandpackLog = useCallback((text) => {
+    setLogs(prev => [...prev.slice(-49), { timestamp: new Date(), text }]);
+  }, []);
+
   const errorFixEngine = useMemo(() => {
     const engine = new ErrorFixEngine(vfs, runtimeManager, 3);
     engine.onProgress((event) => {
@@ -938,8 +1049,18 @@ button {
         setLogs(prev => [...prev, { timestamp: new Date(), text: `[Auto-Fix] ${event.message}` }]);
       }
       if (event.stage === 'success') {
-        setFilesRecord(vfs.getAllFilesRecord());
+        const updatedFiles = vfs.getAllFilesRecord();
+        setFilesRecord(updatedFiles);
         setFileTree(vfs.getFileTree());
+        const appCode = vfs.readFile('/App.js') || vfs.readFile('/App.jsx');
+        if (appCode) {
+          lastKnownExternalCodeRef.current = appCode;
+          if (sandpackBridgeRef.current) {
+            sandpackBridgeRef.current.updateFile('/App.js', appCode);
+          }
+          try { localStorage.setItem('vibe_sandbox_autosave', appCode); } catch {}
+          if (onCodeChange) onCodeChange(appCode);
+        }
         setErrors([]);
         setIsAutoFixing(false);
         toast.success(event.message);
@@ -1086,12 +1207,63 @@ button {
   };
 
   // Auto-Fix Error trigger
-  const handleTriggerAutoFix = () => {
+  const handleTriggerAutoFix = async () => {
+    setIsAutoFixing(true);
+    setLogs(prev => [...prev, { timestamp: new Date(), text: '[Auto-Fix] Memulai pemeriksaan dan perbaikan error...' }]);
+
+    // 1. Instant heuristic syntax auto-heal
+    const currentCode = vfs.readFile('/App.js') || vfs.readFile('/App.jsx');
+    if (currentCode) {
+      const healed = healTruncatedReactCode(currentCode);
+      if (healed && healed.trim() !== currentCode.trim()) {
+        vfs.writeFile('/App.js', healed);
+        const updatedFiles = vfs.getAllFilesRecord();
+        setFilesRecord(updatedFiles);
+        setFileTree(vfs.getFileTree());
+        lastKnownExternalCodeRef.current = healed;
+        if (sandpackBridgeRef.current) {
+          sandpackBridgeRef.current.updateFile('/App.js', healed);
+        }
+        try { localStorage.setItem('vibe_sandbox_autosave', healed); } catch {}
+        if (onCodeChange) onCodeChange(healed);
+        setErrors([]);
+        setIsAutoFixing(false);
+        setLogs(prev => [...prev, { timestamp: new Date(), text: '[Auto-Fix] ✅ Syntax Healer berhasil memulihkan kode secara instan!' }]);
+        toast.success('⚡ Error sintaks berhasil dipulihkan otomatis!');
+        return;
+      }
+    }
+
+    // 1.5. Instant heuristic missing imports auto-heal
+    if (currentCode && errors.length > 0) {
+      const importFixed = autoFixMissingImports(currentCode, errors[0]);
+      if (importFixed && importFixed.trim() !== currentCode.trim()) {
+        vfs.writeFile('/App.js', importFixed);
+        const updatedFiles = vfs.getAllFilesRecord();
+        setFilesRecord(updatedFiles);
+        setFileTree(vfs.getFileTree());
+        lastKnownExternalCodeRef.current = importFixed;
+        if (sandpackBridgeRef.current) {
+          sandpackBridgeRef.current.updateFile('/App.js', importFixed);
+        }
+        try { localStorage.setItem('vibe_sandbox_autosave', importFixed); } catch {}
+        if (onCodeChange) onCodeChange(importFixed);
+        setErrors([]);
+        setIsAutoFixing(false);
+        setLogs(prev => [...prev, { timestamp: new Date(), text: '[Auto-Fix] ✅ Berhasil mengimpor identifier yang belum terdefinisi secara instan!' }]);
+        toast.success('⚡ Error import berhasil dipulihkan otomatis!');
+        return;
+      }
+    }
+
+    // 2. If errors array is empty and code couldn't be healed
     if (errors.length === 0) {
+      setIsAutoFixing(false);
       toast('Tidak ada error aktif untuk diperbaiki.');
       return;
     }
-    setIsAutoFixing(true);
+
+    // 3. AI Error Fix Engine
     errorFixEngine.attemptAutoFix(errors[0], activeFilePath);
   };
 
@@ -1197,6 +1369,21 @@ button {
       }}>
         {/* Left Group: Branding, Editable Name, Mode Switcher, Undo AI */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          {isStandalone && (
+            <a
+              href="#/builder"
+              title="Kembali ke App Builder PC"
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: '28px', height: '28px', borderRadius: '7px',
+                backgroundColor: 'rgba(255,255,255,0.15)', color: '#fff',
+                textDecoration: 'none', transition: 'all 0.15s', flexShrink: 0
+              }}
+            >
+              <ArrowLeft size={14} />
+            </a>
+          )}
+
           <div style={{
             width: '28px', height: '28px', borderRadius: '7px',
             background: 'linear-gradient(135deg, #f43f5e, #f59e0b, #8b5cf6)',
@@ -1204,6 +1391,8 @@ button {
           }}>
             <Sparkles size={13} color="#fff" />
           </div>
+
+
 
           {/* Editable App Name */}
           {isEditingName ? (
@@ -1613,8 +1802,9 @@ button {
             }
           `}</style>
 
+          <Toaster position="top-right" toastOptions={{ style: { background: '#1e293b', color: '#f8fafc', border: '1px solid #334155' } }} />
           <SandpackProvider
-            key={activeFilePath + Object.keys(filesRecord).length}
+            key={`${appMode}-${filesRevision}`}
             template="react"
             theme="dark"
             files={filesRecord}
@@ -1648,15 +1838,13 @@ button {
               ]
             }}
           >
+            {/* Live in-memory bridge to push generated code instantly without remounting */}
+            <SandpackLiveBridge onBridgeReady={handleBridgeReady} />
+
             {/* Listener capturing Sandpack compilation & runtime errors */}
             <SandpackErrorListener
-              onError={(err) => {
-                setErrors(prev => [err, ...prev.slice(0, 4)]);
-                setIsTerminalPanelOpen(true);
-              }}
-              onLog={(text) => {
-                setLogs(prev => [...prev, { timestamp: new Date(), text }]);
-              }}
+              onError={handleSandpackError}
+              onLog={handleSandpackLog}
             />
 
             <SandpackLayout style={{ height: '100%', minHeight: '100%', border: 'none', borderRadius: 0, flex: 1, display: 'flex', alignSelf: 'stretch' }}>
@@ -1745,7 +1933,42 @@ button {
                     )}
 
                     {/* Sandpack Preview */}
-                    <div style={{ flex: 1, minHeight: 0, width: '100%', height: '100%', overflow: 'hidden' }}>
+                    <div style={{ flex: 1, minHeight: 0, width: '100%', height: '100%', overflow: 'hidden', position: 'relative' }}>
+                      {errors.length > 0 && (
+                        <div style={{
+                          position: 'absolute', top: 12, left: 12, right: 12, zIndex: 999,
+                          backgroundColor: 'rgba(15, 23, 42, 0.96)', border: '1px solid #ef4444',
+                          backdropFilter: 'blur(12px)', color: '#fff', borderRadius: '12px',
+                          padding: '10px 14px', display: 'flex', alignItems: 'center',
+                          justifyContent: 'space-between', gap: '12px',
+                          boxShadow: '0 12px 30px rgba(239, 68, 68, 0.25)', fontSize: '0.78rem'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                            <span style={{ fontSize: '1.1rem' }}>⚠️</span>
+                            <div style={{ overflow: 'hidden' }}>
+                              <div style={{ fontWeight: 700, color: '#fca5a5' }}>Syntax / Build Error Terdeteksi</div>
+                              <div style={{ fontSize: '0.7rem', color: '#94a3b8', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                {typeof errors[0] === 'string' ? errors[0].split('\n')[0] : errors[0]?.message}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={isAutoFixing}
+                            onClick={handleTriggerAutoFix}
+                            style={{
+                              backgroundColor: '#ef4444', color: '#ffffff', border: 'none',
+                              padding: '7px 14px', borderRadius: '8px', fontWeight: 800,
+                              cursor: isAutoFixing ? 'not-allowed' : 'pointer',
+                              display: 'flex', alignItems: 'center', gap: '6px',
+                              flexShrink: 0, boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)'
+                            }}
+                          >
+                            {isAutoFixing ? <Loader2 size={13} className="animate-spin" /> : <Wrench size={13} />}
+                            <span>{isAutoFixing ? 'Memperbaiki...' : '⚡ Auto-Fix Sekarang'}</span>
+                          </button>
+                        </div>
+                      )}
                       <SandpackPreview
                         showOpenInCodeSandbox={false}
                         showRefreshButton={true}
@@ -1791,13 +2014,32 @@ button {
                 files: filesRecord,
                 tables: availableTables
               }}
+              initialPrompt={chatInitialPrompt}
+              onPromptConsumed={() => setChatInitialPrompt('')}
               settings={null}
               onCodeGenerated={async (rawCode) => {
                 const code = cleanVibeCode(rawCode);
                 vfs.writeFile('/App.js', code);
+                lastKnownExternalCodeRef.current = code;
                 setFilesRecord(vfs.getAllFilesRecord());
+                setFilesRevision(prev => prev + 1);
                 setErrors([]);
-                toast.success('AI code applied to /App.js!');
+
+                // ⚡ Instantly update Sandpack in-memory instance & live device screen!
+                if (sandpackBridgeRef.current) {
+                  sandpackBridgeRef.current.updateFile('/App.js', code);
+                  sandpackBridgeRef.current.openFile('/App.js');
+                  sandpackBridgeRef.current.runSandpack?.();
+                }
+
+                try {
+                  localStorage.setItem('vibe_sandbox_autosave', code);
+                  localStorage.setItem('vibe_sandbox_autosave_time', new Date().toISOString());
+                } catch {}
+
+                if (onCodeChange) onCodeChange(code);
+
+                toast.success('⚡ Kode berhasil diterapkan ke layar device!');
                 try {
                   const res = await syncVibeAppToTable(code);
                   if (res?.table) {
@@ -1835,7 +2077,12 @@ button {
       <ManufacturingTemplatesModal
         isOpen={isTemplatesModalOpen}
         onClose={() => setIsTemplatesModalOpen(false)}
-        onSelectTemplate={(tmpl) => handleChatSubmit(tmpl.prompt)}
+        onSelectTemplate={(tmpl) => {
+          setIsTemplatesModalOpen(false);
+          if (tmpl?.prompt) {
+            setChatInitialPrompt(tmpl.prompt);
+          }
+        }}
       />
 
       {/* 3. Build & Compiler Modal */}

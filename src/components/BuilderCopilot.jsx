@@ -705,8 +705,8 @@ const BuilderCopilot = ({
           ...context,
           selectedWidget: selectedWidget || null,
           sessionSummary,
-          vibeMode: vibeEngineMode,
-          relatedApps: selectedApps.map(app => ({
+          vibeMode: context?.vibeMode || 'CANVAS',
+          relatedApps: (selectedApps || []).map(app => ({
             id: app.id,
             name: app.name,
             category: app.category,

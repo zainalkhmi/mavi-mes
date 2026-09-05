@@ -263,11 +263,14 @@ export async function getPrimaryAiConnector() {
         if (!conn) return conn;
         const aiSet = conn.aiSettings || conn.config || {};
         const isGemini = !aiSet.provider || String(aiSet.provider).toLowerCase().includes('gemini');
-        if (isGemini && aiSet.modelId && (
-            String(aiSet.modelId).toLowerCase().includes('gemini-2.0') ||
-            String(aiSet.modelId).toLowerCase().includes('gemini-1.5-pro')
+        const mid = String(aiSet.modelId || '').toLowerCase();
+        if (isGemini && (
+            !aiSet.modelId ||
+            mid.includes('gemini-1.5') ||
+            mid.includes('gemini-2.0') ||
+            mid.includes('gemini-2.5')
         )) {
-            aiSet.modelId = 'gemini-3.6-flash';
+            aiSet.modelId = 'gemini-3.8-flash';
         }
         return conn;
     };

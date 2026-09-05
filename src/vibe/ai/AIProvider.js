@@ -25,15 +25,17 @@ export class AIProvider {
   }
 
   static sanitizeGeminiModel(m) {
-    if (!m) return 'gemini-3.6-flash';
+    if (!m) return 'gemini-3.8-flash';
     let clean = String(m).trim().replace(/^models\//, '');
     if (clean.includes('/')) clean = clean.split('/').pop();
+    const lower = clean.toLowerCase();
     if (
       !clean ||
-      clean.toLowerCase().includes('gemini-2.0') ||
-      clean.toLowerCase().includes('gemini-1.5-pro')
+      lower.includes('gemini-1.5') ||
+      lower.includes('gemini-2.0') ||
+      lower.includes('gemini-2.5')
     ) {
-      return 'gemini-3.6-flash';
+      return 'gemini-3.8-flash';
     }
     return clean;
   }
@@ -50,7 +52,7 @@ export class AIProvider {
       const overrideSettings = overrideConnector?.aiSettings || overrideConnector?.config || overrideConnector || {};
       const effectiveApiKey = overrideSettings.apiKey || primarySettings.apiKey;
       const prov = overrideSettings.provider || primarySettings.provider || 'gemini';
-      let rawModel = overrideSettings.modelId || primarySettings.modelId || 'gemini-3.6-flash';
+      let rawModel = overrideSettings.modelId || primarySettings.modelId || 'gemini-3.8-flash';
       if (this.normalizeProvider(prov) === 'gemini') {
         rawModel = this.sanitizeGeminiModel(rawModel);
       }
@@ -95,14 +97,18 @@ export class AIProvider {
     if (provider === 'gemini') {
       const primaryModel = this.sanitizeGeminiModel(modelId);
 
-      const isRetired = (m) => !m || m.toLowerCase().includes('gemini-2.0') || m.toLowerCase().includes('gemini-1.5-pro');
+      const isRetired = (m) => {
+        if (!m) return true;
+        const s = String(m).toLowerCase();
+        return s.includes('gemini-1.5') || s.includes('gemini-2.0') || s.includes('gemini-2.5');
+      };
 
       const candidateModels = [
         primaryModel,
-        'gemini-3.6-flash',
-        'gemini-2.5-flash',
-        'gemini-1.5-flash',
-        'gemini-1.5-flash-8b'
+        'gemini-3.8-flash',
+        'gemini-3.7-flash',
+        'gemini-flash-latest',
+        'gemini-3.6-flash'
       ].filter((m, idx, arr) => arr.indexOf(m) === idx && !isRetired(m));
 
       const systemMsg = messages.find(m => m.role === 'system');
@@ -117,7 +123,10 @@ export class AIProvider {
         contents: userAndAssistant,
         generationConfig: {
           temperature: 0.2,
-          maxOutputTokens: 8192
+          maxOutputTokens: 8192,
+          thinkingConfig: {
+            thinkingBudget: 0
+          }
         }
       };
 
@@ -135,10 +144,8 @@ export class AIProvider {
         const currentModel = candidateModels[i];
         if (isRetired(currentModel)) continue;
 
-        // Try both v1beta and v1
-        const versionsToTry = currentModel.startsWith('gemini-3.')
-          ? ['v1beta', 'v1']
-          : ['v1', 'v1beta'];
+        // Try v1beta first, then v1
+        const versionsToTry = ['v1beta', 'v1'];
 
         for (const apiVer of versionsToTry) {
           const url = `https://generativelanguage.googleapis.com/${apiVer}/models/${currentModel}:streamGenerateContent?key=${apiKey}&alt=sse`;
@@ -203,25 +210,46 @@ export class AIProvider {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let fullText = '';
+      let buffer = '';
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
-        for (const line of lines) {
-          try {
-            const data = JSON.parse(line.slice(6));
-            const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const parseGeminiLine = (line) => {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:') && !trimmed.startsWith('data: ')) return;
+        const raw = trimmed.replace(/^data:\s*/, '').trim();
+        if (!raw || raw === '[DONE]') return;
+        try {
+          const data = JSON.parse(raw);
+          const parts = data?.candidates?.[0]?.content?.parts || [];
+          for (const part of parts) {
+            if (part.thought) continue;
+            const text = part.text || '';
             if (text) {
               fullText += text;
               if (onChunk) onChunk(text);
             }
-          } catch {
-            // Ignore partial SSE JSON parse
           }
+        } catch {
+          // Incomplete JSON handled by line buffer
+        }
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          parseGeminiLine(line);
         }
       }
+
+      // Process any remaining tail in buffer
+      if (buffer.trim()) {
+        parseGeminiLine(buffer);
+      }
+
       return fullText;
     }
 
@@ -235,7 +263,7 @@ export class AIProvider {
 
       const payload = {
         model: cleanModel,
-        max_tokens: 4096,
+        max_tokens: 8192,
         system: systemMsg?.content || '',
         messages: anthropicMsgs,
         stream: true
@@ -260,28 +288,40 @@ export class AIProvider {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let fullText = '';
+      let buffer = '';
+
+      const parseAnthropicLine = (line) => {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:') && !trimmed.startsWith('data: ')) return;
+        const raw = trimmed.replace(/^data:\s*/, '').trim();
+        if (raw === '[DONE]' || !raw) return;
+        try {
+          const data = JSON.parse(raw);
+          if (data.type === 'content_block_delta' && data.delta?.text) {
+            fullText += data.delta.text;
+            if (onChunk) onChunk(data.delta.text);
+          }
+        } catch {
+          /* ignore parse error */
+        }
+      };
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const raw = line.slice(6).trim();
-            if (raw === '[DONE]') continue;
-            try {
-              const data = JSON.parse(raw);
-              if (data.type === 'content_block_delta' && data.delta?.text) {
-                fullText += data.delta.text;
-                if (onChunk) onChunk(data.delta.text);
-              }
-            } catch {
-              /* ignore parse error */
-            }
-          }
+          parseAnthropicLine(line);
         }
       }
+
+      if (buffer.trim()) {
+        parseAnthropicLine(buffer);
+      }
+
       return fullText;
     }
 
@@ -309,6 +349,7 @@ export class AIProvider {
         model: modelId || defaultModel,
         messages,
         temperature: 0.2,
+        max_tokens: 8192,
         stream: true
       })
     });
@@ -321,28 +362,39 @@ export class AIProvider {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let fullText = '';
+    let buffer = '';
+
+    const parseOpenAILine = (line) => {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data:') && !trimmed.startsWith('data: ')) return;
+      const raw = trimmed.replace(/^data:\s*/, '').trim();
+      if (raw === '[DONE]' || !raw) return;
+      try {
+        const data = JSON.parse(raw);
+        const delta = data.choices?.[0]?.delta?.content || data.choices?.[0]?.delta?.text || data.choices?.[0]?.text || '';
+        if (delta) {
+          fullText += delta;
+          if (onChunk) onChunk(delta);
+        }
+      } catch {
+        /* ignore stream chunk parse error */
+      }
+    };
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split('\n');
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
       for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const raw = line.slice(6).trim();
-          if (raw === '[DONE]') continue;
-          try {
-            const data = JSON.parse(raw);
-            const delta = data.choices?.[0]?.delta?.content || '';
-            if (delta) {
-              fullText += delta;
-              if (onChunk) onChunk(delta);
-            }
-          } catch {
-            /* ignore stream chunk parse error */
-          }
-        }
+        parseOpenAILine(line);
       }
+    }
+
+    if (buffer.trim()) {
+      parseOpenAILine(buffer);
     }
 
     return fullText;

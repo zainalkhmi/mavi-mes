@@ -8,7 +8,7 @@ import {
   ClipboardCheck, FileSpreadsheet, Boxes, LayoutDashboard, FolderArchive, Layers,
   Workflow, ActivitySquare, Key, LayoutTemplate, GitBranch, Settings2,
   ChevronDown, ChevronRight, Ruler, Scale, Gauge, Shield,
-  AlertTriangle
+  AlertTriangle, Smartphone, Sparkles
 } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 import { useGlobalStore } from '../../store/useGlobalStore.js';
@@ -63,7 +63,45 @@ export default function TopNavbar() {
   if (isOperatorRoute || isOperator || isChecksheetRoute) return null;
 
   const appItems = [
-    hasAccess('/builder') && { path: '/builder', icon: <Layout size={16} />, label: 'App Builder' },
+    {
+      label: 'App Builder',
+      icon: <Boxes size={16} className="text-indigo-600" />,
+      badge: '3 Cabang',
+      items: [
+        { type: 'header', label: 'Suite App Builder (3 Cabang)' },
+        {
+          path: '/builder',
+          matchPaths: ['/builder'],
+          target: '_blank',
+          icon: <Monitor size={18} className="text-blue-600" />,
+          label: '1. PC — Mavi App Builder',
+          shortLabel: 'PC',
+          badge: 'PC / Desktop',
+          description: 'Canvas App Builder untuk PC / Workstation MES'
+        },
+        {
+          path: '/ui-engine',
+          matchPaths: ['/ui-engine', '/gluestack'],
+          target: '_blank',
+          icon: <Smartphone size={18} className="text-purple-600" />,
+          label: '2. Mobile — Gluestack App Builder',
+          shortLabel: 'Mobile',
+          badge: 'Mobile / Tablet',
+          description: 'Gluestack UI Engine Studio untuk Smartphone & Tablet'
+        },
+        {
+          path: '/sandbox',
+          matchPaths: ['/sandbox'],
+          target: '_blank',
+          icon: <Sparkles size={18} className="text-amber-500" />,
+          label: '3. Generatif — Sandbox App Builder',
+          shortLabel: 'Generatif',
+          badge: 'Generatif AI',
+          description: 'Vibe Sandpack AI Code Generator & Live Interactive Sandbox'
+        }
+      ]
+    },
+    { type: 'divider' },
     hasAccess('/file-explorer') && { path: '/file-explorer', icon: <Folder size={16} />, label: 'File Explorer' },
     hasAccess('/app-management') && { path: '/app-management', icon: <AppWindow size={16} />, label: 'App Management' },
     hasAccess('/tables') && { path: '/tables', icon: <Database size={16} />, label: 'Tables' },
@@ -170,7 +208,15 @@ export default function TopNavbar() {
             <Link to="/store" className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${location.pathname === '/store' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}>
               <ShoppingBag size={16} /> App Store
             </Link>
-            {appItems.length > 0 && <NavDropdown title="Apps" items={appItems} />}
+            {appItems.length > 0 && (
+              <NavDropdown 
+                title="Apps" 
+                icon={<Layers size={16} />}
+                items={appItems} 
+                alwaysShowTitle={true}
+                menuWidth="w-64"
+              />
+            )}
             {plmItems.length > 0 && <NavDropdown title="PLM" items={plmItems} />}
             {shopFloorItems.length > 0 && <NavDropdown title="Shop Floor" items={shopFloorItems} />}
             {visionItems.length > 0 && <NavDropdown title="Vision" items={visionItems} />}
