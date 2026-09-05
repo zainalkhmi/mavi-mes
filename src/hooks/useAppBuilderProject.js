@@ -1,5 +1,6 @@
 import { saveFrontlineApp, deleteFrontlineApp, publishApp, requestApproval, approveApp, getAllVariables, saveVariable } from '../utils/supabaseFrontlineDB';
 import { createIncomingInspectionTemplate } from '../utils/incomingInspectionTemplate';
+import { BUILDER_TYPES, checkBuilderCompatibility } from '../utils/builderType';
 
 export default function useAppBuilderProject({ state, utils }) {
     const {
@@ -57,6 +58,7 @@ export default function useAppBuilderProject({ state, utils }) {
                     ...(templateData.config || {}),    
                     isLocked: true    
                 },    
+                builder_type: BUILDER_TYPES.MAVI,
                 is_published: templateApp.published ?? false,    
                 approval_status: templateApp.approvalStatus || 'DRAFT',    
                 updated_at: new Date().toISOString()    
@@ -86,6 +88,7 @@ export default function useAppBuilderProject({ state, utils }) {
                 id: currentAppId,    
                 name: appName,    
                 category: appCategory,    
+                builder_type: BUILDER_TYPES.MAVI,
                 config: {    
                     steps: overrides.steps || steps,    
                     baseComponents: overrides.baseComponents || baseComponents,    
@@ -439,7 +442,29 @@ export default function useAppBuilderProject({ state, utils }) {
     };    
 
     const loadApp = (app) => {    
-        if (!app) return;
+        if (!app) return false;
+
+        // Enforce builder isolation: apps created by other builders cannot be opened in Mavi Builder
+        const compatibility = checkBuilderCompatibility(BUILDER_TYPES.MAVI, app);
+        if (!compatibility.allowed) {
+            console.warn('[Mavi Builder] Blocked loading app created by another builder:', compatibility);
+            if (typeof setProUiDialog === 'function') {
+                setProUiDialog({
+                    type: 'warning',
+                    title: 'Akses Ditolak: Builder Tidak Kompatibel',
+                    message: compatibility.message,
+                    detail: `Aplikasi ini hanya dapat diedit menggunakan ${compatibility.appBuilderLabel}.`,
+                    actionLabel: `Buka di ${compatibility.appBuilderLabel}`,
+                    onAction: () => {
+                        window.open(compatibility.recommendedUrl, '_blank');
+                    }
+                });
+            } else {
+                alert(`${compatibility.message}\nSilakan buka di ${compatibility.appBuilderLabel}.`);
+            }
+            return false;
+        }
+
         setCurrentAppId(app.id);    
         setAppName(app.name);    
         setAppCategory(app.category || 'Shop Floor');    

@@ -425,7 +425,7 @@ export function initVibeMessageListener(onRecordSaved) {
  * @param {boolean} params.isPublished
  * @returns {Promise<object>} saved app
  */
-export async function deployVibeAppToFrontline({ name, category = 'Shop Floor', code, isPublished = true }) {
+export async function deployVibeAppToFrontline({ id, name, category = 'Shop Floor', code, isPublished = true }) {
   const schema = extractTableSchemaFromCode(code);
   const appName = (name || schema.name || 'Vibe Production App').trim();
 
@@ -443,10 +443,12 @@ export async function deployVibeAppToFrontline({ name, category = 'Shop Floor', 
   };
 
   const appPayload = {
+    ...(id ? { id } : {}),
     name: appName,
     description: `Aplikasi HMI/Frontline dibuat dengan Sandpack Vibe Engine. Terhubung ke tabel: ${schema.name}`,
     category: category || 'Shop Floor',
     config,
+    builder_type: 'sandbox',
     is_published: Boolean(isPublished),
     approval_status: isPublished ? 'PUBLISHED' : 'DRAFT'
   };

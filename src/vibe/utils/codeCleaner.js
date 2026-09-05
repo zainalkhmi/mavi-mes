@@ -41,16 +41,22 @@ export function cleanVibeCode(rawCode) {
     }
   }
 
-  // 3. Strip any conversational text before the first import or export
+  // 3. FIX: If code starts with `return (` without a function wrapper, wrap it in a function
+  const startsWithReturnOnly = /^\s*return\s*\(/i.test(cleaned) && !/function\s+\w+|export\s+default|const\s+\w+\s*=\s*\(/i.test(cleaned.slice(0, 200));
+  if (startsWithReturnOnly) {
+    cleaned = `export default function App() {\n  ${cleaned}\n}`;
+  }
+
+  // 4. Strip any conversational text before the first import or export
   const firstImportOrExport = cleaned.search(/(?:^|\n)\s*(?:import\s+|export\s+default\s+function|export\s+default\s+const|function\s+App)/i);
   if (firstImportOrExport > 0) {
     cleaned = cleaned.slice(firstImportOrExport).trim();
   }
 
-  // 4. Strip any stray markdown language headers at the top
+  // 5. Strip any stray markdown language headers at the top
   cleaned = cleaned.replace(/^(?:javascript|jsx|js|tsx|react)\s*\n/i, '');
 
-  // 5. Sanitize rogue quotes after numeric values or commas (e.g. `quantity: 50,'` -> `quantity: 50,`)
+  // 6. Sanitize rogue quotes after numeric values or commas (e.g. `quantity: 50,'` -> `quantity: 50,`)
   cleaned = cleaned.replace(/(\b\d+\s*,)\s*['"]\s*$/gm, '$1');
 
   // Strip trailing rogue quote, backtick, or fence residue at the very end
@@ -65,10 +71,10 @@ export function cleanVibeCode(rawCode) {
     return match;
   });
 
-  // 6. Auto-heal truncated code only if not already cleanly terminated
+  // 7. Auto-heal truncated code only if not already cleanly terminated
   cleaned = healTruncatedReactCode(cleaned);
 
-  // 7. Ensure export default is present for Sandpack if a function component exists
+  // 8. Ensure export default is present for Sandpack if a function component exists
   if (!cleaned.includes('export default')) {
     const fnMatch = cleaned.match(/function\s+([A-Za-z0-9_]+)/);
     if (fnMatch && fnMatch[1]) {
@@ -137,6 +143,17 @@ export function healTruncatedReactCode(code) {
   // Detect and balance unclosed JSX tags inside return (...)
   const returnIdx = healed.lastIndexOf('return (');
   if (returnIdx !== -1) {
+    // Check if there's a function wrapper BEFORE the return statement
+    const beforeReturn = healed.slice(0, returnIdx);
+    const hasFunctionWrapper = /function\s+\w+\s*\(|=>\s*\(?|export\s+default\s+function|export\s+default\s+const\s+\w+\s*=/i.test(beforeReturn);
+
+    // If return is found but no function wrapper exists, wrap it
+    if (!hasFunctionWrapper) {
+      // Insert a function wrapper before the return
+      healed = beforeReturn + `export default function App() {\n  return (`;
+      return healed.trim();
+    }
+
     const jsxPart = healed.slice(returnIdx);
     const tagRegex = /<\/?([a-zA-Z0-9_.-]+)(?:\s+[^>]*?)?(\/?)>/g;
     const voidTags = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);

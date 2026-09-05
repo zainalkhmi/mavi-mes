@@ -241,7 +241,8 @@ import { processDocument } from '../utils/aiService';
 const VisionCamera = lazy(() => import('./VisionCamera'));
 import { getAllCameras } from '../utils/supabaseUtilityDB';
 
-import { saveFrontlineApp, getAllFrontlineApps, deleteFrontlineApp, publishApp, requestApproval, approveApp, getAllVariables, saveVariable, getAllSavedAnalyses } from '../utils/supabaseFrontlineDB';
+import { saveFrontlineApp, getAllFrontlineApps, getFrontlineAppById, deleteFrontlineApp, publishApp, requestApproval, approveApp, getAllVariables, saveVariable, getAllSavedAnalyses } from '../utils/supabaseFrontlineDB';
+import { getAppBuilderType, BUILDER_TYPES, checkBuilderCompatibility } from '../utils/builderType';
 import { getSavedReportTemplates, extractTemplateFieldTags, executeReportPrintAction } from '../utils/reportPrintService';
 import {
     createTable,
@@ -498,7 +499,9 @@ const AppBuilder = () => {
     const loadApps = async () => {
         try {
             const data = await getAllFrontlineApps();
-            setAppsList(data);
+            // Filter apps to only those belonging to Mavi Builder
+            const maviApps = (data || []).filter(app => getAppBuilderType(app) === BUILDER_TYPES.MAVI);
+            setAppsList(maviApps);
         } catch (err) {
             console.error('Failed to load apps:', err);
         }
@@ -7472,20 +7475,45 @@ const AppBuilder = () => {
         const queryParams = new URLSearchParams(queryStr);
 
         const appIdParam = queryParams.get('appId');
-        if (appIdParam && appsList.length > 0) {
+        if (appIdParam && appIdParam !== currentAppId) {
             const matchedApp = appsList.find(app => String(app.id) === String(appIdParam));
-            if (matchedApp && matchedApp.id !== currentAppId) {
+            if (matchedApp) {
                 loadApp(matchedApp);
-
-                // Handle device preset from URL parameters (passed from AppPlayer when creating new app)
                 const devicePresetParam = queryParams.get('devicePreset');
                 const orientationParam = queryParams.get('orientation');
-                if (devicePresetParam) {
-                    setTimeout(() => setPreviewDevice(devicePresetParam), 100);
-                }
-                if (orientationParam) {
-                    setTimeout(() => setPreviewOrientation(orientationParam), 100);
-                }
+                if (devicePresetParam) setTimeout(() => setPreviewDevice(devicePresetParam), 100);
+                if (orientationParam) setTimeout(() => setPreviewOrientation(orientationParam), 100);
+            } else {
+                // If not found in Mavi appsList, fetch to check if it's from another builder
+                getFrontlineAppById(appIdParam).then(app => {
+                    if (app) {
+                        const compatibility = checkBuilderCompatibility(BUILDER_TYPES.MAVI, app);
+                        if (!compatibility.allowed) {
+                            console.warn('[AppBuilder] Incompatible builder app in URL:', compatibility);
+                            if (typeof setProUiDialog === 'function') {
+                                setProUiDialog({
+                                    type: 'warning',
+                                    title: 'Akses Ditolak: Builder Tidak Kompatibel',
+                                    message: compatibility.message,
+                                    detail: `Aplikasi ini hanya dapat diedit menggunakan ${compatibility.appBuilderLabel}.`,
+                                    actionLabel: `Buka di ${compatibility.appBuilderLabel}`,
+                                    onAction: () => {
+                                        window.open(compatibility.recommendedUrl, '_blank');
+                                    }
+                                });
+                            } else {
+                                alert(`${compatibility.message}\nSilakan buka di ${compatibility.appBuilderLabel}.`);
+                            }
+                            // Clean up incompatible appId from URL
+                            try {
+                                const cleanHash = window.location.hash.split('?')[0];
+                                window.history.replaceState({}, '', cleanHash);
+                            } catch (e) {}
+                        } else {
+                            loadApp(app);
+                        }
+                    }
+                }).catch(err => console.error('Failed to verify app by ID in AppBuilder:', err));
             }
         }
 

@@ -39,13 +39,14 @@ import { activityTracker } from '../ai/activityTracker';
 import { INSPECTION_WALKTHROUGH_STEPS } from './walkthroughGuide';
 import AppCanvas from './AppCanvas';
 import { getFrontlineAppById } from '../../utils/supabaseFrontlineDB';
+import { checkBuilderCompatibility, BUILDER_TYPES } from '../../utils/builderType';
 
 import {
   Smartphone, Tablet, Monitor, Play, RotateCcw,
   Sparkles, Layers, Box, Cpu, Eye, CheckCircle2,
   ChevronRight, ChevronLeft, Sun, Moon, ArrowLeft,
   ExternalLink, Compass, ShieldCheck, LayoutDashboard,
-  Save, Link, QrCode, Edit3
+  Save, Link, QrCode, Edit3, AlertTriangle
 } from 'lucide-react';
 
 export default function UiEngineStudio({ canvasMode = true }) {
@@ -55,6 +56,7 @@ export default function UiEngineStudio({ canvasMode = true }) {
   const [deviceFrame, setDeviceFrame] = useState('iphone'); // iphone | android | tablet | responsive
   const [colorMode, setColorMode] = useState('light');
   const [isLoadingApp, setIsLoadingApp] = useState(false);
+  const [incompatibleNotice, setIncompatibleNotice] = useState(null);
 
   const [appName, setAppName] = useState('app test');
   const [isEditingAppName, setIsEditingAppName] = useState(false);
@@ -68,6 +70,12 @@ export default function UiEngineStudio({ canvasMode = true }) {
       getFrontlineAppById(appId)
         .then(appData => {
           if (appData) {
+            const compatibility = checkBuilderCompatibility(BUILDER_TYPES.GLUESTACK, appData);
+            if (!compatibility.allowed) {
+              console.warn('[UiEngineStudio] Incompatible app for Gluestack:', compatibility);
+              setIncompatibleNotice(compatibility);
+              return;
+            }
             setAppName(appData.name || 'Untitled App');
             // Dispatch event to AppCanvas to load the app
             window.dispatchEvent(new CustomEvent('mavi_ui_engine_load_app', {
@@ -593,6 +601,91 @@ export default function UiEngineStudio({ canvasMode = true }) {
           )}
         </div>
       </div>
+
+      {/* Incompatible Builder Warning Modal */}
+      {incompatibleNotice && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 99999,
+          backgroundColor: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '24px'
+        }}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '16px',
+            maxWidth: '500px',
+            width: '100%',
+            padding: '32px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            border: '1px solid #e2e8f0',
+            textAlign: 'center'
+          }}>
+            <div style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '50%',
+              backgroundColor: '#fef3c7',
+              color: '#d97706',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+              border: '1px solid #fde68a'
+            }}>
+              <AlertTriangle size={28} />
+            </div>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a', margin: '0 0 10px' }}>
+              Akses Ditolak: Builder Tidak Kompatibel
+            </h3>
+            <p style={{ fontSize: '0.92rem', color: '#475569', lineHeight: 1.6, margin: '0 0 24px' }}>
+              {incompatibleNotice.message}
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button
+                onClick={() => setIncompatibleNotice(null)}
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  backgroundColor: 'white',
+                  color: '#475569',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontSize: '0.88rem'
+                }}
+              >
+                Tutup
+              </button>
+              <button
+                onClick={() => {
+                  window.location.href = incompatibleNotice.recommendedUrl;
+                }}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: '#7c3aed',
+                  color: 'white',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontSize: '0.88rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 6px -1px rgba(124, 58, 237, 0.3)'
+                }}
+              >
+                <ExternalLink size={15} /> Buka di {incompatibleNotice.appBuilderLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </GluestackUIProvider>
   );
 }

@@ -2,6 +2,7 @@ import { getSupabaseClient } from './supabaseManualDB.js';
 import { deleteTable } from './supabaseTablesDB.js';
 import n8nWebhook from './n8nWebhookService.js';
 import { isSupabaseReady } from './supabaseAuth.js';
+import { getAppBuilderType } from './builderType.js';
 
 export async function getStations() {
     try {
@@ -100,6 +101,7 @@ export async function getFrontlineAppById(id) {
 }
 
 export async function saveFrontlineApp(app) {
+    const detectedBuilderType = app.builder_type || getAppBuilderType(app);
     const payload = {
         name: app.name,
         category: app.category || 'Shop Floor',
@@ -107,7 +109,7 @@ export async function saveFrontlineApp(app) {
         is_published: app.is_published ?? false,
         approval_status: app.approval_status || 'DRAFT',
         version: app.version || 1,
-        builder_type: app.builder_type || 'app_builder', // 'app_builder' | 'gluestack' | 'sandbox'
+        builder_type: detectedBuilderType, // 'app_builder' | 'gluestack' | 'sandbox'
         updated_at: new Date().toISOString()
     };
 

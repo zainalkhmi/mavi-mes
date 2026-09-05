@@ -61,6 +61,8 @@ import {
   extractTableSchemaFromCode,
   getTables
 } from '../../utils/vibeTableBridge';
+import { getFrontlineAppById } from '../../utils/supabaseFrontlineDB';
+import { checkBuilderCompatibility, BUILDER_TYPES } from '../../utils/builderType';
 
 import { ProjectFileSystem } from '../../vibe/filesystem/ProjectFileSystem';
 import { ProjectVersionControl } from '../../vibe/filesystem/ProjectVersionControl';
@@ -895,6 +897,48 @@ button {
   const [isCompanionOpen, setIsCompanionOpen] = useState(false);
   const [companionLink, setCompanionLink] = useState('');
   const [lastSaved, setLastSaved] = useState(null);
+  const [incompatibleNotice, setIncompatibleNotice] = useState(null);
+
+  // Load app from Supabase if appId query param is present
+  useEffect(() => {
+    const hash = window.location.hash || '';
+    const search = window.location.search || '';
+    const searchStr = hash.includes('?') ? hash.split('?')[1] : (search.startsWith('?') ? search.slice(1) : search);
+    const params = new URLSearchParams(searchStr);
+    const appId = params.get('appId');
+
+    if (appId) {
+      getFrontlineAppById(appId)
+        .then(appData => {
+          if (appData) {
+            const compatibility = checkBuilderCompatibility(BUILDER_TYPES.SANDBOX, appData);
+            if (!compatibility.allowed) {
+              console.warn('[VibeSandpackViewer] Incompatible app for Sandbox:', compatibility);
+              setIncompatibleNotice(compatibility);
+              return;
+            }
+
+            setAppName(appData.name || 'Sandbox App');
+            setDeployedApp(appData);
+            const savedCode = appData.config?.vibeCode || (typeof appData.config === 'string' ? appData.config : null);
+            if (savedCode) {
+              const cleaned = cleanVibeCode(savedCode);
+              vfs.writeFile('/App.js', cleaned || savedCode);
+              setFilesRecord(vfs.getAllFilesRecord());
+              setFileTree(vfs.getFileTree());
+              if (sandpackBridgeRef.current) {
+                sandpackBridgeRef.current.updateFile('/App.js', cleaned || savedCode);
+              }
+              toast.success(`Aplikasi "${appData.name}" berhasil dimuat di Sandbox!`);
+            }
+          }
+        })
+        .catch(err => {
+          console.error('[VibeSandpackViewer] Failed to load app by ID:', err);
+          toast.error('Gagal memuat aplikasi dari database');
+        });
+    }
+  }, []);
 
   // Auto-save to localStorage every 5 seconds when code changes
   useEffect(() => {
@@ -1313,6 +1357,7 @@ button {
     const mainCode = vfs.readFile('/App.js') || vfs.readFile('/App.jsx') || effectiveInitialCode;
     try {
       const saved = await deployVibeAppToFrontline({
+        id: deployedApp?.id,
         name: deployName.trim(),
         category: deployCategory,
         code: mainCode,
@@ -2018,7 +2063,14 @@ button {
               onPromptConsumed={() => setChatInitialPrompt('')}
               settings={null}
               onCodeGenerated={async (rawCode) => {
-                const code = cleanVibeCode(rawCode);
+                let code = cleanVibeCode(rawCode);
+
+                // Safeguard: If code starts with `return (` without a function wrapper, wrap it
+                if (/^\s*return\s*\(/.test(code) && !/function\s+\w+\s*\(|=>\s*\(?|export\s+default|const\s+\w+\s*=\s*\(/i.test(code.slice(0, 100))) {
+                  code = `export default function App() {\n  ${code}\n}`;
+                  console.log('[Sandbox] Wrapped orphan `return (` in function App()');
+                }
+
                 vfs.writeFile('/App.js', code);
                 lastKnownExternalCodeRef.current = code;
                 setFilesRecord(vfs.getAllFilesRecord());
@@ -2209,6 +2261,91 @@ button {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Incompatible Builder Warning Modal */}
+      {incompatibleNotice && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 99999,
+          backgroundColor: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(5px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '24px'
+        }}>
+          <div style={{
+            backgroundColor: '#1e293b',
+            borderRadius: '16px',
+            maxWidth: '500px',
+            width: '100%',
+            padding: '32px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+            border: '1px solid #334155',
+            textAlign: 'center'
+          }}>
+            <div style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '50%',
+              backgroundColor: 'rgba(217, 119, 6, 0.2)',
+              color: '#f59e0b',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+              border: '1px solid rgba(217, 119, 6, 0.4)'
+            }}>
+              <Sparkles size={28} />
+            </div>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#f8fafc', margin: '0 0 10px' }}>
+              Akses Ditolak: Builder Tidak Kompatibel
+            </h3>
+            <p style={{ fontSize: '0.92rem', color: '#94a3b8', lineHeight: 1.6, margin: '0 0 24px' }}>
+              {incompatibleNotice.message}
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button
+                onClick={() => setIncompatibleNotice(null)}
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: '8px',
+                  border: '1px solid #475569',
+                  backgroundColor: 'transparent',
+                  color: '#cbd5e1',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontSize: '0.88rem'
+                }}
+              >
+                Tutup
+              </button>
+              <button
+                onClick={() => {
+                  window.location.href = incompatibleNotice.recommendedUrl;
+                }}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: '#d97706',
+                  color: 'white',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontSize: '0.88rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 6px -1px rgba(217, 119, 6, 0.4)'
+                }}
+              >
+                <ExternalLink size={15} /> Buka di {incompatibleNotice.appBuilderLabel}
+              </button>
+            </div>
           </div>
         </div>
       )}
