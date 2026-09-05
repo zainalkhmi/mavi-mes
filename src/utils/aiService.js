@@ -52,8 +52,8 @@ const sanitizeGeminiModelId = (modelId) => {
     let clean = String(modelId || '').trim().replace(/^models\//, '');
     if (clean.includes('/')) clean = clean.split('/').pop();
     const lower = clean.toLowerCase();
-    if (!clean || lower.includes('gemini-1.5') || lower.includes('gemini-2.0') || lower.includes('gemini-2.5')) {
-        return 'gemini-3.8-flash';
+    if (!clean || lower.includes('gemini-3.') || lower.includes('flash-latest') || lower === 'gemini-flash') {
+        return 'gemini-2.0-flash';
     }
     return clean;
 };

@@ -25,17 +25,17 @@ export class AIProvider {
   }
 
   static sanitizeGeminiModel(m) {
-    if (!m) return 'gemini-3.8-flash';
+    if (!m) return 'gemini-2.0-flash';
     let clean = String(m).trim().replace(/^models\//, '');
     if (clean.includes('/')) clean = clean.split('/').pop();
     const lower = clean.toLowerCase();
     if (
-      !clean ||
-      lower.includes('gemini-1.5') ||
-      lower.includes('gemini-2.0') ||
-      lower.includes('gemini-2.5')
+      lower.includes('gemini-3.') ||
+      lower.includes('flash-latest') ||
+      lower === 'gemini-flash' ||
+      lower === 'gemini'
     ) {
-      return 'gemini-3.8-flash';
+      return 'gemini-2.0-flash';
     }
     return clean;
   }
@@ -52,7 +52,7 @@ export class AIProvider {
       const overrideSettings = overrideConnector?.aiSettings || overrideConnector?.config || overrideConnector || {};
       const effectiveApiKey = overrideSettings.apiKey || primarySettings.apiKey;
       const prov = overrideSettings.provider || primarySettings.provider || 'gemini';
-      let rawModel = overrideSettings.modelId || primarySettings.modelId || 'gemini-3.8-flash';
+      let rawModel = overrideSettings.modelId || primarySettings.modelId || 'gemini-2.0-flash';
       if (this.normalizeProvider(prov) === 'gemini') {
         rawModel = this.sanitizeGeminiModel(rawModel);
       }
@@ -97,19 +97,14 @@ export class AIProvider {
     if (provider === 'gemini') {
       const primaryModel = this.sanitizeGeminiModel(modelId);
 
-      const isRetired = (m) => {
-        if (!m) return true;
-        const s = String(m).toLowerCase();
-        return s.includes('gemini-1.5') || s.includes('gemini-2.0') || s.includes('gemini-2.5');
-      };
-
       const candidateModels = [
         primaryModel,
-        'gemini-3.8-flash',
-        'gemini-3.7-flash',
-        'gemini-flash-latest',
-        'gemini-3.6-flash'
-      ].filter((m, idx, arr) => arr.indexOf(m) === idx && !isRetired(m));
+        'gemini-2.0-flash',
+        'gemini-1.5-flash',
+        'gemini-2.5-flash',
+        'gemini-1.5-pro',
+        'gemini-2.0-flash-lite-preview-02-05'
+      ].filter((m, idx, arr) => arr.indexOf(m) === idx);
 
       const systemMsg = messages.find(m => m.role === 'system');
       const userAndAssistant = messages
@@ -138,11 +133,11 @@ export class AIProvider {
 
       let response = null;
       let lastError = null;
+      let hasFetchedAvailableModels = false;
 
       modelLoop:
       for (let i = 0; i < candidateModels.length; i++) {
         const currentModel = candidateModels[i];
-        if (isRetired(currentModel)) continue;
 
         // Try v1beta first, then v1
         const versionsToTry = ['v1beta', 'v1'];
@@ -169,7 +164,7 @@ export class AIProvider {
 
               // Extract recommended replacement models from Google's response
               const matches = [...errMsg.matchAll(/models\/([a-zA-Z0-9.-]+)/g)].map(x => x[1]);
-              const recModel = matches.find(x => !isRetired(x) && !candidateModels.includes(x));
+              const recModel = matches.find(x => !candidateModels.includes(x));
               if (recModel) {
                 candidateModels.splice(i + 1, 0, recModel);
               }
@@ -180,6 +175,29 @@ export class AIProvider {
                                     errMsg.toLowerCase().includes('not supported');
 
               if (isUnavailable) {
+                // Dynamically discover supported models from the user's API key
+                if (!hasFetchedAvailableModels) {
+                  hasFetchedAvailableModels = true;
+                  try {
+                    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+                    if (listRes.ok) {
+                      const listData = await listRes.json();
+                      const liveModels = (listData.models || [])
+                        .filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+                        .map(m => m.name.replace(/^models\//, ''));
+                      
+                      const preferred = liveModels.filter(m => m.includes('flash'));
+                      const others = liveModels.filter(m => !m.includes('flash'));
+                      const discovered = [...preferred, ...others];
+
+                      for (const dm of discovered) {
+                        if (!candidateModels.includes(dm)) {
+                          candidateModels.push(dm);
+                        }
+                      }
+                    }
+                  } catch (_) {}
+                }
                 break; // try next apiVer or next candidate
               }
 

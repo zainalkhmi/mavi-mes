@@ -378,6 +378,112 @@ export function useMaviCoreData(tableName) {
 
 if (typeof window !== 'undefined') {
   window.useMaviCoreData = useMaviCoreData;
+
+  // ─── Visual Component Inspector (Click-to-Code) ───
+  let isInspectActive = false;
+  let hoverOverlay = null;
+  let tooltipEl = null;
+
+  function ensureInspectorDOM() {
+    if (!document.body) return;
+    if (!hoverOverlay) {
+      hoverOverlay = document.createElement('div');
+      hoverOverlay.id = 'mavicore-inspect-highlight-box';
+      hoverOverlay.style.cssText = 'position:fixed;pointer-events:none;z-index:9999999;border:2px dashed #0284c7;background:rgba(14,165,233,0.18);border-radius:6px;transition:all 0.05s ease;display:none;box-shadow:0 0 14px rgba(14,165,233,0.5);';
+      document.body.appendChild(hoverOverlay);
+    }
+    if (!tooltipEl) {
+      tooltipEl = document.createElement('div');
+      tooltipEl.id = 'mavicore-inspect-tag-tooltip';
+      tooltipEl.style.cssText = 'position:fixed;pointer-events:none;z-index:10000000;background:#0f172a;color:#38bdf8;border:1px solid #0284c7;padding:3px 8px;border-radius:6px;font-size:11px;font-family:monospace;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,0.6);display:none;white-space:nowrap;';
+      document.body.appendChild(tooltipEl);
+    }
+  }
+
+  function hideInspectorDOM() {
+    if (hoverOverlay) hoverOverlay.style.display = 'none';
+    if (tooltipEl) tooltipEl.style.display = 'none';
+  }
+
+  window.addEventListener('message', (e) => {
+    if (e.data?.type === 'MAVICORE_SET_INSPECT_MODE') {
+      isInspectActive = Boolean(e.data.enabled);
+      if (!isInspectActive) {
+        hideInspectorDOM();
+      } else {
+        ensureInspectorDOM();
+      }
+    }
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isInspectActive) return;
+    ensureInspectorDOM();
+    const target = document.elementFromPoint(e.clientX, e.clientY);
+    if (!target || target === hoverOverlay || target === tooltipEl || target === document.body || target === document.documentElement) {
+      hideInspectorDOM();
+      return;
+    }
+
+    const rect = target.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+
+    hoverOverlay.style.display = 'block';
+    hoverOverlay.style.top = rect.top + 'px';
+    hoverOverlay.style.left = rect.left + 'px';
+    hoverOverlay.style.width = rect.width + 'px';
+    hoverOverlay.style.height = rect.height + 'px';
+
+    const tag = target.tagName.toLowerCase();
+    const txt = (target.innerText || target.getAttribute('placeholder') || '').trim().slice(0, 22);
+    tooltipEl.style.display = 'block';
+    tooltipEl.style.top = Math.max(6, rect.top - 24) + 'px';
+    tooltipEl.style.left = Math.max(6, rect.left) + 'px';
+    tooltipEl.textContent = '<' + tag + '>' + (txt ? ' "' + txt + '"' : '');
+  }, true);
+
+  document.addEventListener('click', (e) => {
+    if (!isInspectActive) return;
+    const target = e.target;
+    if (!target) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    // If target is a small wrapper around a heading, button or input, pick the more specific element
+    const specificChild = target.querySelector('h1, h2, h3, h4, h5, button, label, input, select, textarea');
+    const effectiveTarget = (specificChild && target.children.length <= 4) ? specificChild : target;
+
+    const tagName = effectiveTarget.tagName.toLowerCase();
+    const rawText = (effectiveTarget.innerText || target.innerText || '').trim();
+    const firstLine = rawText.split(/[\r\n]+/)[0]?.trim() || '';
+    const placeholder = target.getAttribute('placeholder') || effectiveTarget.getAttribute('placeholder') || '';
+    const name = target.getAttribute('name') || effectiveTarget.getAttribute('name') || '';
+    const id = target.id || effectiveTarget.id || '';
+    const className = typeof target.className === 'string' ? target.className : '';
+    const value = target.value || target.getAttribute('value') || '';
+
+    const words = (firstLine || rawText)
+      .replace(/[^a-zA-Z0-9_\s-]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length >= 3)
+      .slice(0, 8);
+
+    postToMaviCore({
+      type: 'MAVICORE_ELEMENT_INSPECTED',
+      tagName,
+      text: firstLine || rawText.slice(0, 60),
+      firstLine,
+      placeholder,
+      name,
+      value,
+      id,
+      className,
+      words
+    });
+
+    hideInspectorDOM();
+  }, true);
 }
 
 export default MaviCoreBridge;

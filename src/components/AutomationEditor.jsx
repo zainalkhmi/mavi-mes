@@ -3545,7 +3545,7 @@ const AutomationEditor = () => {
                           onChange={(e) => {
                             const provider = e.target.value;
                             const label = `${provider} Model`;
-                            const defaultModel = provider === 'Gemini' ? 'gemini-3.6-flash' : provider === 'OpenAI' ? 'gpt-4o' : provider === 'Claude' ? 'claude-3-5-sonnet' : 'llama3:8b';
+                            const defaultModel = provider === 'Gemini' ? 'gemini-2.0-flash' : provider === 'OpenAI' ? 'gpt-4o' : provider === 'Claude' ? 'claude-3-5-sonnet' : 'llama3:8b';
                             setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, provider, label, modelId: defaultModel } } : n));
                           }}
                           style={{ width: '100%', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
@@ -3560,7 +3560,7 @@ const AutomationEditor = () => {
                       <div>
                         <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Model Version / ID</label>
                         <select
-                          value={selectedNode.data.modelId || 'gemini-3.6-flash'}
+                          value={selectedNode.data.modelId || 'gemini-2.0-flash'}
                           onChange={(e) => {
                             const modelId = e.target.value;
                             setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, modelId } } : n));
@@ -3588,9 +3588,10 @@ const AutomationEditor = () => {
                             </>
                           ) : (
                             <>
-                              <option value="gemini-3.6-flash">gemini-3.6-flash (Latest Next Gen & Super Fast)</option>
-                              <option value="gemini-2.5-flash">gemini-2.5-flash (Fast & Stable)</option>
-                              <option value="gemini-1.5-flash">gemini-1.5-flash (Standard Fast)</option>
+                              <option value="gemini-2.0-flash">gemini-2.0-flash (Latest Next Gen & Super Fast)</option>
+                              <option value="gemini-1.5-flash">gemini-1.5-flash (Fast & Stable)</option>
+                              <option value="gemini-2.5-flash">gemini-2.5-flash (Next Gen Reasoning)</option>
+                              <option value="gemini-1.5-pro">gemini-1.5-pro (Complex Analysis)</option>
                             </>
                           )}
                         </select>

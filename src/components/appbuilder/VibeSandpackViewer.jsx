@@ -50,7 +50,10 @@ import {
   Server,
   FolderOpen,
   Wrench,
-  PenTool
+  PenTool,
+  MousePointerClick,
+  Play,
+  FileCode
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import toast, { Toaster } from 'react-hot-toast';
@@ -853,6 +856,202 @@ function SandpackLiveBridge({ onBridgeReady }) {
   return null;
 }
 
+/**
+ * Pro Editor Toolbar with Run button, format, file badge and shortcuts
+ */
+function SandpackProEditorBar({
+  activePath,
+  onRunCode,
+  onFormatCode,
+  isInspectActive,
+  onToggleInspect
+}) {
+  const { sandpack } = useSandpack();
+  const [isRunning, setIsRunning] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleRun = useCallback(() => {
+    setIsRunning(true);
+    try {
+      const currentCode = sandpack?.files?.[activePath]?.code;
+      if (currentCode && onRunCode) {
+        onRunCode(activePath, currentCode);
+      }
+      sandpack?.runSandpack?.();
+      toast.success('⚡ Kode berhasil dijalankan di device!', { id: 'run-code-toast', icon: '▶️' });
+    } catch (err) {
+      toast.error('Gagal menjalankan kode: ' + (err?.message || err));
+    } finally {
+      setTimeout(() => setIsRunning(false), 300);
+    }
+  }, [sandpack, activePath, onRunCode]);
+
+  const handleFormat = () => {
+    try {
+      const currentCode = sandpack?.files?.[activePath]?.code;
+      if (currentCode && onFormatCode) {
+        onFormatCode(activePath, currentCode);
+      }
+    } catch (e) {
+      console.warn('Format error:', e);
+    }
+  };
+
+  const handleCopy = async () => {
+    try {
+      const currentCode = sandpack?.files?.[activePath]?.code || '';
+      await navigator.clipboard.writeText(currentCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast.success('Kode disalin ke clipboard');
+    } catch (_) {}
+  };
+
+  // Shortcut Ctrl+Enter / Cmd+Enter to Run
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        handleRun();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleRun]);
+
+  return (
+    <div style={{
+      height: '38px',
+      minHeight: '38px',
+      backgroundColor: '#070b14',
+      borderBottom: '1px solid #1e293b',
+      padding: '0 10px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '8px',
+      userSelect: 'none',
+      flexShrink: 0
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+        <FileCode size={14} color="#38bdf8" />
+        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#f8fafc', whiteSpace: 'nowrap' }}>
+          {activePath}
+        </span>
+        <span style={{
+          fontSize: '0.62rem',
+          padding: '1px 6px',
+          borderRadius: '4px',
+          backgroundColor: 'rgba(56, 189, 248, 0.12)',
+          color: '#38bdf8',
+          border: '1px solid rgba(56, 189, 248, 0.25)',
+          fontWeight: 600
+        }}>
+          Editor Pro
+        </span>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        {/* Run Button */}
+        <button
+          type="button"
+          onClick={handleRun}
+          disabled={isRunning}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            padding: '4px 10px',
+            borderRadius: '6px',
+            border: 'none',
+            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+            color: '#ffffff',
+            fontSize: '0.72rem',
+            fontWeight: 800,
+            cursor: isRunning ? 'not-allowed' : 'pointer',
+            boxShadow: '0 2px 8px rgba(16, 185, 129, 0.4)',
+            transition: 'all 0.15s ease'
+          }}
+          title="Jalankan kode hasil edit ke device preview (Shortcut: Ctrl+Enter)"
+        >
+          {isRunning ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} fill="#fff" />}
+          <span>Jalankan (Ctrl+Enter)</span>
+        </button>
+
+        {/* Inspect Component Toggle */}
+        <button
+          type="button"
+          onClick={onToggleInspect}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '4px 8px',
+            borderRadius: '6px',
+            backgroundColor: isInspectActive ? 'rgba(14, 165, 233, 0.25)' : 'rgba(255, 255, 255, 0.06)',
+            border: isInspectActive ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
+            color: isInspectActive ? '#38bdf8' : '#cbd5e1',
+            fontSize: '0.7rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease'
+          }}
+          title="Klik elemen di layar device untuk langsung meloncat ke baris kode"
+        >
+          <MousePointerClick size={12} />
+          <span>{isInspectActive ? 'Inspeksi Aktif' : 'Inspeksi Layar'}</span>
+        </button>
+
+        {/* Format Button */}
+        <button
+          type="button"
+          onClick={handleFormat}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '4px 8px',
+            borderRadius: '6px',
+            backgroundColor: 'rgba(255, 255, 255, 0.06)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            color: '#cbd5e1',
+            fontSize: '0.7rem',
+            fontWeight: 600,
+            cursor: 'pointer'
+          }}
+          title="Rapikan format kode"
+        >
+          <Sparkles size={11} color="#a5b4fc" />
+          <span>Format</span>
+        </button>
+
+        {/* Copy Button */}
+        <button
+          type="button"
+          onClick={handleCopy}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '4px 8px',
+            borderRadius: '6px',
+            backgroundColor: 'rgba(255, 255, 255, 0.06)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            color: '#cbd5e1',
+            fontSize: '0.7rem',
+            fontWeight: 600,
+            cursor: 'pointer'
+          }}
+          title="Salin isi file kode"
+        >
+          {copied ? <Check size={11} color="#10b981" /> : <Copy size={11} />}
+          <span>{copied ? 'Disalin' : 'Copy'}</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function VibeSandpackViewer({
   code = null,
   onCodeChange = null,
@@ -990,6 +1189,7 @@ root.render(
   const [companionLink, setCompanionLink] = useState('');
   const [lastSaved, setLastSaved] = useState(null);
   const [incompatibleNotice, setIncompatibleNotice] = useState(null);
+  const [isInspectModeActive, setIsInspectModeActive] = useState(false);
 
   // Load app from Supabase if appId query param is present
   useEffect(() => {
@@ -1376,6 +1576,253 @@ root.render(
     }, 600);
   }, [vfs, onCodeChange, errorFixEngine, scheduleHealthyCheck]);
 
+  // ─── Pro Editor & Component Inspector Handlers ───
+  const handleRunEditorCode = useCallback((filePath, newCode) => {
+    vfs.writeFile(filePath, newCode);
+    setFilesRecord(vfs.getAllFilesRecord());
+    if (filePath === '/App.js' && onCodeChange) {
+      onCodeChange(newCode);
+    }
+    if (sandpackBridgeRef.current) {
+      sandpackBridgeRef.current.updateFile(filePath, newCode);
+      sandpackBridgeRef.current.runSandpack?.();
+    }
+    setLogs(prev => [...prev, {
+      timestamp: new Date(),
+      text: `[Editor Pro] ▶️ Menjalankan kode terbaru untuk ${filePath}`
+    }]);
+  }, [vfs, onCodeChange]);
+
+  const handleFormatEditorCode = useCallback((filePath, codeText) => {
+    try {
+      const cleaned = cleanVibeCode(codeText);
+      if (cleaned && cleaned !== codeText) {
+        handleRunEditorCode(filePath, cleaned);
+        toast.success('Format kode berhasil dirapikan!');
+      } else {
+        toast.success('Format kode sudah rapi');
+      }
+    } catch (_) {}
+  }, [handleRunEditorCode]);
+
+  const handleElementInspected = useCallback((elementData) => {
+    const { tagName, text, placeholder, id, className, firstLine, name, value, words } = elementData;
+
+    // 1. Auto switch to split if currently in preview
+    setViewMode(prev => (prev === 'preview' ? 'split' : prev));
+
+    // Get live code from Sandpack bundler or VFS
+    let targetPath = activeFilePath || '/App.js';
+    let targetCode = 
+      sandpackBridgeRef.current?.sandpack?.files?.[targetPath]?.code ||
+      vfs.readFile(targetPath) ||
+      '';
+
+    // Scoring search algorithm
+    const searchInCode = (codeStr) => {
+      if (!codeStr) return { lineIdx: -1, score: 0, matchedTerm: '' };
+      const lines = codeStr.split('\n');
+      let bestIdx = -1;
+      let maxScore = 0;
+      let bestTerm = '';
+
+      const cleanFirstLine = (firstLine || (text || '').split('\n')[0] || '').trim();
+      const cleanSnippet = cleanFirstLine.slice(0, 30);
+      const keywords = (words || cleanFirstLine.replace(/[^a-zA-Z0-9_\s-]/g, ' ').split(/\s+/))
+        .filter(w => w && w.length >= 3);
+
+      for (let idx = 0; idx < lines.length; idx++) {
+        const line = lines[idx];
+        const lowerLine = line.toLowerCase();
+        let score = 0;
+
+        // 1. Exact or partial match for firstLine text (+100)
+        if (cleanSnippet.length > 2 && line.includes(cleanSnippet)) {
+          score += 100;
+          bestTerm = cleanSnippet;
+        } else if (cleanSnippet.length > 2 && lowerLine.includes(cleanSnippet.toLowerCase())) {
+          score += 80;
+          bestTerm = cleanSnippet;
+        }
+
+        // 2. Match placeholder (+90)
+        if (placeholder && placeholder.length > 1 && line.includes(placeholder)) {
+          score += 90;
+          bestTerm = placeholder;
+        }
+
+        // 3. Match name attribute (+85)
+        if (name && name.length > 1 && lowerLine.includes(`name="${name.toLowerCase()}"`)) {
+          score += 85;
+          bestTerm = name;
+        }
+
+        // 4. Match ID (+85)
+        if (id && id.length > 1 && (line.includes(`"${id}"`) || line.includes(`'${id}'`))) {
+          score += 85;
+          bestTerm = id;
+        }
+
+        // 5. Match individual keywords (+25 per word)
+        let matchedKeywords = 0;
+        for (const kw of keywords) {
+          if (lowerLine.includes(kw.toLowerCase())) {
+            score += 25;
+            matchedKeywords++;
+            if (!bestTerm) bestTerm = kw;
+          }
+        }
+        if (matchedKeywords > 1) score += 20;
+
+        // 6. Match specific tag name (+20)
+        if (tagName && !['div', 'span', 'section', 'main'].includes(tagName)) {
+          const tagRegex = new RegExp(`<${tagName}\\b`, 'i');
+          if (tagRegex.test(line)) {
+            score += 20;
+          }
+        }
+
+        // 7. Match value (+30)
+        if (value && typeof value === 'string' && value.length > 2 && line.includes(value)) {
+          score += 30;
+          if (!bestTerm) bestTerm = value;
+        }
+
+        // De-prioritize imports or useState declarations unless no other match
+        if (lowerLine.startsWith('import ') || lowerLine.startsWith('const [') || lowerLine.startsWith('export default')) {
+          score = Math.max(0, score - 60);
+        }
+
+        if (score > maxScore) {
+          maxScore = score;
+          bestIdx = idx;
+        }
+      }
+
+      return { lineIdx: bestIdx, score: maxScore, matchedTerm: bestTerm };
+    };
+
+    let result = searchInCode(targetCode);
+
+    // Fallback to /App.js if not found in current file
+    if (result.lineIdx === -1 && targetPath !== '/App.js') {
+      const appCode = 
+        sandpackBridgeRef.current?.sandpack?.files?.['/App.js']?.code ||
+        vfs.readFile('/App.js') ||
+        '';
+      const appResult = searchInCode(appCode);
+      if (appResult.lineIdx !== -1) {
+        targetPath = '/App.js';
+        setActiveFilePath('/App.js');
+        if (sandpackBridgeRef.current) {
+          sandpackBridgeRef.current.openFile('/App.js');
+        }
+        result = appResult;
+      }
+    }
+
+    if (result.lineIdx !== -1 && result.score >= 20) {
+      const lineNumber = result.lineIdx + 1;
+      const term = result.matchedTerm;
+
+      toast.success(`🎯 Komponen <${tagName}> ditemukan di ${targetPath} (baris ${lineNumber})!`, {
+        id: 'inspect-found',
+        icon: '🔍',
+        duration: 3500
+      });
+      setLogs(prev => [...prev, {
+        timestamp: new Date(),
+        text: `[Inspector] 🎯 Elemen <${tagName}> ditemukan di baris ${lineNumber}`
+      }]);
+
+      // 1. Scroll the CodeMirror scroller container to the target position
+      const scrollEditor = () => {
+        const scroller = document.querySelector('.sp-code-editor .cm-scroller') || document.querySelector('.cm-scroller');
+        if (scroller) {
+          const sampleLine = document.querySelector('.sp-code-editor .cm-line');
+          const lineHeight = sampleLine ? sampleLine.getBoundingClientRect().height : 21;
+          const targetY = Math.max(0, (result.lineIdx * lineHeight) - (scroller.clientHeight / 2));
+          scroller.scrollTo({
+            top: targetY,
+            behavior: 'smooth'
+          });
+        }
+      };
+
+      scrollEditor();
+
+      // 2. Highlight line after CodeMirror renders virtual lines
+      const highlightTargetLine = (attempt = 0) => {
+        const cmLines = document.querySelectorAll('.sp-code-editor .cm-line');
+        if (!cmLines || cmLines.length === 0) {
+          if (attempt < 5) setTimeout(() => highlightTargetLine(attempt + 1), 100);
+          return;
+        }
+
+        let targetLine = null;
+
+        // Try to find the rendered line by matched term
+        if (term) {
+          targetLine = Array.from(cmLines).find(l => l.textContent.includes(term));
+        }
+
+        // Try by gutter element line number
+        if (!targetLine) {
+          const gutters = document.querySelectorAll('.sp-code-editor .cm-gutterElement');
+          const targetGutter = Array.from(gutters).find(g => g.textContent.trim() === String(lineNumber));
+          if (targetGutter) {
+            const gRect = targetGutter.getBoundingClientRect();
+            targetLine = Array.from(cmLines).find(l => Math.abs(l.getBoundingClientRect().top - gRect.top) < 8);
+          }
+        }
+
+        // Retry if virtual DOM not rendered yet
+        if (!targetLine && attempt < 3) {
+          scrollEditor();
+          setTimeout(() => highlightTargetLine(attempt + 1), 150);
+          return;
+        }
+
+        // Fallback to center line in viewport
+        if (!targetLine && cmLines.length > 0) {
+          targetLine = cmLines[Math.floor(cmLines.length / 2)];
+        }
+
+        if (targetLine) {
+          targetLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          targetLine.style.transition = 'all 0.3s ease';
+          targetLine.style.backgroundColor = 'rgba(14, 165, 233, 0.45)';
+          targetLine.style.boxShadow = '0 0 24px rgba(56, 189, 248, 0.9)';
+          targetLine.style.outline = '2px solid #38bdf8';
+          targetLine.style.borderRadius = '4px';
+
+          setTimeout(() => {
+            targetLine.style.backgroundColor = 'transparent';
+            targetLine.style.boxShadow = 'none';
+            targetLine.style.outline = 'none';
+          }, 3500);
+        }
+      };
+
+      setTimeout(() => highlightTargetLine(0), 120);
+    } else {
+      toast(`🔍 Elemen <${tagName}> dipilih`, { icon: '🎯' });
+    }
+  }, [activeFilePath, vfs]);
+
+  // Sync inspect mode to preview iframe
+  useEffect(() => {
+    const iframes = document.querySelectorAll('iframe');
+    iframes.forEach(iframe => {
+      try {
+        iframe.contentWindow?.postMessage({
+          type: 'MAVICORE_SET_INSPECT_MODE',
+          enabled: isInspectModeActive
+        }, '*');
+      } catch (_) {}
+    });
+  }, [isInspectModeActive]);
+
   // Listen to postMessage from device/companion/iframe
   useEffect(() => {
     const handleDeviceMessage = (event) => {
@@ -1388,10 +1835,13 @@ root.render(
         const errorMsg = event.data.error || event.data.message || 'Device runtime error';
         handleSandpackError(errorMsg);
       }
+      if (event.data.type === 'MAVICORE_ELEMENT_INSPECTED') {
+        handleElementInspected(event.data);
+      }
     };
     window.addEventListener('message', handleDeviceMessage);
     return () => window.removeEventListener('message', handleDeviceMessage);
-  }, [handleSandpackError]);
+  }, [handleSandpackError, handleElementInspected]);
 
   const handleSandpackLog = useCallback((text) => {
     setLogs(prev => [...prev.slice(-49), { timestamp: new Date(), text }]);
@@ -1922,6 +2372,35 @@ root.render(
             ))}
           </div>
 
+          {/* Edit Komponen / Inspeksi Layar */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsInspectModeActive(prev => {
+                const nextVal = !prev;
+                if (nextVal) {
+                  toast('🎯 Mode Inspeksi Aktif: Klik komponen di layar device untuk langsung menuju kodenya!', { icon: '🔍', duration: 4000 });
+                }
+                return nextVal;
+              });
+            }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '5px',
+              padding: '4px 9px', borderRadius: '7px',
+              backgroundColor: isInspectModeActive ? '#0284c7' : 'rgba(0,0,0,0.22)',
+              border: isInspectModeActive ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.08)',
+              color: isInspectModeActive ? '#ffffff' : '#94a3b8',
+              fontSize: '0.7rem', fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              boxShadow: isInspectModeActive ? '0 0 12px rgba(14, 165, 233, 0.5)' : 'none'
+            }}
+            title="Klik komponen di layar untuk langsung meloncat ke baris kodenya di editor"
+          >
+            <MousePointerClick size={12} />
+            <span className="hidden sm:inline">{isInspectModeActive ? 'Inspeksi Aktif' : 'Edit Komponen'}</span>
+          </button>
+
           {/* Reload */}
           <button
             type="button"
@@ -2193,18 +2672,35 @@ root.render(
 
             <SandpackLayout style={{ height: '100%', minHeight: '100%', border: 'none', borderRadius: 0, flex: 1, display: 'flex', alignSelf: 'stretch' }}>
               {(viewMode === 'split' || viewMode === 'code') && (
-                <SandpackCodeEditor
-                  showLineNumbers
-                  showInlineErrors
-                  wrapContent
-                  style={{
-                    height: '100%',
-                    minHeight: '100%',
-                    width: viewMode === 'code' ? '100%' : '42%',
-                    fontFamily: 'monospace',
-                    fontSize: '12px'
-                  }}
-                />
+                <div style={{
+                  height: '100%',
+                  minHeight: '100%',
+                  width: viewMode === 'code' ? '100%' : '44%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  borderRight: '1px solid #1e293b',
+                  overflow: 'hidden'
+                }}>
+                  <SandpackProEditorBar
+                    activePath={activeFilePath}
+                    onRunCode={handleRunEditorCode}
+                    onFormatCode={handleFormatEditorCode}
+                    isInspectActive={isInspectModeActive}
+                    onToggleInspect={() => setIsInspectModeActive(prev => !prev)}
+                  />
+                  <SandpackCodeEditor
+                    showLineNumbers
+                    showInlineErrors
+                    wrapContent
+                    style={{
+                      flex: 1,
+                      height: '100%',
+                      minHeight: 0,
+                      fontFamily: 'monospace',
+                      fontSize: '12px'
+                    }}
+                  />
+                </div>
               )}
 
               {(viewMode === 'split' || viewMode === 'preview') && (
@@ -2220,6 +2716,54 @@ root.render(
                   backgroundColor: '#020617',
                   padding: viewportSize === 'responsive' ? 0 : '16px'
                 }}>
+                  {/* Floating Inspection Banner */}
+                  {isInspectModeActive && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 14,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      zIndex: 100,
+                      backgroundColor: 'rgba(15, 23, 42, 0.94)',
+                      border: '1px solid #0284c7',
+                      boxShadow: '0 8px 24px rgba(2, 132, 199, 0.4)',
+                      borderRadius: '24px',
+                      padding: '6px 16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      color: '#38bdf8',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      backdropFilter: 'blur(8px)',
+                      pointerEvents: 'auto'
+                    }}>
+                      <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#38bdf8', boxShadow: '0 0 8px #38bdf8' }} />
+                      <span>🎯 Mode Inspeksi: Klik komponen di layar untuk langsung meloncat ke kodenya</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsInspectModeActive(false)}
+                        style={{
+                          background: 'rgba(255,255,255,0.1)',
+                          border: 'none',
+                          color: '#94a3b8',
+                          borderRadius: '50%',
+                          width: '18px',
+                          height: '18px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          fontSize: '10px',
+                          marginLeft: '4px'
+                        }}
+                        title="Tutup mode inspeksi"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
+
                   {/* Device Container */}
                   <div style={{
                     width: viewportSize === 'mobile' ? '390px' : (viewportSize === 'tablet' ? '768px' : '100%'),

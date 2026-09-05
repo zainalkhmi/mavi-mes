@@ -266,11 +266,11 @@ export async function getPrimaryAiConnector() {
         const mid = String(aiSet.modelId || '').toLowerCase();
         if (isGemini && (
             !aiSet.modelId ||
-            mid.includes('gemini-1.5') ||
-            mid.includes('gemini-2.0') ||
-            mid.includes('gemini-2.5')
+            mid.includes('gemini-3.') ||
+            mid.includes('flash-latest') ||
+            mid === 'gemini-flash'
         )) {
-            aiSet.modelId = 'gemini-3.8-flash';
+            aiSet.modelId = 'gemini-2.0-flash';
         }
         return conn;
     };

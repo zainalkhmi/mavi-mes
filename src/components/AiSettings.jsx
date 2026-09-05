@@ -24,10 +24,10 @@ const PROVIDERS = [
 
 const DEFAULT_MODELS = {
   Gemini: [
-    { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash (Recommended - Latest & Super Fast)' },
-    { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash (Fast & Stable)' },
-    { id: 'gemini-flash-latest', name: 'Gemini Flash Latest (Auto-Updated)' },
-    { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash (Fast)' }
+    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Recommended - Super Fast & Next Gen)' },
+    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Production Stable & Fast)' },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Next Gen Reasoning)' },
+    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro (Complex Analysis)' }
   ],
   OpenAI: [
     { id: 'gpt-4o-mini', name: 'GPT-4o Mini (Fast & Cost-Efficient)' },
@@ -67,7 +67,7 @@ const AiSettings = () => {
   const [activeProvider, setActiveProvider] = useState('Gemini');
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
-  const [modelId, setModelId] = useState('gemini-3.8-flash');
+  const [modelId, setModelId] = useState('gemini-2.0-flash');
   const [availableModels, setAvailableModels] = useState([]);
   const [isFetchingModels, setIsFetchingModels] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -90,21 +90,21 @@ const AiSettings = () => {
         setActiveProvider(provider);
         setApiKey(aiSettings.apiKey || '');
         setBaseUrl(aiSettings.baseUrl || '');
-        let mid = aiSettings.modelId || (provider === 'Gemini' ? 'gemini-3.8-flash' : 'gpt-4o-mini');
-        const isRetired = (id) => {
+        let mid = aiSettings.modelId || (provider === 'Gemini' ? 'gemini-2.0-flash' : 'gpt-4o-mini');
+        const isBogus = (id) => {
           if (!id) return true;
           const s = String(id).toLowerCase();
-          return s.includes('gemini-1.5') || s.includes('gemini-2.0') || s.includes('gemini-2.5');
+          return s.includes('gemini-3.') || s.includes('flash-latest') || s === 'gemini-flash';
         };
-        if (provider === 'Gemini' && isRetired(mid)) {
-          mid = 'gemini-3.8-flash';
+        if (provider === 'Gemini' && isBogus(mid)) {
+          mid = 'gemini-2.0-flash';
         }
         setModelId(mid);
 
         // Build initial models list from defaults
         const defaults = DEFAULT_MODELS[provider] || [];
         const combined = [...defaults];
-        if (mid && !combined.find(m => m.id === mid) && !isRetired(mid)) {
+        if (mid && !combined.find(m => m.id === mid) && !isBogus(mid)) {
           combined.unshift({ id: mid, name: `${mid} (Current)` });
         }
         setAvailableModels(combined);
@@ -145,7 +145,7 @@ const AiSettings = () => {
     const defaultModelsForNewProvider = DEFAULT_MODELS[newProviderId] || [];
     const defaultModelIdForNewProvider = defaultModelsForNewProvider.length > 0 
       ? defaultModelsForNewProvider[0].id 
-      : (newProviderId === 'Gemini' ? 'gemini-3.8-flash' : '');
+      : (newProviderId === 'Gemini' ? 'gemini-2.0-flash' : '');
 
     const nextConfig = configs[newProviderId] || {
       apiKey: '',
