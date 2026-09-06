@@ -58,7 +58,7 @@ export default function UiEngineStudio({ canvasMode = true }) {
   const [isLoadingApp, setIsLoadingApp] = useState(false);
   const [incompatibleNotice, setIncompatibleNotice] = useState(null);
 
-  const [appName, setAppName] = useState('app test');
+  const [appName, setAppName] = useState('Mobile App');
   const [isEditingAppName, setIsEditingAppName] = useState(false);
   const [isSavedAppFeedback, setIsSavedAppFeedback] = useState(false);
 

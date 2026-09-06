@@ -35,6 +35,15 @@ export const mavicore = {
       _store.append('table_' + tableName, record);
       return { success: true, record };
     },
+    async saveRecord(tableName, data) {
+      return this.insertRecord(tableName, data);
+    },
+    async save(tableName, data) {
+      return this.insertRecord(tableName, data);
+    },
+    async insert(tableName, data) {
+      return this.insertRecord(tableName, data);
+    },
     async query(tableName, filters = {}) {
       // Request query from parent frame
       return new Promise((resolve) => {
@@ -51,13 +60,25 @@ export const mavicore = {
         setTimeout(() => { window.removeEventListener('message', handler); resolve(_store.get('table_' + tableName) || []); }, 2000);
       });
     },
+    async getRecords(tableName, filters = {}) {
+      return this.query(tableName, filters);
+    },
+    async read(tableName, filters = {}) {
+      return this.query(tableName, filters);
+    },
     async updateRecord(tableName, recordId, data) {
       _postMessage('MAVICORE_TABLE_UPDATE', { tableName, recordId, data });
       return { success: true };
     },
+    async update(tableName, recordId, data) {
+      return this.updateRecord(tableName, recordId, data);
+    },
     async deleteRecord(tableName, recordId) {
       _postMessage('MAVICORE_TABLE_DELETE', { tableName, recordId });
       return { success: true };
+    },
+    async delete(tableName, recordId) {
+      return this.deleteRecord(tableName, recordId);
     }
   },
 

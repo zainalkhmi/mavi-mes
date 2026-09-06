@@ -6,8 +6,21 @@ import {
   ChevronRight, ChevronDown, ChevronUp, Plus, Minus, Search, X, ExternalLink,
   Settings, Check, Info, FileText, BarChart3, Clock, Hash, AlignLeft,
   ListFilter, CheckSquare, ToggleLeft, Video, Grid3X3, ChevronsUpDown,
-  Tag, User, Table as TableIcon, Bell, RefreshCw, Sparkles, Send, Eye, Home
+  Tag, User, Table as TableIcon, Bell, RefreshCw, Sparkles, Send, Eye, Home,
+  Calendar, PenTool, List, PlusCircle
 } from 'lucide-react';
+import {
+  Image as UiImage,
+  PDFViewer as UiPDFViewer,
+  Chart as UiChart,
+  Timer as UiTimer,
+  Counter as UiCounter,
+  NumberInput as UiNumberInput,
+  DateTimePicker as UiDateTimePicker,
+  Gauge as UiGauge,
+  Signature as UiSignature,
+  ListItem as UiListItem
+} from '../components';
 import { getFrontlineAppById } from '../../utils/supabaseFrontlineDB';
 
 // Default starter screens if app is brand new / not yet persisted
@@ -361,6 +374,47 @@ export default function GluestackAppPlayer({
           </button>
         );
 
+      case 'Dropdown': {
+        const isDropOpen = !!accordionState[`drop_${comp.id}`];
+        const dropItems = props.items || props.options || ['Export PDF', 'Cetak Label Barcode', 'Kirim Notifikasi QC'];
+        const selectedOpt = formValues[comp.id] || props.label || props.defaultValue || 'Opsi Tindakan...';
+        return (
+          <div className="relative w-full" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => {
+                setAccordionState(prev => ({ ...prev, [`drop_${comp.id}`]: !isDropOpen }));
+              }}
+              className="w-full p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between text-xs transition-all hover:border-teal-500 hover:bg-slate-50 active:scale-98 cursor-pointer"
+            >
+              <span className="font-semibold text-slate-800 truncate">{selectedOpt}</span>
+              <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 shrink-0 ${isDropOpen ? 'rotate-180 text-teal-600' : ''}`} />
+            </button>
+            {isDropOpen && (
+              <div className="absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl border border-slate-200 shadow-2xl z-50 py-1 divide-y divide-slate-100 animate-in fade-in-50 zoom-in-95 duration-150">
+                {dropItems.map((it, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setFormValues(prev => ({ ...prev, [comp.id]: it }));
+                      setAccordionState(prev => ({ ...prev, [`drop_${comp.id}`]: false }));
+                      setActiveToast({ message: `Dipilih: "${it}"`, type: 'success' });
+                      logTrigger('Dropdown', 'ON_CHANGE', `Pilih: ${it}`);
+                      executeComponentTriggers(comp, 'ON_CHANGE');
+                    }}
+                    className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-teal-50 hover:text-teal-800 font-medium transition-colors flex items-center justify-between cursor-pointer"
+                  >
+                    <span>{it}</span>
+                    {selectedOpt === it && <Check className="w-3.5 h-3.5 text-teal-600" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      }
+
       case 'Input':
         return (
           <div className="space-y-1.5 w-full">
@@ -690,24 +744,136 @@ export default function GluestackAppPlayer({
           </div>
         );
 
+      // EMBED WIDGETS
       case 'Image':
         return (
-          <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center max-h-52">
-            <img src={props.src || 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400'} alt={props.alt || 'Visual Part'} className="w-full h-auto object-cover" />
-          </div>
+          <UiImage
+            src={props.src}
+            alt={props.alt || 'Drawing CAD / Foto Defek'}
+            title={props.title}
+            caption={props.caption}
+            aspectRatio={props.aspectRatio || '16:9'}
+            badgeText={props.badgeText || 'CAD DRAWING'}
+            zoomable={props.zoomable !== false}
+          />
+        );
+
+      case 'PDFViewer':
+        return (
+          <UiPDFViewer
+            src={props.src}
+            title={props.title || 'Work Instruction SOP'}
+            docNo={props.docNo || 'SOP-QC-2026-08'}
+            rev={props.rev || 'Rev 2.3'}
+            pages={props.pages || 3}
+          />
+        );
+
+      case 'Signature':
+        return (
+          <UiSignature
+            label={props.label || 'Approval Tanda Tangan QC'}
+            placeholder={props.placeholder || 'Bubuhkan tanda tangan persetujuan di sini'}
+            onChange={(sigData) => {
+              setFormValues(prev => ({ ...prev, [comp.id]: sigData }));
+              logTrigger('Signature', 'ON_SIGN', 'Tanda tangan QC tersimpan');
+            }}
+          />
+        );
+
+      case 'ListItem':
+        return (
+          <UiListItem
+            title={props.title || 'Baris Data Operasional'}
+            subtitle={props.subtitle || 'Keterangan lot atau status stasiun'}
+            badge={props.badge || 'ACTIVE'}
+            value={props.value}
+            onClick={() => logTrigger('ListItem', 'ON_CLICK', `Item: ${props.title}`)}
+          />
+        );
+
+      case 'Chart':
+      case 'LineChart':
+      case 'BarChart':
+        return (
+          <UiChart
+            type={props.type || (comp.type === 'BarChart' ? 'bar' : 'line')}
+            title={props.title || 'KPI Output & OEE Trend'}
+            subtitle={props.subtitle}
+            data={props.data}
+            unit={props.unit || 'pcs'}
+            targetValue={props.targetValue || 50}
+          />
+        );
+
+      case 'Gauge':
+        return (
+          <UiGauge
+            label={props.label || 'Spindle RPM / Telemetry'}
+            value={Number(props.value) || 1850}
+            min={Number(props.min) || 0}
+            max={Number(props.max) || 3000}
+            unit={props.unit || 'RPM'}
+            warningThreshold={props.warningThreshold || 2400}
+            dangerThreshold={props.dangerThreshold || 2800}
+          />
+        );
+
+      case 'NumberInput':
+        return (
+          <UiNumberInput
+            label={props.label || 'Input Quantity'}
+            value={formValues[comp.id] !== undefined ? formValues[comp.id] : (Number(props.value) || 10)}
+            min={Number(props.min) || 0}
+            max={Number(props.max) || 99999}
+            step={Number(props.step) || 1}
+            onChange={(val) => {
+              setFormValues(prev => ({ ...prev, [comp.id]: val }));
+              logTrigger('NumberInput', 'ON_CHANGE', `Quantity: ${val}`);
+            }}
+          />
+        );
+
+      case 'DateTimePicker':
+        return (
+          <UiDateTimePicker
+            label={props.label || 'Jadwal Maintenance'}
+            value={formValues[comp.id] || props.value}
+            mode={props.mode || 'datetime'}
+            onChange={(val) => {
+              setFormValues(prev => ({ ...prev, [comp.id]: val }));
+              logTrigger('DateTimePicker', 'ON_CHANGE', `Date: ${val}`);
+            }}
+          />
         );
 
       case 'Timer':
         return (
-          <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-amber-600 animate-pulse" />
-              <span className="text-xs font-bold text-amber-800">{props.label || 'Takt Time'}</span>
-            </div>
-            <span className="font-mono text-xs font-extrabold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">
-              00:{props.duration < 10 ? `0${props.duration}` : props.duration || 60}
-            </span>
-          </div>
+          <UiTimer
+            label={props.label || 'Cycle Time / Takt Time'}
+            duration={Number(props.duration) || 60}
+            mode={props.mode || 'countdown'}
+            autoStart={props.autoStart !== false}
+            onComplete={() => {
+              logTrigger('Timer', 'ON_COMPLETE', 'Timer cycle time selesai');
+              setActiveToast({ message: 'Timer Siklus Selesai!', type: 'success' });
+            }}
+          />
+        );
+
+      case 'Counter':
+        return (
+          <UiCounter
+            label={props.label || 'Good Parts Counter'}
+            value={counters[comp.id] !== undefined ? counters[comp.id] : (Number(props.value) || 0)}
+            min={Number(props.min) || 0}
+            max={Number(props.max) || 99999}
+            step={Number(props.step) || 1}
+            onChange={(val) => {
+              setCounters(prev => ({ ...prev, [comp.id]: val }));
+              logTrigger('Counter', 'ON_CHANGE', `Counter: ${val}`);
+            }}
+          />
         );
 
       default:

@@ -1,30 +1,32 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "MAVI MES",
+  "productName": "Mavi Builder",
   "version": "1.0.0",
-  "identifier": "com.mavi.mes",
+  "identifier": "com.mavicore.builder",
   "build": {
-    "frontendDist": "../dist",
-    "devUrl": "http://localhost:5173",
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build"
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../dist"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
-        "title": "MAVI MES — Manufacturing Execution System",
-        "width": 1440,
+        "title": "MaviCore MES Builder",
+        "width": 1400,
         "height": 900,
         "minWidth": 1024,
-        "minHeight": 600,
+        "minHeight": 700,
         "resizable": true,
         "fullscreen": false,
-        "maximized": true,
         "center": true,
+        "minimizable": true,
+        "maximizable": true,
+        "closable": true,
         "decorations": true,
         "transparent": false,
-        "alwaysOnTop": false,
-        "visible": false
+        "focus": true
       }
     ],
     "security": {
@@ -33,23 +35,30 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis", "msi"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
-      "icons/icon.ico"
+      "icons/icon.ico",
+      "icons/icon.png"
     ],
+    "resources": [],
     "windows": {
-      "wix": {},
-      "nsis": {
-        "languages": ["English"],
-        "installMode": "perMachine"
-      }
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
     },
-    "android": {
-      "debugApplicationIdSuffix": ".debug"
+    "shortDescription": "MaviCore MES App Builder",
+    "longDescription": "Build MES applications with drag-drop UI builder, AI code generation, and real-time preview.",
+    "category": "DeveloperTool",
+    "publisher": "MaviCore",
+    "copyright": "Copyright 2024 MaviCore"
+  },
+  "plugins": {
+    "shell": {
+      "open": true
     }
   }
 }

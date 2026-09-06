@@ -50,6 +50,10 @@ export default function App() {
     location.pathname.startsWith('/player') ||
     location.pathname.startsWith('/app-player') ||
     window.location.hash.includes('app-player') ||
+    location.pathname.startsWith('/sandbox-runner') ||
+    window.location.hash.includes('sandbox-runner') ||
+    location.pathname.startsWith('/sandbox-player') ||
+    window.location.hash.includes('sandbox-player') ||
     location.pathname.startsWith('/terminal') ||
     location.pathname.startsWith('/mobile-player') ||
     location.pathname.startsWith('/tulip-player') ||

@@ -3,6 +3,9 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import tailwindcss from '@tailwindcss/vite'
 
+// Check if running in Tauri mode
+const isTauri = process.env.TAURI === 'true';
+
 // Security headers for production
 const securityHeaders = {
   'X-Frame-Options': 'SAMEORIGIN',
@@ -190,5 +193,12 @@ export default defineConfig({
         }
       }
     }
-  }
+  },
+  // Tauri-specific configuration
+  define: {
+    // Expose Tauri global
+    __TAURI__: JSON.stringify(process.env.TAURI || false),
+  },
+  clearScreen: false,
+  envPrefix: ['VITE_', 'TAURI_'],
 })

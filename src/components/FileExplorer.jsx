@@ -26,13 +26,17 @@ import {
   X,
   ChevronRight,
   ChevronDown,
-  AlertCircle
+  AlertCircle,
+  Smartphone,
+  Sparkles,
+  Monitor
 } from 'lucide-react';
 import {
   getAllFrontlineApps,
   saveFrontlineApp,
   deleteFrontlineApp
 } from '../utils/supabaseFrontlineDB';
+import { getAppBuilderType, getBuilderInfo, BUILDER_TYPES } from '../utils/builderType';
 import * as projectMgmt from '../utils/projectManagement';
 import toast from 'react-hot-toast';
 
@@ -62,6 +66,107 @@ const FileExplorer = () => {
   });
 
   const fileInputRef = useRef(null);
+
+  // Dynamic actions adapted to Copilot / Builder Type
+  const getAppActions = (app) => {
+    if (!app) return [];
+    const bType = getAppBuilderType(app);
+
+    if (bType === BUILDER_TYPES.GLUESTACK) {
+      return [
+        {
+          label: 'Edit di Gluestack Studio',
+          icon: <Edit3 size={15} />,
+          url: `/ui-engine?appId=${app.id}`,
+          bg: '#f5f3ff',
+          border: '#ddd6fe',
+          color: '#7c3aed',
+          hoverBg: '#ede9fe'
+        },
+        {
+          label: 'Jalankan (Gluestack Player)',
+          icon: <Play size={15} />,
+          url: `/app-player?appId=${app.id}`,
+          bg: '#ecfdf5',
+          border: '#a7f3d0',
+          color: '#059669',
+          hoverBg: '#d1fae5'
+        },
+        {
+          label: 'Buka di Live Companion (HP)',
+          icon: <Smartphone size={15} />,
+          url: `/app-player?appId=${app.id}&mode=companion`,
+          bg: '#f8fafc',
+          border: '#cbd5e1',
+          color: '#475569',
+          hoverBg: '#e2e8f0'
+        }
+      ];
+    }
+
+    if (bType === BUILDER_TYPES.SANDBOX) {
+      return [
+        {
+          label: 'Edit di Sandbox Vibe',
+          icon: <Edit3 size={15} />,
+          url: `/sandbox?appId=${app.id}`,
+          bg: '#fffbeb',
+          border: '#fde68a',
+          color: '#d97706',
+          hoverBg: '#fef3c7'
+        },
+        {
+          label: 'Jalankan (Sandbox Runner)',
+          icon: <Play size={15} />,
+          url: `/sandbox-runner?appId=${app.id}&mode=companion`,
+          bg: '#ecfeff',
+          border: '#a5f3fc',
+          color: '#0891b2',
+          hoverBg: '#cffafe'
+        },
+        {
+          label: 'Buka di Live Real Device (HP)',
+          icon: <Smartphone size={15} />,
+          url: `/sandbox-runner?appId=${app.id}&mode=companion`,
+          bg: '#f8fafc',
+          border: '#cbd5e1',
+          color: '#475569',
+          hoverBg: '#e2e8f0'
+        }
+      ];
+    }
+
+    // Default: Mavi Builder (app_builder / PC)
+    return [
+      {
+        label: 'Edit di App Builder',
+        icon: <Edit3 size={15} />,
+        url: `/builder?appId=${app.id}`,
+        bg: '#eff6ff',
+        border: '#bfdbfe',
+        color: '#2563eb',
+        hoverBg: '#dbeafe'
+      },
+      {
+        label: 'Jalankan (App Player)',
+        icon: <Play size={15} />,
+        url: `/player?appId=${app.id}`,
+        bg: '#dcfce7',
+        border: '#bbf7d0',
+        color: '#15803d',
+        hoverBg: '#bbf7d0'
+      },
+      {
+        label: 'Buka di Live Terminal',
+        icon: <Terminal size={15} />,
+        url: `/terminal/${app.id}`,
+        bg: '#f1f5f9',
+        border: '#cbd5e1',
+        color: '#475569',
+        hoverBg: '#e2e8f0'
+      }
+    ];
+  };
 
   // Load apps
   useEffect(() => {
@@ -709,21 +814,45 @@ const FileExplorer = () => {
                         <FileCode size={20} />
                       </div>
                       
-                      {/* Status badge */}
-                      <span style={{
-                        fontSize: '0.7rem',
-                        fontWeight: 700,
-                        padding: '4px 8px',
-                        borderRadius: '20px',
-                        backgroundColor: 
-                          status === 'PUBLISHED' ? '#dcfce7' :
-                          status === 'PENDING' ? '#ffedd5' : '#f1f5f9',
-                        color:
-                          status === 'PUBLISHED' ? '#15803d' :
-                          status === 'PENDING' ? '#c2410c' : '#475569'
-                      }}>
-                        {status}
-                      </span>
+                      {/* Builder Copilot and Status badges */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {(() => {
+                          const bType = getAppBuilderType(app);
+                          const bInfo = getBuilderInfo(bType);
+                          return (
+                            <span style={{
+                              fontSize: '0.68rem',
+                              fontWeight: 800,
+                              padding: '2px 6px',
+                              borderRadius: '6px',
+                              backgroundColor: bInfo.bgColor,
+                              border: `1px solid ${bInfo.borderColor}`,
+                              color: bInfo.color,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px'
+                            }}>
+                              {bType === BUILDER_TYPES.GLUESTACK ? <Smartphone size={10} /> : bType === BUILDER_TYPES.SANDBOX ? <Sparkles size={10} /> : <Monitor size={10} />}
+                              {bInfo.shortLabel}
+                            </span>
+                          );
+                        })()}
+
+                        <span style={{
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          padding: '3px 8px',
+                          borderRadius: '20px',
+                          backgroundColor: 
+                            status === 'PUBLISHED' ? '#dcfce7' :
+                            status === 'PENDING' ? '#ffedd5' : '#f1f5f9',
+                          color:
+                            status === 'PUBLISHED' ? '#15803d' :
+                            status === 'PENDING' ? '#c2410c' : '#475569'
+                        }}>
+                          {status}
+                        </span>
+                      </div>
                     </div>
 
                     <h4 style={{ margin: '0 0 6px 0', fontSize: '0.95rem', fontWeight: 800, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -871,7 +1000,30 @@ const FileExplorer = () => {
                 <X size={18} />
               </button>
               
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                {/* Copilot / Builder Type Badge */}
+                {(() => {
+                  const bType = getAppBuilderType(selectedApp);
+                  const bInfo = getBuilderInfo(bType);
+                  return (
+                    <span style={{
+                      fontSize: '0.7rem',
+                      fontWeight: 800,
+                      color: bInfo.color,
+                      backgroundColor: bInfo.bgColor,
+                      border: `1px solid ${bInfo.borderColor}`,
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      {bType === BUILDER_TYPES.GLUESTACK ? <Smartphone size={11} /> : bType === BUILDER_TYPES.SANDBOX ? <Sparkles size={11} /> : <Monitor size={11} />}
+                      {bInfo.label} ({bInfo.badge})
+                    </span>
+                  );
+                })()}
+
                 <span style={{
                   fontSize: '0.65rem',
                   fontWeight: 800,
@@ -935,82 +1087,35 @@ const FileExplorer = () => {
 
               <hr style={{ border: 'none', borderTop: '1px solid #f1f5f9', margin: 0 }} />
 
-              {/* Core Actions */}
+              {/* Core Actions (Adapted to Copilot / Builder Type) */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <button
-                  onClick={() => navigate(`/builder?appId=${selectedApp.id}`)}
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    padding: '11px',
-                    backgroundColor: '#eff6ff',
-                    border: '1px solid #bfdbfe',
-                    color: '#2563eb',
-                    fontWeight: 700,
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontSize: '0.85rem',
-                    transition: 'all 0.15s'
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#dbeafe'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#eff6ff'; }}
-                >
-                  <Edit3 size={15} />
-                  Edit di App Builder
-                </button>
-
-                <button
-                  onClick={() => navigate(`/player?appId=${selectedApp.id}`)}
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    padding: '11px',
-                    backgroundColor: '#dcfce7',
-                    border: '1px solid #bbf7d0',
-                    color: '#15803d',
-                    fontWeight: 700,
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontSize: '0.85rem',
-                    transition: 'all 0.15s'
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#bbf7d0'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#dcfce7'; }}
-                >
-                  <Play size={15} />
-                  Jalankan (App Player)
-                </button>
-
-                <button
-                  onClick={() => navigate(`/terminal/${selectedApp.id}`)}
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    padding: '11px',
-                    backgroundColor: '#f1f5f9',
-                    border: '1px solid #cbd5e1',
-                    color: '#475569',
-                    fontWeight: 700,
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    fontSize: '0.85rem',
-                    transition: 'all 0.15s'
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#e2e8f0'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
-                >
-                  <Terminal size={15} />
-                  Buka di Live Terminal
-                </button>
+                {getAppActions(selectedApp).map((action, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => navigate(action.url)}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      padding: '11px',
+                      backgroundColor: action.bg,
+                      border: `1px solid ${action.border}`,
+                      color: action.color,
+                      fontWeight: 700,
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '0.85rem',
+                      transition: 'all 0.15s'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = action.hoverBg; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = action.bg; }}
+                  >
+                    {action.icon}
+                    {action.label}
+                  </button>
+                ))}
               </div>
 
               <hr style={{ border: 'none', borderTop: '1px solid #f1f5f9', margin: 0 }} />

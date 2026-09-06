@@ -49,7 +49,14 @@ import {
 import QRCode from 'react-qr-code';
 import BuilderCopilot from '../../components/BuilderCopilot';
 import GluestackWidgetProperties from './GluestackWidgetProperties';
-import { saveFrontlineApp } from '../../utils/supabaseFrontlineDB';
+import {
+  saveFrontlineApp,
+  getAllFrontlineApps,
+  getFrontlineAppById,
+  deleteFrontlineApp
+} from '../../utils/supabaseFrontlineDB';
+import { getAppBuilderType, BUILDER_TYPES } from '../../utils/builderType';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Pre-built App Templates available for quick load into canvas (16 Total)
 const APP_TEMPLATES = [
@@ -528,11 +535,39 @@ const getDefaultProps = (type) => {
     case 'Modal': return { title: 'Konfirmasi Reject Lot', body: 'Apakah Anda yakin ingin menandai Lot ini sebagai NG?' };
     case 'Drawer': return { title: 'Panel Filter', content: 'Filter riwayat inspeksi berdasarkan tanggal, operator, dan mesin.' };
 
-    // Legacy Fallbacks
+    // Embed Widgets
+    case 'Timer': return { label: 'Cycle Time / Takt Time', duration: 45, mode: 'countdown', autoStart: false };
+    case 'Counter': return { label: 'Good Parts Counter', value: 0, step: 1, min: 0, max: 99999 };
+    case 'NumberInput': return { label: 'Input Quantity (Pcs)', value: 10, min: 1, max: 1000, step: 1 };
+    case 'DateTimePicker': return { label: 'Jadwal Preventive Maintenance', mode: 'datetime' };
+    case 'Gauge': return { label: 'Spindle Speed (RPM)', value: 1850, min: 0, max: 3000, unit: 'RPM', warningThreshold: 2400, dangerThreshold: 2800 };
+    case 'Image': return { title: 'Technical Drawing - Part #AL-502', src: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=800', alt: 'Technical Drawing', aspectRatio: '16:9', zoomable: true, badgeText: 'CAD DRAWING' };
+    case 'PDFViewer': return { title: 'WI-042: Standar Perakitan Gearbox & Torsi', docNo: 'SOP-QC-2026-08', rev: 'Rev 2.3', pages: 3 };
+    case 'Signature': return { label: 'Approval Tanda Tangan QC', placeholder: 'Bubuhkan tanda tangan persetujuan QC di sini' };
+    case 'ListItem': return { title: 'LOT-20260906-01: Housing Gear', subtitle: 'Target Qty: 250 unit • Station Press 02', status: 'IN_PROGRESS', badge: 'Station 2', value: '250 Pcs' };
+    case 'Chart':
+    case 'LineChart':
+    case 'BarChart':
+      return {
+        title: 'KPI Output & OEE Trend Shift 1',
+        subtitle: 'Pencapaian per jam vs Target',
+        type: 'line',
+        unit: 'pcs',
+        targetValue: 50,
+        data: [
+          { label: '07:00', value: 42, target: 50 },
+          { label: '08:00', value: 48, target: 50 },
+          { label: '09:00', value: 54, target: 50 },
+          { label: '10:00', value: 52, target: 50 },
+          { label: '11:00', value: 58, target: 50 },
+          { label: '12:00', value: 35, target: 50 },
+          { label: '13:00', value: 56, target: 50 },
+          { label: '14:00', value: 60, target: 50 }
+        ]
+      };
+
+    // Text & Fallbacks
     case 'Text': return { text: 'Label Text', size: 'sm', bold: false };
-    case 'Timer': return { label: 'Takt Time', duration: 60 };
-    case 'Counter': return { label: 'Parts Output', value: 120 };
-    case 'Image': return { src: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400', alt: 'Part Image', width: 100 };
     default: return { label: type };
   }
 };
@@ -570,7 +605,16 @@ const getComponentIcon = (type) => {
     case 'Text': return Type;
     case 'Timer': return Timer;
     case 'Counter': return Hash;
+    case 'NumberInput': return PlusCircle;
+    case 'DateTimePicker': return Calendar;
+    case 'Gauge': return Gauge;
     case 'Image': return Image;
+    case 'PDFViewer': return FileText;
+    case 'Signature': return PenTool;
+    case 'ListItem': return List;
+    case 'Chart':
+    case 'LineChart':
+    case 'BarChart': return BarChart3;
     default: return Box;
   }
 };
@@ -579,6 +623,14 @@ export default function AppCanvas({
   deviceFrame: controlledDeviceFrame,
   onDeviceFrameChange
 } = {}) {
+  let authUser = null;
+  try {
+    const auth = useAuth();
+    authUser = auth?.user || null;
+  } catch (e) {
+    // safe fallback if rendered outside AuthProvider
+  }
+
   // Device Frame selection
   const [internalDeviceFrame, setInternalDeviceFrame] = useState('iphone');
   const currentDeviceFrame = controlledDeviceFrame || internalDeviceFrame;
@@ -592,6 +644,78 @@ export default function AppCanvas({
   const [previewCounters, setPreviewCounters] = useState({});
   const [previewTabsState, setPreviewTabsState] = useState({});
   const [previewAccordionState, setPreviewAccordionState] = useState({});
+  const [previewDropdownState, setPreviewDropdownState] = useState({});
+  const [previewTimersState, setPreviewTimersState] = useState({});
+
+  // Active ticking timer in Preview Mode
+  useEffect(() => {
+    if (!isPreview) return;
+    const interval = setInterval(() => {
+      setPreviewTimersState(prev => {
+        let changed = false;
+        const next = { ...prev };
+        Object.keys(next).forEach(id => {
+          if (next[id]?.running && next[id]?.time > 0) {
+            next[id] = { ...next[id], time: next[id].time - 1 };
+            changed = true;
+          }
+        });
+        return changed ? next : prev;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isPreview]);
+
+  // Selected Component ID & View State
+  const [selectedId, setSelectedId] = useState(null);
+
+
+  // Reset function to clear canvas
+  const handleResetCanvas = () => {
+    setScreens([
+      {
+        id: 'screen_1',
+        title: 'Home',
+        components: [
+          { id: 'comp_1', type: 'Text', props: { text: 'Mobile Dashboard', size: 'lg', bold: true } }
+        ],
+        triggers: []
+      }
+    ]);
+    setCurrentScreenId('screen_1');
+    setSelectedId(null);
+  };
+
+  // Tabs: Left Pane (SCREENS | RECORDS), Right Pane (WIDGET | SCREEN | APP)
+  const [activeLeftTab, setActiveLeftTab] = useState('SCREENS'); // SCREENS | RECORDS
+  const [activeRightTab, setActiveRightTab] = useState('WIDGET'); // WIDGET | SCREEN | APP
+
+  // App Metadata - Only user created apps are displayed (NO dummy hardcoded apps)
+  const [appName, setAppName] = useState('Mobile App');
+  const [currentAppId, setCurrentAppId] = useState(() => `app_${Date.now()}`);
+  const [appsList, setAppsList] = useState(() => {
+    try {
+      const stored = localStorage.getItem('mavi_ui_engine_apps');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // Exclude dummy placeholder apps
+        return (parsed || []).filter(a =>
+          a && a.id !== 'app_1' && a.id !== 'app_2' && a.name !== 'app test' && a.name !== 'Digital_Checksheet_5Poin'
+        );
+      }
+    } catch (e) {
+      console.warn('Failed to parse local gluestack apps:', e);
+    }
+    return [];
+  });
+  const [isLoadingAppsList, setIsLoadingAppsList] = useState(false);
+  const [isEditingAppName, setIsEditingAppName] = useState(false);
+  const [isCompanionModalOpen, setIsCompanionModalOpen] = useState(false);
+  const [isSavingApp, setIsSavingApp] = useState(false);
+  const [isSavedAppFeedback, setIsSavedAppFeedback] = useState(false);
+  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+  const [preCopilotSnapshot, setPreCopilotSnapshot] = useState(null);
+
   const [openPalette, setOpenPalette] = useState(null); // 'COMPONENTS' | null
   const [componentSearch, setComponentSearch] = useState('');
   const [templateSearch, setTemplateSearch] = useState('');
@@ -649,23 +773,7 @@ export default function AppCanvas({
     setSelectedId(null);
   };
 
-  // Tabs: Left Pane (SCREENS | RECORDS), Right Pane (WIDGET | SCREEN | APP)
-  const [activeLeftTab, setActiveLeftTab] = useState('SCREENS'); // SCREENS | RECORDS
-  const [activeRightTab, setActiveRightTab] = useState('WIDGET'); // WIDGET | SCREEN | APP
 
-  // App Metadata
-  const [appName, setAppName] = useState('app test');
-  const [currentAppId, setCurrentAppId] = useState('app_1');
-  const [appsList, setAppsList] = useState([
-    { id: 'app_1', name: 'app test', updated_at: '2026-09-04T10:00:00.000Z' },
-    { id: 'app_2', name: 'Digital_Checksheet_5Poin', updated_at: '2026-09-04T14:30:00.000Z' }
-  ]);
-  const [isEditingAppName, setIsEditingAppName] = useState(false);
-  const [isCompanionModalOpen, setIsCompanionModalOpen] = useState(false);
-  const [isSavingApp, setIsSavingApp] = useState(false);
-  const [isSavedAppFeedback, setIsSavedAppFeedback] = useState(false);
-  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
-  const [preCopilotSnapshot, setPreCopilotSnapshot] = useState(null);
 
   // Screens State
   const [screens, setScreens] = useState([
@@ -686,8 +794,7 @@ export default function AppCanvas({
   const [editingScreenTitle, setEditingScreenTitle] = useState(null);
   const [newScreenTitle, setNewScreenTitle] = useState('');
 
-  // Selected Component & Drag reorder
-  const [selectedId, setSelectedId] = useState(null);
+  // Drag reorder
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
 
@@ -914,12 +1021,186 @@ export default function AppCanvas({
     return `${origin}${pathname}#/app-player?appId=${encodeURIComponent(currentAppId || 'app_1')}&mode=companion`;
   }, [currentAppId]);
 
+  // Load user's Gluestack apps from Supabase & localStorage (NO hardcoded mock apps)
+  const loadGluestackApps = useCallback(async () => {
+    setIsLoadingAppsList(true);
+    try {
+      const remoteApps = await getAllFrontlineApps();
+      // Filter strictly to Gluestack apps created by the user or belonging to gluestack
+      const gluestackApps = (remoteApps || []).filter(app => {
+        // Exclude dummy placeholder apps
+        if (app.id === 'app_1' || app.id === 'app_2' || app.name === 'app test' || app.name === 'Digital_Checksheet_5Poin') {
+          return false;
+        }
+        const isGluestack = getAppBuilderType(app) === BUILDER_TYPES.GLUESTACK;
+        if (!isGluestack) return false;
+
+        // If user is authenticated and app has created_by / user_id metadata, ensure it matches user
+        if (authUser?.id && (app.created_by || app.user_id)) {
+          return app.created_by === authUser.id || app.user_id === authUser.id;
+        }
+        return true;
+      });
+
+      // Also read local saved apps
+      let localApps = [];
+      try {
+        const stored = localStorage.getItem('mavi_ui_engine_apps');
+        if (stored) {
+          localApps = (JSON.parse(stored) || []).filter(a =>
+            a && a.id !== 'app_1' && a.id !== 'app_2' && a.name !== 'app test' && a.name !== 'Digital_Checksheet_5Poin'
+          );
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      // Merge remote and local apps by id, avoiding duplicates
+      const mergedMap = new Map();
+      gluestackApps.forEach(a => {
+        mergedMap.set(a.id, {
+          id: a.id,
+          name: a.name || 'Untitled App',
+          updated_at: a.updated_at || a.created_at || new Date().toISOString(),
+          config: a.config
+        });
+      });
+      localApps.forEach(a => {
+        if (!mergedMap.has(a.id)) {
+          mergedMap.set(a.id, a);
+        }
+      });
+
+      const finalApps = Array.from(mergedMap.values());
+      setAppsList(finalApps);
+      try {
+        localStorage.setItem('mavi_ui_engine_apps', JSON.stringify(finalApps));
+      } catch (e) {
+        // ignore
+      }
+    } catch (err) {
+      console.warn('[GlueStack] Failed to load remote apps:', err);
+    } finally {
+      setIsLoadingAppsList(false);
+    }
+  }, [authUser]);
+
+  useEffect(() => {
+    loadGluestackApps();
+  }, [loadGluestackApps]);
+
+  // Select and load an app from the list onto the canvas
+  const handleSelectApp = useCallback(async (app) => {
+    if (!app || !app.id) return;
+    setCurrentAppId(app.id);
+    setAppName(app.name || 'Untitled App');
+
+    // 1. Try to load from localStorage first
+    try {
+      const localData = localStorage.getItem(`mavi_app_${app.id}`);
+      if (localData) {
+        const parsed = JSON.parse(localData);
+        if (parsed.screens && Array.isArray(parsed.screens)) {
+          setScreens(parsed.screens);
+          if (parsed.variables) setVariables(parsed.variables);
+          if (parsed.tables) setTables(parsed.tables);
+          if (parsed.recordPlaceholders) setRecordPlaceholders(parsed.recordPlaceholders);
+          setCurrentScreenId(parsed.screens[0]?.id || 'screen_1');
+          setActiveToast({ message: `Aplikasi "${app.name}" berhasil dimuat`, type: 'SUCCESS' });
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load app from localStorage:', e);
+    }
+
+    // 2. If app object already has config (from remote list)
+    if (app.config && app.config.components) {
+      setScreens(app.config.components);
+      if (app.config.variables) setVariables(app.config.variables);
+      if (app.config.tables) setTables(app.config.tables);
+      if (app.config.recordPlaceholders) setRecordPlaceholders(app.config.recordPlaceholders);
+      setCurrentScreenId(app.config.components[0]?.id || 'screen_1');
+      setActiveToast({ message: `Aplikasi "${app.name}" berhasil dimuat`, type: 'SUCCESS' });
+      return;
+    }
+
+    // 3. Fallback: Fetch from Supabase by ID
+    try {
+      const remoteData = await getFrontlineAppById(app.id);
+      if (remoteData && remoteData.config) {
+        const cfg = remoteData.config;
+        if (cfg.components && Array.isArray(cfg.components)) setScreens(cfg.components);
+        if (cfg.variables) setVariables(cfg.variables);
+        if (cfg.tables) setTables(cfg.tables);
+        if (cfg.recordPlaceholders) setRecordPlaceholders(cfg.recordPlaceholders);
+        setCurrentScreenId(cfg.components?.[0]?.id || 'screen_1');
+        setActiveToast({ message: `Aplikasi "${app.name}" berhasil dimuat`, type: 'SUCCESS' });
+      }
+    } catch (err) {
+      console.error('Failed to load remote app data:', err);
+    }
+  }, []);
+
+  // Delete an app from the list, localStorage, and Supabase
+  const handleDeleteApp = useCallback(async (app, e) => {
+    if (e) e.stopPropagation();
+    const confirmed = window.confirm(`Apakah Anda yakin ingin menghapus aplikasi "${app.name}"?`);
+    if (!confirmed) return;
+
+    // Remove from state
+    setAppsList(prev => prev.filter(a => a.id !== app.id));
+
+    // Remove from localStorage
+    try {
+      localStorage.removeItem(`mavi_app_${app.id}`);
+      const stored = localStorage.getItem('mavi_ui_engine_apps');
+      if (stored) {
+        const parsed = (JSON.parse(stored) || []).filter(a => a.id !== app.id);
+        localStorage.setItem('mavi_ui_engine_apps', JSON.stringify(parsed));
+      }
+    } catch (err) {
+      // ignore
+    }
+
+    // Remove from Supabase if valid ID
+    if (app.id && app.id.length > 20) {
+      try {
+        await deleteFrontlineApp(app.id);
+      } catch (err) {
+        console.warn('Failed to delete app from Supabase:', err);
+      }
+    }
+
+    setActiveToast({ message: `Aplikasi "${app.name}" dihapus`, type: 'INFO' });
+
+    // If active app was deleted, reset canvas to a new blank screen
+    if (currentAppId === app.id) {
+      setCurrentAppId(`app_${Date.now()}`);
+      setAppName('Mobile App');
+      setScreens([
+        {
+          id: 'screen_1',
+          title: 'Home',
+          components: [
+            { id: 'comp_1', type: 'Text', props: { text: 'Mobile Dashboard', size: 'lg', bold: true } },
+            { id: 'comp_2', type: 'Card', props: { title: 'OEE Target', content: '85%' } },
+            { id: 'comp_3', type: 'Card', props: { title: 'Output Today', content: '1,234 pcs' } },
+            { id: 'comp_4', type: 'Card', props: { title: 'Reject Rate', content: '2.3%' } },
+            { id: 'comp_5', type: 'Progress', props: { value: 85, label: 'Daily Target' } }
+          ],
+          triggers: []
+        }
+      ]);
+    }
+  }, [currentAppId]);
+
   // Save App to localStorage AND Supabase
   const handleSaveApp = useCallback(async () => {
     setIsSavingApp(true);
     try {
       const appPayload = {
-        id: currentAppId || 'app_1',
+        id: currentAppId || `app_${Date.now()}`,
         name: appName.trim() || 'Untitled App',
         screens,
         variables,
@@ -959,6 +1240,7 @@ export default function AppCanvas({
             recordPlaceholders: recordPlaceholders || []
           },
           builder_type: 'gluestack',
+          created_by: authUser?.id || undefined,
           version: 1
         };
 
@@ -981,6 +1263,8 @@ export default function AppCanvas({
             setCurrentAppId(saved.id);
           }
           console.log('[GlueStack] App saved to Supabase:', saved.id);
+          // Refresh list from remote
+          loadGluestackApps();
         }
       } catch (supabaseErr) {
         console.warn('[GlueStack] Failed to save to Supabase (will work offline):', supabaseErr.message);
@@ -1009,7 +1293,7 @@ export default function AppCanvas({
     } finally {
       setIsSavingApp(false);
     }
-  }, [currentAppId, appName, screens, variables, tables, recordPlaceholders]);
+  }, [currentAppId, appName, screens, variables, tables, recordPlaceholders, authUser, loadGluestackApps]);
 
   // Copy Link App to clipboard
   const handleCopyAppLink = useCallback(async () => {
@@ -1902,21 +2186,23 @@ export default function AppCanvas({
         const curIdx = screens.findIndex(s => s.id === currentScreenId);
         if (curIdx >= 0 && curIdx < screens.length - 1) {
           setCurrentScreenId(screens[curIdx + 1].id);
-          setActiveToast({ message: `Beralih ke: ${screens[curIdx + 1].title}`, type: 'INFO' });
+          setActiveToast({ message: `Beralih ke layar: ${screens[curIdx + 1].title}`, type: 'INFO' });
         } else {
-          setActiveToast({ message: 'Ini adalah layar terakhir', type: 'INFO' });
+          setActiveToast({ message: `Layar terakhir (Hanya 1 layar tersedia: "${screens[curIdx]?.title || 'Home'}"). Tambahkan Screen 2 untuk multi-layar.`, type: 'INFO' });
         }
       } else if (comp.props.action === 'PREV_SCREEN') {
         const curIdx = screens.findIndex(s => s.id === currentScreenId);
         if (curIdx > 0) {
           setCurrentScreenId(screens[curIdx - 1].id);
-          setActiveToast({ message: `Kembali ke: ${screens[curIdx - 1].title}`, type: 'INFO' });
+          setActiveToast({ message: `Kembali ke layar: ${screens[curIdx - 1].title}`, type: 'INFO' });
+        } else {
+          setActiveToast({ message: 'Ini adalah layar pertama', type: 'INFO' });
         }
       } else if (comp.props.action === 'GO_TO_SCREEN' && comp.props.targetScreenId) {
         const targetScr = screens.find(s => s.id === comp.props.targetScreenId);
         setCurrentScreenId(comp.props.targetScreenId);
         if (targetScr) {
-          setActiveToast({ message: `Beralih ke: ${targetScr.title}`, type: 'INFO' });
+          setActiveToast({ message: `Beralih ke layar: ${targetScr.title}`, type: 'INFO' });
         }
       } else if (comp.props.action === 'COMPLETE_APP') {
         setActiveToast({
@@ -1926,7 +2212,7 @@ export default function AppCanvas({
       }
     } else if (eventType === 'ON_CLICK' && comp.type === 'Button' && (!comp.triggers || comp.triggers.length === 0)) {
       setActiveToast({
-        message: `Tombol "${comp.props.text || comp.props.label || 'Button'}" aktif`,
+        message: `Tombol "${comp.props.text || comp.props.label || 'Action'}" aktif (Klik berhasil)`,
         type: 'SUCCESS'
       });
     }
@@ -2085,13 +2371,49 @@ export default function AppCanvas({
             <span>{comp.props.text || comp.props.label || 'Action Button'}</span>
           </button>
         );
-      case 'Dropdown':
+      case 'Dropdown': {
+        const isDropOpen = !!previewDropdownState[comp.id];
+        const dropItems = comp.props.items || comp.props.options || ['Export PDF', 'Cetak Label Barcode', 'Kirim Notifikasi QC'];
+        const selectedOpt = previewFormValues[comp.id] || comp.props.label || 'Opsi Tindakan...';
         return (
-          <div className="w-full p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between text-xs">
-            <span className="font-medium text-slate-700">{comp.props.label || 'Opsi Tindakan...'}</span>
-            <ChevronDown className="w-4 h-4 text-slate-400" />
+          <div className="relative w-full" onClick={(e) => isPreview && e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => {
+                if (isPreview) {
+                  setPreviewDropdownState(prev => ({ ...prev, [comp.id]: !isDropOpen }));
+                }
+              }}
+              className={`w-full p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between text-xs transition-all ${
+                isPreview ? 'cursor-pointer hover:border-teal-500 hover:bg-slate-50 active:scale-99' : ''
+              }`}
+            >
+              <span className="font-semibold text-slate-800 truncate">{selectedOpt}</span>
+              <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 shrink-0 ${isDropOpen ? 'rotate-180 text-teal-600' : ''}`} />
+            </button>
+            {isPreview && isDropOpen && (
+              <div className="absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl border border-slate-200 shadow-xl z-40 py-1 divide-y divide-slate-100 animate-in fade-in-50 zoom-in-95 duration-150">
+                {dropItems.map((it, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setPreviewFormValues(prev => ({ ...prev, [comp.id]: it }));
+                      setPreviewDropdownState(prev => ({ ...prev, [comp.id]: false }));
+                      setActiveToast({ message: `Dipilih: "${it}"`, type: 'SUCCESS' });
+                      executeComponentTriggers(comp, 'ON_CHANGE');
+                    }}
+                    className="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-teal-50 hover:text-teal-800 font-medium transition-colors flex items-center justify-between cursor-pointer"
+                  >
+                    <span>{it}</span>
+                    {selectedOpt === it && <Check className="w-3.5 h-3.5 text-teal-600" />}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         );
+      }
       case 'FAB':
         return (
           <div className="flex justify-end p-1">
@@ -2540,54 +2862,176 @@ export default function AppCanvas({
             {comp.props.text}
           </div>
         );
+      // EMBED WIDGETS
       case 'Image':
         return (
-          <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center max-h-48">
-            <img src={comp.props.src || 'https://via.placeholder.com/300x150?text=Inspection+Image'} alt={comp.props.alt} className="w-full h-auto object-cover" />
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiImage
+              src={comp.props.src}
+              alt={comp.props.alt || 'Inspection Image'}
+              title={comp.props.title}
+              caption={comp.props.caption}
+              aspectRatio={comp.props.aspectRatio || '16:9'}
+              badgeText={comp.props.badgeText || 'CAD DRAWING'}
+              zoomable={comp.props.zoomable !== false}
+            />
           </div>
         );
+
+      case 'PDFViewer':
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiPDFViewer
+              src={comp.props.src}
+              title={comp.props.title || 'Work Instruction SOP'}
+              docNo={comp.props.docNo || 'SOP-QC-2026-08'}
+              rev={comp.props.rev || 'Rev 2.3'}
+              pages={comp.props.pages || 3}
+              height="280px"
+            />
+          </div>
+        );
+
+      case 'Signature':
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiSignature
+              label={comp.props.label || 'Tanda Tangan Approval QC'}
+              placeholder={comp.props.placeholder || 'Bubuhkan tanda tangan persetujuan di sini'}
+              onChange={(sigData) => {
+                if (isPreview) {
+                  setPreviewFormValues(prev => ({ ...prev, [comp.id]: sigData }));
+                  setActiveToast({ message: 'Tanda tangan QC tersimpan', type: 'SUCCESS' });
+                  executeComponentTriggers(comp, 'ON_SIGN');
+                }
+              }}
+            />
+          </div>
+        );
+
+      case 'ListItem':
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiListItem
+              title={comp.props.title || 'Baris Data Operasional'}
+              subtitle={comp.props.subtitle || 'Keterangan lot atau status stasiun'}
+              badge={comp.props.badge || 'ACTIVE'}
+              value={comp.props.value}
+              onClick={() => {
+                if (isPreview) {
+                  setActiveToast({ message: `Item dipilih: "${comp.props.title || 'Data Operasional'}"`, type: 'INFO' });
+                  executeComponentTriggers(comp, 'ON_CLICK');
+                }
+              }}
+            />
+          </div>
+        );
+
+      case 'Chart':
+      case 'LineChart':
+      case 'BarChart':
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiChart
+              type={comp.props.type || (comp.type === 'BarChart' ? 'bar' : 'line')}
+              title={comp.props.title || 'KPI Output & OEE Trend'}
+              subtitle={comp.props.subtitle}
+              data={comp.props.data}
+              unit={comp.props.unit || 'pcs'}
+              targetValue={comp.props.targetValue || 50}
+            />
+          </div>
+        );
+
+      case 'Gauge':
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiGauge
+              label={comp.props.label || 'Spindle RPM / Telemetry'}
+              value={Number(comp.props.value) || 1850}
+              min={Number(comp.props.min) || 0}
+              max={Number(comp.props.max) || 3000}
+              unit={comp.props.unit || 'RPM'}
+              warningThreshold={comp.props.warningThreshold || 2400}
+              dangerThreshold={comp.props.dangerThreshold || 2800}
+            />
+          </div>
+        );
+
+      case 'NumberInput': {
+        const numVal = previewCounters[comp.id] !== undefined ? previewCounters[comp.id] : (Number(comp.props.value) || 10);
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiNumberInput
+              label={comp.props.label || 'Input Quantity'}
+              value={numVal}
+              min={Number(comp.props.min) || 0}
+              max={Number(comp.props.max) || 99999}
+              step={Number(comp.props.step) || 1}
+              onChange={(val) => {
+                if (isPreview) {
+                  setPreviewCounters(prev => ({ ...prev, [comp.id]: val }));
+                  executeComponentTriggers(comp, 'ON_CHANGE');
+                }
+              }}
+            />
+          </div>
+        );
+      }
+
+      case 'DateTimePicker':
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiDateTimePicker
+              label={comp.props.label || 'Jadwal Maintenance'}
+              value={previewFormValues[comp.id] || comp.props.value}
+              mode={comp.props.mode || 'datetime'}
+              onChange={(val) => {
+                if (isPreview) {
+                  setPreviewFormValues(prev => ({ ...prev, [comp.id]: val }));
+                  setActiveToast({ message: `Waktu dipilih: ${val}`, type: 'SUCCESS' });
+                  executeComponentTriggers(comp, 'ON_CHANGE');
+                }
+              }}
+            />
+          </div>
+        );
+
       case 'Timer':
         return (
-          <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-amber-600 animate-pulse" />
-              <span className="text-xs font-bold text-amber-800">{comp.props.label}</span>
-            </div>
-            <span className="font-mono text-xs font-extrabold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">
-              00:{comp.props.duration < 10 ? `0${comp.props.duration}` : comp.props.duration}
-            </span>
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiTimer
+              label={comp.props.label || 'Cycle Time / Takt Time'}
+              duration={Number(comp.props.duration) || 60}
+              mode={comp.props.mode || 'countdown'}
+              autoStart={comp.props.autoStart !== false}
+              onComplete={() => {
+                if (isPreview) {
+                  setActiveToast({ message: 'Timer Siklus Selesai!', type: 'SUCCESS' });
+                  executeComponentTriggers(comp, 'ON_COMPLETE');
+                }
+              }}
+            />
           </div>
         );
+
       case 'Counter': {
         const countVal = previewCounters[comp.id] !== undefined ? previewCounters[comp.id] : (Number(comp.props.value) || 0);
         return (
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-600">{comp.props.label}</span>
-            {isPreview ? (
-              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                <button
-                  type="button"
-                  onClick={() => setPreviewCounters(prev => ({ ...prev, [comp.id]: Math.max(0, countVal - 1) }))}
-                  className="w-6 h-6 rounded bg-white hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center border border-slate-300 cursor-pointer"
-                >
-                  -
-                </button>
-                <span className="text-sm font-extrabold font-mono text-teal-700 bg-teal-50 border border-teal-200 px-2.5 py-0.5 rounded-lg min-w-[32px] text-center">
-                  {countVal}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setPreviewCounters(prev => ({ ...prev, [comp.id]: countVal + 1 }))}
-                  className="w-6 h-6 rounded bg-[#008784] hover:bg-[#007471] text-white font-bold flex items-center justify-center cursor-pointer"
-                >
-                  +
-                </button>
-              </div>
-            ) : (
-              <span className="text-sm font-extrabold font-mono text-teal-700 bg-teal-50 border border-teal-200 px-2.5 py-0.5 rounded-lg">
-                {comp.props.value}
-              </span>
-            )}
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiCounter
+              label={comp.props.label || 'Good Parts Counter'}
+              value={countVal}
+              min={Number(comp.props.min) || 0}
+              max={Number(comp.props.max) || 99999}
+              step={Number(comp.props.step) || 1}
+              onChange={(val) => {
+                if (isPreview) {
+                  setPreviewCounters(prev => ({ ...prev, [comp.id]: val }));
+                  executeComponentTriggers(comp, 'ON_CHANGE');
+                }
+              }}
+            />
           </div>
         );
       }
@@ -3076,39 +3520,86 @@ export default function AppCanvas({
 
               {/* MY FRONT-LINE APPS (Matching Mavi Core AppBuilder) */}
               <div className="p-3 space-y-2 flex-1">
-                <div className="flex items-center gap-1.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
-                  <FolderOpen className="w-3 h-3 text-slate-400" /> MY FRONT-LINE APPS
+                <div className="flex items-center justify-between text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                  <div className="flex items-center gap-1.5">
+                    <FolderOpen className="w-3 h-3 text-slate-400" />
+                    <span>My Front-Line Apps</span>
+                    {appsList.length > 0 && (
+                      <span className="px-1.5 py-0.2 rounded-full bg-teal-50 text-teal-700 text-[9px] font-mono font-bold">
+                        {appsList.length}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newId = `app_${Date.now()}`;
+                      setCurrentAppId(newId);
+                      setAppName(`Mobile App ${appsList.length + 1}`);
+                      setScreens([
+                        {
+                          id: 'screen_1',
+                          title: 'Home',
+                          components: [
+                            { id: 'comp_1', type: 'Text', props: { text: 'Mobile Dashboard', size: 'lg', bold: true } },
+                            { id: 'comp_2', type: 'Card', props: { title: 'OEE Target', content: '85%' } },
+                            { id: 'comp_3', type: 'Card', props: { title: 'Output Today', content: '1,234 pcs' } },
+                            { id: 'comp_4', type: 'Card', props: { title: 'Reject Rate', content: '2.3%' } },
+                            { id: 'comp_5', type: 'Progress', props: { value: 85, label: 'Daily Target' } }
+                          ],
+                          triggers: []
+                        }
+                      ]);
+                      setActiveToast({ message: 'Kanvas baru siap didesain. Klik Simpan untuk menyimpan ke daftar aplikasi.', type: 'INFO' });
+                    }}
+                    className="p-1 hover:bg-slate-200 rounded text-slate-600 transition-colors cursor-pointer"
+                    title="Buat Aplikasi Baru"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-teal-700" />
+                  </button>
                 </div>
 
                 <div className="space-y-1">
-                  {appsList.map(app => {
-                    const isSelected = app.id === currentAppId;
-                    return (
-                      <div
-                        key={app.id}
-                        onClick={() => { setCurrentAppId(app.id); setAppName(app.name); }}
-                        className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-between group ${
-                          isSelected ? 'bg-teal-50 border-[#008784] text-[#008784]' : 'bg-white border-slate-200 hover:border-slate-300'
-                        }`}
-                      >
-                        <div className="min-w-0">
-                          <div className="text-xs font-bold truncate">{app.name}</div>
-                          <div className="text-[9px] text-slate-400">Updated {new Date(app.updated_at).toLocaleDateString()}</div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setAppsList(prev => prev.filter(a => a.id !== app.id));
-                          }}
-                          className="opacity-30 group-hover:opacity-100 p-1 hover:bg-rose-50 rounded text-rose-500 transition-opacity"
-                          title="Delete App"
+                  {isLoadingAppsList ? (
+                    <div className="p-3 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-[#008784]" />
+                      <span>Memuat aplikasi...</span>
+                    </div>
+                  ) : appsList.length === 0 ? (
+                    <div className="text-center py-5 px-3 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                      <FolderOpen className="w-5 h-5 text-slate-300 mx-auto mb-1" />
+                      <div className="text-[11px] font-bold text-slate-600">Belum ada aplikasi</div>
+                      <div className="text-[9px] text-slate-400 mt-0.5">Hanya aplikasi Gluestack yang Anda simpan yang akan tampil di sini.</div>
+                    </div>
+                  ) : (
+                    appsList.map(app => {
+                      const isSelected = app.id === currentAppId;
+                      return (
+                        <div
+                          key={app.id}
+                          onClick={() => handleSelectApp(app)}
+                          className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-between group ${
+                            isSelected ? 'bg-teal-50 border-[#008784] text-[#008784]' : 'bg-white border-slate-200 hover:border-slate-300'
+                          }`}
                         >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </div>
-                    );
-                  })}
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs font-bold truncate">{app.name}</div>
+                            <div className="text-[9px] text-slate-400">
+                              Updated {new Date(app.updated_at || Date.now()).toLocaleDateString('id-ID')}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteApp(app, e)}
+                            className="opacity-30 group-hover:opacity-100 p-1 hover:bg-rose-50 rounded text-rose-500 transition-opacity ml-1 cursor-pointer"
+                            title="Hapus Aplikasi"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             </div>
@@ -3306,6 +3797,22 @@ export default function AppCanvas({
                 </div>
               )}
 
+              {/* In-Phone Feedback Notification for Preview Mode */}
+              {isPreview && activeToast && (
+                <div className="absolute top-8 inset-x-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150 pointer-events-none">
+                  <div className={`px-3 py-2 rounded-xl shadow-xl border text-xs font-bold flex items-center gap-2 text-white ${
+                    activeToast.type === 'ERROR' ? 'bg-rose-600 border-rose-500' :
+                    activeToast.type === 'WARNING' ? 'bg-amber-600 border-amber-500' :
+                    activeToast.type === 'INFO' ? 'bg-blue-600 border-blue-500' :
+                    activeToast.type === 'SUCCESS' ? 'bg-emerald-600 border-emerald-500' :
+                    'bg-slate-900 border-slate-800'
+                  }`}>
+                    <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
+                    <span className="truncate flex-1">{activeToast.message}</span>
+                  </div>
+                </div>
+              )}
+
               {/* Component Canvas Container */}
               <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
                 {screenComponents.length === 0 ? (
@@ -3345,6 +3852,7 @@ export default function AppCanvas({
                     }
 
                     const isBlinking = comp.props?.isBlinking;
+                    const isThisDropOpen = comp.type === 'Dropdown' && !!previewDropdownState[comp.id];
                     const customStyle = {
                       ...(comp.props?.backgroundColor && comp.props.backgroundColor !== 'transparent' ? { backgroundColor: comp.props.backgroundColor } : {}),
                       ...(comp.props?.color ? { color: comp.props.color } : {}),
@@ -3368,6 +3876,8 @@ export default function AppCanvas({
                           }
                         }}
                         className={`p-2 rounded-xl transition-all relative group ${
+                          isThisDropOpen ? 'z-40' : 'z-10'
+                        } ${
                           !isPreview && selectedId === comp.id
                             ? 'ring-2 ring-[#714b67] bg-[#714b67]/5 shadow-xs'
                             : !isPreview ? 'hover:ring-1 hover:ring-slate-300' : ''

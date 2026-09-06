@@ -4,8 +4,12 @@ import {
     Info, RefreshCw, Upload, X, Lock, Type, ChevronDown, Settings, Edit3, Edit2,
     Hash, Calendar, CheckSquare, User, Clock, Filter, Group, MoreHorizontal,
     ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, LayoutGrid, GripVertical,
-    Eye, MoreVertical, Layers, Key, Zap, AlertTriangle, Menu
+    Eye, MoreVertical, Layers, Key, Zap, AlertTriangle, Menu, Bot, Wand2, Code, Factory
 } from 'lucide-react';
+import TableCopilotModal from './TableCopilotModal';
+import TableAppGeneratorModal from './TableAppGeneratorModal';
+import IndustrialTemplatesModal from './IndustrialTemplatesModal';
+import toast, { Toaster } from 'react-hot-toast';
 import {
     getTables,
     createTable,
@@ -357,6 +361,16 @@ const TableManager = () => {
     const [fieldsSortField, setFieldsSortField] = useState('name');
     const [fieldsSortDir, setFieldsSortDir] = useState('asc');
     const [isFieldsFilterOpen, setIsFieldsFilterOpen] = useState(false);
+
+    // Table Copilot State
+    const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+
+    // Table App Generator State
+    const [isAppGeneratorOpen, setIsAppGeneratorOpen] = useState(false);
+    const [selectedTableForGenerator, setSelectedTableForGenerator] = useState(null);
+
+    // Industrial Table Templates State
+    const [isIndustrialTemplatesOpen, setIsIndustrialTemplatesOpen] = useState(false);
 
     useEffect(() => {
         loadTables();
@@ -1429,6 +1443,107 @@ const TableManager = () => {
                             }}
                         >
                             <Plus size={18} /> Create
+                        </button>
+
+                        {/* Industrial Templates Button */}
+                        <button
+                            onClick={() => setIsIndustrialTemplatesOpen(true)}
+                            style={{
+                                width: '100%',
+                                marginTop: '8px',
+                                padding: '12px',
+                                borderRadius: '8px',
+                                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                                color: 'white',
+                                border: 'none',
+                                fontWeight: 700,
+                                fontSize: '0.85rem',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '8px',
+                                boxShadow: '0 4px 6px -1px rgba(2, 132, 199, 0.3)'
+                            }}
+                        >
+                            <Factory size={18} /> Template Industri
+                        </button>
+
+                        {/* Table Copilot Button */}
+                        <button
+                            onClick={() => setIsCopilotOpen(true)}
+                            style={{
+                                width: '100%',
+                                marginTop: '8px',
+                                padding: '12px',
+                                borderRadius: '8px',
+                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                color: 'white',
+                                border: 'none',
+                                fontWeight: 700,
+                                fontSize: '0.85rem',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '8px',
+                                boxShadow: '0 4px 6px -1px rgba(102, 126, 234, 0.3)'
+                            }}
+                        >
+                            <Bot size={18} /> AI Copilot
+                        </button>
+
+                        {/* App Generator Button */}
+                        <button
+                            onClick={() => {
+                                setSelectedTableForGenerator(selectedTableId ? tables.find(t => t.id === selectedTableId) : null);
+                                setIsAppGeneratorOpen(true);
+                            }}
+                            style={{
+                                width: '100%',
+                                marginTop: '8px',
+                                padding: '12px',
+                                borderRadius: '8px',
+                                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                                color: 'white',
+                                border: 'none',
+                                fontWeight: 700,
+                                fontSize: '0.85rem',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '8px',
+                                boxShadow: '0 4px 6px -1px rgba(245, 158, 11, 0.3)'
+                            }}
+                        >
+                            <Wand2 size={18} /> Generate App
+                        </button>
+
+                        {/* SQL Query Studio Button */}
+                        <button
+                            onClick={() => window.open('#/query-studio', '_blank')}
+                            style={{
+                                width: '100%',
+                                marginTop: '8px',
+                                padding: '10px 12px',
+                                borderRadius: '8px',
+                                background: '#f8fafc',
+                                color: '#334155',
+                                border: '1px solid #cbd5e1',
+                                fontWeight: 700,
+                                fontSize: '0.825rem',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '8px',
+                                transition: 'background-color 0.15s'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e2e8f0'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                        >
+                            <Code size={16} color="#2563eb" /> SQL Query Studio
                         </button>
                     </div>
 
@@ -3524,6 +3639,60 @@ const TableManager = () => {
                 onChange={handleCsvFileImport}
                 accept=".csv"
                 style={{ display: 'none' }}
+            />
+
+            {/* Table Copilot Modal */}
+            <TableCopilotModal
+                isOpen={isCopilotOpen}
+                onClose={() => setIsCopilotOpen(false)}
+                tables={tables}
+                onOpenAppGenerator={() => {
+                    setIsCopilotOpen(false);
+                    setSelectedTableForGenerator(selectedTable);
+                    setIsAppGeneratorOpen(true);
+                }}
+                onTableCreated={async (newTableName) => {
+                    await loadTables();
+                    if (newTableName) {
+                        try {
+                            const latest = await getTables();
+                            const found = latest.find(t => t.name.toLowerCase() === newTableName.toLowerCase());
+                            if (found?.id) {
+                                setSelectedTableId(found.id);
+                            }
+                        } catch (e) {
+                            console.error(e);
+                        }
+                    }
+                }}
+            />
+
+            {/* Table App Generator Modal */}
+            <TableAppGeneratorModal
+                isOpen={isAppGeneratorOpen}
+                onClose={() => setIsAppGeneratorOpen(false)}
+                table={selectedTableForGenerator}
+                onGenerate={(screens) => {
+                    console.log('[TableManager] Generated screens:', Object.keys(screens));
+                    toast.success('App screens generated! Copy the code to use in your project.');
+                }}
+            />
+
+            {/* Industrial Table Templates Modal */}
+            <IndustrialTemplatesModal
+                isOpen={isIndustrialTemplatesOpen}
+                onClose={() => setIsIndustrialTemplatesOpen(false)}
+                existingTables={tables}
+                onTableInstalled={async (newTable) => {
+                    await loadTables();
+                    if (newTable?.id) {
+                        setSelectedTableId(newTable.id);
+                    }
+                }}
+                onOpenAppGenerator={(table) => {
+                    setSelectedTableForGenerator(table);
+                    setIsAppGeneratorOpen(true);
+                }}
             />
         </div>
     );

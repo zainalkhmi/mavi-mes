@@ -396,6 +396,9 @@ export async function addTableRecord(tableId, recordData) {
         throw err;
     }
 }
+
+export const createRecord = addTableRecord;
+
 export async function deleteTableRecord(recordInternalId) {
     const supabase = getSupabaseClient();
     const { error } = await supabase

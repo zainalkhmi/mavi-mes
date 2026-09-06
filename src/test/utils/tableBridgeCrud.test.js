@@ -7,12 +7,16 @@ describe('MaviCore Table Bridge CRUD Architecture', () => {
     expect(MAVICORE_BRIDGE_VIRTUAL_FILE).toBeDefined();
     // Must contain CRUD operations
     expect(MAVICORE_BRIDGE_VIRTUAL_FILE).toContain('save: async');
+    expect(MAVICORE_BRIDGE_VIRTUAL_FILE).toContain('saveRecord: async');
     expect(MAVICORE_BRIDGE_VIRTUAL_FILE).toContain('read: async');
     expect(MAVICORE_BRIDGE_VIRTUAL_FILE).toContain('update: async');
+    expect(MAVICORE_BRIDGE_VIRTUAL_FILE).toContain('updateRecord: async');
     expect(MAVICORE_BRIDGE_VIRTUAL_FILE).toContain('delete: async');
+    expect(MAVICORE_BRIDGE_VIRTUAL_FILE).toContain('deleteRecord: async');
     expect(MAVICORE_BRIDGE_VIRTUAL_FILE).toContain('onRecord:');
     expect(MAVICORE_BRIDGE_VIRTUAL_FILE).toContain('export function useMaviCoreData');
     expect(MAVICORE_BRIDGE_VIRTUAL_FILE).toContain('window.MaviCoreBridge = MaviCoreBridge');
+    expect(MAVICORE_BRIDGE_VIRTUAL_FILE).toContain('export const bridge = MaviCoreBridge');
   });
 
   it('extracts table schema from code accurately', () => {

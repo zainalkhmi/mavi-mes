@@ -268,13 +268,35 @@ export const MaviCoreBridge = {
       window.removeEventListener('message', handler);
       window.removeEventListener('mavicore_record_change', localChangeHandler);
     };
-  }
+  },
+
+  // ── Compatibility Aliases for AI-generated code ──
+  saveRecord: async (tableName, data = {}) => MaviCoreBridge.save(tableName, data),
+  insertRecord: async (tableName, data = {}) => MaviCoreBridge.save(tableName, data),
+  insert: async (tableName, data = {}) => MaviCoreBridge.save(tableName, data),
+  createRecord: async (tableName, data = {}) => MaviCoreBridge.save(tableName, data),
+
+  updateRecord: async (tableName, recordId, data = {}) => MaviCoreBridge.update(tableName, recordId, data),
+
+  deleteRecord: async (tableName, recordId) => MaviCoreBridge.delete(tableName, recordId),
+  removeRecord: async (tableName, recordId) => MaviCoreBridge.delete(tableName, recordId),
+  remove: async (tableName, recordId) => MaviCoreBridge.delete(tableName, recordId),
+
+  getRecords: async (tableName) => MaviCoreBridge.read(tableName),
+  readRecords: async (tableName) => MaviCoreBridge.read(tableName),
+  fetchRecords: async (tableName) => MaviCoreBridge.read(tableName),
+  query: async (tableName) => MaviCoreBridge.read(tableName),
+  queryRecords: async (tableName) => MaviCoreBridge.read(tableName),
+  getAll: async (tableName) => MaviCoreBridge.read(tableName)
 };
 
 // Global attachment on window for auto-injection in Sandpack preview
 if (typeof window !== 'undefined') {
   window.MaviCoreBridge = MaviCoreBridge;
+  window.bridge = MaviCoreBridge;
 }
+
+export const bridge = MaviCoreBridge;
 
 /**
  * Custom React Hook for live CRUD operations with MaviCore Tables
@@ -456,7 +478,7 @@ if (typeof window !== 'undefined') {
 
     const tagName = effectiveTarget.tagName.toLowerCase();
     const rawText = (effectiveTarget.innerText || target.innerText || '').trim();
-    const firstLine = (rawText.split('\n')[0] || rawText.split('\r')[0] || rawText).trim();
+    const firstLine = (rawText.split(String.fromCharCode(10))[0] || rawText).replace(new RegExp(String.fromCharCode(13), 'g'), '').trim();
     const placeholder = target.getAttribute('placeholder') || effectiveTarget.getAttribute('placeholder') || '';
     const name = target.getAttribute('name') || effectiveTarget.getAttribute('name') || '';
     const id = target.id || effectiveTarget.id || '';
@@ -464,8 +486,8 @@ if (typeof window !== 'undefined') {
     const value = target.value || target.getAttribute('value') || '';
 
     const words = (firstLine || rawText)
-      .replace(/[^a-zA-Z0-9_\s-]/g, ' ')
-      .split(/\s+/)
+      .replace(/[^a-zA-Z0-9_\\s-]/g, ' ')
+      .split(/\\s+/)
       .filter(w => w.length >= 3)
       .slice(0, 8);
 

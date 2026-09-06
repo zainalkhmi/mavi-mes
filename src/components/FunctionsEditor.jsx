@@ -9,7 +9,8 @@ import ReactFlow, {
   Handle,
   Position,
   getBezierPath,
-  EdgeLabelRenderer
+  EdgeLabelRenderer,
+  ReactFlowProvider
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import {

@@ -3,6 +3,8 @@ export const hasAccess = (user, path) => {
   if (
     path === '/player' || path.startsWith('/player') ||
     path === '/app-player' || path.startsWith('/app-player') ||
+    path === '/sandbox-runner' || path.startsWith('/sandbox-runner') ||
+    path === '/sandbox-player' || path.startsWith('/sandbox-player') ||
     path === '/terminal' || path.startsWith('/terminal')
   ) {
     return true;

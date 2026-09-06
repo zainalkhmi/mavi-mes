@@ -43,6 +43,7 @@ const ConnectorManager = lazy(() => import('./components/ConnectorManager'));
 const UserManager = lazy(() => import('./components/UserManager'));
 const AppBuilder = lazy(() => import('./components/AppBuilder'));
 const VibeSandpackViewer = lazy(() => import('./components/appbuilder/VibeSandpackViewer'));
+const SandboxDeviceRunner = lazy(() => import('./components/appbuilder/SandboxDeviceRunner'));
 const AppPlayer = lazy(() => import('./components/AppPlayer'));
 const MandorMobilePlayer = lazy(() => import('./components/MandorMobilePlayer'));
 const DozukiMobileCheckSheet = lazy(() => import('./components/DozukiMobileCheckSheet'));
@@ -102,6 +103,7 @@ const CheckSheetManager = lazy(() => import('./components/CheckSheetManager'));
 const MachineMonitoringDashboard = lazy(() => import('./components/MachineMonitoringDashboard'));
 const UiEngineStudio = lazy(() => import('./ui-engine/preview/UiEngineStudio'));
 const GluestackAppPlayer = lazy(() => import('./ui-engine/preview/GluestackAppPlayer'));
+const QueryStudio = lazy(() => import('./components/QueryStudio'));
 
 export default function AppRouter({ user, isOperator }) {
   const hasAccess = (path) => checkRoleAccess(user, path);
@@ -117,6 +119,8 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/terminal/:appId" element={<LiveTerminal />} />
               <Route path="/player" element={<AppPlayer />} />
               <Route path="/app-player" element={<GluestackAppPlayer />} />
+              <Route path="/sandbox-runner" element={<SandboxDeviceRunner />} />
+              <Route path="/sandbox-player" element={<SandboxDeviceRunner />} />
               <Route path="/mobile-player" element={<MandorMobilePlayer />} />
               <Route path="/tulip-player" element={<MandorMobilePlayer />} />
               <Route path="/mandor-player" element={<DozukiMobileCheckSheet />} />
@@ -139,6 +143,8 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/inspector-designer" element={<InspectorDesigner />} />
               <Route path="/ui-engine" element={<UiEngineStudio />} />
               <Route path="/gluestack" element={<UiEngineStudio />} />
+              <Route path="/query-studio" element={<QueryStudio />} />
+              <Route path="/sql-builder" element={<QueryStudio />} />
               <Route path="*" element={<Navigate to="/terminal" replace />} />
             </>
           ) : (
@@ -173,6 +179,9 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/plm-integration" element={<PLMIntegrationDashboard />} />
               <Route path="/app-management" element={hasAccess('/app-management') ? <AppManagement /> : <Navigate to="/" replace />} />
               <Route path="/tables" element={hasAccess('/tables') ? <TableManager /> : <Navigate to="/" replace />} />
+              <Route path="/query-studio" element={<QueryStudio />} />
+              <Route path="/sql-builder" element={<QueryStudio />} />
+              <Route path="/query-editor" element={<QueryStudio />} />
               <Route path="/connectors" element={hasAccess('/connectors') ? <ConnectorManager /> : <Navigate to="/" replace />} />
               <Route path="/mcp-server" element={hasAccess('/mcp-server') ? <McpServerManager /> : <Navigate to="/" replace />} />
               <Route path="/variables" element={hasAccess('/variables') ? <VariableManager /> : <Navigate to="/" replace />} />
@@ -207,6 +216,8 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/scada" element={<SCADADashboard />} />
               <Route path="/player" element={<AppPlayer />} />
               <Route path="/app-player" element={<GluestackAppPlayer />} />
+              <Route path="/sandbox-runner" element={<SandboxDeviceRunner />} />
+              <Route path="/sandbox-player" element={<SandboxDeviceRunner />} />
               <Route path="/mobile-player" element={<MandorMobilePlayer />} />
               <Route path="/tulip-player" element={<MandorMobilePlayer />} />
               <Route path="/mandor-player" element={<DozukiMobileCheckSheet />} />

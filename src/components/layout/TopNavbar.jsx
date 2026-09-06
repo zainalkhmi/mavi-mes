@@ -8,7 +8,7 @@ import {
   ClipboardCheck, FileSpreadsheet, Boxes, LayoutDashboard, FolderArchive, Layers,
   Workflow, ActivitySquare, Key, LayoutTemplate, GitBranch, Settings2,
   ChevronDown, ChevronRight, Ruler, Scale, Gauge, Shield,
-  AlertTriangle, Smartphone, Sparkles
+  AlertTriangle, Smartphone, Sparkles, Code
 } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 import { useGlobalStore } from '../../store/useGlobalStore.js';
@@ -37,7 +37,11 @@ export default function TopNavbar() {
     window.location.hash.includes('standalone=true') ||
     window.location.hash.includes('mode=companion') ||
     location.pathname.startsWith('/app-player') ||
-    window.location.hash.includes('app-player');
+    window.location.hash.includes('app-player') ||
+    location.pathname.startsWith('/sandbox-runner') ||
+    window.location.hash.includes('sandbox-runner') ||
+    location.pathname.startsWith('/sandbox-player') ||
+    window.location.hash.includes('sandbox-player');
 
   const isOperatorRoute = location.pathname.startsWith('/player') || location.pathname.startsWith('/app-player') || location.pathname.startsWith('/terminal');
   const hasAccess = (path) => checkRoleAccess(user, path);
@@ -106,9 +110,24 @@ export default function TopNavbar() {
     { type: 'divider' },
     hasAccess('/file-explorer') && { path: '/file-explorer', icon: <Folder size={16} />, label: 'File Explorer' },
     hasAccess('/app-management') && { path: '/app-management', icon: <AppWindow size={16} />, label: 'App Management' },
-    hasAccess('/tables') && { path: '/tables', icon: <Database size={16} />, label: 'Tables' },
+    hasAccess('/mcp-server') && { path: '/mcp-server', icon: <BrainCircuit size={16} />, label: 'Mandor MCP Server' }
+  ].filter(Boolean);
+
+  const dataItems = [
+    hasAccess('/tables') && { 
+      path: '/tables', 
+      icon: <Database size={16} className="text-blue-600" />, 
+      label: 'Tables (App Tables)',
+      description: 'Manajemen tabel data virtual & record MaviCore'
+    },
+    { 
+      path: '/query-studio', 
+      icon: <Code size={16} className="text-indigo-600" />, 
+      label: 'Query Studio (Visual Builder & SQL)',
+      description: 'DbGate-style Visual JOIN Canvas, SQL Editor & Live Data Runner'
+    },
+    { type: 'divider' },
     hasAccess('/connectors') && { path: '/connectors', icon: <Link2 size={16} />, label: 'Connectors' },
-    hasAccess('/mcp-server') && { path: '/mcp-server', icon: <BrainCircuit size={16} />, label: 'Mandor MCP Server' },
     hasAccess('/variables') && { path: '/variables', icon: <Variable size={16} />, label: 'Variables' }
   ].filter(Boolean);
 
@@ -217,6 +236,15 @@ export default function TopNavbar() {
                 items={appItems} 
                 alwaysShowTitle={true}
                 menuWidth="w-64"
+              />
+            )}
+            {dataItems.length > 0 && (
+              <NavDropdown 
+                title="Data" 
+                icon={<Database size={16} />}
+                items={dataItems} 
+                alwaysShowTitle={true}
+                menuWidth="w-72"
               />
             )}
             {plmItems.length > 0 && <NavDropdown title="PLM" items={plmItems} />}

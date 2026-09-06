@@ -25,12 +25,22 @@ describe('Gluestack Companion & Player Access Control', () => {
     expect(hasAccess(null, '/player')).toBe(true);
   });
 
-  it('exports Box, Text, and all widgets from ui-engine/components without error', async () => {
+  it('exports Box, Text, and all 10 Embed widgets from ui-engine/components without error', async () => {
     const components = await import('../../ui-engine/components');
     expect(components.Box).toBeDefined();
     expect(components.Text).toBeDefined();
+    // 10 Embed widgets
     expect(components.Timer).toBeDefined();
     expect(components.Counter).toBeDefined();
+    expect(components.NumberInput).toBeDefined();
+    expect(components.DateTimePicker).toBeDefined();
+    expect(components.Gauge).toBeDefined();
+    expect(components.Image).toBeDefined();
+    expect(components.PDFViewer).toBeDefined();
     expect(components.Signature).toBeDefined();
+    expect(components.ListItem).toBeDefined();
+    expect(components.Chart).toBeDefined();
+    expect(components.LineChart).toBeDefined();
+    expect(components.BarChart).toBeDefined();
   });
 });

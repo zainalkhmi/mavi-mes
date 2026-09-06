@@ -53,9 +53,11 @@ import {
   PenTool,
   MousePointerClick,
   Play,
-  FileCode
+  FileCode,
+  QrCode,
+  Wifi
 } from 'lucide-react';
-import { QRCodeCanvas } from 'qrcode.react';
+import QRCode from 'react-qr-code';
 import toast, { Toaster } from 'react-hot-toast';
 import {
   syncVibeAppToTable,
@@ -1162,6 +1164,7 @@ root.render(
   const [appMode, setAppMode] = useState('web'); // 'web' | 'mobile'
   const [appName, setAppName] = useState('Sandbox');
   const [deployedApp, setDeployedApp] = useState(null);
+  const [currentAppId, setCurrentAppId] = useState(null);
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempAppName, setTempAppName] = useState('');
 
@@ -1185,11 +1188,65 @@ root.render(
   const [connectedTable, setConnectedTable] = useState(null);
   const [isSyncingTable, setIsSyncingTable] = useState(false);
   const [liveRecordCount, setLiveRecordCount] = useState(0);
-  const [isCompanionOpen, setIsCompanionOpen] = useState(false);
-  const [companionLink, setCompanionLink] = useState('');
   const [lastSaved, setLastSaved] = useState(null);
   const [incompatibleNotice, setIncompatibleNotice] = useState(null);
   const [isInspectModeActive, setIsInspectModeActive] = useState(false);
+
+  // Live Real Device QR Runner state
+  const [isLiveDeviceModalOpen, setIsLiveDeviceModalOpen] = useState(false);
+  const [liveDeviceAppId, setLiveDeviceAppId] = useState(null);
+  const [isSyncingLiveDevice, setIsSyncingLiveDevice] = useState(false);
+  const [liveDeviceHost, setLiveDeviceHost] = useState(() => {
+    if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+      return 'http://192.168.100.98:5173';
+    }
+    return typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173';
+  });
+
+  const getLiveDeviceUrl = useCallback(() => {
+    const id = liveDeviceAppId || currentAppId || 'live_app';
+    const host = (liveDeviceHost || window.location.origin).replace(/\/+$/, '');
+    const pathname = window.location.pathname.replace(/\/+$/, '');
+    return `${host}${pathname}/#/sandbox-runner?appId=${encodeURIComponent(id)}&mode=companion`;
+  }, [liveDeviceAppId, currentAppId, liveDeviceHost]);
+
+  const handleOpenLiveDevice = useCallback(async () => {
+    setIsLiveDeviceModalOpen(true);
+    setIsSyncingLiveDevice(true);
+    try {
+      const currentCode = vfs.readFile('/App.js') || effectiveInitialCode;
+      const targetName = (appName || 'Sandbox Live App').trim();
+
+      // Persist to Supabase so phone can load it instantly anywhere
+      const saved = await deployVibeAppToFrontline({
+        id: currentAppId || undefined,
+        name: targetName,
+        code: currentCode,
+        category: 'Shop Floor',
+        isPublished: true
+      });
+
+      const effectiveId = saved?.id || currentAppId || ('live_' + Date.now());
+      setLiveDeviceAppId(effectiveId);
+      if (saved?.id && !currentAppId) {
+        setCurrentAppId(saved.id);
+      }
+
+      // Also save to localStorage cache
+      localStorage.setItem('vibe_last_active_app', JSON.stringify({
+        id: effectiveId,
+        name: targetName,
+        config: {
+          vibeCode: currentCode,
+          files: filesRecord
+        }
+      }));
+    } catch (err) {
+      console.warn('[VibeSandpackViewer] Live device sync warning:', err);
+    } finally {
+      setIsSyncingLiveDevice(false);
+    }
+  }, [vfs, effectiveInitialCode, appName, currentAppId, filesRecord]);
 
   // Load app from Supabase if appId query param is present
   useEffect(() => {
@@ -1212,6 +1269,7 @@ root.render(
 
             setAppName(appData.name || 'Sandbox App');
             setDeployedApp(appData);
+            setCurrentAppId(appData.id);
             const savedCode = appData.config?.vibeCode || (typeof appData.config === 'string' ? appData.config : null);
             if (savedCode) {
               const cleaned = cleanVibeCode(savedCode);
@@ -1230,6 +1288,14 @@ root.render(
           toast.error('Gagal memuat aplikasi dari database');
         });
     }
+
+    // Ensure virtual bridge files are up-to-date with latest CRUD aliases
+    vfs.writeFile('/mavicore-bridge.js', MAVICORE_BRIDGE_VIRTUAL_FILE);
+    vfs.writeFile('/mavicore-bridge', MAVICORE_BRIDGE_VIRTUAL_FILE);
+    vfs.writeFile('/mavicore-sdk.js', MAVICORE_SDK_VIRTUAL_FILE);
+    vfs.writeFile('/mavicore-sdk', MAVICORE_SDK_VIRTUAL_FILE);
+    setFilesRecord(vfs.getAllFilesRecord());
+    setFileTree(vfs.getFileTree());
   }, []);
 
   // Auto-save to localStorage every 5 seconds when code changes
@@ -1351,21 +1417,6 @@ root.render(
     });
     return cleanup;
   }, []);
-
-  // Generate companion link when modal opens
-  useEffect(() => {
-    if (isCompanionOpen) {
-      const code = vfs.readFile('/App.js') || effectiveInitialCode;
-      const sessionId = 'vibe_' + Date.now();
-      try {
-        sessionStorage.setItem(sessionId, code);
-      } catch (e) {
-        // sessionStorage full, use shorter ID
-      }
-      const baseUrl = window.location.origin + window.location.pathname;
-      setCompanionLink(`${baseUrl}#/player?session=${sessionId}`);
-    }
-  }, [isCompanionOpen]);
 
   // Panels state
   const [isFilesPanelOpen, setIsFilesPanelOpen] = useState(true);
@@ -2412,23 +2463,8 @@ root.render(
           </button>
         </div>
 
-        {/* Right Group: 4. Table Sync, 5. Build APK, 6. Frontline Publish, Companion, Copy, Close */}
+        {/* Right Group: 4. Table Sync, 5. Build APK, 6. Frontline Publish, Copy, Close */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-          {/* Companion QR */}
-          <button
-            type="button"
-            onClick={() => setIsCompanionOpen(true)}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '6px', border: 'none', background: 'linear-gradient(135deg, #00b894, #00cec9)', color: '#fff', cursor: 'pointer' }}
-            title="Companion - QR Code Live Preview di HP"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-              <rect x="3" y="14" width="7" height="7"/>
-              <rect x="14" y="14" width="3" height="3"/><rect x="18" y="14" width="3" height="3"/>
-              <rect x="14" y="18" width="3" height="3"/><rect x="18" y="18" width="3" height="3"/>
-            </svg>
-          </button>
-
           {/* 4. Table Sync button */}
           <button
             type="button"
@@ -2466,6 +2502,25 @@ root.render(
           >
             <Smartphone size={12} />
             <span>Build APK</span>
+          </button>
+
+          {/* Live Real Device (QR Code) button */}
+          <button
+            type="button"
+            onClick={handleOpenLiveDevice}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '5px',
+              padding: '5px 11px', borderRadius: '6px', border: 'none',
+              background: 'linear-gradient(135deg, #06b6d4, #0891b2)',
+              color: '#fff', fontSize: '0.72rem', fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '0 2px 6px rgba(6, 182, 212, 0.35)',
+              transition: 'all 0.15s'
+            }}
+            title="Buka Aplikasi Langsung di Real Live Device (Scan QR HP)"
+          >
+            <QrCode size={12} />
+            <span>Live Device</span>
           </button>
 
           {/* Save Sandbox App button */}
@@ -2958,8 +3013,7 @@ root.render(
           </div>
         )}
       </div>
-
-      {/* ═══════════ MODALS ═══════════ */}
+{/* ═══════════ MODALS ═══════════ */}
       {/* 1. AI Changes Review Modal */}
       <AiChangesReviewModal
         isOpen={isReviewModalOpen}
@@ -2987,72 +3041,6 @@ root.render(
         projectFiles={filesRecord}
         appName={appName}
       />
-
-      {/* 3. Companion - QR Code Modal */}
-      {isCompanionOpen && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-          <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '16px', maxWidth: '520px', width: '100%', padding: '24px' }}>
-            {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ margin: 0, color: '#fff', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '1.2rem' }}>📱</span> Device Companion
-              </h3>
-              <button type="button" onClick={() => setIsCompanionOpen(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
-            </div>
-
-            {/* QR Code Section */}
-            <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
-              {/* QR Code */}
-              <div style={{ flex: '0 0 auto', backgroundColor: '#fff', padding: '12px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
-                <QRCodeCanvas
-                  value={companionLink || window.location.origin}
-                  size={180}
-                  bgColor="#ffffff"
-                  fgColor="#000000"
-                  level="M"
-                  includeMargin={true}
-                />
-              </div>
-
-              {/* Instructions */}
-              <div style={{ flex: 1 }}>
-                <h4 style={{ margin: '0 0 12px', color: '#fff', fontSize: '0.95rem' }}>Cara Pakai:</h4>
-                <ol style={{ margin: 0, paddingLeft: '16px', color: '#94a3b8', fontSize: '0.82rem', lineHeight: '1.8' }}>
-                  <li>Buka <strong style={{ color: '#00cec9' }}>kamera HP</strong> atau <strong style={{ color: '#00cec9' }}>QR scanner</strong></li>
-                  <li>Arahkan ke <strong style={{ color: '#fff' }}>QR Code</strong> di samping</li>
-                  <li>T tap link yang muncul</li>
-                  <li>App akan terbuka di <strong style={{ color: '#fff' }}>browser HP</strong></li>
-                </ol>
-
-                <div style={{ marginTop: '16px', padding: '12px', backgroundColor: 'rgba(0,206,201,0.1)', borderRadius: '8px', border: '1px solid rgba(0,206,201,0.3)' }}>
-                  <p style={{ margin: 0, color: '#00cec9', fontSize: '0.78rem' }}>
-                    💡 <strong>Tips:</strong> Simpan link ini untuk akses cepat dari HP!
-                  </p>
-                </div>
-
-                {/* Direct Link */}
-                <div style={{ marginTop: '12px' }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(companionLink || window.location.origin);
-                      toast.success('Link copied!');
-                    }}
-                    style={{
-                      padding: '8px 16px', borderRadius: '8px',
-                      background: 'linear-gradient(135deg, #00b894, #00cec9)',
-                      border: 'none', color: '#fff', fontSize: '0.8rem', fontWeight: 700,
-                      cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
-                    }}
-                  >
-                    📋 Copy Link
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 4. Deploy to Frontline Modal */}
       {isDeployModalOpen && (
@@ -3092,18 +3080,147 @@ root.render(
                   checked={deployPublish}
                   onChange={e => setDeployPublish(e.target.checked)}
                 />
-                <label htmlFor="deployPublishCheck" style={{ fontSize: '0.78rem', color: '#cbd5e1', cursor: 'pointer' }}>
-                  Publikasikan langsung ke operator shop floor
+                <label htmlFor="deployPublishCheck" style={{ fontSize: '0.8rem', color: '#cbd5e1', cursor: 'pointer' }}>
+                  Langsung Publish (Bisa diakses Operator di Player)
                 </label>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
-                <button type="button" onClick={() => setIsDeployModalOpen(false)} style={{ padding: '8px 16px', borderRadius: '8px', backgroundColor: '#1e293b', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>Batal</button>
-                <button type="submit" disabled={isDeploying} style={{ padding: '8px 20px', borderRadius: '8px', backgroundColor: '#2563eb', border: 'none', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsDeployModalOpen(false)}
+                  style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #334155', backgroundColor: 'transparent', color: '#94a3b8', cursor: 'pointer', fontSize: '0.8rem' }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isDeploying}
+                  style={{
+                    padding: '8px 20px', borderRadius: '8px', border: 'none',
+                    background: 'linear-gradient(135deg, #10b981, #059669)',
+                    color: '#fff', fontSize: '0.8rem', fontWeight: 700,
+                    cursor: isDeploying ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '6px'
+                  }}
+                >
                   {isDeploying ? 'Deploying...' : 'Deploy Sekarang'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Live Real Device QR Modal (Opens directly on real smartphone) */}
+      {isLiveDeviceModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.82)', backdropFilter: 'blur(6px)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          <div style={{ backgroundColor: '#ffffff', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 25px 60px -15px rgba(0,0,0,0.35)', maxWidth: '440px', width: '100%', padding: '24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            {/* Header */}
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '14px', marginBottom: '16px', borderBottom: '1px solid #f1f5f9' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: '12px', backgroundColor: '#ecfeff', color: '#0891b2', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(8,145,178,0.1)' }}>
+                  <Smartphone size={20} />
+                </div>
+                <div style={{ textAlign: 'left' }}>
+                  <h3 style={{ margin: 0, color: '#0f172a', fontSize: '1rem', fontWeight: 800 }}>Live Real Device (HP)</h3>
+                  <p style={{ margin: 0, color: '#64748b', fontSize: '0.72rem' }}>Jalankan aplikasi Sandbox langsung di smartphone</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsLiveDeviceModalOpen(false)}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '1.2rem', padding: '4px' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* App Name Badge */}
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 12px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: '14px' }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: isSyncingLiveDevice ? '#f59e0b' : '#10b981' }} />
+              <span style={{ maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {isSyncingLiveDevice ? 'Menyinkronkan App...' : (appName || 'Sandbox Live App')}
+              </span>
+            </div>
+
+            {/* QR Code Container (Crisp Vector SVG) */}
+            <div style={{ padding: '16px', backgroundColor: '#ffffff', borderRadius: '16px', border: '2px solid #f1f5f9', boxShadow: '0 4px 12px rgba(0,0,0,0.06)', marginBottom: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <QRCode
+                value={getLiveDeviceUrl()}
+                size={180}
+                level="M"
+                bgColor="#ffffff"
+                fgColor="#0f172a"
+              />
+            </div>
+
+            {/* Instruction */}
+            <p style={{ margin: '0 0 12px', color: '#475569', fontSize: '0.78rem', lineHeight: '1.5', maxWidth: '340px' }}>
+              Scan QR code ini menggunakan <strong>kamera HP</strong> untuk membuka aplikasi secara langsung di layar smartphone (edge-to-edge native live device).
+            </p>
+
+            {/* Network Host Switcher / Config */}
+            <div style={{ width: '100%', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '10px 12px', marginBottom: '14px', textAlign: 'left' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Wifi size={11} color="#0891b2" /> Host URL Perangkat:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setLiveDeviceHost(prev => prev.includes('192.168.100.98') ? window.location.origin : 'http://192.168.100.98:5173')}
+                  style={{ background: 'none', border: 'none', color: '#0891b2', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  {liveDeviceHost.includes('192.168.100.98') ? 'Ganti ke Localhost' : 'Ganti ke Wi-Fi IP'}
+                </button>
+              </div>
+              <input
+                type="text"
+                value={liveDeviceHost}
+                onChange={e => setLiveDeviceHost(e.target.value)}
+                style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.75rem', fontFamily: 'monospace', color: '#0f172a', backgroundColor: '#ffffff' }}
+              />
+            </div>
+
+            {/* Copyable Link */}
+            <div style={{ width: '100%', display: 'flex', gap: '8px', marginBottom: '14px' }}>
+              <input
+                type="text"
+                readOnly
+                value={getLiveDeviceUrl()}
+                style={{ flex: 1, padding: '7px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#f8fafc', fontSize: '0.72rem', fontFamily: 'monospace', color: '#475569' }}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(getLiveDeviceUrl());
+                  toast.success('Link Real Device berhasil disalin!');
+                }}
+                style={{ padding: '7px 12px', borderRadius: '8px', border: 'none', backgroundColor: '#0891b2', color: '#fff', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+              >
+                <Copy size={12} />
+                <span>Salin</span>
+              </button>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ width: '100%', display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => window.open(getLiveDeviceUrl(), '_blank')}
+                style={{ flex: 1, padding: '9px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#334155', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+              >
+                <ExternalLink size={13} />
+                <span>Buka di Tab Baru</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsLiveDeviceModalOpen(false)}
+                style={{ flex: 1, padding: '9px 12px', borderRadius: '10px', border: 'none', backgroundColor: '#0f172a', color: '#fff', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}
+              >
+                Tutup
+              </button>
+            </div>
           </div>
         </div>
       )}
