@@ -14,116 +14,8 @@ import {
   Move, Link2, X, RotateCcw, Columns, Settings, HelpCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getSupabaseClient } from '../utils/supabaseManualDB.js';
-import { getTables } from '../utils/supabaseTablesDB.js';
-import { INDUSTRIAL_TABLE_TEMPLATES } from '../utils/industrialTableTemplates.js';
+import { getTables, getTableRecords } from '../utils/supabaseTablesDB.js';
 import { INDUSTRIAL_QUERY_TEMPLATES, INDUSTRIAL_QUERY_CATEGORIES } from '../utils/industrialQueryTemplates.js';
-
-// Default Master & Sample Database Schema definitions for Visual Designer
-const DEFAULT_TABLE_SCHEMAS = {
-  orders: {
-    name: 'orders',
-    label: 'Orders (SPK Customer)',
-    category: 'Sales & Production',
-    columns: [
-      { name: 'id', type: 'uuid', isPk: true, isFk: false },
-      { name: 'user_id', type: 'uuid', isPk: false, isFk: true, fkRef: 'users.id' },
-      { name: 'order_number', type: 'varchar', isPk: false, isFk: false },
-      { name: 'total_amount', type: 'numeric', isPk: false, isFk: false },
-      { name: 'status', type: 'varchar', isPk: false, isFk: false },
-      { name: 'created_at', type: 'timestamptz', isPk: false, isFk: false }
-    ],
-    sampleRows: [
-      { id: 'ord-001', user_id: 'usr-101', order_number: 'ORD-2026-001', total_amount: 15400000, status: 'IN_PRODUCTION', created_at: '2026-09-01 08:30:00' },
-      { id: 'ord-002', user_id: 'usr-102', order_number: 'ORD-2026-002', total_amount: 8250000, status: 'COMPLETED', created_at: '2026-09-02 10:15:00' },
-      { id: 'ord-003', user_id: 'usr-101', order_number: 'ORD-2026-003', total_amount: 24600000, status: 'PENDING', created_at: '2026-09-03 14:00:00' },
-      { id: 'ord-004', user_id: 'usr-103', order_number: 'ORD-2026-004', total_amount: 5120000, status: 'IN_PRODUCTION', created_at: '2026-09-04 11:20:00' }
-    ]
-  },
-  users: {
-    name: 'users',
-    label: 'Users / Operators',
-    category: 'Organization & Security',
-    columns: [
-      { name: 'id', type: 'uuid', isPk: true, isFk: false },
-      { name: 'name', type: 'varchar', isPk: false, isFk: false },
-      { name: 'email', type: 'varchar', isPk: false, isFk: false },
-      { name: 'role', type: 'varchar', isPk: false, isFk: false },
-      { name: 'department', type: 'varchar', isPk: false, isFk: false }
-    ],
-    sampleRows: [
-      { id: 'usr-101', name: 'Budi Santoso', email: 'budi.s@mandor.id', role: 'Production Supervisor', department: 'Machining Line 1' },
-      { id: 'usr-102', name: 'Siti Rahma', email: 'siti.r@mandor.id', role: 'QC Inspector', department: 'Quality Assurance' },
-      { id: 'usr-103', name: 'Ahmad Fauzi', email: 'ahmad.f@mandor.id', role: 'Line Operator', department: 'Assembly Line 2' }
-    ]
-  },
-  work_orders: {
-    name: 'work_orders',
-    label: 'Work Orders (SPK)',
-    category: 'MES Execution',
-    columns: [
-      { name: 'id', type: 'uuid', isPk: true, isFk: false },
-      { name: 'order_number', type: 'varchar', isPk: false, isFk: false },
-      { name: 'part_id', type: 'uuid', isPk: false, isFk: true, fkRef: 'parts.id' },
-      { name: 'target_quantity', type: 'int', isPk: false, isFk: false },
-      { name: 'completed_quantity', type: 'int', isPk: false, isFk: false },
-      { name: 'status', type: 'varchar', isPk: false, isFk: false }
-    ],
-    sampleRows: [
-      { id: 'wo-101', order_number: 'WO-2026-09-001', part_id: 'prt-001', target_quantity: 500, completed_quantity: 480, status: 'RUNNING' },
-      { id: 'wo-102', order_number: 'WO-2026-09-002', part_id: 'prt-002', target_quantity: 1200, completed_quantity: 1200, status: 'COMPLETED' },
-      { id: 'wo-103', order_number: 'WO-2026-09-003', part_id: 'prt-001', target_quantity: 800, completed_quantity: 350, status: 'RUNNING' }
-    ]
-  },
-  parts: {
-    name: 'parts',
-    label: 'Parts Master (BOM)',
-    category: 'Engineering & PLM',
-    columns: [
-      { name: 'id', type: 'uuid', isPk: true, isFk: false },
-      { name: 'part_number', type: 'varchar', isPk: false, isFk: false },
-      { name: 'name', type: 'varchar', isPk: false, isFk: false },
-      { name: 'category', type: 'varchar', isPk: false, isFk: false },
-      { name: 'standard_cost', type: 'numeric', isPk: false, isFk: false }
-    ],
-    sampleRows: [
-      { id: 'prt-001', part_number: 'PART-FLANGE-001', name: 'Precision Flange SS316', category: 'WIP', standard_cost: 195000 },
-      { id: 'prt-002', part_number: 'PART-BOLT-M12', name: 'Hex Bolt M12x50 Steel 8.8', category: 'RAW_MATERIAL', standard_cost: 12500 }
-    ]
-  },
-  production_logs: {
-    name: 'production_logs',
-    label: 'Production Logs',
-    category: 'MES Execution',
-    columns: [
-      { name: 'id', type: 'uuid', isPk: true, isFk: false },
-      { name: 'work_order_id', type: 'uuid', isPk: false, isFk: true, fkRef: 'work_orders.id' },
-      { name: 'operator_id', type: 'uuid', isPk: false, isFk: true, fkRef: 'users.id' },
-      { name: 'good_quantity', type: 'int', isPk: false, isFk: false },
-      { name: 'rejected_quantity', type: 'int', isPk: false, isFk: false },
-      { name: 'timestamp', type: 'timestamptz', isPk: false, isFk: false }
-    ],
-    sampleRows: [
-      { id: 'log-001', work_order_id: 'wo-101', operator_id: 'usr-103', good_quantity: 45, rejected_quantity: 2, timestamp: '2026-09-06 14:10:00' },
-      { id: 'log-002', work_order_id: 'wo-101', operator_id: 'usr-103', good_quantity: 50, rejected_quantity: 0, timestamp: '2026-09-06 15:20:00' }
-    ]
-  },
-  machines: {
-    name: 'machines',
-    label: 'Machines & Stations',
-    category: 'Shopfloor Assets',
-    columns: [
-      { name: 'id', type: 'uuid', isPk: true, isFk: false },
-      { name: 'code', type: 'varchar', isPk: false, isFk: false },
-      { name: 'name', type: 'varchar', isPk: false, isFk: false },
-      { name: 'status', type: 'varchar', isPk: false, isFk: false }
-    ],
-    sampleRows: [
-      { id: 'mch-001', code: 'CNC-01', name: 'DMG MORI 5-Axis Milling', status: 'RUNNING' },
-      { id: 'mch-002', code: 'LATHE-02', name: 'Mazak Quick Turn 250', status: 'IDLE' }
-    ]
-  }
-};
 
 // 52-Topic SQL Cheat Sheet & Templates
 const SQL_SNIPPETS = [
@@ -166,40 +58,17 @@ export default function QueryStudio() {
   // View mode: 'visual' (DbGate Canvas), 'sql' (Code Editor), or 'split'
   const [activeTab, setActiveTab] = useState('visual');
 
-  // Database Tables catalog
-  const [tableSchemas, setTableSchemas] = useState(DEFAULT_TABLE_SCHEMAS);
+  // Database Tables catalog (loaded strictly from Table Manager)
+  const [tableSchemas, setTableSchemas] = useState({});
+  const [loadingTables, setLoadingTables] = useState(true);
   const [searchTableQuery, setSearchTableQuery] = useState('');
   
   // Visual Canvas state
   // canvasTables: array of { id, tableName, x, y, selectedColumns: string[] }
-  const [canvasTables, setCanvasTables] = useState([
-    {
-      id: 'table-1',
-      tableName: 'orders',
-      x: 60,
-      y: 50,
-      selectedColumns: ['id', 'user_id', 'created_at']
-    },
-    {
-      id: 'table-2',
-      tableName: 'users',
-      x: 480,
-      y: 50,
-      selectedColumns: ['id', 'name', 'email']
-    }
-  ]);
+  const [canvasTables, setCanvasTables] = useState([]);
 
   // joins: array of { id, sourceTableId, sourceCol, targetTableId, targetCol, joinType: 'JOIN' | 'LEFT JOIN' | 'RIGHT JOIN' }
-  const [joins, setJoins] = useState([
-    {
-      id: 'join-1',
-      sourceTableId: 'table-1',
-      sourceCol: 'user_id',
-      targetTableId: 'table-2',
-      targetCol: 'id',
-      joinType: 'JOIN'
-    }
-  ]);
+  const [joins, setJoins] = useState([]);
 
   // Dragging connection state (when user pulls a line from a column port)
   const [connectingSource, setConnectingSource] = useState(null); // { tableId, colName, x, y }
@@ -221,57 +90,63 @@ export default function QueryStudio() {
   // Canvas DOM container ref for coordinates
   const canvasRef = useRef(null);
 
-  // Load industrial templates & custom tables on mount
-  useEffect(() => {
+  // Load custom tables from Table Manager (Supabase app_tables)
+  const loadTableManagerTables = useCallback(async () => {
+    setLoadingTables(true);
     try {
-      const merged = { ...DEFAULT_TABLE_SCHEMAS };
+      const custom = await getTables();
+      const schemas = {};
 
-      // 1. Add all Master Industrial Templates
-      if (Array.isArray(INDUSTRIAL_TABLE_TEMPLATES)) {
-        INDUSTRIAL_TABLE_TEMPLATES.forEach(tmpl => {
-          if (!merged[tmpl.name]) {
-            merged[tmpl.name] = {
-              name: tmpl.name,
-              label: tmpl.label,
-              category: tmpl.categoryLabel || 'Industrial MES',
-              columns: (tmpl.fields || []).map(f => ({
-                name: f.name,
-                type: f.type || 'text',
-                isPk: f.name === 'id' || f.name.endsWith('_number'),
-                isFk: f.name.endsWith('_id') || f.name.endsWith('_code')
-              })),
-              sampleRows: tmpl.sampleRows || []
-            };
-          }
-        });
-      }
+      if (Array.isArray(custom)) {
+        await Promise.all(
+          custom.map(async (t) => {
+            let sampleRows = [];
+            try {
+              const recs = await getTableRecords(t.id);
+              sampleRows = (recs || []).slice(0, 10).map(r => ({
+                id: r.recordId || r.id,
+                ...r
+              }));
+            } catch (e) {
+              console.warn(`Could not load records for table ${t.name}:`, e);
+            }
 
-      // 2. Add custom app tables from Supabase / localStorage
-      const custom = getTables();
-      if (custom && custom.length > 0) {
-        custom.forEach(t => {
-          if (!merged[t.name]) {
-            merged[t.name] = {
+            const columns = (t.fields || []).map(f => ({
+              name: f.name,
+              type: f.type || 'text',
+              isPk: f.name === 'id' || f.name === 'record_id',
+              isFk: f.name.endsWith('_id') || f.type === 'linked_record',
+              fkRef: f.link_table_id ? `${f.link_table_id}.id` : undefined
+            }));
+
+            if (columns.length === 0) {
+              columns.push({ name: 'id', type: 'text', isPk: true, isFk: false });
+            }
+
+            schemas[t.name] = {
+              id: t.id,
               name: t.name,
-              label: t.label || t.name,
-              category: 'Custom App Tables',
-              columns: (t.columns || []).map(col => ({
-                name: col.name,
-                type: col.type || 'text',
-                isPk: col.name === 'id',
-                isFk: col.name.endsWith('_id')
-              })),
-              sampleRows: (t.rows || []).slice(0, 5)
+              label: t.name,
+              category: t.description || 'Table Manager',
+              columns,
+              sampleRows
             };
-          }
-        });
+          })
+        );
       }
 
-      setTableSchemas(merged);
+      setTableSchemas(schemas);
     } catch (e) {
-      console.warn('Could not load tables into QueryStudio:', e);
+      console.warn('Could not load tables from Table Manager into QueryStudio:', e);
+      toast.error('Gagal memuat tabel dari Table Manager');
+    } finally {
+      setLoadingTables(false);
     }
   }, []);
+
+  useEffect(() => {
+    loadTableManagerTables();
+  }, [loadTableManagerTables]);
 
   // Compute Real-time SQL query whenever canvasTables or joins change
   useEffect(() => {
@@ -824,9 +699,26 @@ export default function QueryStudio() {
               <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: themeStyles.subText, letterSpacing: '0.05em' }}>
                 CHOOSE DATA
               </span>
-              <span style={{ fontSize: '0.7rem', color: themeStyles.subText }}>
-                {filteredTableKeys.length} tables
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '0.7rem', color: themeStyles.subText }}>
+                  {filteredTableKeys.length} tables
+                </span>
+                <button
+                  onClick={loadTableManagerTables}
+                  title="Refresh Tabel dari Table Manager"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: '2px',
+                    cursor: 'pointer',
+                    color: themeStyles.subText,
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                >
+                  <RefreshCw size={12} className={loadingTables ? 'animate-spin' : ''} />
+                </button>
+              </div>
             </div>
             <div style={{ position: 'relative' }}>
               <Search size={14} style={{ position: 'absolute', left: '9px', top: '9px', color: themeStyles.subText }} />
@@ -852,53 +744,68 @@ export default function QueryStudio() {
 
           {/* Table List */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '10px 8px' }}>
-            {filteredTableKeys.map(k => {
-              const tbl = tableSchemas[k];
-              const isInCanvas = canvasTables.some(t => t.tableName === tbl.name);
-              return (
-                <div
-                  key={tbl.name}
-                  style={{
-                    padding: '8px 10px',
-                    borderRadius: '6px',
-                    marginBottom: '6px',
-                    backgroundColor: isInCanvas ? (isDark ? '#1e3a8a33' : '#eff6ff') : 'transparent',
-                    border: `1px solid ${isInCanvas ? (isDark ? '#1d4ed8' : '#bfdbfe') : 'transparent'}`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s'
-                  }}
-                  onClick={() => handleAddTableToCanvas(tbl.name)}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                    <Table size={14} color={isInCanvas ? themeStyles.lineColor : themeStyles.subText} />
-                    <div style={{ overflow: 'hidden' }}>
-                      <div style={{ fontSize: '0.8rem', fontWeight: 600, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                        {tbl.name}
-                      </div>
-                      <div style={{ fontSize: '0.68rem', color: themeStyles.subText, whiteSpace: 'nowrap' }}>
-                        {tbl.columns.length} kolom · {tbl.category}
+            {loadingTables ? (
+              <div style={{ padding: '24px 16px', textAlign: 'center', color: themeStyles.subText, fontSize: '0.78rem' }}>
+                <RefreshCw size={18} className="animate-spin" style={{ margin: '0 auto 8px', display: 'block' }} />
+                Memuat tabel dari Table Manager...
+              </div>
+            ) : filteredTableKeys.length === 0 ? (
+              <div style={{ padding: '24px 16px', textAlign: 'center', color: themeStyles.subText, fontSize: '0.78rem' }}>
+                <Table size={24} style={{ margin: '0 auto 8px', display: 'block', opacity: 0.4 }} />
+                <div style={{ fontWeight: 600 }}>Belum Ada Tabel</div>
+                <div style={{ fontSize: '0.7rem', marginTop: '4px', opacity: 0.8 }}>
+                  Tabel yang dibuat di Table Manager akan muncul di sini.
+                </div>
+              </div>
+            ) : (
+              filteredTableKeys.map(k => {
+                const tbl = tableSchemas[k];
+                const isInCanvas = canvasTables.some(t => t.tableName === tbl.name);
+                return (
+                  <div
+                    key={tbl.name}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: '6px',
+                      marginBottom: '6px',
+                      backgroundColor: isInCanvas ? (isDark ? '#1e3a8a33' : '#eff6ff') : 'transparent',
+                      border: `1px solid ${isInCanvas ? (isDark ? '#1d4ed8' : '#bfdbfe') : 'transparent'}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s'
+                    }}
+                    onClick={() => handleAddTableToCanvas(tbl.name)}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                      <Table size={14} color={isInCanvas ? themeStyles.lineColor : themeStyles.subText} />
+                      <div style={{ overflow: 'hidden' }}>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 600, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                          {tbl.name}
+                        </div>
+                        <div style={{ fontSize: '0.68rem', color: themeStyles.subText, whiteSpace: 'nowrap' }}>
+                          {tbl.columns.length} kolom{tbl.category && tbl.category !== 'Table Manager' ? ` · ${tbl.category}` : ''}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <button
-                    title="Tambahkan ke Canvas"
-                    style={{
-                      border: 'none',
-                      background: 'none',
-                      color: isInCanvas ? themeStyles.lineColor : themeStyles.subText,
-                      cursor: 'pointer',
-                      padding: '2px 4px'
-                    }}
-                  >
-                    <Plus size={15} />
-                  </button>
-                </div>
-              );
-            })}
+                    <button
+                      title="Tambahkan ke Canvas"
+                      style={{
+                        border: 'none',
+                        background: 'none',
+                        color: isInCanvas ? themeStyles.lineColor : themeStyles.subText,
+                        cursor: 'pointer',
+                        padding: '2px 4px'
+                      }}
+                    >
+                      <Plus size={15} />
+                    </button>
+                  </div>
+                );
+              })
+            )}
           </div>
 
           {/* Canvas Actions in Left Footer */}
