@@ -1389,8 +1389,32 @@ const TableManager = () => {
                         </div>
                     </div>
 
-                    <div style={{ padding: '0 24px 12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ padding: '0 24px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <span style={{ fontSize: '0.78rem', fontWeight: 700, color: TOKENS.sidebarTextMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Tables</span>
+                        <button
+                            onClick={() => {
+                                setNewTableName('');
+                                setNewTableDescription('');
+                                setIsCreateModalOpen(true);
+                            }}
+                            title="Create Table"
+                            style={{
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                color: TOKENS.primary,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: '4px',
+                                borderRadius: '6px',
+                                transition: 'all 0.15s'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = TOKENS.primaryLight}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                            <Plus size={16} />
+                        </button>
                     </div>
 
                     {/* Search */}
@@ -1415,136 +1439,6 @@ const TableManager = () => {
                             />
                             <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.7rem', color: TOKENS.sidebarTextMuted, border: `1px solid ${TOKENS.border}`, padding: '2px 4px', borderRadius: '4px' }}>⌘ K</span>
                         </div>
-                    </div>
-
-                    {/* New Table Button */}
-                    <div style={{ padding: '0 16px 20px' }}>
-                        <button
-                            onClick={() => {
-                                setNewTableName('');
-                                setNewTableDescription('');
-                                setIsCreateModalOpen(true);
-                            }}
-                            style={{
-                                width: '100%',
-                                padding: '12px',
-                                backgroundColor: TOKENS.primary,
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '8px',
-                                fontWeight: 700,
-                                fontSize: '0.85rem',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '8px',
-                                boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
-                            }}
-                        >
-                            <Plus size={18} /> Create
-                        </button>
-
-                        {/* Industrial Templates Button */}
-                        <button
-                            onClick={() => setIsIndustrialTemplatesOpen(true)}
-                            style={{
-                                width: '100%',
-                                marginTop: '8px',
-                                padding: '12px',
-                                borderRadius: '8px',
-                                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                                color: 'white',
-                                border: 'none',
-                                fontWeight: 700,
-                                fontSize: '0.85rem',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '8px',
-                                boxShadow: '0 4px 6px -1px rgba(2, 132, 199, 0.3)'
-                            }}
-                        >
-                            <Factory size={18} /> Template Industri
-                        </button>
-
-                        {/* Table Copilot Button */}
-                        <button
-                            onClick={() => setIsCopilotOpen(true)}
-                            style={{
-                                width: '100%',
-                                marginTop: '8px',
-                                padding: '12px',
-                                borderRadius: '8px',
-                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                color: 'white',
-                                border: 'none',
-                                fontWeight: 700,
-                                fontSize: '0.85rem',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '8px',
-                                boxShadow: '0 4px 6px -1px rgba(102, 126, 234, 0.3)'
-                            }}
-                        >
-                            <Bot size={18} /> AI Copilot
-                        </button>
-
-                        {/* App Generator Button */}
-                        <button
-                            onClick={() => {
-                                setSelectedTableForGenerator(selectedTableId ? tables.find(t => t.id === selectedTableId) : null);
-                                setIsAppGeneratorOpen(true);
-                            }}
-                            style={{
-                                width: '100%',
-                                marginTop: '8px',
-                                padding: '12px',
-                                borderRadius: '8px',
-                                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                                color: 'white',
-                                border: 'none',
-                                fontWeight: 700,
-                                fontSize: '0.85rem',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '8px',
-                                boxShadow: '0 4px 6px -1px rgba(245, 158, 11, 0.3)'
-                            }}
-                        >
-                            <Wand2 size={18} /> Generate App
-                        </button>
-
-                        {/* SQL Query Studio Button */}
-                        <button
-                            onClick={() => window.open('#/query-studio', '_blank')}
-                            style={{
-                                width: '100%',
-                                marginTop: '8px',
-                                padding: '10px 12px',
-                                borderRadius: '8px',
-                                background: '#f8fafc',
-                                color: '#334155',
-                                border: '1px solid #cbd5e1',
-                                fontWeight: 700,
-                                fontSize: '0.825rem',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '8px',
-                                transition: 'background-color 0.15s'
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e2e8f0'}
-                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
-                        >
-                            <Code size={16} color="#2563eb" /> SQL Query Studio
-                        </button>
                     </div>
 
                     {/* Table List (Grouped by App) */}
@@ -1737,7 +1631,7 @@ const TableManager = () => {
                     height: '72px',
                     flexShrink: 0
                 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                         <button
                             onClick={() => setIsTableSidebarOpen(!isTableSidebarOpen)}
                             style={{
@@ -1759,65 +1653,228 @@ const TableManager = () => {
                             <ChevronRight size={14} color={TOKENS.border} />
                             <span style={{ color: TOKENS.text, fontWeight: 700, fontSize: '1.1rem' }}>{selectedTable?.name || '...'}</span>
                         </div>
-                    </div>
-                    {selectedTable && (
-                        <button
-                            onClick={() => {
-                                setEditTableName(selectedTable.name);
-                                setEditTableDescription(selectedTable.description || '');
-                                setIsEditTableModalOpen(true);
-                            }}
-                            style={{
-                                background: 'none',
-                                border: 'none',
-                                padding: '4px',
-                                cursor: 'pointer',
-                                color: TOKENS.textMuted,
-                                display: 'flex',
-                                alignItems: 'center'
-                            }}
-                        >
-                            <Settings size={14} />
-                        </button>
-                    )}
-
-
-                    <div style={{
-                        display: 'flex',
-                        backgroundColor: TOKENS.bg,
-                        padding: '4px',
-                        borderRadius: TOKENS.radiusSm,
-                        border: `1px solid ${TOKENS.border}`
-                    }}>
-                        {[
-                            { id: 'records', label: 'Records', icon: Rows3 },
-                            { id: 'fields', label: 'Fields', icon: Columns3 },
-                            { id: 'queries', label: 'Queries', icon: Search },
-                            { id: 'aggregations', label: 'Aggregations', icon: ArrowUpDown },
-                            { id: 'relation_diagram', label: 'Relation Diagram', icon: Zap }
-                        ].map(tab => (
+                        {selectedTable && (
                             <button
-                                key={tab.id}
-                                onClick={() => setActivePanel(tab.id)}
+                                onClick={() => {
+                                    setEditTableName(selectedTable.name);
+                                    setEditTableDescription(selectedTable.description || '');
+                                    setIsEditTableModalOpen(true);
+                                }}
+                                title="Table Settings"
                                 style={{
-                                    padding: '8px 16px',
-                                    borderRadius: '8px',
+                                    background: 'none',
                                     border: 'none',
-                                    backgroundColor: activePanel === tab.id ? 'white' : 'transparent',
-                                    color: activePanel === tab.id ? TOKENS.primary : TOKENS.textMuted,
-                                    fontWeight: 700,
-                                    fontSize: '0.85rem',
+                                    padding: '6px',
                                     cursor: 'pointer',
-                                    boxShadow: activePanel === tab.id ? TOKENS.shadow : 'none',
+                                    color: TOKENS.textMuted,
                                     display: 'flex',
                                     alignItems: 'center',
-                                    gap: '8px',
-                                    transition: 'all 0.2s'
+                                    borderRadius: '6px',
+                                    transition: 'background-color 0.15s'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = TOKENS.bg}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            >
+                                <Settings size={15} />
+                            </button>
+                        )}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        {/* Quick Action Icon Buttons */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <button
+                                onClick={() => {
+                                    setNewTableName('');
+                                    setNewTableDescription('');
+                                    setIsCreateModalOpen(true);
+                                }}
+                                title="Create Table"
+                                style={{
+                                    width: '36px',
+                                    height: '36px',
+                                    borderRadius: '8px',
+                                    backgroundColor: TOKENS.primary,
+                                    color: 'white',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    boxShadow: '0 2px 4px rgba(99, 102, 241, 0.25)',
+                                    transition: 'all 0.15s ease'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.transform = 'translateY(-1px)';
+                                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(99, 102, 241, 0.35)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.transform = 'none';
+                                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(99, 102, 241, 0.25)';
                                 }}
                             >
-                                <tab.icon size={16} /> {tab.label}
+                                <Plus size={18} />
                             </button>
-                        ))}
+
+                            <button
+                                onClick={() => setIsIndustrialTemplatesOpen(true)}
+                                title="Template Industri"
+                                style={{
+                                    width: '36px',
+                                    height: '36px',
+                                    borderRadius: '8px',
+                                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                                    color: 'white',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
+                                    transition: 'all 0.15s ease'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.transform = 'translateY(-1px)';
+                                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(2, 132, 199, 0.35)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.transform = 'none';
+                                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(2, 132, 199, 0.25)';
+                                }}
+                            >
+                                <Factory size={18} />
+                            </button>
+
+                            <button
+                                onClick={() => setIsCopilotOpen(true)}
+                                title="AI Copilot"
+                                style={{
+                                    width: '36px',
+                                    height: '36px',
+                                    borderRadius: '8px',
+                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                    color: 'white',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    boxShadow: '0 2px 4px rgba(102, 126, 234, 0.25)',
+                                    transition: 'all 0.15s ease'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.transform = 'translateY(-1px)';
+                                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(102, 126, 234, 0.35)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.transform = 'none';
+                                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(102, 126, 234, 0.25)';
+                                }}
+                            >
+                                <Bot size={18} />
+                            </button>
+
+                            <button
+                                onClick={() => {
+                                    setSelectedTableForGenerator(selectedTableId ? tables.find(t => t.id === selectedTableId) : null);
+                                    setIsAppGeneratorOpen(true);
+                                }}
+                                title="Generate App"
+                                style={{
+                                    width: '36px',
+                                    height: '36px',
+                                    borderRadius: '8px',
+                                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                                    color: 'white',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    boxShadow: '0 2px 4px rgba(245, 158, 11, 0.25)',
+                                    transition: 'all 0.15s ease'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.transform = 'translateY(-1px)';
+                                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(245, 158, 11, 0.35)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.transform = 'none';
+                                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(245, 158, 11, 0.25)';
+                                }}
+                            >
+                                <Wand2 size={18} />
+                            </button>
+
+                            <button
+                                onClick={() => window.open('#/query-studio', '_blank')}
+                                title="SQL Query Studio"
+                                style={{
+                                    width: '36px',
+                                    height: '36px',
+                                    borderRadius: '8px',
+                                    background: '#f8fafc',
+                                    color: '#2563eb',
+                                    border: '1px solid #cbd5e1',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                                    transition: 'all 0.15s ease'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#e2e8f0';
+                                    e.currentTarget.style.transform = 'translateY(-1px)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = '#f8fafc';
+                                    e.currentTarget.style.transform = 'none';
+                                }}
+                            >
+                                <Code size={18} color="#2563eb" />
+                            </button>
+                        </div>
+
+                        <div style={{ width: '1px', height: '24px', backgroundColor: TOKENS.border }} />
+
+                        <div style={{
+                            display: 'flex',
+                            backgroundColor: TOKENS.bg,
+                            padding: '4px',
+                            borderRadius: TOKENS.radiusSm,
+                            border: `1px solid ${TOKENS.border}`
+                        }}>
+                            {[
+                                { id: 'records', label: 'Records', icon: Rows3 },
+                                { id: 'fields', label: 'Fields', icon: Columns3 },
+                                { id: 'queries', label: 'Queries', icon: Search },
+                                { id: 'aggregations', label: 'Aggregations', icon: ArrowUpDown },
+                                { id: 'relation_diagram', label: 'Relation Diagram', icon: Zap }
+                            ].map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActivePanel(tab.id)}
+                                    style={{
+                                        padding: '8px 16px',
+                                        borderRadius: '8px',
+                                        border: 'none',
+                                        backgroundColor: activePanel === tab.id ? 'white' : 'transparent',
+                                        color: activePanel === tab.id ? TOKENS.primary : TOKENS.textMuted,
+                                        fontWeight: 700,
+                                        fontSize: '0.85rem',
+                                        cursor: 'pointer',
+                                        boxShadow: activePanel === tab.id ? TOKENS.shadow : 'none',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    <tab.icon size={16} /> {tab.label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
 
