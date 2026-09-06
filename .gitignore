@@ -28,8 +28,9 @@ dist-ssr
 ~$*
 
 # Build and binary folders
-build/
+/build/
 src-tauri/binaries/
+!src/vibe/build/
 
 # Python
 __pycache__/

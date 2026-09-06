@@ -556,39 +556,6 @@ export default function GluestackAppPlayer({
           </div>
         );
 
-      case 'Counter':
-        const countVal = counters[comp.id] !== undefined ? counters[comp.id] : (Number(props.value) || 0);
-        return (
-          <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-700">{props.label || 'Hitungan Part'}</span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCounters(prev => ({ ...prev, [comp.id]: Math.max(0, countVal - 1) }));
-                }}
-                className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center transition-colors cursor-pointer"
-              >
-                <Minus className="w-3.5 h-3.5" />
-              </button>
-              <span className="font-mono text-sm font-extrabold text-teal-800 bg-teal-50 px-3 py-0.5 rounded-md border border-teal-200 min-w-[36px] text-center">
-                {countVal}
-              </span>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCounters(prev => ({ ...prev, [comp.id]: countVal + 1 }));
-                }}
-                className="w-7 h-7 rounded-lg bg-[#008784] hover:bg-[#007471] text-white font-bold flex items-center justify-center transition-colors cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        );
-
       case 'Tabs':
         const tabList = props.tabs || ['Info Part', 'Spesifikasi', 'Riwayat'];
         const activeIdx = activeTabsState[comp.id] !== undefined ? activeTabsState[comp.id] : (props.activeIndex || 0);
