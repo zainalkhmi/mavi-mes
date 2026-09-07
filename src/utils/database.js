@@ -1,4 +1,4 @@
-import { getSupabaseClient } from './supabaseManualDB.js';
+import { getSupabaseClient, isSupabaseReady } from './supabaseManualDB.js';
 import * as supabaseTablesDB from './supabaseTablesDB.js';
 import * as supabaseCompletionsDB from './supabaseCompletionsDB.js';
 import * as supabaseTranslations from './supabaseTranslationDB.js';
@@ -276,23 +276,22 @@ export async function getPrimaryAiConnector() {
     };
 
     try {
-        const supabase = getSupabaseClient();
-        const { data, error } = await supabase
-            .from('integration_connectors')
-            .select('*')
-            .eq('type', 'AI_ASSISTANT')
-            .limit(1)
-            .maybeSingle();
-        
-        if (!error && data) {
-            const camel = sanitizeConnector(snakeToCamel(data));
-            try {
-                localStorage.setItem('mandor_primary_ai_connector', JSON.stringify(camel));
-            } catch {}
-            return camel;
-        }
-        if (error) {
-            console.warn('[Supabase] Failed to fetch AI connector:', error);
+        if (isSupabaseReady()) {
+            const supabase = getSupabaseClient();
+            const { data, error } = await supabase
+                .from('integration_connectors')
+                .select('*')
+                .eq('type', 'AI_ASSISTANT')
+                .limit(1);
+            
+            const row = Array.isArray(data) ? data[0] : data;
+            if (!error && row) {
+                const camel = sanitizeConnector(snakeToCamel(row));
+                try {
+                    localStorage.setItem('mandor_primary_ai_connector', JSON.stringify(camel));
+                } catch {}
+                return camel;
+            }
         }
     } catch (err) {
         console.warn('[Supabase] getPrimaryAiConnector error:', err);
