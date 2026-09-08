@@ -46,7 +46,7 @@ export function Checkbox({
 }
 
 export function CheckboxIndicator({ className }) {
-  const { isChecked, size } = useContext(CheckboxContext);
+  const { isChecked, size, isDisabled } = useContext(CheckboxContext);
 
   const sizeBox = {
     sm: 'w-4 h-4 rounded',
@@ -55,17 +55,19 @@ export function CheckboxIndicator({ className }) {
   }[size] || 'w-5 h-5 rounded-md';
 
   return (
-    <div
-      className={cn(
-        'flex items-center justify-center border transition-all duration-150',
-        sizeBox,
-        isChecked
-          ? 'bg-[#714b67] border-[#714b67] text-white shadow-sm'
-          : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 group-hover:border-[#714b67]',
-        className
-      )}
-    >
-      {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+    <div className="relative flex items-center justify-center p-1 rounded-full group-hover:bg-[#714b67]/10 active:bg-[#714b67]/20 transition-colors">
+      <div
+        className={cn(
+          'flex items-center justify-center border transition-all duration-150',
+          sizeBox,
+          isChecked
+            ? 'bg-[#714b67] border-[#714b67] text-white shadow-sm'
+            : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 group-hover:border-[#714b67]',
+          className
+        )}
+      >
+        {isChecked && <Check className="w-3.5 h-3.5 stroke-[3] animate-in zoom-in-50 duration-100" />}
+      </div>
     </div>
   );
 }

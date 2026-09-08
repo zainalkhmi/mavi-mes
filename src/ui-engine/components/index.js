@@ -66,3 +66,44 @@ export * from './PDFViewer';
 export { default as PDFViewer } from './PDFViewer';
 export * from './Chart';
 export { default as Chart } from './Chart';
+
+// ─── Android Native / Material Design 3 Components ────────
+
+// BottomSheet (draggable)
+export * from './BottomSheet';
+export { default as BottomSheet } from './BottomSheet';
+
+// Snackbar (feedback messages)
+export * from './Snackbar';
+export { default as Snackbar } from './Snackbar';
+export { showSnackbar, dismissSnackbar, SnackbarHost } from './Snackbar';
+
+// Chip / FilterChip
+export * from './Chip';
+export { default as Chip } from './Chip';
+
+// SearchBar (expandable)
+export * from './SearchBar';
+export { default as SearchBar } from './SearchBar';
+
+// PullToRefresh
+export * from './PullToRefresh';
+export { default as PullToRefresh } from './PullToRefresh';
+
+// SwipeableRow (swipe actions)
+export * from './SwipeableRow';
+export { default as SwipeableRow } from './SwipeableRow';
+
+// SegmentedButton (toggle group)
+export * from './SegmentedButton';
+export { default as SegmentedButton } from './SegmentedButton';
+
+// TopAppBar (collapsing)
+export * from './TopAppBar';
+export { default as TopAppBar } from './TopAppBar';
+export { IconButton } from './TopAppBar';
+
+// Slider / RangeSlider
+export * from './Slider';
+export { default as Slider } from './Slider';
+

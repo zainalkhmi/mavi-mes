@@ -149,5 +149,93 @@ export const maviDesignTokens = {
     mobileLarge: '425px',
     tablet: '768px',
     desktop: '1024px'
+  },
+
+  // ─── Material Design 3 Additions ─────────────────────────
+
+  /** MD3 Elevation Levels (dp equivalent) */
+  elevation: {
+    level0: { dp: 0, shadow: 'none', tonalOverlay: 0 },
+    level1: { dp: 1, shadow: '0 1px 2px 0 rgba(0,0,0,0.05)', tonalOverlay: 0.05 },
+    level2: { dp: 3, shadow: '0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px -1px rgba(0,0,0,0.1)', tonalOverlay: 0.08 },
+    level3: { dp: 6, shadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1)', tonalOverlay: 0.11 },
+    level4: { dp: 8, shadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)', tonalOverlay: 0.12 },
+    level5: { dp: 12, shadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)', tonalOverlay: 0.14 }
+  },
+
+  /** MD3 State Layer Opacities */
+  stateLayer: {
+    hover: 0.08,
+    focus: 0.12,
+    pressed: 0.12,
+    dragged: 0.16,
+    disabled: 0.12,     // container opacity
+    disabledContent: 0.38  // content opacity on disabled
+  },
+
+  /** MD3 Motion / Easing Curves */
+  motion: {
+    easing: {
+      emphasized: 'cubic-bezier(0.2, 0, 0, 1)',
+      emphasizedDecelerate: 'cubic-bezier(0.05, 0.7, 0.1, 1)',
+      emphasizedAccelerate: 'cubic-bezier(0.3, 0, 0.8, 0.15)',
+      standard: 'cubic-bezier(0.2, 0, 0, 1)',
+      standardDecelerate: 'cubic-bezier(0, 0, 0, 1)',
+      standardAccelerate: 'cubic-bezier(0.3, 0, 1, 1)',
+      linear: 'cubic-bezier(0, 0, 1, 1)'
+    },
+    duration: {
+      short1: '50ms',
+      short2: '100ms',
+      short3: '150ms',
+      short4: '200ms',
+      medium1: '250ms',
+      medium2: '300ms',
+      medium3: '350ms',
+      medium4: '400ms',
+      long1: '450ms',
+      long2: '500ms',
+      long3: '550ms',
+      long4: '600ms',
+      extraLong1: '700ms',
+      extraLong2: '800ms'
+    }
+  },
+
+  /** MD3 Typography Roles (maps to existing fontSizes) */
+  typographyRoles: {
+    displayLarge:  { fontSize: '3.5rem', fontWeight: 400, lineHeight: 1.12, letterSpacing: '-0.25px' },
+    displayMedium: { fontSize: '2.8rem', fontWeight: 400, lineHeight: 1.16, letterSpacing: '0px' },
+    displaySmall:  { fontSize: '2.25rem', fontWeight: 400, lineHeight: 1.22, letterSpacing: '0px' },
+    headlineLarge: { fontSize: '2rem', fontWeight: 400, lineHeight: 1.25, letterSpacing: '0px' },
+    headlineMedium:{ fontSize: '1.75rem', fontWeight: 400, lineHeight: 1.29, letterSpacing: '0px' },
+    headlineSmall: { fontSize: '1.5rem', fontWeight: 400, lineHeight: 1.33, letterSpacing: '0px' },
+    titleLarge:    { fontSize: '1.375rem', fontWeight: 500, lineHeight: 1.27, letterSpacing: '0px' },
+    titleMedium:   { fontSize: '1rem', fontWeight: 500, lineHeight: 1.5, letterSpacing: '0.15px' },
+    titleSmall:    { fontSize: '0.875rem', fontWeight: 500, lineHeight: 1.43, letterSpacing: '0.1px' },
+    bodyLarge:     { fontSize: '1rem', fontWeight: 400, lineHeight: 1.5, letterSpacing: '0.5px' },
+    bodyMedium:    { fontSize: '0.875rem', fontWeight: 400, lineHeight: 1.43, letterSpacing: '0.25px' },
+    bodySmall:     { fontSize: '0.75rem', fontWeight: 400, lineHeight: 1.33, letterSpacing: '0.4px' },
+    labelLarge:    { fontSize: '0.875rem', fontWeight: 500, lineHeight: 1.43, letterSpacing: '0.1px' },
+    labelMedium:   { fontSize: '0.75rem', fontWeight: 500, lineHeight: 1.33, letterSpacing: '0.5px' },
+    labelSmall:    { fontSize: '0.6875rem', fontWeight: 500, lineHeight: 1.45, letterSpacing: '0.5px' }
+  },
+
+  /** MD3 Shape Scale */
+  shape: {
+    none: '0px',
+    extraSmall: '4px',
+    small: '8px',
+    medium: '12px',
+    large: '16px',
+    extraLarge: '28px',
+    full: '9999px'
+  },
+
+  /** Touch target minimum sizes (Android accessibility) */
+  touchTarget: {
+    minimum: '48px',
+    comfortable: '56px',
+    expanded: '64px'
   }
 };

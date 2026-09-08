@@ -3,6 +3,9 @@
  * Modular Mobile & Web UI Component Engine for MaviCore MES
  */
 
+// 0. Android Native / Material Design 3 Styles
+import './android-native.css';
+
 // 1. Tokens & Design System
 export * from './tokens/theme';
 

@@ -611,5 +611,160 @@ export const COMPONENT_REGISTRY = [
     example: `<Signature label="QC Approval" required onChange={(sig) => console.log(sig)} />`,
     sourceFile: 'src/ui-engine/components/Signature.jsx',
     dependencies: []
+  },
+  {
+    name: 'BottomSheet',
+    category: 'Overlay',
+    description: 'Material Design 3 draggable bottom sheet modal with drag handle and snap points for mobile workflows.',
+    subComponents: [],
+    props: {
+      isOpen: { type: 'boolean', default: false },
+      onClose: { type: 'function' },
+      title: { type: 'string' },
+      showCloseButton: { type: 'boolean', default: true },
+      snapPoint: { type: 'enum', options: ['auto', 'half', 'full'], default: 'auto' }
+    },
+    variants: ['default'],
+    responsiveBehavior: 'Anchors to bottom of screen on mobile with swipe-to-dismiss gesture',
+    example: `<BottomSheet isOpen={open} onClose={() => setOpen(false)} title="Pilih Operator">\n  <OperatorList />\n</BottomSheet>`,
+    sourceFile: 'src/ui-engine/components/BottomSheet.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'Snackbar',
+    category: 'Feedback',
+    description: 'Android Material Design 3 snackbar notification with optional action button and dismiss gesture.',
+    subComponents: ['SnackbarHost'],
+    props: {
+      message: { type: 'string' },
+      action: { type: 'string' },
+      onAction: { type: 'function' },
+      duration: { type: 'number', default: 4000 },
+      type: { type: 'enum', options: ['default', 'success', 'warning', 'error', 'info'], default: 'default' }
+    },
+    variants: ['default', 'success', 'warning', 'error', 'info'],
+    responsiveBehavior: 'Floating bottom pill with swipe-down dismiss and 48dp height',
+    example: `<Snackbar message="Data batch berhasil disimpan" action="BATALKAN" onAction={undo} />`,
+    sourceFile: 'src/ui-engine/components/Snackbar.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'Chip',
+    category: 'Data Display',
+    description: 'Material Design 3 compact interactive element for filters, tags, input tokens, and status.',
+    subComponents: ['FilterChip', 'ChipGroup'],
+    props: {
+      label: { type: 'string' },
+      variant: { type: 'enum', options: ['filled', 'outline', 'elevated'], default: 'filled' },
+      size: { type: 'enum', options: ['sm', 'md', 'lg'], default: 'md' },
+      selected: { type: 'boolean', default: false },
+      onDelete: { type: 'function' }
+    },
+    variants: ['filled', 'outline', 'elevated'],
+    responsiveBehavior: 'Touch-friendly chip with 32-40px height and ripple effect',
+    example: `<FilterChip label="Line A (CNC)" selected={selected} onToggle={setSelected} />`,
+    sourceFile: 'src/ui-engine/components/Chip.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'SearchBar',
+    category: 'Forms',
+    description: 'Material 3 SearchBar with collapsible dock, voice/filter icons, and history suggestions.',
+    subComponents: [],
+    props: {
+      placeholder: { type: 'string', default: 'Search...' },
+      value: { type: 'string' },
+      onChange: { type: 'function' },
+      onSearch: { type: 'function' },
+      expandable: { type: 'boolean', default: true }
+    },
+    variants: ['docked', 'expanded'],
+    responsiveBehavior: 'Transforms to full-screen search view on mobile devices',
+    example: `<SearchBar placeholder="Cari WO, Part Number, Lot ID..." onSearch={handleSearch} />`,
+    sourceFile: 'src/ui-engine/components/SearchBar.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'PullToRefresh',
+    category: 'Layout',
+    description: 'Mobile pull-down-to-refresh container with Material 3 circular progress indicator.',
+    subComponents: [],
+    props: {
+      onRefresh: { type: 'function' },
+      isRefreshing: { type: 'boolean', default: false },
+      threshold: { type: 'number', default: 60 }
+    },
+    variants: ['default'],
+    responsiveBehavior: 'Native touch-swipe down gesture on touchscreens',
+    example: `<PullToRefresh onRefresh={syncData}>\n  <MachineStatusList />\n</PullToRefresh>`,
+    sourceFile: 'src/ui-engine/components/PullToRefresh.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'SwipeableRow',
+    category: 'Actions',
+    description: 'Horizontal swipe gestures for list items revealing left (pin/archive) and right (delete) actions.',
+    subComponents: [],
+    props: {
+      leftActions: { type: 'array' },
+      rightActions: { type: 'array' }
+    },
+    variants: ['default'],
+    responsiveBehavior: 'Touch-based friction swipe with snapping thresholds',
+    example: `<SwipeableRow rightActions={[{ icon: Trash2, label: 'Hapus', color: 'red', onPress: handleDelete }]}>\n  <ListItem title="Batch #004" />\n</SwipeableRow>`,
+    sourceFile: 'src/ui-engine/components/SwipeableRow.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'SegmentedButton',
+    category: 'Actions',
+    description: 'MD3 pill-style segmented control for single or multi-select options.',
+    subComponents: [],
+    props: {
+      options: { type: 'array' },
+      value: { type: 'string' },
+      onChange: { type: 'function' },
+      size: { type: 'enum', options: ['sm', 'md', 'lg'], default: 'md' }
+    },
+    variants: ['default'],
+    responsiveBehavior: 'Connected button group with smooth indicator animation',
+    example: `<SegmentedButton options={[{ value: 'day', label: 'Shift Pagi' }, { value: 'night', label: 'Shift Malam' }]} value={shift} onChange={setShift} />`,
+    sourceFile: 'src/ui-engine/components/SegmentedButton.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'TopAppBar',
+    category: 'Navigation',
+    description: 'Material Design 3 App Bar with navigation icon, title, action buttons, and scroll collapse.',
+    subComponents: ['IconButton'],
+    props: {
+      title: { type: 'string' },
+      subtitle: { type: 'string' },
+      variant: { type: 'enum', options: ['small', 'medium', 'large', 'center-aligned'], default: 'small' }
+    },
+    variants: ['small', 'medium', 'large', 'center-aligned'],
+    responsiveBehavior: 'Sticky header with elevation elevation-2 on scroll',
+    example: `<TopAppBar title="Work Order #1089" variant="medium" navigationIcon={<ArrowLeft />} />`,
+    sourceFile: 'src/ui-engine/components/TopAppBar.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'Slider',
+    category: 'Forms',
+    description: 'Material 3 discrete and continuous slider with value tooltip, step markers, and range support.',
+    subComponents: ['RangeSlider'],
+    props: {
+      min: { type: 'number', default: 0 },
+      max: { type: 'number', default: 100 },
+      step: { type: 'number', default: 1 },
+      value: { type: 'number' },
+      onChange: { type: 'function' },
+      showValue: { type: 'boolean', default: false }
+    },
+    variants: ['continuous', 'discrete'],
+    responsiveBehavior: 'Touch-friendly thumb with 44px hit-box and active state expansion',
+    example: `<Slider min={0} max={250} step={5} value={temperature} onChange={setTemperature} showValue />`,
+    sourceFile: 'src/ui-engine/components/Slider.jsx',
+    dependencies: []
   }
 ];

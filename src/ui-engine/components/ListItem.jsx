@@ -6,6 +6,7 @@
 import React from 'react';
 import { Box, Text, Badge, Avatar } from '../components';
 import { ChevronRight, CheckCircle2, XCircle, Clock, AlertTriangle } from 'lucide-react';
+import useRipple from '../utils/useRipple';
 
 export default function ListItem({
   title,
@@ -66,10 +67,24 @@ export default function ListItem({
   const RightIcon = rightIcon;
   const StatusIcon = status ? statusConfig[status]?.icon : null;
 
+  const { rippleRef, handleRipple, rippleContainerStyle } = useRipple({
+    color: selected ? '#714b67' : 'currentColor',
+    opacity: 0.08,
+    disabled: disabled || !onClick
+  });
+
+  const handleClick = (e) => {
+    if (onClick) {
+      handleRipple(e);
+      onClick(e);
+    }
+  };
+
   return (
     <Box
+      ref={rippleRef}
       as={onClick ? 'button' : 'div'}
-      onClick={!disabled && onClick}
+      onClick={!disabled ? handleClick : undefined}
       disabled={disabled}
       className={`
         w-full flex items-center ${config.padding} ${config.gap}
@@ -78,6 +93,7 @@ export default function ListItem({
         ${disabled ? 'opacity-50 cursor-not-allowed' : onClick ? 'cursor-pointer' : ''}
         transition-colors text-left
       `}
+      style={{ ...rippleContainerStyle, minHeight: '48px' }}
     >
       {/* Left side */}
       <Box className="flex items-center gap-3 flex-1 min-w-0">

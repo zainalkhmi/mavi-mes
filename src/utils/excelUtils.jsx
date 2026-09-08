@@ -1,7 +1,6 @@
 /**
  * excelUtils.js
  * Excel Import/Export utilities for MaviCore MES
- * Uses SheetJS (xlsx) for reading and writing Excel files
  */
 
 import * as XLSX from 'xlsx';
@@ -24,9 +23,9 @@ export async function readExcelFile(file) {
 
         // Convert to JSON
         const jsonData = XLSX.utils.sheet_to_json(worksheet, {
-          defval: '', // Default value for empty cells
-          raw: false, // Format values
-          dateNF: 'yyyy-mm-dd', // Date format
+          defval: '',
+          raw: false,
+          dateNF: 'yyyy-mm-dd',
         });
 
         resolve({
@@ -49,46 +48,13 @@ export async function readExcelFile(file) {
 }
 
 /**
- * Read all sheets from Excel file
- */
-export async function readExcelAllSheets(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-
-        const sheets = {};
-        workbook.SheetNames.forEach(name => {
-          const worksheet = workbook.Sheets[name];
-          sheets[name] = XLSX.utils.sheet_to_json(worksheet, { defval: '', raw: false });
-        });
-
-        resolve({
-          success: true,
-          sheets,
-          sheetNames: workbook.SheetNames,
-        });
-      } catch (err) {
-        reject(new Error('Failed to parse Excel: ' + err.message));
-      }
-    };
-
-    reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsArrayBuffer(file);
-  });
-}
-
-/**
  * Export data to Excel file and trigger download
  */
 export function exportToExcel(data, filename = 'export.xlsx', options = {}) {
   const {
     sheetName = 'Sheet1',
     headers = true,
-    format = 'xlsx', // 'xlsx' | 'csv'
+    format = 'xlsx',
   } = options;
 
   if (!data || data.length === 0) {
@@ -116,55 +82,7 @@ export function exportToExcel(data, filename = 'export.xlsx', options = {}) {
       : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
 
-  downloadBlob(blob, `${filename}.${format}`);
-}
-
-/**
- * Export with custom styling and formatting
- */
-export function exportToExcelStyled(data, filename = 'report.xlsx', styles = {}) {
-  const {
-    sheetName = 'Report',
-    title = null,
-    headers = true,
-    columnWidths = {},
-    headerStyle = { bold: true, fill: 'CCCCCC' },
-  } = styles;
-
-  if (!data || data.length === 0) {
-    throw new Error('No data to export');
-  }
-
-  const worksheet = XLSX.utils.json_to_sheet(data);
-
-  // Set column widths
-  if (Object.keys(columnWidths).length > 0) {
-    worksheet['!cols'] = Object.entries(columnWidths).map(([col, width]) => ({ wch: width }));
-  }
-
-  // Apply header styling via cell formatting
-  if (headers && data.length > 0) {
-    const headerCells = Object.keys(data[0]);
-    headerCells.forEach((key, i) => {
-      const cellRef = XLSX.utils.encode_cell({ r: 0, c: i });
-      if (worksheet[cellRef]) {
-        worksheet[cellRef].s = {
-          font: { bold: true },
-          fill: { fgColor: { rgb: headerStyle.fill || 'CCCCCC' },
-        };
-      }
-    });
-  }
-
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-
-  const output = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-  const blob = new Blob([output], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  });
-
-  downloadBlob(blob, filename);
+  downloadBlob(blob, filename + '.' + format);
 }
 
 /**
@@ -182,51 +100,9 @@ function downloadBlob(blob, filename) {
 }
 
 /**
- * Parse CSV string to array of objects
- */
-export function parseCSV(csvString) {
-  const lines = csvString.trim().split('\n');
-  if (lines.length < 2) return [];
-
-  const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-
-  return lines.slice(1).map(line => {
-    const values = parseCSVLine(line);
-    const obj = {};
-    headers.forEach((header, i) => {
-      obj[header] = values[i] || '';
-    });
-    return obj;
-  });
-}
-
-/**
- * Parse single CSV line handling quoted values
- */
-function parseCSVLine(line) {
-  const result = [];
-  let current = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === ',' && !inQuotes) {
-      result.push(current.trim());
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-  result.push(current.trim());
-  return result;
-}
-
-/**
  * Generate Excel template from table schema
  */
-export function generateExcelTemplate(tableSchema, filename = 'template.xlsx') {
+export function generateExcelTemplate(tableSchema, filename) {
   const { name, fields = [] } = tableSchema;
 
   // Create headers from fields
@@ -236,32 +112,26 @@ export function generateExcelTemplate(tableSchema, filename = 'template.xlsx') {
   const sampleRow = {};
   sampleRow['recordId'] = 'AUTO-GENERATED';
   fields.forEach(f => {
-    const sample = getSampleValue(f.type);
-    sampleRow[f.name || f.label] = sample;
+    sampleRow[f.name || f.label] = getSampleValue(f.type);
   });
 
-  // Export
-  const data = [
-    { _header: 'AUTO-GENERATED - DELETE THIS ROW BEFORE IMPORT', __empty: '' },
-    { _header: 'Fields:', __empty: 'Values (replace with actual data' },
+  const wsData = [
+    sampleRow,
     { recordId: 'REC-001', ...Object.fromEntries(fields.map(f => [f.name || f.label, getSampleValue(f.type)]) },
     { recordId: 'REC-002', ...Object.fromEntries(fields.map(f => [f.name || f.label, '']) },
-    { recordId: '', ...Object.fromEntries(fields.map(f => [f.name || f.label, ''])) },
   ];
 
-  const worksheet = XLSX.utils.json_to_sheet(data);
-
-  // Set column widths
+  const worksheet = XLSX.utils.json_to_sheet(wsData);
   worksheet['!cols'] = headers.map(() => ({ wch: 20 }));
 
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Template');
 
-  // Create Instructions sheet
+  // Instructions sheet
   const instructions = XLSX.utils.aoa_to_sheet([
     ['INSTRUCTIONS'],
     [''],
-    ['1. Fill in your data starting from row 3 (Row 2 is sample data)'],
+    ['1. Fill in your data starting from row 2 (row 1 is sample data'],
     ['2. recordId column is auto-generated if left empty'],
     ['3. Save as .xlsx format before importing'],
     ['4. Upload the file in Table Manager Import section'],
@@ -276,7 +146,7 @@ export function generateExcelTemplate(tableSchema, filename = 'template.xlsx') {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
 
-  downloadBlob(blob, `${name}_template.xlsx`);
+  downloadBlob(blob, filename);
 }
 
 /**
@@ -337,7 +207,7 @@ export function validateImportData(data, tableFields) {
   const fieldMap = new Map(tableFields.map(f => [f.name, f]));
 
   data.forEach((row, index) => {
-    const rowNum = index + 2; // +2 because row 1 is header, data starts at row 2
+    const rowNum = index + 2;
     const rowErrors = [];
 
     tableFields.forEach(field => {
@@ -370,31 +240,8 @@ function validateField(value, field) {
   const { name, type, required } = field;
 
   // Check required
-  if (required && (value === undefined || value === null || value === '')) {
+  if (required && (value === undefined || value === null || value === '') {
     return 'Required field is empty';
-  }
-
-  // Type validation
-  if (value !== undefined && value !== null && value !== '') {
-    switch (type) {
-      case 'number':
-      case 'integer':
-        if (isNaN(parseFloat(value))) {
-          return 'Must be a number';
-        }
-        break;
-      case 'boolean':
-        if (typeof value !== 'boolean' && !['true', 'false', '1', '0', 'yes', 'no'].includes(String(value).toLowerCase())) {
-          return 'Must be true/false';
-        }
-        break;
-      case 'datetime':
-        const date = new Date(value);
-        if (isNaN(date.getTime())) {
-          return 'Invalid date format';
-        }
-        break;
-    }
   }
 
   return null;
@@ -435,10 +282,9 @@ function generateRecordId() {
  */
 export async function exportTableToExcel(tableName, records, fields, options = {}) {
   const {
-    filename = `${tableName}_export.xlsx`,
-    title = tableName,
+    filename,
+    title,
     includeTimestamp = true,
-    format = ['xlsx'],
   } = options;
 
   if (!records || records.length === 0) {
@@ -462,17 +308,18 @@ export async function exportTableToExcel(tableName, records, fields, options = {
   // Add metadata rows
   const metadata = [];
   if (includeTimestamp) {
-    metadata.push({ [fields[0]?.label || 'Field']: `Exported: ${new Date().toLocaleString()}` });
-    metadata.push({ [fields[0]?.label || 'Field']: `Total Records: ${records.length}` });
-    metadata.push({});
+    metadata.push(
+      { [fields[0]?.label || 'Field']: `Exported: ${new Date().toLocaleString()}` },
+      { [fields[0]?.label || 'Field']: `Total Records: ${records.length}` },
+      {}
+    );
   }
 
   const finalData = [...metadata, ...exportData];
 
-  // Export
-  exportToExcelStyled(finalData, filename, {
-    sheetName: tableName.substring(0, 31), // Excel sheet name max 31 chars
-    headers: false, // We included headers in metadata
+  exportToExcel(finalData, filename, {
+    sheetName: tableName.substring(0, 31),
+    headers: false,
   });
 
   return { success: true, filename, recordCount: records.length };
@@ -480,10 +327,7 @@ export async function exportTableToExcel(tableName, records, fields, options = {
 
 export default {
   readExcelFile,
-  readExcelAllSheets,
   exportToExcel,
-  exportToExcelStyled,
-  parseCSV,
   generateExcelTemplate,
   mapExcelColumnsToFields,
   validateImportData,

@@ -1,5 +1,6 @@
 import React, { useState, createContext, useContext } from 'react';
 import { cn } from '../utils/cn';
+import useRipple from '../utils/useRipple';
 
 const TabsContext = createContext({
   activeTab: '',
@@ -43,10 +44,21 @@ export function TabsTab({ value, children, className }) {
   const { activeTab, setActiveTab } = useContext(TabsContext);
   const isActive = activeTab === value;
 
+  const { rippleRef, handleRipple, rippleContainerStyle } = useRipple({
+    color: isActive ? '#714b67' : 'currentColor',
+    opacity: 0.1
+  });
+
+  const handleClick = (e) => {
+    handleRipple(e);
+    setActiveTab(value);
+  };
+
   return (
     <button
+      ref={rippleRef}
       type="button"
-      onClick={() => setActiveTab(value)}
+      onClick={handleClick}
       className={cn(
         'px-4 py-2 text-sm font-semibold transition-all border-b-2 select-none cursor-pointer whitespace-nowrap',
         isActive
@@ -54,6 +66,7 @@ export function TabsTab({ value, children, className }) {
           : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200',
         className
       )}
+      style={{ ...rippleContainerStyle, minHeight: '48px' }}
     >
       {children}
     </button>

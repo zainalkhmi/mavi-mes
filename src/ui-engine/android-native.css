@@ -1,0 +1,207 @@
+/**
+ * MaviCore Android Native UI Styles
+ * Material Design 3 animations & component styles
+ */
+
+/* ─── RIPPLE EFFECT ─────────────────────────────────────── */
+
+@keyframes mavi-ripple-expand {
+  0% {
+    transform: scale(0);
+    opacity: var(--ripple-opacity, 0.12);
+  }
+  100% {
+    transform: scale(1);
+    opacity: var(--ripple-opacity, 0.12);
+  }
+}
+
+@keyframes mavi-ripple-fade {
+  0% {
+    opacity: var(--ripple-opacity, 0.12);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ─── BOTTOM SHEET ──────────────────────────────────────── */
+
+@keyframes mavi-bottomsheet-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes mavi-bottomsheet-slide-down {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes mavi-backdrop-fadein {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes mavi-backdrop-fadeout {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* ─── SNACKBAR ──────────────────────────────────────────── */
+
+@keyframes mavi-snackbar-enter {
+  from {
+    transform: translateY(100%) scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes mavi-snackbar-exit {
+  from {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(100%) scale(0.95);
+    opacity: 0;
+  }
+}
+
+/* ─── PULL TO REFRESH ───────────────────────────────────── */
+
+@keyframes mavi-ptr-spinner {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.mavi-ptr-indicator {
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* ─── SWIPEABLE ROW ─────────────────────────────────────── */
+
+.mavi-swipeable-content {
+  transition: transform 0.25s cubic-bezier(0.2, 0, 0, 1);
+  will-change: transform;
+}
+
+.mavi-swipeable-content.swiping {
+  transition: none;
+}
+
+/* ─── COLLAPSING TOP APP BAR ────────────────────────────── */
+
+.mavi-topappbar {
+  transition: height 0.2s cubic-bezier(0.2, 0, 0, 1),
+              padding 0.2s cubic-bezier(0.2, 0, 0, 1),
+              box-shadow 0.2s ease;
+}
+
+.mavi-topappbar-title {
+  transition: font-size 0.2s cubic-bezier(0.2, 0, 0, 1),
+              transform 0.2s cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* ─── MD3 STATE LAYERS ──────────────────────────────────── */
+
+.mavi-state-layer {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.mavi-state-layer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.mavi-state-layer:hover::after {
+  opacity: 0.08;
+}
+
+.mavi-state-layer:active::after {
+  opacity: 0.12;
+}
+
+.mavi-state-layer:focus-visible::after {
+  opacity: 0.12;
+}
+
+.mavi-state-layer[disabled]::after,
+.mavi-state-layer.disabled::after {
+  opacity: 0;
+}
+
+/* ─── SEGMENTED BUTTON ──────────────────────────────────── */
+
+.mavi-segmented-indicator {
+  transition: left 0.25s cubic-bezier(0.2, 0, 0, 1),
+              width 0.25s cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* ─── SEARCH BAR ────────────────────────────────────────── */
+
+@keyframes mavi-searchbar-expand {
+  from {
+    width: 48px;
+    border-radius: 9999px;
+  }
+  to {
+    width: 100%;
+    border-radius: 28px;
+  }
+}
+
+/* ─── CHIP ──────────────────────────────────────────────── */
+
+.mavi-chip {
+  transition: all 0.15s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.mavi-chip:active {
+  transform: scale(0.95);
+}
+
+/* ─── SHARED SCROLL BEHAVIORS ───────────────────────────── */
+
+.mavi-scroll-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.mavi-scroll-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Momentum scroll for mobile */
+.mavi-scroll-momentum {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* ─── MD3 ELEVATION (Tonal Surface) ─────────────────────── */
+
+.mavi-elevation-0 { box-shadow: none; }
+.mavi-elevation-1 { box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); }
+.mavi-elevation-2 { box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px -1px rgba(0,0,0,0.1); }
+.mavi-elevation-3 { box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1); }
+.mavi-elevation-4 { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1); }
+.mavi-elevation-5 { box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1); }

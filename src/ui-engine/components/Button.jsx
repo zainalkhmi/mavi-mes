@@ -1,6 +1,7 @@
 import React from 'react';
 import { cn } from '../utils/cn';
 import { Loader2 } from 'lucide-react';
+import useRipple from '../utils/useRipple';
 
 export function Button({
   children,
@@ -14,7 +15,15 @@ export function Button({
   className,
   ...props
 }) {
+  const rippleColor = variant === 'solid' ? 'rgba(255,255,255,0.3)' : 'currentColor';
+  const { rippleRef, handleRipple, rippleContainerStyle } = useRipple({
+    color: rippleColor,
+    opacity: variant === 'solid' ? 0.2 : 0.12,
+    disabled: isDisabled || isLoading
+  });
+
   const handleClick = (e) => {
+    handleRipple(e);
     if (isDisabled || isLoading) return;
     if (onPress) onPress(e);
     if (onClick) onClick(e);
@@ -56,15 +65,17 @@ export function Button({
 
   return (
     <button
+      ref={rippleRef}
       type="button"
       disabled={isDisabled || isLoading}
       onClick={handleClick}
       className={cn(
-        'inline-flex items-center justify-center transition-all duration-150 select-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#714b67]/30 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]',
+        'inline-flex items-center justify-center transition-all duration-150 select-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#714b67]/30 disabled:opacity-50 disabled:cursor-not-allowed',
         sizeClasses,
         variantClass,
         className
       )}
+      style={rippleContainerStyle}
       {...props}
     >
       {isLoading && <Loader2 className="w-4 h-4 animate-spin text-current" />}

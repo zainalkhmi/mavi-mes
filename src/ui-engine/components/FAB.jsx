@@ -1,5 +1,6 @@
 import React from 'react';
 import { cn } from '../utils/cn';
+import useRipple from '../utils/useRipple';
 
 export function FAB({
   children,
@@ -11,6 +12,11 @@ export function FAB({
   className,
   ...props
 }) {
+  const { rippleRef, handleRipple, rippleContainerStyle } = useRipple({
+    color: 'rgba(255,255,255,0.3)',
+    opacity: 0.2
+  });
+
   const placementClasses = {
     'bottom right': 'bottom-20 right-5 sm:bottom-6 sm:right-6',
     'bottom left': 'bottom-20 left-5 sm:bottom-6 sm:left-6',
@@ -30,12 +36,14 @@ export function FAB({
   }[action] || 'bg-[#714b67] text-white shadow-lg';
 
   const handleClick = (e) => {
+    handleRipple(e);
     if (onPress) onPress(e);
     if (onClick) onClick(e);
   };
 
   return (
     <button
+      ref={rippleRef}
       type="button"
       onClick={handleClick}
       className={cn(
@@ -45,6 +53,7 @@ export function FAB({
         actionClasses,
         className
       )}
+      style={rippleContainerStyle}
       {...props}
     >
       {children}
