@@ -21,6 +21,12 @@ import {
   Signature as UiSignature,
   ListItem as UiListItem
 } from '../components';
+import {
+  executeIndustrialTrigger,
+  isDebounced,
+  triggerIndustrialHaptic,
+  playIndustrialSound
+} from '../logic/industrialTriggerEngine';
 import { getFrontlineAppById } from '../../utils/supabaseFrontlineDB';
 
 // Default starter screens if app is brand new / not yet persisted
@@ -133,6 +139,14 @@ export default function GluestackAppPlayer({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeToast, setActiveToast] = useState(null);
   const [isCompletedModal, setIsCompletedModal] = useState(false);
+  const [productionState, setProductionState] = useState({
+    status: 'IDLE', // 'IDLE' | 'RUNNING' | 'PAUSED' | 'COMPLETED'
+    workOrderId: 'WO-2026-0891',
+    startTime: null,
+    targetQty: 100,
+    actualQty: 0,
+    defectQty: 0
+  });
 
   // DevMode panel state
   const [showDevPanel, setShowDevPanel] = useState(devMode);
@@ -259,11 +273,23 @@ export default function GluestackAppPlayer({
     return screens.findIndex(s => s.id === currentScreenId);
   }, [screens, currentScreenId]);
 
-  // ── Trigger Runner ─────────────────────────────────────────────────────────
-  const executeComponentTriggers = useCallback((comp, eventType = 'ON_CLICK') => {
+  // ── Trigger Runner (Industrial Grade Pipeline) ─────────────────────────────
+  const executeComponentTriggers = useCallback(async (comp, eventType = 'ON_CLICK') => {
     if (!comp) return;
 
-    // Built-in Navigation Action
+    // 1. Debounce Guard (400ms)
+    if (eventType === 'ON_CLICK' && isDebounced(comp.id, 400)) {
+      triggerIndustrialHaptic('LIGHT');
+      return;
+    }
+
+    // 2. Multimodal Tactile Acknowledgment
+    if (eventType === 'ON_CLICK') {
+      triggerIndustrialHaptic('LIGHT');
+      playIndustrialSound('CLICK');
+    }
+
+    // 3. Built-in Navigation Action
     const action = comp.props?.action;
     if (eventType === 'ON_CLICK' && action) {
       if (action === 'NEXT_SCREEN') {
@@ -293,36 +319,67 @@ export default function GluestackAppPlayer({
         }
       } else if (action === 'COMPLETE_APP') {
         setIsCompletedModal(true);
+        playIndustrialSound('SUCCESS');
+        triggerIndustrialHaptic('SUCCESS');
         logTrigger(comp.props?.text || comp.props?.label || comp.type, eventType, 'COMPLETE_APP', 'SUCCESS', 'App Finished');
         setActiveToast({ message: 'Aplikasi / Work Order Berhasil Diselesaikan!', type: 'SUCCESS' });
       }
     }
 
-    // Custom Component Triggers
+    // 4. Custom Industrial Component Triggers (Guards, Context Injection, Atomic Actions, Multimodal)
     if (comp.triggers && comp.triggers.length > 0) {
-      comp.triggers.forEach(trig => {
-        if (trig.event && trig.event !== eventType) return;
-        const clauses = trig.clauses || [];
-        clauses.forEach(clause => {
-          if (clause.action === 'SET_VARIABLE' && clause.variableId) {
-            setVariables(prev => prev.map(v => {
-              if (v.id === clause.variableId || v.name === clause.variableId) {
-                return { ...v, value: clause.value };
-              }
-              return v;
-            }));
-            logTrigger(trig.name || 'Trigger', eventType, `SET_VARIABLE: ${clause.variableId} = ${clause.value}`);
-          } else if (clause.action === 'SHOW_MESSAGE') {
-            setActiveToast({ message: clause.message || 'Pesan dari Trigger', type: clause.messageType || 'INFO' });
-            logTrigger(trig.name || 'Trigger', eventType, `SHOW_MESSAGE: ${clause.message}`);
-          } else if (clause.action === 'GO_TO_SCREEN' && clause.targetScreenId) {
-            setCurrentScreenId(clause.targetScreenId);
-            logTrigger(trig.name || 'Trigger', eventType, `GO_TO_SCREEN ➔ ${clause.targetScreenId}`);
+      for (const trig of comp.triggers) {
+        if (trig.event && trig.event !== eventType) continue;
+
+        const result = await executeIndustrialTrigger(trig, {
+          componentId: comp.id,
+          state: {
+            variables,
+            formValues,
+            counters,
+            productionState,
+            workOrder: {
+              id: productionState.workOrderId,
+              status: productionState.status === 'RUNNING' ? 'IN_PROGRESS' : 'RELEASED'
+            }
+          },
+          setVariables,
+          setFormValues,
+          setProductionState,
+          onLog: (actionName, category, detail) => {
+            logTrigger(trig.name || 'Trigger', eventType, `${category}: ${detail}`);
+          },
+          onShowMessage: ({ message, type }) => {
+            setActiveToast({ message, type });
+          },
+          onNavigate: (navType, payload) => {
+            if (navType === 'GO_TO_SCREEN' && payload?.targetScreenId) {
+              setCurrentScreenId(payload.targetScreenId);
+            } else if (navType === 'NEXT_STEP') {
+              const curIdx = screens.findIndex(s => s.id === currentScreenId);
+              if (curIdx < screens.length - 1) setCurrentScreenId(screens[curIdx + 1].id);
+            } else if (navType === 'PREV_STEP') {
+              const curIdx = screens.findIndex(s => s.id === currentScreenId);
+              if (curIdx > 0) setCurrentScreenId(screens[curIdx - 1].id);
+            } else if (navType === 'COMPLETE_APP') {
+              setIsCompletedModal(true);
+            }
+          },
+          customContext: {
+            workOrderId: productionState.workOrderId,
+            stationId: 'STATION-01',
+            operatorName: 'Operator Shopfloor'
           }
         });
-      });
+
+        if (result.executedActions && result.executedActions.length > 0) {
+          result.executedActions.forEach(act => {
+            logTrigger(trig.name || 'Trigger', eventType, `${act.type}: ${act.status}`);
+          });
+        }
+      }
     }
-  }, [screens, currentScreenId, logTrigger]);
+  }, [screens, currentScreenId, variables, formValues, counters, productionState, logTrigger]);
 
   // Restart / Reset App
   const handleRestartApp = () => {
@@ -965,6 +1022,12 @@ export default function GluestackAppPlayer({
               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/30 uppercase">
                 {mode === 'companion' ? 'Companion' : 'Player'}
               </span>
+              {productionState.status === 'RUNNING' && (
+                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 uppercase flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                  RUNNING
+                </span>
+              )}
             </div>
             <div className="text-[10px] text-slate-400 flex items-center gap-1.5">
               <span>{currentScreen.title}</span>

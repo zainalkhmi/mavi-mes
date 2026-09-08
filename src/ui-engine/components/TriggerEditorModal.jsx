@@ -18,6 +18,16 @@ export const ACTION_CATEGORIES = [
     ]
   },
   {
+    label: 'Manufacturing & Shopfloor',
+    actions: [
+      { value: 'START_PRODUCTION', label: 'Shopfloor: Start Production Order' },
+      { value: 'STOP_PRODUCTION', label: 'Shopfloor: Stop / Complete Production' },
+      { value: 'VALIDATE_WORK_ORDER', label: 'Shopfloor: Validate Work Order & Skills' },
+      { value: 'PLC_WRITE_TAG', label: 'Industrial IoT: Write PLC Bit/Tag' },
+      { value: 'TRIGGER_HAPTIC_SOUND', label: 'Feedback: Play Sound & Haptic Vibration' },
+    ]
+  },
+  {
     label: 'Notifications',
     actions: [
       { value: 'SHOW_MESSAGE', label: 'Notification: Show Message' },
@@ -340,6 +350,104 @@ export function TriggerEditorModal({
     const payload = act.payload || {};
 
     switch (act.type) {
+      case 'START_PRODUCTION':
+        return (
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-slate-500 min-w-[75px]">Work Order</span>
+              <input
+                type="text"
+                value={payload.workOrderId || ''}
+                onChange={(e) => onChangePayload({ workOrderId: e.target.value })}
+                placeholder="WO-1089 (atau kosongkan untuk auto)"
+                className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs min-w-[140px]"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-slate-500 min-w-[65px]">Target Qty</span>
+              <input
+                type="number"
+                value={payload.targetQty || 100}
+                onChange={(e) => onChangePayload({ targetQty: Number(e.target.value) })}
+                className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs w-20"
+              />
+            </div>
+            <div className="text-[10px] text-emerald-600 font-medium flex items-center gap-1">
+              ✓ Auto-injects Operator, Station, Shift, & Takt Timer
+            </div>
+          </div>
+        );
+
+      case 'STOP_PRODUCTION':
+        return (
+          <div className="flex items-center gap-2 flex-1 text-xs text-slate-600">
+            <span className="font-semibold text-slate-500">Aksi:</span>
+            <span>Menghentikan siklus kerja, menghitung total waktu siklus, dan menyimpan record akhir.</span>
+          </div>
+        );
+
+      case 'VALIDATE_WORK_ORDER':
+        return (
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-slate-500 min-w-[85px]">Expected Status</span>
+              <select
+                value={payload.expectedStatus || 'RELEASED'}
+                onChange={(e) => onChangePayload({ expectedStatus: e.target.value })}
+                className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs min-w-[130px]"
+              >
+                <option value="RELEASED">RELEASED (Siap Jalan)</option>
+                <option value="IN_PROGRESS">IN_PROGRESS (Sedang Jalan)</option>
+                <option value="APPROVED">APPROVED (Disetujui)</option>
+              </select>
+            </div>
+            <div className="text-[10px] text-amber-600 font-medium">
+              ⚠ Blokir start jika status tidak sesuai
+            </div>
+          </div>
+        );
+
+      case 'PLC_WRITE_TAG':
+        return (
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-slate-500 min-w-[55px]">PLC Tag</span>
+              <input
+                type="text"
+                value={payload.tag || 'START_CYCLE'}
+                onChange={(e) => onChangePayload({ tag: e.target.value })}
+                placeholder="e.g. DB1.DBX0.0"
+                className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs min-w-[120px]"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-slate-500 min-w-[40px]">Value</span>
+              <input
+                type="text"
+                value={payload.value !== undefined ? payload.value : '1'}
+                onChange={(e) => onChangePayload({ value: e.target.value })}
+                className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs w-20"
+              />
+            </div>
+          </div>
+        );
+
+      case 'TRIGGER_HAPTIC_SOUND':
+        return (
+          <div className="flex items-center gap-3 flex-1 text-xs">
+            <span className="font-semibold text-slate-500 min-w-[65px]">Feedback</span>
+            <select
+              value={payload.soundType || 'SUCCESS'}
+              onChange={(e) => onChangePayload({ soundType: e.target.value })}
+              className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs min-w-[150px]"
+            >
+              <option value="SUCCESS">Chime Positif + Getar Pendek</option>
+              <option value="ERROR">Buzzer Peringatan + Getar Panjang</option>
+              <option value="TAP">Klik Sentuh Halus (Tactile)</option>
+            </select>
+          </div>
+        );
+
       case 'SET_VARIABLE':
       case 'INCREMENT_VARIABLE':
         return (

@@ -28,3 +28,6 @@ export * from './ai/activityTracker';
 
 // 7. Preview Studio
 export { default as UiEngineStudio } from './preview/UiEngineStudio';
+
+// 8. Industrial Trigger & Logic Engine
+export * from './logic/industrialTriggerEngine';
