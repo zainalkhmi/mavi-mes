@@ -4,10 +4,12 @@ import {
     Info, RefreshCw, Upload, X, Lock, Type, ChevronDown, Settings, Edit3, Edit2,
     Hash, Calendar, CheckSquare, User, Clock, Filter, Group, MoreHorizontal,
     ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, LayoutGrid, GripVertical,
-    Eye, MoreVertical, Layers, Key, Zap, AlertTriangle, Menu, Bot, Wand2, Code, Factory
+    Eye, MoreVertical, Layers, Key, Zap, AlertTriangle, Menu, Bot, Wand2, Code, Factory, Download
 } from 'lucide-react';
 import TableCopilotModal from './TableCopilotModal';
 import TableAppGeneratorModal from './TableAppGeneratorModal';
+import ExcelImportModal from './ExcelImportModal';
+import ExcelExportButton from './ExcelExportButton';
 import IndustrialTemplatesModal from './IndustrialTemplatesModal';
 import toast, { Toaster } from 'react-hot-toast';
 import {
@@ -368,6 +370,9 @@ const TableManager = () => {
     // Table App Generator State
     const [isAppGeneratorOpen, setIsAppGeneratorOpen] = useState(false);
     const [selectedTableForGenerator, setSelectedTableForGenerator] = useState(null);
+
+    // Excel Import State
+    const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
 
     // Industrial Table Templates State
     const [isIndustrialTemplatesOpen, setIsIndustrialTemplatesOpen] = useState(false);
@@ -2024,7 +2029,32 @@ const TableManager = () => {
                                                     cursor: 'pointer'
                                                 }}
                                             >
-                                                <Upload size={16} /> Import
+                                                <Upload size={16} /> Import CSV
+                                            </button>
+                                            <ExcelExportButton
+                                                tableName={selectedTable?.name}
+                                                records={records}
+                                                fields={selectedTable?.fields || []}
+                                                variant="outline"
+                                                size="md"
+                                            />
+                                            <button
+                                                onClick={() => setIsExcelImportOpen(true)}
+                                                style={{
+                                                    padding: '9px 12px',
+                                                    borderRadius: '10px',
+                                                    border: '1px solid #10b981',
+                                                    backgroundColor: 'white',
+                                                    fontWeight: 600,
+                                                    fontSize: '0.8rem',
+                                                    color: '#10b981',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px',
+                                                }}
+                                            >
+                                                <Upload size={14} /> Import Excel
                                             </button>
                                             <button
                                                 onClick={() => {
@@ -2034,9 +2064,6 @@ const TableManager = () => {
                                                     setIsRecordModalOpen(true);
                                                 }}
                                                 style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '8px',
                                                     padding: '10px 20px',
                                                     borderRadius: '10px',
                                                     backgroundColor: TOKENS.primary,
@@ -3749,6 +3776,39 @@ const TableManager = () => {
                 onOpenAppGenerator={(table) => {
                     setSelectedTableForGenerator(table);
                     setIsAppGeneratorOpen(true);
+                }}
+            />
+
+            {/* Excel Import Modal */}
+            <ExcelImportModal
+                isOpen={isExcelImportOpen}
+                onClose={() => setIsExcelImportOpen(false)}
+                table={selectedTable}
+                fields={selectedTable?.fields || []}
+                onImport={async (validRecords) => {
+                    let imported = 0;
+                    for (const record of validRecords) {
+                        try {
+                            await addTableRecord(selectedTable.id, record);
+                            imported++;
+                        } catch (e) {
+                            console.error('Import error:', e);
+                        }
+                    }
+                    await loadRecords(selectedTable.id);
+                    return { imported };
+                }}
+            />
+
+            {/* Toast Container */}
+            <Toaster
+                position="top-right"
+                toastOptions={{
+                    style: {
+                        background: '#1e293b',
+                        color: '#f8fafc',
+                        border: '1px solid #334155',
+                    },
                 }}
             />
         </div>
