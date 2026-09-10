@@ -71,17 +71,72 @@ export function cleanVibeCode(rawCode) {
     cleaned = `import { useMaviCoreData } from './mavicore-bridge';\n` + cleaned;
   }
 
-  // Auto-inject import for MaviCore UI components if used without import
+  // Auto-inject and merge import for MaviCore UI components if used
   const mavicoreUIComponents = [
     'KPICard', 'Numpad', 'KeyboardPro', 'SignaturePad', 'BooleanToggle',
     'QualityTolerance', 'QualityChecklist', 'DialGauge', 'DigitalCaliper',
     'BarcodeScanner', 'ScadaStartBtn', 'ScadaStopBtn', 'ScadaTank',
     'ScadaPlcStatus', 'ScadaProdCounter', 'StatusBadge', 'TelemetryGauge',
+    'Card', 'CardHeader', 'CardTitle', 'CardContent', 'CardFooter',
+    'Badge', 'Button', 'Modal', 'Dialog', 'MetricCard', 'StatCard', 'KpiCard',
     'MaviButton', 'MaviCard', 'MaviKPI', 'MaviStatus', 'MaviChecklist'
   ];
   const usedMaviComponents = mavicoreUIComponents.filter(c => new RegExp(`\\b${c}\\b`).test(cleaned));
-  if (usedMaviComponents.length > 0 && !/from\s+['"][^'"]*mavicore-ui[^'"]*['"]/i.test(cleaned)) {
-    cleaned = `import { ${usedMaviComponents.join(', ')} } from './mavicore-ui';\n` + cleaned;
+  if (usedMaviComponents.length > 0) {
+    if (/from\s+['"][^'"]*mavicore-ui[^'"]*['"]/i.test(cleaned)) {
+      cleaned = cleaned.replace(/import\s*\{([^}]+)\}\s*from\s*['"][^'"]*mavicore-ui[^'"]*['"]/i, (match, existing) => {
+        const existingList = existing.split(',').map(s => s.trim());
+        const toAdd = usedMaviComponents.filter(c => !existingList.includes(c));
+        return toAdd.length > 0 ? `import { ${existing.trim()}, ${toAdd.join(', ')} } from './mavicore-ui'` : match;
+      });
+    } else {
+      cleaned = `import { ${usedMaviComponents.join(', ')} } from './mavicore-ui';\n` + cleaned;
+    }
+  }
+
+  // Auto-inject and merge popular Lucide icons used in JSX or icon props
+  const popularLucideIcons = [
+    'Activity', 'Gauge', 'Clock', 'TrendingUp', 'TrendingDown', 'CheckCircle2', 'AlertTriangle',
+    'XCircle', 'Info', 'Play', 'Square', 'Pause', 'RotateCcw', 'RotateCw', 'RefreshCw',
+    'Sliders', 'Layers', 'Cpu', 'Thermometer', 'ShieldCheck', 'ShieldAlert', 'Camera',
+    'Barcode', 'Eye', 'FileSpreadsheet', 'Database', 'ArrowRight', 'ArrowLeft', 'Trash2',
+    'Check', 'Wifi', 'WifiOff', 'User', 'Users', 'Zap', 'ChevronDown', 'ChevronUp',
+    'ChevronRight', 'ChevronLeft', 'X', 'Sparkles', 'Droplet', 'Volume2', 'Settings',
+    'Lock', 'Unlock', 'Hash', 'Calendar', 'Search', 'Filter', 'Plus', 'Minus', 'Edit',
+    'Save', 'Download', 'Upload', 'Share2', 'Package', 'Box', 'Truck', 'Factory',
+    'Wrench', 'Clipboard', 'ClipboardCheck', 'ClipboardList', 'QrCode', 'Power', 'Bell',
+    'FileText', 'BarChart2', 'PieChart', 'LineChart', 'FilePlus', 'Globe', 'Smartphone'
+  ];
+  const usedIcons = popularLucideIcons.filter(icon => {
+    const jsxTagRegex = new RegExp(`<${icon}[\\s/>]`);
+    const propRegex = new RegExp(`\\b(?:icon|Icon)\\s*=\\s*\\{\\s*${icon}\\s*\\}`);
+    return jsxTagRegex.test(cleaned) || propRegex.test(cleaned);
+  });
+  if (usedIcons.length > 0) {
+    if (/from\s+['"]lucide-react['"]/i.test(cleaned)) {
+      cleaned = cleaned.replace(/import\s*\{([^}]+)\}\s*from\s*['"]lucide-react['"]/i, (match, existing) => {
+        const existingList = existing.split(',').map(s => s.trim());
+        const toAdd = usedIcons.filter(icon => !existingList.includes(icon));
+        return toAdd.length > 0 ? `import { ${existing.trim()}, ${toAdd.join(', ')} } from 'lucide-react'` : match;
+      });
+    } else if (!/from\s+['"][^'"]*mavicore-ui[^'"]*['"]/i.test(cleaned)) {
+      cleaned = `import { ${usedIcons.join(', ')} } from 'lucide-react';\n` + cleaned;
+    }
+  }
+
+  // Auto-inject and merge Recharts components if used in JSX
+  const rechartsComponents = ['ResponsiveContainer', 'BarChart', 'Bar', 'LineChart', 'Line', 'AreaChart', 'Area', 'PieChart', 'Pie', 'Cell', 'XAxis', 'YAxis', 'CartesianGrid', 'Tooltip', 'Legend'];
+  const usedRecharts = rechartsComponents.filter(c => new RegExp(`<${c}[\\s/>]`).test(cleaned));
+  if (usedRecharts.length > 0) {
+    if (/from\s+['"]recharts['"]/i.test(cleaned)) {
+      cleaned = cleaned.replace(/import\s*\{([^}]+)\}\s*from\s*['"]recharts['"]/i, (match, existing) => {
+        const existingList = existing.split(',').map(s => s.trim());
+        const toAdd = usedRecharts.filter(c => !existingList.includes(c));
+        return toAdd.length > 0 ? `import { ${existing.trim()}, ${toAdd.join(', ')} } from 'recharts'` : match;
+      });
+    } else {
+      cleaned = `import { ${usedRecharts.join(', ')} } from 'recharts';\n` + cleaned;
+    }
   }
 
   // 6. Sanitize rogue quotes after numeric values or commas (e.g. `quantity: 50,'` -> `quantity: 50,`)
@@ -104,9 +159,16 @@ export function cleanVibeCode(rawCode) {
 
   // 8. Ensure export default is present for Sandpack if a function component exists
   if (!cleaned.includes('export default')) {
-    const fnMatch = cleaned.match(/function\s+([A-Za-z0-9_]+)/);
-    if (fnMatch && fnMatch[1]) {
-      cleaned += `\nexport default ${fnMatch[1]};`;
+    if (/\b(?:function\s+App|const\s+App|let\s+App|var\s+App)\b/.test(cleaned)) {
+      cleaned += `\nexport default App;`;
+    } else {
+      const fnMatch = cleaned.match(/(?:export\s+)?function\s+([A-Z][A-Za-z0-9_]*)/) ||
+                      cleaned.match(/(?:export\s+)?const\s+([A-Z][A-Za-z0-9_]*)\s*=/);
+      if (fnMatch && fnMatch[1]) {
+        cleaned += `\nexport default ${fnMatch[1]};`;
+      } else {
+        cleaned += `\nexport default App;`;
+      }
     }
   }
 
@@ -398,6 +460,32 @@ export function autoFixMissingImports(code, errorText) {
       );
     } else {
       return "import { useMaviCoreData, MaviCoreBridge, bridge } from './mavicore-bridge';\n" + code;
+    }
+  }
+
+  // 0b. Element type is invalid / undefined component error recovery
+  if (errStr.includes('Element type is invalid') || errStr.includes('likely forgot to export') || errStr.includes('Check the render method')) {
+    const cleaned = cleanVibeCode(code);
+    if (cleaned !== code) {
+      return cleaned;
+    }
+
+    // Scan for any undeclared PascalCase JSX tags in the code
+    const tagMatches = [...code.matchAll(/<([A-Z][A-Za-z0-9_]+)[\s/>]/g)].map(m => m[1]);
+    const uniqueTags = [...new Set(tagMatches)];
+    let patched = code;
+
+    for (const tag of uniqueTags) {
+      const isImported = new RegExp(`\\b${tag}\\b`).test(code.slice(0, code.indexOf('<' + tag)));
+      const isDeclared = new RegExp(`(?:function|const|let|var|class)\\s+${tag}\\b`).test(code);
+      if (!isImported && !isDeclared) {
+        // Fallback stub to prevent red screen crash
+        patched = `const ${tag} = ({ children, ...props }) => <div className="p-2 border border-slate-700/50 rounded text-xs text-slate-300" {...props}>{children || '${tag}'}</div>;\n` + patched;
+      }
+    }
+
+    if (patched !== code) {
+      return cleanVibeCode(patched);
     }
   }
 

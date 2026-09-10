@@ -93,4 +93,74 @@ describe('MaviCore UI Industrial Virtual Component Library', () => {
     expect(PRO_CHECK_SHEET_CODE).toContain('<StatusBadge');
     expect(PRO_CHECK_SHEET_CODE).toContain('<SignaturePad');
   });
+
+  it('cleanVibeCode intelligently merges missing MaviCore UI components into existing import', async () => {
+    const { cleanVibeCode } = await import('../../vibe/utils/codeCleaner');
+    const codeWithPartialImport = `
+      import { KPICard } from './mavicore-ui';
+      export function App() {
+        return (
+          <div>
+            <KPICard title="Output" value="1200" />
+            <StatusBadge status="RUNNING" />
+            <ScadaProdCounter target={1000} actual={850} />
+          </div>
+        );
+      }
+    `;
+    const cleaned = cleanVibeCode(codeWithPartialImport);
+    expect(cleaned).toContain("from './mavicore-ui'");
+    expect(cleaned).toContain('StatusBadge');
+    expect(cleaned).toContain('ScadaProdCounter');
+    expect(cleaned).toContain('export default App;');
+  });
+
+  it('cleanVibeCode merges missing Lucide icons into existing lucide-react import', async () => {
+    const { cleanVibeCode } = await import('../../vibe/utils/codeCleaner');
+    const codeWithMissingIcons = `
+      import { Activity } from 'lucide-react';
+      export default function App() {
+        return (
+          <div>
+            <Activity />
+            <Gauge size={20} />
+            <Clock size={16} />
+            <Sparkles size={16} />
+          </div>
+        );
+      }
+    `;
+    const cleaned = cleanVibeCode(codeWithMissingIcons);
+    expect(cleaned).toContain('Gauge');
+    expect(cleaned).toContain('Clock');
+    expect(cleaned).toContain('Sparkles');
+  });
+
+  it('autoFixMissingImports heals "Element type is invalid ... but got: undefined" runtime error', async () => {
+    const codeWithUndefinedComponent = `
+      import { KPICard } from './mavicore-ui';
+      export function App() {
+        return (
+          <div>
+            <KPICard title="OEE" value="98%" />
+            <StatusBadge status="OPTIMAL" />
+          </div>
+        );
+      }
+    `;
+    const errorMsg = 'Element type is invalid: expected a string (for built-in components) or a class/function (for composite components) but got: undefined. You likely forgot to export your component from the file its defined in, or you might have mixed up default and named imports. Check the render method of App.';
+    const healed = autoFixMissingImports(codeWithUndefinedComponent, errorMsg);
+    expect(healed).toBeDefined();
+    expect(healed).toContain('StatusBadge');
+    expect(healed).toContain("from './mavicore-ui'");
+    expect(healed).toContain('export default App;');
+  });
+
+  it('MAVICORE_UI_VIRTUAL_FILE exports universal UI primitives Card, Button, Badge, Modal, and Lucide icons', () => {
+    expect(MAVICORE_UI_VIRTUAL_FILE).toContain('export function Card(');
+    expect(MAVICORE_UI_VIRTUAL_FILE).toContain('export function Button(');
+    expect(MAVICORE_UI_VIRTUAL_FILE).toContain('export function Badge(');
+    expect(MAVICORE_UI_VIRTUAL_FILE).toContain('export function Modal(');
+    expect(MAVICORE_UI_VIRTUAL_FILE).toContain('export { \n  Play, Square, RotateCcw');
+  });
 });

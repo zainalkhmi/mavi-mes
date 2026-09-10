@@ -7,7 +7,7 @@ import {
   Cpu, Thermometer, ShieldCheck, Camera, Barcode, Eye, FileSpreadsheet, Layers, 
   Sliders, Database, ArrowRight, ArrowLeft, Trash2, Check, RefreshCw, Wifi, 
   WifiOff, Clock, User, Zap, ChevronDown, ChevronRight, X, Sparkles, Droplet, 
-  Volume2, Settings, Lock, Unlock, Hash, Calendar, Search, Filter
+  Volume2, Settings, Lock, Unlock, Hash, Calendar, Search, Filter, Plus
 } from 'lucide-react';
 
 /* =========================================================================
@@ -702,13 +702,18 @@ export function KPICard({ title = 'Metric', value = '0', unit = '', trend = '', 
   };
 
   const style = colorStyles[color] || colorStyles.indigo;
+  const SafeIcon = (typeof Icon === 'function' || (typeof Icon === 'object' && Icon !== null)) ? Icon : Activity;
 
   return (
     <div className={'bg-white rounded-2xl border border-slate-200 border-t-4 p-4 shadow-md font-sans ' + style.split(' ')[0]}>
       <div className="flex justify-between items-center mb-2">
         <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider">{title}</span>
         <div className={'w-7 h-7 rounded-xl flex items-center justify-center ' + style.split(' ')[2]}>
-          <Icon size={14} className={style.split(' ')[1]} />
+          {SafeIcon && typeof SafeIcon === 'function' ? (
+            <SafeIcon size={14} className={style.split(' ')[1]} />
+          ) : (
+            <Activity size={14} className={style.split(' ')[1]} />
+          )}
         </div>
       </div>
       <div className="flex items-baseline justify-between">
@@ -805,12 +810,104 @@ export function TelemetryGauge({ title = 'Spindle Speed', value = 1450, unit = '
   );
 }
 
-// Backward-compatibility aliases with early UI kit
+/* =========================================================================
+   6. UNIVERSAL UI BUILDING BLOCKS & COMPONENT ALIASES
+   ========================================================================= */
+
+export function Card({ children, className = '', ...props }) {
+  return <div className={'bg-white rounded-2xl border border-slate-200 shadow-md p-4 ' + className} {...props}>{children}</div>;
+}
+
+export function CardHeader({ children, className = '', ...props }) {
+  return <div className={'mb-3 flex justify-between items-center ' + className} {...props}>{children}</div>;
+}
+
+export function CardTitle({ children, className = '', ...props }) {
+  return <h3 className={'text-sm font-black text-slate-900 uppercase tracking-wider ' + className} {...props}>{children}</h3>;
+}
+
+export function CardContent({ children, className = '', ...props }) {
+  return <div className={'space-y-3 ' + className} {...props}>{children}</div>;
+}
+
+export function CardFooter({ children, className = '', ...props }) {
+  return <div className={'mt-4 pt-3 border-t border-slate-100 flex items-center justify-end gap-2 ' + className} {...props}>{children}</div>;
+}
+
+export function Badge({ children, variant = 'default', className = '', ...props }) {
+  const vStyles = {
+    default: 'bg-slate-100 text-slate-800',
+    success: 'bg-emerald-100 text-emerald-800',
+    warning: 'bg-amber-100 text-amber-800',
+    danger: 'bg-rose-100 text-rose-800',
+    info: 'bg-sky-100 text-sky-800'
+  };
+  return (
+    <span className={'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ' + (vStyles[variant] || vStyles.default) + ' ' + className} {...props}>
+      {children}
+    </span>
+  );
+}
+
+export function Button({ children, variant = 'default', className = '', onClick, ...props }) {
+  const bStyles = {
+    default: 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-500/20',
+    destructive: 'bg-rose-600 text-white hover:bg-rose-700 shadow-rose-500/20',
+    outline: 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50',
+    secondary: 'bg-slate-800 text-white hover:bg-slate-700',
+    ghost: 'bg-transparent text-slate-600 hover:bg-slate-100'
+  };
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={'px-4 py-2 rounded-xl font-bold text-xs shadow-sm transition active:scale-95 flex items-center justify-center gap-1.5 ' + (bStyles[variant] || bStyles.default) + ' ' + className}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
+export function Modal({ isOpen, onClose, title, children }) {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-5 overflow-hidden">
+        <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
+          <h4 className="text-base font-black text-slate-900">{title}</h4>
+          {onClose && (
+            <button type="button" onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+              <X size={16} />
+            </button>
+          )}
+        </div>
+        <div>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+export const Dialog = Modal;
+
+// Re-export popular Lucide icons so named imports from ./mavicore-ui never return undefined
+export { 
+  Play, Square, RotateCcw, AlertTriangle, CheckCircle2, XCircle, Gauge, Activity, 
+  Cpu, Thermometer, ShieldCheck, Camera, Barcode, Eye, FileSpreadsheet, Layers, 
+  Sliders, Database, ArrowRight, ArrowLeft, Trash2, Check, RefreshCw, Wifi, 
+  WifiOff, Clock, User, Zap, ChevronDown, ChevronRight, X, Sparkles, Droplet, 
+  Volume2, Settings, Lock, Unlock, Hash, Calendar, Search, Filter, Plus
+};
+
+// Backward-compatibility aliases with early UI kit and alternate naming
 export const MaviButton = ScadaStartBtn;
 export const MaviCard = KPICard;
 export const MaviKPI = KPICard;
 export const MaviStatus = StatusBadge;
 export const MaviChecklist = QualityChecklist;
+export const MetricCard = KPICard;
+export const StatCard = KPICard;
+export const KpiCard = KPICard;
 
 export default {
   Numpad,
@@ -830,6 +927,34 @@ export default {
   ScadaProdCounter,
   StatusBadge,
   TelemetryGauge,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardFooter,
+  Badge,
+  Button,
+  Modal,
+  Dialog,
+  MetricCard,
+  StatCard,
+  KpiCard,
+  Activity,
+  Gauge,
+  Clock,
+  CheckCircle2,
+  AlertTriangle,
+  Sparkles,
+  Plus,
+  Search,
+  Filter,
+  Trash2,
+  RefreshCw,
+  Layers,
+  Sliders,
+  Cpu,
+  Zap,
+  Settings,
   MaviButton,
   MaviCard,
   MaviKPI,
