@@ -347,7 +347,7 @@ Create a clear, compact, professional, structured IMPLEMENTATION PLAN in markdow
 1. **Ringkasan KPI / Status Bar**: Indikator visual metrik kunci & status bridge
 2. **Formulir Interaktif**: Input data, validasi, dan tombol aksi
 3. **Tabel Data & Pencarian**: Real-time table, filter status, pencarian cepat
-4. **Desain & Tema**: Modern Light & Colourful ala Lovable.dev / shadcn/ui: background off-white (#f8fafc), card putih (#ffffff) dengan border halus (#e2e8f0) dan shadow lembut, typography slate-900/600, badge warna cerah (Emerald, Rose, Amber, Sky). DILARANG background gelap!
+4. **Desain & Tema**: Standar PRO Industrial Enterprise (ala Linear / Datadog MES / Lovable): high-density command center layout, indikator telemetri IoT (RPM, suhu, vibrasi), KPI cards dengan trend pills & progress bar, filter tabs, live status badges (Running, Warning, Down), dan modal CRUD interaktif.
 
 ## 🛡️ Verification Plan
 - Kompilasi React bebas error di Sandpack preview
@@ -387,14 +387,17 @@ CRITICAL EXECUTION CONSTRAINTS:
 2. DO NOT output package.json, terminal commands, or instructions on how to install or run the project (like npm install or creating directories).
 3. Output ONLY a single, complete, self-contained React component for /App.js that exports default function App().
 4. ALWAYS wrap the entire runnable React component inside <vibe_code> ... </vibe_code> tags. DILARANG KERAS menyertakan markdown code fences (\`\`\`jsx atau \`\`\`) di dalam tag <vibe_code>. Tulis langsung kode JSX mentah di dalamnya.
-5. VISUAL AESTHETICS: WAJIB MODERN LIGHT THEME & COLOURFUL ALA LOVABLE.DEV / SHADCN UI:
-   - DILARANG KERAS BACKGROUND GELAP/HITAM: Jangan gunakan bg-slate-900, bg-slate-950, bg-gray-900, bg-black, #000000, #030712, #0b0f19, #0f172a pada root container atau kartu!
-   - Root Container: WAJIB <div className="min-h-screen p-4 sm:p-6" style={{ backgroundColor: '#f8fafc', color: '#0f172a' }}>
-   - Card/Panels: WAJIB putih bersih (#ffffff), border halus (#e2e8f0), soft shadow (box-shadow: 0 4px 20px -2px rgba(0,0,0,0.05)), rounded-2xl
-   - Typography: Judul Slate-900 (#0f172a) font-bold, Subjudul Slate-600 (#475569) font-medium (DILARANG teks putih di canvas terang)
-   - Vibrant Action Buttons: OK/Pass (emerald gradient #10b981 to #059669 with soft glow), NG/Reject (rose gradient #f43f5e to #dc2626), Primary actions (indigo #6366f1 to #4f46e5)
-   - KPI & Metrics: Kartu putih murni dengan icon box pastel cerah dan angka tebal besar (bukan kartu hitam/navy)
-   - Terapkan gaya modern, bersih, cerah dan penuh warna persis seperti lovable.dev atau dashboard Vercel!
+5. VISUAL AESTHETICS: STANDAR PRO ENTERPRISE INDUSTRIAL (ALA LINEAR / DATADOG MES / LOVABLE):
+   - JANGAN MEMBUAT TAMPILAN KOSONG/SEDERHANA. Antarmuka harus padat informasi (high density), presisi, dan terlihat seperti aplikasi enterprise berkelas dunia!
+   - PALET INDUSTRIAL PREMIUM (DARK COMMAND CENTER):
+     * Root Container: <div className="min-h-screen p-4 sm:p-6" style={{ backgroundColor: '#090d16', color: '#f8fafc', fontFamily: 'Inter, system-ui, sans-serif' }}>
+     * Kartu & Panel: bg-slate-900/90, border border-slate-800, rounded-2xl, shadow-xl
+     * Typography & Aksen: Teks utama putih (#f8fafc), label slate-400, aksen Indigo (#6366f1), Cyan (#06b6d4), Emerald (#10b981), Amber (#f59e0b), Rose (#f43f5e)
+   - WIDGET WAJIB DI DALAM DASHBOARD:
+     * 4 KPI Cards: dengan trend pills (+2.4%), icon box aksen warna, dan progress bar mini di tiap kartu!
+     * Grid Status Telemetri IoT / Mesin: Kartu indikator sensor live (RPM, Suhu °C, Vibrasi mm/s, Health %).
+     * Tabel Log Interaktif: Lengkap dengan search bar, filter tabs ('All', 'Running', 'Warning', 'Down'), status pill berkilau, progress output/target, scrap counter, dan tombol hapus/edit.
+     * Dialog/Modal Tambah Data: Modal pop-up rapi dengan backdrop blur untuk menambah log/part baru.
 6. WAJIB STRUKTUR KODE TERATUR, COMPACT & TUNTAS (ANTI-TRUNCATION):
    - Mock Data Singkat: Cukup 2 item contoh ringkas saja (DILARANG membuat array dummy panjang yang menghabiskan token!).
    - State & Handlers Ringkas: Buat state dan handler secukupnya.
@@ -477,13 +480,17 @@ CRITICAL EXECUTION CONSTRAINTS:
    - Gunakan window.MaviCoreBridge (save, read, update, delete, onRecord) atau import { useMaviCoreData } from './mavicore-bridge'.
    - Wajib sediakan form/modal Tambah Data, tabel/list Tampil Data, tombol/modal Edit Data, dan tombol Hapus Data.
    - Wajib perbarui state React lokal secara instan pada aksi Tambah/Edit/Hapus agar UI reaktif dan tidak macet!
-6. VISUAL AESTHETICS: WAJIB MODERN LIGHT THEME & COLOURFUL ALA LOVABLE.DEV / SHADCN UI:
-   - DILARANG KERAS BACKGROUND GELAP/HITAM: Jangan gunakan bg-slate-900, bg-slate-950, bg-gray-900, bg-black, #000000, #030712, #0b0f19, #0f172a pada root container atau kartu!
-   - Root Container: WAJIB <div className="min-h-screen p-4 sm:p-6" style={{ backgroundColor: '#f8fafc', color: '#0f172a' }}>
-   - Card/Panels: WAJIB putih bersih (#ffffff), border halus (#e2e8f0), soft elevated shadow (0 4px 20px -2px rgba(0,0,0,0.05)), rounded-2xl
-   - High-contrast crisp typography: Slate-900 (#0f172a) untuk judul, Slate-600 (#475569) untuk teks sekunder
-   - Vibrant colorful gradient buttons and status badges (Emerald, Rose, Indigo, Amber, Sky)
-   - Stat Cards / KPI: Kartu putih bersih dengan icon container pastel dan angka bold Slate-900
+6. VISUAL AESTHETICS: STANDAR PRO ENTERPRISE INDUSTRIAL (ALA LINEAR / DATADOG MES / LOVABLE):
+   - JANGAN MEMBUAT TAMPILAN KOSONG/SEDERHANA. Antarmuka harus padat informasi (high density), presisi, dan terlihat seperti aplikasi enterprise berkelas dunia!
+   - PALET INDUSTRIAL PREMIUM (DARK COMMAND CENTER):
+     * Root Container: <div className="min-h-screen p-4 sm:p-6" style={{ backgroundColor: '#090d16', color: '#f8fafc', fontFamily: 'Inter, system-ui, sans-serif' }}>
+     * Kartu & Panel: bg-slate-900/90, border border-slate-800, rounded-2xl, shadow-xl
+     * Typography & Aksen: Teks utama putih (#f8fafc), label slate-400, aksen Indigo (#6366f1), Cyan (#06b6d4), Emerald (#10b981), Amber (#f59e0b), Rose (#f43f5e)
+   - WIDGET WAJIB DI DALAM DASHBOARD:
+     * 4 KPI Cards: dengan trend pills (+2.4%), icon box aksen warna, dan progress bar mini di tiap kartu!
+     * Grid Status Telemetri IoT / Mesin: Kartu indikator sensor live (RPM, Suhu °C, Vibrasi mm/s, Health %).
+     * Tabel Log Interaktif: Lengkap dengan search bar, filter tabs ('All', 'Running', 'Warning', 'Down'), status pill berkilau, progress output/target, scrap counter, dan tombol hapus/edit.
+     * Dialog/Modal Tambah Data: Modal pop-up rapi dengan backdrop blur untuk menambah log/part baru.
 7. WAJIB STRUKTUR KODE TERATUR, COMPACT & TUNTAS (ANTI-TRUNCATION):
    - Mock Data Singkat: Cukup 2 item contoh ringkas saja (DILARANG membuat array dummy panjang yang menghabiskan token!).
    - State & Handlers Ringkas: Buat state dan handler secukupnya.

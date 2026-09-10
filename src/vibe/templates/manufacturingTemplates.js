@@ -14,13 +14,37 @@
  * - Executive Manufacturing Dashboard
  */
 
+import { PRO_OEE_DASHBOARD_CODE, PRO_KANBAN_BOARD_CODE, PRO_CHECK_SHEET_CODE } from './proStarterCodes';
+
 export const MANUFACTURING_TEMPLATES = [
   {
+    id: 'oee_dashboard',
+    title: 'OEE Dashboard Real-Time (PRO)',
+    category: 'Management',
+    icon: 'Activity',
+    isPro: true,
+    code: PRO_OEE_DASHBOARD_CODE,
+    description: 'Executive command center OEE: 4 KPI Cards, IoT Telemetry Live Grid, Downtime Tracker & Filterable CRUD Table.',
+    prompt: 'Buatkan aplikasi OEE Dashboard real-time untuk lini perakitan: gauge meter OEE %, Availability %, Performance %, Quality %, timeline status mesin (Running, Breakdown, Setup), dan grafik tren jam per jam.'
+  },
+  {
+    id: 'kanban_board',
+    title: 'Electronic Kanban (PRO)',
+    category: 'Warehouse',
+    icon: 'Sliders',
+    isPro: true,
+    code: PRO_KANBAN_BOARD_CODE,
+    description: 'Visual smart e-Kanban board multi-stage (To Do, Machining, QA, Ready) dengan kartu lot dan sync MaviCore DB.',
+    prompt: 'Buatkan aplikasi e-Kanban board interaktif dengan kolom To Do, Machining, QC Inspection, Ready to Ship, kartu Kanban yang bisa digeser atau diubah statusnya, dan auto-save ke database MaviCore.'
+  },
+  {
     id: 'digital_checksheet',
-    title: 'Digital Checksheet',
+    title: 'Digital Checksheet (PRO)',
     category: 'Shop Floor',
     icon: 'ClipboardList',
-    description: 'Checksheet harian operator mesin: pembersihan, pelumasan, pengetatan, dan verifikasi parameter awal shift.',
+    isPro: true,
+    code: PRO_CHECK_SHEET_CODE,
+    description: 'Pre-flight machine inspection: checklist keselamatan interlock, status pass/fail counter, dan database logging.',
     prompt: 'Buatkan aplikasi Digital Checksheet harian untuk operator stamping press: checklist 5 poin keselamatan, input tekanan oli, verifikasi suhu bearing, dan tombol kirim dengan konfirmasi shift.'
   },
   {
@@ -40,14 +64,6 @@ export const MANUFACTURING_TEMPLATES = [
     prompt: 'Buatkan aplikasi Quality Inspection AQL sampling: input lot number, jumlah sample 80 pcs, counter defect Major/Minor, lampiran foto defect, dan rekomendasi Release Lot atau Hold Lot.'
   },
   {
-    id: 'oee_dashboard',
-    title: 'OEE Dashboard Real-Time',
-    category: 'Management',
-    icon: 'Activity',
-    description: 'Visualisasi Overall Equipment Effectiveness (Availability, Performance, Quality) dengan radial gauge dan timeline downtime.',
-    prompt: 'Buatkan aplikasi OEE Dashboard real-time untuk lini perakitan: gauge meter OEE %, Availability %, Performance %, Quality %, timeline status mesin (Running, Breakdown, Setup), dan grafik tren jam per jam.'
-  },
-  {
     id: 'production_monitoring',
     title: 'Production Monitoring (Andon)',
     category: 'Shop Floor',
@@ -62,14 +78,6 @@ export const MANUFACTURING_TEMPLATES = [
     icon: 'Layers',
     description: 'Pencatatan stok part, transfer antar bin lokasi rak, dan peringatan batas minimum stok (Min-Max Alert).',
     prompt: 'Buatkan aplikasi Inventory & Bin Management: daftar komponen part, stok saat ini, tombol penyesuaian stok (+/-), input nomor bin lokasi, dan warning merah jika stok di bawah minimum 50 unit.'
-  },
-  {
-    id: 'kanban_board',
-    title: 'Electronic Kanban (e-Kanban)',
-    category: 'Warehouse',
-    icon: 'Sliders',
-    description: 'Papan visual kartu Kanban digital: To Do, In Progress, QA Testing, Done dengan nomor kartu dan lot.',
-    prompt: 'Buatkan aplikasi e-Kanban board interaktif dengan kolom To Do, Machining, QC Inspection, Ready to Ship, kartu Kanban yang bisa digeser atau diubah statusnya, dan auto-save ke database MaviCore.'
   },
   {
     id: 'preventive_maintenance',

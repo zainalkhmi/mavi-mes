@@ -3335,9 +3335,18 @@ root.render(
       <ManufacturingTemplatesModal
         isOpen={isTemplatesModalOpen}
         onClose={() => setIsTemplatesModalOpen(false)}
-        onSelectTemplate={(tmpl) => {
+        onSelectTemplate={(tmpl, options = {}) => {
           setIsTemplatesModalOpen(false);
-          if (tmpl?.prompt) {
+          if (options.directLoad && tmpl?.code) {
+            vfs.writeFile('/App.js', tmpl.code);
+            setFilesRecord(vfs.getAllFilesRecord());
+            setFileTree(vfs.getFileTree());
+            versionControl.createSnapshot(vfs.getAllFilesRecord(), `Loaded PRO Template: ${tmpl.title}`);
+            if (onCodeChange) onCodeChange(tmpl.code);
+            if (tmpl.title) setAppName(tmpl.title.replace(' (PRO)', ''));
+            setLogs(prev => [...prev, { timestamp: new Date(), text: `[PRO Template Loaded] ${tmpl.title}` }]);
+            toast.success(`⚡ Berhasil memuat Template PRO: ${tmpl.title}`);
+          } else if (tmpl?.prompt) {
             setChatInitialPrompt(tmpl.prompt);
           }
         }}

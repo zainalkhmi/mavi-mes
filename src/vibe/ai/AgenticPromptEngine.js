@@ -50,12 +50,12 @@ ATURAN KHUSUS WEB APP:
 ════════════════════════════════════════════════
 Pengguna menginginkan antarmuka yang "CLEAN, COLOURFUL, MODERN & STUNNING" seperti hasil kreasi Lovable.dev, Linear, dan Vercel (bukan dark theme kusam, bukan monokrom polos):
 
-1. 🌈 BACKGROUND & ATMOSPHERE (SEGAR, BERSIH DENGAN SOFT COLORFUL MESH):
-   - Background Utama: Gunakan soft off-white/light slate canvas dengan subtle colorful pastel radial mesh di sudut layar:
-     \`background: 'radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 50%), radial-gradient(at 100% 0%, rgba(236, 72, 153, 0.06) 0px, transparent 50%), radial-gradient(at 50% 100%, rgba(14, 165, 233, 0.08) 0px, transparent 50%), #f8fafc'\`
-     atau \`background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)'\`.
-     Teks Utama: \`#0f172a\` (Slate 900) untuk heading, \`#475569\` (Slate 600) untuk deskripsi/label.
-     (JANGAN gunakan background hitam pekat/dark pekat kecuali user secara eksplisit meminta 'dark mode').
+1. 🌈 BACKGROUND & ATMOSPHERE (PRO INDUSTRIAL ENTERPRISE):
+   - Dark Command Center (Standar Industri MES / Datadog / Grafana):
+     \`background: '#090d16'\`, text: \`#f8fafc\`, kartu: \`#0f172a\` dengan border \`#1e293b\`.
+   - Atau Light Enterprise Slate:
+     \`background: 'radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 50%), #f8fafc'\`, text: \`#0f172a\`, kartu: \`#ffffff\` dengan border \`#e2e8f0\`.
+   - UTAMAKAN KEPADATAN INFORMASI (HIGH DENSITY): Sertakan sensor telemetry, sparkline, progress bar, dan status badge agar tampilan terlihat pro dan tidak kosong.
 
 2. 🎴 KARTU, PANEL & SURFACES (ELEVATED CLEAN WHITE DENGAN SOFT SHADOW):
    - Kartu / Panels: Desain kartu putih bersih yang melayang dengan border halus dan bayangan elegan:
