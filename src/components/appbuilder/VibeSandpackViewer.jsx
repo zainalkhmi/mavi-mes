@@ -328,6 +328,7 @@ import {
   Activity, CheckCircle2, XCircle, TrendingUp, Users, Settings,
   Bell, ChevronRight, Play, Pause, RotateCcw, Zap, Factory, RefreshCw, Trash2
 } from 'lucide-react';
+import { KPICard, ScadaProdCounter, StatusBadge, TelemetryGauge } from './mavicore-ui';
 
 // ─── Inject MaviCore Bridge ───
 ${MAVICORE_BRIDGE_CODE}
@@ -509,8 +510,8 @@ export default function IndustrialDashboard() {
             <div>
               <h1 className="text-2xl font-bold text-slate-900">Stasiun Assembly A1</h1>
               <div className="flex items-center gap-2 mt-1">
-                <span className="w-2 h-2 rounded-full bg-green-500 pulse-dot" />
-                <span className="text-sm text-slate-500">{isRunning ? 'Lini Aktif - Produksi Normal' : 'Lini Berhenti'}</span>
+                <StatusBadge status={isRunning ? 'RUNNING' : 'DOWNTIME'} />
+                <span className="text-xs text-slate-500 font-semibold">{isRunning ? 'Lini Aktif - Produksi Normal' : 'Lini Berhenti'}</span>
               </div>
             </div>
           </div>
@@ -549,26 +550,22 @@ export default function IndustrialDashboard() {
           ))}
         </div>
 
-        {/* Stats Grid */}
+        {/* ─── 3 MAVICORE UI KPI CARDS ─── */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          {stats.map((stat, i) => (
-            <motion.div
-              key={stat.label}
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: i * 0.1 }}
-              className="stat-card rounded-2xl p-5"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: stat.color + '18' }}>
-                  <stat.icon className="w-5 h-5" style={{ color: stat.color }} />
-                </div>
-                <span className="text-xs px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-200 font-semibold">{stat.trend}</span>
-              </div>
-              <div className="text-3xl font-extrabold text-slate-900 mb-1">{stat.value}</div>
-              <div className="text-sm font-medium text-slate-500">{stat.label}</div>
-            </motion.div>
-          ))}
+          <KPICard title="TOTAL OUTPUT" value={(productionCount + rejectCount).toLocaleString()} unit="pcs" trend="+12%" color="indigo" icon={Factory} />
+          <KPICard title="EFISIENSI LINI" value={efficiency + '%'} unit="Yield" trend="+3.2%" color="emerald" icon={TrendingUp} />
+          <KPICard title="OPERATOR AKTIF" value="8" unit="Staff" trend="Shift 1" color="amber" icon={Users} />
+        </div>
+
+        {/* ─── MAVICORE SCADA COUNTER & TELEMETRY ─── */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="md:col-span-2">
+            <ScadaProdCounter target={2000} actual={productionCount} defect={rejectCount} />
+          </div>
+          <div className="space-y-3">
+            <TelemetryGauge title="Stasiun Feed Rate" value="120" unit="m/min" status={isRunning ? 'OPTIMAL' : 'WARN'} />
+            <TelemetryGauge title="Hydraulic Pressure" value="142" unit="Bar" status={isRunning ? 'OPTIMAL' : 'WARN'} />
+          </div>
         </div>
 
         {/* Main Cards */}

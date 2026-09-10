@@ -10,6 +10,16 @@ import {
   RotateCw, Plus, Search, Filter, ArrowUpRight, ArrowDownRight,
   Sliders, Cpu, Wrench, ShieldAlert, BarChart3, ChevronRight, X, Sparkles
 } from 'lucide-react';
+import { 
+  KPICard, 
+  Numpad, 
+  ScadaProdCounter, 
+  StatusBadge, 
+  TelemetryGauge, 
+  ScadaStartBtn, 
+  ScadaStopBtn,
+  QualityTolerance
+} from './mavicore-ui';
 
 const INITIAL_LOGS = [
   { id: 'LOG-101', machine: 'CNC Milling 01', part: 'Gear Shaft A-44', status: 'Running', output: 1240, scrap: 14, target: 1400, downtime: 25, operator: 'Budi Santoso', shift: 'Shift 1' },
@@ -149,7 +159,7 @@ export default function App() {
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
             </span>
             <span className="text-xs font-black tracking-wider text-indigo-600 uppercase bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
-              MAVI MES INDUSTRIAL OS
+              MAVICORE INDUSTRIAL OS
             </span>
             <span className="text-slate-300">•</span>
             <span className="text-xs font-semibold text-slate-500">Shop Floor Command Center</span>
@@ -183,154 +193,36 @@ export default function App() {
         </div>
       </header>
 
-      {/* ─── 4 PRO OEE KPI CARDS (COLOURFUL & VIBRANT) ─── */}
+      {/* ─── 4 MAVICORE UI KPI CARDS ─── */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        
-        {/* Card 1: Overall OEE - VIBRANT INDIGO */}
-        <div className="p-5 rounded-2xl bg-white border-t-4 border-t-indigo-600 border border-slate-200 shadow-lg shadow-indigo-500/5 relative overflow-hidden transition hover:-translate-y-1">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-black uppercase tracking-wider text-slate-500">OVERALL OEE</span>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/30">
-              <Activity size={18} />
-            </div>
-          </div>
-          <div className="flex items-baseline gap-2 mb-2">
-            <span className="text-3xl font-black text-indigo-600">{metrics.oee}%</span>
-            <span className="flex items-center text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-              <ArrowUpRight size={13} /> +3.4%
-            </span>
-          </div>
-          <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden mb-2">
-            <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 h-full rounded-full transition-all duration-500" style={{ width: \`\${metrics.oee}%\` }} />
-          </div>
-          <div className="flex justify-between text-[11px] text-slate-500 font-medium">
-            <span>Benchmark: 85%</span>
-            <span className="font-bold text-indigo-600">Target: 75%</span>
-          </div>
-        </div>
-
-        {/* Card 2: Availability - VIBRANT SKY BLUE */}
-        <div className="p-5 rounded-2xl bg-white border-t-4 border-t-sky-500 border border-slate-200 shadow-lg shadow-sky-500/5 relative overflow-hidden transition hover:-translate-y-1">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-black uppercase tracking-wider text-slate-500">AVAILABILITY</span>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-400 to-blue-600 text-white flex items-center justify-center shadow-md shadow-sky-500/30">
-              <Clock size={18} />
-            </div>
-          </div>
-          <div className="flex items-baseline gap-2 mb-2">
-            <span className="text-3xl font-black text-sky-600">{metrics.availability}%</span>
-            <span className="text-xs font-semibold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100">
-              Downtime: {metrics.totalDowntime}m
-            </span>
-          </div>
-          <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden mb-2">
-            <div className="bg-gradient-to-r from-sky-400 to-blue-600 h-full rounded-full transition-all duration-500" style={{ width: \`\${metrics.availability}%\` }} />
-          </div>
-          <div className="flex justify-between text-[11px] text-slate-500 font-medium">
-            <span>Uptime: {(480 - metrics.totalDowntime)} min</span>
-            <span className="font-bold text-sky-600">Shift Base: 480m</span>
-          </div>
-        </div>
-
-        {/* Card 3: Performance - VIBRANT AMBER */}
-        <div className="p-5 rounded-2xl bg-white border-t-4 border-t-amber-500 border border-slate-200 shadow-lg shadow-amber-500/5 relative overflow-hidden transition hover:-translate-y-1">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-black uppercase tracking-wider text-slate-500">PERFORMANCE</span>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center shadow-md shadow-amber-500/30">
-              <Gauge size={18} />
-            </div>
-          </div>
-          <div className="flex items-baseline gap-2 mb-2">
-            <span className="text-3xl font-black text-amber-600">{metrics.performance}%</span>
-            <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
-              {metrics.totalOutput.toLocaleString()} pcs
-            </span>
-          </div>
-          <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden mb-2">
-            <div className="bg-gradient-to-r from-amber-400 to-orange-500 h-full rounded-full transition-all duration-500" style={{ width: \`\${Math.min(100, metrics.performance)}%\` }} />
-          </div>
-          <div className="flex justify-between text-[11px] text-slate-500 font-medium">
-            <span>Cycle Speed: 42s/pc</span>
-            <span className="font-bold text-amber-600">Target: 5,050 pcs</span>
-          </div>
-        </div>
-
-        {/* Card 4: Quality Rate - VIBRANT EMERALD */}
-        <div className="p-5 rounded-2xl bg-white border-t-4 border-t-emerald-500 border border-slate-200 shadow-lg shadow-emerald-500/5 relative overflow-hidden transition hover:-translate-y-1">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-black uppercase tracking-wider text-slate-500">QUALITY RATE</span>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/30">
-              <CheckCircle2 size={18} />
-            </div>
-          </div>
-          <div className="flex items-baseline gap-2 mb-2">
-            <span className="text-3xl font-black text-emerald-600">{metrics.quality}%</span>
-            <span className="flex items-center text-xs font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full">
-              Scrap: {metrics.totalScrap} pcs
-            </span>
-          </div>
-          <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden mb-2">
-            <div className="bg-gradient-to-r from-emerald-400 to-teal-500 h-full rounded-full transition-all duration-500" style={{ width: \`\${metrics.quality}%\` }} />
-          </div>
-          <div className="flex justify-between text-[11px] text-slate-500 font-medium">
-            <span>PPM Defect: 240 PPM</span>
-            <span className="font-bold text-emerald-600">Pass Yield: High</span>
-          </div>
-        </div>
-
+        <KPICard title="OVERALL OEE" value={metrics.oee + '%'} trend="+3.4%" color="indigo" icon={Activity} />
+        <KPICard title="AVAILABILITY" value={metrics.availability + '%'} unit="Uptime" trend={'Downtime: ' + metrics.totalDowntime + 'm'} color="sky" icon={Clock} />
+        <KPICard title="PERFORMANCE" value={metrics.performance + '%'} unit="Speed" trend={metrics.totalOutput.toLocaleString() + ' pcs'} color="amber" icon={Gauge} />
+        <KPICard title="QUALITY RATE" value={metrics.quality + '%'} unit="Yield" trend={'Scrap: ' + metrics.totalScrap + ' pcs'} color="emerald" icon={CheckCircle2} />
       </section>
 
-      {/* ─── LIVE MACHINE TELEMETRY GRID (COLOURFUL CARDS) ─── */}
-      <section className="mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Cpu size={18} className="text-blue-600" />
-            <h2 className="text-sm font-black text-slate-800 uppercase tracking-wide">Live IoT Gateway Telemetry</h2>
-          </div>
-          <span className="text-xs font-semibold text-slate-500 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
-            Realtime 2.5s Sync
-          </span>
+      {/* ─── MAVICORE SCADA PRODUCTION COUNTER & LIVE IOT GAUGES ─── */}
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+        <div className="lg:col-span-2">
+          <ScadaProdCounter target={metrics.totalTarget || 5000} actual={metrics.totalOutput} defect={metrics.totalScrap} />
         </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-          {telemetry.map(m => (
-            <div key={m.id} className="p-4 rounded-xl bg-white border border-slate-200/80 shadow-md hover:shadow-lg transition flex flex-col justify-between">
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <div className="text-xs font-black text-slate-900">{m.name}</div>
-                  <div className="text-[10px] text-slate-500">{m.type}</div>
-                </div>
-                <span className={\`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider \${
-                  m.status === 'Running' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
-                  m.status === 'Warning' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
-                  'bg-rose-100 text-rose-800 border border-rose-300'
-                }\`}>
-                  {m.status}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 py-2 my-1 bg-slate-50 rounded-xl px-2.5 border border-slate-100 text-center">
-                <div>
-                  <div className="text-[10px] font-bold text-slate-400">RPM</div>
-                  <div className="text-xs font-black text-blue-600">{m.rpm}</div>
-                </div>
-                <div>
-                  <div className="text-[10px] font-bold text-slate-400">SUHU</div>
-                  <div className="text-xs font-black text-orange-600">{m.temp}°C</div>
-                </div>
-                <div>
-                  <div className="text-[10px] font-bold text-slate-400">VIBRASI</div>
-                  <div className="text-xs font-black text-purple-600">{m.vibration}</div>
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center text-[11px] pt-1">
-                <span className="text-slate-500 font-medium">Health Index</span>
-                <span className="font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{m.health}%</span>
-              </div>
-            </div>
-          ))}
+        <div className="space-y-3">
+          <TelemetryGauge title="Spindle Speed (CNC-01)" value={telemetry[0]?.rpm || 4200} unit="RPM" status={telemetry[0]?.status === 'Running' ? 'OPTIMAL' : 'WARN'} />
+          <TelemetryGauge title="Stamping Temp (STAMP-04)" value={(telemetry[1]?.temp || 58.1) + '°C'} unit="" status={telemetry[1]?.status === 'Running' ? 'OPTIMAL' : 'WARN'} />
         </div>
+      </section>
+
+      {/* ─── 4 IOT SENSOR STATUS GAUGES ─── */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mb-6">
+        {telemetry.map(m => (
+          <TelemetryGauge 
+            key={m.id} 
+            title={m.name} 
+            value={m.status === 'Down' ? 'OFFLINE' : m.rpm + ' RPM'} 
+            unit={'• ' + m.temp + '°C'} 
+            status={m.status === 'Running' ? 'OPTIMAL' : m.status === 'Warning' ? 'WARNING' : 'DOWNTIME'} 
+          />
+        ))}
       </section>
 
       {/* ─── PRODUCTION LOG TABLE (COLOURFUL BADGES & CRUD) ─── */}
@@ -399,13 +291,7 @@ export default function App() {
                       <div className="text-[10px] text-slate-500">{item.operator} • {item.shift}</div>
                     </td>
                     <td className="px-4 py-3.5">
-                      <span className={\`px-2.5 py-1 rounded-full text-[10px] font-black inline-flex items-center gap-1 \${
-                        item.status === 'Running' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
-                        item.status === 'Warning' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
-                        'bg-rose-100 text-rose-800 border border-rose-300'
-                      }\`}>
-                        {item.status}
-                      </span>
+                      <StatusBadge status={item.status === 'Running' ? 'OPTIMAL' : item.status === 'Warning' ? 'WARNING' : 'DOWNTIME'} />
                     </td>
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-2 mb-1">
@@ -497,10 +383,19 @@ export default function App() {
                   <input 
                     type="number" 
                     value={newOutput} 
-                    onChange={e => setNewOutput(e.target.value)}
+                    onChange={e => setNewOutput(Number(e.target.value) || 0)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
+              </div>
+
+              {/* Glove-friendly Touch Numpad */}
+              <div className="flex justify-center py-1">
+                <Numpad 
+                  title="TOUCH NUMPAD OPERATOR" 
+                  value={String(newOutput)} 
+                  onChange={v => setNewOutput(Number(v) || 0)} 
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -551,6 +446,7 @@ export default function App() {
 
 export const PRO_KANBAN_BOARD_CODE = `import React, { useState } from 'react';
 import { Sliders, Plus, CheckCircle2, Clock, AlertCircle, ArrowRight, User, Tag, Layers, X, Sparkles } from 'lucide-react';
+import { KPICard, StatusBadge, Numpad } from './mavicore-ui';
 
 const INITIAL_CARDS = [
   { id: 'KB-401', title: 'Stamping Bracket Chassis A', lot: 'LOT-202609-01', priority: 'Urgent', stage: 'todo', qty: 1500, operator: 'Budi S.' },
@@ -631,6 +527,14 @@ export default function App() {
         </button>
       </header>
 
+      {/* ─── 4 MAVICORE UI KPI CARDS ─── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <KPICard title="TOTAL WORK ORDERS" value={cards.length} unit="Lots" color="indigo" icon={Layers} />
+        <KPICard title="IN MACHINING" value={cards.filter(c => c.stage === 'in_progress').length} unit="Lots" color="sky" icon={Sliders} />
+        <KPICard title="QA REVIEW" value={cards.filter(c => c.stage === 'qa_review').length} unit="Lots" color="amber" icon={CheckCircle2} />
+        <KPICard title="READY TO SHIP" value={cards.filter(c => c.stage === 'done').length} unit="Lots" color="emerald" icon={Sparkles} />
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {COLUMNS.map(col => {
           const colCards = cards.filter(c => c.stage === col.id);
@@ -646,13 +550,7 @@ export default function App() {
                   <div key={c.id} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 shadow-sm hover:shadow-md transition">
                     <div className="flex justify-between items-center mb-1.5">
                       <span className="text-[10px] font-mono font-bold text-indigo-600">{c.id}</span>
-                      <span className={'px-2 py-0.5 rounded-full text-[10px] font-black ' + (
-                        c.priority === 'Urgent' ? 'bg-rose-100 text-rose-700 border border-rose-200' :
-                        c.priority === 'High' ? 'bg-amber-100 text-amber-700 border border-amber-200' :
-                        'bg-blue-100 text-blue-700 border border-blue-200'
-                      )}>
-                        {c.priority}
-                      </span>
+                      <StatusBadge status={c.priority === 'Urgent' ? 'DOWNTIME' : c.priority === 'High' ? 'WARNING' : 'OPTIMAL'} />
                     </div>
                     <div className="font-bold text-slate-900 text-xs mb-1">{c.title}</div>
                     <div className="text-[10px] text-slate-500 mb-2">Lot: {c.lot} • Qty: <strong className="text-slate-800">{c.qty} pcs</strong></div>
@@ -684,8 +582,14 @@ export default function App() {
               </div>
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Target Qty</label>
-                <input type="number" value={qty} onChange={e => setQty(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900" />
+                <input type="number" value={qty} onChange={e => setQty(Number(e.target.value) || 0)} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900" />
               </div>
+
+              {/* Touch Numpad */}
+              <div className="flex justify-center py-1">
+                <Numpad title="TARGET QTY TOUCH" value={String(qty)} onChange={v => setQty(Number(v) || 0)} />
+              </div>
+
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Prioritas</label>
                 <select value={priority} onChange={e => setPriority(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-900 font-bold">
@@ -709,6 +613,7 @@ export default function App() {
 
 export const PRO_CHECK_SHEET_CODE = `import React, { useState } from 'react';
 import { ClipboardList, CheckCircle2, XCircle, AlertTriangle, ShieldCheck, User, Clock, Check, RotateCcw } from 'lucide-react';
+import { KPICard, StatusBadge, SignaturePad } from './mavicore-ui';
 
 const INSPECTION_ITEMS = [
   { id: 1, category: 'Keselamatan Kerja (Safety)', text: 'Emergency stop switch berfungsi normal & tidak terhalang', standard: 'Mati seketika saat ditekan', status: 'pass' },
@@ -769,20 +674,11 @@ export default function App() {
         </div>
       </header>
 
-      {/* Summary Banner */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
-          <div className="text-xs font-black text-slate-400 uppercase mb-1">TOTAL POIN</div>
-          <div className="text-2xl font-black text-slate-900">{items.length}</div>
-        </div>
-        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 shadow-sm">
-          <div className="text-xs font-black text-emerald-800 uppercase mb-1">PASS (SESUAI)</div>
-          <div className="text-2xl font-black text-emerald-600">{passCount}</div>
-        </div>
-        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-300 shadow-sm">
-          <div className="text-xs font-black text-rose-800 uppercase mb-1">FAIL (CACAT/BAHAYA)</div>
-          <div className="text-2xl font-black text-rose-600">{failCount}</div>
-        </div>
+      {/* ─── 3 MAVICORE UI KPI CARDS ─── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+        <KPICard title="TOTAL POIN INSPEKSI" value={items.length} unit="Poin" color="indigo" icon={ClipboardList} />
+        <KPICard title="PASS (SESUAI)" value={passCount} unit="Poin" trend="Aman" color="emerald" icon={CheckCircle2} />
+        <KPICard title="FAIL (DEFECT)" value={failCount} unit="Poin" trend={failCount > 0 ? 'Bahaya' : 'Clear'} color="rose" icon={AlertTriangle} />
       </div>
 
       {/* Checksheet List */}
@@ -827,12 +723,20 @@ export default function App() {
         ))}
       </div>
 
+      {/* ─── DIGITAL SIGNATURE VERIFICATION ─── */}
+      <div className="mb-6 flex justify-center">
+        <SignaturePad title="TANDA TANGAN DIGITAL VERIFIKASI OPERATOR" onSave={() => setOperator(prev => prev.includes('(Verified)') ? prev : prev + ' (Verified)')} />
+      </div>
+
       {/* Submit Button */}
       <div className="flex flex-col sm:flex-row items-center justify-between p-4 rounded-2xl bg-white border border-slate-200 shadow-md gap-3">
-        <div>
-          <div className="text-xs text-slate-500">Status Verifikasi:</div>
-          <div className="font-black text-sm text-slate-900">
-            {failCount === 0 ? '✅ Mesin Siap Produksi (All Safety Clear)' : '⚠️ Hold: Ada poin inspeksi FAIL!'}
+        <div className="flex items-center gap-3">
+          <StatusBadge status={failCount === 0 ? 'OPTIMAL' : 'DOWNTIME'} />
+          <div>
+            <div className="text-[10px] text-slate-500 font-bold">Status Verifikasi:</div>
+            <div className="font-black text-xs text-slate-900">
+              {failCount === 0 ? 'Mesin Siap Produksi (All Safety Clear)' : 'Hold: Ada poin inspeksi FAIL!'}
+            </div>
           </div>
         </div>
 

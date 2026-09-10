@@ -71,6 +71,19 @@ export function cleanVibeCode(rawCode) {
     cleaned = `import { useMaviCoreData } from './mavicore-bridge';\n` + cleaned;
   }
 
+  // Auto-inject import for MaviCore UI components if used without import
+  const mavicoreUIComponents = [
+    'KPICard', 'Numpad', 'KeyboardPro', 'SignaturePad', 'BooleanToggle',
+    'QualityTolerance', 'QualityChecklist', 'DialGauge', 'DigitalCaliper',
+    'BarcodeScanner', 'ScadaStartBtn', 'ScadaStopBtn', 'ScadaTank',
+    'ScadaPlcStatus', 'ScadaProdCounter', 'StatusBadge', 'TelemetryGauge',
+    'MaviButton', 'MaviCard', 'MaviKPI', 'MaviStatus', 'MaviChecklist'
+  ];
+  const usedMaviComponents = mavicoreUIComponents.filter(c => new RegExp(`\\b${c}\\b`).test(cleaned));
+  if (usedMaviComponents.length > 0 && !/from\s+['"][^'"]*mavicore-ui[^'"]*['"]/i.test(cleaned)) {
+    cleaned = `import { ${usedMaviComponents.join(', ')} } from './mavicore-ui';\n` + cleaned;
+  }
+
   // 6. Sanitize rogue quotes after numeric values or commas (e.g. `quantity: 50,'` -> `quantity: 50,`)
   cleaned = cleaned.replace(/(\b\d+\s*,)\s*['"]\s*$/gm, '$1');
 
