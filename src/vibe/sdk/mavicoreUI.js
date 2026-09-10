@@ -1,0 +1,843 @@
+// MaviCore UI Component Library for Sandbox & Device Runner
+// Exports all major App Builder widgets as clean, reusable, touch-friendly React components
+
+export const MAVICORE_UI_VIRTUAL_FILE = `import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { 
+  Play, Square, RotateCcw, AlertTriangle, CheckCircle2, XCircle, Gauge, Activity, 
+  Cpu, Thermometer, ShieldCheck, Camera, Barcode, Eye, FileSpreadsheet, Layers, 
+  Sliders, Database, ArrowRight, ArrowLeft, Trash2, Check, RefreshCw, Wifi, 
+  WifiOff, Clock, User, Zap, ChevronDown, ChevronRight, X, Sparkles, Droplet, 
+  Volume2, Settings, Lock, Unlock, Hash, Calendar, Search, Filter
+} from 'lucide-react';
+
+/* =========================================================================
+   1. TOUCHSCREEN INPUTS & INTERFACE WIDGETS
+   ========================================================================= */
+
+/**
+ * Industrial Touchscreen Numpad
+ * Specially designed for shopfloor operators wearing gloves.
+ */
+export function Numpad({ value = '', onChange, onEnter, max = 999999, allowDecimal = true, title = 'NUMPAD INPUT' }) {
+  const [internalVal, setInternalVal] = useState(String(value || ''));
+
+  useEffect(() => {
+    setInternalVal(String(value || ''));
+  }, [value]);
+
+  const handlePress = (key) => {
+    let next = internalVal;
+    if (key === 'C') {
+      next = '';
+    } else if (key === 'DEL') {
+      next = next.slice(0, -1);
+    } else if (key === '.') {
+      if (allowDecimal && !next.includes('.')) {
+        next = next ? next + '.' : '0.';
+      }
+    } else {
+      if (next === '0' && key !== '.') next = key;
+      else next = next + key;
+    }
+    if (next.length <= 10) {
+      setInternalVal(next);
+      if (onChange) onChange(next);
+    }
+  };
+
+  const handleEnter = () => {
+    if (onEnter) onEnter(internalVal);
+  };
+
+  const keys = [
+    ['1', '2', '3'],
+    ['4', '5', '6'],
+    ['7', '8', '9'],
+    ['C', '0', allowDecimal ? '.' : 'DEL']
+  ];
+
+  return (
+    <div className="bg-slate-900 border border-slate-700/80 rounded-2xl p-4 max-w-xs w-full shadow-2xl font-sans select-none text-white">
+      {title && (
+        <div className="text-[10px] font-black text-indigo-400 uppercase tracking-wider mb-2 flex justify-between items-center">
+          <span>{title}</span>
+          <span className="text-slate-500 font-mono">GLOVE TOUCH</span>
+        </div>
+      )}
+      
+      {/* Display Screen */}
+      <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 mb-3 text-right">
+        <div className="text-2xl font-mono font-black text-emerald-400 tracking-wider truncate min-h-[36px] flex items-center justify-end">
+          {internalVal || <span className="text-slate-600">0</span>}
+        </div>
+      </div>
+
+      {/* Keypad Grid */}
+      <div className="grid grid-cols-3 gap-2 mb-2">
+        {keys.map((row, rIdx) => (
+          <React.Fragment key={rIdx}>
+            {row.map(k => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => handlePress(k)}
+                className={'h-12 rounded-xl font-black text-base transition active:scale-95 flex items-center justify-center ' + (
+                  k === 'C' ? 'bg-rose-950/60 text-rose-300 border border-rose-800/80 hover:bg-rose-900' :
+                  k === 'DEL' ? 'bg-amber-950/60 text-amber-300 border border-amber-800/80 hover:bg-amber-900' :
+                  'bg-slate-800 text-white border border-slate-700 hover:bg-slate-700 hover:border-slate-600'
+                )}
+              >
+                {k}
+              </button>
+            ))}
+          </React.Fragment>
+        ))}
+      </div>
+
+      {/* Action Row */}
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => handlePress('DEL')}
+          className="h-11 rounded-xl font-black text-xs bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 active:scale-95 transition"
+        >
+          HAPUS (DEL)
+        </button>
+        <button
+          type="button"
+          onClick={handleEnter}
+          className="h-11 rounded-xl font-black text-xs bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-500/25 active:scale-95 transition"
+        >
+          ENTER (OK)
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Full Touchscreen QWERTY Keyboard
+ */
+export function KeyboardPro({ value = '', onChange, onEnter, placeholder = 'Ketik di sini...' }) {
+  const [internalVal, setInternalVal] = useState(value);
+  const [caps, setCaps] = useState(false);
+
+  useEffect(() => setInternalVal(value), [value]);
+
+  const rows = [
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-'],
+    ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
+    ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
+    ['Z', 'X', 'C', 'V', 'B', 'N', 'M', '.', '_']
+  ];
+
+  const handleKey = (char) => {
+    const c = caps ? char.toUpperCase() : char.toLowerCase();
+    const next = internalVal + c;
+    setInternalVal(next);
+    if (onChange) onChange(next);
+  };
+
+  const handleBackspace = () => {
+    const next = internalVal.slice(0, -1);
+    setInternalVal(next);
+    if (onChange) onChange(next);
+  };
+
+  const handleClear = () => {
+    setInternalVal('');
+    if (onChange) onChange('');
+  };
+
+  return (
+    <div className="bg-slate-900 border border-slate-700 rounded-2xl p-3 shadow-xl w-full max-w-xl select-none font-sans text-white">
+      {/* Input Display */}
+      <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl p-2.5 mb-3">
+        <input 
+          type="text" 
+          value={internalVal} 
+          placeholder={placeholder}
+          readOnly
+          className="bg-transparent flex-1 text-emerald-400 font-mono text-sm outline-none"
+        />
+        {internalVal && (
+          <button type="button" onClick={handleClear} className="text-slate-500 hover:text-slate-300">
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
+      {/* Keyboard Grid */}
+      <div className="space-y-1.5 mb-2">
+        {rows.map((row, rIdx) => (
+          <div key={rIdx} className="flex justify-center gap-1">
+            {row.map(k => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => handleKey(k)}
+                className="h-10 px-3 rounded-lg bg-slate-800 border border-slate-700 text-xs font-bold text-white hover:bg-slate-700 active:scale-95 transition"
+              >
+                {caps ? k.toUpperCase() : k.toLowerCase()}
+              </button>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {/* Control Row */}
+      <div className="flex justify-between items-center gap-2 pt-1 border-t border-slate-800">
+        <button
+          type="button"
+          onClick={() => setCaps(!caps)}
+          className={'px-4 py-2 rounded-lg text-xs font-bold transition ' + (caps ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300')}
+        >
+          CAPS
+        </button>
+        <button
+          type="button"
+          onClick={() => handleKey(' ')}
+          className="flex-1 py-2 rounded-lg bg-slate-800 border border-slate-700 text-xs font-bold text-slate-300 hover:bg-slate-700 active:scale-95"
+        >
+          SPASI (SPACE)
+        </button>
+        <button
+          type="button"
+          onClick={handleBackspace}
+          className="px-4 py-2 rounded-lg bg-rose-950/60 border border-rose-800 text-rose-300 text-xs font-bold hover:bg-rose-900 active:scale-95"
+        >
+          DEL
+        </button>
+        <button
+          type="button"
+          onClick={() => onEnter && onEnter(internalVal)}
+          className="px-5 py-2 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-black active:scale-95"
+        >
+          SELESAI
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Signature Pad for Operator & Supervisor Sign-off
+ */
+export function SignaturePad({ title = 'Tanda Tangan Operator', onSave, height = 140 }) {
+  const canvasRef = useRef(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [hasDrawn, setHasDrawn] = useState(false);
+
+  const startDraw = (e) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX || (e.touches && e.touches[0].clientX)) - rect.left;
+    const y = (e.clientY || (e.touches && e.touches[0].clientY)) - rect.top;
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    setIsDrawing(true);
+    setHasDrawn(true);
+  };
+
+  const draw = (e) => {
+    if (!isDrawing) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX || (e.touches && e.touches[0].clientX)) - rect.left;
+    const y = (e.clientY || (e.touches && e.touches[0].clientY)) - rect.top;
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  };
+
+  const endDraw = () => {
+    setIsDrawing(false);
+  };
+
+  const clear = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setHasDrawn(false);
+  };
+
+  const handleSave = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const dataUrl = canvas.toDataURL('image/png');
+    if (onSave) onSave(dataUrl);
+  };
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm max-w-sm w-full font-sans">
+      <div className="flex justify-between items-center mb-2">
+        <span className="text-xs font-black text-slate-800 uppercase tracking-wider">{title}</span>
+        {hasDrawn && <span className="text-[10px] text-emerald-600 font-bold">✓ Tertanda</span>}
+      </div>
+      <div className="border border-dashed border-slate-300 rounded-xl bg-slate-50 relative overflow-hidden touch-none mb-3">
+        <canvas
+          ref={canvasRef}
+          width={320}
+          height={height}
+          onMouseDown={startDraw}
+          onMouseMove={draw}
+          onMouseUp={endDraw}
+          onMouseLeave={endDraw}
+          onTouchStart={startDraw}
+          onTouchMove={draw}
+          onTouchEnd={endDraw}
+          className="w-full h-full cursor-crosshair"
+        />
+        {!hasDrawn && (
+          <div className="absolute inset-0 pointer-events-none flex items-center justify-center text-xs text-slate-400 font-medium">
+            Tanda tangan di sini dengan jari atau stylus
+          </div>
+        )}
+      </div>
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={clear}
+          className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition"
+        >
+          Bersihkan
+        </button>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={!hasDrawn}
+          className={'px-4 py-1.5 rounded-xl text-xs font-black text-white transition ' + (
+            hasDrawn ? 'bg-gradient-to-r from-indigo-600 to-blue-600 shadow-md shadow-indigo-500/25 active:scale-95' : 'bg-slate-300 cursor-not-allowed'
+          )}
+        >
+          Simpan TTD
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Industrial Heavy Toggle Switch
+ */
+export function BooleanToggle({ label = 'Machine Power', checked = false, onChange, activeColor = 'emerald' }) {
+  return (
+    <div className="flex items-center justify-between p-3 rounded-xl bg-white border border-slate-200 shadow-sm">
+      <span className="text-xs font-black text-slate-900">{label}</span>
+      <button
+        type="button"
+        onClick={() => onChange && onChange(!checked)}
+        className={'w-14 h-7 rounded-full p-1 transition-colors duration-200 ease-in-out relative flex items-center ' + (
+          checked ? 'bg-emerald-600' : 'bg-slate-300'
+        )}
+      >
+        <div className={'w-5 h-5 rounded-full bg-white shadow-md transform transition-transform duration-200 flex items-center justify-center text-[9px] font-black ' + (
+          checked ? 'translate-x-7 text-emerald-600' : 'translate-x-0 text-slate-400'
+        )}>
+          {checked ? 'ON' : 'OFF'}
+        </div>
+      </button>
+    </div>
+  );
+}
+
+/* =========================================================================
+   2. QUALITY & INSPECTION WIDGETS
+   ========================================================================= */
+
+/**
+ * Quality Tolerance Visual Gauge
+ * Shows Min, Nominal, Max with auto Pass/Fail detection.
+ */
+export function QualityTolerance({ nominal = 25.0, tolerance = 0.5, actual = 25.1, unit = 'mm', title = 'Dimension Check' }) {
+  const min = +(nominal - tolerance).toFixed(3);
+  const max = +(nominal + tolerance).toFixed(3);
+  const isPass = actual >= min && actual <= max;
+  const deviation = +(actual - nominal).toFixed(3);
+
+  // Calculate needle percentage on bar (range min-20% to max+20%)
+  const span = (max - min) * 1.5;
+  const zeroPt = nominal - span / 2;
+  const percent = Math.min(100, Math.max(0, ((actual - zeroPt) / span) * 100));
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-md p-4 max-w-sm w-full font-sans">
+      <div className="flex justify-between items-center mb-2">
+        <span className="text-xs font-black text-slate-900 uppercase tracking-wider">{title}</span>
+        <span className={'px-2.5 py-0.5 rounded-full text-[10px] font-black border ' + (
+          isPass ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-rose-100 text-rose-800 border-rose-300'
+        )}>
+          {isPass ? 'PASS (OK)' : 'FAIL (OUT OF SPEC)'}
+        </span>
+      </div>
+
+      <div className="flex justify-between items-baseline mb-3">
+        <div>
+          <span className="text-3xl font-black font-mono text-slate-900">{actual}</span>
+          <span className="text-xs text-slate-500 ml-1 font-bold">{unit}</span>
+        </div>
+        <div className="text-right text-[10px] text-slate-500">
+          Deviasi: <strong className={deviation > 0 ? 'text-amber-600' : 'text-indigo-600'}>{deviation > 0 ? '+' : ''}{deviation} {unit}</strong>
+        </div>
+      </div>
+
+      {/* Visual Bar */}
+      <div className="relative h-4 bg-slate-100 rounded-full overflow-hidden border border-slate-200 mb-2">
+        {/* Target Zone */}
+        <div className="absolute top-0 bottom-0 bg-emerald-300/60 left-[25%] right-[25%] border-x border-emerald-500" />
+        {/* Needle Marker */}
+        <div 
+          className={'absolute top-0 bottom-0 w-2 rounded-full transform -translate-x-1/2 shadow-md transition-all duration-300 ' + (
+            isPass ? 'bg-emerald-600' : 'bg-rose-600'
+          )}
+          style={{ left: percent + '%' }}
+        />
+      </div>
+
+      <div className="flex justify-between text-[10px] text-slate-400 font-mono font-bold">
+        <span>Min: {min}</span>
+        <span className="text-slate-800">Nom: {nominal}</span>
+        <span>Max: {max}</span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Quality Inspection Checklist
+ */
+export function QualityChecklist({ items = [], onStatusChange, title = 'Inspection Items' }) {
+  const [list, setList] = useState(items);
+
+  useEffect(() => setList(items), [items]);
+
+  const toggle = (id, status) => {
+    const updated = list.map(i => i.id === id ? { ...i, status } : i);
+    setList(updated);
+    if (onStatusChange) onStatusChange(id, status, updated);
+  };
+
+  const passCount = list.filter(i => i.status === 'pass').length;
+  const failCount = list.filter(i => i.status === 'fail').length;
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-md p-4 w-full font-sans">
+      <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
+        <div>
+          <h4 className="text-sm font-black text-slate-900">{title}</h4>
+          <span className="text-[10px] text-slate-500">Total {list.length} item pengujian</span>
+        </div>
+        <div className="flex gap-2">
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
+            {passCount} Pass
+          </span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200">
+            {failCount} Fail
+          </span>
+        </div>
+      </div>
+
+      <div className="space-y-2.5">
+        {list.map(item => (
+          <div key={item.id} className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
+            <div className="flex-1">
+              <div className="text-xs font-bold text-slate-900">{item.text || item.title}</div>
+              {item.standard && <div className="text-[10px] text-slate-500">Standar: {item.standard}</div>}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => toggle(item.id, 'pass')}
+                className={'px-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1 ' + (
+                  item.status === 'pass' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                )}
+              >
+                <Check size={12} />
+                <span>PASS</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => toggle(item.id, 'fail')}
+                className={'px-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1 ' + (
+                  item.status === 'fail' ? 'bg-rose-600 text-white shadow-md shadow-rose-600/20' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                )}
+              >
+                <XCircle size={12} />
+                <span>FAIL</span>
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================================
+   3. METROLOGY & INDUSTRIAL MEASUREMENT WIDGETS
+   ========================================================================= */
+
+/**
+ * Circular Dial Gauge Indicator (Analog + Digital)
+ */
+export function DialGauge({ value = 0, min = 0, max = 100, unit = 'mm', title = 'Dial Gauge' }) {
+  const percent = Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100));
+  // Needle rotation from -120 deg to +120 deg
+  const rotation = -120 + (percent / 100) * 240;
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-md p-4 max-w-xs w-full text-center font-sans">
+      <div className="text-xs font-black text-slate-900 uppercase tracking-wider mb-2">{title}</div>
+      <div className="relative w-36 h-36 mx-auto mb-2 flex items-center justify-center">
+        {/* Outer Dial Circle */}
+        <div className="absolute inset-0 rounded-full border-4 border-slate-800 bg-slate-900 shadow-inner flex items-center justify-center">
+          {/* Tick marks */}
+          <div className="w-28 h-28 rounded-full border border-dashed border-slate-700" />
+        </div>
+        {/* Needle */}
+        <div 
+          className="absolute w-1 bg-rose-500 origin-bottom rounded-full shadow-lg transition-transform duration-300"
+          style={{ height: '54px', bottom: '50%', transform: 'rotate(' + rotation + 'deg)' }}
+        />
+        {/* Center Pivot */}
+        <div className="w-5 h-5 rounded-full bg-slate-200 border-2 border-slate-800 z-10 shadow" />
+      </div>
+      <div className="text-2xl font-mono font-black text-slate-900">
+        {value} <span className="text-xs font-sans text-slate-500 font-bold">{unit}</span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Digital Caliper / Micrometer LCD Display
+ */
+export function DigitalCaliper({ value = 0.0, onZero, unit = 'mm', title = 'Digital Caliper' }) {
+  return (
+    <div className="bg-slate-900 border border-slate-700 rounded-2xl p-4 max-w-sm w-full text-white font-sans shadow-xl">
+      <div className="flex justify-between items-center mb-2">
+        <span className="text-[10px] font-black text-indigo-400 uppercase tracking-wider">{title}</span>
+        <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800 px-2 py-0.5 rounded-full">
+          HIGH PRECISION
+        </span>
+      </div>
+      
+      {/* LCD Screen */}
+      <div className="bg-[#b4c8a8] text-slate-950 rounded-xl p-3 mb-3 border-2 border-slate-700 shadow-inner flex justify-between items-baseline font-mono">
+        <span className="text-xs font-bold text-slate-700">INC</span>
+        <span className="text-3xl font-black tracking-wider">{Number(value).toFixed(2)}</span>
+        <span className="text-sm font-black">{unit}</span>
+      </div>
+
+      <div className="flex justify-between items-center gap-2">
+        <button
+          type="button"
+          onClick={onZero}
+          className="flex-1 py-1.5 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-700 text-xs font-bold text-white transition active:scale-95"
+        >
+          ZERO / TARE
+        </button>
+        <div className="text-[10px] text-slate-400 font-mono">0.00 - 150.00 mm</div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Barcode & QR Code Scanner Trigger Widget
+ */
+export function BarcodeScanner({ onScan, placeholder = 'Scan Barcode Part / Work Order' }) {
+  const [manualCode, setManualCode] = useState('');
+
+  const handleSimulatedScan = () => {
+    const mock = 'LOT-' + Math.floor(100000 + Math.random() * 900000);
+    setManualCode(mock);
+    if (onScan) onScan(mock);
+  };
+
+  const handleManualSubmit = (e) => {
+    e.preventDefault();
+    if (manualCode && onScan) onScan(manualCode);
+  };
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-3.5 shadow-sm max-w-sm w-full font-sans">
+      <div className="flex items-center gap-2 mb-2">
+        <Barcode size={16} className="text-indigo-600" />
+        <span className="text-xs font-black text-slate-900 uppercase tracking-wider">Barcode & QR Reader</span>
+      </div>
+      <form onSubmit={handleManualSubmit} className="flex gap-2">
+        <input
+          type="text"
+          value={manualCode}
+          onChange={e => setManualCode(e.target.value)}
+          placeholder={placeholder}
+          className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+        />
+        <button
+          type="button"
+          onClick={handleSimulatedScan}
+          className="px-3 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 text-white text-xs font-bold hover:from-indigo-500 hover:to-blue-500 active:scale-95 transition"
+          title="Simulasikan Scan Kamera"
+        >
+          Scan
+        </button>
+      </form>
+    </div>
+  );
+}
+
+/* =========================================================================
+   4. SCADA HMI & PROCESS EQUIPMENT WIDGETS
+   ========================================================================= */
+
+/**
+ * Heavy Industrial START Button
+ */
+export function ScadaStartBtn({ onClick, disabled = false, label = 'START MACHINE' }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-gradient-to-b from-emerald-500 to-emerald-700 text-white font-black text-sm tracking-wider uppercase border-b-4 border-emerald-900 shadow-xl shadow-emerald-500/30 hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2"
+    >
+      <Play size={16} fill="white" />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+/**
+ * Heavy Industrial STOP / Emergency Button
+ */
+export function ScadaStopBtn({ onClick, disabled = false, label = 'STOP / E-STOP' }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-gradient-to-b from-rose-500 to-red-700 text-white font-black text-sm tracking-wider uppercase border-b-4 border-rose-950 shadow-xl shadow-rose-500/30 hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2"
+    >
+      <Square size={16} fill="white" />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+/**
+ * Process Tank with Fluid Level Animation
+ */
+export function ScadaTank({ level = 65, capacity = 1000, unit = 'Liter', title = 'Holding Tank A1' }) {
+  const percent = Math.min(100, Math.max(0, level));
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-md p-4 max-w-[200px] w-full text-center font-sans">
+      <div className="text-xs font-black text-slate-800 mb-2 truncate">{title}</div>
+      <div className="relative w-24 h-40 mx-auto rounded-3xl border-4 border-slate-800 bg-slate-100 overflow-hidden shadow-inner flex flex-col justify-end">
+        {/* Liquid Fill */}
+        <div 
+          className="w-full bg-gradient-to-t from-sky-600 via-cyan-500 to-sky-400 transition-all duration-500 flex items-center justify-center"
+          style={{ height: percent + '%' }}
+        >
+          <Droplet size={16} className="text-white/40 animate-pulse" />
+        </div>
+        {/* Markers */}
+        <div className="absolute top-[20%] left-0 right-0 border-t border-dashed border-rose-400 opacity-60" />
+        <div className="absolute bottom-[20%] left-0 right-0 border-t border-dashed border-amber-400 opacity-60" />
+      </div>
+      <div className="mt-2">
+        <div className="text-lg font-black font-mono text-slate-900">{percent}%</div>
+        <div className="text-[10px] text-slate-500 font-bold">{Math.round((percent / 100) * capacity)} / {capacity} {unit}</div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * PLC Heartbeat & Connection Status
+ */
+export function ScadaPlcStatus({ isOnline = true, scanTime = 12, ip = '192.168.1.10', name = 'Siemens S7-1500' }) {
+  return (
+    <div className="bg-slate-900 border border-slate-700/80 rounded-2xl p-3.5 shadow-md flex items-center justify-between gap-3 text-white font-sans max-w-sm w-full">
+      <div className="flex items-center gap-2.5">
+        <div className={'w-3 h-3 rounded-full animate-ping ' + (isOnline ? 'bg-emerald-500' : 'bg-rose-500')} />
+        <div>
+          <div className="text-xs font-black text-white">{name}</div>
+          <div className="text-[10px] text-slate-400 font-mono">{ip}</div>
+        </div>
+      </div>
+      <div className="text-right">
+        <div className={'text-[10px] font-black uppercase px-2 py-0.5 rounded-full inline-block ' + (
+          isOnline ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-rose-950 text-rose-400 border border-rose-800'
+        )}>
+          {isOnline ? 'ONLINE' : 'OFFLINE'}
+        </div>
+        <div className="text-[10px] text-slate-400 font-mono mt-0.5">Scan: {scanTime}ms</div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================================
+   5. MES METRICS, OEE, & ALARMS
+   ========================================================================= */
+
+/**
+ * Vibrant Industrial KPI Card
+ */
+export function KPICard({ title = 'Metric', value = '0', unit = '', trend = '', color = 'indigo', icon: Icon = Activity }) {
+  const colorStyles = {
+    indigo: 'border-t-indigo-600 text-indigo-600 bg-indigo-50',
+    sky: 'border-t-sky-500 text-sky-600 bg-sky-50',
+    amber: 'border-t-amber-500 text-amber-600 bg-amber-50',
+    emerald: 'border-t-emerald-500 text-emerald-600 bg-emerald-50',
+    rose: 'border-t-rose-500 text-rose-600 bg-rose-50'
+  };
+
+  const style = colorStyles[color] || colorStyles.indigo;
+
+  return (
+    <div className={'bg-white rounded-2xl border border-slate-200 border-t-4 p-4 shadow-md font-sans ' + style.split(' ')[0]}>
+      <div className="flex justify-between items-center mb-2">
+        <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider">{title}</span>
+        <div className={'w-7 h-7 rounded-xl flex items-center justify-center ' + style.split(' ')[2]}>
+          <Icon size={14} className={style.split(' ')[1]} />
+        </div>
+      </div>
+      <div className="flex items-baseline justify-between">
+        <div>
+          <span className="text-2xl sm:text-3xl font-black text-slate-900 font-mono">{value}</span>
+          {unit && <span className="text-xs text-slate-500 ml-1 font-bold">{unit}</span>}
+        </div>
+        {trend && (
+          <span className="text-[10px] font-black text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+            {trend}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Production Counter (Target vs Actual vs Defect)
+ */
+export function ScadaProdCounter({ target = 1000, actual = 850, defect = 12 }) {
+  const percent = Math.min(100, Math.round((actual / (target || 1)) * 100));
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-md p-4 w-full font-sans">
+      <div className="flex justify-between items-center mb-3">
+        <span className="text-xs font-black text-slate-900 uppercase tracking-wider">Production Output</span>
+        <span className="text-xs font-black font-mono text-indigo-600">{percent}% of target</span>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 text-center mb-3">
+        <div className="p-2 rounded-xl bg-slate-50 border border-slate-200">
+          <div className="text-[10px] font-bold text-slate-400">TARGET</div>
+          <div className="text-lg font-black font-mono text-slate-900">{target}</div>
+        </div>
+        <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-200">
+          <div className="text-[10px] font-bold text-emerald-700">ACTUAL</div>
+          <div className="text-lg font-black font-mono text-emerald-700">{actual}</div>
+        </div>
+        <div className="p-2 rounded-xl bg-rose-50 border border-rose-200">
+          <div className="text-[10px] font-bold text-rose-700">DEFECT/NG</div>
+          <div className="text-lg font-black font-mono text-rose-700">{defect}</div>
+        </div>
+      </div>
+
+      {/* Progress Bar */}
+      <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+        <div 
+          className="h-full bg-gradient-to-r from-indigo-600 to-emerald-500 transition-all duration-300 rounded-full"
+          style={{ width: percent + '%' }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Industrial Status Badge Pill
+ */
+export function StatusBadge({ status = 'RUNNING' }) {
+  const map = {
+    RUNNING: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+    OPTIMAL: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+    WARNING: 'bg-amber-100 text-amber-800 border-amber-300',
+    WARN: 'bg-amber-100 text-amber-800 border-amber-300',
+    DOWNTIME: 'bg-rose-100 text-rose-800 border-rose-300',
+    DOWN: 'bg-rose-100 text-rose-800 border-rose-300',
+    MAINTENANCE: 'bg-purple-100 text-purple-800 border-purple-300',
+    IDLE: 'bg-slate-100 text-slate-700 border-slate-300'
+  };
+
+  const style = map[String(status).toUpperCase()] || map.IDLE;
+
+  return (
+    <span className={'px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ' + style}>
+      {status}
+    </span>
+  );
+}
+
+/**
+ * Telemetry Live Gauge
+ */
+export function TelemetryGauge({ title = 'Spindle Speed', value = 1450, unit = 'RPM', status = 'OPTIMAL' }) {
+  return (
+    <div className="p-3 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-between font-sans">
+      <div>
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{title}</span>
+        <div className="text-lg font-mono font-black text-slate-900 mt-0.5">
+          {value} <span className="text-[10px] font-sans text-slate-500 font-bold">{unit}</span>
+        </div>
+      </div>
+      <StatusBadge status={status} />
+    </div>
+  );
+}
+
+// Backward-compatibility aliases with early UI kit
+export const MaviButton = ScadaStartBtn;
+export const MaviCard = KPICard;
+export const MaviKPI = KPICard;
+export const MaviStatus = StatusBadge;
+export const MaviChecklist = QualityChecklist;
+
+export default {
+  Numpad,
+  KeyboardPro,
+  SignaturePad,
+  BooleanToggle,
+  QualityTolerance,
+  QualityChecklist,
+  DialGauge,
+  DigitalCaliper,
+  BarcodeScanner,
+  ScadaStartBtn,
+  ScadaStopBtn,
+  ScadaTank,
+  ScadaPlcStatus,
+  KPICard,
+  ScadaProdCounter,
+  StatusBadge,
+  TelemetryGauge,
+  MaviButton,
+  MaviCard,
+  MaviKPI,
+  MaviStatus,
+  MaviChecklist
+};
+`;
+
+export default {
+  MAVICORE_UI_VIRTUAL_FILE
+};

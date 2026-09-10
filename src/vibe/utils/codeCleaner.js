@@ -432,6 +432,25 @@ export function autoFixMissingImports(code, errorText) {
     }
   }
 
+  // 3b. Missing MaviCore UI components
+  const mavicoreUIComponents = [
+    'Numpad', 'KeyboardPro', 'SignaturePad', 'BooleanToggle', 'QualityTolerance', 
+    'QualityChecklist', 'DialGauge', 'DigitalCaliper', 'BarcodeScanner', 
+    'ScadaStartBtn', 'ScadaStopBtn', 'ScadaTank', 'ScadaPlcStatus', 'KPICard', 
+    'ScadaProdCounter', 'StatusBadge', 'TelemetryGauge', 'MaviButton', 'MaviCard', 
+    'MaviKPI', 'MaviStatus', 'MaviChecklist'
+  ];
+  if (mavicoreUIComponents.includes(missingName)) {
+    if (/from\s+['"][^'"]*mavicore-ui[^'"]*['"]/i.test(code)) {
+      return code.replace(/import\s*\{([^}]+)\}\s*from\s*['"][^'"]*mavicore-ui[^'"]*['"]/i, (m, existing) => {
+        if (existing.includes(missingName)) return m;
+        return `import { ${existing.trim()}, ${missingName} } from './mavicore-ui'`;
+      });
+    } else {
+      return `import { ${missingName} } from './mavicore-ui';\n` + code;
+    }
+  }
+
   // 4. Missing Lucide Icon or general PascalCase React Icon component
   if (/^[A-Z][A-Za-z0-9]+$/.test(missingName)) {
     if (/from\s+['"]lucide-react['"]/i.test(code)) {

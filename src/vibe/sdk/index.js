@@ -1,4 +1,5 @@
 export { MAVICORE_BRIDGE_VIRTUAL_FILE } from './mavicoreBridge.js';
+export { MAVICORE_UI_VIRTUAL_FILE } from './mavicoreUI.js';
 
 export const MAVICORE_SDK_VIRTUAL_FILE = `
 // @mavicore/sdk v2.0 — Real implementations for manufacturing apps

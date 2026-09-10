@@ -58,7 +58,8 @@ import {
   Wifi,
   Save,
   FilePlus,
-  UploadCloud
+  UploadCloud,
+  Boxes
 } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import toast, { Toaster } from 'react-hot-toast';
@@ -79,12 +80,13 @@ import { AgenticPromptEngine } from '../../vibe/ai/AgenticPromptEngine';
 import { RuntimeManager } from '../../vibe/runtime/RuntimeManager';
 import { ErrorFixEngine } from '../../vibe/autofix/ErrorFixEngine';
 import { MAVICORE_UIKIT_VIRTUAL_FILE } from '../../vibe/uikit';
-import { MAVICORE_SDK_VIRTUAL_FILE, MAVICORE_BRIDGE_VIRTUAL_FILE } from '../../vibe/sdk';
+import { MAVICORE_SDK_VIRTUAL_FILE, MAVICORE_BRIDGE_VIRTUAL_FILE, MAVICORE_UI_VIRTUAL_FILE } from '../../vibe/sdk';
 
 import FileTreeExplorer from '../../vibe/components/FileTreeExplorer';
 import AiChangesReviewModal from '../../vibe/components/AiChangesReviewModal';
 import ManufacturingTemplatesModal from '../../vibe/components/ManufacturingTemplatesModal';
 import BuildModal from '../../vibe/components/BuildModal';
+import WidgetCatalogModal from '../../vibe/components/WidgetCatalogModal';
 import VibeChatPanel from '../../vibe/components/VibeChatPanel';
 import BottomTerminalPanel from '../../vibe/components/BottomTerminalPanel';
 import { cleanVibeCode, healTruncatedReactCode, extractVibeCode, autoFixMissingImports } from '../../vibe/utils/codeCleaner';
@@ -1148,7 +1150,15 @@ root.render(
   </StrictMode>
 );
 `,
-      '/mavicore-ui.jsx': MAVICORE_UIKIT_VIRTUAL_FILE,
+      '/mavicore-ui.jsx': MAVICORE_UI_VIRTUAL_FILE,
+      '/mavicore-ui.js': MAVICORE_UI_VIRTUAL_FILE,
+      '/mavicore-ui': MAVICORE_UI_VIRTUAL_FILE,
+      '/mavicoreUi.js': MAVICORE_UI_VIRTUAL_FILE,
+      '/mavicoreUi': MAVICORE_UI_VIRTUAL_FILE,
+      '/components/mavicore-ui.js': MAVICORE_UI_VIRTUAL_FILE,
+      '/components/MaviCoreUI.jsx': MAVICORE_UI_VIRTUAL_FILE,
+      '/node_modules/mavicore-ui/index.js': MAVICORE_UI_VIRTUAL_FILE,
+      '/node_modules/mavicore-ui/package.json': JSON.stringify({ name: 'mavicore-ui', main: 'index.js' }),
       '/mavicore-sdk.js': MAVICORE_SDK_VIRTUAL_FILE,
       '/mavicore-sdk': MAVICORE_SDK_VIRTUAL_FILE,
       '/mavicoreSdk.js': MAVICORE_SDK_VIRTUAL_FILE,
@@ -1318,6 +1328,14 @@ root.render(
     vfs.writeFile('/mavicoreSdk.js', MAVICORE_SDK_VIRTUAL_FILE);
     vfs.writeFile('/mavicoreSdk', MAVICORE_SDK_VIRTUAL_FILE);
     vfs.writeFile('/node_modules/mavicore-sdk/index.js', MAVICORE_SDK_VIRTUAL_FILE);
+    vfs.writeFile('/mavicore-ui.jsx', MAVICORE_UI_VIRTUAL_FILE);
+    vfs.writeFile('/mavicore-ui.js', MAVICORE_UI_VIRTUAL_FILE);
+    vfs.writeFile('/mavicore-ui', MAVICORE_UI_VIRTUAL_FILE);
+    vfs.writeFile('/mavicoreUi.js', MAVICORE_UI_VIRTUAL_FILE);
+    vfs.writeFile('/mavicoreUi', MAVICORE_UI_VIRTUAL_FILE);
+    vfs.writeFile('/components/mavicore-ui.js', MAVICORE_UI_VIRTUAL_FILE);
+    vfs.writeFile('/components/MaviCoreUI.jsx', MAVICORE_UI_VIRTUAL_FILE);
+    vfs.writeFile('/node_modules/mavicore-ui/index.js', MAVICORE_UI_VIRTUAL_FILE);
     setFilesRecord(vfs.getAllFilesRecord());
     setFileTree(vfs.getFileTree());
   }, []);
@@ -2180,6 +2198,45 @@ root.render(
     }
   };
 
+  // Widget Catalog Modal state & Inserter
+  const [isWidgetCatalogOpen, setIsWidgetCatalogOpen] = useState(false);
+
+  const handleInsertWidgetCode = (importStatement, sampleSnippet) => {
+    let current = vfs.readFile('/App.js') || vfs.readFile('/App.jsx') || '';
+    if (!current) return;
+    
+    // 1. Add import statement at top if not present
+    if (!current.includes("from './mavicore-ui'") && !current.includes('from "./mavicore-ui"')) {
+      current = importStatement + '\n' + current;
+    } else {
+      const importMatch = importStatement.match(/import\s*\{([^}]+)\}/);
+      if (importMatch) {
+        const newNames = importMatch[1].split(',').map(s => s.trim());
+        current = current.replace(/import\s*\{([^}]+)\}\s*from\s*['"][^'"]*mavicore-ui[^'"]*['"]/, (m, existing) => {
+          const existingList = existing.split(',').map(s => s.trim());
+          const merged = Array.from(new Set([...existingList, ...newNames])).join(', ');
+          return `import { ${merged} } from './mavicore-ui'`;
+        });
+      }
+    }
+    
+    // 2. Insert sample snippet inside the main return JSX before the last closing </div>
+    const lastDivIdx = current.lastIndexOf('</div>');
+    if (lastDivIdx > 0) {
+      current = current.slice(0, lastDivIdx) + '\n      {/* Widget MaviCore UI */}\n      <div className="my-4">\n        ' + sampleSnippet.replace(/\n/g, '\n        ') + '\n      </div>\n' + current.slice(lastDivIdx);
+    }
+    
+    vfs.writeFile('/App.js', current);
+    setFilesRecord(vfs.getAllFilesRecord());
+    setFileTree(vfs.getFileTree());
+    if (sandpackBridgeRef.current) {
+      sandpackBridgeRef.current.updateFile('/App.js', current);
+    }
+    if (onCodeChange) onCodeChange(current);
+    setIsWidgetCatalogOpen(false);
+    toast.success('Widget berhasil disisipkan ke /App.js!');
+  };
+
   // Switch App Mode (Web vs Mobile)
   const handleSwitchAppMode = (mode) => {
     setAppMode(mode);
@@ -2438,6 +2495,24 @@ root.render(
             title="Reset ke Template Kosong Baru"
           >
             <FilePlus size={13} />
+          </button>
+
+          {/* Katalog Widget MaviCore UI - ICON ONLY */}
+          <button
+            type="button"
+            onClick={() => setIsWidgetCatalogOpen(true)}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: '28px', height: '28px', borderRadius: '6px',
+              backgroundColor: 'rgba(99, 102, 241, 0.25)',
+              border: '1px solid rgba(99, 102, 241, 0.5)',
+              color: '#a5b4fc',
+              cursor: 'pointer',
+              transition: 'all 0.15s'
+            }}
+            title="Katalog Widget MaviCore UI (Numpad, Quality, SCADA, dll)"
+          >
+            <Boxes size={13} />
           </button>
         </div>
 
@@ -3534,6 +3609,13 @@ root.render(
           </div>
         </div>
       )}
+
+      {/* 7. Katalog Widget MaviCore UI Modal */}
+      <WidgetCatalogModal
+        isOpen={isWidgetCatalogOpen}
+        onClose={() => setIsWidgetCatalogOpen(false)}
+        onInsertCode={handleInsertWidgetCode}
+      />
 
       {/* Incompatible Builder Warning Modal */}
       {incompatibleNotice && (
