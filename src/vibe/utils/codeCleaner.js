@@ -56,6 +56,21 @@ export function cleanVibeCode(rawCode) {
   // 5. Strip any stray markdown language headers at the top
   cleaned = cleaned.replace(/^(?:javascript|jsx|js|tsx|react)\s*\n/i, '');
 
+  // 5b. Normalize MaviCore Bridge imports across all naming conventions
+  cleaned = cleaned.replace(
+    /import\s+[\s\S]*?\s+from\s+['"][./]*mavicore[-_]?bridge(?:\.js)?['"];?/gi,
+    "import { useMaviCoreData, MaviCoreBridge, bridge } from './mavicore-bridge';"
+  );
+  cleaned = cleaned.replace(
+    /import\s+[\s\S]*?\s+from\s+['"][./]*mavicoreBridge(?:\.js)?['"];?/gi,
+    "import { useMaviCoreData, MaviCoreBridge, bridge } from './mavicore-bridge';"
+  );
+
+  // Auto-inject import if useMaviCoreData is invoked but not imported
+  if (/\buseMaviCoreData\s*\(/.test(cleaned) && !/useMaviCoreData/.test(cleaned.slice(0, Math.max(0, cleaned.indexOf('useMaviCoreData'))))) {
+    cleaned = `import { useMaviCoreData } from './mavicore-bridge';\n` + cleaned;
+  }
+
   // 6. Sanitize rogue quotes after numeric values or commas (e.g. `quantity: 50,'` -> `quantity: 50,`)
   cleaned = cleaned.replace(/(\b\d+\s*,)\s*['"]\s*$/gm, '$1');
 
@@ -359,8 +374,22 @@ export function extractVibeCode(text) {
  */
 export function autoFixMissingImports(code, errorText) {
   if (!code || typeof code !== 'string' || !errorText) return null;
-  const match = String(errorText).match(/ReferenceError:\s*([A-Za-z0-9_]+)\s+is not defined/i) ||
-                String(errorText).match(/([A-Za-z0-9_]+)\s+is not defined/i);
+
+  // 0. MaviCore Bridge & useMaviCoreData resolution error
+  const errStr = String(errorText);
+  if (errStr.includes('useMaviCoreData') || errStr.includes('_mavicoreBridge') || errStr.includes('MaviCoreBridge')) {
+    if (/from\s+['"][^'"]*mavicore[^'"]*['"]/i.test(code)) {
+      return code.replace(
+        /import\s+[\s\S]*?\s+from\s+['"][^'"]*mavicore[^'"]*['"];?/i,
+        "import { useMaviCoreData, MaviCoreBridge, bridge } from './mavicore-bridge';"
+      );
+    } else {
+      return "import { useMaviCoreData, MaviCoreBridge, bridge } from './mavicore-bridge';\n" + code;
+    }
+  }
+
+  const match = errStr.match(/ReferenceError:\s*([A-Za-z0-9_]+)\s+is not defined/i) ||
+                errStr.match(/([A-Za-z0-9_]+)\s+is not defined/i);
   if (!match) return null;
 
   const missingName = match[1];

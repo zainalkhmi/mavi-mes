@@ -115,8 +115,17 @@ export default function SandboxDeviceRunner() {
         // Inject MaviCore Bridge & SDK so apps running on real devices have full database CRUD capabilities
         finalFiles['/mavicore-bridge.js'] = MAVICORE_BRIDGE_VIRTUAL_FILE;
         finalFiles['/mavicore-bridge'] = MAVICORE_BRIDGE_VIRTUAL_FILE;
+        finalFiles['/mavicoreBridge.js'] = MAVICORE_BRIDGE_VIRTUAL_FILE;
+        finalFiles['/mavicoreBridge'] = MAVICORE_BRIDGE_VIRTUAL_FILE;
+        finalFiles['/mavicore_bridge.js'] = MAVICORE_BRIDGE_VIRTUAL_FILE;
+        finalFiles['/mavicore_bridge'] = MAVICORE_BRIDGE_VIRTUAL_FILE;
+        finalFiles['/node_modules/mavicore-bridge/index.js'] = MAVICORE_BRIDGE_VIRTUAL_FILE;
+        finalFiles['/node_modules/mavicoreBridge/index.js'] = MAVICORE_BRIDGE_VIRTUAL_FILE;
         finalFiles['/mavicore-sdk.js'] = MAVICORE_SDK_VIRTUAL_FILE;
         finalFiles['/mavicore-sdk'] = MAVICORE_SDK_VIRTUAL_FILE;
+        finalFiles['/mavicoreSdk.js'] = MAVICORE_SDK_VIRTUAL_FILE;
+        finalFiles['/mavicoreSdk'] = MAVICORE_SDK_VIRTUAL_FILE;
+        finalFiles['/node_modules/mavicore-sdk/index.js'] = MAVICORE_SDK_VIRTUAL_FILE;
 
         setFilesRecord(finalFiles);
       } catch (err) {

@@ -1146,8 +1146,19 @@ root.render(
 `,
       '/mavicore-ui.jsx': MAVICORE_UIKIT_VIRTUAL_FILE,
       '/mavicore-sdk.js': MAVICORE_SDK_VIRTUAL_FILE,
+      '/mavicore-sdk': MAVICORE_SDK_VIRTUAL_FILE,
+      '/mavicoreSdk.js': MAVICORE_SDK_VIRTUAL_FILE,
+      '/mavicoreSdk': MAVICORE_SDK_VIRTUAL_FILE,
       '/mavicore-bridge.js': MAVICORE_BRIDGE_VIRTUAL_FILE,
-      '/mavicore-bridge': MAVICORE_BRIDGE_VIRTUAL_FILE
+      '/mavicore-bridge': MAVICORE_BRIDGE_VIRTUAL_FILE,
+      '/mavicoreBridge.js': MAVICORE_BRIDGE_VIRTUAL_FILE,
+      '/mavicoreBridge': MAVICORE_BRIDGE_VIRTUAL_FILE,
+      '/mavicore_bridge.js': MAVICORE_BRIDGE_VIRTUAL_FILE,
+      '/mavicore_bridge': MAVICORE_BRIDGE_VIRTUAL_FILE,
+      '/node_modules/mavicore-bridge/index.js': MAVICORE_BRIDGE_VIRTUAL_FILE,
+      '/node_modules/mavicore-bridge/package.json': JSON.stringify({ name: 'mavicore-bridge', main: 'index.js' }),
+      '/node_modules/mavicoreBridge/index.js': MAVICORE_BRIDGE_VIRTUAL_FILE,
+      '/node_modules/mavicoreBridge/package.json': JSON.stringify({ name: 'mavicoreBridge', main: 'index.js' })
     };
     return new ProjectFileSystem(initialFiles);
   });
@@ -1292,8 +1303,17 @@ root.render(
     // Ensure virtual bridge files are up-to-date with latest CRUD aliases
     vfs.writeFile('/mavicore-bridge.js', MAVICORE_BRIDGE_VIRTUAL_FILE);
     vfs.writeFile('/mavicore-bridge', MAVICORE_BRIDGE_VIRTUAL_FILE);
+    vfs.writeFile('/mavicoreBridge.js', MAVICORE_BRIDGE_VIRTUAL_FILE);
+    vfs.writeFile('/mavicoreBridge', MAVICORE_BRIDGE_VIRTUAL_FILE);
+    vfs.writeFile('/mavicore_bridge.js', MAVICORE_BRIDGE_VIRTUAL_FILE);
+    vfs.writeFile('/mavicore_bridge', MAVICORE_BRIDGE_VIRTUAL_FILE);
+    vfs.writeFile('/node_modules/mavicore-bridge/index.js', MAVICORE_BRIDGE_VIRTUAL_FILE);
+    vfs.writeFile('/node_modules/mavicoreBridge/index.js', MAVICORE_BRIDGE_VIRTUAL_FILE);
     vfs.writeFile('/mavicore-sdk.js', MAVICORE_SDK_VIRTUAL_FILE);
     vfs.writeFile('/mavicore-sdk', MAVICORE_SDK_VIRTUAL_FILE);
+    vfs.writeFile('/mavicoreSdk.js', MAVICORE_SDK_VIRTUAL_FILE);
+    vfs.writeFile('/mavicoreSdk', MAVICORE_SDK_VIRTUAL_FILE);
+    vfs.writeFile('/node_modules/mavicore-sdk/index.js', MAVICORE_SDK_VIRTUAL_FILE);
     setFilesRecord(vfs.getAllFilesRecord());
     setFileTree(vfs.getFileTree());
   }, []);

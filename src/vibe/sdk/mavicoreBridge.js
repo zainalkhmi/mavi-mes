@@ -287,7 +287,8 @@ export const MaviCoreBridge = {
   fetchRecords: async (tableName) => MaviCoreBridge.read(tableName),
   query: async (tableName) => MaviCoreBridge.read(tableName),
   queryRecords: async (tableName) => MaviCoreBridge.read(tableName),
-  getAll: async (tableName) => MaviCoreBridge.read(tableName)
+  getAll: async (tableName) => MaviCoreBridge.read(tableName),
+  useMaviCoreData: (...args) => (typeof window !== 'undefined' && window.useMaviCoreData ? window.useMaviCoreData(...args) : null)
 };
 
 // Global attachment on window for auto-injection in Sandpack preview
@@ -398,8 +399,13 @@ export function useMaviCoreData(tableName) {
   };
 }
 
+MaviCoreBridge.useMaviCoreData = useMaviCoreData;
+MaviCoreBridge.default = MaviCoreBridge;
+
 if (typeof window !== 'undefined') {
   window.useMaviCoreData = useMaviCoreData;
+  window.MaviCoreBridge = MaviCoreBridge;
+  window.bridge = MaviCoreBridge;
 
   // ─── Visual Component Inspector (Click-to-Code) ───
   let isInspectActive = false;
@@ -508,7 +514,18 @@ if (typeof window !== 'undefined') {
   }, true);
 }
 
+export { useMaviCoreData, MaviCoreBridge, bridge };
 export default MaviCoreBridge;
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = MaviCoreBridge;
+  module.exports.MaviCoreBridge = MaviCoreBridge;
+  module.exports.useMaviCoreData = useMaviCoreData;
+  module.exports.bridge = MaviCoreBridge;
+  module.exports.default = MaviCoreBridge;
+}
 `;
 
+export { MAVICORE_BRIDGE_VIRTUAL_FILE };
 export default MAVICORE_BRIDGE_VIRTUAL_FILE;
+

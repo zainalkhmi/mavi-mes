@@ -76,4 +76,19 @@ export default function App() {
     expect(healed).toContain(');');
     expect(healed).toContain('}');
   });
+
+  it('auto-fixes _mavicoreBridge.useMaviCoreData is not a function error', () => {
+    const codeWithBadImport = `import React, { useState } from 'react';
+import { useMaviCoreData } from './mavicoreBridge';
+
+export default function App() {
+  const { records } = useMaviCoreData('preventive_maintenance');
+  return <div>{records.length}</div>;
+}`;
+    const errorMsg = '/App.js: (0 , _mavicoreBridge.useMaviCoreData) is not a function (45:62)';
+    const fixed = autoFixMissingImports(codeWithBadImport, errorMsg);
+
+    expect(fixed).toContain("from './mavicore-bridge'");
+    expect(fixed).toContain('useMaviCoreData');
+  });
 });
