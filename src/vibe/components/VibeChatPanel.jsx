@@ -20,7 +20,8 @@ import {
   FileCode,
   Cpu,
   Mic,
-  MicOff
+  MicOff,
+  MessageSquare
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { getPrimaryAiConnector, saveIntegrationConnector } from '../../utils/database';
@@ -75,6 +76,7 @@ export default function VibeChatPanel({
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [currentStream, setCurrentStream] = useState('');
+  const [chatMode, setChatMode] = useState('build'); // 'build' (create/modify app) | 'qa' (tanya jawab / konsultasi)
   const [planFirstMode, setPlanFirstMode] = useState(true);
   const chatEndRef = useRef(null);
   const textareaRef = useRef(null);
@@ -271,6 +273,53 @@ ${tablesList || 'No custom tables yet'}`;
           modelId: selectedModelId
         }
       };
+
+      if (chatMode === 'qa') {
+        // ─── 0. TANYA JAWAB / KONSULTASI MODE ───
+        const activeCode = (context.files || {})['/App.js'] || (context.files || {})['/App.jsx'] || '';
+        const qaSystemPrompt = `You are Mavi Copilot AI Advisor & Industrial MES Expert.
+You are in conversational Q&A / Konsultasi Mode.
+The user wants to ask questions, understand the active code, discuss industrial MES features, troubleshoot bugs, or learn how MaviCore works.
+
+APPLICATION CONTEXT:
+App Name: ${context.appName || 'Sandbox App'}
+Current Files in Workspace: ${Object.keys(context.files || {}).join(', ')}
+Available MaviCore Database Tables:
+${tablesList || 'No custom tables registered yet'}
+
+ACTIVE /App.js CODE (Reference only, do not overwrite unless asked):
+\`\`\`jsx
+${activeCode.slice(0, 3500)}
+\`\`\`
+
+GUIDELINES FOR Q&A MODE:
+1. Respond conversationally, clearly, and directly in Indonesian or English (matching user language).
+2. DO NOT output the full App.js wrapped in <vibe_code> tags. Explain logic, point out bugs, give recommendations, or provide concise code snippets in standard markdown code fences (\`\`\`jsx ... \`\`\`).
+3. If the user asks about MaviCore data bridge, explain window.MaviCoreBridge (save, read, update, delete) or import { useMaviCoreData } from './mavicore-bridge'.
+4. If the user asks for advice on UI/UX, recommend modern colorful cards, light theme (#f8fafc), and clear status badges.
+5. Provide actionable, insightful answers like an expert industrial software architect and pair programmer.`;
+
+        await streamVibeAI({
+          messages: [
+            { role: 'system', content: qaSystemPrompt },
+            ...messages.slice(-8).map(m => ({ role: m.role, content: m.content })),
+            { role: 'user', content: userMessage }
+          ],
+          settings: effectiveSettings,
+          onChunk: (chunk) => {
+            setCurrentStream(prev => prev + chunk);
+          },
+          onComplete: (result) => {
+            setMessages(prev => [...prev, { role: 'assistant', type: 'qa', content: result.text }]);
+            setCurrentStream('');
+          },
+          onError: (err) => {
+            setMessages(prev => [...prev, { role: 'assistant', type: 'qa', content: `Error: ${err.message}` }]);
+            setCurrentStream('');
+          }
+        });
+        return;
+      }
 
       if (planFirstMode) {
         // ─── 1. ANTIGRAVITY PLANNING MODE ───
@@ -617,30 +666,82 @@ CRITICAL EXECUTION CONSTRAINTS:
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Sparkles size={16} color="#a855f7" />
           <span style={{ color: '#f8fafc', fontWeight: 700, fontSize: '13px' }}>
-            Vibe AI Assistant
+            Vibe Copilot
           </span>
-          <button
-            type="button"
-            onClick={() => setPlanFirstMode(v => !v)}
-            style={{
-              fontSize: '10px',
-              padding: '2px 8px',
-              borderRadius: '6px',
-              backgroundColor: planFirstMode ? 'rgba(16, 185, 129, 0.18)' : 'rgba(100, 116, 139, 0.2)',
-              color: planFirstMode ? '#34d399' : '#94a3b8',
-              border: `1px solid ${planFirstMode ? 'rgba(52, 211, 153, 0.4)' : 'rgba(100, 116, 139, 0.3)'}`,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              fontWeight: 600,
-              transition: 'all 0.15s'
-            }}
-            title="Klik untuk beralih mode: Plan First (Antigravity Style) vs Instant Code"
-          >
-            <ListTodo size={11} />
-            <span>{planFirstMode ? '📋 Plan Mode' : '⚡ Instant'}</span>
-          </button>
+
+          {/* Mode Switcher: Build App vs Tanya Jawab */}
+          <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)', padding: '2px', borderRadius: '7px', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <button
+              type="button"
+              onClick={() => setChatMode('build')}
+              style={{
+                fontSize: '10px',
+                padding: '2px 7px',
+                borderRadius: '5px',
+                border: 'none',
+                backgroundColor: chatMode === 'build' ? '#0ea5e9' : 'transparent',
+                color: chatMode === 'build' ? '#fff' : '#94a3b8',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontWeight: chatMode === 'build' ? 700 : 500,
+                transition: 'all 0.15s'
+              }}
+              title="Mode Buat / Modifikasi Aplikasi di Canvas Sandbox"
+            >
+              <Sparkles size={10} />
+              <span>Build App</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setChatMode('qa')}
+              style={{
+                fontSize: '10px',
+                padding: '2px 7px',
+                borderRadius: '5px',
+                border: 'none',
+                backgroundColor: chatMode === 'qa' ? '#8b5cf6' : 'transparent',
+                color: chatMode === 'qa' ? '#fff' : '#94a3b8',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontWeight: chatMode === 'qa' ? 700 : 500,
+                transition: 'all 0.15s'
+              }}
+              title="Mode Tanya Jawab / Konsultasi (Diskusi tanpa mengubah kode)"
+            >
+              <MessageSquare size={10} />
+              <span>Tanya Jawab</span>
+            </button>
+          </div>
+
+          {/* Sub-toggle for Plan vs Instant when in Build mode */}
+          {chatMode === 'build' && (
+            <button
+              type="button"
+              onClick={() => setPlanFirstMode(v => !v)}
+              style={{
+                fontSize: '10px',
+                padding: '2px 6px',
+                borderRadius: '6px',
+                backgroundColor: planFirstMode ? 'rgba(16, 185, 129, 0.18)' : 'rgba(100, 116, 139, 0.2)',
+                color: planFirstMode ? '#34d399' : '#94a3b8',
+                border: `1px solid ${planFirstMode ? 'rgba(52, 211, 153, 0.4)' : 'rgba(100, 116, 139, 0.3)'}`,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '3px',
+                fontWeight: 600,
+                transition: 'all 0.15s'
+              }}
+              title="Klik untuk beralih mode: Plan First vs Instant Code"
+            >
+              <ListTodo size={10} />
+              <span>{planFirstMode ? '📋 Plan' : '⚡ Instant'}</span>
+            </button>
+          )}
         </div>
         <div style={{ display: 'flex', gap: '6px' }}>
           <button
@@ -697,7 +798,9 @@ CRITICAL EXECUTION CONSTRAINTS:
               MaviCore Vibe Planner & Coder
             </p>
             <p style={{ margin: '6px 0 0', fontSize: '11px', color: '#94a3b8' }}>
-              {planFirstMode
+              {chatMode === 'qa'
+                ? 'Mode Tanya Jawab Aktif: Anda bisa berdiskusi, bertanya tentang arsitektur, konsultasi bug, atau cara integrasi MaviCore tanpa mengubah kode aplikasi.'
+                : planFirstMode
                 ? 'Mode Plan Aktif: AI akan membuat Implementation Plan lebih dulu untuk direview sebelum eksekusi koding.'
                 : 'Mode Instan Aktif: AI akan langsung membuat kode dan memperbarui aplikasi.'}
             </p>
@@ -725,7 +828,7 @@ CRITICAL EXECUTION CONSTRAINTS:
           <MessageBubble
             role="assistant"
             content={currentStream}
-            type={planFirstMode ? 'plan' : 'code'}
+            type={chatMode === 'qa' ? 'qa' : planFirstMode ? 'plan' : 'code'}
             isStreaming={true}
             onCopy={copyMessage}
           />
@@ -745,7 +848,7 @@ CRITICAL EXECUTION CONSTRAINTS:
             width: 'fit-content'
           }}>
             <Loader2 size={15} className="animate-spin" />
-            <span>{planFirstMode ? 'Menyusun Implementation Plan...' : 'Menghasilkan kode...'}</span>
+            <span>{chatMode === 'qa' ? 'Menyiapkan jawaban konsultasi...' : planFirstMode ? 'Menyusun Implementation Plan...' : 'Menghasilkan kode...'}</span>
           </div>
         )}
 
@@ -902,7 +1005,13 @@ CRITICAL EXECUTION CONSTRAINTS:
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={planFirstMode ? "Jelaskan app yang ingin dibuat (akan dibuatkan plan dulu)..." : "Ketik prompt instruksi kode..."}
+            placeholder={
+              chatMode === 'qa'
+                ? "Tanya apa saja tentang kode, bug, logika, atau database MES..."
+                : planFirstMode
+                ? "Jelaskan app yang ingin dibuat (akan dibuatkan plan dulu)..."
+                : "Ketik prompt instruksi kode aplikasi..."
+            }
             disabled={isLoading}
             style={{
               width: '100%',
@@ -1002,7 +1111,7 @@ CRITICAL EXECUTION CONSTRAINTS:
                 style={{
                   width: '30px',
                   height: '30px',
-                  backgroundColor: isLoading || !input.trim() ? '#334155' : '#0284c7',
+                  backgroundColor: isLoading || !input.trim() ? '#334155' : chatMode === 'qa' ? '#8b5cf6' : '#0284c7',
                   border: 'none',
                   borderRadius: '50%',
                   color: '#fff',
@@ -1011,9 +1120,9 @@ CRITICAL EXECUTION CONSTRAINTS:
                   alignItems: 'center',
                   justifyContent: 'center',
                   transition: 'all 0.2s',
-                  boxShadow: input.trim() ? '0 2px 8px rgba(2, 132, 199, 0.4)' : 'none'
+                  boxShadow: input.trim() ? (chatMode === 'qa' ? '0 2px 8px rgba(139, 92, 246, 0.4)' : '0 2px 8px rgba(2, 132, 199, 0.4)') : 'none'
                 }}
-                title="Kirim Prompt"
+                title={chatMode === 'qa' ? "Kirim Pertanyaan / Diskusi" : "Kirim Prompt Buat App"}
               >
                 {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={13} />}
               </button>
@@ -1031,23 +1140,34 @@ CRITICAL EXECUTION CONSTRAINTS:
           alignItems: 'center',
           padding: '0 2px'
         }}>
-          <span>Shift+Enter untuk baris baru</span>
-          <button
-            type="button"
-            onClick={() => setPlanFirstMode(v => !v)}
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '10px',
-              padding: 0,
-              color: planFirstMode ? '#34d399' : '#94a3b8',
-              fontWeight: 600
-            }}
-            title="Klik untuk toggle mode"
-          >
-            {planFirstMode ? '✓ Antigravity Plan Mode' : '⚡ Instant Mode'}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>Shift+Enter baris baru</span>
+            <span style={{ color: '#475569' }}>•</span>
+            <span style={{ color: chatMode === 'qa' ? '#c084fc' : '#38bdf8', fontWeight: 600 }}>
+              {chatMode === 'qa' ? '💬 Tanya Jawab' : planFirstMode ? '📋 Plan Mode' : '⚡ Instant Mode'}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              type="button"
+              onClick={() => setChatMode(prev => prev === 'build' ? 'qa' : 'build')}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '10px',
+                padding: '1px 6px',
+                borderRadius: '4px',
+                backgroundColor: chatMode === 'qa' ? 'rgba(139, 92, 246, 0.15)' : 'rgba(14, 165, 233, 0.15)',
+                color: chatMode === 'qa' ? '#c084fc' : '#38bdf8',
+                fontWeight: 600
+              }}
+              title="Ganti antara Mode Build App vs Tanya Jawab"
+            >
+              {chatMode === 'qa' ? 'Mode: Build App' : 'Mode: Tanya Jawab'}
+            </button>
+          </div>
         </div>
       </form>
 
@@ -1244,6 +1364,7 @@ function MessageBubble({
   const isAssistant = role === 'assistant';
   const isPlan = type === 'plan';
   const isWalkthrough = type === 'walkthrough';
+  const isQa = type === 'qa';
   const isTruncated = isAssistant && !isStreaming && isTruncatedResponse(content, isPlan);
 
   const handleCopy = () => {
@@ -1265,14 +1386,14 @@ function MessageBubble({
           width: '26px',
           height: '26px',
           borderRadius: '7px',
-          backgroundColor: isPlan ? '#7c3aed' : isWalkthrough ? '#059669' : '#8b5cf6',
+          backgroundColor: isPlan ? '#7c3aed' : isWalkthrough ? '#059669' : isQa ? '#0284c7' : '#8b5cf6',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
           marginTop: '2px'
         }}>
-          {isPlan ? <ListTodo size={15} color="#fff" /> : isWalkthrough ? <ShieldCheck size={15} color="#fff" /> : <Bot size={15} color="#fff" />}
+          {isPlan ? <ListTodo size={15} color="#fff" /> : isWalkthrough ? <ShieldCheck size={15} color="#fff" /> : isQa ? <MessageSquare size={14} color="#fff" /> : <Bot size={15} color="#fff" />}
         </div>
       )}
       <div style={{
@@ -1283,6 +1404,8 @@ function MessageBubble({
           ? 'linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%)'
           : isWalkthrough
           ? 'rgba(6, 78, 59, 0.25)'
+          : isQa
+          ? 'rgba(15, 23, 42, 0.98)'
           : isAssistant
           ? '#1e293b'
           : '#8b5cf6',
@@ -1291,12 +1414,42 @@ function MessageBubble({
           ? '1px solid rgba(139, 92, 246, 0.35)'
           : isWalkthrough
           ? '1px solid rgba(52, 211, 153, 0.35)'
+          : isQa
+          ? '1px solid rgba(56, 189, 248, 0.35)'
           : 'none',
         padding: '10px 14px',
         position: 'relative',
         wordBreak: 'break-word',
         overflowWrap: 'anywhere'
       }}>
+        {/* Q&A Header Card */}
+        {isQa && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '8px',
+            paddingBottom: '6px',
+            borderBottom: '1px solid rgba(56, 189, 248, 0.2)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <MessageSquare size={13} color="#38bdf8" />
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Tanya Jawab & Konsultasi
+              </span>
+            </div>
+            <span style={{
+              fontSize: '10px',
+              padding: '1px 6px',
+              borderRadius: '4px',
+              backgroundColor: 'rgba(56, 189, 248, 0.15)',
+              color: '#38bdf8',
+              fontWeight: 600
+            }}>
+              Q&A Advisor
+            </span>
+          </div>
+        )}
         {/* Plan Header Card */}
         {isPlan && (
           <div style={{
