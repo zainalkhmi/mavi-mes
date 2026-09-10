@@ -55,7 +55,10 @@ import {
   Play,
   FileCode,
   QrCode,
-  Wifi
+  Wifi,
+  Save,
+  FilePlus,
+  UploadCloud
 } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import toast, { Toaster } from 'react-hot-toast';
@@ -2241,28 +2244,27 @@ root.render(
             </span>
           </div>
 
-          {/* AI Copilot Panel Toggle */}
+          {/* AI Copilot Panel Toggle - ICON ONLY */}
           <button
             type="button"
             onClick={() => setIsChatPanelOpen(prev => !prev)}
             style={{
-              display: 'flex', alignItems: 'center', gap: '5px',
-              padding: '4px 9px', borderRadius: '6px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
+              width: '28px', height: '28px', borderRadius: '6px',
               backgroundColor: isChatPanelOpen ? 'rgba(56, 189, 248, 0.25)' : 'rgba(0,0,0,0.22)',
               border: isChatPanelOpen ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.1)',
               color: isChatPanelOpen ? '#38bdf8' : '#cbd5e1',
-              cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700, transition: 'all 0.15s'
+              cursor: 'pointer', transition: 'all 0.15s'
             }}
-            title="Tampilkan / Sembunyikan Panel Dyad AI Copilot"
+            title={isChatPanelOpen ? "Dyad Copilot: ON (Klik untuk tutup panel)" : "Dyad Copilot: OFF (Klik untuk buka panel)"}
           >
-            <Bot size={12} />
-            <span>Copilot</span>
-            <span style={{ fontSize: '0.6rem', padding: '1px 4px', borderRadius: '4px', backgroundColor: isChatPanelOpen ? '#0284c7' : 'rgba(255,255,255,0.1)', color: '#fff' }}>
-              {isChatPanelOpen ? 'ON' : 'OFF'}
-            </span>
+            <Bot size={14} />
+            <span style={{
+              position: 'absolute', top: '3px', right: '3px', width: '5px', height: '5px', borderRadius: '50%',
+              backgroundColor: isChatPanelOpen ? '#38bdf8' : '#64748b',
+              boxShadow: isChatPanelOpen ? '0 0 6px #38bdf8' : 'none'
+            }} />
           </button>
-
-
 
           {/* Editable App Name */}
           {isEditingName ? (
@@ -2371,81 +2373,78 @@ root.render(
             </div>
           )}
 
-          {/* 1. Mode Switcher (WEB APP vs MOBILE APP) */}
-          <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.22)', borderRadius: '7px', padding: '2px', border: '1px solid rgba(255,255,255,0.1)' }}>
+          {/* 1. Mode Switcher (WEB APP vs MOBILE APP) - ICON ONLY */}
+          <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.25)', borderRadius: '6px', padding: '2px', border: '1px solid rgba(255,255,255,0.1)' }}>
             <button
               type="button"
               onClick={() => handleSwitchAppMode('web')}
               style={{
-                display: 'flex', alignItems: 'center', gap: '4px',
-                padding: '3px 8px', borderRadius: '5px', border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: '24px', height: '24px', borderRadius: '4px', border: 'none', cursor: 'pointer',
                 backgroundColor: appMode === 'web' ? '#0ea5e9' : 'transparent',
-                color: '#fff', fontSize: '0.72rem', fontWeight: 700, transition: 'all 0.15s'
+                color: appMode === 'web' ? '#fff' : '#94a3b8', transition: 'all 0.15s'
               }}
               title="Web App Mode (React + Tailwind)"
             >
-              <Globe size={12} />
-              <span>WEB APP</span>
+              <Globe size={13} />
             </button>
             <button
               type="button"
               onClick={() => handleSwitchAppMode('mobile')}
               style={{
-                display: 'flex', alignItems: 'center', gap: '4px',
-                padding: '3px 8px', borderRadius: '5px', border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: '24px', height: '24px', borderRadius: '4px', border: 'none', cursor: 'pointer',
                 backgroundColor: appMode === 'mobile' ? '#8b5cf6' : 'transparent',
-                color: '#fff', fontSize: '0.72rem', fontWeight: 700, transition: 'all 0.15s'
+                color: appMode === 'mobile' ? '#fff' : '#94a3b8', transition: 'all 0.15s'
               }}
               title="Mobile App Mode (Ionic + Capacitor)"
             >
-              <Smartphone size={12} />
-              <span>MOBILE APP</span>
+              <Smartphone size={13} />
             </button>
           </div>
 
-          {/* 2. Undo AI button */}
+          {/* 2. Undo AI button - ICON ONLY */}
           <button
             type="button"
             onClick={handleUndo}
             disabled={!versionControl.canUndo()}
             style={{
-              display: 'flex', alignItems: 'center', gap: '4px',
-              padding: '4px 8px', borderRadius: '6px',
-              backgroundColor: versionControl.canUndo() ? 'rgba(239, 68, 68, 0.3)' : 'rgba(255,255,255,0.06)',
-              border: versionControl.canUndo() ? '1px solid rgba(239, 68, 68, 0.6)' : '1px solid rgba(255,255,255,0.1)',
-              color: versionControl.canUndo() ? '#fca5a5' : '#94a3b8',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: '28px', height: '28px', borderRadius: '6px',
+              backgroundColor: versionControl.canUndo() ? 'rgba(239, 68, 68, 0.25)' : 'rgba(255,255,255,0.06)',
+              border: versionControl.canUndo() ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid rgba(255,255,255,0.1)',
+              color: versionControl.canUndo() ? '#fca5a5' : '#64748b',
               cursor: versionControl.canUndo() ? 'pointer' : 'not-allowed',
-              fontSize: '0.72rem', fontWeight: 600, transition: 'all 0.15s'
+              transition: 'all 0.15s'
             }}
-            title={versionControl.canUndo() ? "Undo perubahan kode AI terakhir" : "Belum ada riwayat AI untuk di-undo"}
+            title={versionControl.canUndo() ? "Undo perubahan AI terakhir" : "Belum ada riwayat AI untuk di-undo"}
           >
-            <RotateCcw size={12} />
-            <span>Undo AI</span>
+            <RotateCcw size={13} />
           </button>
 
+          {/* Reset Kosong button - ICON ONLY */}
           <button
             type="button"
             onClick={handleNewBlankApp}
             style={{
-              display: 'flex', alignItems: 'center', gap: '4px',
-              padding: '4px 8px', borderRadius: '6px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: '28px', height: '28px', borderRadius: '6px',
               backgroundColor: 'rgba(255,255,255,0.06)',
               border: '1px solid rgba(255,255,255,0.1)',
               color: '#94a3b8',
               cursor: 'pointer',
-              fontSize: '0.72rem', fontWeight: 600, transition: 'all 0.15s'
+              transition: 'all 0.15s'
             }}
-            title="Bersihkan Sandbox (mulai aplikasi baru dari awal)"
+            title="Reset ke Template Kosong Baru"
           >
-            <RotateCcw size={12} />
-            <span>Reset Kosong</span>
+            <FilePlus size={13} />
           </button>
         </div>
 
         {/* Center Group: View Mode + 3. Device Selector + Reload */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
           {/* View Mode (Preview / Code / Split) */}
-          <div style={{ display: 'flex', backgroundColor: 'rgba(0,0,0,0.22)', padding: '2px', borderRadius: '7px', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ display: 'flex', backgroundColor: 'rgba(0,0,0,0.22)', padding: '2px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.08)' }}>
             {[
               { key: 'preview', icon: <Eye size={13} />, label: 'Preview', color: '#3498db' },
               { key: 'code', icon: <Code size={13} />, label: 'Code', color: '#f39c12' },
@@ -2464,11 +2463,11 @@ root.render(
                 }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '3px',
-                  padding: '3px 7px', borderRadius: '5px', border: 'none', cursor: 'pointer',
+                  padding: '3px 7px', borderRadius: '4px', border: 'none', cursor: 'pointer',
                   backgroundColor: viewMode === item.key ? item.color : 'transparent',
                   color: '#fff', fontSize: '0.7rem', fontWeight: 600, transition: 'all 0.15s'
                 }}
-                title={`Mode tampilan: ${item.label}`}
+                title={`Mode Tampilan: ${item.label}`}
               >
                 {item.icon}
                 <span className="hidden sm:inline">{item.label}</span>
@@ -2477,7 +2476,7 @@ root.render(
           </div>
 
           {/* 3. Device Selector */}
-          <div style={{ display: 'flex', backgroundColor: 'rgba(0,0,0,0.22)', padding: '2px', borderRadius: '7px', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ display: 'flex', backgroundColor: 'rgba(0,0,0,0.22)', padding: '2px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.08)' }}>
             {[
               { key: 'responsive', label: 'Auto', icon: <Maximize2 size={12} /> },
               { key: 'desktop', label: 'Desktop', icon: <Monitor size={12} /> },
@@ -2490,7 +2489,7 @@ root.render(
                 onClick={() => setViewportSize(item.key)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '3px',
-                  padding: '3px 7px', borderRadius: '5px', border: 'none', cursor: 'pointer',
+                  padding: '3px 7px', borderRadius: '4px', border: 'none', cursor: 'pointer',
                   backgroundColor: viewportSize === item.key ? '#fff' : 'transparent',
                   color: viewportSize === item.key ? '#017E84' : '#fff',
                   fontSize: '0.7rem', fontWeight: viewportSize === item.key ? 700 : 500,
@@ -2499,12 +2498,12 @@ root.render(
                 title={`Device Viewport: ${item.label}`}
               >
                 {item.icon}
-                <span>{item.label}</span>
+                <span className="hidden sm:inline">{item.label}</span>
               </button>
             ))}
           </div>
 
-          {/* Edit Komponen / Inspeksi Layar */}
+          {/* Edit Komponen / Inspeksi Layar - ICON ONLY */}
           <button
             type="button"
             onClick={() => {
@@ -2517,146 +2516,139 @@ root.render(
               });
             }}
             style={{
-              display: 'flex', alignItems: 'center', gap: '5px',
-              padding: '4px 9px', borderRadius: '7px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: '28px', height: '28px', borderRadius: '6px',
               backgroundColor: isInspectModeActive ? '#0284c7' : 'rgba(0,0,0,0.22)',
               border: isInspectModeActive ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.08)',
               color: isInspectModeActive ? '#ffffff' : '#94a3b8',
-              fontSize: '0.7rem', fontWeight: 700,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              boxShadow: isInspectModeActive ? '0 0 12px rgba(14, 165, 233, 0.5)' : 'none'
+              boxShadow: isInspectModeActive ? '0 0 10px rgba(14, 165, 233, 0.5)' : 'none'
             }}
-            title="Klik komponen di layar untuk langsung meloncat ke baris kodenya di editor"
+            title={isInspectModeActive ? "Mode Inspeksi Aktif (Klik komponen di layar)" : "Inspeksi & Edit Komponen Layar"}
           >
-            <MousePointerClick size={12} />
-            <span className="hidden sm:inline">{isInspectModeActive ? 'Inspeksi Aktif' : 'Edit Komponen'}</span>
+            <MousePointerClick size={13} />
           </button>
 
-          {/* Reload */}
+          {/* Reload - ICON ONLY */}
           <button
             type="button"
             onClick={() => { const ifr = document.querySelector('.sp-preview-iframe'); if (ifr && ifr.contentWindow) ifr.contentWindow.location.reload(); else toast.success('Reloaded'); }}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '6px', border: 'none', backgroundColor: 'rgba(0,0,0,0.2)', color: '#fff', cursor: 'pointer' }}
             title="Reload Preview"
           >
-            <RotateCw size={12} />
+            <RotateCw size={13} />
           </button>
         </div>
 
-        {/* Right Group: 4. Table Sync, 5. Build APK, 6. Frontline Publish, Copy, Close */}
+        {/* Right Group: 4. Table Sync, 5. Build APK, 6. Frontline Publish, Copy, Close - ICON ONLY */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-          {/* 4. Table Sync button */}
+          {/* 4. Table Sync button - ICON ONLY */}
           <button
             type="button"
             onClick={handleSyncTable}
             disabled={isSyncingTable}
             style={{
-              display: 'flex', alignItems: 'center', gap: '5px',
-              padding: '5px 10px', borderRadius: '6px', border: 'none',
-              background: connectedTable ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
-              color: '#fff', fontSize: '0.72rem', fontWeight: 700,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: '28px', height: '28px', borderRadius: '6px', border: 'none',
+              background: connectedTable ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : 'rgba(139, 92, 246, 0.25)',
+              border: '1px solid rgba(139, 92, 246, 0.5)',
+              color: '#c4b5fd',
               cursor: isSyncingTable ? 'not-allowed' : 'pointer',
-              boxShadow: '0 2px 6px rgba(139, 92, 246, 0.35)',
+              boxShadow: '0 2px 6px rgba(139, 92, 246, 0.25)',
               transition: 'all 0.15s'
             }}
-            title="Sinkronisasi Tabel Database MaviCore"
+            title={isSyncingTable ? 'Menyinkronkan tabel...' : connectedTable ? `Tabel Terhubung: ${connectedTable.name} (Klik untuk resync)` : 'Sinkronisasi Tabel Database MaviCore'}
           >
-            <Database size={12} className={isSyncingTable ? 'animate-spin' : ''} />
-            <span>{isSyncingTable ? 'Syncing...' : connectedTable ? `Sync: ${connectedTable.name}` : 'Table Sync'}</span>
+            <Database size={13} className={isSyncingTable ? 'animate-spin' : ''} />
           </button>
 
-          {/* 5. Build APK button */}
+          {/* 5. Build APK button - ICON ONLY */}
           <button
             type="button"
             onClick={() => setIsBuildModalOpen(true)}
             style={{
-              display: 'flex', alignItems: 'center', gap: '5px',
-              padding: '5px 11px', borderRadius: '6px', border: 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: '28px', height: '28px', borderRadius: '6px', border: 'none',
               background: 'linear-gradient(135deg, #f97316, #ea580c)',
-              color: '#fff', fontSize: '0.72rem', fontWeight: 700,
+              color: '#fff',
               cursor: 'pointer',
               boxShadow: '0 2px 6px rgba(249, 115, 22, 0.35)',
               transition: 'all 0.15s'
             }}
             title="Build Android APK / Capacitor Package"
           >
-            <Smartphone size={12} />
-            <span>Build APK</span>
+            <Download size={13} />
           </button>
 
-          {/* Live Real Device (QR Code) button */}
+          {/* Live Real Device (QR Code) button - ICON ONLY */}
           <button
             type="button"
             onClick={handleOpenLiveDevice}
             style={{
-              display: 'flex', alignItems: 'center', gap: '5px',
-              padding: '5px 11px', borderRadius: '6px', border: 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: '28px', height: '28px', borderRadius: '6px', border: 'none',
               background: 'linear-gradient(135deg, #06b6d4, #0891b2)',
-              color: '#fff', fontSize: '0.72rem', fontWeight: 700,
+              color: '#fff',
               cursor: 'pointer',
               boxShadow: '0 2px 6px rgba(6, 182, 212, 0.35)',
               transition: 'all 0.15s'
             }}
             title="Buka Aplikasi Langsung di Real Live Device (Scan QR HP)"
           >
-            <QrCode size={12} />
-            <span>Live Device</span>
+            <QrCode size={13} />
           </button>
 
-          {/* Save Sandbox App button */}
+          {/* Save Sandbox App button - ICON ONLY */}
           <button
             type="button"
             onClick={handleSaveSandboxApp}
             disabled={isSavingApp}
             style={{
-              display: 'flex', alignItems: 'center', gap: '5px',
-              padding: '5px 11px', borderRadius: '6px', border: 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: '28px', height: '28px', borderRadius: '6px', border: 'none',
               background: 'linear-gradient(135deg, #0284c7, #0369a1)',
-              color: '#fff', fontSize: '0.72rem', fontWeight: 700,
+              color: '#fff',
               cursor: isSavingApp ? 'not-allowed' : 'pointer',
               boxShadow: '0 2px 6px rgba(2, 132, 199, 0.35)',
               transition: 'all 0.15s'
             }}
             title={deployedApp ? "Simpan perubahan aplikasi saat ini" : "Simpan sebagai aplikasi baru di Apps Sandbox"}
           >
-            {isSavingApp ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-            <span>{isSavingApp ? 'Menyimpan...' : deployedApp ? 'Simpan App' : 'Simpan Baru'}</span>
+            {isSavingApp ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
           </button>
 
-          {/* 6. Frontline Publish button */}
+          {/* 6. Frontline Publish button - ICON ONLY */}
           <button
             type="button"
             onClick={handleOpenDeployModal}
             style={{
-              display: 'flex', alignItems: 'center', gap: '5px',
-              padding: '5px 12px', borderRadius: '6px', border: 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: '28px', height: '28px', borderRadius: '6px', border: 'none',
               background: 'linear-gradient(135deg, #10b981, #059669)',
-              color: '#fff', fontSize: '0.72rem', fontWeight: 700,
+              color: '#fff',
               cursor: 'pointer',
               boxShadow: '0 2px 6px rgba(16, 185, 129, 0.35)',
               transition: 'all 0.15s'
             }}
             title="Publish ke Frontline Apps untuk Operator Shop Floor"
           >
-            <Rocket size={12} />
-            <span>Frontline Publish</span>
+            <Rocket size={13} />
           </button>
 
-          {/* Copy Code */}
+          {/* Copy Code - ICON ONLY */}
           <button
             type="button"
             onClick={handleCopyCode}
             style={{
-              display: 'flex', alignItems: 'center', gap: '4px',
-              padding: '5px 8px', borderRadius: '6px', border: 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: '28px', height: '28px', borderRadius: '6px', border: 'none',
               backgroundColor: 'rgba(0,0,0,0.25)', color: '#fff',
-              cursor: 'pointer', fontSize: '0.7rem'
+              cursor: 'pointer'
             }}
             title="Salin Kode ke Clipboard"
           >
-            {copied ? <Check size={12} color="#4ade80" /> : <Copy size={12} />}
-            <span>{copied ? 'Disalin' : 'Copy'}</span>
+            {copied ? <Check size={13} color="#4ade80" /> : <Copy size={13} />}
           </button>
 
           {/* Close */}
