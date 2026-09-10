@@ -85,6 +85,7 @@ import BuildModal from '../../vibe/components/BuildModal';
 import VibeChatPanel from '../../vibe/components/VibeChatPanel';
 import BottomTerminalPanel from '../../vibe/components/BottomTerminalPanel';
 import { cleanVibeCode, healTruncatedReactCode, extractVibeCode, autoFixMissingImports } from '../../vibe/utils/codeCleaner';
+import { DyadCAGResolver, DyadPatchEngine } from '../../vibe/ai/DyadEngine';
 
 // ═══════════════════════════════════════════════════════════════════
 // 🔌 MaviCore Real-time Data Bridge Helper
@@ -1438,9 +1439,11 @@ root.render(
     return cleanup;
   }, []);
 
-  // Panels state
+  // Dyad Studio Panels state
   const [isFilesPanelOpen, setIsFilesPanelOpen] = useState(true);
-  const [isChatPanelOpen, setIsChatPanelOpen] = useState(isStandalone ? false : true);
+  const [isChatPanelOpen, setIsChatPanelOpen] = useState(true);
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
+  const [rightPanelTab, setRightPanelTab] = useState('both'); // 'editor' | 'files' | 'both'
   const [isTerminalPanelOpen, setIsTerminalPanelOpen] = useState(false);
   const [selectedAIModel, setSelectedAIModel] = useState('MiniMax-M2.7');
 
@@ -1953,10 +1956,14 @@ root.render(
     setAiActivity({ stage: 'thinking', message: 'Menganalisis prompt & arsitektur proyek...' });
 
     try {
+      // Dyad CAG: Resolve relevant project files on-demand
+      const allFiles = vfs ? vfs.getFileList() : [];
+      const relevantFiles = DyadCAGResolver.resolveRelevantFiles(userMsg, allFiles);
+
       const systemPrompt = AgenticPromptEngine.buildSystemPrompt({
         appMode,
         vfs,
-        context: { connectedTable, tables: [] }
+        context: { connectedTable, tables: [], relevantFiles }
       });
 
       const messages = [
@@ -1968,7 +1975,7 @@ root.render(
       setAiActivity({ stage: 'generating', message: 'Menghasilkan rencana & file kode...' });
       const fullResponse = await AIProvider.getCompletion(messages);
 
-      // Parse plan and file actions
+      // Parse plan, multi-file actions, and Dyad atomic search-replace patches
       const { plan, fileActions } = AgenticPromptEngine.parseResponse(fullResponse);
 
       setChatHistory(prev => [...prev, {
@@ -1995,7 +2002,7 @@ root.render(
     }
   };
 
-  // Apply AI Changes after review
+  // Apply AI Changes after review (supports whole-file write and Dyad atomic search-replace patch)
   const handleApplyFileActions = () => {
     if (pendingFileActions.length === 0) return;
 
@@ -2003,6 +2010,19 @@ root.render(
       if (action.action === 'delete') {
         vfs.deleteFile(action.path);
         setLogs(prev => [...prev, { timestamp: new Date(), text: `[File Deleted] ${action.path}` }]);
+      } else if (action.action === 'patch' && action.search && action.replace) {
+        const existingCode = vfs.readFile(action.path) || '';
+        const patchResult = DyadPatchEngine.applySearchReplace(existingCode, action.search, action.replace);
+        if (patchResult.success) {
+          vfs.writeFile(action.path, patchResult.code);
+          setLogs(prev => [...prev, { timestamp: new Date(), text: `[Dyad Patch Applied] ${action.path}` }]);
+          if (action.path === '/App.js' || action.path === '/App.jsx') {
+            if (onCodeChange) onCodeChange(patchResult.code);
+          }
+        } else {
+          console.warn('[Dyad Patch Fallback]', patchResult.error);
+          vfs.writeFile(action.path, action.content || existingCode);
+        }
       } else {
         vfs.writeFile(action.path, action.content);
         setLogs(prev => [...prev, { timestamp: new Date(), text: `[File Updated] ${action.path}` }]);
@@ -2201,12 +2221,46 @@ root.render(
           )}
 
           <div style={{
-            width: '28px', height: '28px', borderRadius: '7px',
-            background: 'linear-gradient(135deg, #f43f5e, #f59e0b, #8b5cf6)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '2px 8px',
+            borderRadius: '7px',
+            backgroundColor: 'rgba(0,0,0,0.3)',
+            border: '1px solid rgba(255,255,255,0.15)'
           }}>
-            <Sparkles size={13} color="#fff" />
+            <div style={{
+              width: '20px', height: '20px', borderRadius: '5px',
+              background: 'linear-gradient(135deg, #f43f5e, #f59e0b, #8b5cf6)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+            }}>
+              <Sparkles size={11} color="#fff" />
+            </div>
+            <span style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.5px', color: '#fff' }}>
+              DYAD STUDIO
+            </span>
           </div>
+
+          {/* AI Copilot Panel Toggle */}
+          <button
+            type="button"
+            onClick={() => setIsChatPanelOpen(prev => !prev)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '5px',
+              padding: '4px 9px', borderRadius: '6px',
+              backgroundColor: isChatPanelOpen ? 'rgba(56, 189, 248, 0.25)' : 'rgba(0,0,0,0.22)',
+              border: isChatPanelOpen ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.1)',
+              color: isChatPanelOpen ? '#38bdf8' : '#cbd5e1',
+              cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700, transition: 'all 0.15s'
+            }}
+            title="Tampilkan / Sembunyikan Panel Dyad AI Copilot"
+          >
+            <Bot size={12} />
+            <span>Copilot</span>
+            <span style={{ fontSize: '0.6rem', padding: '1px 4px', borderRadius: '4px', backgroundColor: isChatPanelOpen ? '#0284c7' : 'rgba(255,255,255,0.1)', color: '#fff' }}>
+              {isChatPanelOpen ? 'ON' : 'OFF'}
+            </span>
+          </button>
 
 
 
@@ -2400,7 +2454,14 @@ root.render(
               <button
                 key={item.key}
                 type="button"
-                onClick={() => setViewMode(item.key)}
+                onClick={() => {
+                  setViewMode(item.key);
+                  if (item.key === 'preview') {
+                    setIsRightPanelOpen(false);
+                  } else {
+                    setIsRightPanelOpen(true);
+                  }
+                }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '3px',
                   padding: '3px 7px', borderRadius: '5px', border: 'none', cursor: 'pointer',
@@ -2616,61 +2677,181 @@ root.render(
         </div>
       </div>
 
-      {/* ═══════════ MAIN WORKSPACE (LEFT FILES + CENTER SANDPACK + RIGHT COPILOT) ═══════════ */}
-      <div className="flex-1 w-full overflow-hidden flex" style={{ minHeight: 0, backgroundColor: '#0f172a' }}>
+      {/* ═══════════ MAIN WORKSPACE: DYAD STUDIO 3-PANEL ARCHITECTURE ═══════════ */}
+      {/* 1. LEFT: DYAD COPILOT | 2. CENTER: LIVE PREVIEW CANVAS | 3. RIGHT: CODE & FILES */}
+      <div className="flex-1 w-full overflow-hidden flex" style={{ minHeight: 0, backgroundColor: '#0b1120' }}>
 
-        {/* 1. LEFT FILE TREE PANEL (Collapsible) */}
+        {/* ─── 1. LEFT PANEL: DYAD AI COPILOT ─── */}
         <div style={{
-          width: isFilesPanelOpen ? '230px' : '0px',
-          minWidth: isFilesPanelOpen ? '230px' : '0px',
-          transition: 'width 0.2s ease, min-width 0.2s ease',
+          width: isChatPanelOpen ? '410px' : '0px',
+          minWidth: isChatPanelOpen ? '360px' : '0px',
+          maxWidth: '460px',
+          height: '100%',
+          transition: 'width 0.22s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.22s cubic-bezier(0.4, 0, 0.2, 1)',
           overflow: 'hidden',
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
+          backgroundColor: '#0a0f1d',
+          borderRight: isChatPanelOpen ? '1px solid #1e293b' : 'none',
+          position: 'relative',
+          zIndex: 20
         }}>
-          {isFilesPanelOpen && (
-            <FileTreeExplorer
-              tree={fileTree}
-              activePath={activeFilePath}
-              onSelectFile={(path) => setActiveFilePath(path)}
-              onCreateFile={(newPath) => {
-                vfs.writeFile(newPath, '// New file\n');
-                setFilesRecord(vfs.getAllFilesRecord());
-                setFileTree(vfs.getFileTree());
-                setActiveFilePath(newPath);
-              }}
-              onDeleteFile={(delPath) => {
-                vfs.deleteFile(delPath);
-                setFilesRecord(vfs.getAllFilesRecord());
-                setFileTree(vfs.getFileTree());
-                if (activeFilePath === delPath) setActiveFilePath('/App.js');
-              }}
-              onOpenTemplates={() => setIsTemplatesModalOpen(true)}
-              sandboxApps={sandboxAppsList}
-              activeAppId={deployedApp?.id || null}
-              onSelectApp={handleSelectSandboxApp}
-              onDeleteApp={handleDeleteSandboxApp}
-              onNewApp={handleNewBlankApp}
-              isLoadingApps={isLoadingSandboxApps}
-            />
+          {isChatPanelOpen && (
+            <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+              {/* Dyad Copilot Top Header Bar */}
+              <div style={{
+                height: '40px',
+                minHeight: '40px',
+                backgroundColor: '#070b14',
+                borderBottom: '1px solid #1e293b',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0 12px',
+                color: '#f8fafc',
+                userSelect: 'none'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{
+                    width: '22px', height: '22px', borderRadius: '6px',
+                    background: 'linear-gradient(135deg, #0ea5e9, #8b5cf6)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}>
+                    <Sparkles size={12} color="#fff" />
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 800, letterSpacing: '0.5px', background: 'linear-gradient(135deg, #38bdf8, #c084fc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                      DYAD COPILOT
+                    </span>
+                    <span style={{ fontSize: '0.62rem', color: '#10b981', marginLeft: '6px', fontWeight: 700 }}>
+                      ● ACTIVE
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsChatPanelOpen(false)}
+                    style={{
+                      background: 'rgba(255,255,255,0.06)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      color: '#94a3b8',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '5px',
+                      transition: 'all 0.15s'
+                    }}
+                    title="Tutup Panel Copilot (Perbesar Preview)"
+                  >
+                    <PanelLeftClose size={13} />
+                  </button>
+                </div>
+              </div>
+
+              {/* VibeChatPanel Engine */}
+              <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                <VibeChatPanel
+                  context={{
+                    appName: appName,
+                    files: filesRecord,
+                    tables: availableTables
+                  }}
+                  initialPrompt={chatInitialPrompt}
+                  onPromptConsumed={() => setChatInitialPrompt('')}
+                  settings={null}
+                  onCodeGenerated={async (rawCode) => {
+                    let code = cleanVibeCode(rawCode);
+
+                    // Safeguard: If code starts with `return (` without a function wrapper, wrap it
+                    if (/^\s*return\s*\(/.test(code) && !/function\s+\w+\s*\(|=>\s*\(?|export\s+default|const\s+\w+\s*=\s*\(/i.test(code.slice(0, 100))) {
+                      code = `export default function App() {\n  ${code}\n}`;
+                      console.log('[Sandbox] Wrapped orphan `return (` in function App()');
+                    }
+
+                    vfs.writeFile('/App.js', code);
+                    lastKnownExternalCodeRef.current = code;
+                    setFilesRecord(vfs.getAllFilesRecord());
+                    setFilesRevision(prev => prev + 1);
+                    setErrors([]);
+
+                    // ⚡ Instantly update Sandpack in-memory instance & live device screen!
+                    if (sandpackBridgeRef.current) {
+                      sandpackBridgeRef.current.updateFile('/App.js', code);
+                      sandpackBridgeRef.current.openFile('/App.js');
+                      sandpackBridgeRef.current.runSandpack?.();
+                    }
+
+                    try {
+                      localStorage.setItem('vibe_sandbox_autosave', code);
+                      localStorage.setItem('vibe_sandbox_autosave_time', new Date().toISOString());
+                    } catch {}
+
+                    if (onCodeChange) onCodeChange(code);
+
+                    toast.success('⚡ Kode berhasil diterapkan ke layar device!');
+                    try {
+                      const res = await syncVibeAppToTable(code);
+                      if (res?.table) {
+                        setConnectedTable(res.table);
+                        setLiveRecordCount(res.recordCount);
+                        toast.success(
+                          res.isNew
+                            ? `Tabel "${res.table.name}" berhasil dibuat di Database MaviCore!`
+                            : `Tabel "${res.table.name}" tersinkronisasi (${res.recordCount} data tersimpan)!`,
+                          { duration: 4000 }
+                        );
+                        getTables().then(tbls => {
+                          if (Array.isArray(tbls)) setAvailableTables(tbls);
+                        });
+                      }
+                    } catch (syncErr) {
+                      console.warn('Auto table sync error:', syncErr);
+                    }
+                  }}
+                />
+              </div>
+            </div>
           )}
         </div>
 
-        {/* Toggle Files Panel button */}
-        <button
-          type="button"
-          onClick={() => setIsFilesPanelOpen(v => !v)}
-          style={{
-            width: '18px', backgroundColor: '#0a0f1d', borderRight: '1px solid #1e293b',
-            borderLeft: 'none', borderTop: 'none', borderBottom: 'none',
-            color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
-          }}
-          title={isFilesPanelOpen ? 'Tutup File Explorer' : 'Buka File Explorer'}
-        >
-          {isFilesPanelOpen ? <PanelLeftClose size={12} /> : <PanelLeftOpen size={12} />}
-        </button>
+        {/* Collapsed Copilot Trigger */}
+        {!isChatPanelOpen && (
+          <button
+            type="button"
+            onClick={() => setIsChatPanelOpen(true)}
+            style={{
+              width: '26px',
+              backgroundColor: '#0a0f1d',
+              borderRight: '1px solid #1e293b',
+              borderLeft: 'none',
+              borderTop: 'none',
+              borderBottom: 'none',
+              color: '#38bdf8',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: '12px 0',
+              zIndex: 20,
+              transition: 'background 0.15s'
+            }}
+            title="Buka Dyad AI Copilot"
+          >
+            <Sparkles size={13} />
+            <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: '0.66rem', fontWeight: 800, letterSpacing: '1.5px', color: '#94a3b8' }}>
+              COPILOT
+            </span>
+          </button>
+        )}
 
-        {/* 2. CENTER: SANDPACK EDITOR + LIVE PREVIEW */}
+        {/* ─── SANDPACK PROVIDER (WRAPS CENTER PREVIEW & RIGHT CODE STUDIO) ─── */}
         <div className="vibe-sandpack-root flex-1 overflow-hidden flex flex-col" style={{ minWidth: 0, flex: 1, position: 'relative', backgroundColor: '#0f172a' }}>
           <style>{`
             .vibe-sandpack-root .sp-wrapper {
@@ -2701,6 +2882,7 @@ root.render(
           `}</style>
 
           <Toaster position="top-right" toastOptions={{ style: { background: '#1e293b', color: '#f8fafc', border: '1px solid #334155' } }} />
+
           <SandpackProvider
             key={`${appMode}-${filesRevision}`}
             template="react"
@@ -2711,17 +2893,13 @@ root.render(
                 'react': '^18.2.0',
                 'react-dom': '^18.2.0',
                 'react-is': '^18.2.0',
-                // NextUI + Framer Motion
                 '@nextui-org/react': '^2.2.0',
                 'framer-motion': '^10.16.0',
-                // Icons & Utilities
                 'lucide-react': 'latest',
                 'clsx': '^2.0.0',
                 'tailwind-merge': '^2.0.0',
                 'class-variance-authority': '^0.7.0',
-                // Charts
                 'recharts': '^2.10.0',
-                // Tailwind CSS
                 'tailwindcss': '^3.4.0',
                 'autoprefixer': '^10.4.0',
                 'postcss': '^8.4.0'
@@ -2745,202 +2923,388 @@ root.render(
               onLog={handleSandpackLog}
             />
 
-            <SandpackLayout style={{ height: '100%', minHeight: '100%', border: 'none', borderRadius: 0, flex: 1, display: 'flex', alignSelf: 'stretch' }}>
-              {(viewMode === 'split' || viewMode === 'code') && (
-                <div style={{
-                  height: '100%',
-                  minHeight: '100%',
-                  width: viewMode === 'code' ? '100%' : '44%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  borderRight: '1px solid #1e293b',
-                  overflow: 'hidden'
-                }}>
-                  <SandpackProEditorBar
-                    activePath={activeFilePath}
-                    onRunCode={handleRunEditorCode}
-                    onFormatCode={handleFormatEditorCode}
-                    isInspectActive={isInspectModeActive}
-                    onToggleInspect={() => setIsInspectModeActive(prev => !prev)}
-                  />
-                  <SandpackCodeEditor
-                    showLineNumbers
-                    showInlineErrors
-                    wrapContent
-                    style={{
-                      flex: 1,
-                      height: '100%',
-                      minHeight: 0,
-                      fontFamily: 'monospace',
-                      fontSize: '12px'
-                    }}
-                  />
-                </div>
-              )}
+            <SandpackLayout style={{ height: '100%', minHeight: '100%', border: 'none', borderRadius: 0, flex: 1, display: 'flex', alignSelf: 'stretch', backgroundColor: '#020617' }}>
 
-              {(viewMode === 'split' || viewMode === 'preview') && (
+              {/* ─── 2. CENTER PANEL: LIVE PREVIEW CANVAS ─── */}
+              {(viewMode === 'preview' || viewMode === 'split') && (
                 <div style={{
                   position: 'relative',
                   flex: 1,
                   height: '100%',
                   minHeight: '100%',
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  overflow: 'auto',
-                  backgroundColor: '#020617',
-                  padding: viewportSize === 'responsive' ? 0 : '16px'
+                  overflow: 'hidden',
+                  backgroundColor: '#030712'
                 }}>
-                  {/* Floating Inspection Banner */}
-                  {isInspectModeActive && (
-                    <div style={{
-                      position: 'absolute',
-                      top: 14,
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      zIndex: 100,
-                      backgroundColor: 'rgba(15, 23, 42, 0.94)',
-                      border: '1px solid #0284c7',
-                      boxShadow: '0 8px 24px rgba(2, 132, 199, 0.4)',
-                      borderRadius: '24px',
-                      padding: '6px 16px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      color: '#38bdf8',
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                      backdropFilter: 'blur(8px)',
-                      pointerEvents: 'auto'
-                    }}>
-                      <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#38bdf8', boxShadow: '0 0 8px #38bdf8' }} />
-                      <span>🎯 Mode Inspeksi: Klik komponen di layar untuk langsung meloncat ke kodenya</span>
-                      <button
-                        type="button"
-                        onClick={() => setIsInspectModeActive(false)}
-                        style={{
-                          background: 'rgba(255,255,255,0.1)',
-                          border: 'none',
-                          color: '#94a3b8',
-                          borderRadius: '50%',
-                          width: '18px',
-                          height: '18px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: 'pointer',
-                          fontSize: '10px',
-                          marginLeft: '4px'
-                        }}
-                        title="Tutup mode inspeksi"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  )}
 
-                  {/* Device Container */}
+                  {/* Dyad Canvas Top Action Floating Strip */}
                   <div style={{
-                    width: viewportSize === 'mobile' ? '390px' : (viewportSize === 'tablet' ? '768px' : '100%'),
-                    maxWidth: '100%',
-                    height: '100%',
-                    maxHeight: viewportSize === 'mobile' ? '820px' : (viewportSize === 'tablet' ? '1000px' : '100%'),
-                    borderRadius: viewportSize === 'mobile' ? '44px' : (viewportSize === 'tablet' ? '24px' : (viewportSize === 'desktop' ? '12px' : '0')),
-                    border: viewportSize === 'mobile' ? '10px solid #1e293b' : (viewportSize === 'tablet' ? '12px solid #1e293b' : (viewportSize === 'desktop' ? '1px solid #1e293b' : 'none')),
-                    boxShadow: viewportSize === 'responsive' ? 'none' : '0 25px 60px -12px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08)',
+                    width: '100%',
+                    height: '38px',
+                    backgroundColor: '#0a0f1d',
+                    borderBottom: '1px solid #1e293b',
                     display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden',
-                    backgroundColor: '#f8fafc',
-                    transition: 'width 0.3s ease, max-height 0.3s ease',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0 12px',
                     flexShrink: 0
                   }}>
-                    {/* Dynamic Island for Mobile */}
-                    {viewportSize === 'mobile' && (
-                      <div style={{ height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', borderBottom: '1px solid rgba(0,0,0,0.05)', flexShrink: 0 }}>
-                        <div style={{ width: '92px', height: '18px', backgroundColor: '#0f172a', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 8px' }}>
-                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#0284c7' }} />
-                          <span style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: '#334155' }} />
-                        </div>
-                      </div>
-                    )}
+                    {/* Viewport indicators */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b' }}>CANVAS:</span>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#38bdf8', textTransform: 'uppercase' }}>
+                        {viewportSize} {viewportSize === 'mobile' ? '(390 × 820)' : viewportSize === 'tablet' ? '(768 × 1024)' : ''}
+                      </span>
+                    </div>
 
-                    {/* Camera Dot for Tablet */}
-                    {viewportSize === 'tablet' && (
-                      <div style={{ height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', flexShrink: 0 }}>
-                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#cbd5e1' }} />
-                      </div>
-                    )}
+                    {/* Quick right side tools */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {viewMode === 'preview' && (
+                        <button
+                          type="button"
+                          onClick={() => { setViewMode('split'); setIsRightPanelOpen(true); }}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '4px',
+                            padding: '3px 8px', borderRadius: '5px',
+                            backgroundColor: 'rgba(255,255,255,0.08)',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            color: '#cbd5e1', fontSize: '0.68rem', fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                          title="Buka Code Editor & File Explorer di panel kanan"
+                        >
+                          <Code size={11} color="#f59e0b" />
+                          <span>Buka Editor & Files</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
 
-                    {/* Mac Chrome Bar for Desktop */}
-                    {viewportSize === 'desktop' && (
+                  {/* Device Container Preview Area */}
+                  <div style={{
+                    flex: 1,
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    overflow: 'auto',
+                    padding: viewportSize === 'responsive' ? 0 : '16px',
+                    position: 'relative'
+                  }}>
+                    {/* Floating Inspection Banner */}
+                    {isInspectModeActive && (
                       <div style={{
-                        height: '34px', backgroundColor: '#ffffff', borderBottom: '1px solid #e2e8f0',
-                        display: 'flex', alignItems: 'center', padding: '0 12px', gap: '12px', flexShrink: 0
+                        position: 'absolute',
+                        top: 14,
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        zIndex: 100,
+                        backgroundColor: 'rgba(15, 23, 42, 0.94)',
+                        border: '1px solid #0284c7',
+                        boxShadow: '0 8px 24px rgba(2, 132, 199, 0.4)',
+                        borderRadius: '24px',
+                        padding: '6px 16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        color: '#38bdf8',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        backdropFilter: 'blur(8px)',
+                        pointerEvents: 'auto'
                       }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
-                          <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
-                          <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#10b981' }} />
-                        </div>
-                        <div style={{
-                          flex: 1, maxWidth: '480px', margin: '0 auto', height: '22px', backgroundColor: '#f1f5f9',
-                          borderRadius: '6px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center',
-                          padding: '0 8px', gap: '6px', fontSize: '0.7rem', color: '#64748b'
-                        }}>
-                          <Lock size={10} color="#10b981" />
-                          <span style={{ color: '#0f172a', fontWeight: 600 }}>https://mavicore.mes</span>
-                          <span style={{ color: '#94a3b8' }}>/runtime</span>
-                        </div>
+                        <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#38bdf8', boxShadow: '0 0 8px #38bdf8' }} />
+                        <span>🎯 Mode Inspeksi: Klik komponen di layar untuk langsung meloncat ke kodenya</span>
+                        <button
+                          type="button"
+                          onClick={() => setIsInspectModeActive(false)}
+                          style={{
+                            background: 'rgba(255,255,255,0.1)',
+                            border: 'none',
+                            color: '#94a3b8',
+                            borderRadius: '50%',
+                            width: '18px',
+                            height: '18px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            fontSize: '10px',
+                            marginLeft: '4px'
+                          }}
+                          title="Tutup mode inspeksi"
+                        >
+                          ✕
+                        </button>
                       </div>
                     )}
 
-                    {/* Sandpack Preview */}
-                    <div style={{ flex: 1, minHeight: 0, width: '100%', height: '100%', overflow: 'hidden', position: 'relative' }}>
-                      {errors.length > 0 && (
-                        <div style={{
-                          position: 'absolute', top: 12, left: 12, right: 12, zIndex: 999,
-                          backgroundColor: 'rgba(15, 23, 42, 0.96)', border: '1px solid #ef4444',
-                          backdropFilter: 'blur(12px)', color: '#fff', borderRadius: '12px',
-                          padding: '10px 14px', display: 'flex', alignItems: 'center',
-                          justifyContent: 'space-between', gap: '12px',
-                          boxShadow: '0 12px 30px rgba(239, 68, 68, 0.25)', fontSize: '0.78rem'
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-                            <span style={{ fontSize: '1.1rem' }}>⚠️</span>
-                            <div style={{ overflow: 'hidden' }}>
-                              <div style={{ fontWeight: 700, color: '#fca5a5' }}>Syntax / Build Error Terdeteksi</div>
-                              <div style={{ fontSize: '0.7rem', color: '#94a3b8', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                                {typeof errors[0] === 'string' ? errors[0].split('\n')[0] : errors[0]?.message}
-                              </div>
-                            </div>
+                    {/* Device Container */}
+                    <div style={{
+                      width: viewportSize === 'mobile' ? '390px' : (viewportSize === 'tablet' ? '768px' : '100%'),
+                      maxWidth: '100%',
+                      height: '100%',
+                      maxHeight: viewportSize === 'mobile' ? '820px' : (viewportSize === 'tablet' ? '1000px' : '100%'),
+                      borderRadius: viewportSize === 'mobile' ? '44px' : (viewportSize === 'tablet' ? '24px' : (viewportSize === 'desktop' ? '12px' : '0')),
+                      border: viewportSize === 'mobile' ? '10px solid #1e293b' : (viewportSize === 'tablet' ? '12px solid #1e293b' : (viewportSize === 'desktop' ? '1px solid #1e293b' : 'none')),
+                      boxShadow: viewportSize === 'responsive' ? 'none' : '0 25px 60px -12px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      overflow: 'hidden',
+                      backgroundColor: '#f8fafc',
+                      transition: 'width 0.3s ease, max-height 0.3s ease',
+                      flexShrink: 0
+                    }}>
+                      {/* Dynamic Island for Mobile */}
+                      {viewportSize === 'mobile' && (
+                        <div style={{ height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', borderBottom: '1px solid rgba(0,0,0,0.05)', flexShrink: 0 }}>
+                          <div style={{ width: '92px', height: '18px', backgroundColor: '#0f172a', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 8px' }}>
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#0284c7' }} />
+                            <span style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: '#334155' }} />
                           </div>
-                          <button
-                            type="button"
-                            disabled={isAutoFixing}
-                            onClick={handleTriggerAutoFix}
-                            style={{
-                              backgroundColor: '#ef4444', color: '#ffffff', border: 'none',
-                              padding: '7px 14px', borderRadius: '8px', fontWeight: 800,
-                              cursor: isAutoFixing ? 'not-allowed' : 'pointer',
-                              display: 'flex', alignItems: 'center', gap: '6px',
-                              flexShrink: 0, boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)'
-                            }}
-                          >
-                            {isAutoFixing ? <Loader2 size={13} className="animate-spin" /> : <Wrench size={13} />}
-                            <span>{isAutoFixing ? 'Memperbaiki...' : '⚡ Auto-Fix Sekarang'}</span>
-                          </button>
                         </div>
                       )}
-                      <SandpackPreview
-                        showOpenInCodeSandbox={false}
-                        showRefreshButton={true}
-                        style={{ height: '100%', width: '100%', backgroundColor: '#f8fafc' }}
-                      />
+
+                      {/* Camera Dot for Tablet */}
+                      {viewportSize === 'tablet' && (
+                        <div style={{ height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', flexShrink: 0 }}>
+                          <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#cbd5e1' }} />
+                        </div>
+                      )}
+
+                      {/* Mac Chrome Bar for Desktop */}
+                      {viewportSize === 'desktop' && (
+                        <div style={{
+                          height: '34px', backgroundColor: '#ffffff', borderBottom: '1px solid #e2e8f0',
+                          display: 'flex', alignItems: 'center', padding: '0 12px', gap: '12px', flexShrink: 0
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
+                            <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
+                            <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+                          </div>
+                          <div style={{
+                            flex: 1, maxWidth: '480px', margin: '0 auto', height: '22px', backgroundColor: '#f1f5f9',
+                            borderRadius: '6px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center',
+                            padding: '0 8px', gap: '6px', fontSize: '0.7rem', color: '#64748b'
+                          }}>
+                            <Lock size={10} color="#10b981" />
+                            <span style={{ color: '#0f172a', fontWeight: 600 }}>https://mavicore.mes</span>
+                            <span style={{ color: '#94a3b8' }}>/runtime</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Sandpack Preview */}
+                      <div style={{ flex: 1, minHeight: 0, width: '100%', height: '100%', overflow: 'hidden', position: 'relative' }}>
+                        {errors.length > 0 && (
+                          <div style={{
+                            position: 'absolute', top: 12, left: 12, right: 12, zIndex: 999,
+                            backgroundColor: 'rgba(15, 23, 42, 0.96)', border: '1px solid #ef4444',
+                            backdropFilter: 'blur(12px)', color: '#fff', borderRadius: '12px',
+                            padding: '10px 14px', display: 'flex', alignItems: 'center',
+                            justifyContent: 'space-between', gap: '12px',
+                            boxShadow: '0 12px 30px rgba(239, 68, 68, 0.25)', fontSize: '0.78rem'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                              <span style={{ fontSize: '1.1rem' }}>⚠️</span>
+                              <div style={{ overflow: 'hidden' }}>
+                                <div style={{ fontWeight: 700, color: '#fca5a5' }}>Syntax / Build Error Terdeteksi</div>
+                                <div style={{ fontSize: '0.7rem', color: '#94a3b8', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                  {typeof errors[0] === 'string' ? errors[0].split('\n')[0] : errors[0]?.message}
+                                </div>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              disabled={isAutoFixing}
+                              onClick={handleTriggerAutoFix}
+                              style={{
+                                backgroundColor: '#ef4444', color: '#ffffff', border: 'none',
+                                padding: '7px 14px', borderRadius: '8px', fontWeight: 800,
+                                cursor: isAutoFixing ? 'not-allowed' : 'pointer',
+                                display: 'flex', alignItems: 'center', gap: '6px',
+                                flexShrink: 0, boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)'
+                              }}
+                            >
+                              {isAutoFixing ? <Loader2 size={13} className="animate-spin" /> : <Wrench size={13} />}
+                              <span>{isAutoFixing ? 'Memperbaiki...' : '⚡ Auto-Fix Sekarang'}</span>
+                            </button>
+                          </div>
+                        )}
+                        <SandpackPreview
+                          showOpenInCodeSandbox={false}
+                          showRefreshButton={true}
+                          style={{ height: '100%', width: '100%', backgroundColor: '#f8fafc' }}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
               )}
+
+              {/* ─── 3. RIGHT PANEL: CODE EDITOR & FILE EXPLORER STUDIO ─── */}
+              {(viewMode === 'split' || viewMode === 'code' || isRightPanelOpen) && (
+                <div style={{
+                  height: '100%',
+                  minHeight: '100%',
+                  width: viewMode === 'code' ? '100%' : '520px',
+                  minWidth: viewMode === 'code' ? '100%' : '380px',
+                  maxWidth: viewMode === 'code' ? '100%' : '650px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  borderLeft: '1px solid #1e293b',
+                  backgroundColor: '#0a0f1d',
+                  overflow: 'hidden',
+                  zIndex: 10
+                }}>
+                  {/* Right Studio Header with Dyad-style Sub-Tabs */}
+                  <div style={{
+                    height: '40px',
+                    minHeight: '40px',
+                    backgroundColor: '#070b14',
+                    borderBottom: '1px solid #1e293b',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0 10px',
+                    userSelect: 'none'
+                  }}>
+                    {/* Tab Switcher: Files | Code | Split */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '3px', backgroundColor: 'rgba(255,255,255,0.06)', padding: '2px', borderRadius: '6px' }}>
+                      {[
+                        { key: 'editor', label: 'Code Editor', icon: <Code size={12} /> },
+                        { key: 'files', label: 'Files', icon: <FolderOpen size={12} /> },
+                        { key: 'both', label: 'Split Files + Code', icon: <Columns size={12} /> }
+                      ].map(tab => (
+                        <button
+                          key={tab.key}
+                          type="button"
+                          onClick={() => setRightPanelTab(tab.key)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '4px',
+                            padding: '3px 8px', borderRadius: '4px', border: 'none',
+                            backgroundColor: rightPanelTab === tab.key ? '#0284c7' : 'transparent',
+                            color: rightPanelTab === tab.key ? '#fff' : '#94a3b8',
+                            fontSize: '0.7rem', fontWeight: rightPanelTab === tab.key ? 700 : 500,
+                            cursor: 'pointer', transition: 'all 0.15s'
+                          }}
+                        >
+                          {tab.icon}
+                          <span>{tab.label}</span>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Close / Minimize Right Panel */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setViewMode('preview');
+                        setIsRightPanelOpen(false);
+                      }}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#64748b',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '4px'
+                      }}
+                      title="Tutup Editor (Kembali ke Full Preview)"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+
+                  {/* Body of Right Studio */}
+                  <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
+
+                    {/* File Tree Section (shown in 'files' or 'both' mode) */}
+                    {(rightPanelTab === 'files' || rightPanelTab === 'both') && (
+                      <div style={{
+                        width: rightPanelTab === 'both' ? '210px' : '100%',
+                        minWidth: rightPanelTab === 'both' ? '210px' : '100%',
+                        borderRight: rightPanelTab === 'both' ? '1px solid #1e293b' : 'none',
+                        height: '100%',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        flexDirection: 'column'
+                      }}>
+                        <FileTreeExplorer
+                          tree={fileTree}
+                          activePath={activeFilePath}
+                          onSelectFile={(path) => {
+                            setActiveFilePath(path);
+                            if (sandpackBridgeRef.current) {
+                              sandpackBridgeRef.current.openFile(path);
+                            }
+                          }}
+                          onCreateFile={(newPath) => {
+                            vfs.writeFile(newPath, '// New file\n');
+                            setFilesRecord(vfs.getAllFilesRecord());
+                            setFileTree(vfs.getFileTree());
+                            setActiveFilePath(newPath);
+                          }}
+                          onDeleteFile={(delPath) => {
+                            vfs.deleteFile(delPath);
+                            setFilesRecord(vfs.getAllFilesRecord());
+                            setFileTree(vfs.getFileTree());
+                            if (activeFilePath === delPath) setActiveFilePath('/App.js');
+                          }}
+                          onOpenTemplates={() => setIsTemplatesModalOpen(true)}
+                          sandboxApps={sandboxAppsList}
+                          activeAppId={deployedApp?.id || null}
+                          onSelectApp={handleSelectSandboxApp}
+                          onDeleteApp={handleDeleteSandboxApp}
+                          onNewApp={handleNewBlankApp}
+                          isLoadingApps={isLoadingSandboxApps}
+                        />
+                      </div>
+                    )}
+
+                    {/* Code Editor Section (shown in 'editor' or 'both' mode) */}
+                    {(rightPanelTab === 'editor' || rightPanelTab === 'both') && (
+                      <div style={{
+                        flex: 1,
+                        minWidth: 0,
+                        height: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        overflow: 'hidden'
+                      }}>
+                        <SandpackProEditorBar
+                          activePath={activeFilePath}
+                          onRunCode={handleRunEditorCode}
+                          onFormatCode={handleFormatEditorCode}
+                          isInspectActive={isInspectModeActive}
+                          onToggleInspect={() => setIsInspectModeActive(prev => !prev)}
+                        />
+                        <SandpackCodeEditor
+                          showLineNumbers
+                          showInlineErrors
+                          wrapContent
+                          style={{
+                            flex: 1,
+                            height: '100%',
+                            minHeight: 0,
+                            fontFamily: 'monospace',
+                            fontSize: '12px'
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
             </SandpackLayout>
           </SandpackProvider>
 
@@ -2957,81 +3321,6 @@ root.render(
           />
         </div>
 
-        {/* RIGHT PANEL: VIBECHAT STREAMING */}
-        {isStandalone && (
-          <div style={{
-            width: '420px',
-            minWidth: '380px',
-            maxWidth: '480px',
-            height: '100%',
-            borderLeft: '1px solid #1e293b',
-            display: 'flex',
-            flexDirection: 'column',
-            flexShrink: 0,
-            overflow: 'hidden',
-            backgroundColor: '#0f172a'
-          }}>
-            <VibeChatPanel
-              context={{
-                appName: appName,
-                files: filesRecord,
-                tables: availableTables
-              }}
-              initialPrompt={chatInitialPrompt}
-              onPromptConsumed={() => setChatInitialPrompt('')}
-              settings={null}
-              onCodeGenerated={async (rawCode) => {
-                let code = cleanVibeCode(rawCode);
-
-                // Safeguard: If code starts with `return (` without a function wrapper, wrap it
-                if (/^\s*return\s*\(/.test(code) && !/function\s+\w+\s*\(|=>\s*\(?|export\s+default|const\s+\w+\s*=\s*\(/i.test(code.slice(0, 100))) {
-                  code = `export default function App() {\n  ${code}\n}`;
-                  console.log('[Sandbox] Wrapped orphan `return (` in function App()');
-                }
-
-                vfs.writeFile('/App.js', code);
-                lastKnownExternalCodeRef.current = code;
-                setFilesRecord(vfs.getAllFilesRecord());
-                setFilesRevision(prev => prev + 1);
-                setErrors([]);
-
-                // ⚡ Instantly update Sandpack in-memory instance & live device screen!
-                if (sandpackBridgeRef.current) {
-                  sandpackBridgeRef.current.updateFile('/App.js', code);
-                  sandpackBridgeRef.current.openFile('/App.js');
-                  sandpackBridgeRef.current.runSandpack?.();
-                }
-
-                try {
-                  localStorage.setItem('vibe_sandbox_autosave', code);
-                  localStorage.setItem('vibe_sandbox_autosave_time', new Date().toISOString());
-                } catch {}
-
-                if (onCodeChange) onCodeChange(code);
-
-                toast.success('⚡ Kode berhasil diterapkan ke layar device!');
-                try {
-                  const res = await syncVibeAppToTable(code);
-                  if (res?.table) {
-                    setConnectedTable(res.table);
-                    setLiveRecordCount(res.recordCount);
-                    toast.success(
-                      res.isNew
-                        ? `Tabel "${res.table.name}" berhasil dibuat di Database MaviCore!`
-                        : `Tabel "${res.table.name}" tersinkronisasi (${res.recordCount} data tersimpan)!`,
-                      { duration: 4000 }
-                    );
-                    getTables().then(tbls => {
-                      if (Array.isArray(tbls)) setAvailableTables(tbls);
-                    });
-                  }
-                } catch (syncErr) {
-                  console.warn('Auto table sync error:', syncErr);
-                }
-              }}
-            />
-          </div>
-        )}
       </div>
 {/* ═══════════ MODALS ═══════════ */}
       {/* 1. AI Changes Review Modal */}

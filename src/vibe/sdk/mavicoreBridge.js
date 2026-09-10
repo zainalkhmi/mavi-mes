@@ -514,7 +514,6 @@ if (typeof window !== 'undefined') {
   }, true);
 }
 
-export { useMaviCoreData, MaviCoreBridge, bridge };
 export default MaviCoreBridge;
 
 if (typeof module !== 'undefined' && module.exports) {
@@ -526,6 +525,5 @@ if (typeof module !== 'undefined' && module.exports) {
 }
 `;
 
-export { MAVICORE_BRIDGE_VIRTUAL_FILE };
 export default MAVICORE_BRIDGE_VIRTUAL_FILE;
 

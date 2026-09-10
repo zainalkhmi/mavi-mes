@@ -229,6 +229,17 @@ Jika membuat file baru (misalnya komponen atau data):
 // isi lengkap file...
 </file_action>
 
+3. ATOMIC EDITING (DYAD VIBE PROTOCOL):
+Untuk perubahan kecil / spesifik pada file yang sudah ada (misal ganti judul, ubah props, atau tambah button), Anda sangat dianjurkan menggunakan format atomic search & replace ala Dyad:
+<search_replace path="/App.jsx">
+<search>
+// baris kode lama yang ingin diganti persis
+</search>
+<replace>
+// baris kode baru penggantinya
+</replace>
+</search_replace>
+
 Catatan: Untuk backward-compatibility, tag <vibe_code>...</vibe_code> tetap diterima dan akan otomatis dipetakan ke /App.jsx.
 
 ${compactContext}
@@ -297,7 +308,17 @@ INSTRUKSI:
 
     const fileActions = [];
 
-    // 1. Check for <file_action path="..." action="...">...</file_action>
+    // 1. Check for Dyad atomic search-and-replace blocks: <search_replace path="...">...<search>...</search><replace>...</replace></search_replace>
+    const searchReplaceRegex = /<(?:search_replace|dyad_search_replace)\s+path=["']([^"']+)["']>[\s\S]*?<search>([\s\S]*?)<\/search>[\s\S]*?<replace>([\s\S]*?)<\/replace>[\s\S]*?<\/(?:search_replace|dyad_search_replace)>/gi;
+    let srMatch;
+    while ((srMatch = searchReplaceRegex.exec(responseText)) !== null) {
+      const path = srMatch[1].trim();
+      const search = srMatch[2];
+      const replace = srMatch[3];
+      fileActions.push({ path, action: 'patch', search, replace, content: replace });
+    }
+
+    // 2. Check for <file_action path="..." action="...">...</file_action>
     const fileActionRegex = /<file_action\s+path=["']([^"']+)["'](?:\s+action=["']([^"']+)["'])?>([\s\S]*?)<\/file_action>/gi;
     let match;
     while ((match = fileActionRegex.exec(responseText)) !== null) {
@@ -307,7 +328,7 @@ INSTRUKSI:
       fileActions.push({ path, action, content });
     }
 
-    // 2. Backward compatibility: Check for <vibe_code>...</vibe_code>
+    // 3. Backward compatibility: Check for <vibe_code>...</vibe_code>
     if (fileActions.length === 0) {
       const vibeCodeMatch = responseText.match(/<vibe_code>([\s\S]*?)<\/vibe_code>/i);
       if (vibeCodeMatch && vibeCodeMatch[1]) {

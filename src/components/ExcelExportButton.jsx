@@ -8,7 +8,7 @@ import { Download, FileSpreadsheet } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { exportToExcel, exportTableToExcel, generateExcelTemplate } from '../utils/excelUtils';
 
-export default function ExcelExportButton({ tableName, records = [], fields = [] }) {
+export default function ExcelExportButton({ tableName, records = [], fields = [], iconOnly = false }) {
   const [isExporting, setIsExporting] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
 
@@ -40,22 +40,26 @@ export default function ExcelExportButton({ tableName, records = [], fields = []
       <button
         onClick={() => setShowMenu(!showMenu)}
         disabled={isExporting || records.length === 0}
+        title="Export to Excel / CSV"
         style={{
-          padding: '8px 16px',
-          borderRadius: 8,
+          padding: iconOnly ? '9px 11px' : '8px 16px',
+          borderRadius: 10,
           border: '1px solid #e2e8f0',
           background: 'white',
           cursor: records.length === 0 ? 'not-allowed' : 'pointer',
           opacity: records.length === 0 ? 0.5 : 1,
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
+          justifyContent: 'center',
+          gap: iconOnly ? 0 : 8,
           fontWeight: 600,
           fontSize: '0.875rem',
+          color: '#475569',
+          transition: 'all 0.2s',
         }}
       >
         <Download size={16} />
-        <span>Export</span>
+        {!iconOnly && <span>Export</span>}
       </button>
 
       {showMenu && (

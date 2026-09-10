@@ -48,3 +48,7 @@ datasets/*/
 
 # Scratch test files
 scratch_test.*
+
+# Playwright Test Artifacts
+test-results/
+playwright-report/

@@ -4,7 +4,8 @@ import {
     Info, RefreshCw, Upload, X, Lock, Type, ChevronDown, Settings, Edit3, Edit2,
     Hash, Calendar, CheckSquare, User, Clock, Filter, Group, MoreHorizontal,
     ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, LayoutGrid, GripVertical,
-    Eye, MoreVertical, Layers, Key, Zap, AlertTriangle, Menu, Bot, Wand2, Code, Factory, Download
+    Eye, MoreVertical, Layers, Key, Zap, AlertTriangle, Menu, Bot, Wand2, Code, Factory, Download,
+    BookmarkPlus, FileSpreadsheet
 } from 'lucide-react';
 import TableCopilotModal from './TableCopilotModal';
 import TableAppGeneratorModal from './TableAppGeneratorModal';
@@ -1910,15 +1911,16 @@ const TableManager = () => {
                             {activePanel === 'records' ? (
                                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '32px', overflow: 'hidden' }}>
                                     {/* Toolbar */}
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', gap: '12px', flexWrap: 'wrap' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                                             <button
                                                 onClick={() => setIsFieldsSidebarOpen(!isFieldsSidebarOpen)}
+                                                title={isFieldsSidebarOpen ? "Tutup Kolom (Fields)" : "Buka Kolom (Fields)"}
                                                 style={{
                                                     display: 'flex',
                                                     alignItems: 'center',
-                                                    gap: '8px',
-                                                    padding: '10px 16px',
+                                                    gap: '6px',
+                                                    padding: '9px 12px',
                                                     borderRadius: '10px',
                                                     border: `1px solid ${isFieldsSidebarOpen ? TOKENS.primary : TOKENS.border}`,
                                                     backgroundColor: isFieldsSidebarOpen ? TOKENS.primaryLight : 'white',
@@ -1926,7 +1928,8 @@ const TableManager = () => {
                                                     fontSize: '0.85rem',
                                                     color: isFieldsSidebarOpen ? TOKENS.primary : TOKENS.text,
                                                     cursor: 'pointer',
-                                                    transition: 'all 0.2s'
+                                                    transition: 'all 0.2s',
+                                                    whiteSpace: 'nowrap'
                                                 }}
                                             >
                                                 <Layers size={16} /> Fields
@@ -1939,12 +1942,12 @@ const TableManager = () => {
                                                     onChange={(e) => setRecordSearchTerm(e.target.value)}
                                                     placeholder="Search records..."
                                                     style={{
-                                                        padding: '10px 16px 10px 40px',
+                                                        padding: '9px 14px 9px 36px',
                                                         borderRadius: '10px',
                                                         border: `1px solid ${TOKENS.border}`,
                                                         backgroundColor: 'white',
-                                                        fontSize: '0.9rem',
-                                                        width: '300px',
+                                                        fontSize: '0.85rem',
+                                                        width: '210px',
                                                         outline: 'none'
                                                     }}
                                                 />
@@ -1954,11 +1957,11 @@ const TableManager = () => {
                                                     value={activeQueryId || ''}
                                                     onChange={(e) => setActiveQueryId(e.target.value || null)}
                                                     style={{
-                                                        padding: '10px 36px 10px 16px',
+                                                        padding: '9px 32px 9px 12px',
                                                         borderRadius: '10px',
                                                         border: `1px solid ${TOKENS.border}`,
                                                         backgroundColor: 'white',
-                                                        fontSize: '0.9rem',
+                                                        fontSize: '0.85rem',
                                                         appearance: 'none',
                                                         cursor: 'pointer',
                                                         fontWeight: 600,
@@ -1970,66 +1973,125 @@ const TableManager = () => {
                                                         <option key={q.id} value={q.id}>{q.name}</option>
                                                     ))}
                                                 </select>
-                                                <ChevronDown size={14} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: TOKENS.textMuted }} />
+                                                <ChevronDown size={14} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: TOKENS.textMuted }} />
                                             </div>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                <button onClick={saveCurrentView} style={{ padding: '9px 12px', borderRadius: '10px', border: `1px solid ${TOKENS.border}`, background: 'white', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>Save View</button>
-                                                <select value={activeSavedViewId} onChange={(e) => applySavedView(e.target.value)} style={{ padding: '9px 10px', borderRadius: '10px', border: `1px solid ${TOKENS.border}`, fontSize: '0.8rem' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                <button
+                                                    onClick={saveCurrentView}
+                                                    title="Simpan View Saat Ini"
+                                                    style={{
+                                                        padding: '9px',
+                                                        borderRadius: '10px',
+                                                        border: `1px solid ${TOKENS.border}`,
+                                                        background: 'white',
+                                                        color: TOKENS.text,
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        cursor: 'pointer',
+                                                        transition: 'all 0.15s'
+                                                    }}
+                                                >
+                                                    <BookmarkPlus size={16} />
+                                                </button>
+                                                <select
+                                                    value={activeSavedViewId}
+                                                    onChange={(e) => applySavedView(e.target.value)}
+                                                    style={{
+                                                        padding: '9px 10px',
+                                                        borderRadius: '10px',
+                                                        border: `1px solid ${TOKENS.border}`,
+                                                        fontSize: '0.8rem',
+                                                        color: TOKENS.text
+                                                    }}
+                                                >
                                                     <option value="">Saved Views</option>
                                                     {savedViews.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
                                                 </select>
                                             </div>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <button onClick={() => setTableDensity('compact')} style={{ padding: '8px 10px', borderRadius: '8px', border: `1px solid ${tableDensity === 'compact' ? TOKENS.primary : TOKENS.border}`, background: tableDensity === 'compact' ? TOKENS.primaryLight : 'white', fontSize: '0.75rem', cursor: 'pointer' }}>Compact</button>
-                                                <button onClick={() => setTableDensity('comfortable')} style={{ padding: '8px 10px', borderRadius: '8px', border: `1px solid ${tableDensity === 'comfortable' ? TOKENS.primary : TOKENS.border}`, background: tableDensity === 'comfortable' ? TOKENS.primaryLight : 'white', fontSize: '0.75rem', cursor: 'pointer' }}>Comfort</button>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', background: '#f1f5f9', padding: '3px', borderRadius: '9px' }}>
+                                                <button
+                                                    onClick={() => setTableDensity('compact')}
+                                                    title="Tampilan Rapat (Compact)"
+                                                    style={{
+                                                        padding: '6px 8px',
+                                                        borderRadius: '7px',
+                                                        border: 'none',
+                                                        background: tableDensity === 'compact' ? 'white' : 'transparent',
+                                                        color: tableDensity === 'compact' ? TOKENS.primary : TOKENS.textMuted,
+                                                        boxShadow: tableDensity === 'compact' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center'
+                                                    }}
+                                                >
+                                                    <Rows3 size={15} />
+                                                </button>
+                                                <button
+                                                    onClick={() => setTableDensity('comfortable')}
+                                                    title="Tampilan Luas (Comfort)"
+                                                    style={{
+                                                        padding: '6px 8px',
+                                                        borderRadius: '7px',
+                                                        border: 'none',
+                                                        background: tableDensity === 'comfortable' ? 'white' : 'transparent',
+                                                        color: tableDensity === 'comfortable' ? TOKENS.primary : TOKENS.textMuted,
+                                                        boxShadow: tableDensity === 'comfortable' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center'
+                                                    }}
+                                                >
+                                                    <LayoutGrid size={15} />
+                                                </button>
                                             </div>
                                         </div>
 
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                             {selectedIds.size > 0 && (
                                                 <>
-                                                    <button onClick={() => handleBulkStatusUpdate('Completed')} style={{ padding: '9px 12px', borderRadius: '10px', border: 'none', backgroundColor: '#dcfce7', color: '#166534', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}>Bulk Complete</button>
-                                                    <button onClick={() => handleBulkStatusUpdate('On Hold')} style={{ padding: '9px 12px', borderRadius: '10px', border: 'none', backgroundColor: '#fef3c7', color: '#92400e', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}>Bulk Hold</button>
+                                                    <button onClick={() => handleBulkStatusUpdate('Completed')} style={{ padding: '8px 12px', borderRadius: '10px', border: 'none', backgroundColor: '#dcfce7', color: '#166534', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}>Bulk Complete</button>
+                                                    <button onClick={() => handleBulkStatusUpdate('On Hold')} style={{ padding: '8px 12px', borderRadius: '10px', border: 'none', backgroundColor: '#fef3c7', color: '#92400e', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}>Bulk Hold</button>
+                                                    <button
+                                                        onClick={handleBulkDelete}
+                                                        style={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '6px',
+                                                            padding: '8px 12px',
+                                                            borderRadius: '10px',
+                                                            backgroundColor: '#fee2e2',
+                                                            color: '#ef4444',
+                                                            border: 'none',
+                                                            fontWeight: 700,
+                                                            fontSize: '0.8rem',
+                                                            cursor: 'pointer'
+                                                        }}
+                                                    >
+                                                        <Trash2 size={15} /> Hapus ({selectedIds.size})
+                                                    </button>
                                                 </>
-                                            )}
-                                            {selectedIds.size > 0 && (
-                                                <button
-                                                    onClick={handleBulkDelete}
-                                                    style={{
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: '8px',
-                                                        padding: '10px 16px',
-                                                        borderRadius: '10px',
-                                                        backgroundColor: '#fee2e2',
-                                                        color: '#ef4444',
-                                                        border: 'none',
-                                                        fontWeight: 700,
-                                                        fontSize: '0.85rem',
-                                                        cursor: 'pointer'
-                                                    }}
-                                                >
-                                                    <Trash2 size={16} /> Hapus ({selectedIds.size})
-                                                </button>
                                             )}
                                             <button
                                                 onClick={handleImportButtonClick}
                                                 disabled={csvImporting}
+                                                title="Import CSV"
                                                 style={{
                                                     display: 'flex',
                                                     alignItems: 'center',
-                                                    gap: '8px',
-                                                    padding: '10px 16px',
+                                                    justifyContent: 'center',
+                                                    padding: '9px 11px',
                                                     borderRadius: '10px',
                                                     border: `1px solid ${TOKENS.border}`,
                                                     backgroundColor: 'white',
-                                                    fontWeight: 600,
-                                                    fontSize: '0.85rem',
                                                     color: TOKENS.text,
-                                                    cursor: 'pointer'
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.15s'
                                                 }}
                                             >
-                                                <Upload size={16} /> Import CSV
+                                                <Upload size={16} />
                                             </button>
                                             <ExcelExportButton
                                                 tableName={selectedTable?.name}
@@ -2037,24 +2099,25 @@ const TableManager = () => {
                                                 fields={selectedTable?.fields || []}
                                                 variant="outline"
                                                 size="md"
+                                                iconOnly={true}
                                             />
                                             <button
                                                 onClick={() => setIsExcelImportOpen(true)}
+                                                title="Import Excel (.xlsx)"
                                                 style={{
-                                                    padding: '9px 12px',
+                                                    padding: '9px 11px',
                                                     borderRadius: '10px',
                                                     border: '1px solid #10b981',
-                                                    backgroundColor: 'white',
-                                                    fontWeight: 600,
-                                                    fontSize: '0.8rem',
+                                                    backgroundColor: '#f0fdf4',
                                                     color: '#10b981',
                                                     cursor: 'pointer',
                                                     display: 'flex',
                                                     alignItems: 'center',
-                                                    gap: '6px',
+                                                    justifyContent: 'center',
+                                                    transition: 'all 0.15s'
                                                 }}
                                             >
-                                                <Upload size={14} /> Import Excel
+                                                <FileSpreadsheet size={16} />
                                             </button>
                                             <button
                                                 onClick={() => {
@@ -2063,8 +2126,12 @@ const TableManager = () => {
                                                     setIsEditingRecord(false);
                                                     setIsRecordModalOpen(true);
                                                 }}
+                                                title="Create New Record"
                                                 style={{
-                                                    padding: '10px 20px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px',
+                                                    padding: '9px 16px',
                                                     borderRadius: '10px',
                                                     backgroundColor: TOKENS.primary,
                                                     color: 'white',
@@ -2072,10 +2139,11 @@ const TableManager = () => {
                                                     fontWeight: 700,
                                                     fontSize: '0.85rem',
                                                     cursor: 'pointer',
-                                                    boxShadow: '0 4px 6px -1px rgba(99, 102, 241, 0.4)'
+                                                    boxShadow: '0 4px 6px -1px rgba(99, 102, 241, 0.4)',
+                                                    transition: 'all 0.15s'
                                                 }}
                                             >
-                                                <Plus size={18} /> Create
+                                                <Plus size={16} /> Create
                                             </button>
                                         </div>
                                     </div>
