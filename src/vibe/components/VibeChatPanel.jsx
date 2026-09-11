@@ -502,7 +502,11 @@ CRITICAL EXECUTION CONSTRAINTS:
 8. WAJIB STRUKTUR KODE TERATUR, COMPACT & TUNTAS (ANTI-TRUNCATION):
    - Mock Data Singkat: Cukup 2-3 item contoh ringkas saja.
    - PRIORITAS UTAMA BLOK RETURN JSX: Segera masuk ke blok return JSX untuk merender seluruh tampilan (Header, KPICards, ScadaProdCounter / Telemetry, Tabel CRUD, Dialog/Modal Tambah Data).
-   - Pastikan seluruh tag penutup tertutup rapi dan diakhiri \`export default function App() { return (...); }\` sebelum menutup dengan </vibe_code>.`;
+   - Pastikan seluruh tag penutup tertutup rapi dan diakhiri \`export default function App() { return (...); }\` sebelum menutup dengan </vibe_code>.
+9. ANTI-BLANK-SCREEN GUARANTEE:
+   - DILARANG KERAS \`return null;\` atau \`return <></>;\` saat state loading! Selalu render kerangka tampilan lengkap (header, judul, kartu, tabel).
+   - Pastikan state data selalu memiliki nilai awal array aman (contoh: \`const [items, setItems] = useState([])\`), jangan biarkan undefined/null agar pemanggilan \`.map()\` tidak pernah crash/blank.
+   - Operasi async database (seed/fetch) tidak boleh memblokir render awal komponen. Bungkus selalu dengan try/catch.`;
 
       const effectiveSettings = {
         ...(activeConnector || {}),

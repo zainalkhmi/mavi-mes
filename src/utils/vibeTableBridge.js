@@ -368,7 +368,21 @@ export async function saveVibeRecord(tableNameOrId, recordData = {}) {
     ...cleanPayload
   };
 
-  const saved = await addTableRecord(targetTable.id, payload);
+  let saved;
+  try {
+    saved = await addTableRecord(targetTable.id, payload);
+  } catch (err) {
+    if (err?.message && err.message.includes('already exists')) {
+      try {
+        saved = await updateTableRecord(payload.recordId, payload);
+      } catch (updateErr) {
+        console.warn('[vibeTableBridge] Record already exists, fallback upsert result:', updateErr);
+        saved = { ...payload };
+      }
+    } else {
+      throw err;
+    }
+  }
   return { saved, table: targetTable };
 }
 

@@ -89,7 +89,7 @@ import BuildModal from '../../vibe/components/BuildModal';
 import WidgetCatalogModal from '../../vibe/components/WidgetCatalogModal';
 import VibeChatPanel from '../../vibe/components/VibeChatPanel';
 import BottomTerminalPanel from '../../vibe/components/BottomTerminalPanel';
-import { cleanVibeCode, healTruncatedReactCode, extractVibeCode, autoFixMissingImports } from '../../vibe/utils/codeCleaner';
+import { cleanVibeCode, healTruncatedReactCode, extractVibeCode, autoFixMissingImports, autoFixSyntaxErrors } from '../../vibe/utils/codeCleaner';
 import { DyadCAGResolver, DyadPatchEngine } from '../../vibe/ai/DyadEngine';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1140,10 +1140,125 @@ import "./mavicore-bridge.js";
 
 import App from "./App";
 
+class SandboxErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error("[Sandbox Runtime Error]", error, errorInfo);
+    if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+      window.parent.postMessage({
+        type: 'MAVICORE_DEVICE_ERROR',
+        error: error?.message || String(error),
+        stack: errorInfo?.componentStack || error?.stack || ''
+      }, '*');
+    }
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          minHeight: '100vh',
+          backgroundColor: '#f8fafc',
+          color: '#0f172a',
+          fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+          padding: '24px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxSizing: 'border-box'
+        }}>
+          <div style={{
+            maxWidth: '400px',
+            width: '100%',
+            backgroundColor: '#ffffff',
+            borderRadius: '20px',
+            border: '1px solid #fee2e2',
+            boxShadow: '0 10px 25px -5px rgba(239, 68, 68, 0.12)',
+            padding: '20px',
+            textAlign: 'center'
+          }}>
+            <div style={{
+              width: '44px',
+              height: '44px',
+              borderRadius: '12px',
+              backgroundColor: '#fef2f2',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '12px',
+              fontSize: '22px'
+            }}>
+              ⚠️
+            </div>
+            <h3 style={{
+              fontSize: '15px',
+              fontWeight: 800,
+              color: '#b91c1c',
+              margin: '0 0 6px 0'
+            }}>
+              Komponen Mengalami Kendala
+            </h3>
+            <p style={{
+              fontSize: '12px',
+              color: '#64748b',
+              margin: '0 0 12px 0',
+              lineHeight: 1.4
+            }}>
+              Terjadi runtime error saat komponen React dirender:
+            </p>
+            <div style={{
+              backgroundColor: '#fff1f2',
+              border: '1px solid #fecdd3',
+              borderRadius: '10px',
+              padding: '10px 12px',
+              color: '#9f1239',
+              fontSize: '11px',
+              fontFamily: 'ui-monospace, monospace',
+              textAlign: 'left',
+              wordBreak: 'break-word',
+              marginBottom: '16px',
+              maxHeight: '140px',
+              overflowY: 'auto'
+            }}>
+              {this.state.error?.message || String(this.state.error)}
+            </div>
+            <button
+              type="button"
+              onClick={() => this.setState({ hasError: false, error: null })}
+              style={{
+                width: '100%',
+                padding: '9px 14px',
+                borderRadius: '10px',
+                backgroundColor: '#ef4444',
+                color: '#ffffff',
+                border: 'none',
+                fontWeight: 700,
+                fontSize: '12px',
+                cursor: 'pointer'
+              }}
+            >
+              Coba Muat Ulang Komponen
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const root = createRoot(document.getElementById("root"));
 root.render(
   <StrictMode>
-    <App />
+    <SandboxErrorBoundary>
+      <App />
+    </SandboxErrorBoundary>
   </StrictMode>
 );
 `,
@@ -1190,18 +1305,40 @@ root.render(
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempAppName, setTempAppName] = useState('');
 
+  // Pre-emptive auto-heal on mount to instantly cure any legacy duplicate imports or rogue closures
+  useEffect(() => {
+    try {
+      const current = vfs.readFile('/App.js') || vfs.readFile('/App.jsx');
+      if (current) {
+        const cleaned = cleanVibeCode(current);
+        if (cleaned && cleaned.trim() !== current.trim()) {
+          vfs.writeFile('/App.js', cleaned);
+          setFilesRecord(vfs.getAllFilesRecord());
+          setFilesRevision(prev => prev + 1);
+          if (onCodeChange) onCodeChange(cleaned);
+        }
+      }
+    } catch (_) {}
+  }, []);
+
   // Sync external code prop if updated externally
   useEffect(() => {
     if (code && code.trim() && code !== lastKnownExternalCodeRef.current) {
       lastKnownExternalCodeRef.current = code;
-      vfs.writeFile('/App.js', code);
+      const cleaned = cleanVibeCode(code);
+      vfs.writeFile('/App.js', cleaned);
       setFilesRecord(vfs.getAllFilesRecord());
       setFileTree(vfs.getFileTree());
+      autoFixAttemptsRef.current = 0;
+      isAutoFixingRef.current = false;
+      setErrors([]);
+      setFilesRevision(prev => prev + 1);
       if (sandpackBridgeRef.current) {
-        sandpackBridgeRef.current.updateFile('/App.js', code);
+        sandpackBridgeRef.current.updateFile('/App.js', cleaned);
+        sandpackBridgeRef.current.runSandpack?.();
       }
     }
-  }, [code, vfs]);
+  }, [code, vfs, onCodeChange]);
 
   // UI state
   const [viewMode, setViewMode] = useState('preview'); // 'preview' | 'code' | 'split'
@@ -1533,11 +1670,13 @@ root.render(
         const updatedFiles = vfs.getAllFilesRecord();
         setFilesRecord(updatedFiles);
         setFileTree(vfs.getFileTree());
+        setFilesRevision(prev => prev + 1);
         const appCode = vfs.readFile('/App.js') || vfs.readFile('/App.jsx');
         if (appCode) {
           lastKnownExternalCodeRef.current = appCode;
           if (sandpackBridgeRef.current) {
             sandpackBridgeRef.current.updateFile('/App.js', appCode);
+            sandpackBridgeRef.current.runSandpack?.();
           }
           try { localStorage.setItem('vibe_sandbox_autosave', appCode); } catch {}
           if (onCodeChange) onCodeChange(appCode);
@@ -1574,14 +1713,14 @@ root.render(
       clearTimeout(autoFixDebounceTimerRef.current);
     }
 
-    // Debounce to collect rapid cascading errors and run full auto-repair loop
+    // Fast-track auto-fix: immediately attempt heuristic repair in 200ms
     autoFixDebounceTimerRef.current = setTimeout(async () => {
-      if (autoFixAttemptsRef.current >= 4) {
+      if (autoFixAttemptsRef.current >= 6) {
         setLogs(prev => [...prev, {
           timestamp: new Date(),
-          text: `[Auto-Fix] ⚠️ Batas percobaan auto-fix (4x) tercapai. Silakan cek kode di tab editor.`
+          text: `[Auto-Fix] ⚠️ Batas percobaan auto-fix (6x) tercapai. Silakan periksa kode di tab editor.`
         }]);
-        toast.error('Batas auto-fix 4x tercapai. Silakan periksa pesan error di terminal.');
+        toast.error('Batas auto-fix tercapai. Silakan periksa error di tab code.');
         return;
       }
 
@@ -1594,10 +1733,10 @@ root.render(
 
       setLogs(prev => [...prev, {
         timestamp: new Date(),
-        text: `[Auto-Fix #${autoFixAttemptsRef.current}/4] 🔍 Mengambil kode dari device untuk dianalisis & diperbaiki...`
+        text: `[Auto-Fix #${autoFixAttemptsRef.current}/6] ⚡ Mendeteksi error runtime/sintaks. Mengaplikasikan perbaikan otomatis...`
       }]);
 
-      // 1. Quick Heuristic Missing Imports
+      // 1. Quick Heuristic Missing Imports & Duplicate Declarations
       try {
         if (currentCode) {
           const importFixed = autoFixMissingImports(currentCode, cleanErrMsg);
@@ -1606,9 +1745,11 @@ root.render(
             const updatedFiles = vfs.getAllFilesRecord();
             setFilesRecord(updatedFiles);
             setFileTree(vfs.getFileTree());
+            setFilesRevision(prev => prev + 1);
             lastKnownExternalCodeRef.current = importFixed;
             if (sandpackBridgeRef.current) {
               sandpackBridgeRef.current.updateFile(targetPath, importFixed);
+              sandpackBridgeRef.current.runSandpack?.();
             }
             try { localStorage.setItem('vibe_sandbox_autosave', importFixed); } catch {}
             if (onCodeChange) onCodeChange(importFixed);
@@ -1617,9 +1758,9 @@ root.render(
             setIsAutoFixing(false);
             setLogs(prev => [...prev, {
               timestamp: new Date(),
-              text: `[Auto-Fix] ✅ Berhasil menambahkan import otomatis (${targetPath}). Menjalankan ulang di device...`
+              text: `[Auto-Fix] ✅ Berhasil memperbaiki import & deklarasi (${targetPath}). Device dimuat ulang...`
             }]);
-            toast.success('⚡ Berhasil memperbaiki import otomatis! Re-running...');
+            toast.success('⚡ Auto-Fix: Import & deklarasi berhasil diperbaiki otomatis!');
             scheduleHealthyCheck();
             return;
           }
@@ -1628,18 +1769,21 @@ root.render(
         console.warn('Heuristic import auto-fix failed:', e);
       }
 
-      // 2. Quick Heuristic Syntax Auto-Heal
+      // 2. Quick Heuristic Syntax Auto-Heal (solves truncated codes & rogue syntax errors like extra `);`)
       try {
         if (currentCode) {
-          const healed = healTruncatedReactCode(currentCode);
+          const syntaxFixed = autoFixSyntaxErrors(currentCode, cleanErrMsg);
+          const healed = syntaxFixed || healTruncatedReactCode(cleanVibeCode(currentCode));
           if (healed && healed.trim() !== currentCode.trim()) {
             vfs.writeFile(targetPath, healed);
             const updatedFiles = vfs.getAllFilesRecord();
             setFilesRecord(updatedFiles);
             setFileTree(vfs.getFileTree());
+            setFilesRevision(prev => prev + 1);
             lastKnownExternalCodeRef.current = healed;
             if (sandpackBridgeRef.current) {
               sandpackBridgeRef.current.updateFile(targetPath, healed);
+              sandpackBridgeRef.current.runSandpack?.();
             }
             try { localStorage.setItem('vibe_sandbox_autosave', healed); } catch {}
             if (onCodeChange) onCodeChange(healed);
@@ -1648,9 +1792,9 @@ root.render(
             setIsAutoFixing(false);
             setLogs(prev => [...prev, {
               timestamp: new Date(),
-              text: `[Auto-Fix] ✅ Sintaks kode diperbaiki instan oleh Healer (${targetPath}). Menjalankan ulang di device...`
+              text: `[Auto-Fix] ✅ Sintaks kode diperbaiki instan oleh Healer (${targetPath}). Device dimuat ulang...`
             }]);
-            toast.success('⚡ Sintaks diperbaiki otomatis! Re-running...');
+            toast.success('⚡ Auto-Fix: Sintaks kode diperbaiki otomatis!');
             scheduleHealthyCheck();
             return;
           }
@@ -1665,7 +1809,7 @@ root.render(
         text: `[Auto-Fix] 🤖 Menganalisis kode dan error dengan AI Debugger...`
       }]);
       errorFixEngine.attemptAutoFix(cleanErrMsg, targetPath);
-    }, 600);
+    }, 200);
   }, [vfs, onCodeChange, errorFixEngine, scheduleHealthyCheck]);
 
   // ─── Pro Editor & Component Inspector Handlers ───
@@ -2622,7 +2766,7 @@ root.render(
             disabled={isSyncingTable}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: '28px', height: '28px', borderRadius: '6px', border: 'none',
+              width: '28px', height: '28px', borderRadius: '6px',
               background: connectedTable ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : 'rgba(139, 92, 246, 0.25)',
               border: '1px solid rgba(139, 92, 246, 0.5)',
               color: '#c4b5fd',

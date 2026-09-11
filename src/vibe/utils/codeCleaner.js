@@ -14,6 +14,130 @@ function stripStringsAndComments(code) {
     .replace(/"(?:\\"|[^"\n])*"/g, '""');
 }
 
+/**
+ * Deduplicates and consolidates import statements across the file.
+ * Merges repeated imports from the same source (e.g. ./mavicore-bridge, ./mavicore-ui)
+ * and eliminates duplicate variable declarations (such as 'useMaviCoreData has already been declared').
+ */
+export function deduplicateImports(code) {
+  if (!code || typeof code !== 'string') return '';
+
+  // Pre-process: collapse multi-line imports into single lines
+  // e.g. "import { KPICard,\n  Numpad,\n  ScadaStartBtn } from './mavicore-ui';"
+  // becomes "import { KPICard, Numpad, ScadaStartBtn } from './mavicore-ui';"
+  let normalized = code.replace(/import\s*\{([^}]*)\}\s*from/gs, (match, specifiers) => {
+    const collapsed = specifiers.replace(/\s*\n\s*/g, ' ').replace(/\s+/g, ' ').trim();
+    return `import { ${collapsed} } from`;
+  });
+
+  const lines = normalized.split('\n');
+  const bridgeLines = [];
+  const uiLines = [];
+  const otherLines = [];
+  const seenExactImportLines = new Set();
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // 1. Detect any mavicore-bridge imports
+    if (/from\s+['"][./]*mavicore[-_]?bridge(?:\.js)?['"]/i.test(trimmed)) {
+      bridgeLines.push(line);
+      continue;
+    }
+
+    // 2. Detect any mavicore-ui imports
+    if (/from\s+['"][./]*mavicore-ui(?:\.jsx?|\.js)?['"]/i.test(trimmed)) {
+      uiLines.push(line);
+      continue;
+    }
+
+    // 3. Detect duplicate generic import lines
+    if (/^import\s+/.test(trimmed)) {
+      if (seenExactImportLines.has(trimmed)) {
+        continue;
+      }
+      seenExactImportLines.add(trimmed);
+    }
+
+    otherLines.push(line);
+  }
+
+  // Check if code uses MaviCoreBridge or useMaviCoreData anywhere
+  const needsBridge = bridgeLines.length > 0 ||
+    /\buseMaviCoreData\b/.test(code) ||
+    /\bMaviCoreBridge\b/.test(code) ||
+    /\bbridge\./.test(code);
+
+  const consolidatedBridge = needsBridge
+    ? "import { useMaviCoreData, MaviCoreBridge, bridge } from './mavicore-bridge';"
+    : null;
+
+  // Consolidate UI components
+  let consolidatedUI = null;
+  if (uiLines.length > 0) {
+    const componentSet = new Set();
+    for (const l of uiLines) {
+      const m = l.match(/import\s*\{([^}]+)\}/);
+      if (m && m[1]) {
+        m[1].split(',').map(s => s.trim()).filter(Boolean).forEach(c => componentSet.add(c));
+      }
+    }
+    if (componentSet.size > 0) {
+      consolidatedUI = `import { ${Array.from(componentSet).join(', ')} } from './mavicore-ui';`;
+    }
+  }
+
+  // Find index of first import in otherLines to insert consolidated lines
+  let firstImportIdx = otherLines.findIndex(l => /^import\s+/.test(l.trim()));
+  if (firstImportIdx === -1) firstImportIdx = 0;
+
+  // Known mavicore-ui component names and mavicore-bridge exports that must NOT appear in other imports
+  const mavicoreBridgeExports = ['useMaviCoreData', 'MaviCoreBridge', 'bridge'];
+  const mavicoreUIComponentNames = [
+    'KPICard', 'Numpad', 'KeyboardPro', 'SignaturePad', 'BooleanToggle',
+    'QualityTolerance', 'QualityChecklist', 'DialGauge', 'DigitalCaliper',
+    'BarcodeScanner', 'ScadaStartBtn', 'ScadaStopBtn', 'ScadaTank',
+    'ScadaPlcStatus', 'ScadaProdCounter', 'StatusBadge', 'TelemetryGauge',
+    'Card', 'CardHeader', 'CardTitle', 'CardContent', 'CardFooter',
+    'Badge', 'Button', 'Modal', 'Dialog', 'MetricCard', 'StatCard', 'KpiCard',
+    'MaviButton', 'MaviCard', 'MaviKPI', 'MaviStatus', 'MaviChecklist'
+  ];
+  const reservedMavicoreNames = new Set([...mavicoreBridgeExports, ...mavicoreUIComponentNames]);
+
+  // Filter otherLines: remove stray mavicore imports AND strip mavicore names from non-mavicore imports
+  const filteredOther = otherLines.map(l => {
+    const t = l.trim();
+    // Drop any leftover mavicore import entirely
+    if (t.startsWith('import ') && /from\s+['"][./]*mavicore/i.test(t)) return null;
+    if (t.startsWith('import ') && /\buseMaviCoreData\b/.test(t) && !t.includes("from './mavicore-bridge'")) return null;
+
+    // For named imports from OTHER modules (e.g. lucide-react), strip any mavicore names that leaked in
+    const namedImportMatch = t.match(/^import\s*\{([^}]+)\}\s*(from\s+.+)$/);
+    if (namedImportMatch) {
+      const specifiers = namedImportMatch[1].split(',').map(s => s.trim()).filter(Boolean);
+      const cleaned = specifiers.filter(s => !reservedMavicoreNames.has(s));
+      if (cleaned.length === 0) return null; // entire import was mavicore names — drop it
+      if (cleaned.length < specifiers.length) {
+        return `import { ${cleaned.join(', ')} } ${namedImportMatch[2]}`;
+      }
+    }
+    return l;
+  }).filter(l => l !== null);
+
+  const topImports = [];
+  if (consolidatedUI) topImports.push(consolidatedUI);
+  if (consolidatedBridge) topImports.push(consolidatedBridge);
+
+  // Recalculate firstImportIdx after filtering
+  let insertIdx = filteredOther.findIndex(l => /^import\s+/.test(l.trim()));
+  if (insertIdx === -1) insertIdx = 0;
+
+  filteredOther.splice(insertIdx, 0, ...topImports);
+
+  return filteredOther.join('\n');
+}
+
 export function cleanVibeCode(rawCode) {
   if (!rawCode || typeof rawCode !== 'string') return '';
   let cleaned = rawCode.trim();
@@ -56,20 +180,8 @@ export function cleanVibeCode(rawCode) {
   // 5. Strip any stray markdown language headers at the top
   cleaned = cleaned.replace(/^(?:javascript|jsx|js|tsx|react)\s*\n/i, '');
 
-  // 5b. Normalize MaviCore Bridge imports across all naming conventions
-  cleaned = cleaned.replace(
-    /import\s+[\s\S]*?\s+from\s+['"][./]*mavicore[-_]?bridge(?:\.js)?['"];?/gi,
-    "import { useMaviCoreData, MaviCoreBridge, bridge } from './mavicore-bridge';"
-  );
-  cleaned = cleaned.replace(
-    /import\s+[\s\S]*?\s+from\s+['"][./]*mavicoreBridge(?:\.js)?['"];?/gi,
-    "import { useMaviCoreData, MaviCoreBridge, bridge } from './mavicore-bridge';"
-  );
-
-  // Auto-inject import if useMaviCoreData is invoked but not imported
-  if (/\buseMaviCoreData\s*\(/.test(cleaned) && !/useMaviCoreData/.test(cleaned.slice(0, Math.max(0, cleaned.indexOf('useMaviCoreData'))))) {
-    cleaned = `import { useMaviCoreData } from './mavicore-bridge';\n` + cleaned;
-  }
+  // 5b. Consolidate and deduplicate MaviCore Bridge imports across all naming conventions
+  cleaned = deduplicateImports(cleaned);
 
   // Auto-inject and merge import for MaviCore UI components if used
   const mavicoreUIComponents = [
@@ -94,6 +206,9 @@ export function cleanVibeCode(rawCode) {
     }
   }
 
+  // Ensure imports are strictly deduplicated
+  cleaned = deduplicateImports(cleaned);
+
   // Auto-inject and merge popular Lucide icons used in JSX or icon props
   const popularLucideIcons = [
     'Activity', 'Gauge', 'Clock', 'TrendingUp', 'TrendingDown', 'CheckCircle2', 'AlertTriangle',
@@ -107,7 +222,10 @@ export function cleanVibeCode(rawCode) {
     'Wrench', 'Clipboard', 'ClipboardCheck', 'ClipboardList', 'QrCode', 'Power', 'Bell',
     'FileText', 'BarChart2', 'PieChart', 'LineChart', 'FilePlus', 'Globe', 'Smartphone'
   ];
+  // Exclude any mavicore-ui component names from being treated as lucide icons
+  const mavicoreUISet = new Set(mavicoreUIComponents);
   const usedIcons = popularLucideIcons.filter(icon => {
+    if (mavicoreUISet.has(icon)) return false; // never treat mavicore components as lucide icons
     const jsxTagRegex = new RegExp(`<${icon}[\\s/>]`);
     const propRegex = new RegExp(`\\b(?:icon|Icon)\\s*=\\s*\\{\\s*${icon}\\s*\\}`);
     return jsxTagRegex.test(cleaned) || propRegex.test(cleaned);
@@ -144,6 +262,12 @@ export function cleanVibeCode(rawCode) {
 
   // Strip trailing rogue quote, backtick, or fence residue at the very end
   cleaned = cleaned.replace(/[\s\r\n`'"]+$/g, '').trim();
+
+  // 6b. Sanitize rogue standalone `);` mistakenly inserted before closures or callbacks
+  // e.g. `setLiveRpm(...);\n  }\n);\n  }, 2500);` -> removes the extra `);`
+  cleaned = cleaned.replace(/(\n\s*\}\s*;?)\s*\n\s*\)\s*;(?=\s*\n\s*\}\s*[,);])/g, '$1');
+  cleaned = cleaned.replace(/\n\s*\)\s*;(?=\s*\n\s*\}\s*,\s*(?:\d+|\[|\{))/g, '');
+  cleaned = cleaned.replace(/\n\s*\)\s*;(?=\s*\n\s*\}\s*\))/g, '');
 
   // Clean repeated broken closures caused by over-healing (e.g. `\n);\n}}\n      );'`)
   cleaned = cleaned.replace(/(\n\s*\)\s*;[\s\S]*?\n\s*\})[\s\S]*$/i, (match, validEnd) => {
@@ -450,17 +574,34 @@ export function extractVibeCode(text) {
 export function autoFixMissingImports(code, errorText) {
   if (!code || typeof code !== 'string' || !errorText) return null;
 
-  // 0. MaviCore Bridge & useMaviCoreData resolution error
   const errStr = String(errorText);
-  if (errStr.includes('useMaviCoreData') || errStr.includes('_mavicoreBridge') || errStr.includes('MaviCoreBridge')) {
-    if (/from\s+['"][^'"]*mavicore[^'"]*['"]/i.test(code)) {
-      return code.replace(
-        /import\s+[\s\S]*?\s+from\s+['"][^'"]*mavicore[^'"]*['"];?/i,
-        "import { useMaviCoreData, MaviCoreBridge, bridge } from './mavicore-bridge';"
-      );
-    } else {
-      return "import { useMaviCoreData, MaviCoreBridge, bridge } from './mavicore-bridge';\n" + code;
+
+  // 0. Identifier already declared / duplicate import resolution
+  if (errStr.includes('has already been declared') || errStr.includes('already been declared')) {
+    const fixed = deduplicateImports(code);
+    if (fixed && fixed.trim() !== code.trim()) {
+      return fixed;
     }
+    const match = errStr.match(/Identifier\s+['"]([A-Za-z0-9_]+)['"]\s+has already been declared/i);
+    if (match && match[1]) {
+      const varName = match[1];
+      const lines = code.split('\n');
+      let seen = false;
+      const filtered = lines.filter(line => {
+        if (new RegExp(`\\b${varName}\\b`).test(line) && line.trim().startsWith('import ')) {
+          if (seen) return false;
+          seen = true;
+        }
+        return true;
+      });
+      return filtered.join('\n');
+    }
+    return fixed;
+  }
+
+  // 0b. MaviCore Bridge & useMaviCoreData resolution error
+  if (errStr.includes('useMaviCoreData') || errStr.includes('_mavicoreBridge') || errStr.includes('MaviCoreBridge')) {
+    return deduplicateImports(code);
   }
 
   // 0b. Element type is invalid / undefined component error recovery
@@ -567,4 +708,32 @@ export function autoFixMissingImports(code, errorText) {
   return null;
 }
 
-export default { cleanVibeCode, healTruncatedReactCode, extractVibeCode, autoFixMissingImports };
+/**
+ * Automatically detects and fixes rogue syntax errors (such as rogue `);` inserted before timer/callback closures,
+ * mismatched tokens, or over-healed closures).
+ */
+export function autoFixSyntaxErrors(code, errorText) {
+  if (!code || typeof code !== 'string') return null;
+  const errStr = String(errorText || '');
+  const isSyntax = /syntaxerror|unexpected token|unterminated|already been declared|read only property 'message'/i.test(errStr);
+  if (!isSyntax) return null;
+
+  if (errStr.includes('already been declared')) {
+    const deduped = deduplicateImports(code);
+    if (deduped && deduped.trim() !== code.trim()) {
+      return deduped;
+    }
+  }
+
+  let fixed = cleanVibeCode(code);
+  fixed = fixed.replace(/(\n\s*\}\s*;?)\s*\n\s*\)\s*;(?=\s*\n\s*\}\s*[,);])/g, '$1');
+  fixed = fixed.replace(/\n\s*\)\s*;(?=\s*\n\s*\}\s*,\s*(?:\d+|\[|\{))/g, '');
+  fixed = fixed.replace(/\n\s*\)\s*;(?=\s*\n\s*\}\s*\))/g, '');
+
+  if (fixed && fixed.trim() !== code.trim()) {
+    return fixed;
+  }
+  return null;
+}
+
+export default { cleanVibeCode, healTruncatedReactCode, extractVibeCode, autoFixMissingImports, autoFixSyntaxErrors, deduplicateImports };

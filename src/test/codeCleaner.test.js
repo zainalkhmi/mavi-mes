@@ -130,5 +130,131 @@ export default function App() {
 
     expect(isTruncatedResponse(truncatedCode, false)).toBe(true);
   });
-});
 
+  it('automatically sanitizes and fixes rogue standalone ");" placed before timer callback closures (unexpected token 131:0)', async () => {
+    const { autoFixSyntaxErrors } = await import('../vibe/utils/codeCleaner.js');
+    const brokenCode = `import React, { useState, useEffect } from 'react';
+
+export default function App() {
+  const [liveRpm, setLiveRpm] = useState(1200);
+  const [isLineActive, setIsLineActive] = useState(true);
+
+  useEffect(() => {
+    if (!isLineActive) return;
+    const interval = setInterval(() => {
+      setLiveRpm((prev) => Math.max(0, Math.round(prev + (Math.random() * 40 - 20))));
+    }
+);
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [isLineActive]);
+
+  return (
+    <div>{liveRpm}</div>
+  );
+}`;
+
+    const cleaned = cleanVibeCode(brokenCode);
+    expect(cleaned).not.toContain('}\n);\n');
+    expect(cleaned).toContain('setLiveRpm');
+    expect(cleaned).toContain('}, 2500);');
+
+    const autoFixed = autoFixSyntaxErrors(brokenCode, "SyntaxError: /App.js: Unexpected token (131:0)");
+    expect(autoFixed).not.toBeNull();
+    expect(autoFixed).not.toContain('}\n);\n');
+  });
+
+  it('deduplicates multiple bridge imports and fixes "Identifier useMaviCoreData has already been declared"', async () => {
+    const { deduplicateImports, autoFixMissingImports, autoFixSyntaxErrors } = await import('../vibe/utils/codeCleaner.js');
+    const duplicateImportsCode = `import { KPICard, Numpad, QualityTolerance, ScadaStartBtn, ScadaStopBtn, ScadaProdCounter, StatusBadge, TelemetryGauge } from './mavicore-ui';
+import { useMaviCoreData } from './mavicore-bridge';
+import { useMaviCoreData, MaviCoreBridge, bridge } from './mavicore-bridge';
+import { useMaviCoreData, MaviCoreBridge, bridge } from './mavicore-bridge';
+import { useMaviCoreData, MaviCoreBridge, bridge } from './mavicore-bridge';
+
+export default function App() {
+  const { records } = useMaviCoreData('attendance');
+  return <div>{records.length}</div>;
+}`;
+
+    const deduped = deduplicateImports(duplicateImportsCode);
+    const bridgeCount = (deduped.match(/from\s+['"][./]*mavicore-bridge['"]/g) || []).length;
+    expect(bridgeCount).toBe(1);
+    expect(deduped).toContain("import { useMaviCoreData, MaviCoreBridge, bridge } from './mavicore-bridge';");
+    expect(deduped).toContain("import { KPICard, Numpad");
+
+    const err = "SyntaxError: /App.js: Identifier 'useMaviCoreData' has already been declared. (3:9)";
+    const fixedFromMissing = autoFixMissingImports(duplicateImportsCode, err);
+    expect((fixedFromMissing.match(/useMaviCoreData/g) || []).length).toBe(2); // 1 in import, 1 in useMaviCoreData call
+
+    const fixedFromSyntax = autoFixSyntaxErrors(duplicateImportsCode, err);
+    expect((fixedFromSyntax.match(/from\s+['"][./]*mavicore-bridge['"]/g) || []).length).toBe(1);
+  });
+
+  it('strips mavicore component names that leaked into lucide-react import', async () => {
+    const { deduplicateImports } = await import('../vibe/utils/codeCleaner.js');
+    const brokenCode = [
+      "import { KPICard, Numpad, StatusBadge } from './mavicore-ui';",
+      "import { useMaviCoreData, MaviCoreBridge, bridge } from './mavicore-bridge';",
+      "import React, { useState, useEffect } from 'react';",
+      "import { KPICard, Numpad, StatusBadge, Activity, Settings, Trash2 } from 'lucide-react';",
+      "",
+      "export default function App() {",
+      "  const { records } = useMaviCoreData('production');",
+      "  return <div><KPICard /><Activity /></div>;",
+      "}"
+    ].join('\n');
+
+    const deduped = deduplicateImports(brokenCode);
+    const lucideMatch = deduped.match(/import\s*\{([^}]+)\}\s*from\s*['"]lucide-react['"]/);
+    expect(lucideMatch).not.toBeNull();
+    const lucideNames = lucideMatch[1].split(',').map(s => s.trim());
+    expect(lucideNames).not.toContain('KPICard');
+    expect(lucideNames).not.toContain('Numpad');
+    expect(lucideNames).not.toContain('StatusBadge');
+    expect(lucideNames).toContain('Activity');
+    expect(lucideNames).toContain('Settings');
+    expect(lucideNames).toContain('Trash2');
+  });
+
+  it('collapses and deduplicates multi-line mavicore imports', async () => {
+    const { deduplicateImports } = await import('../vibe/utils/codeCleaner.js');
+    // Exact scenario from user: LLM generates multi-line import that spans 4+ lines
+    const brokenCode = [
+      "import { useMaviCoreData, MaviCoreBridge, bridge } from './mavicore-bridge';",
+      "import React, { useState, useEffect } from 'react';",
+      "import { KPICard,",
+      "  Numpad,",
+      "  SignaturePad,",
+      "  ScadaStartBtn,",
+      "  ScadaStopBtn,",
+      "  ScadaProdCounter,",
+      "  StatusBadge,",
+      "  TelemetryGauge,",
+      "  Modal } from './mavicore-ui';",
+      "",
+      "export default function App() {",
+      "  const { records } = useMaviCoreData('production');",
+      "  return <div><KPICard value={records.length} /></div>;",
+      "}"
+    ].join('\n');
+
+    const deduped = deduplicateImports(brokenCode);
+
+    // Should have exactly 1 mavicore-ui import
+    const uiCount = (deduped.match(/from\s+['"][./]*mavicore-ui['"]/g) || []).length;
+    expect(uiCount).toBe(1);
+
+    // Should have exactly 1 bridge import
+    const bridgeCount = (deduped.match(/from\s+['"][./]*mavicore-bridge['"]/g) || []).length;
+    expect(bridgeCount).toBe(1);
+
+    // KPICard should appear in import + JSX = 2 times only
+    const kpiCount = (deduped.match(/\bKPICard\b/g) || []).length;
+    expect(kpiCount).toBe(2);
+
+    // No multi-line import fragments should remain
+    expect(deduped).not.toMatch(/^\s*Numpad,\s*$/m);
+    expect(deduped).not.toMatch(/^\s*SignaturePad,\s*$/m);
+  });
+});

@@ -10,10 +10,97 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './styles.css';
 
+class SandboxErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error("[Sandbox Runtime Error]", error, errorInfo);
+    if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+      window.parent.postMessage({
+        type: 'MAVICORE_DEVICE_ERROR',
+        error: error?.message || String(error),
+        stack: errorInfo?.componentStack || error?.stack || ''
+      }, '*');
+    }
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          minHeight: '100vh',
+          backgroundColor: '#0f172a',
+          color: '#f8fafc',
+          fontFamily: 'Inter, system-ui, sans-serif',
+          padding: '24px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxSizing: 'border-box'
+        }}>
+          <div style={{
+            maxWidth: '380px',
+            width: '100%',
+            backgroundColor: '#1e293b',
+            borderRadius: '20px',
+            border: '1px solid #334155',
+            padding: '20px',
+            textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '24px', marginBottom: '10px' }}>⚠️</div>
+            <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#f87171', margin: '0 0 6px 0' }}>
+              Komponen Mengalami Kendala
+            </h3>
+            <div style={{
+              backgroundColor: '#0f172a',
+              border: '1px solid #334155',
+              borderRadius: '10px',
+              padding: '10px 12px',
+              color: '#fca5a5',
+              fontSize: '11px',
+              fontFamily: 'monospace',
+              textAlign: 'left',
+              wordBreak: 'break-word',
+              marginBottom: '16px'
+            }}>
+              {this.state.error?.message || String(this.state.error)}
+            </div>
+            <button
+              type="button"
+              onClick={() => this.setState({ hasError: false, error: null })}
+              style={{
+                width: '100%',
+                padding: '9px 14px',
+                borderRadius: '10px',
+                backgroundColor: '#ef4444',
+                color: '#ffffff',
+                border: 'none',
+                fontWeight: 700,
+                fontSize: '12px',
+                cursor: 'pointer'
+              }}
+            >
+              Muat Ulang Komponen
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <App />
+    <SandboxErrorBoundary>
+      <App />
+    </SandboxErrorBoundary>
   </React.StrictMode>
 );`;
 

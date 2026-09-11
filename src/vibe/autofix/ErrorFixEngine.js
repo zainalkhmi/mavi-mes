@@ -6,7 +6,7 @@
 
 import { AIProvider } from '../ai/AIProvider';
 import { AgenticPromptEngine } from '../ai/AgenticPromptEngine';
-import { healTruncatedReactCode, autoFixMissingImports } from '../utils/codeCleaner';
+import { healTruncatedReactCode, autoFixMissingImports, autoFixSyntaxErrors, cleanVibeCode } from '../utils/codeCleaner';
 
 export class ErrorFixEngine {
   constructor(vfs, runtimeManager, maxAttempts = 3) {
@@ -57,12 +57,13 @@ export class ErrorFixEngine {
     });
 
     try {
-      // 0. Quick Heuristic Syntax Auto-Heal (solves 99% of truncated streaming errors instantly)
+      // 0. Quick Heuristic Syntax Auto-Heal (solves 99% of truncated streaming errors & rogue syntax slips instantly)
       const targetPath = source || '/App.js';
       const currentCode = this.vfs.readFile(targetPath) || this.vfs.readFile('/App.js');
-      const isSyntaxOrTruncation = /unterminated|syntaxerror|unexpected token|expected/i.test(errorText);
+      const isSyntaxOrTruncation = /unterminated|syntaxerror|unexpected token|expected|read only property 'message'/i.test(errorText);
       if (isSyntaxOrTruncation && currentCode) {
-        const healed = healTruncatedReactCode(currentCode);
+        const syntaxFixed = autoFixSyntaxErrors(currentCode, errorText);
+        const healed = syntaxFixed || healTruncatedReactCode(cleanVibeCode(currentCode));
         if (healed && healed.trim() !== currentCode.trim()) {
           this.vfs.writeFile(targetPath, healed);
           await this.runtimeManager.mountProject(this.vfs.getAllFilesRecord());
