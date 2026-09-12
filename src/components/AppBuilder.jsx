@@ -294,6 +294,7 @@ import { useAppBuilderState } from '../hooks/useAppBuilderState';
 import { useGhostPilotRPA } from '../hooks/useGhostPilotRPA';
 import GhostPilotOverlay from './appbuilder/GhostPilotOverlay';
 import JarvisFloatingOrb from './appbuilder/JarvisFloatingOrb';
+import MandorReviewModal from './appbuilder/MandorReviewModal';
 
 const AppBuilder = () => {
     const ghostPilot = useGhostPilotRPA();
@@ -29629,6 +29630,20 @@ D3:0
                 onStopRPA={ghostPilot.stopRPA}
                 onTriggerPrompt={(promptText) => {
                     setJarvisPendingPrompt(promptText);
+                    setIsCopilotOpen(true);
+                }}
+            />
+
+            {/* Mandor App Post-Assembly Confirmation & Revision Modal */}
+            <MandorReviewModal
+                isOpen={ghostPilot.showReviewDialog}
+                onClose={() => ghostPilot.setShowReviewDialog(false)}
+                speak={ghostPilot.speakJarvis}
+                onOk={() => {
+                    ghostPilot.setShowReviewDialog(false);
+                }}
+                onSubmitRevision={(revisionPrompt) => {
+                    setJarvisPendingPrompt(`Revisi: ${revisionPrompt}`);
                     setIsCopilotOpen(true);
                 }}
             />

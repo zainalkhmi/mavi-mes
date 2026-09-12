@@ -1250,7 +1250,10 @@ Apa yang bisa kamu bantu untuk widget ini?`;
       zIndex: 1000,
       overflow: 'hidden',
       fontFamily: '"Inter", system-ui, -apple-system, sans-serif',
-      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease',
+      transform: isGhostPilotRunning ? 'translateX(calc(100% + 40px))' : 'translateX(0)',
+      opacity: isGhostPilotRunning ? 0 : 1,
+      pointerEvents: isGhostPilotRunning ? 'none' : 'auto',
     }}>
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}

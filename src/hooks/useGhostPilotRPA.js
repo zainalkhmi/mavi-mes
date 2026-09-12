@@ -17,6 +17,7 @@ export function useGhostPilotRPA() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speed, setSpeed] = useState(1); // 1 = 1x, 2 = 2x, 4 = Fast
   const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [showReviewDialog, setShowReviewDialog] = useState(false);
 
   const isPausedRef = useRef(false);
   const isStoppedRef = useRef(false);
@@ -269,13 +270,13 @@ export function useGhostPilotRPA() {
     }
 
     try {
-      // 1. OPENING BRIEFING: Explain what app is being built before starting
+      // 1. OPENING BRIEFING: Introduce Mandor App & explain what app is being built
       const cleanOverview = planDescription
         ? cleanSpeechText(planDescription).slice(0, 160)
         : `aplikasi dengan ${commands.length} komponen`;
 
-      const openingNarration = `Baik, saya akan merancang ${cleanOverview}. Memulai perakitan dalam ${commands.length} langkah.`;
-      setCurrentActionLabel(`Jarvis: Merancang ${cleanOverview}...`);
+      const openingNarration = `Halo, perkenalkan saya Mandor App, siap membantu Anda membuat aplikasi. Saya akan merancang ${cleanOverview}. Memulai perakitan dalam ${commands.length} langkah.`;
+      setCurrentActionLabel(`Mandor App: Halo! Merancang ${cleanOverview}...`);
       await speakJarvis(openingNarration);
       await waitAsync(450);
 
@@ -343,13 +344,14 @@ export function useGhostPilotRPA() {
         await waitAsync(400);
       }
 
-      // 3. CLOSING CONCLUSION: Announce app completion clearly
+      // 3. CLOSING CONCLUSION: Ask user confirmation whether app is OK or needs review
       if (!isStoppedRef.current) {
         setCurrentStepIndex(commands.length);
-        const outroNarration = 'Perakitan aplikasi telah selesai sepenuhnya. Semua komponen dan otomasi telah terpasang dan siap Anda uji coba.';
-        setCurrentActionLabel('✅ J.A.R.V.I.S.: Perakitan aplikasi selesai dan siap digunakan!');
+        const outroNarration = 'Perakitan aplikasi telah selesai sepenuhnya. Apakah aplikasi yang saya buat sudah sesuai, atau ada bagian yang perlu direvisi?';
+        setCurrentActionLabel('✅ Mandor App: Apakah aplikasi sudah sesuai atau ada revisi?');
         await speakJarvis(outroNarration);
-        await waitAsync(600);
+        setShowReviewDialog(true);
+        await waitAsync(500);
       } else {
         setCurrentActionLabel('Ghost Pilot dihentikan oleh operator.');
       }
@@ -385,6 +387,7 @@ export function useGhostPilotRPA() {
     isExecutingRef.current = false;
     setIsRunning(false);
     setIsPaused(false);
+    setShowReviewDialog(false);
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
@@ -403,6 +406,9 @@ export function useGhostPilotRPA() {
     setSpeed,
     voiceEnabled,
     setVoiceEnabled,
+    showReviewDialog,
+    setShowReviewDialog,
+    speakJarvis,
     startRPA,
     pauseRPA,
     resumeRPA,

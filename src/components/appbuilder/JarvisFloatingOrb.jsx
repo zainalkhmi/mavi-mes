@@ -151,7 +151,7 @@ export default function JarvisFloatingOrb({
         style={{
           position: 'fixed',
           bottom: '24px',
-          right: isCopilotOpen ? '484px' : '24px',
+          right: (isCopilotOpen && !isRunning) ? '484px' : '24px',
           zIndex: 10002,
           display: 'flex',
           flexDirection: 'column',
@@ -384,7 +384,7 @@ export default function JarvisFloatingOrb({
             style={{
               position: 'fixed',
               bottom: '106px',
-              right: isCopilotOpen ? '484px' : '24px',
+              right: (isCopilotOpen && !isRunning) ? '484px' : '24px',
               width: '390px',
               maxWidth: '92vw',
               backgroundColor: 'rgba(3, 14, 26, 0.94)',
