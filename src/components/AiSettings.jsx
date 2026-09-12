@@ -276,18 +276,40 @@ const AiSettings = () => {
               availableModels
             }
           }
+        },
+        aiSettings: {
+          provider: activeProvider,
+          modelId: modelId,
+          apiKey: apiKey.trim(),
+          baseUrl: baseUrl.trim(),
+          basePrompt: dbSettings?.basePrompt || 'You are a professional MES assistant helping frontline operators and engineers.',
+          copilotSafetyThreshold: Number(copilotSafetyThreshold),
+          configCache: {
+            ...configs,
+            [activeProvider]: {
+              apiKey: apiKey.trim(),
+              baseUrl: baseUrl.trim(),
+              modelId,
+              availableModels
+            }
+          }
         }
       };
 
       const saved = await saveIntegrationConnector(payload);
       if (saved && saved.id) setConnectorId(saved.id);
       setDbSettings(payload.aiSettings);
+      try {
+        localStorage.setItem('mandor_primary_ai_connector', JSON.stringify(saved || payload));
+        localStorage.setItem('vibe_active_provider', activeProvider);
+        localStorage.setItem('vibe_active_model', modelId);
+      } catch (_) {}
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('mavicore_ai_connector_updated', {
           detail: {
             connector: saved || payload,
-            modelId: payload.aiSettings?.modelId,
-            provider: payload.aiSettings?.provider
+            modelId: modelId,
+            provider: activeProvider
           }
         }));
       }

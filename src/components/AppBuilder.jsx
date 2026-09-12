@@ -29621,11 +29621,13 @@ D3:0
                 onStop={ghostPilot.stopRPA}
             />
 
-            {/* Holographic J.A.R.V.I.S. Arc Reactor Floating Orb (Outside Copilot) */}
+            {/* Holographic J.A.R.V.I.S. Arc Reactor Floating Orb (Left side, follows component on Canvas when building) */}
             <JarvisFloatingOrb
                 isRunning={ghostPilot.isRunning}
                 isSpeaking={ghostPilot.isSpeaking}
                 isCopilotOpen={isCopilotOpen}
+                cursorPos={ghostPilot.cursorPos}
+                currentActionLabel={ghostPilot.currentActionLabel}
                 onOpenCopilot={() => setIsCopilotOpen(true)}
                 onStopRPA={ghostPilot.stopRPA}
                 onTriggerPrompt={(promptText) => {

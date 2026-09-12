@@ -479,7 +479,7 @@ const BuilderCopilot = ({
   }, [isOpen]);
 
   const currentProvider = aiConnector?.aiSettings?.provider || aiConnector?.config?.provider || 'Gemini';
-  const currentModelId = aiConnector?.aiSettings?.modelId || aiConnector?.config?.modelId || 'gemini-3.6-flash';
+  const currentModelId = aiConnector?.aiSettings?.modelId || aiConnector?.config?.modelId || 'gemini-2.0-flash';
 
   const handleModelChange = async (newModelId) => {
     try {
@@ -499,33 +499,32 @@ const BuilderCopilot = ({
       return cache.availableModels;
     }
     
-    // Fallback static list
+    // Fallback static list aligned with AiSettings.jsx
     const defaults = {
       Gemini: [
-        { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash (Recommended)' },
-        { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
-        { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash' },
-        { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
-        { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' }
+        { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Recommended - Super Fast & Next Gen)' },
+        { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Production Stable & Fast)' },
+        { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Next Gen Reasoning)' },
+        { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro (Complex Analysis)' }
       ],
       OpenAI: [
-        { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
-        { id: 'gpt-4o', name: 'GPT-4o' },
+        { id: 'gpt-4o-mini', name: 'GPT-4o Mini (Fast & Cost-Efficient)' },
+        { id: 'gpt-4o', name: 'GPT-4o (High Performance)' },
         { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' },
         { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo' }
       ],
       Groq: [
-        { id: 'llama-3.1-70b-versatile', name: 'Llama 3.1 70B' },
-        { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B' },
+        { id: 'llama-3.1-70b-versatile', name: 'Llama 3.1 70B Versatile' },
+        { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B Instant (Very Fast)' },
         { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B' },
         { id: 'gemma2-9b-it', name: 'Gemma 2 9B' }
       ],
       OpenRouter: [
-        { id: 'google/gemini-flash-1.5', name: 'Gemini 1.5 Flash' },
-        { id: 'google/gemini-pro-1.5', name: 'Gemini 1.5 Pro' },
+        { id: 'google/gemini-flash-1.5', name: 'Gemini 1.5 Flash (via OpenRouter)' },
+        { id: 'google/gemini-pro-1.5', name: 'Gemini 1.5 Pro (via OpenRouter)' },
         { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini' },
         { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet' },
-        { id: 'meta-llama/llama-3-8b-instruct:free', name: 'Llama 3 8B' }
+        { id: 'meta-llama/llama-3-8b-instruct:free', name: 'Llama 3 8B Instruct (Free)' }
       ],
       Ollama: [
         { id: 'llama3', name: 'Llama 3' },
@@ -538,7 +537,7 @@ const BuilderCopilot = ({
     
     const list = [...(defaults[provider] || [])];
     if (currentModelId && !list.find(m => m.id === currentModelId)) {
-      list.unshift({ id: currentModelId, name: currentModelId });
+      list.unshift({ id: currentModelId, name: `${currentModelId} (Active Settings)` });
     }
     return list;
   };
@@ -604,11 +603,14 @@ const BuilderCopilot = ({
   }, [messages]);
 
   useEffect(() => {
+    let isMounted = true;
     const loadAiConfig = async () => {
       const aiConn = await getPrimaryAiConnector();
-      setAiConnector(aiConn);
+      if (isMounted && aiConn) {
+        setAiConnector(aiConn);
+      }
     };
-    if (isOpen) loadAiConfig();
+    loadAiConfig();
 
     const handleSync = (e) => {
       const updated = e?.detail?.connector;
@@ -619,14 +621,17 @@ const BuilderCopilot = ({
       }
     };
     window.addEventListener('mavicore_ai_connector_updated', handleSync);
-    return () => window.removeEventListener('mavicore_ai_connector_updated', handleSync);
-  }, [isOpen]);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('mavicore_ai_connector_updated', handleSync);
+    };
+  }, []);
 
   // Process initialPrompt passed directly from external JarvisFloatingOrb
   useEffect(() => {
     if (isOpen && initialPrompt) {
       setAutoGhostPilot(true);
-      handleSend(initialPrompt);
+      handleSend(initialPrompt, { autoRunGhost: true });
       if (onClearInitialPrompt) onClearInitialPrompt();
     }
   }, [isOpen, initialPrompt]);
@@ -647,46 +652,61 @@ const BuilderCopilot = ({
     const tryParse = (candidate) => {
       if (!candidate) return null;
       try {
-        const parsed = JSON.parse(cleanJsonLike(candidate));
+        const parsed = JSON.parse(candidate);
         return isCommandPayload(parsed) ? parsed : null;
-      } catch { return null; }
+      } catch (err) {
+        return null;
+      }
     };
 
-    const tagged = /<builder_cmds>([\s\S]*?)<\/builder_cmds>/gi.exec(text);
-    const taggedParsed = tryParse(tagged?.[1]);
-    if (taggedParsed) return taggedParsed;
-
-    const blockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/gi;
-    let blockMatch;
-    while ((blockMatch = blockRegex.exec(text)) !== null) {
-      const parsed = tryParse(blockMatch[1]);
-      if (parsed) return parsed;
+    // 1. Check for explicit <builder_cmds> XML tag first
+    const tagMatch = text.match(/<builder_cmds>([\s\S]*?)<\/builder_cmds>/i);
+    if (tagMatch) {
+      const fromTag = tryParse(cleanJsonLike(tagMatch[1]));
+      if (fromTag) return fromTag;
     }
 
-    const starts = [];
-    for (let i = 0; i < text.length; i++) if (text[i] === '{') starts.push(i);
-    for (const start of starts) {
+    // 2. Check for fenced ```json ... ``` blocks containing "commands"
+    const fenceMatches = text.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi);
+    for (const match of fenceMatches) {
+      const candidate = cleanJsonLike(match[1]);
+      if (candidate.includes('"commands"')) {
+        const fromFence = tryParse(candidate);
+        if (fromFence) return fromFence;
+      }
+    }
+
+    // 3. Fallback: Scan for any top-level JSON object containing "commands": [
+    const startIdx = text.indexOf('{"commands"');
+    if (startIdx !== -1) {
+      const braceIndices = [];
       let depth = 0;
-      for (let i = start; i < text.length; i++) {
+      for (let i = startIdx; i < text.length; i++) {
         if (text[i] === '{') depth++;
-        if (text[i] === '}') depth--;
-        if (depth === 0) {
-          const parsed = tryParse(text.slice(start, i + 1));
-          if (parsed) return parsed;
-          break;
+        else if (text[i] === '}') {
+          depth--;
+          if (depth === 0) {
+            const rawObj = text.slice(startIdx, i + 1);
+            const fromScan = tryParse(cleanJsonLike(rawObj));
+            if (fromScan) return fromScan;
+            break;
+          }
         }
       }
     }
+
     return null;
   };
 
-  const handleSend = async (overrideInput) => {
+  const handleSend = async (overrideInput, options = {}) => {
     let text = overrideInput ?? input;
     if (selectedCanvaDesign) {
       text += `\n\n[CONTEKS DESAIN CANVA]: Gunakan Desain Canva bernama "${selectedCanvaDesign.name}" (ID: ${selectedCanvaDesign.id}) sebagai acuan tata letak/layout untuk membuat aplikasi ini.`;
     }
 
     if ((!text.trim() && !selectedFile) || isLoading) return;
+
+    const shouldAutoGhost = options.autoRunGhost || autoGhostPilot;
 
     const userMessage = {
       role: 'user',
@@ -702,14 +722,20 @@ const BuilderCopilot = ({
     setStreamingText(''); // UPGRADE 2: reset streaming
 
     try {
-      const settings = aiConnector?.aiSettings || aiConnector?.config;
-      if (!aiConnector || !settings?.apiKey) {
+      let activeConn = aiConnector;
+      if (!activeConn) {
+        activeConn = await getPrimaryAiConnector();
+        if (activeConn) setAiConnector(activeConn);
+      }
+
+      const settings = activeConn?.aiSettings || activeConn?.config;
+      if (!activeConn || !settings?.apiKey) {
         throw new Error('AI Connector belum dikonfigurasi. Silakan buka Integrasi > AI Settings.');
       }
 
       let response;
       if (selectedFile) {
-        response = await getBuilderVisionAdvice(selectedFile, context, aiConnector);
+        response = await getBuilderVisionAdvice(selectedFile, context, activeConn);
         setSelectedFile(null);
       } else {
         const history = messages.slice(-8).map(m => ({ role: m.role, content: m.content }));
@@ -731,7 +757,7 @@ const BuilderCopilot = ({
         // UPGRADE 2: Try streaming first, fallback to non-streaming
         try {
           let streamedText = '';
-          await streamBuilderCopilotAdvice(text, history, enrichedContext, aiConnector, (chunk) => {
+          await streamBuilderCopilotAdvice(text, history, enrichedContext, activeConn, (chunk) => {
             streamedText += chunk;
             setStreamingText(streamedText);
             if (streamedText.includes('<vibe_code>') && streamedText.includes('</vibe_code>')) {
@@ -746,7 +772,7 @@ const BuilderCopilot = ({
         } catch (streamErr) {
           console.warn('[Copilot] Streaming failed, falling back to non-streaming:', streamErr.message);
           setStreamingText('');
-          response = await getBuilderCopilotAdvice(text, history, enrichedContext, aiConnector);
+          response = await getBuilderCopilotAdvice(text, history, enrichedContext, activeConn);
         }
       }
 
@@ -761,7 +787,7 @@ const BuilderCopilot = ({
       const assistantMsg = { role: 'assistant', content: response, timestamp: new Date() };
       setMessages(prev => {
         const nextMsgs = [...prev, assistantMsg];
-        if (autoGhostPilot && response && (response.includes('<builder_cmds>') || response.includes('"commands":'))) {
+        if (shouldAutoGhost && response && (response.includes('<builder_cmds>') || response.includes('"commands":'))) {
           setTimeout(() => {
             handleGhostPilotRun(nextMsgs.length - 1, assistantMsg);
           }, 700);

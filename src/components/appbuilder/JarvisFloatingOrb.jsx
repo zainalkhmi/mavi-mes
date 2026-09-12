@@ -16,6 +16,8 @@ export default function JarvisFloatingOrb({
   isRunning = false,
   isSpeaking = false,
   isCopilotOpen = false,
+  cursorPos = null,
+  currentActionLabel = '',
   onOpenCopilot,
   onStopRPA,
   onTriggerPrompt
@@ -33,10 +35,10 @@ export default function JarvisFloatingOrb({
       title: 'Form QC & Inspeksi',
       desc: 'Form checklist kualitas dengan pass/fail dan signature',
       prompt: 'Buatkan formulir Quality Control dengan checklist inspeksi pass fail dan tombol submit simpan data',
-      icon: '📋'
+      icon: '🛡️'
     },
     {
-      title: 'Dashboard KPI Mesin',
+      title: 'Dashboard Produksi OEE',
       desc: '4 KPI card, chart tren, dan tabel status produksi',
       prompt: 'Buatkan dashboard monitoring produksi dengan 4 KPI card efisiensi OEE, chart trend, dan tabel status mesin',
       icon: '📊'
@@ -144,23 +146,62 @@ export default function JarvisFloatingOrb({
     setIsModalOpen(prev => !prev);
   };
 
+  const hasTarget = isRunning && cursorPos && typeof cursorPos.x === 'number' && typeof cursorPos.y === 'number';
+
+  const containerStyle = hasTarget
+    ? {
+        position: 'fixed',
+        left: `${Math.min(window.innerWidth - 90, Math.max(16, cursorPos.x + 24))}px`,
+        top: `${Math.min(window.innerHeight - 90, Math.max(70, cursorPos.y - 45))}px`,
+        zIndex: 10002,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '6px',
+        transition: 'left 0.45s cubic-bezier(0.25, 1, 0.5, 1), top 0.45s cubic-bezier(0.25, 1, 0.5, 1)',
+        userSelect: 'none',
+        pointerEvents: 'auto'
+      }
+    : {
+        position: 'fixed',
+        bottom: '24px',
+        left: '24px',
+        zIndex: 10002,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '8px',
+        transition: 'left 0.45s cubic-bezier(0.25, 1, 0.5, 1), bottom 0.45s cubic-bezier(0.25, 1, 0.5, 1)',
+        userSelect: 'none',
+        pointerEvents: 'auto'
+      };
+
   return (
     <>
-      {/* Floating J.A.R.V.I.S. Arc Reactor Orb Button */}
-      <div
-        style={{
-          position: 'fixed',
-          bottom: '24px',
-          right: (isCopilotOpen && !isRunning) ? '484px' : '24px',
-          zIndex: 10002,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '8px',
-          transition: 'right 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          userSelect: 'none'
-        }}
-      >
+      {/* Floating J.A.R.V.I.S. Arc Reactor Orb Button (Positioned on Left, follows component on Canvas when building) */}
+      <div style={containerStyle}>
+        {isRunning && currentActionLabel && (
+          <div
+            style={{
+              padding: '4px 10px',
+              backgroundColor: 'rgba(2, 12, 20, 0.9)',
+              border: '1px solid #00e5ff',
+              borderRadius: '12px',
+              color: '#00e5ff',
+              fontSize: '10px',
+              fontFamily: '"Orbitron", "Inter", sans-serif',
+              fontWeight: 600,
+              letterSpacing: '0.5px',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 0 12px rgba(0, 229, 255, 0.4)',
+              animation: 'pulse 2s infinite',
+              zIndex: 10003
+            }}
+          >
+            {currentActionLabel}
+          </div>
+        )}
+
         <div
           onClick={handleOrbClick}
           onMouseEnter={() => setIsHovered(true)}
@@ -384,7 +425,7 @@ export default function JarvisFloatingOrb({
             style={{
               position: 'fixed',
               bottom: '106px',
-              right: (isCopilotOpen && !isRunning) ? '484px' : '24px',
+              left: '24px',
               width: '390px',
               maxWidth: '92vw',
               backgroundColor: 'rgba(3, 14, 26, 0.94)',
@@ -399,7 +440,7 @@ export default function JarvisFloatingOrb({
               flexDirection: 'column',
               gap: '14px',
               animation: 'jarvisPopup 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
-              transition: 'right 0.3s ease'
+              transition: 'left 0.3s ease'
             }}
           >
             {/* Header */}
