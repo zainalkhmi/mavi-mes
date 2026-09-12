@@ -304,6 +304,10 @@ const BuilderCopilot = ({
   selectedWidget,
   onOpenCopilot,
   onOpenSandbox = null,
+  onStartGhostPilot = null,
+  isGhostPilotRunning = false,
+  initialPrompt = null,
+  onClearInitialPrompt = null,
 }) => {
   const STORAGE_KEY = 'mandor_copilot_history';
 
@@ -351,6 +355,7 @@ const BuilderCopilot = ({
   const [isListening, setIsListening] = useState(false);
   const [isSpeechSupported, setIsSpeechSupported] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [autoGhostPilot, setAutoGhostPilot] = useState(false);
   const [executionProgress, setExecutionProgress] = useState({ total: 0, current: 0, isActive: false });
   const recognitionRef = useRef(null);
 
@@ -617,6 +622,15 @@ const BuilderCopilot = ({
     return () => window.removeEventListener('mavicore_ai_connector_updated', handleSync);
   }, [isOpen]);
 
+  // Process initialPrompt passed directly from external JarvisFloatingOrb
+  useEffect(() => {
+    if (isOpen && initialPrompt) {
+      setAutoGhostPilot(true);
+      handleSend(initialPrompt);
+      if (onClearInitialPrompt) onClearInitialPrompt();
+    }
+  }, [isOpen, initialPrompt]);
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -744,7 +758,16 @@ const BuilderCopilot = ({
         }
       }
 
-      setMessages(prev => [...prev, { role: 'assistant', content: response, timestamp: new Date() }]);
+      const assistantMsg = { role: 'assistant', content: response, timestamp: new Date() };
+      setMessages(prev => {
+        const nextMsgs = [...prev, assistantMsg];
+        if (autoGhostPilot && response && (response.includes('<builder_cmds>') || response.includes('"commands":'))) {
+          setTimeout(() => {
+            handleGhostPilotRun(nextMsgs.length - 1, assistantMsg);
+          }, 700);
+        }
+        return nextMsgs;
+      });
     } catch (err) {
       setMessages(prev => [...prev, {
         role: 'assistant', content: `Error: ${err.message}`,
@@ -831,6 +854,12 @@ Apa yang bisa kamu bantu untuk widget ini?`;
       rec.onresult = (e) => {
         const resultText = e.results[0][0].transcript;
         setInput(prev => prev ? `${prev} ${resultText}` : resultText);
+
+        // Voice trigger: Auto-activate Ghost Pilot RPA if keywords detected
+        const lower = resultText.toLowerCase();
+        if (lower.includes('ghost pilot') || lower.includes('jarvis') || lower.includes('otomatis buat') || lower.includes('rpa')) {
+          setAutoGhostPilot(true);
+        }
       };
 
       recognitionRef.current = rec;
@@ -1095,6 +1124,77 @@ Apa yang bisa kamu bantu untuk widget ini?`;
       ...prev,
       isActive: false
     }));
+  };
+
+  // ── GHOST PILOT RPA EXECUTION HANDLER ──────────────────────────────────────
+  const handleGhostPilotRun = async (msgIdx, msg) => {
+    if (msg.isApproved) return; // Prevent double trigger
+
+    const commandData = parseCommands(msg.content);
+    const thresholdFromSettings = Number(aiConnector?.aiSettings?.copilotSafetyThreshold ?? aiConnector?.config?.copilotSafetyThreshold);
+    const safePack = commandData
+      ? sanitizeCopilotCommands(commandData, context, { threshold: Number.isFinite(thresholdFromSettings) ? thresholdFromSettings : undefined })
+      : null;
+
+    if (!safePack || !safePack.safeCommands || safePack.safeCommands.length === 0) return;
+
+    // 1. Mark as approved in state
+    setMessages(prev => prev.map((m, i) => i === msgIdx ? { ...m, isApproved: true } : m));
+
+    // Extract plan description for opening briefing
+    let planDesc = parsePlan(msg.content);
+    if (!planDesc) {
+      const cleanContent = msg.content
+        .replace(/<builder_cmds>[\s\S]*?<\/builder_cmds>/gi, '')
+        .replace(/<ai_plan>[\s\S]*?<\/ai_plan>/gi, '')
+        .replace(/```[\s\S]*?```/g, '')
+        .trim();
+      const firstLine = cleanContent.split('\n')[0] || '';
+      planDesc = firstLine.slice(0, 150);
+    }
+
+    const msgId = msg.timestamp instanceof Date ? msg.timestamp.getTime() : new Date(msg.timestamp).getTime();
+
+    // Determine checked commands
+    const commandsToExecute = safePack.safeCommands.filter((cmd, cIdx) => {
+      const uniqueKey = `${msgIdx}_${cIdx}`;
+      return checkedCommands[uniqueKey] !== false;
+    });
+
+    if (onStartGhostPilot) {
+      onStartGhostPilot({
+        commands: commandsToExecute,
+        planDescription: planDesc,
+        onSnapshot: async () => {
+          try {
+            await onApplyCommand({ type: 'CREATE_SNAPSHOT', payload: {} });
+          } catch (e) {
+            console.warn('[GhostPilot] Snapshot error:', e);
+          }
+        },
+        onApplyCommand: async (cmd) => {
+          const cIdx = safePack.safeCommands.indexOf(cmd);
+          const cmdKey = `${msgId}_${cIdx}`;
+          setCommandStatus(prev => ({ ...prev, [cmdKey]: 'loading' }));
+          try {
+            await onApplyCommand(cmd);
+            setCommandStatus(prev => ({ ...prev, [cmdKey]: 'success' }));
+            setCommandLog(prev => [...prev, {
+              label: getCommandPreview(cmd),
+              type: cmd.type,
+              timestamp: new Date().toLocaleTimeString('id', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+            }]);
+          } catch (e) {
+            setCommandStatus(prev => ({ ...prev, [cmdKey]: 'error' }));
+          }
+        },
+        onStageCommand: onHoverCommand,
+        onClearStage: onLeaveCommand
+      });
+    } else {
+      // Fallback to normal execution if Ghost Pilot prop is unavailable
+      await handleApprovePlan(msgIdx, msg);
+    }
   };
 
   const handleRevisePlan = () => {
@@ -1759,51 +1859,76 @@ Apa yang bisa kamu bantu untuk widget ini?`;
                           })}
                         </div>
 
-                        {/* Confirmation Buttons */}
-                        <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                        {/* Confirmation & Ghost Pilot RPA Buttons */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
                           <button
-                            onClick={() => handleApprovePlan(idx, msg)}
-                            disabled={safePack.hardFail || safePack.safeCommands.length === 0}
+                            onClick={() => handleGhostPilotRun(idx, msg)}
+                            disabled={safePack.hardFail || safePack.safeCommands.length === 0 || isGhostPilotRunning}
                             style={{
-                              flex: 1,
-                              padding: '10px 16px',
-                              background: safePack.hardFail ? '#cbd5e1' : 'linear-gradient(135deg, #10b981, #059669)',
+                              width: '100%',
+                              padding: '10px 14px',
+                              background: safePack.hardFail || isGhostPilotRunning ? '#94a3b8' : 'linear-gradient(135deg, #0284c7 0%, #7c3aed 100%)',
                               color: 'white',
                               border: 'none',
                               borderRadius: '8px',
-                              fontSize: '0.8rem',
-                              fontWeight: 700,
-                              cursor: safePack.hardFail ? 'default' : 'pointer',
+                              fontSize: '0.82rem',
+                              fontWeight: 800,
+                              cursor: safePack.hardFail || isGhostPilotRunning ? 'default' : 'pointer',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              gap: '6px',
-                              boxShadow: safePack.hardFail ? 'none' : '0 4px 12px rgba(16,185,129,0.2)',
+                              gap: '8px',
+                              boxShadow: safePack.hardFail || isGhostPilotRunning ? 'none' : '0 4px 14px rgba(2, 132, 199, 0.35)',
                               transition: 'all 0.2s',
                             }}
                           >
-                            <Check size={14} /> Setujui & Jalankan
+                            <Sparkles size={15} /> 👻 Jalankan Ghost Pilot RPA (Jarvis Voice & Cursor)
                           </button>
-                          <button
-                            onClick={handleRevisePlan}
-                            style={{
-                              padding: '10px 14px',
-                              background: '#fffbeb',
-                              color: '#b45309',
-                              border: '1px solid #fcd34d',
-                              borderRadius: '8px',
-                              fontSize: '0.8rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '6px',
-                              transition: 'all 0.2s',
-                            }}
-                          >
-                            <Edit3 size={14} /> Revisi Rencana
-                          </button>
+
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              onClick={() => handleApprovePlan(idx, msg)}
+                              disabled={safePack.hardFail || safePack.safeCommands.length === 0}
+                              style={{
+                                flex: 1,
+                                padding: '8px 12px',
+                                background: safePack.hardFail ? '#cbd5e1' : '#f8fafc',
+                                color: safePack.hardFail ? '#94a3b8' : '#0f172a',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '8px',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                cursor: safePack.hardFail ? 'default' : 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '6px',
+                                transition: 'all 0.2s',
+                              }}
+                            >
+                              <Check size={13} /> Eksekusi Langsung
+                            </button>
+                            <button
+                              onClick={handleRevisePlan}
+                              style={{
+                                padding: '8px 12px',
+                                background: '#fffbeb',
+                                color: '#b45309',
+                                border: '1px solid #fcd34d',
+                                borderRadius: '8px',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '6px',
+                                transition: 'all 0.2s',
+                              }}
+                            >
+                              <Edit3 size={13} /> Revisi
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ) : (

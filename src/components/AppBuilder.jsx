@@ -291,8 +291,13 @@ import * as projectMgmt from '../utils/projectManagement';
 const ConditionalFormattingPanel = lazy(() => import('./ConditionalFormattingPanel'));
 
 import { useAppBuilderState } from '../hooks/useAppBuilderState';
+import { useGhostPilotRPA } from '../hooks/useGhostPilotRPA';
+import GhostPilotOverlay from './appbuilder/GhostPilotOverlay';
+import JarvisFloatingOrb from './appbuilder/JarvisFloatingOrb';
 
 const AppBuilder = () => {
+    const ghostPilot = useGhostPilotRPA();
+    const [jarvisPendingPrompt, setJarvisPendingPrompt] = useState(null);
 
     const {
         appName, setAppName,
@@ -29560,6 +29565,10 @@ D3:0
                     if (code) handleUpdateSandpackCode(code);
                     setIsSandboxOpen(true);
                 }}
+                onStartGhostPilot={ghostPilot.startRPA}
+                isGhostPilotRunning={ghostPilot.isRunning}
+                initialPrompt={jarvisPendingPrompt}
+                onClearInitialPrompt={() => setJarvisPendingPrompt(null)}
                 context={{
                     currentStepName: currentStep?.title,
                     currentStepId: currentStepId,
@@ -29589,6 +29598,38 @@ D3:0
                     previewOrientation: previewOrientation,
                     canvasWidth: canvasBaseSize.width,
                     canvasHeight: canvasBaseSize.height
+                }}
+            />
+
+            {/* Ghost Pilot Autonomous In-App RPA Overlay & Jarvis HUD */}
+            <GhostPilotOverlay
+                isRunning={ghostPilot.isRunning}
+                isPaused={ghostPilot.isPaused}
+                currentStepIndex={ghostPilot.currentStepIndex}
+                totalSteps={ghostPilot.totalSteps}
+                currentActionLabel={ghostPilot.currentActionLabel}
+                cursorPos={ghostPilot.cursorPos}
+                isClicking={ghostPilot.isClicking}
+                isSpeaking={ghostPilot.isSpeaking}
+                speed={ghostPilot.speed}
+                setSpeed={ghostPilot.setSpeed}
+                voiceEnabled={ghostPilot.voiceEnabled}
+                setVoiceEnabled={ghostPilot.setVoiceEnabled}
+                onPause={ghostPilot.pauseRPA}
+                onResume={ghostPilot.resumeRPA}
+                onStop={ghostPilot.stopRPA}
+            />
+
+            {/* Holographic J.A.R.V.I.S. Arc Reactor Floating Orb (Outside Copilot) */}
+            <JarvisFloatingOrb
+                isRunning={ghostPilot.isRunning}
+                isSpeaking={ghostPilot.isSpeaking}
+                isCopilotOpen={isCopilotOpen}
+                onOpenCopilot={() => setIsCopilotOpen(true)}
+                onStopRPA={ghostPilot.stopRPA}
+                onTriggerPrompt={(promptText) => {
+                    setJarvisPendingPrompt(promptText);
+                    setIsCopilotOpen(true);
                 }}
             />
 
