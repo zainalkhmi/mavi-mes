@@ -64,18 +64,27 @@ export function deduplicateImports(code) {
   }
 
   // Check if code uses MaviCoreBridge or useMaviCoreData anywhere
-  const needsBridge = bridgeLines.length > 0 ||
+  const isBridgeDefinitionFile = /export\s+(?:const|let|var)\s+MaviCoreBridge\b/.test(code) ||
+    /export\s+function\s+useMaviCoreData\b/.test(code) ||
+    /\/\/\s*MaviCore\s+(?:Table\s+)?Bridge/i.test(code);
+
+  const needsBridge = !isBridgeDefinitionFile && (
+    bridgeLines.length > 0 ||
     /\buseMaviCoreData\b/.test(code) ||
     /\bMaviCoreBridge\b/.test(code) ||
-    /\bbridge\./.test(code);
+    /\bbridge\./.test(code)
+  );
 
   const consolidatedBridge = needsBridge
     ? "import { useMaviCoreData, MaviCoreBridge, bridge } from './mavicore-bridge';"
     : null;
 
   // Consolidate UI components
+  const isUIDefinitionFile = /export\s+const\s+KPICard\b/.test(code) ||
+    /\/\/\s*MaviCore\s+UI\s+Component\s+Library/i.test(code);
+
   let consolidatedUI = null;
-  if (uiLines.length > 0) {
+  if (!isUIDefinitionFile && uiLines.length > 0) {
     const componentSet = new Set();
     for (const l of uiLines) {
       const m = l.match(/import\s*\{([^}]+)\}/);
@@ -142,6 +151,11 @@ export function cleanVibeCode(rawCode) {
   if (!rawCode || typeof rawCode !== 'string') return '';
   let cleaned = rawCode.trim();
 
+  // Strip any corrupted _safe_ prefixes injected from previous error recovery attempts
+  cleaned = cleaned.replace(/<_safe_([A-Za-z0-9_]+)/g, '<$1');
+  cleaned = cleaned.replace(/<\/_safe_([A-Za-z0-9_]+)/g, '</$1');
+  cleaned = cleaned.replace(/\bconst\s+_safe_[A-Za-z0-9_]+\s*=[^;\n]+;?\n?/g, '');
+
   // 1. Extract from <vibe_code> ... </vibe_code> if present
   const vibeCodeMatch = cleaned.match(/<vibe_code[^>]*>([\s\S]*?)<\/vibe_code>/i) || cleaned.match(/<vibe-code[^>]*>([\s\S]*?)<\/vibe-code>/i);
   if (vibeCodeMatch && vibeCodeMatch[1]) {
@@ -191,18 +205,22 @@ export function cleanVibeCode(rawCode) {
     'ScadaPlcStatus', 'ScadaProdCounter', 'StatusBadge', 'TelemetryGauge',
     'Card', 'CardHeader', 'CardTitle', 'CardContent', 'CardFooter',
     'Badge', 'Button', 'Modal', 'Dialog', 'MetricCard', 'StatCard', 'KpiCard',
-    'MaviButton', 'MaviCard', 'MaviKPI', 'MaviStatus', 'MaviChecklist'
+    'MaviButton', 'MaviCard', 'MaviKPI', 'MaviStatus', 'MaviChecklist',
+    'Input', 'Label', 'Textarea', 'Switch', 'Checkbox', 'Table', 'TableHeader',
+    'TableBody', 'TableRow', 'TableHead', 'TableCell', 'Tabs', 'TabsList',
+    'TabsTrigger', 'TabsContent', 'Select', 'SelectTrigger', 'SelectValue',
+    'SelectContent', 'SelectItem', 'Progress', 'Alert', 'AlertTitle',
+    'AlertDescription', 'Tooltip'
   ];
-  const usedMaviComponents = mavicoreUIComponents.filter(c => new RegExp(`\\b${c}\\b`).test(cleaned));
-  if (usedMaviComponents.length > 0) {
-    if (/from\s+['"][^'"]*mavicore-ui[^'"]*['"]/i.test(cleaned)) {
+  // If the file explicitly imports from './mavicore-ui', merge any used mavicore components
+  if (/from\s+['"][^'"]*mavicore-ui[^'"]*['"]/i.test(cleaned)) {
+    const usedMaviComponents = mavicoreUIComponents.filter(c => new RegExp(`\\b${c}\\b`).test(cleaned));
+    if (usedMaviComponents.length > 0) {
       cleaned = cleaned.replace(/import\s*\{([^}]+)\}\s*from\s*['"][^'"]*mavicore-ui[^'"]*['"]/i, (match, existing) => {
         const existingList = existing.split(',').map(s => s.trim());
         const toAdd = usedMaviComponents.filter(c => !existingList.includes(c));
         return toAdd.length > 0 ? `import { ${existing.trim()}, ${toAdd.join(', ')} } from './mavicore-ui'` : match;
       });
-    } else {
-      cleaned = `import { ${usedMaviComponents.join(', ')} } from './mavicore-ui';\n` + cleaned;
     }
   }
 
@@ -220,7 +238,8 @@ export function cleanVibeCode(rawCode) {
     'Lock', 'Unlock', 'Hash', 'Calendar', 'Search', 'Filter', 'Plus', 'Minus', 'Edit',
     'Save', 'Download', 'Upload', 'Share2', 'Package', 'Box', 'Truck', 'Factory',
     'Wrench', 'Clipboard', 'ClipboardCheck', 'ClipboardList', 'QrCode', 'Power', 'Bell',
-    'FileText', 'BarChart2', 'PieChart', 'LineChart', 'FilePlus', 'Globe', 'Smartphone'
+    'FileText', 'BarChart2', 'PieChart', 'LineChart', 'FilePlus', 'Globe', 'Smartphone',
+    'Edit3', 'Edit2', 'History', 'CheckSquare', 'SquareCheck', 'HelpCircle', 'AlertCircle'
   ];
   // Exclude any mavicore-ui component names from being treated as lucide icons
   const mavicoreUISet = new Set(mavicoreUIComponents);
@@ -574,7 +593,25 @@ export function extractVibeCode(text) {
 export function autoFixMissingImports(code, errorText) {
   if (!code || typeof code !== 'string' || !errorText) return null;
 
+  // Never mutate or patch the virtual bridge or UI definition files themselves
+  if (
+    /export\s+(?:const|let|var)\s+MaviCoreBridge\b/.test(code) ||
+    /export\s+function\s+useMaviCoreData\b/.test(code) ||
+    /export\s+const\s+KPICard\b/.test(code) ||
+    /\/\/\s*MaviCore\s+(?:Table\s+)?Bridge/i.test(code)
+  ) {
+    return null;
+  }
+
   const errStr = String(errorText);
+
+  // 0a. Sanitize any _safe_ prefix from previous erroneous recovery attempts
+  if (errStr.includes('_safe_')) {
+    const sanitized = cleanVibeCode(code);
+    if (sanitized && sanitized.trim() !== code.trim()) {
+      return sanitized;
+    }
+  }
 
   // 0. Identifier already declared / duplicate import resolution
   if (errStr.includes('has already been declared') || errStr.includes('already been declared')) {
@@ -601,32 +638,51 @@ export function autoFixMissingImports(code, errorText) {
 
   // 0b. MaviCore Bridge & useMaviCoreData resolution error
   if (errStr.includes('useMaviCoreData') || errStr.includes('_mavicoreBridge') || errStr.includes('MaviCoreBridge')) {
-    return deduplicateImports(code);
+    if (/export\s+(?:const|let|var)\s+MaviCoreBridge\b/.test(code) || /export\s+function\s+useMaviCoreData\b/.test(code)) {
+      return null; // Never mutate the virtual bridge definition itself
+    }
+    const deduped = deduplicateImports(code);
+    if (errStr.includes('is not a function') && /useMaviCoreData/i.test(errStr)) {
+      // If bundler fails to link the named import or default import, provide safe hook fallback
+      if (!deduped.includes('const useMaviCoreData = (typeof window')) {
+        return `// Bridge runtime hook fallback\nconst useMaviCoreData = (typeof window !== 'undefined' && window.useMaviCoreData) ? window.useMaviCoreData : (() => ({ records: [], loading: false, insert: () => {}, update: () => {}, remove: () => {} }));\n` + deduped;
+      }
+    }
+    return deduped;
   }
 
-  // 0b. Element type is invalid / undefined component error recovery
+  // 0c. Element type is invalid / undefined component error recovery
   if (errStr.includes('Element type is invalid') || errStr.includes('likely forgot to export') || errStr.includes('Check the render method')) {
-    const cleaned = cleanVibeCode(code);
-    if (cleaned !== code) {
-      return cleaned;
-    }
+    let cleaned = cleanVibeCode(code);
 
-    // Scan for any undeclared PascalCase JSX tags in the code
-    const tagMatches = [...code.matchAll(/<([A-Z][A-Za-z0-9_]+)[\s/>]/g)].map(m => m[1]);
-    const uniqueTags = [...new Set(tagMatches)];
-    let patched = code;
+    // Scan for any PascalCase JSX tags in the code that are neither imported nor declared
+    const tagMatches = [...cleaned.matchAll(/<([A-Z][A-Za-z0-9_]+)[\s/>]/g)].map(m => m[1]);
+    const uniqueTags = [...new Set(tagMatches)].filter(t => t !== 'App' && t !== 'Fragment' && t !== 'StrictMode');
+    const missingDefinitions = [];
 
     for (const tag of uniqueTags) {
-      const isImported = new RegExp(`\\b${tag}\\b`).test(code.slice(0, code.indexOf('<' + tag)));
-      const isDeclared = new RegExp(`(?:function|const|let|var|class)\\s+${tag}\\b`).test(code);
-      if (!isImported && !isDeclared) {
-        // Fallback stub to prevent red screen crash
-        patched = `const ${tag} = ({ children, ...props }) => <div className="p-2 border border-slate-700/50 rounded text-xs text-slate-300" {...props}>{children || '${tag}'}</div>;\n` + patched;
+      const isDeclared = new RegExp(`(?:function|class)\\s+${tag}\\b`).test(cleaned) ||
+        new RegExp(`(?:const|let|var)\\s+${tag}\\s*=`).test(cleaned) ||
+        new RegExp(`import\\s*\\{[^}]*\\b${tag}\\b[^}]*\\}\\s*from`).test(cleaned) ||
+        new RegExp(`import\\s+${tag}\\b`).test(cleaned);
+
+      if (!isDeclared) {
+        missingDefinitions.push(`const ${tag} = ({ children, className = '', ...props }) => <div className={'inline-flex items-center justify-center p-1 rounded ' + className} data-tag="${tag}" {...props}>{children || null}</div>;`);
       }
     }
 
-    if (patched !== code) {
-      return cleanVibeCode(patched);
+    if (missingDefinitions.length > 0) {
+      const lastImportIdx = cleaned.lastIndexOf('\nimport ');
+      if (lastImportIdx !== -1) {
+        const endOfImportLine = cleaned.indexOf('\n', lastImportIdx + 1);
+        cleaned = cleaned.slice(0, endOfImportLine + 1) + '\n// Safe Component Fallbacks\n' + missingDefinitions.join('\n') + '\n' + cleaned.slice(endOfImportLine + 1);
+      } else {
+        cleaned = missingDefinitions.join('\n') + '\n' + cleaned;
+      }
+    }
+
+    if (cleaned !== code) {
+      return cleaned;
     }
   }
 
@@ -634,7 +690,11 @@ export function autoFixMissingImports(code, errorText) {
                 errStr.match(/([A-Za-z0-9_]+)\s+is not defined/i);
   if (!match) return null;
 
-  const missingName = match[1];
+  let missingName = match[1];
+  if (missingName.startsWith('_safe_')) {
+    missingName = missingName.replace(/^_safe_/, '');
+    code = cleanVibeCode(code);
+  }
 
   // 1. Missing React hooks
   const reactHooks = ['useState', 'useEffect', 'useRef', 'useMemo', 'useCallback', 'useContext', 'useReducer'];
@@ -688,8 +748,6 @@ export function autoFixMissingImports(code, errorText) {
         if (existing.includes(missingName)) return m;
         return `import { ${existing.trim()}, ${missingName} } from './mavicore-ui'`;
       });
-    } else {
-      return `import { ${missingName} } from './mavicore-ui';\n` + code;
     }
   }
 
@@ -715,6 +773,15 @@ export function autoFixMissingImports(code, errorText) {
 export function autoFixSyntaxErrors(code, errorText) {
   if (!code || typeof code !== 'string') return null;
   const errStr = String(errorText || '');
+
+  // If error is about _safe_ identifier, heal immediately
+  if (errStr.includes('_safe_')) {
+    const healed = cleanVibeCode(code);
+    if (healed && healed.trim() !== code.trim()) {
+      return healed;
+    }
+  }
+
   const isSyntax = /syntaxerror|unexpected token|unterminated|already been declared|read only property 'message'/i.test(errStr);
   if (!isSyntax) return null;
 

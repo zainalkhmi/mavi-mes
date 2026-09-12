@@ -387,23 +387,27 @@ CRITICAL EXECUTION CONSTRAINTS:
 2. DO NOT output package.json, terminal commands, or instructions on how to install or run the project (like npm install or creating directories).
 3. Output ONLY a single, complete, self-contained React component for /App.js that exports default function App().
 4. ALWAYS wrap the entire runnable React component inside <vibe_code> ... </vibe_code> tags. DILARANG KERAS menyertakan markdown code fences (\`\`\`jsx atau \`\`\`) di dalam tag <vibe_code>. Tulis langsung kode JSX mentah di dalamnya.
-5. WAJIB MENGGUNAKAN KOMPONEN RESMI MAVICORE DARI './mavicore-ui':
-   Sandpack menyediakan library './mavicore-ui' yang berisikan komponen industri tactile, glove-friendly, dan colourfull:
-   - Import di baris paling atas:
-     import { KPICard, Numpad, ScadaProdCounter, StatusBadge, TelemetryGauge, QualityTolerance, QualityChecklist, SignaturePad, ScadaStartBtn, ScadaStopBtn } from './mavicore-ui';
-   - DILARANG KERAS MEMBUAT KARTU/DIV STATISTIK PUTIH POLOS GENERIC!
-   - KARTU KPI METRIK: Selalu gunakan <KPICard title="..." value="..." unit="..." trend="..." color="indigo" icon={Activity} /> (pilihan color: indigo, sky, amber, emerald, rose)
-   - COUNTER PRODUKSI: Gunakan <ScadaProdCounter target={...} actual={...} defect={...} /> untuk menampilkan target vs actual vs defect secara visual
-   - STATUS PILL / BADGE: Gunakan <StatusBadge status="RUNNING" /> atau status="OPTIMAL" / "WARNING" / "DOWNTIME" / "MAINTENANCE"
-   - TELEMETRI SENSOR IOT: Gunakan <TelemetryGauge title="Spindle Speed" value={...} unit="RPM" status="OPTIMAL" />
-   - TOUCH NUMPAD OPERATOR: Gunakan <Numpad title="NUMPAD INPUT" value={...} onChange={...} /> pada modal input angka agar ramah sarung tangan (glove-friendly)
-   - QUALITY TOLERANCE: Gunakan <QualityTolerance partName="..." nominal={25.0} toleranceUpper={0.1} toleranceLower={0.1} actual={...} unit="mm" />
-   - DIGITAL SIGNATURE: Gunakan <SignaturePad title="Tanda Tangan Operator" onSave={...} /> untuk serah terima shift
-6. VISUAL AESTHETICS: WAJIB TAMPILAN COLOURFULL, VIBRANT, SEGAR & STUNNING:
-   - Background mesh kaya warna: <div className="min-h-screen p-4 sm:p-6" style={{ background: 'radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%), radial-gradient(at 100% 0%, rgba(236, 72, 153, 0.12) 0px, transparent 50%), radial-gradient(at 50% 100%, rgba(14, 165, 233, 0.12) 0px, transparent 50%), #f8fafc', color: '#0f172a', fontFamily: 'Inter, system-ui, sans-serif' }}>
-   - Tombol Aksi: bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white font-bold shadow-lg shadow-indigo-500/25
-   - Header Modal: bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 text-white p-4
-7. WAJIB STRUKTUR KODE TERATUR, COMPACT & TUNTAS (ANTI-TRUNCATION):
+5. VISUAL AESTHETICS & DYAD UI ENGINE (STUNNING INDUSTRIAL DESIGN):
+   Gunakan komponen React mandiri dengan Tailwind CSS yang indah, tactile, modern, dan colourfull (DILARANG KAKU HITAM PUTIH / MONOKROM):
+   - BACKGROUND HARUS KAYA WARNA (COLOURFUL RADIAL MESH):
+     * Root Container: <div className="min-h-screen p-4 sm:p-6" style={{ background: 'radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%), radial-gradient(at 100% 0%, rgba(236, 72, 153, 0.12) 0px, transparent 50%), radial-gradient(at 50% 100%, rgba(14, 165, 233, 0.12) 0px, transparent 50%), #f8fafc', color: '#0f172a', fontFamily: 'Inter, system-ui, sans-serif' }}>
+   - KARTU KPI DENGAN IDENTITAS WARNA BERBEDA & BORDER TEBAL (COLOURFUL CARDS):
+     * Setiap kartu berlatar putih bersih (bg-white rounded-2xl border border-slate-200 shadow-lg) dengan border atas tebal berwarna cerah (border-t-4):
+       - Kartu 1 (Output/OEE): border-t-indigo-600, icon container gradien indigo-blue (bg-gradient-to-br from-indigo-500 to-blue-600 text-white p-3 rounded-xl), angka tebal text-indigo-600, progress bar gradien indigo.
+       - Kartu 2 (Availability/Uptime): border-t-sky-500, icon container gradien sky-blue (bg-gradient-to-br from-sky-400 to-blue-600 text-white p-3 rounded-xl), angka tebal text-sky-600.
+       - Kartu 3 (Performance/Target): border-t-amber-500, icon container gradien amber-orange (bg-gradient-to-br from-amber-400 to-orange-500 text-white p-3 rounded-xl), angka tebal text-amber-600.
+       - Kartu 4 (Quality/Defect): border-t-emerald-500, icon container gradien emerald-teal (bg-gradient-to-br from-emerald-400 to-teal-600 text-white p-3 rounded-xl), angka tebal text-emerald-600.
+   - BADGE STATUS BERWARNA CERAH (EMERALD, AMBER, ROSE):
+     * Running / Optimal: <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">● RUNNING</span>
+     * Warning: <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">▲ WARNING</span>
+     * Down / Reject: <span className="px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300">■ DOWNTIME</span>
+   - TOMBOL AKSI & MODAL BERGRADASI CERAH:
+     * Tombol Tambah/Simpan: bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white font-bold shadow-lg shadow-indigo-500/25 px-4 py-2.5 rounded-xl flex items-center gap-2 hover:opacity-95 transition-all
+     * Header Modal: bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 text-white p-4 rounded-t-2xl flex items-center justify-between
+     * Input Formulir: bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:bg-white text-sm outline-none transition-all
+   - GLOVE-FRIENDLY TOUCH CONTROLS (JIKA DIBUTUHKAN):
+     * Tombol keypad numerik besar (p-4 text-lg font-bold rounded-xl bg-slate-100 hover:bg-indigo-50 active:scale-95) langsung di JSX tanpa memerlukan pustaka eksternal.
+6. WAJIB STRUKTUR KODE TERATUR, COMPACT & TUNTAS (ANTI-TRUNCATION):
    - Mock Data Singkat: Cukup 2-3 item contoh ringkas saja.
    - PRIORITAS UTAMA BLOK RETURN JSX: Segera masuk ke blok return JSX untuk merender seluruh tampilan (Header, KPICards, ScadaProdCounter / Telemetry, Tabel CRUD, Dialog/Modal Tambah Data).
    - Pastikan seluruh tag penutup tertutup rapi dan diakhiri \`export default function App() { return (...); }\` sebelum menutup dengan </vibe_code>.
@@ -483,23 +487,27 @@ CRITICAL EXECUTION CONSTRAINTS:
 5. STRICTLY IMPLEMENT FULL WORKING CRUD (Create, Read, Update, Delete):
    - Gunakan window.MaviCoreBridge (save, read, update, delete, onRecord) atau import { useMaviCoreData } from './mavicore-bridge'.
    - Wajib perbarui state React lokal secara instan pada aksi Tambah/Edit/Hapus agar UI reaktif dan tidak macet!
-6. WAJIB MENGGUNAKAN KOMPONEN RESMI MAVICORE DARI './mavicore-ui':
-   Sandpack menyediakan library './mavicore-ui' yang berisikan komponen industri tactile, glove-friendly, dan colourfull:
-   - Import di baris paling atas:
-     import { KPICard, Numpad, ScadaProdCounter, StatusBadge, TelemetryGauge, QualityTolerance, QualityChecklist, SignaturePad, ScadaStartBtn, ScadaStopBtn } from './mavicore-ui';
-   - DILARANG KERAS MEMBUAT KARTU/DIV STATISTIK PUTIH POLOS GENERIC!
-   - KARTU KPI METRIK: Selalu gunakan <KPICard title="..." value="..." unit="..." trend="..." color="indigo" icon={Activity} /> (pilihan color: indigo, sky, amber, emerald, rose)
-   - COUNTER PRODUKSI: Gunakan <ScadaProdCounter target={...} actual={...} defect={...} /> untuk menampilkan target vs actual vs defect secara visual
-   - STATUS PILL / BADGE: Gunakan <StatusBadge status="RUNNING" /> atau status="OPTIMAL" / "WARNING" / "DOWNTIME" / "MAINTENANCE"
-   - TELEMETRI SENSOR IOT: Gunakan <TelemetryGauge title="Spindle Speed" value={...} unit="RPM" status="OPTIMAL" />
-   - TOUCH NUMPAD OPERATOR: Gunakan <Numpad title="NUMPAD INPUT" value={...} onChange={...} /> pada modal input angka agar ramah sarung tangan (glove-friendly)
-   - QUALITY TOLERANCE: Gunakan <QualityTolerance partName="..." nominal={25.0} toleranceUpper={0.1} toleranceLower={0.1} actual={...} unit="mm" />
-   - DIGITAL SIGNATURE: Gunakan <SignaturePad title="Tanda Tangan Operator" onSave={...} /> untuk serah terima shift
-7. VISUAL AESTHETICS: WAJIB TAMPILAN COLOURFULL, VIBRANT, SEGAR & STUNNING:
-   - Background mesh kaya warna: <div className="min-h-screen p-4 sm:p-6" style={{ background: 'radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%), radial-gradient(at 100% 0%, rgba(236, 72, 153, 0.12) 0px, transparent 50%), radial-gradient(at 50% 100%, rgba(14, 165, 233, 0.12) 0px, transparent 50%), #f8fafc', color: '#0f172a', fontFamily: 'Inter, system-ui, sans-serif' }}>
-   - Tombol Aksi: bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white font-bold shadow-lg shadow-indigo-500/25
-   - Header Modal: bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 text-white p-4
-8. WAJIB STRUKTUR KODE TERATUR, COMPACT & TUNTAS (ANTI-TRUNCATION):
+6. VISUAL AESTHETICS & DYAD UI ENGINE (STUNNING INDUSTRIAL DESIGN):
+   Gunakan komponen React mandiri dengan Tailwind CSS yang indah, tactile, modern, dan colourfull (DILARANG KAKU HITAM PUTIH / MONOKROM):
+   - BACKGROUND HARUS KAYA WARNA (COLOURFUL RADIAL MESH):
+     * Root Container: <div className="min-h-screen p-4 sm:p-6" style={{ background: 'radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%), radial-gradient(at 100% 0%, rgba(236, 72, 153, 0.12) 0px, transparent 50%), radial-gradient(at 50% 100%, rgba(14, 165, 233, 0.12) 0px, transparent 50%), #f8fafc', color: '#0f172a', fontFamily: 'Inter, system-ui, sans-serif' }}>
+   - KARTU KPI DENGAN IDENTITAS WARNA BERBEDA & BORDER TEBAL (COLOURFUL CARDS):
+     * Setiap kartu berlatar putih bersih (bg-white rounded-2xl border border-slate-200 shadow-lg) dengan border atas tebal berwarna cerah (border-t-4):
+       - Kartu 1 (Output/OEE): border-t-indigo-600, icon container gradien indigo-blue (bg-gradient-to-br from-indigo-500 to-blue-600 text-white p-3 rounded-xl), angka tebal text-indigo-600, progress bar gradien indigo.
+       - Kartu 2 (Availability/Uptime): border-t-sky-500, icon container gradien sky-blue (bg-gradient-to-br from-sky-400 to-blue-600 text-white p-3 rounded-xl), angka tebal text-sky-600.
+       - Kartu 3 (Performance/Target): border-t-amber-500, icon container gradien amber-orange (bg-gradient-to-br from-amber-400 to-orange-500 text-white p-3 rounded-xl), angka tebal text-amber-600.
+       - Kartu 4 (Quality/Defect): border-t-emerald-500, icon container gradien emerald-teal (bg-gradient-to-br from-emerald-400 to-teal-600 text-white p-3 rounded-xl), angka tebal text-emerald-600.
+   - BADGE STATUS BERWARNA CERAH (EMERALD, AMBER, ROSE):
+     * Running / Optimal: <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">● RUNNING</span>
+     * Warning: <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">▲ WARNING</span>
+     * Down / Reject: <span className="px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300">■ DOWNTIME</span>
+   - TOMBOL AKSI & MODAL BERGRADASI CERAH:
+     * Tombol Tambah/Simpan: bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white font-bold shadow-lg shadow-indigo-500/25 px-4 py-2.5 rounded-xl flex items-center gap-2 hover:opacity-95 transition-all
+     * Header Modal: bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 text-white p-4 rounded-t-2xl flex items-center justify-between
+     * Input Formulir: bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:bg-white text-sm outline-none transition-all
+   - GLOVE-FRIENDLY TOUCH CONTROLS (JIKA DIBUTUHKAN):
+     * Tombol keypad numerik besar (p-4 text-lg font-bold rounded-xl bg-slate-100 hover:bg-indigo-50 active:scale-95) langsung di JSX tanpa memerlukan pustaka eksternal.
+7. WAJIB STRUKTUR KODE TERATUR, COMPACT & TUNTAS (ANTI-TRUNCATION):
    - Mock Data Singkat: Cukup 2-3 item contoh ringkas saja.
    - PRIORITAS UTAMA BLOK RETURN JSX: Segera masuk ke blok return JSX untuk merender seluruh tampilan (Header, KPICards, ScadaProdCounter / Telemetry, Tabel CRUD, Dialog/Modal Tambah Data).
    - Pastikan seluruh tag penutup tertutup rapi dan diakhiri \`export default function App() { return (...); }\` sebelum menutup dengan </vibe_code>.

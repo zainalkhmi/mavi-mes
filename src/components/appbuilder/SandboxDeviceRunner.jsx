@@ -5,10 +5,12 @@ import { getFrontlineAppById, getAllFrontlineApps } from '../../utils/supabaseFr
 import { MAVICORE_SDK_VIRTUAL_FILE, MAVICORE_BRIDGE_VIRTUAL_FILE, MAVICORE_UI_VIRTUAL_FILE } from '../../vibe/sdk';
 import { RotateCw, AlertTriangle, Smartphone, ArrowLeft } from 'lucide-react';
 
-const DEFAULT_INDEX_JS = `import React from 'react';
-import ReactDOM from 'react-dom/client';
-import App from './App';
+const DEFAULT_INDEX_JS = `import React, { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
 import './styles.css';
+import './mavicore-bridge.js';
+
+import * as AppModule from './App';
 
 class SandboxErrorBoundary extends React.Component {
   constructor(props) {
@@ -95,13 +97,26 @@ class SandboxErrorBoundary extends React.Component {
   }
 }
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
+function AppRunner() {
+  const Component = AppModule.default || AppModule.App || Object.values(AppModule).find(v => typeof v === 'function');
+  if (!Component || typeof Component !== 'function') {
+    return (
+      <div style={{ padding: '32px 16px', textAlign: 'center', color: '#94a3b8', fontFamily: 'system-ui, sans-serif' }}>
+        <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#f8fafc', marginBottom: '6px' }}>Komponen App Tidak Ditemukan</h3>
+        <p style={{ fontSize: '12px', color: '#64748b' }}>Pastikan file /App.js memiliki <code>export default function App()</code>.</p>
+      </div>
+    );
+  }
+  return React.createElement(Component);
+}
+
+const root = createRoot(document.getElementById('root'));
 root.render(
-  <React.StrictMode>
+  <StrictMode>
     <SandboxErrorBoundary>
-      <App />
+      <AppRunner />
     </SandboxErrorBoundary>
-  </React.StrictMode>
+  </StrictMode>
 );`;
 
 const DEFAULT_STYLES_CSS = `* { box-sizing: border-box; }

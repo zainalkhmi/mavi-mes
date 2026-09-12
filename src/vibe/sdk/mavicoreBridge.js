@@ -400,7 +400,21 @@ export function useMaviCoreData(tableName) {
 }
 
 MaviCoreBridge.useMaviCoreData = useMaviCoreData;
+MaviCoreBridge.useMaviData = useMaviCoreData;
+MaviCoreBridge.MaviCoreBridge = MaviCoreBridge;
+MaviCoreBridge.bridge = MaviCoreBridge;
 MaviCoreBridge.default = MaviCoreBridge;
+
+// Callable wrapper so import useMaviCoreData from './mavicore-bridge' also works seamlessly as a hook
+function MaviCoreBridgeCallable(...args) {
+  return useMaviCoreData(...args);
+}
+Object.assign(MaviCoreBridgeCallable, MaviCoreBridge);
+MaviCoreBridgeCallable.useMaviCoreData = useMaviCoreData;
+MaviCoreBridgeCallable.useMaviData = useMaviCoreData;
+MaviCoreBridgeCallable.MaviCoreBridge = MaviCoreBridgeCallable;
+MaviCoreBridgeCallable.bridge = MaviCoreBridgeCallable;
+MaviCoreBridgeCallable.default = MaviCoreBridgeCallable;
 
 if (typeof window !== 'undefined') {
   window.useMaviCoreData = useMaviCoreData;
@@ -514,14 +528,17 @@ if (typeof window !== 'undefined') {
   }, true);
 }
 
-export default MaviCoreBridge;
+export default MaviCoreBridgeCallable;
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = MaviCoreBridge;
-  module.exports.MaviCoreBridge = MaviCoreBridge;
+  module.exports = MaviCoreBridgeCallable;
+  module.exports.MaviCoreBridge = MaviCoreBridgeCallable;
   module.exports.useMaviCoreData = useMaviCoreData;
-  module.exports.bridge = MaviCoreBridge;
-  module.exports.default = MaviCoreBridge;
+  module.exports.bridge = MaviCoreBridgeCallable;
+  module.exports.default = MaviCoreBridgeCallable;
+  try {
+    Object.defineProperty(module.exports, '__esModule', { value: true });
+  } catch (_) {}
 }
 `;
 

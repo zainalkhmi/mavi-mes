@@ -58,7 +58,10 @@ export class ErrorFixEngine {
 
     try {
       // 0. Quick Heuristic Syntax Auto-Heal (solves 99% of truncated streaming errors & rogue syntax slips instantly)
-      const targetPath = source || '/App.js';
+      let targetPath = source || '/App.js';
+      if (/mavicore|index\.js|package\.json|styles\.css|node_modules/i.test(targetPath)) {
+        targetPath = '/App.js';
+      }
       const currentCode = this.vfs.readFile(targetPath) || this.vfs.readFile('/App.js');
       const isSyntaxOrTruncation = /unterminated|syntaxerror|unexpected token|expected|read only property 'message'/i.test(errorText);
       if (isSyntaxOrTruncation && currentCode) {
@@ -148,6 +151,12 @@ export class ErrorFixEngine {
         let targetPath = action.path;
         if (targetPath === '/App.jsx' && !this.vfs.exists('/App.jsx') && this.vfs.exists('/App.js')) {
           targetPath = '/App.js';
+        }
+
+        // Prevent AI from overwriting protected system SDK files
+        if (/mavicore|index\.js|package\.json|styles\.css|node_modules/i.test(targetPath)) {
+          console.warn(`[ErrorFixEngine] 🛡️ Ignored attempt to modify protected virtual file: ${targetPath}`);
+          continue;
         }
 
         if (action.action === 'delete') {

@@ -206,25 +206,13 @@ METODE 2: MENGGUNAKAN \`window.MaviCoreBridge\` SECARA LANGSUNG:
 3. Simpan nilai form dalam objek state khusus (misal \`formData\` atau \`form\`) dan kirimkan hanya objek tersebut saat \`insert(formData)\`.
 
 ════════════════════════════════════════════════
-🧰 PUSTAKA KOMPONEN UI INDUSTRIAL ('./mavicore-ui')
+🎨 DYAD INDUSTRIAL UI ENGINE & DESIGN SYSTEM
 ════════════════════════════════════════════════
-Tersedia komponen-komponen UI siap pakai dari Mavi App Builder yang bisa langsung di-import dari './mavicore-ui':
-- Numpad: Touchscreen industrial keypad besar glove-friendly (<Numpad onEnter={val => handleSave(val)} />)
-- KPICard: Kartu metrik OEE/Produksi berwarna (<KPICard title="OEE" value="94.2%" trend="+2.4%" color="indigo" />)
-- QualityTolerance: Gauge batas toleransi Min/Nominal/Max auto Pass/Fail (<QualityTolerance nominal={25} tolerance={0.5} actual={25.1} />)
-- QualityChecklist: Multi-item checklist pre-flight shift (<QualityChecklist items={items} onStatusChange={(id, status) => ...} />)
-- SignaturePad: Canvas tanda tangan digital operator & supervisor (<SignaturePad onSave={sig => setSignature(sig)} />)
-- DialGauge: Analog dial indicator (<DialGauge value={75} min={0} max={100} unit="mm" />)
-- DigitalCaliper: Digital vernier caliper LCD readout (<DigitalCaliper value={25.42} />)
-- BarcodeScanner: Trigger scan barcode & QR work order (<BarcodeScanner onScan={code => setLot(code)} />)
-- ScadaStartBtn & ScadaStopBtn: Tombol industrial heavy push button
-- ScadaTank: Animasi level cairan tangki proses (<ScadaTank level={65} capacity={1000} />)
-- ScadaPlcStatus: Status koneksi PLC (<ScadaPlcStatus isOnline={true} scanTime={12} />)
-- ScadaProdCounter: Target vs Actual vs Defect output counter (<ScadaProdCounter target={1000} actual={850} defect={12} />)
-- StatusBadge: Pill status mesin (<StatusBadge status="RUNNING" />)
-- TelemetryGauge: Live sensor gauge (<TelemetryGauge title="Vibration" value={1.4} unit="mm/s" status="OPTIMAL" />)
-- BooleanToggle: Heavy toggle switch (<BooleanToggle label="Interlock" checked={true} onChange={...} />)
-- KeyboardPro: Full QWERTY on-screen touch keyboard (<KeyboardPro value={text} onChange={...} onEnter={...} />)
+Gunakan komponen React mandiri murni berbalut Tailwind CSS dan ikon Lucide-React:
+- Buat kartu metrik KPI warna-warni (bg-white rounded-2xl border border-slate-200 shadow-lg border-t-4 dengan icon badge gradien).
+- Gunakan status pills (Running, Optimal, Warning, Downtime) berlatar warna cerah (bg-emerald-100, bg-amber-100, bg-rose-100).
+- Sediakan touch controls (keypad numerik besar glove-friendly, slider, modal responsif) langsung di JSX tanpa modul eksternal.
+- DILARANG mengimpor library UI tak terdaftar; gunakan murni React + Tailwind CSS + lucide-react.
 
 ════════════════════════════════════════════════
 📦 FORMAT OUTPUT (WAJIB DIIKUTI)

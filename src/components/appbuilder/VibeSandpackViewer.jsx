@@ -1130,7 +1130,8 @@ button {
           '@ionic/react': '^7.0.0',
           'ionicons': '^7.0.0',
           'lucide-react': 'latest',
-          'recharts': 'latest'
+          'recharts': 'latest',
+          'framer-motion': '^11.0.0'
         }
       }, null, 2),
       '/index.js': `import React, { StrictMode } from "react";
@@ -1138,7 +1139,7 @@ import { createRoot } from "react-dom/client";
 import "./styles.css";
 import "./mavicore-bridge.js";
 
-import App from "./App";
+import * as AppModule from "./App";
 
 class SandboxErrorBoundary extends React.Component {
   constructor(props) {
@@ -1253,11 +1254,24 @@ class SandboxErrorBoundary extends React.Component {
   }
 }
 
+function AppRunner() {
+  const Component = AppModule.default || AppModule.App || Object.values(AppModule).find(v => typeof v === 'function');
+  if (!Component || typeof Component !== 'function') {
+    return (
+      <div style={{ padding: '32px 16px', textAlign: 'center', color: '#94a3b8', fontFamily: 'system-ui, sans-serif' }}>
+        <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#f8fafc', marginBottom: '6px' }}>Komponen App Tidak Ditemukan</h3>
+        <p style={{ fontSize: '12px', color: '#64748b' }}>Pastikan file /App.js memiliki <code>export default function App()</code>.</p>
+      </div>
+    );
+  }
+  return React.createElement(Component);
+}
+
 const root = createRoot(document.getElementById("root"));
 root.render(
   <StrictMode>
     <SandboxErrorBoundary>
-      <App />
+      <AppRunner />
     </SandboxErrorBoundary>
   </StrictMode>
 );
@@ -1728,7 +1742,35 @@ root.render(
       isAutoFixingRef.current = true;
       setIsAutoFixing(true);
 
-      const targetPath = activeFilePathRef.current || '/App.js';
+      // 0. Safety: Immediately restore virtual bridge/UI files if corrupted or reported in error
+      if (/mavicore[-_]?bridge/i.test(cleanErrMsg)) {
+        vfs.writeFile('/mavicore-bridge.js', MAVICORE_BRIDGE_VIRTUAL_FILE);
+        vfs.writeFile('/mavicore-bridge', MAVICORE_BRIDGE_VIRTUAL_FILE);
+        vfs.writeFile('/mavicoreBridge.js', MAVICORE_BRIDGE_VIRTUAL_FILE);
+        vfs.writeFile('/mavicoreBridge', MAVICORE_BRIDGE_VIRTUAL_FILE);
+        vfs.writeFile('/mavicore_bridge.js', MAVICORE_BRIDGE_VIRTUAL_FILE);
+        vfs.writeFile('/mavicore_bridge', MAVICORE_BRIDGE_VIRTUAL_FILE);
+        vfs.writeFile('/node_modules/mavicore-bridge/index.js', MAVICORE_BRIDGE_VIRTUAL_FILE);
+        if (sandpackBridgeRef.current) {
+          sandpackBridgeRef.current.updateFile('/mavicore-bridge.js', MAVICORE_BRIDGE_VIRTUAL_FILE);
+          sandpackBridgeRef.current.updateFile('/mavicore-bridge', MAVICORE_BRIDGE_VIRTUAL_FILE);
+        }
+      }
+      if (/mavicore[-_]?ui/i.test(cleanErrMsg)) {
+        vfs.writeFile('/mavicore-ui.js', MAVICORE_UI_VIRTUAL_FILE);
+        vfs.writeFile('/mavicore-ui.jsx', MAVICORE_UI_VIRTUAL_FILE);
+        vfs.writeFile('/mavicore-ui', MAVICORE_UI_VIRTUAL_FILE);
+        vfs.writeFile('/node_modules/mavicore-ui/index.js', MAVICORE_UI_VIRTUAL_FILE);
+        if (sandpackBridgeRef.current) {
+          sandpackBridgeRef.current.updateFile('/mavicore-ui.js', MAVICORE_UI_VIRTUAL_FILE);
+        }
+      }
+
+      // Safe target path: Never allow auto-fix to target protected system SDK files
+      let targetPath = activeFilePathRef.current || '/App.js';
+      if (/mavicore|index\.js|package\.json|styles\.css|node_modules/i.test(targetPath)) {
+        targetPath = '/App.js';
+      }
       const currentCode = vfs.readFile(targetPath) || vfs.readFile('/App.js') || vfs.readFile('/App.jsx');
 
       setLogs(prev => [...prev, {

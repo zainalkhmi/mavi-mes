@@ -257,4 +257,62 @@ export default function App() {
     expect(deduped).not.toMatch(/^\s*Numpad,\s*$/m);
     expect(deduped).not.toMatch(/^\s*SignaturePad,\s*$/m);
   });
+
+  it('never injects bridge self-imports into MAVICORE_BRIDGE_VIRTUAL_FILE', async () => {
+    const { deduplicateImports, autoFixMissingImports } = await import('../vibe/utils/codeCleaner.js');
+    const { MAVICORE_BRIDGE_VIRTUAL_FILE } = await import('../vibe/sdk/mavicoreBridge.js');
+
+    // Passing the bridge file to deduplicateImports must NOT prepend ./mavicore-bridge
+    const result = deduplicateImports(MAVICORE_BRIDGE_VIRTUAL_FILE);
+    expect(result).not.toContain("from './mavicore-bridge'");
+
+    // Passing the bridge file to autoFixMissingImports on error must return null (protecting it)
+    const err = "SyntaxError: /mavicore-bridge.js: Identifier 'MaviCoreBridge' has already been declared. (63:13)";
+    const fixed = autoFixMissingImports(MAVICORE_BRIDGE_VIRTUAL_FILE, err);
+    expect(fixed).toBeNull();
+  });
+
+  it('provides runtime fallback when (0, _mavicoreBridge.useMaviCoreData) is not a function occurs in App.js', async () => {
+    const { autoFixMissingImports } = await import('../vibe/utils/codeCleaner.js');
+    const appCode = `import React from 'react';
+import { useMaviCoreData } from './mavicore-bridge';
+
+export default function App() {
+  const { records } = useMaviCoreData('production');
+  return <div>{records.length}</div>;
+}`;
+
+    const err = "Error: (0 , _mavicoreBridge.useMaviCoreData) is not a function";
+    const fixed = autoFixMissingImports(appCode, err);
+    expect(fixed).toContain('window.useMaviCoreData');
+  });
+
+  it('instantly heals _safe_StatusBadge is not defined errors by removing _safe_ and importing component', async () => {
+    const { cleanVibeCode, autoFixMissingImports, autoFixSyntaxErrors } = await import('../vibe/utils/codeCleaner.js');
+    const corruptedCode = `import React from 'react';
+import { KPICard } from './mavicore-ui';
+
+export default function App() {
+  return (
+    <div>
+      <_safe_StatusBadge status="RUNNING" />
+    </div>
+  );
+}`;
+
+    const cleaned = cleanVibeCode(corruptedCode);
+    expect(cleaned).not.toContain('_safe_');
+    expect(cleaned).toContain('<StatusBadge status="RUNNING" />');
+    expect(cleaned).toContain('StatusBadge');
+
+    const err = "ReferenceError: _safe_StatusBadge is not defined";
+    const fixedFromMissing = autoFixMissingImports(corruptedCode, err);
+    expect(fixedFromMissing).not.toContain('_safe_');
+    expect(fixedFromMissing).toContain('StatusBadge');
+    expect(fixedFromMissing).toContain('<StatusBadge status="RUNNING" />');
+
+    const fixedFromSyntax = autoFixSyntaxErrors(corruptedCode, err);
+    expect(fixedFromSyntax).not.toContain('_safe_');
+    expect(fixedFromSyntax).toContain('StatusBadge');
+  });
 });

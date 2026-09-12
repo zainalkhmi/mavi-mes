@@ -6,8 +6,13 @@ import {
   Play, Square, RotateCcw, AlertTriangle, CheckCircle2, XCircle, Gauge, Activity, 
   Cpu, Thermometer, ShieldCheck, Camera, Barcode, Eye, FileSpreadsheet, Layers, 
   Sliders, Database, ArrowRight, ArrowLeft, Trash2, Check, RefreshCw, Wifi, 
-  WifiOff, Clock, User, Zap, ChevronDown, ChevronRight, X, Sparkles, Droplet, 
-  Volume2, Settings, Lock, Unlock, Hash, Calendar, Search, Filter, Plus
+  WifiOff, Clock, User, Users, Zap, ChevronDown, ChevronRight, ChevronUp, ChevronLeft,
+  X, Sparkles, Droplet, Volume2, Settings, Lock, Unlock, Hash, Calendar, Search, 
+  Filter, Plus, Minus, Edit, Edit2, Edit3, History, Save, Download, Upload, Share2,
+  Package, Box, Truck, Factory, Wrench, Clipboard, ClipboardCheck, ClipboardList,
+  QrCode, Power, Bell, FileText, BarChart2, PieChart, LineChart, FilePlus, Globe,
+  Smartphone, Pause, RotateCw, TrendingUp, TrendingDown, Info, ShieldAlert, CheckSquare,
+  AlertCircle, HelpCircle
 } from 'lucide-react';
 
 /* =========================================================================
@@ -890,13 +895,142 @@ export function Modal({ isOpen, onClose, title, children }) {
 
 export const Dialog = Modal;
 
-// Re-export popular Lucide icons so named imports from ./mavicore-ui never return undefined
+// Universal UI Components
+export function Input({ className = '', ...props }) {
+  return <input className={'w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition ' + className} {...props} />;
+}
+
+export function Label({ children, className = '', ...props }) {
+  return <label className={'block text-xs font-semibold text-slate-400 mb-1 ' + className} {...props}>{children}</label>;
+}
+
+export function Textarea({ className = '', ...props }) {
+  return <textarea className={'w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition ' + className} {...props} />;
+}
+
+export function Switch({ checked = false, onCheckedChange, onChange, className = '' }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => { (onCheckedChange || onChange)?.(!checked); }}
+      className={'w-10 h-5 flex items-center rounded-full p-0.5 transition duration-300 ' + (checked ? 'bg-indigo-600' : 'bg-slate-700') + ' ' + className}
+    >
+      <div className={'bg-white w-4 h-4 rounded-full shadow-md transform transition duration-300 ' + (checked ? 'translate-x-5' : 'translate-x-0')} />
+    </button>
+  );
+}
+
+export function Checkbox({ checked = false, onCheckedChange, onChange, className = '', ...props }) {
+  return (
+    <input
+      type="checkbox"
+      checked={checked}
+      onChange={(e) => (onCheckedChange || onChange)?.(e.target.checked)}
+      className={'w-4 h-4 rounded border-slate-700 text-indigo-600 focus:ring-indigo-500 bg-slate-900 ' + className}
+      {...props}
+    />
+  );
+}
+
+export function Table({ children, className = '', ...props }) {
+  return <div className="w-full overflow-x-auto"><table className={'w-full text-left text-xs text-slate-300 ' + className} {...props}>{children}</table></div>;
+}
+export function TableHeader({ children, className = '', ...props }) {
+  return <thead className={'bg-slate-800/80 text-slate-400 font-bold uppercase tracking-wider text-[10px] ' + className} {...props}>{children}</thead>;
+}
+export function TableBody({ children, className = '', ...props }) {
+  return <tbody className={'divide-y divide-slate-800 ' + className} {...props}>{children}</tbody>;
+}
+export function TableRow({ children, className = '', ...props }) {
+  return <tr className={'hover:bg-slate-800/50 transition ' + className} {...props}>{children}</tr>;
+}
+export function TableHead({ children, className = '', ...props }) {
+  return <th className={'px-3 py-2.5 ' + className} {...props}>{children}</th>;
+}
+export function TableCell({ children, className = '', ...props }) {
+  return <td className={'px-3 py-2.5 ' + className} {...props}>{children}</td>;
+}
+
+export function Tabs({ defaultValue, value: controlledValue, onValueChange, children, className = '' }) {
+  const [activeTab, setActiveTab] = useState(controlledValue || defaultValue || '');
+  const currentTab = controlledValue !== undefined ? controlledValue : activeTab;
+  const setTab = onValueChange || setActiveTab;
+  return (
+    <div className={'space-y-3 ' + className} data-active-tab={currentTab}>
+      {React.Children.map(children, child => React.isValidElement(child) ? React.cloneElement(child, { activeTab: currentTab, setActiveTab: setTab }) : child)}
+    </div>
+  );
+}
+export function TabsList({ children, className = '', activeTab, setActiveTab }) {
+  return (
+    <div className={'inline-flex p-1 bg-slate-900 border border-slate-800 rounded-xl gap-1 ' + className}>
+      {React.Children.map(children, child => React.isValidElement(child) ? React.cloneElement(child, { activeTab, setActiveTab }) : child)}
+    </div>
+  );
+}
+export function TabsTrigger({ value, children, className = '', activeTab, setActiveTab }) {
+  const isActive = activeTab === value;
+  return (
+    <button
+      type="button"
+      onClick={() => setActiveTab && setActiveTab(value)}
+      className={'px-3 py-1.5 text-xs font-bold rounded-lg transition ' + (isActive ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200') + ' ' + className}
+    >
+      {children}
+    </button>
+  );
+}
+export function TabsContent({ value, children, className = '', activeTab }) {
+  if (activeTab !== value) return null;
+  return <div className={className}>{children}</div>;
+}
+
+export function Select({ value, onChange, children, className = '' }) {
+  return <select value={value} onChange={onChange} className={'px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500 ' + className}>{children}</select>;
+}
+export function SelectTrigger({ children, className = '' }) { return <div className={className}>{children}</div>; }
+export function SelectValue({ placeholder = 'Select...' }) { return <span>{placeholder}</span>; }
+export function SelectContent({ children }) { return <>{children}</>; }
+export function SelectItem({ value, children }) { return <option value={value}>{children}</option>; }
+
+export function Progress({ value = 0, max = 100, className = '', barClassName = 'bg-indigo-500' }) {
+  const pct = Math.min(100, Math.max(0, (value / max) * 100));
+  return (
+    <div className={'w-full h-2 bg-slate-800 rounded-full overflow-hidden ' + className}>
+      <div className={'h-full transition-all duration-300 ' + barClassName} style={{ width: pct + '%' }} />
+    </div>
+  );
+}
+
+export function Alert({ children, variant = 'default', className = '', ...props }) {
+  const v = variant === 'destructive' ? 'bg-rose-950/40 border-rose-800 text-rose-300' : 'bg-slate-900 border-slate-800 text-slate-300';
+  return <div className={'p-3 rounded-xl border text-xs flex gap-2.5 items-start ' + v + ' ' + className} {...props}>{children}</div>;
+}
+export function AlertTitle({ children, className = '', ...props }) {
+  return <h5 className={'font-bold leading-none mb-1 text-white ' + className} {...props}>{children}</h5>;
+}
+export function AlertDescription({ children, className = '', ...props }) {
+  return <div className={'text-xs opacity-90 ' + className} {...props}>{children}</div>;
+}
+
+export function Tooltip({ children, content, className = '' }) {
+  return <div className={'relative group inline-block ' + className}>{children}</div>;
+}
+
+// Re-export all popular Lucide icons so named imports from ./mavicore-ui never return undefined
 export { 
   Play, Square, RotateCcw, AlertTriangle, CheckCircle2, XCircle, Gauge, Activity, 
   Cpu, Thermometer, ShieldCheck, Camera, Barcode, Eye, FileSpreadsheet, Layers, 
   Sliders, Database, ArrowRight, ArrowLeft, Trash2, Check, RefreshCw, Wifi, 
-  WifiOff, Clock, User, Zap, ChevronDown, ChevronRight, X, Sparkles, Droplet, 
-  Volume2, Settings, Lock, Unlock, Hash, Calendar, Search, Filter, Plus
+  WifiOff, Clock, User, Users, Zap, ChevronDown, ChevronRight, ChevronUp, ChevronLeft,
+  X, Sparkles, Droplet, Volume2, Settings, Lock, Unlock, Hash, Calendar, Search, 
+  Filter, Plus, Minus, Edit, Edit2, Edit3, History, Save, Download, Upload, Share2,
+  Package, Box, Truck, Factory, Wrench, Clipboard, ClipboardCheck, ClipboardList,
+  QrCode, Power, Bell, FileText, BarChart2, PieChart, LineChart, FilePlus, Globe,
+  Smartphone, Pause, RotateCw, TrendingUp, TrendingDown, Info, ShieldAlert, CheckSquare,
+  AlertCircle, HelpCircle
 };
 
 // Backward-compatibility aliases with early UI kit and alternate naming
@@ -909,58 +1043,72 @@ export const MetricCard = KPICard;
 export const StatCard = KPICard;
 export const KpiCard = KPICard;
 
-export default {
-  Numpad,
-  KeyboardPro,
-  SignaturePad,
-  BooleanToggle,
-  QualityTolerance,
-  QualityChecklist,
-  DialGauge,
-  DigitalCaliper,
-  BarcodeScanner,
-  ScadaStartBtn,
-  ScadaStopBtn,
-  ScadaTank,
-  ScadaPlcStatus,
-  KPICard,
-  ScadaProdCounter,
-  StatusBadge,
-  TelemetryGauge,
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-  CardFooter,
-  Badge,
-  Button,
-  Modal,
-  Dialog,
-  MetricCard,
-  StatCard,
-  KpiCard,
-  Activity,
-  Gauge,
-  Clock,
-  CheckCircle2,
-  AlertTriangle,
-  Sparkles,
-  Plus,
-  Search,
-  Filter,
-  Trash2,
-  RefreshCw,
-  Layers,
-  Sliders,
-  Cpu,
-  Zap,
-  Settings,
-  MaviButton,
-  MaviCard,
-  MaviKPI,
-  MaviStatus,
-  MaviChecklist
+// Universal Safe Component Factory for undefined/unknown components
+const createSafeComponent = (name) => {
+  const SafeComp = ({ children, className = '', ...props }) => (
+    <div className={'inline-flex items-center justify-center p-0.5 ' + className} data-safe-comp={name} {...props}>
+      {children || null}
+    </div>
+  );
+  SafeComp.displayName = name || 'SafeComp';
+  return SafeComp;
 };
+
+const _uiComponents = {
+  Numpad, KeyboardPro, SignaturePad, BooleanToggle, QualityTolerance,
+  QualityChecklist, DialGauge, DigitalCaliper, BarcodeScanner,
+  ScadaStartBtn, ScadaStopBtn, ScadaTank, ScadaPlcStatus, KPICard,
+  ScadaProdCounter, StatusBadge, TelemetryGauge, Card, CardHeader,
+  CardTitle, CardContent, CardFooter, Badge, Button, Modal, Dialog,
+  MetricCard, StatCard, KpiCard, Input, Label, Textarea, Switch, Checkbox,
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
+  Tabs, TabsList, TabsTrigger, TabsContent, Select, SelectTrigger,
+  SelectValue, SelectContent, SelectItem, Progress, Alert, AlertTitle,
+  AlertDescription, Tooltip, MaviButton, MaviCard, MaviKPI, MaviStatus,
+  MaviChecklist, Activity, Gauge, Clock, CheckCircle2, AlertTriangle,
+  Sparkles, Plus, Search, Filter, Trash2, RefreshCw, Layers, Sliders,
+  Cpu, Zap, Settings, Play, Square, RotateCcw, XCircle, Thermometer,
+  ShieldCheck, Camera, Barcode, Eye, FileSpreadsheet, Database,
+  ArrowRight, ArrowLeft, Check, Wifi, WifiOff, User, Users,
+  ChevronDown, ChevronRight, ChevronUp, ChevronLeft, X, Droplet,
+  Volume2, Lock, Unlock, Hash, Calendar, Minus, Edit, Edit2, Edit3,
+  History, Save, Download, Upload, Share2, Package, Box, Truck,
+  Factory, Wrench, Clipboard, ClipboardCheck, ClipboardList, QrCode,
+  Power, Bell, FileText, BarChart2, PieChart, LineChart, FilePlus,
+  Globe, Smartphone, Pause, RotateCw, TrendingUp, TrendingDown, Info,
+  ShieldAlert, CheckSquare, AlertCircle, HelpCircle
+};
+
+const _uiProxy = new Proxy(_uiComponents, {
+  get(target, prop) {
+    if (prop in target) return target[prop];
+    if (typeof prop === 'string' && prop !== '__esModule' && prop !== 'default' && /^[A-Z]/.test(prop)) {
+      return createSafeComponent(prop);
+    }
+    return target[prop];
+  }
+});
+
+export default _uiComponents;
+
+// In Node/Sandpack CJS interop, ensure both exports and module.exports have all components and safe proxy fallbacks
+if (typeof exports !== 'undefined') {
+  Object.assign(exports, _uiComponents);
+  exports.default = _uiComponents;
+  try { Object.setPrototypeOf(exports, _uiProxy); } catch (_) {}
+  try { Object.defineProperty(exports, '__esModule', { value: true }); } catch (_) {}
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = _uiProxy;
+  module.exports.default = _uiComponents;
+  try { Object.assign(module.exports, _uiComponents); } catch (_) {}
+  try { Object.defineProperty(module.exports, '__esModule', { value: true }); } catch (_) {}
+}
+
+if (typeof window !== 'undefined') {
+  window.MaviCoreUI = _uiProxy;
+}
 `;
 
 export default {
