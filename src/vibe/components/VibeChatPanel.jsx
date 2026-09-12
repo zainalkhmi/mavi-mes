@@ -393,7 +393,7 @@ PENTING & WAJIB: Tuntaskan seluruh bagian plan di atas secara terperinci. Rancan
         const directSystemPrompt = `You are MaviCore Vibe Coding Engine — an expert React engineer.
 
 CRITICAL EXECUTION CONSTRAINTS:
-1. The preview runs directly in-browser using Sandpack. React, Tailwind CSS, Lucide React icons, and Framer Motion are ALREADY pre-installed and available.
+1. The preview runs directly in-browser using Sandpack. React, Tailwind CSS, Lucide React icons, Framer Motion, and shadcn/ui components (Button, Card, Badge, Input, Dialog, Tabs, cn) are ALREADY pre-installed and available via '@/components/ui/...' and '@/lib/utils'.
 2. DO NOT output package.json, terminal commands, or instructions on how to install or run the project (like npm install or creating directories).
 3. ARSITEKTUR APLIKASI WEB ENTERPRISE DENGAN MULTI-PAGE & LAYOUT (WAJIB):
    Aplikasi yang Anda buat HARUS dirancang sebagai APLIKASI WEB PROFESIONAL MULTI-HALAMAN DENGAN LAYOUT LENGKAP (BUKAN hanya 1 halaman statis sederhana):
@@ -525,7 +525,7 @@ The user has REVIEWED and APPROVED the following Implementation Plan:
 ${targetPlan.content}
 
 CRITICAL EXECUTION CONSTRAINTS:
-1. The preview runs directly in-browser using Sandpack. React, Tailwind CSS, Lucide React icons, and Framer Motion are ALREADY pre-installed and available.
+1. The preview runs directly in-browser using Sandpack. React, Tailwind CSS, Lucide React icons, Framer Motion, and shadcn/ui components (Button, Card, Badge, Input, Dialog, Tabs, cn) are ALREADY pre-installed and available via '@/components/ui/...' and '@/lib/utils'.
 2. DO NOT output package.json, terminal commands, or setup instructions.
 3. ARSITEKTUR APLIKASI WEB ENTERPRISE DENGAN MULTI-PAGE & LAYOUT (WAJIB):
    Aplikasi yang Anda buat HARUS dirancang sebagai APLIKASI WEB PROFESIONAL MULTI-HALAMAN DENGAN LAYOUT LENGKAP (BUKAN hanya 1 halaman statis sederhana):

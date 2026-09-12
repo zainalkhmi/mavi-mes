@@ -48,6 +48,15 @@ ATURAN KHUSUS WEB APP (ENTERPRISE MULTI-PAGE LAYOUT):
    - Multi-Page View Switching: Kelola navigasi halaman dengan state React (const [currentView, setCurrentView] = useState('dashboard')).
    - Sediakan halaman-halaman mandiri lengkap: Dashboard KPI & Telemetri, Formulir Input Inspeksi, Riwayat Data CRUD Table, Analisis Cacat, dan Pengaturan.
    - Data tersinkronisasi otomatis antar halaman dan tersimpan permanen via window.MaviCoreBridge.
+3. KOMPONEN SHADCN/UI BAWAAN DI SANDBOX:
+   - Sandbox sudah dilengkapi dengan komponen resmi shadcn/ui siap pakai:
+     * Button: \`import { Button } from "@/components/ui/button"\`
+     * Card: \`import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"\`
+     * Badge: \`import { Badge } from "@/components/ui/badge"\`
+     * Input: \`import { Input } from "@/components/ui/input"\`
+     * Dialog / Modal: \`import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"\`
+     * Tabs: \`import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"\`
+     * Helper cn: \`import { cn } from "@/lib/utils"\`
 `}
 
 ════════════════════════════════════════════════

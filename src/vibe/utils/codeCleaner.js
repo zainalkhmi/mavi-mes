@@ -30,6 +30,9 @@ export function deduplicateImports(code) {
     return `import { ${collapsed} } from`;
   });
 
+  // Normalize shadcn and local @/ aliases to ./ so Sandpack relative file resolver can load them effortlessly
+  normalized = normalized.replace(/from\s+['"]@\/(components|lib)\/([^'"]+)['"]/g, "from './$1/$2'");
+
   const lines = normalized.split('\n');
   const bridgeLines = [];
   const uiLines = [];
@@ -122,13 +125,18 @@ export function deduplicateImports(code) {
     if (t.startsWith('import ') && /\buseMaviCoreData\b/.test(t) && !t.includes("from './mavicore-bridge'")) return null;
 
     // For named imports from OTHER modules (e.g. lucide-react), strip any mavicore names that leaked in
-    const namedImportMatch = t.match(/^import\s*\{([^}]+)\}\s*(from\s+.+)$/);
+    const namedImportMatch = t.match(/^import\s*\{([^}]+)\}\s*from\s+['"]([^'"]+)['"]/);
     if (namedImportMatch) {
+      const source = namedImportMatch[2] || '';
+      // NEVER strip components from shadcn/ui or local components!
+      if (/components\/ui|lib\/utils/i.test(source)) {
+        return l;
+      }
       const specifiers = namedImportMatch[1].split(',').map(s => s.trim()).filter(Boolean);
       const cleaned = specifiers.filter(s => !reservedMavicoreNames.has(s));
       if (cleaned.length === 0) return null; // entire import was mavicore names — drop it
       if (cleaned.length < specifiers.length) {
-        return `import { ${cleaned.join(', ')} } ${namedImportMatch[2]}`;
+        return `import { ${cleaned.join(', ')} } from '${source}'`;
       }
     }
     return l;

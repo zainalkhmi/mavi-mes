@@ -215,6 +215,10 @@ export class ProjectFileSystem {
         const part = parts[i];
         currentPath += '/' + part;
         const isFile = i === parts.length - 1;
+        if (!curr.children) {
+          curr.children = [];
+          curr.isDirectory = true;
+        }
 
         let existing = curr.children.find(c => c.name === part);
         if (!existing) {
@@ -222,10 +226,13 @@ export class ProjectFileSystem {
             name: part,
             path: currentPath,
             isDirectory: !isFile,
-            children: isFile ? undefined : [],
+            children: isFile ? [] : [],
             file: isFile ? this.files.get(currentPath) : undefined
           };
           curr.children.push(existing);
+        } else if (!isFile) {
+          existing.isDirectory = true;
+          if (!existing.children) existing.children = [];
         }
         curr = existing;
       }

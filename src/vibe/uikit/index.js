@@ -1,4 +1,5 @@
 export * from './MaviComponents';
+export * from './shadcnVirtualFiles';
 
 // Virtual code representation injected into Sandpack/WebContainer projects
 export const MAVICORE_UIKIT_VIRTUAL_FILE = `import React, { useState } from 'react';

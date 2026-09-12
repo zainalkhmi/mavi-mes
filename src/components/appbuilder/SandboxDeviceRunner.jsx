@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { SandpackProvider, SandpackPreview } from '@codesandbox/sandpack-react';
 import { getFrontlineAppById, getAllFrontlineApps } from '../../utils/supabaseFrontlineDB';
-import { MAVICORE_SDK_VIRTUAL_FILE, MAVICORE_BRIDGE_VIRTUAL_FILE, MAVICORE_UI_VIRTUAL_FILE } from '../../vibe/sdk';
+import { MAVICORE_SDK_VIRTUAL_FILE, MAVICORE_BRIDGE_VIRTUAL_FILE, MAVICORE_UI_VIRTUAL_FILE, SHADCN_UI_VIRTUAL_FILES } from '../../vibe/sdk';
 import { RotateCw, AlertTriangle, Smartphone, ArrowLeft } from 'lucide-react';
 
 const DEFAULT_INDEX_JS = `import React, { StrictMode } from 'react';
@@ -236,6 +236,7 @@ export default function SandboxDeviceRunner() {
         finalFiles['/components/mavicore-ui.js'] = MAVICORE_UI_VIRTUAL_FILE;
         finalFiles['/components/MaviCoreUI.jsx'] = MAVICORE_UI_VIRTUAL_FILE;
         finalFiles['/node_modules/mavicore-ui/index.js'] = MAVICORE_UI_VIRTUAL_FILE;
+        Object.assign(finalFiles, SHADCN_UI_VIRTUAL_FILES);
 
         setFilesRecord(finalFiles);
       } catch (err) {

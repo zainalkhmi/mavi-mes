@@ -80,7 +80,7 @@ import { AgenticPromptEngine } from '../../vibe/ai/AgenticPromptEngine';
 import { RuntimeManager } from '../../vibe/runtime/RuntimeManager';
 import { ErrorFixEngine } from '../../vibe/autofix/ErrorFixEngine';
 import { MAVICORE_UIKIT_VIRTUAL_FILE } from '../../vibe/uikit';
-import { MAVICORE_SDK_VIRTUAL_FILE, MAVICORE_BRIDGE_VIRTUAL_FILE, MAVICORE_UI_VIRTUAL_FILE } from '../../vibe/sdk';
+import { MAVICORE_SDK_VIRTUAL_FILE, MAVICORE_BRIDGE_VIRTUAL_FILE, MAVICORE_UI_VIRTUAL_FILE, SHADCN_UI_VIRTUAL_FILES } from '../../vibe/sdk';
 
 import FileTreeExplorer from '../../vibe/components/FileTreeExplorer';
 import AiChangesReviewModal from '../../vibe/components/AiChangesReviewModal';
@@ -1298,7 +1298,8 @@ root.render(
       '/node_modules/mavicore-bridge/index.js': MAVICORE_BRIDGE_VIRTUAL_FILE,
       '/node_modules/mavicore-bridge/package.json': JSON.stringify({ name: 'mavicore-bridge', main: 'index.js' }),
       '/node_modules/mavicoreBridge/index.js': MAVICORE_BRIDGE_VIRTUAL_FILE,
-      '/node_modules/mavicoreBridge/package.json': JSON.stringify({ name: 'mavicoreBridge', main: 'index.js' })
+      '/node_modules/mavicoreBridge/package.json': JSON.stringify({ name: 'mavicoreBridge', main: 'index.js' }),
+      ...SHADCN_UI_VIRTUAL_FILES
     };
     return new ProjectFileSystem(initialFiles);
   });
@@ -1484,6 +1485,9 @@ root.render(
     vfs.writeFile('/components/mavicore-ui.js', MAVICORE_UI_VIRTUAL_FILE);
     vfs.writeFile('/components/MaviCoreUI.jsx', MAVICORE_UI_VIRTUAL_FILE);
     vfs.writeFile('/node_modules/mavicore-ui/index.js', MAVICORE_UI_VIRTUAL_FILE);
+    Object.entries(SHADCN_UI_VIRTUAL_FILES).forEach(([path, content]) => {
+      vfs.writeFile(path, content);
+    });
     setFilesRecord(vfs.getAllFilesRecord());
     setFileTree(vfs.getFileTree());
   }, []);
@@ -1764,6 +1768,14 @@ root.render(
         if (sandpackBridgeRef.current) {
           sandpackBridgeRef.current.updateFile('/mavicore-ui.js', MAVICORE_UI_VIRTUAL_FILE);
         }
+      }
+      if (/components\/ui|lib\/utils/i.test(cleanErrMsg)) {
+        Object.entries(SHADCN_UI_VIRTUAL_FILES).forEach(([p, c]) => {
+          vfs.writeFile(p, c);
+          if (sandpackBridgeRef.current) {
+            sandpackBridgeRef.current.updateFile(p, c);
+          }
+        });
       }
 
       // Safe target path: Never allow auto-fix to target protected system SDK files
