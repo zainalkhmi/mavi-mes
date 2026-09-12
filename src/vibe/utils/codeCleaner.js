@@ -197,30 +197,24 @@ export function cleanVibeCode(rawCode) {
   // 5b. Consolidate and deduplicate MaviCore Bridge imports across all naming conventions
   cleaned = deduplicateImports(cleaned);
 
-  // Auto-inject and merge import for MaviCore UI components if used
-  const mavicoreUIComponents = [
-    'KPICard', 'Numpad', 'KeyboardPro', 'SignaturePad', 'BooleanToggle',
-    'QualityTolerance', 'QualityChecklist', 'DialGauge', 'DigitalCaliper',
-    'BarcodeScanner', 'ScadaStartBtn', 'ScadaStopBtn', 'ScadaTank',
-    'ScadaPlcStatus', 'ScadaProdCounter', 'StatusBadge', 'TelemetryGauge',
-    'Card', 'CardHeader', 'CardTitle', 'CardContent', 'CardFooter',
-    'Badge', 'Button', 'Modal', 'Dialog', 'MetricCard', 'StatCard', 'KpiCard',
-    'MaviButton', 'MaviCard', 'MaviKPI', 'MaviStatus', 'MaviChecklist',
-    'Input', 'Label', 'Textarea', 'Switch', 'Checkbox', 'Table', 'TableHeader',
-    'TableBody', 'TableRow', 'TableHead', 'TableCell', 'Tabs', 'TabsList',
-    'TabsTrigger', 'TabsContent', 'Select', 'SelectTrigger', 'SelectValue',
-    'SelectContent', 'SelectItem', 'Progress', 'Alert', 'AlertTitle',
-    'AlertDescription', 'Tooltip'
+  // Auto-inject and merge import for specialized MaviCore UI widgets only if explicitly used as JSX tags
+  const mavicoreSpecializedWidgets = [
+    'Numpad', 'KeyboardPro', 'SignaturePad', 'BooleanToggle', 'QualityTolerance',
+    'QualityChecklist', 'DialGauge', 'DigitalCaliper', 'BarcodeScanner',
+    'ScadaStartBtn', 'ScadaStopBtn', 'ScadaTank', 'ScadaPlcStatus', 'KPICard',
+    'ScadaProdCounter', 'StatusBadge', 'TelemetryGauge', 'MaviButton', 'MaviCard',
+    'MaviKPI', 'MaviStatus', 'MaviChecklist'
   ];
-  // If the file explicitly imports from './mavicore-ui', merge any used mavicore components
-  if (/from\s+['"][^'"]*mavicore-ui[^'"]*['"]/i.test(cleaned)) {
-    const usedMaviComponents = mavicoreUIComponents.filter(c => new RegExp(`\\b${c}\\b`).test(cleaned));
-    if (usedMaviComponents.length > 0) {
+  const usedSpecializedWidgets = mavicoreSpecializedWidgets.filter(c => new RegExp(`<${c}[\\s/>]`).test(cleaned));
+  if (usedSpecializedWidgets.length > 0) {
+    if (/from\s+['"][^'"]*mavicore-ui[^'"]*['"]/i.test(cleaned)) {
       cleaned = cleaned.replace(/import\s*\{([^}]+)\}\s*from\s*['"][^'"]*mavicore-ui[^'"]*['"]/i, (match, existing) => {
         const existingList = existing.split(',').map(s => s.trim());
-        const toAdd = usedMaviComponents.filter(c => !existingList.includes(c));
+        const toAdd = usedSpecializedWidgets.filter(c => !existingList.includes(c));
         return toAdd.length > 0 ? `import { ${existing.trim()}, ${toAdd.join(', ')} } from './mavicore-ui'` : match;
       });
+    } else {
+      cleaned = `import { ${usedSpecializedWidgets.join(', ')} } from './mavicore-ui';\n` + cleaned;
     }
   }
 
@@ -242,7 +236,7 @@ export function cleanVibeCode(rawCode) {
     'Edit3', 'Edit2', 'History', 'CheckSquare', 'SquareCheck', 'HelpCircle', 'AlertCircle'
   ];
   // Exclude any mavicore-ui component names from being treated as lucide icons
-  const mavicoreUISet = new Set(mavicoreUIComponents);
+  const mavicoreUISet = new Set(mavicoreSpecializedWidgets);
   const usedIcons = popularLucideIcons.filter(icon => {
     if (mavicoreUISet.has(icon)) return false; // never treat mavicore components as lucide icons
     const jsxTagRegex = new RegExp(`<${icon}[\\s/>]`);
@@ -748,6 +742,8 @@ export function autoFixMissingImports(code, errorText) {
         if (existing.includes(missingName)) return m;
         return `import { ${existing.trim()}, ${missingName} } from './mavicore-ui'`;
       });
+    } else {
+      return `import { ${missingName} } from './mavicore-ui';\n` + code;
     }
   }
 
