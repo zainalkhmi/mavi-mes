@@ -80,6 +80,11 @@ export default function FileTreeExplorer({
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {getFileIcon(item.name)}
           <span>{item.name}</span>
+          {item.path === '/App.js' && (
+            <span style={{ fontSize: '9px', fontWeight: 800, padding: '1px 5px', borderRadius: '4px', backgroundColor: 'rgba(14, 165, 233, 0.2)', color: '#38bdf8', border: '1px solid rgba(14, 165, 233, 0.4)' }}>
+              MAIN
+            </span>
+          )}
         </div>
 
         {item.path !== '/App.js' && item.path !== '/App.jsx' && item.path !== '/package.json' && item.path !== '/styles.css' && (
@@ -163,7 +168,9 @@ export default function FileTreeExplorer({
 
       {/* Tree Content (Full Height, project files & SDK bridges) */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
-        {tree.map(item => renderItem(item, 0))}
+        {tree
+          .filter(item => item.name !== 'node_modules' && item.path !== '/node_modules')
+          .map(item => renderItem(item, 0))}
       </div>
     </div>
   );

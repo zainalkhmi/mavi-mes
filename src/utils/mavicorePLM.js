@@ -12,7 +12,7 @@ import { saveTemplates } from './supabaseTemplateDB.js';
 import Dexie from 'dexie';
 
 // ─── Dedicated IndexedDB for PLM & Drawings (Virtually Unlimited Quota) ───
-export const plmLocalDB = typeof window !== 'undefined' ? new Dexie('mandor_plm_local_db') : null;
+export const plmLocalDB = (typeof window !== 'undefined' && typeof window.indexedDB !== 'undefined') ? new Dexie('mandor_plm_local_db') : null;
 if (plmLocalDB) {
   plmLocalDB.version(1).stores({
     products: 'id, name, code, updated_at',
@@ -22,6 +22,10 @@ if (plmLocalDB) {
     drawing_balloons: 'id, drawing_revision_id, balloon_number',
     drawing_features: 'id, drawing_revision_id, feature_code',
     drawing_relations: 'id, parent_drawing_id, child_drawing_id'
+  });
+  plmLocalDB.version(2).stores({
+    process_plans: 'id, drawing_id, drawing_revision_id, plan_code, updated_at',
+    process_operations: 'id, process_plan_id, op_number, updated_at'
   });
 }
 

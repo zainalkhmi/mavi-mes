@@ -99,6 +99,7 @@ import OperatorDigitalSignatureModal from './checksheet/OperatorDigitalSignature
 import { TOOL_DEFINITIONS, detectMeasuringToolType, getCalibrationStatus } from '../utils/metrologyToolUtils';
 import { getLimitSamples } from '../utils/mavicorePLM';
 import { createDemoLimitSampleSvgs } from '../utils/limitSampleUtils';
+import { getProcessPlans, getOperations, recordStationInspection } from '../utils/plmProcessService';
 
 // ─── BALLOON CATEGORY & QC COLOR PALETTE (SYNCED WITH INSPECTOR STUDIO) ───
 const getCategoryColor = (category) => {
@@ -707,6 +708,11 @@ export default function DigitalDrawingCheckSheet() {
   const [revisionNo, setRevisionNo] = useState('1.0');
   const [approverName, setApproverName] = useState('');
 
+  // ── Station Operation Mode (IATF 16949 Routing Integration) ──
+  const [stationOpNumber, setStationOpNumber] = useState('');
+  const [stationOperation, setStationOperation] = useState(null);
+  const [stationFilterActive, setStationFilterActive] = useState(true);
+
   // Data Source / Target Table State
   const [availableTables, setAvailableTables] = useState([]);
   const [targetTableId, setTargetTableId] = useState(() => localStorage.getItem('mandor_checksheet_target_table_id') || '');
@@ -1090,25 +1096,29 @@ export default function DigitalDrawingCheckSheet() {
     return availableTables.find(t => t.id === targetTableId) || null;
   }, [availableTables, targetTableId]);
 
-  // Handle URL query parameters (e.g. #/drawing-checksheet?wo=WO-2026-CAST-042&sn=SN-8842-A)
+  // Handle URL query parameters (e.g. #/drawing-checksheet?wo=WO-2026-CAST-042&sn=SN-8842-A&op=20)
   useEffect(() => {
     let wo = searchParams.get('wo');
     let sn = searchParams.get('sn');
     let lot = searchParams.get('lot');
-    let station = searchParams.get('station');
+    let station = searchParams.get('station') || searchParams.get('workcenter');
     let insp = searchParams.get('inspector');
     let mode = searchParams.get('mode');
+    let op = searchParams.get('op') || searchParams.get('operation');
+    let dwgId = searchParams.get('drawingId');
 
     // Also parse hash params if any
-    if ((!wo || !sn) && window.location.hash.includes('?')) {
+    if (window.location.hash.includes('?')) {
       const hashQuery = window.location.hash.split('?')[1];
       const hp = new URLSearchParams(hashQuery);
       wo = wo || hp.get('wo');
       sn = sn || hp.get('sn');
       lot = lot || hp.get('lot');
-      station = station || hp.get('station');
+      station = station || hp.get('station') || hp.get('workcenter');
       insp = insp || hp.get('inspector');
       mode = mode || hp.get('mode');
+      op = op || hp.get('op') || hp.get('operation');
+      dwgId = dwgId || hp.get('drawingId');
     }
 
     if (wo) setWorkOrderNo(wo);
@@ -1116,11 +1126,43 @@ export default function DigitalDrawingCheckSheet() {
     if (lot) setLotBatchNo(lot);
     if (station) setStationId(station);
     if (insp) setInspectorName(insp);
+    if (op) {
+      setStationOpNumber(op);
+      if (!wo) setWorkOrderNo(`WO-OP${op}-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`);
+    }
+    if (dwgId) setSelectedDrawingId(dwgId);
 
     if (mode === 'focus' || mode === 'inspect') {
       setActiveTab('Check');
     }
   }, [searchParams, location]);
+
+  // Load Operation information for Station Mode (IATF 16949 Routing)
+  useEffect(() => {
+    if (!stationOpNumber) return;
+    const fetchStationOp = async () => {
+      try {
+        const plans = await getProcessPlans(selectedDrawingId);
+        if (plans && plans.length > 0) {
+          const ops = await getOperations(plans[0].id);
+          const found = ops.find(o => String(o.op_number).trim() === String(stationOpNumber).trim());
+          if (found) {
+            setStationOperation(found);
+            if (found.workcenter_id || found.machine_name) {
+              setStationId(found.workcenter_id || found.machine_name);
+            }
+            if (found.op_name) {
+              setProcessName(found.op_name);
+            }
+            toast.success(`Stasiun Aktif: OP ${found.op_number} - ${found.op_name}`, { icon: '🏭' });
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load station operation for checksheet:', e);
+      }
+    };
+    fetchStationOp();
+  }, [stationOpNumber, selectedDrawingId]);
 
   // ── Load part/document metadata from in-memory / published checksheet / IndexedDB ──
   useEffect(() => {
@@ -1835,6 +1877,8 @@ export default function DigitalDrawingCheckSheet() {
       lotBatchNo,
       stationId,
       shiftNo,
+      opNumber: stationOpNumber || stationOperation?.op_number || null,
+      operationName: stationOperation?.op_name || processName || null,
       drawingRef: 'MANDOR-QA-2026-08 Rev 2.1',
       inspector: sig?.operatorName || inspectorName,
       operatorSignature: sig ? {
@@ -1870,6 +1914,31 @@ export default function DigitalDrawingCheckSheet() {
 
     try {
       n8nWebhook.fire(failedCount > 0 ? 'inspection.failed' : 'inspection.passed', payload);
+
+      // ── Record Station Inspection for PLM Routing & Control Plan Traceability ──
+      if (stationOpNumber || stationOperation) {
+        try {
+          await recordStationInspection({
+            drawing_id: selectedDrawingId,
+            revision_id: revisionNo,
+            plan_id: stationOperation?.process_plan_id,
+            op_number: stationOpNumber || stationOperation?.op_number,
+            op_name: stationOperation?.op_name || processName,
+            workcenter_id: stationOperation?.workcenter_id || stationId,
+            work_order_no: workOrderNo,
+            part_serial: partSerial,
+            lot_batch_no: lotBatchNo,
+            inspector: sig?.operatorName || inspectorName,
+            overall_status: overallStatus || (failedCount > 0 ? 'NG' : 'OK'),
+            total_points: pointsToSave.length,
+            passed_points: passedCount,
+            failed_points: failedCount,
+            timestamp: new Date().toISOString()
+          });
+        } catch (stErr) {
+          console.warn('[CheckSheet] Failed to record station inspection:', stErr);
+        }
+      }
 
       // ── Write directly to Connected Mandor Table ──
       if (targetTableId) {
@@ -2291,15 +2360,32 @@ export default function DigitalDrawingCheckSheet() {
     };
   }, [isRightPanelCollapsed, isDrawingMode]);
 
-  // Filtered check points for right panel
+  // Filtered check points for right panel (supports IATF 16949 Station Operation mode)
   const filteredPoints = useMemo(() => {
     return checkPoints.filter(p => {
-      if (filterCriticality === 'CRITICAL') return p.criticality.includes('Critical') || p.criticality === 'Major';
+      // Station Operation Filter (IATF 16949 Routing)
+      if (stationOperation && stationFilterActive && Array.isArray(stationOperation.allocated_balloon_ids) && stationOperation.allocated_balloon_ids.length > 0) {
+        const balloonIds = stationOperation.allocated_balloon_ids;
+        const match = balloonIds.some(id => {
+          const sid = String(id).trim().toLowerCase();
+          const pId = String(p.id || '').trim().toLowerCase();
+          const pBNo = String(p.balloonNumber || p.seq || '').trim().toLowerCase();
+          return sid === pId ||
+                 sid === pBNo ||
+                 sid === `b_${pBNo}` ||
+                 sid === `b${pBNo}` ||
+                 pId === `b_${sid}` ||
+                 pId === `b${sid}` ||
+                 pId.endsWith(`_${sid}`);
+        });
+        if (!match) return false;
+      }
+      if (filterCriticality === 'CRITICAL') return p.criticality?.includes('Critical') || p.criticality === 'Major';
       if (filterCriticality === 'PENDING') return p.status === 'PENDING';
       if (filterCriticality === 'NG') return p.status === 'NG';
       return true;
     });
-  }, [checkPoints, filterCriticality]);
+  }, [checkPoints, filterCriticality, stationOperation, stationFilterActive]);
 
   // Helper for tolerance bar calculation
   const getToleranceBarMetrics = (pt) => {
@@ -2679,6 +2765,83 @@ export default function DigitalDrawingCheckSheet() {
         </div>
       </div>
 
+      {/* ─── STATION OPERATION MODE BANNER (IATF 16949 ROUTING) ─── */}
+      {stationOperation && (
+        <div style={{
+          backgroundColor: '#714B67',
+          color: '#ffffff',
+          padding: '6px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          fontSize: '0.78rem',
+          fontWeight: 700,
+          borderBottom: '1px solid #5C3D54',
+          zIndex: 19
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span style={{
+              backgroundColor: 'rgba(255,255,255,0.25)',
+              padding: '2px 8px',
+              borderRadius: '4px',
+              fontSize: '0.72rem',
+              fontWeight: 900,
+              fontFamily: 'monospace'
+            }}>
+              OP {stationOperation.op_number}
+            </span>
+            <span>{stationOperation.op_name}</span>
+            <span style={{ opacity: 0.85, fontSize: '0.72rem' }}>
+              • Mesin: {stationOperation.machine_name || stationOperation.workcenter_id || 'Shop Floor'}
+            </span>
+            <span style={{ opacity: 0.85, fontSize: '0.72rem' }}>
+              • Sampling: {stationOperation.sampling_frequency}
+            </span>
+            <span style={{
+              backgroundColor: 'rgba(0, 160, 157, 0.35)',
+              border: '1px solid rgba(0, 160, 157, 0.6)',
+              padding: '2px 8px',
+              borderRadius: '4px',
+              fontSize: '0.72rem',
+              fontWeight: 800
+            }}>
+              Dimensi Stasiun: {filteredPoints.length} Poin • {filteredPoints.filter(p => p.status === 'OK' || p.status === 'NG').length}/{filteredPoints.length} Selesai ({filteredPoints.length > 0 ? Math.round((filteredPoints.filter(p => p.status === 'OK' || p.status === 'NG').length / filteredPoints.length) * 100) : 0}%)
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              onClick={() => setStationFilterActive(!stationFilterActive)}
+              style={{
+                backgroundColor: stationFilterActive ? '#00A09D' : 'rgba(255,255,255,0.15)',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '3px 10px',
+                fontSize: '0.7rem',
+                fontWeight: 800,
+                cursor: 'pointer'
+              }}
+            >
+              {stationFilterActive ? '✓ Mode Filter Stasiun Aktif' : 'Tampilkan Semua Poin'}
+            </button>
+            <button
+              onClick={() => navigate('/plm-integration')}
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.1)',
+                color: '#ffffff',
+                border: '1px solid rgba(255,255,255,0.3)',
+                borderRadius: '4px',
+                padding: '3px 8px',
+                fontSize: '0.7rem',
+                cursor: 'pointer'
+              }}
+            >
+              Kembali ke PLM Hub
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ─── 2. MAIN 3-PANEL WORKSPACE (LEFT METROLOGY SIDEBAR | CENTER BLUEPRINT CANVAS | RIGHT CHECKLIST INSPECTOR) ─── */}
       <div
         style={{
@@ -3052,9 +3215,16 @@ export default function DigitalDrawingCheckSheet() {
                 </marker>
               </defs>
               {checkPoints.map(pt => {
+                const isStationAllocated = !stationOperation || !stationFilterActive || !Array.isArray(stationOperation.allocated_balloon_ids) || stationOperation.allocated_balloon_ids.length === 0 || stationOperation.allocated_balloon_ids.some(id => {
+                  const sid = String(id).trim().toLowerCase();
+                  const pId = String(pt.id || '').trim().toLowerCase();
+                  const pBNo = String(pt.balloonNumber || pt.seq || '').trim().toLowerCase();
+                  return sid === pId || sid === pBNo || sid === `b_${pBNo}` || sid === `b${pBNo}` || pId === `b_${sid}` || pId === `b${sid}` || pId.endsWith(`_${sid}`);
+                });
+
                 if (pt.targetX !== undefined && pt.targetY !== undefined && (Math.abs(pt.targetX - pt.x) > 10 || Math.abs(pt.targetY - pt.y) > 10)) {
                   return (
-                    <g key={`leader_${pt.id}`}>
+                    <g key={`leader_${pt.id}`} opacity={isStationAllocated ? 1 : 0.15}>
                       <line
                         x1={pt.x}
                         y1={pt.y}
@@ -3075,6 +3245,13 @@ export default function DigitalDrawingCheckSheet() {
 
             {/* Interactive Enterprise Hotspot Pins with Heatmap & Deviation Badges */}
             {checkPoints.map((pt) => {
+              const isStationAllocated = !stationOperation || !stationFilterActive || !Array.isArray(stationOperation.allocated_balloon_ids) || stationOperation.allocated_balloon_ids.length === 0 || stationOperation.allocated_balloon_ids.some(id => {
+                const sid = String(id).trim().toLowerCase();
+                const pId = String(pt.id || '').trim().toLowerCase();
+                const pBNo = String(pt.balloonNumber || pt.seq || '').trim().toLowerCase();
+                return sid === pId || sid === pBNo || sid === `b_${pBNo}` || sid === `b${pBNo}` || pId === `b_${sid}` || pId === `b${sid}` || pId.endsWith(`_${sid}`);
+              });
+
               const isActive = pt.id === activePointId;
               const isOK = pt.status === 'OK';
               const isNG = pt.status === 'NG';
@@ -3127,7 +3304,9 @@ export default function DigitalDrawingCheckSheet() {
                     top: `${pt.y}px`,
                     transform: 'translate(-50%, -50%)',
                     cursor: 'pointer',
-                    zIndex: isActive ? 30 : 15,
+                    zIndex: isActive ? 30 : isStationAllocated ? 18 : 10,
+                    opacity: isStationAllocated ? 1 : 0.22,
+                    filter: isStationAllocated ? 'none' : 'grayscale(70%)',
                     transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
                   }}
                 >

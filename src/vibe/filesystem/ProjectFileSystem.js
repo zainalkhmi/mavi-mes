@@ -51,6 +51,14 @@ export class ProjectFileSystem {
       const isBin = typeof finalContent !== 'string';
       this.files.set(norm, new VirtualFile(norm, finalContent, isBin));
     }
+    // Mirror /App.js to /App.jsx if missing, or vice versa
+    if (this.files.has('/App.js') && !this.files.has('/App.jsx')) {
+      const f = this.files.get('/App.js');
+      this.files.set('/App.jsx', new VirtualFile('/App.jsx', f.content, f.isBinary));
+    } else if (this.files.has('/App.jsx') && !this.files.has('/App.js')) {
+      const f = this.files.get('/App.jsx');
+      this.files.set('/App.js', new VirtualFile('/App.js', f.content, f.isBinary));
+    }
     this.notify();
   }
 
@@ -61,7 +69,9 @@ export class ProjectFileSystem {
    */
   readFile(path) {
     const norm = this.normalizePath(path);
-    const file = this.files.get(norm);
+    let file = this.files.get(norm);
+    if (!file && norm === '/App.jsx') file = this.files.get('/App.js');
+    if (!file && norm === '/App.js') file = this.files.get('/App.jsx');
     return file ? file.content : null;
   }
 
@@ -80,6 +90,15 @@ export class ProjectFileSystem {
     const isBin = typeof finalContent !== 'string';
     const file = new VirtualFile(norm, finalContent, isBin);
     this.files.set(norm, file);
+
+    // CRITICAL FIX: Keep /App.js and /App.jsx strictly synchronized
+    // so whether bundler resolves .js or .jsx, both always contain the latest generated code!
+    if (norm === '/App.js') {
+      this.files.set('/App.jsx', new VirtualFile('/App.jsx', finalContent, isBin));
+    } else if (norm === '/App.jsx') {
+      this.files.set('/App.js', new VirtualFile('/App.js', finalContent, isBin));
+    }
+
     this.notify({ type: 'write', path: norm, file });
     return file;
   }
@@ -238,10 +257,21 @@ export class ProjectFileSystem {
       }
     }
 
-    // Sort folders first, then files alphabetically
+    // Sort /App.js first, then user files/folders, and node_modules last
     const sortTree = (node) => {
       if (node.children) {
         node.children.sort((a, b) => {
+          // Pin /App.js to the absolute top of the root tree
+          if (a.path === '/App.js') return -1;
+          if (b.path === '/App.js') return 1;
+          // Subsume /App.jsx right under /App.js if present
+          if (a.path === '/App.jsx') return -1;
+          if (b.path === '/App.jsx') return 1;
+
+          // Push node_modules to bottom
+          if (a.name === 'node_modules') return 1;
+          if (b.name === 'node_modules') return -1;
+
           if (a.isDirectory && !b.isDirectory) return -1;
           if (!a.isDirectory && b.isDirectory) return 1;
           return a.name.localeCompare(b.name);

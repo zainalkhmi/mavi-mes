@@ -121,8 +121,8 @@ export default function App() {
   const currentUser = user || authUser;
   const isUserLoggedIn = !!currentUser || isAuthenticated;
 
-  // Show loading screen while auth is initializing to prevent early redirect
-  if (authLoading && !currentUser) {
+  // Show loading screen while auth is initializing to prevent early redirect (except for open/standalone checksheet routes)
+  if (authLoading && !currentUser && !isChecksheetRoute) {
     return <LoadingScreen />;
   }
 

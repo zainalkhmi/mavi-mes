@@ -2243,6 +2243,12 @@ root.render(
         vfs.writeFile(action.path, action.content);
         setLogs(prev => [...prev, { timestamp: new Date(), text: `[File Updated] ${action.path}` }]);
         if (action.path === '/App.js' || action.path === '/App.jsx') {
+          vfs.writeFile('/App.js', action.content);
+          vfs.writeFile('/App.jsx', action.content);
+          if (sandpackBridgeRef.current) {
+            sandpackBridgeRef.current.updateFile('/App.js', action.content);
+            sandpackBridgeRef.current.updateFile('/App.jsx', action.content);
+          }
           if (onCodeChange) onCodeChange(action.content);
         }
       }
@@ -3028,7 +3034,7 @@ root.render(
                   settings={null}
                   onCodeGenerated={async (rawCode) => {
                     // Support both multi-file projects (<file_action path="..." ...>) and single-file multi-page layouts
-                    const { fileActions } = AgenticPromptEngine.parseResponse(rawCode);
+                    const { fileActions } = AgenticPromptEngine.parseResponse(rawCode, '/App.js');
                     let mainCode = '';
 
                     if (fileActions && fileActions.length > 0) {
@@ -3037,9 +3043,16 @@ root.render(
                         vfs.writeFile(action.path, cleanContent);
                         if (action.path === '/App.js' || action.path === '/App.jsx') {
                           mainCode = cleanContent;
+                          vfs.writeFile('/App.js', cleanContent);
+                          vfs.writeFile('/App.jsx', cleanContent);
                         }
                         if (sandpackBridgeRef.current) {
                           sandpackBridgeRef.current.updateFile(action.path, cleanContent);
+                          if (action.path === '/App.js' || action.path === '/App.jsx') {
+                            sandpackBridgeRef.current.updateFile('/App.js', cleanContent);
+                            sandpackBridgeRef.current.updateFile('/App.jsx', cleanContent);
+                            sandpackBridgeRef.current.openFile('/App.js');
+                          }
                         }
                       }
                     }
@@ -3053,20 +3066,25 @@ root.render(
                       }
                       mainCode = code;
                       vfs.writeFile('/App.js', code);
+                      vfs.writeFile('/App.jsx', code);
                       if (sandpackBridgeRef.current) {
                         sandpackBridgeRef.current.updateFile('/App.js', code);
+                        sandpackBridgeRef.current.updateFile('/App.jsx', code);
                         sandpackBridgeRef.current.openFile('/App.js');
                       }
                     }
 
                     lastKnownExternalCodeRef.current = mainCode;
-                    setFilesRecord(vfs.getAllFilesRecord());
+                    setActiveFilePath('/App.js');
+                    const updatedFiles = vfs.getAllFilesRecord();
+                    setFilesRecord(updatedFiles);
                     setFileTree(vfs.getFileTree());
                     setFilesRevision(prev => prev + 1);
                     setErrors([]);
 
                     // ⚡ Instantly update Sandpack in-memory instance & live device screen!
                     if (sandpackBridgeRef.current) {
+                      sandpackBridgeRef.current.openFile?.('/App.js');
                       sandpackBridgeRef.current.runSandpack?.();
                     }
 

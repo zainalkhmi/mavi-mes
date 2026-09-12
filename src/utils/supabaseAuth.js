@@ -92,6 +92,14 @@ export async function getCurrentUser() {
   const client = getSupabaseAuth();
   if (!client) return null;
 
+  // Fast-path: if no auth token in localStorage, avoid slow network roundtrip
+  if (typeof window !== 'undefined') {
+    try {
+      const token = window.localStorage?.getItem('mavi_mes_auth_token');
+      if (!token) return null;
+    } catch {}
+  }
+
   try {
     const { data: { user }, error } = await client.auth.getUser();
     if (error) throw error;
