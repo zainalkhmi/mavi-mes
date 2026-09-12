@@ -40,9 +40,14 @@ ATURAN KHUSUS MOBILE APP:
 3. Desain dioptimalkan untuk mobile phone & industrial rugged tablet (handheld PDA/scanner, Android Zebra, Honeywell).
 4. Sediakan tombol besar yang ramah sentuhan (touch-friendly) dengan warna cerah dan kontras tinggi.
 ` : `
-ATURAN KHUSUS WEB APP:
-1. Gunakan React (useState, useEffect, useMemo) dengan styling Tailwind CSS dan inline styles.
-2. Gunakan icon dari 'lucide-react'.
+ATURAN KHUSUS WEB APP (ENTERPRISE MULTI-PAGE LAYOUT):
+1. Gunakan React (useState, useEffect, useMemo) dengan styling Tailwind CSS dan ikon dari 'lucide-react'.
+2. RANCANG SEBAGAI APLIKASI WEB ENTERPRISE DENGAN LAYOUT LENGKAP:
+   - Sidebar Navigasi (kiri): Tombol navigasi multi-halaman ('dashboard', 'inspection', 'history', 'analytics', 'settings') dengan highlight aktif dan profil operator.
+   - Top Navigation Header: Breadcrumbs navigasi, live clock, status MaviCore bridge online, pemilih line mesin, dan tombol aksi cepat.
+   - Multi-Page View Switching: Kelola navigasi halaman dengan state React (const [currentView, setCurrentView] = useState('dashboard')).
+   - Sediakan halaman-halaman mandiri lengkap: Dashboard KPI & Telemetri, Formulir Input Inspeksi, Riwayat Data CRUD Table, Analisis Cacat, dan Pengaturan.
+   - Data tersinkronisasi otomatis antar halaman dan tersimpan permanen via window.MaviCoreBridge.
 `}
 
 ════════════════════════════════════════════════

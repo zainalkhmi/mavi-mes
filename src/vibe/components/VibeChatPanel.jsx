@@ -343,17 +343,27 @@ Create a clear, compact, professional, structured IMPLEMENTATION PLAN in markdow
   - \`timestamp\` (datetime) - waktu pencatatan
 - **Operasi CRUD**: (Jelaskan aksi simpan, ambil data, dan sinkronisasi real-time)
 
-## 🧩 Fitur & Komponen UI
-1. **Ringkasan KPI / Status Bar**: Indikator visual metrik kunci & status bridge
-2. **Formulir Interaktif**: Input data, validasi, dan tombol aksi
-3. **Tabel Data & Pencarian**: Real-time table, filter status, pencarian cepat
-4. **Desain & Tema**: Standar PRO Industrial Enterprise (ala Linear / Datadog MES / Lovable): high-density command center layout, indikator telemetri IoT (RPM, suhu, vibrasi), KPI cards dengan trend pills & progress bar, filter tabs, live status badges (Running, Warning, Down), dan modal CRUD interaktif.
+## 🧩 Struktur Halaman & Layout Enterprise Multi-Page
+1. **Shell & Layout Navigasi Profesional**:
+   - **Collapsible Sidebar (Kiri)**: Brand sistem ("MaviCore MES Pro ● Live"), menu navigasi utama dengan icon Lucide, active highlight, dan footer profil operator (Shift, Nama).
+   - **Top Navigation Bar (Header)**: Breadcrumbs navigasi, live clock, pemilih stasiun/line kerja, status bridge (Online), dan tombol aksi cepat "+ Catat Data Baru".
+2. **Halaman 1: Executive Dashboard & SCADA Telemetry**:
+   - Kartu metrik KPI berwarna (OEE, Total Output, Good Parts, Defects, Uptime), grafik capaian produksi, dan indikator telemetri sensor.
+3. **Halaman 2: Formulir Operasional / Input Inspeksi**:
+   - Formulir terstruktur (No. Lot/SPK, parameter spesifikasi, toleransi batas Min/Nominal/Max, tombol OK/NG, catatan operator) dengan simpan langsung ke tabel MaviCore.
+4. **Halaman 3: Data Riwayat & Manajemen Log (CRUD)**:
+   - Tabel data real-time berfitur lengkap: Pencarian teks, filter status, sorting, modal lihat detail, edit data, dan hapus data.
+5. **Halaman 4: Analisis & Grafik Tren**:
+   - Pareto cacat/defect, grafik pencapaian per jam, dan rasio scrap.
+6. **Halaman 5: Pengaturan Line & Standar Parameter**:
+   - Konfigurasi batas ambang, shift kerja, dan target cycle time.
 
 ## 🛡️ Verification Plan
 - Kompilasi React bebas error di Sandpack preview
-- Uji simpan record data ke MaviCore database bridge
+- Uji navigasi antar halaman pada Sidebar (Dashboard, Input Form, Data Table, Analisis)
+- Uji simpan, edit, dan hapus data ke MaviCore database bridge
 
-PENTING & WAJIB: Tuntaskan seluruh 4 bagian plan di atas secara lengkap sampai bagian Verification Plan selesai. Jangan berhenti sebelum seluruh dokumen tuntas!`;
+PENTING & WAJIB: Tuntaskan seluruh bagian plan di atas secara terperinci. Rancang sebagai aplikasi web profesional multi-page lengkap, bukan halaman tunggal sederhana!`;
 
         await streamVibeAI({
           messages: [
@@ -385,7 +395,42 @@ PENTING & WAJIB: Tuntaskan seluruh 4 bagian plan di atas secara lengkap sampai b
 CRITICAL EXECUTION CONSTRAINTS:
 1. The preview runs directly in-browser using Sandpack. React, Tailwind CSS, Lucide React icons, and Framer Motion are ALREADY pre-installed and available.
 2. DO NOT output package.json, terminal commands, or instructions on how to install or run the project (like npm install or creating directories).
-3. Output ONLY a single, complete, self-contained React component for /App.js that exports default function App().
+3. ARSITEKTUR APLIKASI WEB ENTERPRISE DENGAN MULTI-PAGE & LAYOUT (WAJIB):
+   Aplikasi yang Anda buat HARUS dirancang sebagai APLIKASI WEB PROFESIONAL MULTI-HALAMAN DENGAN LAYOUT LENGKAP (BUKAN hanya 1 halaman statis sederhana):
+   
+   A. SHELL & LAYOUT NAVIGASI UTAMA (SIDEBAR + HEADER):
+      - SIDEBAR NAVIGASI (KIRI):
+        * Logo sistem & Judul ("MaviCore MES Pro ● Live" dengan badge hijau aktif).
+        * Tombol Navigasi Halaman dengan icon Lucide, label, badge, dan highlight aktif cerah (bg-indigo-600 text-white shadow-lg shadow-indigo-500/30):
+          - 'dashboard' -> 📊 Dashboard & Telemetri
+          - 'inspection' -> 📝 Formulir Inspeksi / Input Operasional
+          - 'history' -> 📋 Riwayat Data & Log Sheet
+          - 'analytics' -> 📈 Analisis Cacat & Tren Output
+          - 'settings' -> ⚙️ Standar Parameter & Pengaturan Line
+        * Profil Operator di bagian bawah sidebar (Nama Operator, Shift, Role: Line Leader).
+        * Tombol Toggle Collapse/Expand sidebar.
+      
+      - TOP NAVIGATION BAR (HEADER ATAS):
+        * Breadcrumbs jalur halaman (misal: "Produksi > Input Inspeksi Part").
+        * Pemilih Line / Mesin aktif (Line A - Stamping, Line B - CNC, Line C - Assembly).
+        * Status Koneksi Database MaviCore (Pill Hijau "● Bridge Online").
+        * Jam Digital Real-Time (HH:mm:ss).
+        * Tombol Cepat Aksi: "+ Catat Data Baru" (Membuka modal input cepat atau berpindah ke halaman form).
+
+   B. MULTI-PAGE ROUTING BERBASIS STATE:
+      Gunakan state navigasi di App:
+      const [currentView, setCurrentView] = useState('dashboard');
+      Bagi antarmuka menjadi halaman-halaman mandiri yang kaya fitur:
+      - <DashboardView />: Ringkasan metrik KPI warna-warni (OEE, Total Output, Good Parts, Defects, Uptime), status mesin live, progress bar capaian, dan log aktivitas terkini.
+      - <InspectionView />: Halaman formulir input komprehensif untuk operator dengan kolom parameter lengkap, pengecekan toleransi Min/Nominal/Max, tombol penilaian OK/NG, dan tombol submit simpan data.
+      - <HistoryView />: Halaman tabel data database lengkap dengan input pencarian, filter status/shift, sorting, modal lihat detail, edit data inline, dan tombol hapus data.
+      - <AnalyticsView />: Grafik pareto penyebab cacat (scratch, dimensi, crack) dan persentase scrap rate.
+      - <SettingsView />: Konfigurasi ambang batas toleransi, target cycle time, dan jadwal shift operator.
+
+   C. SINKRONISASI DATA ANTAR HALAMAN (REAKTIF):
+      - Seluruh halaman berbagi state data yang sama (shared state) dan terhubung ke window.MaviCoreBridge.
+      - Setiap data baru yang disimpan di halaman "Formulir Inspeksi" otomatis langsung muncul di tabel "Riwayat Data" dan memperbarui kartu metrik di "Dashboard".
+
 4. ALWAYS wrap the entire runnable React component inside <vibe_code> ... </vibe_code> tags. DILARANG KERAS menyertakan markdown code fences (\`\`\`jsx atau \`\`\`) di dalam tag <vibe_code>. Tulis langsung kode JSX mentah di dalamnya.
 5. VISUAL AESTHETICS & DYAD UI ENGINE (STUNNING INDUSTRIAL DESIGN):
    Gunakan komponen React mandiri dengan Tailwind CSS yang indah, tactile, modern, dan colourfull (DILARANG KAKU HITAM PUTIH / MONOKROM):
@@ -482,7 +527,42 @@ ${targetPlan.content}
 CRITICAL EXECUTION CONSTRAINTS:
 1. The preview runs directly in-browser using Sandpack. React, Tailwind CSS, Lucide React icons, and Framer Motion are ALREADY pre-installed and available.
 2. DO NOT output package.json, terminal commands, or setup instructions.
-3. Output ONLY a single, complete, self-contained React component for /App.js that exports default function App().
+3. ARSITEKTUR APLIKASI WEB ENTERPRISE DENGAN MULTI-PAGE & LAYOUT (WAJIB):
+   Aplikasi yang Anda buat HARUS dirancang sebagai APLIKASI WEB PROFESIONAL MULTI-HALAMAN DENGAN LAYOUT LENGKAP (BUKAN hanya 1 halaman statis sederhana):
+   
+   A. SHELL & LAYOUT NAVIGASI UTAMA (SIDEBAR + HEADER):
+      - SIDEBAR NAVIGASI (KIRI):
+        * Logo sistem & Judul ("MaviCore MES Pro ● Live" dengan badge status aktif).
+        * Tombol Navigasi Halaman dengan icon Lucide, label, badge, dan highlight aktif cerah (bg-indigo-600 text-white shadow-lg shadow-indigo-500/30):
+          - 'dashboard' -> 📊 Dashboard & Telemetri
+          - 'inspection' -> 📝 Formulir Inspeksi / Input Operasional
+          - 'history' -> 📋 Riwayat Data & Log Sheet
+          - 'analytics' -> 📈 Analisis Cacat & Tren Output
+          - 'settings' -> ⚙️ Standar Parameter & Pengaturan Line
+        * Profil Operator di bagian bawah sidebar (Nama Operator, Shift, Role: Line Leader).
+        * Tombol Toggle Collapse/Expand sidebar.
+      
+      - TOP NAVIGATION BAR (HEADER ATAS):
+        * Breadcrumbs jalur halaman (misal: "Produksi > Input Inspeksi Part").
+        * Pemilih Line / Mesin aktif (Line A - Stamping, Line B - CNC, Line C - Assembly).
+        * Status Koneksi Database MaviCore (Pill Hijau "● Bridge Online").
+        * Jam Digital Real-Time (HH:mm:ss).
+        * Tombol Cepat Aksi: "+ Catat Data Baru" (Membuka modal input cepat atau berpindah ke halaman form).
+
+   B. MULTI-PAGE ROUTING BERBASIS STATE:
+      Gunakan state navigasi di App:
+      const [currentView, setCurrentView] = useState('dashboard');
+      Bagi antarmuka menjadi halaman-halaman mandiri yang kaya fitur:
+      - <DashboardView />: Ringkasan metrik KPI warna-warni (OEE, Total Output, Good Parts, Defects, Uptime), status mesin live, progress bar capaian, dan log aktivitas terkini.
+      - <InspectionView />: Halaman formulir input komprehensif untuk operator dengan kolom parameter lengkap, pengecekan toleransi Min/Nominal/Max, tombol penilaian OK/NG, dan tombol submit simpan data.
+      - <HistoryView />: Halaman tabel data database lengkap dengan input pencarian, filter status/shift, sorting, modal lihat detail, edit data inline, dan tombol hapus data.
+      - <AnalyticsView />: Grafik pareto penyebab cacat (scratch, dimensi, crack) dan persentase scrap rate.
+      - <SettingsView />: Konfigurasi ambang batas toleransi, target cycle time, dan jadwal shift operator.
+
+   C. SINKRONISASI DATA ANTAR HALAMAN (REAKTIF):
+      - Seluruh halaman berbagi state data yang sama (shared state) dan terhubung ke window.MaviCoreBridge.
+      - Setiap data baru yang disimpan di halaman "Formulir Inspeksi" otomatis langsung muncul di tabel "Riwayat Data" dan memperbarui kartu metrik di "Dashboard".
+
 4. ALWAYS wrap the entire runnable React component inside <vibe_code> ... </vibe_code> tags. DILARANG KERAS menyertakan markdown code fences (\`\`\`jsx atau \`\`\`) di dalam tag <vibe_code>. Tulis langsung kode JSX mentah di dalamnya.
 5. STRICTLY IMPLEMENT FULL WORKING CRUD (Create, Read, Update, Delete):
    - Gunakan window.MaviCoreBridge (save, read, update, delete, onRecord) atau import { useMaviCoreData } from './mavicore-bridge'.

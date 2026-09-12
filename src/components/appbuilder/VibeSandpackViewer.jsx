@@ -3015,37 +3015,59 @@ root.render(
                   onPromptConsumed={() => setChatInitialPrompt('')}
                   settings={null}
                   onCodeGenerated={async (rawCode) => {
-                    let code = cleanVibeCode(rawCode);
+                    // Support both multi-file projects (<file_action path="..." ...>) and single-file multi-page layouts
+                    const { fileActions } = AgenticPromptEngine.parseResponse(rawCode);
+                    let mainCode = '';
 
-                    // Safeguard: If code starts with `return (` without a function wrapper, wrap it
-                    if (/^\s*return\s*\(/.test(code) && !/function\s+\w+\s*\(|=>\s*\(?|export\s+default|const\s+\w+\s*=\s*\(/i.test(code.slice(0, 100))) {
-                      code = `export default function App() {\n  ${code}\n}`;
-                      console.log('[Sandbox] Wrapped orphan `return (` in function App()');
+                    if (fileActions && fileActions.length > 0) {
+                      for (const action of fileActions) {
+                        const cleanContent = cleanVibeCode(action.content || '');
+                        vfs.writeFile(action.path, cleanContent);
+                        if (action.path === '/App.js' || action.path === '/App.jsx') {
+                          mainCode = cleanContent;
+                        }
+                        if (sandpackBridgeRef.current) {
+                          sandpackBridgeRef.current.updateFile(action.path, cleanContent);
+                        }
+                      }
                     }
 
-                    vfs.writeFile('/App.js', code);
-                    lastKnownExternalCodeRef.current = code;
+                    if (!mainCode) {
+                      let code = cleanVibeCode(rawCode);
+                      // Safeguard: If code starts with `return (` without a function wrapper, wrap it
+                      if (/^\s*return\s*\(/.test(code) && !/function\s+\w+\s*\(|=>\s*\(?|export\s+default|const\s+\w+\s*=\s*\(/i.test(code.slice(0, 100))) {
+                        code = `export default function App() {\n  ${code}\n}`;
+                        console.log('[Sandbox] Wrapped orphan `return (` in function App()');
+                      }
+                      mainCode = code;
+                      vfs.writeFile('/App.js', code);
+                      if (sandpackBridgeRef.current) {
+                        sandpackBridgeRef.current.updateFile('/App.js', code);
+                        sandpackBridgeRef.current.openFile('/App.js');
+                      }
+                    }
+
+                    lastKnownExternalCodeRef.current = mainCode;
                     setFilesRecord(vfs.getAllFilesRecord());
+                    setFileTree(vfs.getFileTree());
                     setFilesRevision(prev => prev + 1);
                     setErrors([]);
 
                     // ⚡ Instantly update Sandpack in-memory instance & live device screen!
                     if (sandpackBridgeRef.current) {
-                      sandpackBridgeRef.current.updateFile('/App.js', code);
-                      sandpackBridgeRef.current.openFile('/App.js');
                       sandpackBridgeRef.current.runSandpack?.();
                     }
 
                     try {
-                      localStorage.setItem('vibe_sandbox_autosave', code);
+                      localStorage.setItem('vibe_sandbox_autosave', mainCode);
                       localStorage.setItem('vibe_sandbox_autosave_time', new Date().toISOString());
                     } catch {}
 
-                    if (onCodeChange) onCodeChange(code);
+                    if (onCodeChange) onCodeChange(mainCode);
 
-                    toast.success('⚡ Kode berhasil diterapkan ke layar device!');
+                    toast.success('⚡ Aplikasi profesional berhasil diterapkan ke live preview!');
                     try {
-                      const res = await syncVibeAppToTable(code);
+                      const res = await syncVibeAppToTable(mainCode);
                       if (res?.table) {
                         setConnectedTable(res.table);
                         setLiveRecordCount(res.recordCount);
