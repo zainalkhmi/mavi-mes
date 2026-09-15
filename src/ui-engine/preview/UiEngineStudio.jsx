@@ -512,6 +512,7 @@ export default function UiEngineStudio({ canvasMode = true }) {
               <AppCanvas
                 deviceFrame={deviceFrame}
                 onDeviceFrameChange={setDeviceFrame}
+                initialAppId={searchParams.get('appId')}
               />
             </main>
           ) : (

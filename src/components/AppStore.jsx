@@ -3257,12 +3257,19 @@ const AppStore = () => {
             const templateObj = templates.find(t => t.id === templateId);
             const templateVersion = templateObj?.version || 1;
 
+            const isGluestackTemplate = templateApp.builder_type === 'gluestack' || !!templateApp.config?.screens;
+            const appScreens = templateApp.config?.screens || templateApp.config?.components || [];
+
             const appPayload = {
                 ...templateData,
                 config: {
                     ...(templateData.config || {}),
+                    // Crucial: Set BOTH screens and components so both Canvas builder and Mobile Player load cleanly!
+                    screens: appScreens,
+                    components: appScreens,
                     isLocked: true
                 },
+                builder_type: isGluestackTemplate ? 'gluestack' : (templateData.builder_type || 'app_builder'),
                 version: templateVersion,
                 updated_at: new Date().toISOString()
             };
@@ -3280,14 +3287,51 @@ const AppStore = () => {
                 appPayload.approval_status = 'DRAFT';
             }
 
-            const savedApp = await saveFrontlineApp(appPayload);
+            let savedApp;
+            try {
+                savedApp = await saveFrontlineApp(appPayload);
+            } catch (saveErr) {
+                console.warn('[AppStore] saveFrontlineApp threw, fallback to local app:', saveErr);
+                const localId = existingAppId || `gs_app_${Date.now()}`;
+                savedApp = { ...appPayload, id: localId };
+            }
+
+            // Always cache in localStorage for UI Engine Studio & App Canvas:
+            if (savedApp && savedApp.id) {
+                try {
+                    const localCachedApp = {
+                        id: savedApp.id,
+                        name: savedApp.name,
+                        screens: appScreens,
+                        components: appScreens,
+                        config: {
+                            ...(savedApp.config || {}),
+                            screens: appScreens,
+                            components: appScreens
+                        },
+                        builder_type: savedApp.builder_type,
+                        updated_at: savedApp.updated_at
+                    };
+                    localStorage.setItem(`mavi_app_${savedApp.id}`, JSON.stringify(localCachedApp));
+                    const storedList = JSON.parse(localStorage.getItem('mavi_ui_engine_apps') || '[]');
+                    const existingIdx = storedList.findIndex(a => a.id === savedApp.id);
+                    if (existingIdx >= 0) {
+                        storedList[existingIdx] = { id: savedApp.id, name: savedApp.name, updated_at: savedApp.updated_at };
+                    } else {
+                        storedList.push({ id: savedApp.id, name: savedApp.name, updated_at: savedApp.updated_at });
+                    }
+                    localStorage.setItem('mavi_ui_engine_apps', JSON.stringify(storedList));
+                } catch (lsErr) {
+                    console.warn('[AppStore] Local cache failed:', lsErr);
+                }
+            }
 
             // Connect same-named/similar tables using linked record fields and seed their links
             if (savedApp && savedApp.config && savedApp.config.appTables) {
                 try {
                     await connectAppTablesAndSeedLinks(savedApp.config.appTables);
                 } catch (linkErr) {
-                    console.error('Error connecting app tables:', linkErr);
+                    console.warn('Error connecting app tables:', linkErr);
                 }
             }
 

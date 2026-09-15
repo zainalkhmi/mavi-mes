@@ -963,7 +963,8 @@ const getComponentIcon = (type) => {
 
 export default function AppCanvas({
   deviceFrame: controlledDeviceFrame,
-  onDeviceFrameChange
+  onDeviceFrameChange,
+  initialAppId
 } = {}) {
   let authUser = null;
   try {
@@ -1463,12 +1464,20 @@ export default function AppCanvas({
     }
 
     // 2. If app object already has config (from remote list)
-    if (app.config && app.config.components) {
-      setScreens(app.config.components);
+    if (app.config && (app.config.screens || app.config.components)) {
+      const rawScreens = app.config.screens || app.config.components;
+      if (Array.isArray(rawScreens) && rawScreens.length > 0) {
+        if (rawScreens[0]?.components && Array.isArray(rawScreens[0].components)) {
+          setScreens(rawScreens);
+          setCurrentScreenId(rawScreens[0].id || 'screen_1');
+        } else {
+          setScreens([{ id: 'screen_1', title: app.name || 'Main Screen', components: rawScreens }]);
+          setCurrentScreenId('screen_1');
+        }
+      }
       if (app.config.variables) setVariables(app.config.variables);
       if (app.config.tables) setTables(app.config.tables);
       if (app.config.recordPlaceholders) setRecordPlaceholders(app.config.recordPlaceholders);
-      setCurrentScreenId(app.config.components[0]?.id || 'screen_1');
       setActiveToast({ message: `Aplikasi "${app.name}" berhasil dimuat`, type: 'SUCCESS' });
       return;
     }
@@ -1478,11 +1487,19 @@ export default function AppCanvas({
       const remoteData = await getFrontlineAppById(app.id);
       if (remoteData && remoteData.config) {
         const cfg = remoteData.config;
-        if (cfg.components && Array.isArray(cfg.components)) setScreens(cfg.components);
+        const rawScreens = cfg.screens || cfg.components || remoteData.screens;
+        if (Array.isArray(rawScreens) && rawScreens.length > 0) {
+          if (rawScreens[0]?.components && Array.isArray(rawScreens[0].components)) {
+            setScreens(rawScreens);
+            setCurrentScreenId(rawScreens[0].id || 'screen_1');
+          } else {
+            setScreens([{ id: 'screen_1', title: remoteData.name || 'Main Screen', components: rawScreens }]);
+            setCurrentScreenId('screen_1');
+          }
+        }
         if (cfg.variables) setVariables(cfg.variables);
         if (cfg.tables) setTables(cfg.tables);
         if (cfg.recordPlaceholders) setRecordPlaceholders(cfg.recordPlaceholders);
-        setCurrentScreenId(cfg.components?.[0]?.id || 'screen_1');
         setActiveToast({ message: `Aplikasi "${app.name}" berhasil dimuat`, type: 'SUCCESS' });
       }
     } catch (err) {
@@ -1678,7 +1695,7 @@ export default function AppCanvas({
     const onSetName = (e) => {
       if (e.detail?.appName) setAppName(e.detail.appName);
     };
-    // Handle loading app from Supabase (when opened from App Management)
+    // Handle loading app from Supabase / Event
     const onLoadApp = (e) => {
       const { appId, name, config } = e.detail || {};
       if (appId) {
@@ -1686,7 +1703,16 @@ export default function AppCanvas({
         setAppName(name || 'Untitled App');
         // Load config if available
         if (config) {
-          if (config.components) setScreens(config.components);
+          const rawScreens = config.screens || config.components;
+          if (Array.isArray(rawScreens) && rawScreens.length > 0) {
+            if (rawScreens[0]?.components && Array.isArray(rawScreens[0].components)) {
+              setScreens(rawScreens);
+              setCurrentScreenId(rawScreens[0].id || 'screen_1');
+            } else {
+              setScreens([{ id: 'screen_1', title: name || 'Main Screen', components: rawScreens }]);
+              setCurrentScreenId('screen_1');
+            }
+          }
           if (config.variables) setVariables(config.variables);
           if (config.tables) setTables(config.tables);
           if (config.recordPlaceholders) setRecordPlaceholders(config.recordPlaceholders);
@@ -1708,6 +1734,57 @@ export default function AppCanvas({
       window.removeEventListener('mavi_ui_engine_load_app', onLoadApp);
     };
   }, [handleSaveApp, handleCopyAppLink]);
+
+  // Auto-load app directly on mount from initialAppId or URL search param
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const targetAppId = initialAppId || params.get('appId');
+      if (targetAppId) {
+        setCurrentAppId(targetAppId);
+        // 1. Try local storage first
+        const local = localStorage.getItem(`mavi_app_${targetAppId}`);
+        if (local) {
+          try {
+            const parsed = JSON.parse(local);
+            const rawScreens = parsed.screens || parsed.components || parsed.config?.screens || parsed.config?.components;
+            if (Array.isArray(rawScreens) && rawScreens.length > 0) {
+              setAppName(parsed.name || 'Untitled App');
+              if (rawScreens[0]?.components && Array.isArray(rawScreens[0].components)) {
+                setScreens(rawScreens);
+                setCurrentScreenId(rawScreens[0].id || 'screen_1');
+              } else {
+                setScreens([{ id: 'screen_1', title: parsed.name || 'Main Screen', components: rawScreens }]);
+                setCurrentScreenId('screen_1');
+              }
+              return;
+            }
+          } catch (e) {}
+        }
+
+        // 2. Fetch from DB
+        getFrontlineAppById(targetAppId).then(appData => {
+          if (appData) {
+            setAppName(appData.name || 'Untitled App');
+            const cfg = appData.config || {};
+            const rawScreens = cfg.screens || cfg.components || appData.screens || appData.components;
+            if (Array.isArray(rawScreens) && rawScreens.length > 0) {
+              if (rawScreens[0]?.components && Array.isArray(rawScreens[0].components)) {
+                setScreens(rawScreens);
+                setCurrentScreenId(rawScreens[0].id || 'screen_1');
+              } else {
+                setScreens([{ id: 'screen_1', title: appData.name || 'Main Screen', components: rawScreens }]);
+                setCurrentScreenId('screen_1');
+              }
+            }
+            if (cfg.variables) setVariables(cfg.variables);
+            if (cfg.tables) setTables(cfg.tables);
+            if (cfg.recordPlaceholders) setRecordPlaceholders(cfg.recordPlaceholders);
+          }
+        }).catch(err => console.warn('[AppCanvas] Auto-load app failed:', err));
+      }
+    } catch (e) {}
+  }, [initialAppId]);
 
   // Helper to normalize any incoming widget type (Mavi or Gluestack) into supported Gluestack UI components
   const mapToGluestackWidgetType = (rawType = '') => {

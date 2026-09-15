@@ -4,10 +4,9 @@
  */
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Box, Text, Button } from '../components';
 import { Eraser, Check, X, Download } from 'lucide-react';
 
-export default function Signature({
+export function Signature({
   value,
   onChange,
   label = 'Signature',
@@ -26,6 +25,7 @@ export default function Signature({
   showDownloadButton = false,
   format = 'image/png', // 'image/png' | 'image/jpeg' | 'image/svg+xml'
   quality = 0.9,
+  className = ''
 }) {
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -49,10 +49,11 @@ export default function Signature({
       };
       img.src = value;
     }
-  }, []);
+  }, [backgroundColor, value]);
 
   const getPosition = (e) => {
     const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
@@ -72,9 +73,10 @@ export default function Signature({
 
   const startDrawing = (e) => {
     if (disabled) return;
-    e.preventDefault();
+    if (e.cancelable) e.preventDefault();
 
     const canvas = canvasRef.current;
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
 
     ctx.strokeStyle = strokeColor;
@@ -93,9 +95,10 @@ export default function Signature({
 
   const draw = (e) => {
     if (!isDrawing || disabled) return;
-    e.preventDefault();
+    if (e.cancelable) e.preventDefault();
 
     const canvas = canvasRef.current;
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
 
     const pos = getPosition(e);
@@ -136,33 +139,32 @@ export default function Signature({
     if (!value) return;
 
     const link = document.createElement('a');
-    link.download = `signature-${Date.now()}.${format.split('/')[1]}`;
+    link.download = `signature-${Date.now()}.${format.split('/')[1] || 'png'}`;
     link.href = value;
     link.click();
   };
 
   return (
-    <Box className="flex flex-col gap-2">
+    <div className={`flex flex-col gap-2 ${className}`}>
       {label && (
-        <Box className="flex items-center gap-1">
-          <Text size="sm" className={`font-medium ${isValid ? 'text-slate-700' : 'text-red-500'}`}>
+        <div className="flex items-center gap-1">
+          <label className={`text-xs font-bold ${isValid ? 'text-slate-700' : 'text-rose-500'}`}>
             {label}
-          </Text>
-          {required && <Text className="text-red-500">*</Text>}
-        </Box>
+          </label>
+          {required && <span className="text-rose-500 text-xs font-bold">*</span>}
+        </div>
       )}
 
-      <Box className="relative">
-        <Box
-          as="canvas"
+      <div className="relative w-full">
+        <canvas
           ref={canvasRef}
           width={width}
           height={height}
-          className={`border-2 rounded-xl cursor-crosshair touch-none ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+          className={`w-full border-2 rounded-xl cursor-crosshair touch-none ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
           style={{
             borderColor: !isValid ? '#ef4444' : hasSignature ? '#22c55e' : borderColor,
             backgroundColor,
-            maxWidth: '100%',
+            maxHeight: `${height}px`,
           }}
           onMouseDown={startDrawing}
           onMouseMove={draw}
@@ -175,59 +177,59 @@ export default function Signature({
 
         {/* Placeholder */}
         {!hasSignature && !disabled && (
-          <Box className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <Text className="text-slate-400 text-lg">{placeholder}</Text>
-          </Box>
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <span className="text-slate-400 text-sm font-medium">{placeholder}</span>
+          </div>
         )}
 
         {/* Signature indicator */}
         {hasSignature && (
-          <Box
-            className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-full bg-green-100"
-          >
-            <Check size={14} className="text-green-600" />
-            <Text size="xs" className="text-green-700 font-medium">Signed</Text>
-          </Box>
+          <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-100 border border-emerald-300 pointer-events-none">
+            <Check size={12} className="text-emerald-700 stroke-[3]" />
+            <span className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider">Signed</span>
+          </div>
         )}
-      </Box>
+      </div>
 
       {/* Action buttons */}
-      <Box className="flex gap-2">
+      <div className="flex items-center gap-2">
         {showClearButton && (
-          <Button
-            variant="outline"
-            size="sm"
-            onPress={clearSignature}
+          <button
+            type="button"
+            onClick={clearSignature}
             disabled={disabled || !hasSignature}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-2xs"
           >
-            <Button.Icon as={Eraser} />
-            <Button.Text>Clear</Button.Text>
-          </Button>
+            <Eraser size={14} className="text-slate-500" />
+            <span>Clear</span>
+          </button>
         )}
 
         {showDownloadButton && hasSignature && (
-          <Button
-            variant="outline"
-            size="sm"
-            onPress={downloadSignature}
+          <button
+            type="button"
+            onClick={downloadSignature}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer shadow-2xs"
           >
-            <Button.Icon as={Download} />
-            <Button.Text>Download</Button.Text>
-          </Button>
+            <Download size={14} className="text-slate-500" />
+            <span>Download</span>
+          </button>
         )}
 
         {required && !hasSignature && (
-          <Text size="xs" className="text-red-500 flex items-center">
+          <span className="text-xs text-rose-500 flex items-center font-medium ml-auto">
             <X size={12} className="mr-1" />
             {errorText || 'Signature is required'}
-          </Text>
+          </span>
         )}
-      </Box>
+      </div>
 
       {/* Validation error */}
       {!isValid && errorText && (
-        <Text size="xs" className="text-red-500">{errorText}</Text>
+        <span className="text-xs text-rose-500 font-medium">{errorText}</span>
       )}
-    </Box>
+    </div>
   );
 }
+
+export default Signature;

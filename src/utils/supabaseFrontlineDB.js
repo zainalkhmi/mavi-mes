@@ -44,64 +44,94 @@ export async function getTables() {
  */
 
 export async function getAllFrontlineApps() {
+    let remoteApps = [];
     try {
         const supabase = getSupabaseClient();
-        const { data, error } = await supabase
-            .from('frontline_apps')
-            .select('*')
-            .order('name');
+        if (supabase) {
+            const { data, error } = await supabase
+                .from('frontline_apps')
+                .select('*')
+                .order('name');
 
-        if (error) throw error;
+            if (!error && data) {
+                remoteApps = data.map(app => {
+                    if (app.config?.iotConfig?.brokerUrl) {
+                        let url = app.config.iotConfig.brokerUrl;
+                        if (url === 'ws://broker.emqx.io:8083/mqtt') url = 'wss://broker.emqx.io:8084/mqtt';
+                        else if (url.startsWith('ws://') && typeof window !== 'undefined' && window.location.protocol === 'https:') {
+                            url = url.replace('ws://', 'wss://');
+                        }
+                        return { ...app, config: { ...app.config, iotConfig: { ...app.config.iotConfig, brokerUrl: url } } };
+                    }
+                    return app;
+                });
+            }
+        }
+    } catch (err) {
+        console.warn('[Supabase] Failed to fetch frontline apps from remote:', err);
+    }
 
-        return (data || []).map(app => {
-            if (app.config?.iotConfig?.brokerUrl) {
-                let url = app.config.iotConfig.brokerUrl;
-                if (url === 'ws://broker.emqx.io:8083/mqtt') url = 'wss://broker.emqx.io:8084/mqtt';
-                else if (url.startsWith('ws://') && typeof window !== 'undefined' && window.location.protocol === 'https:') {
-                    url = url.replace('ws://', 'wss://');
-                }
-                if (url !== app.config.iotConfig.brokerUrl) {
-                    return { ...app, config: { ...app.config, iotConfig: { ...app.config.iotConfig, brokerUrl: url } } };
+    // Merge with any offline apps from localStorage
+    try {
+        const storedList = JSON.parse(localStorage.getItem('mavi_ui_engine_apps') || '[]');
+        for (const meta of storedList) {
+            if (meta.id && !remoteApps.some(a => a.id === meta.id)) {
+                const fullApp = localStorage.getItem(`mavi_app_${meta.id}`);
+                if (fullApp) {
+                    try {
+                        remoteApps.push(JSON.parse(fullApp));
+                    } catch (e) {}
                 }
             }
-            return app;
-        });
-    } catch (err) {
-        console.error('[Supabase] Failed to fetch frontline apps:', err);
-        return [];
-    }
+        }
+    } catch (e) {}
+
+    return remoteApps;
 }
 
 export async function getFrontlineAppById(id) {
+    if (!id) return null;
     try {
         const supabase = getSupabaseClient();
-        const { data, error } = await supabase
-            .from('frontline_apps')
-            .select('*')
-            .eq('id', id)
-            .single();
+        if (supabase) {
+            const { data, error } = await supabase
+                .from('frontline_apps')
+                .select('*')
+                .eq('id', id)
+                .single();
 
-        if (error) throw error;
-
-        if (data && data.config?.iotConfig?.brokerUrl) {
-            let url = data.config.iotConfig.brokerUrl;
-            if (url === 'ws://broker.emqx.io:8083/mqtt') url = 'wss://broker.emqx.io:8084/mqtt';
-            else if (url.startsWith('ws://') && typeof window !== 'undefined' && window.location.protocol === 'https:') {
-                url = url.replace('ws://', 'wss://');
-            }
-            if (url !== data.config.iotConfig.brokerUrl) {
-                return { ...data, config: { ...data.config, iotConfig: { ...data.config.iotConfig, brokerUrl: url } } };
+            if (!error && data) {
+                if (data.config?.iotConfig?.brokerUrl) {
+                    let url = data.config.iotConfig.brokerUrl;
+                    if (url === 'ws://broker.emqx.io:8083/mqtt') url = 'wss://broker.emqx.io:8084/mqtt';
+                    else if (url.startsWith('ws://') && typeof window !== 'undefined' && window.location.protocol === 'https:') {
+                        url = url.replace('ws://', 'wss://');
+                    }
+                    if (url !== data.config.iotConfig.brokerUrl) {
+                        return { ...data, config: { ...data.config, iotConfig: { ...data.config.iotConfig, brokerUrl: url } } };
+                    }
+                }
+                return data;
             }
         }
-        return data;
     } catch (err) {
-        console.error('[Supabase] Failed to fetch frontline app by ID:', err);
-        return null;
+        console.warn('[Supabase] Failed to fetch frontline app by ID, checking localStorage:', err);
     }
+
+    // LocalStorage Fallback
+    try {
+        const local = localStorage.getItem(`mavi_app_${id}`);
+        if (local) {
+            return JSON.parse(local);
+        }
+    } catch (e) {}
+
+    return null;
 }
 
 export async function saveFrontlineApp(app) {
     const detectedBuilderType = app.builder_type || getAppBuilderType(app);
+    const generatedId = app.id || `app_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
     const payload = {
         name: app.name,
         category: app.category || 'Shop Floor',
@@ -113,40 +143,72 @@ export async function saveFrontlineApp(app) {
         updated_at: new Date().toISOString()
     };
 
-    const supabase = getSupabaseClient();
-    const saveWithPayload = async (currentPayload) => {
-        if (app.id) {
-            return await supabase
-                .from('frontline_apps')
-                .update(currentPayload)
-                .eq('id', app.id)
-                .select()
-                .single();
-        } else {
-            return await supabase
-                .from('frontline_apps')
-                .insert({ ...currentPayload, created_at: new Date().toISOString() })
-                .select()
-                .single();
+    try {
+        const supabase = getSupabaseClient();
+        if (supabase) {
+            const saveWithPayload = async (currentPayload) => {
+                if (app.id) {
+                    return await supabase
+                        .from('frontline_apps')
+                        .update(currentPayload)
+                        .eq('id', app.id)
+                        .select()
+                        .single();
+                } else {
+                    return await supabase
+                        .from('frontline_apps')
+                        .insert({ ...currentPayload, created_at: new Date().toISOString() })
+                        .select()
+                        .single();
+                }
+            };
+
+            let result = await saveWithPayload(payload);
+
+            if (result.error && String(result.error.message || '').includes('category')) {
+                const fallbackPayload = { ...payload };
+                delete fallbackPayload.category;
+                result = await saveWithPayload(fallbackPayload);
+            }
+
+            if (result.error && String(result.error.message || '').includes('builder_type')) {
+                const fallbackPayload = { ...payload };
+                delete fallbackPayload.builder_type;
+                result = await saveWithPayload(fallbackPayload);
+            }
+
+            if (!result.error && result.data) {
+                // Also cache locally for offline access
+                try {
+                    localStorage.setItem(`mavi_app_${result.data.id}`, JSON.stringify(result.data));
+                } catch (e) {}
+                return result.data;
+            }
         }
+    } catch (netErr) {
+        console.warn('[supabaseFrontlineDB] Remote saveFrontlineApp failed, using local storage fallback:', netErr);
+    }
+
+    // Offline / LocalStorage fallback
+    const offlineApp = {
+        ...payload,
+        id: generatedId,
+        created_at: app.created_at || new Date().toISOString()
     };
-
-    let result = await saveWithPayload(payload);
-
-    if (result.error && String(result.error.message || '').includes('category')) {
-        const fallbackPayload = { ...payload };
-        delete fallbackPayload.category;
-        result = await saveWithPayload(fallbackPayload);
+    try {
+        localStorage.setItem(`mavi_app_${generatedId}`, JSON.stringify(offlineApp));
+        const storedList = JSON.parse(localStorage.getItem('mavi_ui_engine_apps') || '[]');
+        const existingIdx = storedList.findIndex(a => a.id === generatedId);
+        if (existingIdx >= 0) {
+            storedList[existingIdx] = { id: generatedId, name: offlineApp.name, updated_at: offlineApp.updated_at };
+        } else {
+            storedList.push({ id: generatedId, name: offlineApp.name, updated_at: offlineApp.updated_at });
+        }
+        localStorage.setItem('mavi_ui_engine_apps', JSON.stringify(storedList));
+    } catch (e) {
+        console.warn('LocalStorage save failed:', e);
     }
-
-    if (result.error && String(result.error.message || '').includes('builder_type')) {
-        const fallbackPayload = { ...payload };
-        delete fallbackPayload.builder_type;
-        result = await saveWithPayload(fallbackPayload);
-    }
-
-    if (result.error) throw result.error;
-    return result.data;
+    return offlineApp;
 }
 
 /**
