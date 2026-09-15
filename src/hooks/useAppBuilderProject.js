@@ -603,7 +603,7 @@ export default function useAppBuilderProject({ state, utils }) {
         setCurrentStepId(appSteps[0]?.id || 'screen_1');    
         setSelectedCompIds([]);    
         setViewMode('DESIGN');    
-        setIsCanvasLocked(config.isLocked !== false);    
+        setIsCanvasLocked(Boolean(config?.isLocked));    
     };    
 
     return { 

@@ -2,7 +2,7 @@ import React from 'react';
 import {
     Award, Sparkles, Activity, Search, ClipboardList, Package, Cpu,
     Boxes, Wrench, ArrowRight, FileText, Truck, PlayCircle, HeartPulse,
-    Settings, Layout, Zap, Sliders, BarChart3, ShieldCheck, ShieldAlert, Tag, Smartphone, FolderArchive
+    Settings, Layout, Zap, Sliders, BarChart3, ShieldCheck, ShieldAlert, Tag, Smartphone, FolderArchive, GraduationCap, Ruler
 } from 'lucide-react';
 
 export const categories = [
@@ -1567,5 +1567,318 @@ export const rawTemplates = [
                 { name: '3. Copy & Thermal Print', description: 'Copy text lot number atau cetak label barcode thermal.' }
             ]
         }
+    },
+    // ═══════════════════════════════════════════════════════════════
+    // GLUESTACK MOBILE TEMPLATES
+    // ═══════════════════════════════════════════════════════════════
+    {
+        id: 'gluestack-login',
+        name: 'GlueStack — Mobile Login',
+        category: 'Mobile',
+        description: 'Template login mobile untuk operator shop floor dengan NIK & PIN. Siap pakai di tablet/smartphone pabrik.',
+        longDescription: 'Layar login operator mobile dengan input NIK dan PIN keamanan stasiun, ingat stasiun terakhir, dan tampilan welcome screen setelah login. Didesain untuk penggunaan di shopfloor menggunakan GlueStack Mobile Builder.',
+        icon: <Smartphone size={28} color="#7c3aed" />,
+        bg: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
+        accent: '#7c3aed',
+        rating: 5.0,
+        installs: 'New',
+        builderType: 'gluestack',
+        targetRoute: '/app-player',
+        features: [
+            '📱 Optimized untuk Mobile / Tablet',
+            'Input NIK & PIN Operator dengan validasi',
+            'Checkbox Ingat Stasiun Terakhir',
+            'Welcome Screen setelah login berhasil',
+            'Integrasi variabel OPERATOR_NIK & STATION_ID',
+            'Built with GlueStack UI Engine'
+        ],
+        guide: {
+            operation: '1. Masukkan NIK Operator dan PIN Keamanan Stasiun.\n2. Centang "Ingat Stasiun Ini" untuk auto-fill berikutnya.\n3. Tekan "Masuk ke Stasiun Kerja" untuk login.\n4. Lihat welcome screen dengan ringkasan tugas hari ini.',
+            widgets: ['NIK Input', 'PIN Input', 'Remember Checkbox', 'Login Button', 'Welcome Card'],
+            components: ['Login Screen', 'Welcome Screen'],
+            tables: [],
+            triggers: [],
+            mechanism: 'GlueStack App — rendered via UI Engine Studio & GlueStack App Player.',
+            steps: [
+                { name: 'Operator Login', description: 'Input NIK dan PIN keamanan stasiun.' },
+                { name: 'Selamat Datang', description: 'Ringkasan tugas dan start shift.' }
+            ]
+        }
+    },
+    {
+        id: 'gluestack-dashboard',
+        name: 'GlueStack — Production Dashboard',
+        category: 'Mobile',
+        description: 'Dashboard produksi mobile real-time dengan KPI Shift, OEE, Gauge suhu & tekanan, chart output per jam, dan quick action buttons.',
+        longDescription: 'Dashboard produksi mobile dengan 4 KPI cards (target, aktual, defect rate, cycle time), gauge sensor suhu & tekanan, chart output per jam, dan quick actions untuk scan QR, checksheet QC, report andon, dan log downtime. 3 screen lengkap.',
+        icon: <BarChart3 size={28} color="#7c3aed" />,
+        bg: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
+        accent: '#7c3aed',
+        rating: 5.0,
+        installs: 'New',
+        builderType: 'gluestack',
+        targetRoute: '/app-player',
+        features: [
+            '📱 3 Screen Mobile Dashboard',
+            '4 KPI Cards: Target, Aktual, Defect Rate, Cycle Time',
+            'Industrial Gauge: Suhu Spindle & Tekanan Oli',
+            'Bar Chart Output per Jam',
+            'Quick Actions: Scan QR, QC, Andon, Downtime',
+            'Built with GlueStack UI Engine'
+        ],
+        guide: {
+            operation: '1. Lihat ringkasan KPI shift di dashboard utama.\n2. Monitor gauge suhu spindle dan tekanan oli real-time.\n3. Gunakan quick action untuk scan QR, checksheet, andon, atau log downtime.\n4. Navigasi ke analytics untuk chart output per jam.',
+            widgets: ['KPI Cards', 'Gauge Widgets', 'Progress Bar', 'Quick Action Buttons', 'Bar Chart'],
+            components: ['Production Dashboard', 'Quick Actions', 'Analytics'],
+            tables: [],
+            triggers: [],
+            mechanism: 'GlueStack App — rendered via UI Engine Studio & GlueStack App Player.',
+            steps: [
+                { name: 'Production Dashboard', description: 'KPI utama, gauge sensor, dan progress shift.' },
+                { name: 'Quick Actions', description: 'Tombol aksi cepat untuk operasional.' },
+                { name: 'Analytics', description: 'Chart output per jam dan progress mesin.' }
+            ]
+        }
+    },
+    {
+        id: 'gluestack-qc-inspection',
+        name: 'GlueStack — QC Inspection Form',
+        category: 'Mobile',
+        description: 'Formulir inspeksi QC mobile 4 screen: identifikasi WO/Part, pemeriksaan visual, pengukuran dimensi dengan tolerance validation, dan summary dengan tanda tangan digital.',
+        longDescription: 'Aplikasi inspeksi QC lengkap untuk mobile dengan 4 screen: identifikasi work order & part, pemeriksaan visual checklist, input pengukuran dimensi (bore, rod, stroke, pressure) dengan tolerance boundaries, dan summary hasil dengan tanda tangan digital inspector.',
+        icon: <ClipboardList size={28} color="#7c3aed" />,
+        bg: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
+        accent: '#7c3aed',
+        rating: 5.0,
+        installs: 'New',
+        builderType: 'gluestack',
+        targetRoute: '/app-player',
+        features: [
+            '📱 4 Screen QC Inspection Flow',
+            'Identifikasi WO, Part Number, Serial Number',
+            'Visual Checklist: surface, burr, coating, crack, marking',
+            'NumberInput pengukuran dengan tolerance validation',
+            'Tanda Tangan Digital Inspector',
+            'Simpan hasil ke Database Table'
+        ],
+        guide: {
+            operation: '1. Input Work Order, Part Number, Serial Number.\n2. Lakukan pemeriksaan visual 5 item.\n3. Input pengukuran dimensi (Bore, Rod, Stroke, Pressure).\n4. Review summary dan tanda tangan.\n5. Kirim hasil inspeksi.',
+            widgets: ['Input Forms', 'Checkboxes', 'NumberInput', 'Signature Pad', 'Submit Button'],
+            components: ['WO Selection', 'Visual Check', 'Measurement', 'Summary & Signature'],
+            tables: [
+                { name: 'GS_QC_Inspections', description: 'Menyimpan hasil inspeksi QC lengkap dari mobile.' }
+            ],
+            triggers: [
+                { event: 'ON_CLICK', function: 'Menyimpan record inspeksi ke tabel database.' }
+            ],
+            mechanism: 'GlueStack App — rendered via UI Engine Studio & GlueStack App Player.',
+            steps: [
+                { name: 'Pilih Work Order', description: 'Input identifikasi WO, Part, Serial.' },
+                { name: 'Pemeriksaan Visual', description: 'Checklist 5 item visual.' },
+                { name: 'Pengukuran Dimensi', description: 'Input pengukuran dengan tolerance.' },
+                { name: 'Summary & Tanda Tangan', description: 'Review dan kirim.' }
+            ]
+        }
+    },
+    {
+        id: 'gluestack-barcode-scanner',
+        name: 'GlueStack — Barcode & QR Scanner',
+        category: 'Mobile',
+        description: 'Aplikasi scan barcode/QR mobile untuk verifikasi lot, material tracking, dan penerimaan inventory. Dengan riwayat scan dan konfirmasi.',
+        longDescription: 'Scanner barcode/QR code mobile untuk verifikasi lot produksi, material tracking, dan inventory receiving. Tampilkan riwayat scan terakhir, detail lot setelah scan, input lokasi penyimpanan, dan konfirmasi penerimaan.',
+        icon: <Search size={28} color="#7c3aed" />,
+        bg: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
+        accent: '#7c3aed',
+        rating: 5.0,
+        installs: 'New',
+        builderType: 'gluestack',
+        targetRoute: '/app-player',
+        features: [
+            '📱 Camera Barcode/QR Scanner',
+            'Manual barcode input fallback',
+            'Riwayat scan terakhir dengan status',
+            'Detail lot verification card',
+            'Input lokasi penyimpanan & qty',
+            'Konfirmasi penerimaan & simpan ke DB'
+        ],
+        guide: {
+            operation: '1. Buka kamera scanner atau input barcode manual.\n2. Lihat riwayat scan terakhir.\n3. Verifikasi detail lot: part, supplier, qty.\n4. Pilih lokasi penyimpanan dan input qty diterima.\n5. Konfirmasi dan simpan.',
+            widgets: ['Scanner Input', 'History Cards', 'Location Select', 'Qty Input', 'Confirm Button'],
+            components: ['Scanner Screen', 'Verification Screen', 'Completion Screen'],
+            tables: [
+                { name: 'GS_Scan_Logs', description: 'Log hasil scan barcode/QR dari mobile.' }
+            ],
+            triggers: [
+                { event: 'ON_CLICK', function: 'Menyimpan log scan ke database.' }
+            ],
+            mechanism: 'GlueStack App — rendered via UI Engine Studio & GlueStack App Player.',
+            steps: [
+                { name: 'Scan Barcode / QR', description: 'Scan via kamera atau input manual.' },
+                { name: 'Hasil Verifikasi', description: 'Detail lot dan konfirmasi penerimaan.' },
+                { name: 'Selesai', description: 'Lot tersimpan, scan berikutnya.' }
+            ]
+        }
+    },
+    {
+        id: 'gluestack-tpm-checklist',
+        name: 'GlueStack — TPM Daily Checklist',
+        category: 'Mobile',
+        description: 'Checklist harian TPM (Total Productive Maintenance) untuk verifikasi mesin: safety, pelumasan, dan operasional. 15 item check dalam 4 screen.',
+        longDescription: 'Checklist TPM harian mobile untuk operator mesin dengan 15 item pengecekan terbagi dalam 3 kategori: Safety & Kebersihan (5 item), Pelumasan & Fluida (5 item + input level oli), dan Operasional Mesin (5 item + catatan temuan). Progress bar terus diupdate.',
+        icon: <Wrench size={28} color="#7c3aed" />,
+        bg: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
+        accent: '#7c3aed',
+        rating: 5.0,
+        installs: 'New',
+        builderType: 'gluestack',
+        targetRoute: '/app-player',
+        features: [
+            '📱 4 Screen TPM Checklist',
+            '15 Item Pengecekan Mesin Harian',
+            'Kategori: Safety, Pelumasan, Operasional',
+            'Progress Bar Realtime',
+            'Input Level Oli (%) & Catatan',
+            'Simpan hasil TPM ke Database'
+        ],
+        guide: {
+            operation: '1. Pilih mesin/stasiun dan isi nama operator.\n2. Cek 5 item Safety & Kebersihan.\n3. Cek 5 item Pelumasan & Fluida + input level oli.\n4. Cek 5 item Operasional Mesin.\n5. Kirim hasil TPM check.',
+            widgets: ['Machine Select', 'Checkboxes', 'Progress Bar', 'Oil Level Input', 'Submit Button'],
+            components: ['Start Screen', 'Safety Check', 'Fluid Check', 'Operational Check'],
+            tables: [
+                { name: 'GS_TPM_Checks', description: 'Menyimpan hasil TPM daily check dari mobile.' }
+            ],
+            triggers: [
+                { event: 'ON_CLICK', function: 'Menyimpan record TPM ke tabel database.' }
+            ],
+            mechanism: 'GlueStack App — rendered via UI Engine Studio & GlueStack App Player.',
+            steps: [
+                { name: 'Mulai TPM Check', description: 'Pilih mesin dan operator.' },
+                { name: 'Safety & Kebersihan', description: '5 item pengecekan safety.' },
+                { name: 'Pelumasan & Fluida', description: '5 item + input level oli.' },
+                { name: 'Operasional Mesin', description: '5 item + catatan + kirim.' }
+            ]
+        }
+    },
+    {
+        id: 'gluestack-andon-alert',
+        name: 'GlueStack — Andon Alert Mobile',
+        category: 'Mobile',
+        description: 'Aplikasi Andon mobile untuk melaporkan masalah shopfloor: Quality, Machine Down, Material, Safety. Dengan form detail, urgensi, dan riwayat alert.',
+        longDescription: 'Sistem Andon alert mobile untuk eskalasi masalah shopfloor secara real-time. 4 tombol kategori (Quality, Machine Down, Material, Safety), form laporan dengan pilihan urgensi, switch line stop, dan riwayat alert hari ini. Notifikasi otomatis ke supervisor.',
+        icon: <ShieldAlert size={28} color="#7c3aed" />,
+        bg: 'linear-gradient(135deg, #fef2f2 0%, #fecaca 100%)',
+        accent: '#dc2626',
+        rating: 5.0,
+        installs: 'New',
+        builderType: 'gluestack',
+        targetRoute: '/app-player',
+        features: [
+            '📱 Andon Alert 1-Tap Escalation',
+            '4 Kategori: Quality, Machine, Material, Safety',
+            'Form detail dengan urgensi & line stop toggle',
+            'Timer waktu tunggu respons',
+            'Riwayat alert hari ini',
+            'Notifikasi otomatis ke supervisor & maintenance'
+        ],
+        guide: {
+            operation: '1. Pilih kategori alert dari dashboard.\n2. Isi detail: stasiun, urgensi, deskripsi masalah.\n3. Toggle line stop jika produksi dihentikan.\n4. Kirim alert dan pantau waktu respons.',
+            widgets: ['Category Buttons', 'Alert Form', 'Severity Select', 'Line Stop Switch', 'Timer'],
+            components: ['Andon Dashboard', 'Form Laporan', 'Alert Sent'],
+            tables: [
+                { name: 'GS_Andon_Events', description: 'Menyimpan log Andon alert dari mobile.' }
+            ],
+            triggers: [
+                { event: 'ON_CLICK', function: 'Menyimpan record andon event ke database.' }
+            ],
+            mechanism: 'GlueStack App — rendered via UI Engine Studio & GlueStack App Player.',
+            steps: [
+                { name: 'Andon Dashboard', description: 'Pilih kategori alert dan lihat riwayat.' },
+                { name: 'Lapor Andon', description: 'Isi detail masalah dan kirim.' },
+                { name: 'Alert Terkirim', description: 'Konfirmasi dan timer respons.' }
+            ]
+        }
+    },
+    {
+        id: 'gluestack-elearning',
+        name: 'GlueStack — E-Learning & Training Hub',
+        category: 'Mobile',
+        description: 'Aplikasi mobile e-learning operator pabrik terinspirasi Applighter: discovery modul kursus, video lesson player, silabus kurikulum, progress streak & analitik jam belajar, serta sertifikat digital.',
+        longDescription: 'Platform pembelajaran dan microlearning digital untuk operator industri manufaktur. Memiliki 7 layar mobile terpadu: Login NIK, Discover Kurikulum Terkategori (Lean, QC, K3, PLC), Silabus Modul & Video Lesson Teaser, Player Materi Aktif dengan Tanda Tangan Komitmen, Ruang Belajar (My Courses), Analitik Belajar Mingguan dengan Streak Api 🔥 & Lencana Prestasi, serta Profil Operator dengan Sertifikat Digital Resmi.',
+        icon: <GraduationCap size={28} color="#0284c7" />,
+        bg: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+        accent: '#0284c7',
+        rating: 5.0,
+        installs: 'New',
+        builderType: 'gluestack',
+        targetRoute: '/app-player',
+        features: [
+            '📱 7 Screen Mobile Learning Experience (Applighter Design)',
+            'Video Lesson Player dengan SOP Praktis',
+            'Discovery Kurikulum & Kategori Kursus',
+            'Progress Tracking & Daily Learning Streak 🔥',
+            'Interactive Quiz & Tanda Tangan Komitmen Digital',
+            'Sertifikat Kompetensi Operator (PDF Viewer)',
+            'Auto-sync ke Database Progres & Skill Matrix'
+        ],
+        guide: {
+            operation: '1. Masuk menggunakan NIK dan sandi operator.\n2. Temukan kursus unggulan atau telusuri kategori Lean, QC, K3, atau Otomasi.\n3. Buka detail kursus untuk melihat silabus lengkap dan teaser instruktur.\n4. Putar video pembelajaran, pelajari catatan poin kunci, dan bubuhkan tanda tangan pemahaman.\n5. Pantau streak belajar harian dan klaim lencana pencapaian kompetensi.',
+            widgets: ['Video Player', 'Tabs', 'Accordions', 'Progress Bars', 'Bar Chart', 'Signature Pad', 'PDF Viewer'],
+            components: ['Sign In', 'Course Discovery', 'Curriculum Details', 'Video Lesson', 'My Courses', 'Analytics & Streaks', 'Profile & Certificates'],
+            tables: [
+                { name: 'GS_Learning_Progress', description: 'Menyimpan riwayat belajar, jam, skor ujian, dan status sertifikat operator.' }
+            ],
+            triggers: [
+                { event: 'ON_CLICK', function: 'Menyimpan progress modul dan jam belajar ke database.' }
+            ],
+            mechanism: 'GlueStack Mobile App — rendered via UI Engine Studio & GluestackAppPlayer.',
+            steps: [
+                { name: '1. Sign In & Profil', description: 'Otentikasi operator dengan NIK.' },
+                { name: '2. Discover Modul', description: 'Eksplorasi kursus dan materi pelatihan shopfloor.' },
+                { name: '3. Video Player & Interaksi', description: 'Menyimak materi dan validasi pemahaman.' },
+                { name: '4. Pantau Streak & Sertifikat', description: 'Lihat analitik jam belajar dan unduh sertifikat PDF.' }
+            ]
+        }
+    },
+    {
+        id: 'gluestack-drawing-checksheet',
+        name: 'GlueStack — Digital Drawing & Thread Check Sheet',
+        category: 'Mobile',
+        description: 'Lembar periksa kualitas presisi berbasis blueprint 2D CAD dengan balon inspeksi interaktif (① s/d ⑤), integrasi alat ukur dimensi (Caliper & Micrometer), dan alat ukur ulir (Thread Gauge Go/No-Go).',
+        longDescription: 'Aplikasi checksheet mobile mutakhir untuk inspektor QC dan operator permesinan CNC. Menggabungkan gambar teknik CAD dengan balon inspeksi digital yang dapat diklik langsung di tablet, pengujian kepatuhan ulir metrik/whitworth menggunakan Thread Ring/Plug Gauge (Go/No-Go), pengukuran dimensi presisi dengan toleransi ISO, uji momen kekencangan torsi baut, dan pengesahan tanda tangan elektronik inspector.',
+        icon: <Ruler size={28} color="#059669" />,
+        bg: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
+        accent: '#059669',
+        rating: 5.0,
+        installs: 'New',
+        builderType: 'gluestack',
+        targetRoute: '/app-player',
+        features: [
+            '📐 Interactive 2D Blueprint with Clickable Balloons (①-⑤)',
+            'Balon Berubah Warna Real-Time (🟢 PASS / 🔴 FAIL / 🟡 ACTIVE)',
+            '🔩 Alat Ukur Ulir: Thread Ring/Plug Gauge (Uji GO / NO-GO)',
+            'Rekomendasi Alat Ukur Otomatis per Karakteristik Dimensi',
+            'Digital Micrometer, Caliper, Dial Gauge & Torque Wrench',
+            'Tabel Rekapitulasi Deviasi Dimensi vs Toleransi Batas',
+            'E-Signature Inspector & Sinkronisasi ke Database Inspeksi'
+        ],
+        guide: {
+            operation: '1. Masukkan nomor Work Order (WO) dan pilih stasiun permesinan.\n2. Buka Blueprint CAD — ketuk balon nomor untuk memilih parameter yang akan diukur.\n3. Balon ulir (③): lakukan uji Thread Gauge Go (harus masuk) dan No-Go (harus tertahan).\n4. Balon dimensi: ukur dengan Caliper/Micrometer dan masukkan nilai ukuran aktual.\n5. Periksa status seluruh balon berubah hijau (PASS), bubuhkan tanda tangan QC, dan simpan.',
+            widgets: ['Balloon Drawing Widget', 'Thread Metrology', 'Torque Wrench', 'Tolerance Table', 'Digital Signature'],
+            components: ['Work Order Ident', 'Blueprint Balloons', 'Thread & Torque Test', 'Quality Summary & Approval'],
+            tables: [
+                { name: 'GS_Drawing_Inspections', description: 'Menyimpan log checksheet blueprint, status balon, uji ulir, dan tanda tangan inspector.' }
+            ],
+            triggers: [
+                { event: 'ON_CLICK', function: 'Menyimpan data checksheet lengkap ke tabel GS_Drawing_Inspections.' }
+            ],
+            mechanism: 'GlueStack Mobile App — rendered via UI Engine Studio & GluestackAppPlayer.',
+            steps: [
+                { name: '1. Identifikasi Part', description: 'Pilih WO dan stasiun mesin.' },
+                { name: '2. Balloon Blueprint', description: 'Inspeksi balon ① s/d ⑤ pada gambar teknik.' },
+                { name: '3. Uji Alat Ulir & Torsi', description: 'Verifikasi Go/No-Go thread ring gauge dan torsi baut.' },
+                { name: '4. Summary & E-Sign', description: 'Tinjau tabel toleransi dan simpan pengesahan QC.' }
+            ]
+        }
     }
 ];
+

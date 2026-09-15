@@ -125,7 +125,7 @@ export const useAppBuilderState = () => {
     const mediaStreamRefs = useRef({});
 
     const [contextMenu, setContextMenu] = useState({ isOpen: false, x: 0, y: 0, compId: null });
-    const [isCanvasLocked, setIsCanvasLocked] = useState(true);
+    const [isCanvasLocked, setIsCanvasLocked] = useState(false);
     const [dragState, setDragState] = useState(null); 
     const [resizeState, setResizeState] = useState(null); 
     const dragRafRef = useRef(null);

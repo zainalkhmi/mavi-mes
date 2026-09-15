@@ -27,12 +27,26 @@ const ALLOWED_COMMAND_TYPES = new Set([
     // Screen/Step management
     'CREATE_STEP',
     'ADD_STEP',
+    'ADD_SCREEN',
+    'CREATE_SCREEN',
+    'NEW_SCREEN',
+    'ADD_PAGE',
+    'CREATE_PAGE',
+    'NEW_PAGE',
     'UPDATE_STEP',
+    'UPDATE_SCREEN',
+    'UPDATE_PAGE',
     'DELETE_STEP',
+    'DELETE_SCREEN',
+    'DELETE_PAGE',
     'GO_TO_STEP',
+    'GO_TO_SCREEN',
 
     // App-level
     'SET_APP_NAME',
+    'GENERATE_BASE_LAYOUT',
+    'BUILD_BASE_LAYOUT',
+    'ADD_BASE_LAYOUT',
 
     // Logic/Function management
     'CREATE_FUNCTION',
@@ -89,15 +103,16 @@ const REQUIRED_FIELDS_BY_TYPE = {
     UPDATE_TABLE: ['tableId'],
     DELETE_TABLE: ['tableId'],
 
-    // Step/Screen
-    CREATE_STEP: ['payload.title'],
-    ADD_STEP: ['payload.title'],
+    // Step/Screen (Title is safely auto-defaulted in normalizePayloadShape)
+    CREATE_STEP: [],
+    ADD_STEP: [],
     UPDATE_STEP: [],            // accepts stepId OR payload.stepTitle
     DELETE_STEP: [],            // accepts stepId OR payload.stepTitle
     GO_TO_STEP: [],
 
     // App
     SET_APP_NAME: [],
+    GENERATE_BASE_LAYOUT: [],
 
     // Function/Logic
     CREATE_FUNCTION: ['payload.name'],
@@ -142,7 +157,17 @@ const buildContextIndex = (context = {}) => {
 
 const normalizeCommandType = (type) => {
     if (!type) return '';
-    return String(type).trim().toUpperCase().replace(/\s+/g, '_').replace(/-/g, '_');
+    const t = String(type).trim().toUpperCase().replace(/\s+/g, '_').replace(/-/g, '_');
+    if (t === 'CREATE_WIDGET' || t === 'NEW_WIDGET' || t === 'INSERT_WIDGET' || t === 'ADD_COMPONENT' || t === 'CREATE_COMPONENT') return 'ADD_WIDGET';
+    if (t === 'CREATE_STEP' || t === 'NEW_STEP' || t === 'ADD_SCREEN' || t === 'CREATE_SCREEN' || t === 'NEW_SCREEN' || t === 'ADD_PAGE' || t === 'CREATE_PAGE' || t === 'NEW_PAGE') return 'ADD_STEP';
+    if (t === 'UPDATE_SCREEN' || t === 'RENAME_SCREEN' || t === 'UPDATE_PAGE') return 'UPDATE_STEP';
+    if (t === 'DELETE_SCREEN' || t === 'REMOVE_SCREEN' || t === 'DELETE_PAGE') return 'DELETE_STEP';
+    if (t === 'NAVIGATE_STEP' || t === 'SWITCH_STEP' || t === 'CHANGE_STEP' || t === 'GOTO_STEP' || t === 'NAVIGATE' || t === 'GO_TO_SCREEN' || t === 'GOTO_SCREEN' || t === 'NAVIGATE_SCREEN' || t === 'SWITCH_SCREEN' || t === 'CHANGE_SCREEN' || t === 'GO_TO_PAGE' || t === 'GOTO_PAGE' || t === 'NAVIGATE_PAGE' || t === 'SWITCH_PAGE') return 'GO_TO_STEP';
+    if (t === 'BUILD_BASE_LAYOUT' || t === 'ADD_BASE_LAYOUT' || t === 'CREATE_BASE_LAYOUT') return 'GENERATE_BASE_LAYOUT';
+    if (t === 'NEW_TABLE') return 'CREATE_TABLE';
+    if (t === 'NEW_VARIABLE') return 'CREATE_VARIABLE';
+    if (t === 'NEW_TRIGGER') return 'CREATE_TRIGGER';
+    return t;
 };
 
 const normalizePayloadShape = (cmd) => {
@@ -152,13 +177,33 @@ const normalizePayloadShape = (cmd) => {
     if (!next.payload && next.detail && typeof next.detail === 'object') payload = { ...next.detail };
     if (!next.payload && next.data && typeof next.data === 'object') payload = { ...next.data };
 
+    // Support string payload e.g. { type: 'ADD_STEP', payload: 'Screen 2' } or { type: 'GO_TO_STEP', payload: 'Screen 2' }
+    if (typeof next.payload === 'string' && next.payload.trim()) {
+        const strVal = next.payload.trim();
+        payload.title = payload.title || strVal;
+        payload.stepTitle = payload.stepTitle || strVal;
+        payload.screenTitle = payload.screenTitle || strVal;
+        payload.name = payload.name || strVal;
+        payload.stepId = payload.stepId || strVal;
+    }
+
     // Pull root-level fields if payload is empty or missing key properties
-    const rootKeys = ['event', 'on', 'trigger', 'widgetId', 'widgetName', 'target', 'componentId', 'actions', 'clauses', 'conditions', 'elseActions', 'name', 'stepId', 'stepTitle', 'tableId', 'tableName', 'variableName', 'variable', 'defaultValue', 'columns', 'fields', 'markdown', 'content', 'code', 'logic', 'description'];
+    const rootKeys = ['event', 'on', 'trigger', 'widgetId', 'widgetName', 'target', 'componentId', 'actions', 'clauses', 'conditions', 'elseActions', 'name', 'title', 'stepId', 'stepTitle', 'screenTitle', 'step', 'screen', 'page', 'stepName', 'targetStep', 'tableId', 'tableName', 'variableName', 'variable', 'defaultValue', 'columns', 'fields', 'markdown', 'content', 'code', 'logic', 'description'];
     rootKeys.forEach(k => {
         if (next[k] !== undefined && payload[k] === undefined) {
             payload[k] = next[k];
         }
     });
+
+    // Step / Screen title normalization
+    if (next.type === 'ADD_STEP' || next.type === 'CREATE_STEP' || next.type === 'ADD_SCREEN' || next.type === 'CREATE_SCREEN') {
+        payload.title = payload.title || payload.stepTitle || payload.screenTitle || payload.name || payload.screen || payload.page || payload.stepName || payload.label || next.title || next.stepTitle || next.name || 'New Screen';
+    }
+
+    // Widget type normalization
+    if (next.type === 'ADD_WIDGET' || next.type === 'CREATE_WIDGET') {
+        payload.type = payload.type || payload.widgetType || payload.componentType || next.type || next.widgetType || next.componentType || 'BUTTON';
+    }
 
     // Trigger normalization
     if (next.type === 'CREATE_TRIGGER' || next.type === 'TRIGGER' || payload.event || payload.on || payload.actions || payload.clauses) {

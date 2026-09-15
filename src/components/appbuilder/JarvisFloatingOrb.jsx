@@ -15,6 +15,7 @@ import {
 export default function JarvisFloatingOrb({
   isRunning = false,
   isSpeaking = false,
+  isCoding = false,
   isCopilotOpen = false,
   cursorPos = null,
   currentActionLabel = '',
@@ -28,6 +29,75 @@ export default function JarvisFloatingOrb({
   const [transcript, setTranscript] = useState('');
   const [textInput, setTextInput] = useState('');
   const recognitionRef = useRef(null);
+  const [canvasCenter, setCanvasCenter] = useState({ x: 400, y: 300 });
+
+  // Calculate canvas center coordinates
+  useEffect(() => {
+    const updateCanvasCenter = () => {
+      const canvasContainer = document.querySelector('.konvajs-content') ||
+                              document.querySelector('#app-builder-canvas') ||
+                              document.querySelector('[data-canvas-container="true"]') ||
+                              document.querySelector('.canvas-workspace');
+      if (canvasContainer) {
+        const rect = canvasContainer.getBoundingClientRect();
+        setCanvasCenter({
+          x: Math.round(rect.left + rect.width / 2 - 37),
+          y: Math.round(rect.top + rect.height / 2 - 37)
+        });
+      } else {
+        setCanvasCenter({
+          x: Math.round(window.innerWidth / 2 - 37),
+          y: Math.round(window.innerHeight / 2 - 37)
+        });
+      }
+    };
+    updateCanvasCenter();
+    window.addEventListener('resize', updateCanvasCenter);
+    return () => window.removeEventListener('resize', updateCanvasCenter);
+  }, [isCoding]);
+
+  // Voice narration: "Saya sedang coding, tunggu sampai selesai."
+  useEffect(() => {
+    if (isCoding) {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        try {
+          if (!window._jarvisUtterancePool) window._jarvisUtterancePool = new Set();
+          window.speechSynthesis.cancel();
+          if (window.speechSynthesis.paused) {
+            window.speechSynthesis.resume();
+          }
+          const utterance = new SpeechSynthesisUtterance('Saya sedang coding, tunggu sampai selesai.');
+          utterance.lang = 'id-ID';
+          utterance.rate = 1.05;
+          utterance.pitch = 1.0;
+          const voices = window.speechSynthesis.getVoices();
+          const idVoice = voices.find(v => {
+            const lang = (v.lang || '').toLowerCase();
+            const name = (v.name || '').toLowerCase();
+            return lang.includes('id') || lang.includes('ind') || name.includes('indonesia');
+          });
+          if (idVoice) utterance.voice = idVoice;
+
+          window._jarvisUtterancePool.add(utterance);
+          utterance.onend = () => {
+            window._jarvisUtterancePool.delete(utterance);
+          };
+          utterance.onerror = () => {
+            window._jarvisUtterancePool.delete(utterance);
+          };
+
+          setTimeout(() => {
+            try {
+              if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+              window.speechSynthesis.speak(utterance);
+            } catch (err) {}
+          }, 30);
+        } catch (e) {
+          console.warn('[Jarvis] Speech error:', e);
+        }
+      }
+    }
+  }, [isCoding]);
 
   // Quick Action templates
   const quickActions = [
@@ -148,57 +218,131 @@ export default function JarvisFloatingOrb({
 
   const hasTarget = isRunning && cursorPos && typeof cursorPos.x === 'number' && typeof cursorPos.y === 'number';
 
-  const containerStyle = hasTarget
-    ? {
-        position: 'fixed',
-        left: `${Math.min(window.innerWidth - 90, Math.max(16, cursorPos.x + 24))}px`,
-        top: `${Math.min(window.innerHeight - 90, Math.max(70, cursorPos.y - 45))}px`,
-        zIndex: 10002,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: '6px',
-        transition: 'left 0.45s cubic-bezier(0.25, 1, 0.5, 1), top 0.45s cubic-bezier(0.25, 1, 0.5, 1)',
-        userSelect: 'none',
-        pointerEvents: 'auto'
-      }
-    : {
-        position: 'fixed',
-        bottom: '24px',
-        left: '24px',
-        zIndex: 10002,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: '8px',
-        transition: 'left 0.45s cubic-bezier(0.25, 1, 0.5, 1), bottom 0.45s cubic-bezier(0.25, 1, 0.5, 1)',
-        userSelect: 'none',
-        pointerEvents: 'auto'
-      };
+  let containerStyle;
+  if (isCoding) {
+    // Center of canvas while coding
+    containerStyle = {
+      position: 'fixed',
+      left: `${canvasCenter.x}px`,
+      top: `${canvasCenter.y}px`,
+      zIndex: 10002,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: '8px',
+      transition: 'left 0.6s cubic-bezier(0.25, 1, 0.5, 1), top 0.6s cubic-bezier(0.25, 1, 0.5, 1)',
+      userSelect: 'none',
+      pointerEvents: 'auto'
+    };
+  } else if (hasTarget) {
+    // Following component on canvas when Ghost Pilot RPA is assembling
+    containerStyle = {
+      position: 'fixed',
+      left: `${Math.min(window.innerWidth - 90, Math.max(16, cursorPos.x + 24))}px`,
+      top: `${Math.min(window.innerHeight - 90, Math.max(70, cursorPos.y - 45))}px`,
+      zIndex: 10002,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: '6px',
+      transition: 'left 0.45s cubic-bezier(0.25, 1, 0.5, 1), top 0.45s cubic-bezier(0.25, 1, 0.5, 1)',
+      userSelect: 'none',
+      pointerEvents: 'auto'
+    };
+  } else {
+    // Docked at bottom-left in idle state
+    containerStyle = {
+      position: 'fixed',
+      bottom: '24px',
+      left: '24px',
+      zIndex: 10002,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: '8px',
+      transition: 'left 0.45s cubic-bezier(0.25, 1, 0.5, 1), bottom 0.45s cubic-bezier(0.25, 1, 0.5, 1)',
+      userSelect: 'none',
+      pointerEvents: 'auto'
+    };
+  }
 
   return (
     <>
-      {/* Floating J.A.R.V.I.S. Arc Reactor Orb Button (Positioned on Left, follows component on Canvas when building) */}
+      {/* Floating J.A.R.V.I.S. Arc Reactor Orb Button (Left side, Canvas Center when coding, follows component on Canvas when building) */}
       <div style={containerStyle}>
-        {isRunning && currentActionLabel && (
+        {isCoding && (
           <div
             style={{
-              padding: '4px 10px',
-              backgroundColor: 'rgba(2, 12, 20, 0.9)',
-              border: '1px solid #00e5ff',
-              borderRadius: '12px',
+              padding: '6px 14px',
+              backgroundColor: 'rgba(2, 12, 20, 0.95)',
+              border: '1.5px solid #00e5ff',
+              borderRadius: '16px',
               color: '#00e5ff',
-              fontSize: '10px',
+              fontSize: '11px',
               fontFamily: '"Orbitron", "Inter", sans-serif',
-              fontWeight: 600,
+              fontWeight: 700,
               letterSpacing: '0.5px',
               whiteSpace: 'nowrap',
-              boxShadow: '0 0 12px rgba(0, 229, 255, 0.4)',
-              animation: 'pulse 2s infinite',
-              zIndex: 10003
+              boxShadow: '0 0 24px rgba(0, 229, 255, 0.6), 0 4px 16px rgba(0,0,0,0.7)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              zIndex: 10003,
+              animation: 'pulse 1.5s infinite',
+              backdropFilter: 'blur(8px)'
             }}
           >
-            {currentActionLabel}
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#00e5ff', boxShadow: '0 0 10px #00e5ff' }} />
+            <span>Saya sedang coding, tunggu sampai selesai...</span>
+          </div>
+        )}
+
+        {isRunning && currentActionLabel && !isCoding && (
+          <div
+            style={{
+              padding: '6px 14px',
+              backgroundColor: 'rgba(2, 12, 20, 0.95)',
+              border: isSpeaking ? '1.5px solid #00e5ff' : '1px solid rgba(0, 229, 255, 0.5)',
+              borderRadius: '16px',
+              color: '#00e5ff',
+              fontSize: '11px',
+              fontFamily: '"Orbitron", "Inter", sans-serif',
+              fontWeight: 700,
+              letterSpacing: '0.5px',
+              whiteSpace: 'nowrap',
+              boxShadow: isSpeaking
+                ? '0 0 24px rgba(0, 229, 255, 0.8), 0 4px 16px rgba(0,0,0,0.8)'
+                : '0 0 12px rgba(0, 229, 255, 0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              zIndex: 10003,
+              backdropFilter: 'blur(8px)',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            {/* Visual Voice indicator ("tampilkan voice") */}
+            {isSpeaking ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '2px', height: '12px' }}>
+                <span style={{ fontSize: '11px', marginRight: '2px' }}>🎙️</span>
+                {[0.4, 1.0, 0.6, 0.9, 0.5].map((scale, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      width: '2.5px',
+                      height: '100%',
+                      backgroundColor: '#00e5ff',
+                      borderRadius: '1px',
+                      animation: `soundWave 0.6s infinite ease-in-out ${i * 0.1}s`,
+                      transform: `scaleY(${scale})`
+                    }}
+                  />
+                ))}
+              </div>
+            ) : (
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#00e5ff', boxShadow: '0 0 8px #00e5ff' }} />
+            )}
+            <span>{currentActionLabel}</span>
           </div>
         )}
 
@@ -207,7 +351,9 @@ export default function JarvisFloatingOrb({
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
           title={
-            isRunning
+            isCoding
+              ? 'J.A.R.V.I.S. sedang coding — Mohon tunggu'
+              : isRunning
               ? 'J.A.R.V.I.S. RPA sedang bekerja — Klik untuk hentikan'
               : 'Klik untuk membuka J.A.R.V.I.S. Voice & Autonomous Builder'
           }
@@ -216,18 +362,23 @@ export default function JarvisFloatingOrb({
             width: '74px',
             height: '74px',
             borderRadius: '50%',
-            cursor: 'pointer',
-            transform: isHovered || isModalOpen ? 'scale(1.08)' : 'scale(1)',
+            cursor: isCoding ? 'wait' : 'pointer',
+            transform: (isHovered || isModalOpen) && !isCoding ? 'scale(1.08)' : 'scale(1)',
             transition: 'transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: isRunning || isListening
+            boxShadow: isCoding
+              ? '0 0 45px rgba(0, 229, 255, 0.9), 0 0 80px rgba(2, 132, 199, 0.7), inset 0 0 25px rgba(0, 229, 255, 0.6)'
+              : isSpeaking
+              ? '0 0 45px rgba(0, 229, 255, 0.95), 0 0 80px rgba(2, 132, 199, 0.8), inset 0 0 25px rgba(0, 229, 255, 0.7)'
+              : isRunning || isListening
               ? '0 0 35px rgba(0, 229, 255, 0.8), 0 0 70px rgba(2, 132, 199, 0.6), inset 0 0 20px rgba(0, 229, 255, 0.4)'
               : isHovered || isModalOpen
               ? '0 0 28px rgba(0, 229, 255, 0.6), 0 0 50px rgba(2, 132, 199, 0.4)'
               : '0 8px 30px rgba(0, 0, 0, 0.6), 0 0 18px rgba(0, 229, 255, 0.3)',
-            backgroundColor: '#020c14'
+            backgroundColor: '#020c14',
+            animation: isCoding ? 'jarvisClockwiseSpin 2s linear infinite' : undefined
           }}
         >
           {/* Outer Rotating Arc Ring */}
@@ -239,7 +390,9 @@ export default function JarvisFloatingOrb({
               position: 'absolute',
               inset: 0,
               pointerEvents: 'none',
-              animation: isRunning
+              animation: isCoding
+                ? 'jarvisSpinClockwiseFast 1.5s linear infinite'
+                : isRunning
                 ? 'jarvisSpinFast 4s linear infinite'
                 : 'jarvisSpinSlow 18s linear infinite'
             }}
@@ -663,6 +816,14 @@ export default function JarvisFloatingOrb({
       )}
 
       <style>{`
+        @keyframes jarvisClockwiseSpin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes jarvisSpinClockwiseFast {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
         @keyframes jarvisSpinSlow {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }

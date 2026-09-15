@@ -18,7 +18,28 @@ import {
   DateTimePicker as UiDateTimePicker,
   Gauge as UiGauge,
   Signature as UiSignature,
-  ListItem as UiListItem
+  ListItem as UiListItem,
+  QualityTolerance as UiQualityTolerance,
+  QualityPassFail as UiQualityPassFail,
+  MetrologyWidget as UiMetrologyWidget,
+  ProductionCounter as UiProductionCounter,
+  OEEWidget as UiOEEWidget,
+  AlarmBanner as UiAlarmBanner,
+  BarcodeGenerator as UiBarcodeGenerator,
+  PrintZebra as UiPrintZebra,
+  ScadaMotor as UiScadaMotor,
+  ScadaValve as UiScadaValve,
+  ScadaTank as UiScadaTank,
+  ScadaPipe as UiScadaPipe,
+  ScadaPump as UiScadaPump,
+  ScadaConveyor as UiScadaConveyor,
+  ScadaGauge as UiScadaGauge,
+  ScadaDigitalDisplay as UiScadaDigitalDisplay,
+  ScadaStartStop as UiScadaStartStop,
+  ScadaToggleSwitch as UiScadaToggleSwitch,
+  ScadaPlcStatus as UiScadaPlcStatus,
+  ScadaTrend as UiScadaTrend,
+  ScadaUniversalWidget as UiScadaUniversalWidget
 } from '../components';
 import {
   Plus, Trash2, Move, Copy, ChevronDown, ChevronUp,
@@ -39,12 +60,12 @@ import {
   ArrowRight, RefreshCw, Power, ToggleRight,
   MousePointer, MousePointer2, Printer, Sparkles,
   Undo2, Redo2, Maximize2, Minimize2, ZoomIn, ZoomOut,
-  FilePlus, Ruler, Cpu, Factory, Music, Shapes,
+  FilePlus, Ruler, Scale, Cpu, Factory, Music, Shapes,
   CheckCircle2, ShieldCheck, Sliders, Wrench,
   AlignLeft, ListFilter, Columns, AppWindow, PanelRightClose,
   Loader2, Tag, Compass, ChevronsUpDown, MousePointerClick,
   QrCode, Video, Film, ScanLine, Cast, ExternalLink,
-  Bot, Wand2, PenTool
+  Bot, Wand2, PenTool, Cog
 } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import BuilderCopilot from '../../components/BuilderCopilot';
@@ -76,6 +97,23 @@ const APP_TEMPLATES = [
     ]
   },
   {
+    id: 'industrial_mes_qc',
+    title: 'Industrial QC & MES Showcase',
+    category: 'Quality Control',
+    description: 'Toleransi dimensi, keputusan Pass/Fail, Metrology twin, Production counter, dan cetak Zebra ZPL',
+    icon: ShieldCheck,
+    color: 'text-teal-600',
+    components: [
+      { id: 'qc_comp_1', type: 'AlarmBanner', props: { severity: 'WARNING', title: 'Peringatan Parameter Spindle', message: 'Suhu operasional spindle 74°C (Normal: < 80°C).' } },
+      { id: 'qc_comp_2', type: 'BarcodeGenerator', props: { label: 'Nomor Lot & Serial Part', value: 'LOT-2026-09-8812', type: 'CODE128' } },
+      { id: 'qc_comp_3', type: 'QualityTolerance', props: { label: 'Pemeriksaan Toleransi Dimensi Poros', nominal: 25.0, usl: 25.05, lsl: 24.95, unit: 'mm', defaultValue: '25.02' } },
+      { id: 'qc_comp_4', type: 'QualityPassFail', props: { label: 'Keputusan Inspeksi Visual' } },
+      { id: 'qc_comp_5', type: 'ProductionCounter', props: { label: 'Pencatatan Target Produksi Shift', targetQty: 500, actualQty: 125, defectQty: 3, unit: 'pcs' } },
+      { id: 'qc_comp_6', type: 'OEEWidget', props: { label: 'Efektivitas Mesin (OEE)', availability: 92.5, performance: 88.0, quality: 98.4 } },
+      { id: 'qc_comp_7', type: 'PrintZebra', props: { partNumber: 'PART-ENG-8821', lotNumber: 'LOT-2026-09-01', partName: 'Shaft Rotor Assembly' } }
+    ]
+  },
+  {
     id: 'inspection',
     title: 'Quality Inspection Form',
     category: 'Quality Control',
@@ -83,12 +121,10 @@ const APP_TEMPLATES = [
     icon: ClipboardCheck,
     color: 'text-amber-600',
     components: [
-      { id: 'comp_1', type: 'Text', props: { text: 'Quality Inspection Sheet', size: 'lg', bold: true } },
-      { id: 'comp_2', type: 'Input', props: { label: 'Part / Serial Number', placeholder: 'Scan or enter barcode...' } },
-      { id: 'comp_3', type: 'Checkbox', props: { label: 'Visual Surface Check - OK', checked: false } },
-      { id: 'comp_4', type: 'Checkbox', props: { label: 'Caliper Tolerance Spec - OK', checked: false } },
-      { id: 'comp_5', type: 'Switch', props: { label: 'Pass Inspection Result', value: false } },
-      { id: 'comp_6', type: 'Button', props: { text: 'Submit Inspection Result', variant: 'positive' } }
+      { id: 'comp_1', type: 'BarcodeGenerator', props: { label: 'Part Barcode Lot', value: 'LOT-2026-09-8812', type: 'CODE128' } },
+      { id: 'comp_2', type: 'QualityTolerance', props: { label: 'Pemeriksaan Toleransi Dimensi', nominal: 25.0, usl: 25.05, lsl: 24.95, unit: 'mm', defaultValue: '25.02' } },
+      { id: 'comp_3', type: 'QualityPassFail', props: { label: 'Keputusan Pass / Fail QC' } },
+      { id: 'comp_4', type: 'ProductionCounter', props: { label: 'Pencatatan Shift Output', targetQty: 500, actualQty: 120, defectQty: 4 } }
     ]
   },
   {
@@ -337,6 +373,62 @@ const COMPONENT_GROUPS = [
     ]
   },
   {
+    category: 'Quality & Metrology',
+    icon: Ruler,
+    theme: {
+      idle: 'bg-teal-100 hover:bg-teal-200/90 text-teal-700 border-teal-300/80',
+      active: 'bg-teal-600 text-white border-teal-700 shadow-md ring-2 ring-teal-400/50',
+      iconColor: 'text-teal-700',
+      headerText: 'text-teal-700'
+    },
+    items: [
+      { type: 'QualityTolerance', label: 'Toleransi Dimensi', icon: Ruler, color: 'text-teal-600', bg: 'bg-teal-50', desc: 'Nominal, USL, LSL & live gauge bar' },
+      { type: 'QualityPassFail', label: 'Pass / Fail QC', icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50', desc: 'Tombol OK / Reject & alasan defect' },
+      { type: 'MetrologyWidget', label: 'Metrology Twin', icon: Gauge, color: 'text-blue-600', bg: 'bg-blue-50', desc: 'Mikrometer, Kunci Torsi, Timbangan' }
+    ]
+  },
+  {
+    category: 'Industrial MES',
+    icon: Factory,
+    theme: {
+      idle: 'bg-indigo-100 hover:bg-indigo-200/90 text-indigo-700 border-indigo-300/80',
+      active: 'bg-indigo-600 text-white border-indigo-700 shadow-md ring-2 ring-indigo-400/50',
+      iconColor: 'text-indigo-700',
+      headerText: 'text-indigo-700'
+    },
+    items: [
+      { type: 'ProductionCounter', label: 'Production Counter', icon: Factory, color: 'text-indigo-600', bg: 'bg-indigo-50', desc: 'Target vs Good vs Defect shift logger' },
+      { type: 'OEEWidget', label: 'OEE Metrics', icon: Activity, color: 'text-purple-600', bg: 'bg-purple-50', desc: 'Availability, Performance, Quality live' },
+      { type: 'AlarmBanner', label: 'Alarm Banner', icon: AlertTriangle, color: 'text-rose-600', bg: 'bg-rose-50', desc: 'Flashing warning & acknowledge' },
+      { type: 'BarcodeGenerator', label: 'Barcode Generator', icon: QrCode, color: 'text-slate-700', bg: 'bg-slate-100', desc: 'Code128 1D bar & QR Code' },
+      { type: 'PrintZebra', label: 'Cetak Zebra (ZPL)', icon: Printer, color: 'text-amber-600', bg: 'bg-amber-50', desc: 'Thermal barcode label 50x30 mm' }
+    ]
+  },
+  {
+    category: 'SCADA HMI',
+    icon: Cpu,
+    theme: {
+      idle: 'bg-cyan-100 hover:bg-cyan-200/90 text-cyan-700 border-cyan-300/80',
+      active: 'bg-cyan-600 text-white border-cyan-700 shadow-md ring-2 ring-cyan-400/50',
+      iconColor: 'text-cyan-700',
+      headerText: 'text-cyan-700'
+    },
+    items: [
+      { type: 'ScadaMotor', label: 'Motor Induksi', icon: Cog, color: 'text-emerald-600', bg: 'bg-emerald-50', desc: 'Status running/fault, RPM & arus' },
+      { type: 'ScadaValve', label: 'Katup Pipa / Valve', icon: Settings, color: 'text-rose-600', bg: 'bg-rose-50', desc: 'Katup buka/tutup interaktif' },
+      { type: 'ScadaTank', label: 'Tangki Penyimpanan', icon: Database, color: 'text-sky-600', bg: 'bg-sky-50', desc: 'Level ketinggian cairan % & alarm' },
+      { type: 'ScadaPipe', label: 'Pipa Aliran Fluida', icon: ArrowRight, color: 'text-cyan-600', bg: 'bg-cyan-50', desc: 'Animasi aliran horizontal/vertikal' },
+      { type: 'ScadaPump', label: 'Pompa Sentrifugal', icon: Activity, color: 'text-blue-600', bg: 'bg-blue-50', desc: 'Impeller berputar & kontrol pompa' },
+      { type: 'ScadaConveyor', label: 'Belt Conveyor', icon: ArrowRight, color: 'text-amber-600', bg: 'bg-amber-50', desc: 'Roller conveyor gerak & kecepatan' },
+      { type: 'ScadaGauge', label: 'Pressure / Dial Gauge', icon: Gauge, color: 'text-orange-600', bg: 'bg-orange-50', desc: 'Jarum dial presisi & zona alarm' },
+      { type: 'ScadaDigitalDisplay', label: 'Digital LED Meter', icon: Hash, color: 'text-teal-600', bg: 'bg-teal-50', desc: '7-Segment display outdoor terang' },
+      { type: 'ScadaStartStop', label: 'Pushbutton Start/Stop', icon: Play, color: 'text-emerald-600', bg: 'bg-emerald-50', desc: 'Tombol tactile industri start/stop/reset' },
+      { type: 'ScadaToggleSwitch', label: 'Selector Switch', icon: ToggleLeft, color: 'text-indigo-600', bg: 'bg-indigo-50', desc: 'Sakelar rotary AUTO/MANUAL/OFF' },
+      { type: 'ScadaPlcStatus', label: 'PLC Link Diagnostics', icon: Cpu, color: 'text-purple-600', bg: 'bg-purple-50', desc: 'Status Modbus TCP/Siemens S7 & cycle time' },
+      { type: 'ScadaTrend', label: 'Process Sparkline Trend', icon: TrendingUp, color: 'text-blue-600', bg: 'bg-blue-50', desc: 'Grafik fluktuasi variabel proses' }
+    ]
+  },
+  {
     category: 'Embed',
     icon: Code2,
     theme: {
@@ -566,6 +658,202 @@ const getDefaultProps = (type) => {
         ]
       };
 
+    // Industrial Quality & Metrology (Phase 1)
+    case 'QualityTolerance':
+    case 'QUALITY_TOLERANCE':
+      return {
+        label: 'Pemeriksaan Dimensi Part',
+        nominal: 25.0,
+        usl: 25.05,
+        lsl: 24.95,
+        unit: 'mm',
+        step: 0.01,
+        defaultValue: '25.02'
+      };
+    case 'QualityPassFail':
+    case 'QUALITY_PASS_FAIL':
+      return {
+        label: 'Keputusan Kualitas Part (Pass / Fail)',
+        defectReasons: [
+          'Cacat Dimensi (Out of Tolerance)',
+          'Goresan / Baret Permukaan',
+          'Porositas / Rongga Udara',
+          'Burrs / Sisa Gram Pemotongan',
+          'Warna / Finishing Tidak Rata',
+          'Part Bengkok / Deformasi',
+          'Kontaminasi Oli / Debu',
+          'Lainnya (Tuliskan Catatan)'
+        ]
+      };
+    case 'MetrologyWidget':
+    case 'MICROMETER':
+    case 'OUTSIDE_MICROMETER':
+    case 'TORQUE_WRENCH':
+    case 'WEIGHING_SCALE':
+    case 'ROUGHNESS_TESTER':
+    case 'DIAL_HEIGHT_GAUGE':
+      return {
+        instrumentType: 'MICROMETER',
+        label: 'Mikrometer Luar Digital (0-25mm)',
+        targetValue: 25.0,
+        tolerance: 0.05,
+        unit: 'mm',
+        isConnected: true
+      };
+
+    // Industrial MES & Print (Phase 1)
+    case 'ProductionCounter':
+    case 'QUANTITY_LOGGER':
+      return {
+        label: 'Pencatatan Produksi Part',
+        targetQty: 500,
+        actualQty: 120,
+        defectQty: 4,
+        unit: 'pcs'
+      };
+    case 'OEEWidget':
+    case 'SCADA_OEE':
+      return {
+        label: 'Efektivitas Mesin (OEE)',
+        availability: 92.5,
+        performance: 88.0,
+        quality: 98.4
+      };
+    case 'AlarmBanner':
+    case 'SCADA_ALARM_BANNER':
+      return {
+        severity: 'WARNING',
+        title: 'Peringatan Parameter Mesin',
+        message: 'Suhu motor spindle melebihi batas aman (78°C).'
+      };
+    case 'BarcodeGenerator':
+    case 'BARCODE':
+      return {
+        label: 'Barcode Part & Lot Number',
+        value: 'LOT-2026-09-8812',
+        type: 'CODE128',
+        showText: true
+      };
+    case 'PrintZebra':
+    case 'PRINT_AREA':
+      return {
+        partNumber: 'PART-ENG-8821',
+        lotNumber: 'LOT-2026-09-01',
+        partName: 'Shaft Rotor Assembly',
+        operator: 'Operator QC'
+      };
+
+    // SCADA HMI & Industrial Automation (Phase 2)
+    case 'ScadaMotor':
+    case 'SCADA_MOTOR':
+      return {
+        label: 'Motor Penggerak (M-101)',
+        motorState: 'STOPPED',
+        rpm: 1450,
+        current: 12.8,
+        colorRunning: '#22c55e',
+        colorStopped: '#64748b',
+        colorFault: '#ef4444'
+      };
+    case 'ScadaValve':
+    case 'SCADA_VALVE':
+      return {
+        label: 'Katup Solenoid (V-102)',
+        valveState: 'CLOSED',
+        colorOpen: '#22c55e',
+        colorClosed: '#ef4444'
+      };
+    case 'ScadaTank':
+    case 'SCADA_TANK':
+    case 'SCADA_TANK_LEVEL':
+      return {
+        label: 'Tangki Penampungan (TK-01)',
+        capacity: 1000,
+        level: 650,
+        unit: 'L',
+        fluidColor: '#0284c7',
+        lowAlarm: 150,
+        highAlarm: 900
+      };
+    case 'ScadaPipe':
+    case 'SCADA_PIPE':
+      return {
+        direction: 'horizontal',
+        fluidColor: '#06b6d4',
+        flowSpeed: 3,
+        isActive: true
+      };
+    case 'ScadaPump':
+    case 'SCADA_PUMP':
+      return {
+        label: 'Pompa Sirkulasi (P-101)',
+        pumpState: 'STOPPED',
+        rpm: 2900,
+        colorRunning: '#22c55e',
+        colorStopped: '#64748b'
+      };
+    case 'ScadaConveyor':
+    case 'SCADA_CONVEYOR':
+      return {
+        label: 'Belt Conveyor (CV-01)',
+        conveyorState: 'RUNNING',
+        speed: 1.2,
+        direction: 'RIGHT'
+      };
+    case 'ScadaGauge':
+    case 'SCADA_PRESSURE_GAUGE':
+    case 'SCADA_CIRCULAR_GAUGE':
+      return {
+        label: 'Pressure Gauge (PT-01)',
+        value: 4.2,
+        min: 0,
+        max: 10,
+        unit: 'bar',
+        warnLimit: 7.0,
+        alarmLimit: 8.5
+      };
+    case 'ScadaDigitalDisplay':
+    case 'SCADA_DIGITAL_DISPLAY':
+      return {
+        label: 'Flow Rate (FIT-201)',
+        value: 142.8,
+        unit: 'm³/h',
+        status: 'ONLINE'
+      };
+    case 'ScadaStartStop':
+    case 'SCADA_BTN_START':
+    case 'SCADA_BTN_STOP':
+    case 'SCADA_BTN_RESET':
+      return {
+        label: 'Kontrol Operasi Panel'
+      };
+    case 'ScadaToggleSwitch':
+    case 'SCADA_TOGGLE_SWITCH':
+    case 'SCADA_AUTO_MANUAL':
+    case 'SCADA_MODE_SELECTOR':
+      return {
+        label: 'Mode Operasi (Sel-01)',
+        mode: 'AUTO',
+        options: ['AUTO', 'MANUAL', 'OFF']
+      };
+    case 'ScadaPlcStatus':
+    case 'SCADA_PLC_STATUS':
+      return {
+        controllerName: 'Siemens S7-1500 (Line 1)',
+        ipAddress: '192.168.1.120',
+        protocol: 'Modbus TCP',
+        cycleTime: 14,
+        status: 'ONLINE'
+      };
+    case 'ScadaTrend':
+    case 'SCADA_TREND':
+    case 'SCADA_HISTORICAL_TREND':
+      return {
+        label: 'Trend Suhu Reaktor (TT-101)',
+        data: [45, 48, 52, 50, 54, 58, 62, 60, 65, 63, 68],
+        unit: '°C'
+      };
+
     // Text & Fallbacks
     case 'Text': return { text: 'Label Text', size: 'sm', bold: false };
     default: return { label: type };
@@ -615,6 +903,60 @@ const getComponentIcon = (type) => {
     case 'Chart':
     case 'LineChart':
     case 'BarChart': return BarChart3;
+    // Industrial Quality & MES (Phase 1)
+    case 'QualityTolerance':
+    case 'QUALITY_TOLERANCE': return Ruler;
+    case 'QualityPassFail':
+    case 'QUALITY_PASS_FAIL': return CheckCircle2;
+    case 'MetrologyWidget':
+    case 'MICROMETER':
+    case 'OUTSIDE_MICROMETER':
+    case 'TORQUE_WRENCH':
+    case 'WEIGHING_SCALE':
+    case 'ROUGHNESS_TESTER':
+    case 'DIAL_HEIGHT_GAUGE': return Gauge;
+    case 'ProductionCounter':
+    case 'QUANTITY_LOGGER': return Factory;
+    case 'OEEWidget':
+    case 'SCADA_OEE': return Activity;
+    case 'AlarmBanner':
+    case 'SCADA_ALARM_BANNER': return AlertTriangle;
+    case 'BarcodeGenerator':
+    case 'BARCODE': return QrCode;
+    case 'PrintZebra':
+    case 'PRINT_AREA': return Printer;
+    // SCADA HMI (Phase 2)
+    case 'ScadaMotor':
+    case 'SCADA_MOTOR': return Cog;
+    case 'ScadaValve':
+    case 'SCADA_VALVE': return Settings;
+    case 'ScadaTank':
+    case 'SCADA_TANK':
+    case 'SCADA_TANK_LEVEL': return Database;
+    case 'ScadaPipe':
+    case 'SCADA_PIPE': return ArrowRight;
+    case 'ScadaPump':
+    case 'SCADA_PUMP': return Activity;
+    case 'ScadaConveyor':
+    case 'SCADA_CONVEYOR': return ArrowRight;
+    case 'ScadaGauge':
+    case 'SCADA_PRESSURE_GAUGE':
+    case 'SCADA_CIRCULAR_GAUGE': return Gauge;
+    case 'ScadaDigitalDisplay':
+    case 'SCADA_DIGITAL_DISPLAY': return Hash;
+    case 'ScadaStartStop':
+    case 'SCADA_BTN_START':
+    case 'SCADA_BTN_STOP':
+    case 'SCADA_BTN_RESET': return Play;
+    case 'ScadaToggleSwitch':
+    case 'SCADA_TOGGLE_SWITCH':
+    case 'SCADA_AUTO_MANUAL':
+    case 'SCADA_MODE_SELECTOR': return ToggleLeft;
+    case 'ScadaPlcStatus':
+    case 'SCADA_PLC_STATUS': return Cpu;
+    case 'ScadaTrend':
+    case 'SCADA_TREND':
+    case 'SCADA_HISTORICAL_TREND': return TrendingUp;
     default: return Box;
   }
 };
@@ -675,9 +1017,14 @@ export default function AppCanvas({
     setScreens([
       {
         id: 'screen_1',
-        title: 'Home',
+        title: 'QC & Production Screen',
         components: [
-          { id: 'comp_1', type: 'Text', props: { text: 'Mobile Dashboard', size: 'lg', bold: true } }
+          { id: 'comp_1', type: 'AlarmBanner', props: { severity: 'WARNING', title: 'Peringatan Parameter Spindle', message: 'Suhu operasional spindle 74°C (Normal: < 80°C).' } },
+          { id: 'comp_2', type: 'BarcodeGenerator', props: { label: 'Nomor Lot & Serial Part', value: 'LOT-2026-09-8812', type: 'CODE128' } },
+          { id: 'comp_3', type: 'QualityTolerance', props: { label: 'Pemeriksaan Toleransi Dimensi Poros', nominal: 25.0, usl: 25.05, lsl: 24.95, unit: 'mm', defaultValue: '25.02' } },
+          { id: 'comp_4', type: 'QualityPassFail', props: { label: 'Keputusan Inspeksi Visual' } },
+          { id: 'comp_5', type: 'ProductionCounter', props: { label: 'Pencatatan Target Produksi Shift', targetQty: 500, actualQty: 125, defectQty: 3, unit: 'pcs' } },
+          { id: 'comp_6', type: 'OEEWidget', props: { label: 'Efektivitas Mesin (OEE)', availability: 92.5, performance: 88.0, quality: 98.4 } }
         ],
         triggers: []
       }
@@ -779,13 +1126,14 @@ export default function AppCanvas({
   const [screens, setScreens] = useState([
     {
       id: 'screen_1',
-      title: 'Screen 1',
+      title: 'QC & Production Screen',
       components: [
-        { id: 'comp_1', type: 'Text', props: { text: 'Production Dashboard', size: 'lg', bold: true } },
-        { id: 'comp_2', type: 'Card', props: { title: 'OEE Target', content: '85%' } },
-        { id: 'comp_3', type: 'Card', props: { title: 'Output Today', content: '1,234 pcs' } },
-        { id: 'comp_4', type: 'Card', props: { title: 'Reject Rate', content: '2.3%' } },
-        { id: 'comp_5', type: 'Progress', props: { value: 85, label: 'Daily Target' } }
+        { id: 'comp_1', type: 'AlarmBanner', props: { severity: 'WARNING', title: 'Peringatan Parameter Spindle', message: 'Suhu operasional spindle 74°C (Normal: < 80°C).' } },
+        { id: 'comp_2', type: 'BarcodeGenerator', props: { label: 'Nomor Lot & Serial Part', value: 'LOT-2026-09-8812', type: 'CODE128' } },
+        { id: 'comp_3', type: 'QualityTolerance', props: { label: 'Pemeriksaan Toleransi Dimensi Poros', nominal: 25.0, usl: 25.05, lsl: 24.95, unit: 'mm', defaultValue: '25.02' } },
+        { id: 'comp_4', type: 'QualityPassFail', props: { label: 'Keputusan Inspeksi Visual' } },
+        { id: 'comp_5', type: 'ProductionCounter', props: { label: 'Pencatatan Target Produksi Shift', targetQty: 500, actualQty: 125, defectQty: 3, unit: 'pcs' } },
+        { id: 'comp_6', type: 'OEEWidget', props: { label: 'Efektivitas Mesin (OEE)', availability: 92.5, performance: 88.0, quality: 98.4 } }
       ],
       triggers: []
     }
@@ -1364,6 +1712,30 @@ export default function AppCanvas({
   // Helper to normalize any incoming widget type (Mavi or Gluestack) into supported Gluestack UI components
   const mapToGluestackWidgetType = (rawType = '') => {
     const t = String(rawType).toUpperCase().replace(/[\s-_]/g, '');
+    // Industrial Quality & MES (Phase 1)
+    if (t.includes('TOLERANCE')) return 'QualityTolerance';
+    if (t.includes('PASSFAIL') || t.includes('PASS_FAIL')) return 'QualityPassFail';
+    if (t.includes('METROLOGY') || t.includes('MICROMETER') || t.includes('TORQUE') || t.includes('WEIGHING') || t.includes('ROUGHNESS') || t.includes('HEIGHTGAUGE')) return 'MetrologyWidget';
+    if (t.includes('PRODUCTIONCOUNTER') || t.includes('QUANTITYLOGGER') || t.includes('PRODUCTION_COUNTER')) return 'ProductionCounter';
+    if (t.includes('OEE')) return 'OEEWidget';
+    if (t.includes('ALARM') || t.includes('ALARMBANNER')) return 'AlarmBanner';
+    if (t.includes('ZEBRA') || t.includes('PRINTZEBRA') || t.includes('PRINTAREA')) return 'PrintZebra';
+    if (t.includes('BARCODEGENERATOR') || t.includes('BARCODE_GENERATOR')) return 'BarcodeGenerator';
+
+    // SCADA HMI & Industrial Automation (Phase 2)
+    if (t.includes('MOTOR')) return 'ScadaMotor';
+    if (t.includes('VALVE')) return 'ScadaValve';
+    if (t.includes('TANK')) return 'ScadaTank';
+    if (t.includes('PIPE')) return 'ScadaPipe';
+    if (t.includes('PUMP')) return 'ScadaPump';
+    if (t.includes('CONVEYOR')) return 'ScadaConveyor';
+    if (t.includes('GAUGE') || t.includes('PRESSURE_GAUGE') || t.includes('CIRCULAR_GAUGE')) return 'ScadaGauge';
+    if (t.includes('DIGITALDISPLAY') || t.includes('DIGITAL_DISPLAY')) return 'ScadaDigitalDisplay';
+    if (t.includes('STARTSTOP') || t.includes('BTN_START') || t.includes('BTN_STOP') || t.includes('BTN_RESET')) return 'ScadaStartStop';
+    if (t.includes('TOGGLESWITCH') || t.includes('MODE_SELECTOR') || t.includes('AUTO_MANUAL')) return 'ScadaToggleSwitch';
+    if (t.includes('PLCSTATUS') || t.includes('PLC_STATUS')) return 'ScadaPlcStatus';
+    if (t.includes('TREND') || t.includes('HISTORICAL_TREND')) return 'ScadaTrend';
+
     if (t.includes('BUTTON')) return 'Button';
     if (t.includes('TEXTINPUT') || t === 'INPUT') return 'Input';
     if (t.includes('TEXTAREA')) return 'Textarea';
@@ -1394,7 +1766,11 @@ export default function AppCanvas({
       'Button', 'Dropdown', 'FAB', 'Input', 'Textarea', 'Select', 'Checkbox', 'Switch', 'Form',
       'QRCodeScanner', 'VideoPlayer', 'Camera', 'Card', 'Accordion', 'Badge', 'Avatar', 'Table',
       'Alert', 'Toast', 'Progress', 'Spinner', 'Tabs', 'Command', 'Navigation', 'BottomNavigation',
-      'Modal', 'Drawer', 'Text', 'Timer', 'Counter'
+      'Modal', 'Drawer', 'Text', 'Timer', 'Counter',
+      'QualityTolerance', 'QualityPassFail', 'MetrologyWidget', 'ProductionCounter', 'OEEWidget',
+      'AlarmBanner', 'BarcodeGenerator', 'PrintZebra',
+      'ScadaMotor', 'ScadaValve', 'ScadaTank', 'ScadaPipe', 'ScadaPump', 'ScadaConveyor',
+      'ScadaGauge', 'ScadaDigitalDisplay', 'ScadaStartStop', 'ScadaToggleSwitch', 'ScadaPlcStatus', 'ScadaTrend'
     ];
     const match = validTypes.find(v => v.toLowerCase() === String(rawType).toLowerCase());
     return match || 'Button';
@@ -3035,7 +3411,503 @@ export default function AppCanvas({
           </div>
         );
       }
+      // ─── INDUSTRIAL QUALITY & MES (PHASE 1) ──────────────────────────────────
+      case 'QualityTolerance':
+      case 'QUALITY_TOLERANCE':
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiQualityTolerance
+              id={comp.id}
+              label={comp.props.label || comp.props.title || 'Pemeriksaan Dimensi Part'}
+              nominal={Number(comp.props.nominal) || 25.0}
+              usl={Number(comp.props.usl) || 25.05}
+              lsl={Number(comp.props.lsl) || 24.95}
+              unit={comp.props.unit || 'mm'}
+              value={previewFormValues[comp.id] !== undefined ? previewFormValues[comp.id] : (comp.props.value || comp.props.defaultValue)}
+              step={Number(comp.props.step) || 0.01}
+              onChange={(res) => {
+                if (isPreview) {
+                  setPreviewFormValues(prev => ({ ...prev, [comp.id]: res.value }));
+                  executeComponentTriggers(comp, 'ON_CHANGE');
+                }
+              }}
+              onPass={(res) => {
+                if (isPreview) {
+                  setActiveToast({ message: `Toleransi PASS (${res.value} ${res.unit})`, type: 'SUCCESS' });
+                  executeComponentTriggers(comp, 'ON_PASS');
+                }
+              }}
+              onFail={(res) => {
+                if (isPreview) {
+                  setActiveToast({ message: `Toleransi FAIL (${res.deviation > 0 ? 'HIGH' : 'LOW'}: ${res.value} ${res.unit})`, type: 'ERROR' });
+                  executeComponentTriggers(comp, 'ON_FAIL');
+                }
+              }}
+            />
+          </div>
+        );
+
+      case 'QualityPassFail':
+      case 'QUALITY_PASS_FAIL':
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiQualityPassFail
+              id={comp.id}
+              label={comp.props.label || comp.props.title || 'Keputusan Kualitas Part'}
+              value={previewFormValues[comp.id] !== undefined ? previewFormValues[comp.id] : comp.props.value}
+              defectReasons={comp.props.defectReasons || comp.props.reasons}
+              onChange={(res) => {
+                if (isPreview) {
+                  setPreviewFormValues(prev => ({ ...prev, [comp.id]: res }));
+                  executeComponentTriggers(comp, 'ON_CHANGE');
+                }
+              }}
+              onPass={(res) => {
+                if (isPreview) {
+                  setActiveToast({ message: 'Hasil QC PASS tersimpan!', type: 'SUCCESS' });
+                  executeComponentTriggers(comp, 'ON_PASS');
+                }
+              }}
+              onFail={(res) => {
+                if (isPreview) {
+                  setActiveToast({ message: `Hasil QC REJECT: ${res.defectReason || 'Tercatat'}`, type: 'ERROR' });
+                  executeComponentTriggers(comp, 'ON_FAIL');
+                }
+              }}
+            />
+          </div>
+        );
+
+      case 'MetrologyWidget':
+      case 'MICROMETER':
+      case 'OUTSIDE_MICROMETER':
+      case 'TORQUE_WRENCH':
+      case 'WEIGHING_SCALE':
+      case 'ROUGHNESS_TESTER':
+      case 'DIAL_HEIGHT_GAUGE': {
+        const instType = comp.props.instrumentType || (
+          comp.type === 'OUTSIDE_MICROMETER' ? 'MICROMETER' :
+          comp.type !== 'MetrologyWidget' ? comp.type : 'MICROMETER'
+        );
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiMetrologyWidget
+              id={comp.id}
+              instrumentType={instType}
+              label={comp.props.label || comp.props.title}
+              targetValue={Number(comp.props.targetValue || comp.props.nominal) || 25.0}
+              tolerance={Number(comp.props.tolerance) || 0.05}
+              unit={comp.props.unit}
+              value={previewFormValues[comp.id] !== undefined ? previewFormValues[comp.id] : comp.props.value}
+              onChange={(val) => {
+                if (isPreview) {
+                  setPreviewFormValues(prev => ({ ...prev, [comp.id]: val }));
+                  executeComponentTriggers(comp, 'ON_CHANGE');
+                }
+              }}
+              onCapture={(res) => {
+                if (isPreview) {
+                  setActiveToast({
+                    message: `Data ${res.instrument} ${res.value} ${res.unit} tersimpan`,
+                    type: res.status === 'PASS' ? 'SUCCESS' : 'WARNING'
+                  });
+                  executeComponentTriggers(comp, 'ON_CAPTURE');
+                }
+              }}
+            />
+          </div>
+        );
+      }
+
+      case 'ProductionCounter':
+      case 'QUANTITY_LOGGER':
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiProductionCounter
+              id={comp.id}
+              label={comp.props.label || comp.props.title || 'Pencatatan Produksi Part'}
+              targetQty={Number(comp.props.targetQty || comp.props.target) || 500}
+              actualQty={previewFormValues[`${comp.id}_actual`] !== undefined ? previewFormValues[`${comp.id}_actual`] : comp.props.actualQty}
+              defectQty={previewFormValues[`${comp.id}_defect`] !== undefined ? previewFormValues[`${comp.id}_defect`] : comp.props.defectQty}
+              unit={comp.props.unit || 'pcs'}
+              onChange={(data) => {
+                if (isPreview) {
+                  setPreviewFormValues(prev => ({
+                    ...prev,
+                    [comp.id]: data,
+                    [`${comp.id}_actual`]: data.actual,
+                    [`${comp.id}_defect`]: data.defect
+                  }));
+                  executeComponentTriggers(comp, 'ON_CHANGE');
+                }
+              }}
+              onTargetReached={() => {
+                if (isPreview) {
+                  setActiveToast({ message: 'Target Shift Produksi Telah Tercapai!', type: 'SUCCESS' });
+                  executeComponentTriggers(comp, 'ON_TARGET');
+                }
+              }}
+            />
+          </div>
+        );
+
+      case 'OEEWidget':
+      case 'SCADA_OEE':
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiOEEWidget
+              id={comp.id}
+              label={comp.props.label || comp.props.title || 'Efektivitas Mesin (OEE)'}
+              availability={Number(comp.props.availability) || 92.5}
+              performance={Number(comp.props.performance) || 88.0}
+              quality={Number(comp.props.quality) || 98.4}
+            />
+          </div>
+        );
+
+      case 'AlarmBanner':
+      case 'SCADA_ALARM_BANNER':
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiAlarmBanner
+              id={comp.id}
+              severity={comp.props.severity || 'WARNING'}
+              title={comp.props.title || comp.props.label || 'Peringatan Parameter Mesin'}
+              message={comp.props.message || comp.props.description || 'Parameter operasional melebihi batas aman.'}
+              onAcknowledge={() => {
+                if (isPreview) {
+                  setActiveToast({ message: 'Alarm telah di-acknowledge oleh operator', type: 'INFO' });
+                  executeComponentTriggers(comp, 'ON_ACKNOWLEDGE');
+                }
+              }}
+            />
+          </div>
+        );
+
+      case 'BarcodeGenerator':
+      case 'BARCODE':
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiBarcodeGenerator
+              id={comp.id}
+              value={previewFormValues[comp.id] || comp.props.value || 'LOT-2026-09-8812'}
+              label={comp.props.label || comp.props.title || 'Barcode Part & Lot Number'}
+              type={comp.props.barcodeType || comp.props.type || 'CODE128'}
+              showText={comp.props.showText !== false}
+            />
+          </div>
+        );
+
+      case 'PrintZebra':
+      case 'PRINT_AREA':
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiPrintZebra
+              id={comp.id}
+              partNumber={comp.props.partNumber || 'PART-ENG-8821'}
+              lotNumber={comp.props.lotNumber || 'LOT-2026-09-01'}
+              partName={comp.props.partName || 'Shaft Rotor Assembly'}
+              operator={comp.props.operator || 'Operator QC'}
+              onPrint={(ticket) => {
+                if (isPreview) {
+                  setActiveToast({ message: `Mencetak Label Zebra: ${ticket.partNumber}`, type: 'SUCCESS' });
+                  executeComponentTriggers(comp, 'ON_PRINT');
+                }
+              }}
+            />
+          </div>
+        );
+
+      // ─── SCADA HMI & INDUSTRIAL AUTOMATION (PHASE 2) ─────────────────────────
+      case 'ScadaMotor':
+      case 'SCADA_MOTOR':
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiScadaMotor
+              id={comp.id}
+              label={comp.props.label || comp.props.title || 'Motor Penggerak'}
+              motorState={previewFormValues[comp.id] !== undefined ? previewFormValues[comp.id] : (comp.props.motorState || 'STOPPED')}
+              rpm={Number(comp.props.rpm) || 1450}
+              current={Number(comp.props.current) || 12.8}
+              colorRunning={comp.props.colorRunning}
+              colorStopped={comp.props.colorStopped}
+              colorFault={comp.props.colorFault}
+              onChange={(res) => {
+                if (isPreview) {
+                  setPreviewFormValues(prev => ({ ...prev, [comp.id]: res.state }));
+                  executeComponentTriggers(comp, 'ON_CHANGE');
+                }
+              }}
+              onStart={() => {
+                if (isPreview) {
+                  setActiveToast({ message: `Motor ${comp.props.label || comp.id} Started`, type: 'SUCCESS' });
+                  executeComponentTriggers(comp, 'ON_START');
+                }
+              }}
+              onStop={() => {
+                if (isPreview) {
+                  setActiveToast({ message: `Motor ${comp.props.label || comp.id} Stopped`, type: 'INFO' });
+                  executeComponentTriggers(comp, 'ON_STOP');
+                }
+              }}
+            />
+          </div>
+        );
+
+      case 'ScadaValve':
+      case 'SCADA_VALVE':
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiScadaValve
+              id={comp.id}
+              label={comp.props.label || comp.props.title || 'Katup Solenoid'}
+              valveState={previewFormValues[comp.id] !== undefined ? previewFormValues[comp.id] : (comp.props.valveState || 'CLOSED')}
+              colorOpen={comp.props.colorOpen}
+              colorClosed={comp.props.colorClosed}
+              onChange={(res) => {
+                if (isPreview) {
+                  setPreviewFormValues(prev => ({ ...prev, [comp.id]: res.state }));
+                  executeComponentTriggers(comp, 'ON_CHANGE');
+                }
+              }}
+              onOpen={() => {
+                if (isPreview) {
+                  setActiveToast({ message: `Katup ${comp.props.label || comp.id} DIBUKA`, type: 'SUCCESS' });
+                  executeComponentTriggers(comp, 'ON_OPEN');
+                }
+              }}
+              onClose={() => {
+                if (isPreview) {
+                  setActiveToast({ message: `Katup ${comp.props.label || comp.id} DITUTUP`, type: 'INFO' });
+                  executeComponentTriggers(comp, 'ON_CLOSE');
+                }
+              }}
+            />
+          </div>
+        );
+
+      case 'ScadaTank':
+      case 'SCADA_TANK':
+      case 'SCADA_TANK_LEVEL':
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiScadaTank
+              id={comp.id}
+              label={comp.props.label || comp.props.title || 'Tangki Penampungan'}
+              capacity={Number(comp.props.capacity) || 1000}
+              level={previewFormValues[comp.id] !== undefined ? previewFormValues[comp.id] : (Number(comp.props.level) || 650)}
+              unit={comp.props.unit || 'L'}
+              fluidColor={comp.props.fluidColor || '#0284c7'}
+              lowAlarm={Number(comp.props.lowAlarm) || 150}
+              highAlarm={Number(comp.props.highAlarm) || 900}
+              onChange={(res) => {
+                if (isPreview) {
+                  setPreviewFormValues(prev => ({ ...prev, [comp.id]: res.level }));
+                  executeComponentTriggers(comp, 'ON_CHANGE');
+                }
+              }}
+            />
+          </div>
+        );
+
+      case 'ScadaPipe':
+      case 'SCADA_PIPE':
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiScadaPipe
+              id={comp.id}
+              direction={comp.props.direction || 'horizontal'}
+              fluidColor={comp.props.fluidColor || '#06b6d4'}
+              flowSpeed={Number(comp.props.flowSpeed) || 3}
+              isActive={comp.props.isActive !== false}
+            />
+          </div>
+        );
+
+      case 'ScadaPump':
+      case 'SCADA_PUMP':
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiScadaPump
+              id={comp.id}
+              label={comp.props.label || comp.props.title || 'Pompa Sirkulasi'}
+              pumpState={previewFormValues[comp.id] !== undefined ? previewFormValues[comp.id] : (comp.props.pumpState || 'STOPPED')}
+              rpm={Number(comp.props.rpm) || 2900}
+              colorRunning={comp.props.colorRunning}
+              colorStopped={comp.props.colorStopped}
+              onChange={(res) => {
+                if (isPreview) {
+                  setPreviewFormValues(prev => ({ ...prev, [comp.id]: res.state }));
+                  executeComponentTriggers(comp, 'ON_CHANGE');
+                }
+              }}
+              onStart={() => {
+                if (isPreview) {
+                  setActiveToast({ message: `Pompa ${comp.props.label || comp.id} RUNNING`, type: 'SUCCESS' });
+                  executeComponentTriggers(comp, 'ON_START');
+                }
+              }}
+              onStop={() => {
+                if (isPreview) {
+                  setActiveToast({ message: `Pompa ${comp.props.label || comp.id} STOPPED`, type: 'INFO' });
+                  executeComponentTriggers(comp, 'ON_STOP');
+                }
+              }}
+            />
+          </div>
+        );
+
+      case 'ScadaConveyor':
+      case 'SCADA_CONVEYOR':
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiScadaConveyor
+              id={comp.id}
+              label={comp.props.label || comp.props.title || 'Belt Conveyor'}
+              conveyorState={previewFormValues[comp.id] !== undefined ? previewFormValues[comp.id] : (comp.props.conveyorState || 'RUNNING')}
+              speed={Number(comp.props.speed) || 1.2}
+              direction={comp.props.direction || 'RIGHT'}
+              onChange={(res) => {
+                if (isPreview) {
+                  setPreviewFormValues(prev => ({ ...prev, [comp.id]: res.state }));
+                  executeComponentTriggers(comp, 'ON_CHANGE');
+                }
+              }}
+            />
+          </div>
+        );
+
+      case 'ScadaGauge':
+      case 'SCADA_PRESSURE_GAUGE':
+      case 'SCADA_CIRCULAR_GAUGE':
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiScadaGauge
+              id={comp.id}
+              label={comp.props.label || comp.props.title || 'Pressure Gauge'}
+              value={previewFormValues[comp.id] !== undefined ? previewFormValues[comp.id] : (Number(comp.props.value) || 4.2)}
+              min={Number(comp.props.min) || 0}
+              max={Number(comp.props.max) || 10}
+              unit={comp.props.unit || 'bar'}
+              warnLimit={Number(comp.props.warnLimit) || 7.0}
+              alarmLimit={Number(comp.props.alarmLimit) || 8.5}
+            />
+          </div>
+        );
+
+      case 'ScadaDigitalDisplay':
+      case 'SCADA_DIGITAL_DISPLAY':
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiScadaDigitalDisplay
+              id={comp.id}
+              label={comp.props.label || comp.props.title || 'Digital Meter'}
+              value={previewFormValues[comp.id] !== undefined ? previewFormValues[comp.id] : (comp.props.value || 142.8)}
+              unit={comp.props.unit || 'm³/h'}
+              status={comp.props.status || 'ONLINE'}
+            />
+          </div>
+        );
+
+      case 'ScadaStartStop':
+      case 'SCADA_BTN_START':
+      case 'SCADA_BTN_STOP':
+      case 'SCADA_BTN_RESET':
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiScadaStartStop
+              id={comp.id}
+              label={comp.props.label || comp.props.title || 'Kontrol Panel'}
+              onStart={() => {
+                if (isPreview) {
+                  setActiveToast({ message: 'Panel Command: START Triggered', type: 'SUCCESS' });
+                  executeComponentTriggers(comp, 'ON_START');
+                }
+              }}
+              onStop={() => {
+                if (isPreview) {
+                  setActiveToast({ message: 'Panel Command: STOP Triggered', type: 'ERROR' });
+                  executeComponentTriggers(comp, 'ON_STOP');
+                }
+              }}
+              onReset={() => {
+                if (isPreview) {
+                  setActiveToast({ message: 'Panel Command: RESET Triggered', type: 'WARNING' });
+                  executeComponentTriggers(comp, 'ON_RESET');
+                }
+              }}
+            />
+          </div>
+        );
+
+      case 'ScadaToggleSwitch':
+      case 'SCADA_TOGGLE_SWITCH':
+      case 'SCADA_AUTO_MANUAL':
+      case 'SCADA_MODE_SELECTOR':
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiScadaToggleSwitch
+              id={comp.id}
+              label={comp.props.label || comp.props.title || 'Selector Switch'}
+              mode={previewFormValues[comp.id] !== undefined ? previewFormValues[comp.id] : (comp.props.mode || 'AUTO')}
+              options={comp.props.options || ['AUTO', 'MANUAL', 'OFF']}
+              onChange={(res) => {
+                if (isPreview) {
+                  setPreviewFormValues(prev => ({ ...prev, [comp.id]: res.mode }));
+                  setActiveToast({ message: `Mode Switch: ${res.mode}`, type: 'INFO' });
+                  executeComponentTriggers(comp, 'ON_CHANGE');
+                }
+              }}
+            />
+          </div>
+        );
+
+      case 'ScadaPlcStatus':
+      case 'SCADA_PLC_STATUS':
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiScadaPlcStatus
+              id={comp.id}
+              controllerName={comp.props.controllerName}
+              ipAddress={comp.props.ipAddress}
+              protocol={comp.props.protocol}
+              cycleTime={Number(comp.props.cycleTime) || 14}
+              status={comp.props.status || 'ONLINE'}
+            />
+          </div>
+        );
+
+      case 'ScadaTrend':
+      case 'SCADA_TREND':
+      case 'SCADA_HISTORICAL_TREND':
+        return (
+          <div onClick={(e) => isPreview && e.stopPropagation()}>
+            <UiScadaTrend
+              id={comp.id}
+              label={comp.props.label || comp.props.title || 'Process Trend'}
+              data={comp.props.data}
+              unit={comp.props.unit || '°C'}
+            />
+          </div>
+        );
+
       default:
+        // Universal SCADA Bridge fallback for any legacy SCADA components
+        if (comp.type && String(comp.type).startsWith('SCADA_')) {
+          return (
+            <div onClick={(e) => isPreview && e.stopPropagation()}>
+              <UiScadaUniversalWidget
+                comp={comp}
+                viewMode={isPreview ? 'PREVIEW' : 'EDIT'}
+                previewFormValues={previewFormValues}
+                setPreviewFormValues={setPreviewFormValues}
+                onWidgetInteraction={(c, trig, data) => {
+                  if (isPreview) executeComponentTriggers(c, trig);
+                }}
+              />
+            </div>
+          );
+        }
         return (
           <div className="p-2 bg-slate-100 rounded text-xs text-slate-600">
             {comp.type}

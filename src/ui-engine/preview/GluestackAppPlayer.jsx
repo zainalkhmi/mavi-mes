@@ -19,7 +19,29 @@ import {
   DateTimePicker as UiDateTimePicker,
   Gauge as UiGauge,
   Signature as UiSignature,
-  ListItem as UiListItem
+  ListItem as UiListItem,
+  QualityTolerance as UiQualityTolerance,
+  QualityPassFail as UiQualityPassFail,
+  MetrologyWidget as UiMetrologyWidget,
+  BalloonDrawingWidget as UiBalloonDrawingWidget,
+  ProductionCounter as UiProductionCounter,
+  OEEWidget as UiOEEWidget,
+  AlarmBanner as UiAlarmBanner,
+  BarcodeGenerator as UiBarcodeGenerator,
+  PrintZebra as UiPrintZebra,
+  ScadaMotor as UiScadaMotor,
+  ScadaValve as UiScadaValve,
+  ScadaTank as UiScadaTank,
+  ScadaPipe as UiScadaPipe,
+  ScadaPump as UiScadaPump,
+  ScadaConveyor as UiScadaConveyor,
+  ScadaGauge as UiScadaGauge,
+  ScadaDigitalDisplay as UiScadaDigitalDisplay,
+  ScadaStartStop as UiScadaStartStop,
+  ScadaToggleSwitch as UiScadaToggleSwitch,
+  ScadaPlcStatus as UiScadaPlcStatus,
+  ScadaTrend as UiScadaTrend,
+  ScadaUniversalWidget as UiScadaUniversalWidget
 } from '../components';
 import {
   executeIndustrialTrigger,
@@ -900,7 +922,463 @@ export default function GluestackAppPlayer({
           />
         );
 
+      // PHASE 1 INDUSTRIAL QUALITY & MES WIDGETS
+      case 'QualityTolerance':
+      case 'QUALITY_TOLERANCE':
+        return (
+          <UiQualityTolerance
+            id={comp.id}
+            label={props.label || props.title || 'Pemeriksaan Dimensi Part'}
+            nominal={Number(props.nominal) || 25.0}
+            usl={Number(props.usl) || 25.05}
+            lsl={Number(props.lsl) || 24.95}
+            unit={props.unit || 'mm'}
+            value={formValues[comp.id] !== undefined ? formValues[comp.id] : props.value}
+            step={Number(props.step) || 0.01}
+            onChange={(res) => {
+              setFormValues(prev => ({ ...prev, [comp.id]: res.value }));
+              logTrigger('QualityTolerance', 'ON_CHANGE', `Dimensi: ${res.value} ${res.unit} (${res.status})`);
+              executeComponentTriggers(comp, 'ON_CHANGE');
+            }}
+            onPass={(res) => {
+              logTrigger('QualityTolerance', 'ON_PASS', `Toleransi PASS: ${res.value}`);
+              executeComponentTriggers(comp, 'ON_PASS');
+            }}
+            onFail={(res) => {
+              logTrigger('QualityTolerance', 'ON_FAIL', `Toleransi FAIL (${res.deviation > 0 ? 'HIGH' : 'LOW'}): ${res.value}`);
+              executeComponentTriggers(comp, 'ON_FAIL');
+            }}
+          />
+        );
+
+      case 'QualityPassFail':
+      case 'QUALITY_PASS_FAIL':
+        return (
+          <UiQualityPassFail
+            id={comp.id}
+            label={props.label || props.title || 'Keputusan Kualitas Part'}
+            value={formValues[comp.id] !== undefined ? formValues[comp.id] : props.value}
+            defectReasons={props.defectReasons || props.reasons}
+            onChange={(res) => {
+              setFormValues(prev => ({ ...prev, [comp.id]: res }));
+              logTrigger('QualityPassFail', 'ON_CHANGE', `Status: ${res.status}`);
+              executeComponentTriggers(comp, 'ON_CHANGE');
+            }}
+            onPass={(res) => {
+              logTrigger('QualityPassFail', 'ON_PASS', 'Inspeksi QC PASS');
+              setActiveToast({ message: 'QC PASS tercatat!', type: 'success' });
+              executeComponentTriggers(comp, 'ON_PASS');
+            }}
+            onFail={(res) => {
+              logTrigger('QualityPassFail', 'ON_FAIL', `QC FAIL: ${res.defectReason || 'Tercatat'}`);
+              setActiveToast({ message: `QC DEFECT: ${res.defectReason || 'Tercatat'}`, type: 'error' });
+              executeComponentTriggers(comp, 'ON_FAIL');
+            }}
+          />
+        );
+
+      case 'BalloonDrawingWidget':
+      case 'BALLOON_DRAWING':
+      case 'DrawingCheckSheet':
+        return (
+          <UiBalloonDrawingWidget
+            title={props.title}
+            drawingNo={props.drawingNo}
+            drawingImage={props.drawingImage || props.imageSrc}
+            balloons={props.balloons}
+            onChange={(updatedBalloons) => {
+              setFormValues(prev => ({ ...prev, [comp.id]: updatedBalloons }));
+              executeComponentTriggers(comp, 'ON_CHANGE');
+            }}
+          />
+        );
+
+      case 'MetrologyWidget':
+      case 'MICROMETER':
+      case 'OUTSIDE_MICROMETER':
+      case 'VERNIER_CALIPER':
+      case 'CALIPER':
+      case 'THREAD_GAUGE':
+      case 'THREAD_INSPECTOR':
+      case 'TORQUE_WRENCH':
+      case 'WEIGHING_SCALE':
+      case 'ROUGHNESS_TESTER':
+      case 'DIAL_HEIGHT_GAUGE': {
+        const instType = props.instrumentType || (
+          comp.type === 'OUTSIDE_MICROMETER' ? 'MICROMETER' :
+          comp.type === 'CALIPER' ? 'VERNIER_CALIPER' :
+          comp.type === 'THREAD_INSPECTOR' ? 'THREAD_GAUGE' :
+          comp.type !== 'MetrologyWidget' ? comp.type : 'MICROMETER'
+        );
+        return (
+          <UiMetrologyWidget
+            id={comp.id}
+            instrumentType={instType}
+            label={props.label || props.title}
+            targetValue={Number(props.targetValue || props.nominal) || 25.0}
+            tolerance={Number(props.tolerance) || 0.05}
+            unit={props.unit}
+            value={formValues[comp.id] !== undefined ? formValues[comp.id] : props.value}
+            onChange={(val) => {
+              setFormValues(prev => ({ ...prev, [comp.id]: val }));
+              logTrigger('MetrologyWidget', 'ON_CHANGE', `Ukur ${instType}: ${val}`);
+              executeComponentTriggers(comp, 'ON_CHANGE');
+            }}
+            onCapture={(res) => {
+              logTrigger('MetrologyWidget', 'ON_CAPTURE', `Capture ${res.instrument}: ${res.value} ${res.unit} (${res.status})`);
+              setActiveToast({ message: `Data ${res.instrument} ${res.value} ${res.unit} tersimpan`, type: res.status === 'PASS' ? 'success' : 'warning' });
+              executeComponentTriggers(comp, 'ON_CAPTURE');
+            }}
+          />
+        );
+      }
+
+      case 'ProductionCounter':
+      case 'QUANTITY_LOGGER':
+        return (
+          <UiProductionCounter
+            id={comp.id}
+            label={props.label || props.title || 'Pencatatan Produksi Part'}
+            targetQty={Number(props.targetQty || props.target) || 500}
+            actualQty={formValues[`${comp.id}_actual`] !== undefined ? formValues[`${comp.id}_actual`] : props.actualQty}
+            defectQty={formValues[`${comp.id}_defect`] !== undefined ? formValues[`${comp.id}_defect`] : props.defectQty}
+            unit={props.unit || 'pcs'}
+            onChange={(data) => {
+              setFormValues(prev => ({
+                ...prev,
+                [comp.id]: data,
+                [`${comp.id}_actual`]: data.actual,
+                [`${comp.id}_defect`]: data.defect
+              }));
+              logTrigger('ProductionCounter', 'ON_CHANGE', `Actual: ${data.actual}, Defect: ${data.defect}`);
+              executeComponentTriggers(comp, 'ON_CHANGE');
+            }}
+            onTargetReached={() => {
+              logTrigger('ProductionCounter', 'ON_TARGET', 'Target produksi tercapai!');
+              setActiveToast({ message: 'Target Shift Produksi Telah Tercapai!', type: 'success' });
+              executeComponentTriggers(comp, 'ON_TARGET');
+            }}
+          />
+        );
+
+      case 'OEEWidget':
+      case 'SCADA_OEE':
+        return (
+          <UiOEEWidget
+            id={comp.id}
+            label={props.label || props.title || 'Efektivitas Mesin (OEE)'}
+            availability={Number(props.availability) || 92.5}
+            performance={Number(props.performance) || 88.0}
+            quality={Number(props.quality) || 98.4}
+          />
+        );
+
+      case 'AlarmBanner':
+      case 'SCADA_ALARM_BANNER':
+        return (
+          <UiAlarmBanner
+            id={comp.id}
+            severity={props.severity || 'WARNING'}
+            title={props.title || props.label || 'Peringatan Parameter Mesin'}
+            message={props.message || props.description || 'Parameter operasional melebihi batas aman.'}
+            onAcknowledge={() => {
+              setFormValues(prev => ({ ...prev, [`${comp.id}_ack`]: true }));
+              logTrigger('AlarmBanner', 'ON_ACKNOWLEDGE', `Alarm ${props.title || 'Mesin'} di-acknowledge`);
+              setActiveToast({ message: 'Alarm telah di-acknowledge oleh operator', type: 'info' });
+              executeComponentTriggers(comp, 'ON_ACKNOWLEDGE');
+            }}
+          />
+        );
+
+      case 'BarcodeGenerator':
+      case 'BARCODE':
+        return (
+          <UiBarcodeGenerator
+            id={comp.id}
+            value={formValues[comp.id] || props.value || 'LOT-2026-09-8812'}
+            label={props.label || props.title || 'Barcode Part & Lot Number'}
+            type={props.barcodeType || props.type || 'CODE128'}
+            showText={props.showText !== false}
+          />
+        );
+
+      case 'PrintZebra':
+      case 'PRINT_AREA':
+        return (
+          <UiPrintZebra
+            id={comp.id}
+            partNumber={props.partNumber || 'PART-ENG-8821'}
+            lotNumber={props.lotNumber || 'LOT-2026-09-01'}
+            partName={props.partName || 'Shaft Rotor Assembly'}
+            operator={props.operator || 'Operator QC'}
+            onPrint={(ticket) => {
+              logTrigger('PrintZebra', 'ON_PRINT', `Cetak Label Part: ${ticket.partNumber}`);
+              setActiveToast({ message: `Mencetak Label Zebra: ${ticket.partNumber}`, type: 'success' });
+              executeComponentTriggers(comp, 'ON_PRINT');
+            }}
+          />
+        );
+
+      // ─── SCADA HMI & INDUSTRIAL AUTOMATION (PHASE 2) ─────────────────────────
+      case 'ScadaMotor':
+      case 'SCADA_MOTOR':
+        return (
+          <UiScadaMotor
+            id={comp.id}
+            label={props.label || props.title || 'Motor Penggerak'}
+            motorState={formValues[comp.id] !== undefined ? formValues[comp.id] : (props.motorState || 'STOPPED')}
+            rpm={Number(props.rpm) || 1450}
+            current={Number(props.current) || 12.8}
+            colorRunning={props.colorRunning}
+            colorStopped={props.colorStopped}
+            colorFault={props.colorFault}
+            onChange={(res) => {
+              setFormValues(prev => ({ ...prev, [comp.id]: res.state }));
+              logTrigger('ScadaMotor', 'ON_CHANGE', `Motor State: ${res.state} (${res.rpm} RPM)`);
+              executeComponentTriggers(comp, 'ON_CHANGE');
+            }}
+            onStart={() => {
+              logTrigger('ScadaMotor', 'ON_START', `Motor ${props.label || comp.id} Started`);
+              setActiveToast({ message: `Motor ${props.label || comp.id} RUNNING`, type: 'success' });
+              triggerIndustrialHaptic('SUCCESS');
+              playIndustrialSound('MOTOR_START');
+              executeComponentTriggers(comp, 'ON_START');
+            }}
+            onStop={() => {
+              logTrigger('ScadaMotor', 'ON_STOP', `Motor ${props.label || comp.id} Stopped`);
+              setActiveToast({ message: `Motor ${props.label || comp.id} STOPPED`, type: 'info' });
+              triggerIndustrialHaptic('LIGHT');
+              executeComponentTriggers(comp, 'ON_STOP');
+            }}
+          />
+        );
+
+      case 'ScadaValve':
+      case 'SCADA_VALVE':
+        return (
+          <UiScadaValve
+            id={comp.id}
+            label={props.label || props.title || 'Katup Solenoid'}
+            valveState={formValues[comp.id] !== undefined ? formValues[comp.id] : (props.valveState || 'CLOSED')}
+            colorOpen={props.colorOpen}
+            colorClosed={props.colorClosed}
+            onChange={(res) => {
+              setFormValues(prev => ({ ...prev, [comp.id]: res.state }));
+              logTrigger('ScadaValve', 'ON_CHANGE', `Katup: ${res.state}`);
+              executeComponentTriggers(comp, 'ON_CHANGE');
+            }}
+            onOpen={() => {
+              logTrigger('ScadaValve', 'ON_OPEN', `Katup ${props.label || comp.id} DIBUKA`);
+              setActiveToast({ message: `Katup ${props.label || comp.id} DIBUKA`, type: 'success' });
+              triggerIndustrialHaptic('MEDIUM');
+              executeComponentTriggers(comp, 'ON_OPEN');
+            }}
+            onClose={() => {
+              logTrigger('ScadaValve', 'ON_CLOSE', `Katup ${props.label || comp.id} DITUTUP`);
+              setActiveToast({ message: `Katup ${props.label || comp.id} DITUTUP`, type: 'info' });
+              triggerIndustrialHaptic('LIGHT');
+              executeComponentTriggers(comp, 'ON_CLOSE');
+            }}
+          />
+        );
+
+      case 'ScadaTank':
+      case 'SCADA_TANK':
+      case 'SCADA_TANK_LEVEL':
+        return (
+          <UiScadaTank
+            id={comp.id}
+            label={props.label || props.title || 'Tangki Penampungan'}
+            capacity={Number(props.capacity) || 1000}
+            level={formValues[comp.id] !== undefined ? formValues[comp.id] : (Number(props.level) || 650)}
+            unit={props.unit || 'L'}
+            fluidColor={props.fluidColor || '#0284c7'}
+            lowAlarm={Number(props.lowAlarm) || 150}
+            highAlarm={Number(props.highAlarm) || 900}
+            onChange={(res) => {
+              setFormValues(prev => ({ ...prev, [comp.id]: res.level }));
+              logTrigger('ScadaTank', 'ON_CHANGE', `Level Tangki: ${res.level} ${props.unit || 'L'} (${res.percentage}%)`);
+              executeComponentTriggers(comp, 'ON_CHANGE');
+            }}
+          />
+        );
+
+      case 'ScadaPipe':
+      case 'SCADA_PIPE':
+        return (
+          <UiScadaPipe
+            id={comp.id}
+            direction={props.direction || 'horizontal'}
+            fluidColor={props.fluidColor || '#06b6d4'}
+            flowSpeed={Number(props.flowSpeed) || 3}
+            isActive={props.isActive !== false}
+          />
+        );
+
+      case 'ScadaPump':
+      case 'SCADA_PUMP':
+        return (
+          <UiScadaPump
+            id={comp.id}
+            label={props.label || props.title || 'Pompa Sirkulasi'}
+            pumpState={formValues[comp.id] !== undefined ? formValues[comp.id] : (props.pumpState || 'STOPPED')}
+            rpm={Number(props.rpm) || 2900}
+            colorRunning={props.colorRunning}
+            colorStopped={props.colorStopped}
+            onChange={(res) => {
+              setFormValues(prev => ({ ...prev, [comp.id]: res.state }));
+              logTrigger('ScadaPump', 'ON_CHANGE', `Status Pompa: ${res.state}`);
+              executeComponentTriggers(comp, 'ON_CHANGE');
+            }}
+            onStart={() => {
+              logTrigger('ScadaPump', 'ON_START', `Pompa ${props.label || comp.id} RUNNING`);
+              setActiveToast({ message: `Pompa ${props.label || comp.id} RUNNING`, type: 'success' });
+              triggerIndustrialHaptic('SUCCESS');
+              executeComponentTriggers(comp, 'ON_START');
+            }}
+            onStop={() => {
+              logTrigger('ScadaPump', 'ON_STOP', `Pompa ${props.label || comp.id} STOPPED`);
+              setActiveToast({ message: `Pompa ${props.label || comp.id} STOPPED`, type: 'info' });
+              executeComponentTriggers(comp, 'ON_STOP');
+            }}
+          />
+        );
+
+      case 'ScadaConveyor':
+      case 'SCADA_CONVEYOR':
+        return (
+          <UiScadaConveyor
+            id={comp.id}
+            label={props.label || props.title || 'Belt Conveyor'}
+            conveyorState={formValues[comp.id] !== undefined ? formValues[comp.id] : (props.conveyorState || 'RUNNING')}
+            speed={Number(props.speed) || 1.2}
+            direction={props.direction || 'RIGHT'}
+            onChange={(res) => {
+              setFormValues(prev => ({ ...prev, [comp.id]: res.state }));
+              logTrigger('ScadaConveyor', 'ON_CHANGE', `Conveyor: ${res.state} (${res.speed} m/s)`);
+              executeComponentTriggers(comp, 'ON_CHANGE');
+            }}
+          />
+        );
+
+      case 'ScadaGauge':
+      case 'SCADA_PRESSURE_GAUGE':
+      case 'SCADA_CIRCULAR_GAUGE':
+        return (
+          <UiScadaGauge
+            id={comp.id}
+            label={props.label || props.title || 'Pressure Gauge'}
+            value={formValues[comp.id] !== undefined ? formValues[comp.id] : (Number(props.value) || 4.2)}
+            min={Number(props.min) || 0}
+            max={Number(props.max) || 10}
+            unit={props.unit || 'bar'}
+            warnLimit={Number(props.warnLimit) || 7.0}
+            alarmLimit={Number(props.alarmLimit) || 8.5}
+          />
+        );
+
+      case 'ScadaDigitalDisplay':
+      case 'SCADA_DIGITAL_DISPLAY':
+        return (
+          <UiScadaDigitalDisplay
+            id={comp.id}
+            label={props.label || props.title || 'Digital Meter'}
+            value={formValues[comp.id] !== undefined ? formValues[comp.id] : (props.value || 142.8)}
+            unit={props.unit || 'm³/h'}
+            status={props.status || 'ONLINE'}
+          />
+        );
+
+      case 'ScadaStartStop':
+      case 'SCADA_BTN_START':
+      case 'SCADA_BTN_STOP':
+      case 'SCADA_BTN_RESET':
+        return (
+          <UiScadaStartStop
+            id={comp.id}
+            label={props.label || props.title || 'Kontrol Panel'}
+            onStart={() => {
+              logTrigger('ScadaStartStop', 'ON_START', 'Operator menekan tombol START');
+              setActiveToast({ message: 'Panel: START Aktif', type: 'success' });
+              triggerIndustrialHaptic('HEAVY');
+              executeComponentTriggers(comp, 'ON_START');
+            }}
+            onStop={() => {
+              logTrigger('ScadaStartStop', 'ON_STOP', 'Operator menekan tombol STOP');
+              setActiveToast({ message: 'Panel: STOP Aktif', type: 'error' });
+              triggerIndustrialHaptic('HEAVY');
+              executeComponentTriggers(comp, 'ON_STOP');
+            }}
+            onReset={() => {
+              logTrigger('ScadaStartStop', 'ON_RESET', 'Operator menekan tombol RESET');
+              setActiveToast({ message: 'Panel: RESET Aktif', type: 'warning' });
+              triggerIndustrialHaptic('MEDIUM');
+              executeComponentTriggers(comp, 'ON_RESET');
+            }}
+          />
+        );
+
+      case 'ScadaToggleSwitch':
+      case 'SCADA_TOGGLE_SWITCH':
+      case 'SCADA_AUTO_MANUAL':
+      case 'SCADA_MODE_SELECTOR':
+        return (
+          <UiScadaToggleSwitch
+            id={comp.id}
+            label={props.label || props.title || 'Selector Switch'}
+            mode={formValues[comp.id] !== undefined ? formValues[comp.id] : (props.mode || 'AUTO')}
+            options={props.options || ['AUTO', 'MANUAL', 'OFF']}
+            onChange={(res) => {
+              setFormValues(prev => ({ ...prev, [comp.id]: res.mode }));
+              logTrigger('ScadaToggleSwitch', 'ON_CHANGE', `Mode: ${res.mode}`);
+              setActiveToast({ message: `Mode Switch: ${res.mode}`, type: 'info' });
+              triggerIndustrialHaptic('LIGHT');
+              executeComponentTriggers(comp, 'ON_CHANGE');
+            }}
+          />
+        );
+
+      case 'ScadaPlcStatus':
+      case 'SCADA_PLC_STATUS':
+        return (
+          <UiScadaPlcStatus
+            id={comp.id}
+            controllerName={props.controllerName}
+            ipAddress={props.ipAddress}
+            protocol={props.protocol}
+            cycleTime={Number(props.cycleTime) || 14}
+            status={props.status || 'ONLINE'}
+          />
+        );
+
+      case 'ScadaTrend':
+      case 'SCADA_TREND':
+      case 'SCADA_HISTORICAL_TREND':
+        return (
+          <UiScadaTrend
+            id={comp.id}
+            label={props.label || props.title || 'Process Trend'}
+            data={props.data}
+            unit={props.unit || '°C'}
+          />
+        );
+
       default:
+        // Universal SCADA Bridge fallback for any legacy SCADA components
+        if (comp.type && String(comp.type).startsWith('SCADA_')) {
+          return (
+            <UiScadaUniversalWidget
+              comp={comp}
+              viewMode="PREVIEW"
+              previewFormValues={formValues}
+              setPreviewFormValues={setFormValues}
+              onWidgetInteraction={(c, trig, data) => {
+                logTrigger(c.type, trig, JSON.stringify(data || {}));
+                executeComponentTriggers(c, trig);
+              }}
+            />
+          );
+        }
         return (
           <div className="p-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-700">
             {props.label || props.text || props.title || comp.type}

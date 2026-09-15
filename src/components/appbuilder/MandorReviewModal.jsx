@@ -84,10 +84,10 @@ export default function MandorReviewModal({
     }
   };
 
-  // User confirms app is OK
+  // User confirms app is OK -> triggers App Registry test simulation
   const handleConfirmOk = () => {
     if (speak) {
-      speak('Baik, terima kasih! Selamat menggunakan aplikasi buatan Anda.');
+      speak('Aplikasi disetujui! Memulai simulator pengujian otomatis berdasarkan App Registry...');
     }
     if (onOk) onOk();
     onClose();
@@ -230,7 +230,7 @@ export default function MandorReviewModal({
                 </span>
               </div>
               <p style={{ margin: 0, fontSize: '12px', color: '#cbd5e1', lineHeight: 1.5 }}>
-                Semua komponen kanvas, tabel, dan trigger telah selesai dipasang. Apakah aplikasi yang saya buat sudah sesuai, atau ada bagian yang perlu direvisi?
+                Semua komponen kanvas, tabel, dan trigger telah selesai dipasang. Apakah aplikasi yang saya buat sudah sesuai, atau ada bagian yang perlu direvisi? Jika OK, kita akan melanjutkan ke simulator pengujian otomatis.
               </p>
             </div>
 
@@ -239,7 +239,7 @@ export default function MandorReviewModal({
               <button
                 onClick={handleConfirmOk}
                 style={{
-                  flex: 1,
+                  flex: 1.2,
                   padding: '12px 18px',
                   background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                   color: '#ffffff',
@@ -259,7 +259,7 @@ export default function MandorReviewModal({
                 onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
               >
                 <ThumbsUp size={16} />
-                <span>Sudah Sesuai (OK)</span>
+                <span>OK • Lanjut Test Simulasi</span>
               </button>
 
               <button

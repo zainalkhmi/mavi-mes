@@ -766,5 +766,347 @@ export const COMPONENT_REGISTRY = [
     example: `<Slider min={0} max={250} step={5} value={temperature} onChange={setTemperature} showValue />`,
     sourceFile: 'src/ui-engine/components/Slider.jsx',
     dependencies: []
+  },
+  {
+    name: 'QualityTolerance',
+    category: 'Quality & Metrology',
+    description: 'Precision dimensional tolerance gauge inspecting nominal, USL, and LSL with live deviation visualizer.',
+    subComponents: [],
+    props: {
+      nominal: { type: 'number', default: 25.0 },
+      usl: { type: 'number', default: 25.05 },
+      lsl: { type: 'number', default: 24.95 },
+      unit: { type: 'string', default: 'mm' },
+      step: { type: 'number', default: 0.01 },
+      defaultValue: { type: 'string', default: '25.02' }
+    },
+    variants: ['default'],
+    responsiveBehavior: 'Full-width responsive gauge on canvas',
+    example: `<QualityTolerance label="Diameter Poros" nominal={25.0} usl={25.05} lsl={24.95} unit="mm" onPass={handlePass} />`,
+    sourceFile: 'src/ui-engine/components/QualityTolerance.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'QualityPassFail',
+    category: 'Quality & Metrology',
+    description: 'Tactile dual Pass and Fail decision buttons with integrated defect reason picker drawer.',
+    subComponents: [],
+    props: {
+      label: { type: 'string', default: 'Keputusan Kualitas Part (Pass / Fail)' },
+      defectReasons: { type: 'array', default: [] }
+    },
+    variants: ['default'],
+    responsiveBehavior: 'High tactile touch buttons for shop-floor gloves',
+    example: `<QualityPassFail label="Inspeksi Visual" onPass={handlePass} onFail={handleFail} />`,
+    sourceFile: 'src/ui-engine/components/QualityPassFail.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'MetrologyWidget',
+    category: 'Quality & Metrology',
+    description: 'Digital twin metrology instrument (Outside Micrometer, Torque Wrench, Weighing Scale, Surface Roughness Tester, Dial Height Gauge).',
+    subComponents: [],
+    props: {
+      instrumentType: { type: 'enum', options: ['MICROMETER', 'TORQUE_WRENCH', 'WEIGHING_SCALE', 'ROUGHNESS_TESTER', 'DIAL_HEIGHT_GAUGE'], default: 'MICROMETER' },
+      targetValue: { type: 'number', default: 25.0 },
+      tolerance: { type: 'number', default: 0.05 },
+      unit: { type: 'string', default: 'mm' }
+    },
+    variants: ['MICROMETER', 'TORQUE_WRENCH', 'WEIGHING_SCALE', 'ROUGHNESS_TESTER', 'DIAL_HEIGHT_GAUGE'],
+    responsiveBehavior: 'Industrial digital LED screen with capture trigger',
+    example: `<MetrologyWidget instrumentType="MICROMETER" targetValue={25.0} tolerance={0.05} onCapture={handleCapture} />`,
+    sourceFile: 'src/ui-engine/components/MetrologyWidget.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'ProductionCounter',
+    category: 'Industrial MES',
+    description: 'Production quantity counter tracking Target vs Good Parts vs Defect NG with progress indicator.',
+    subComponents: [],
+    props: {
+      targetQty: { type: 'number', default: 500 },
+      actualQty: { type: 'number', default: 0 },
+      defectQty: { type: 'number', default: 0 },
+      unit: { type: 'string', default: 'pcs' }
+    },
+    variants: ['default'],
+    responsiveBehavior: 'High contrast tactile stepper for assembly lines',
+    example: `<ProductionCounter targetQty={500} actualQty={120} defectQty={2} onChange={handleCountChange} />`,
+    sourceFile: 'src/ui-engine/components/MESWidgets.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'OEEWidget',
+    category: 'Industrial MES',
+    description: 'Overall Equipment Effectiveness live monitor measuring Availability, Performance, and Quality.',
+    subComponents: [],
+    props: {
+      availability: { type: 'number', default: 92.5 },
+      performance: { type: 'number', default: 88.0 },
+      quality: { type: 'number', default: 98.4 }
+    },
+    variants: ['default'],
+    responsiveBehavior: 'SCADA status indicator with world-class benchmark tag',
+    example: `<OEEWidget availability={92.5} performance={88.0} quality={98.4} />`,
+    sourceFile: 'src/ui-engine/components/MESWidgets.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'AlarmBanner',
+    category: 'Industrial MES',
+    description: 'Flashing industrial severity alarm banner with operator acknowledgement button.',
+    subComponents: [],
+    props: {
+      severity: { type: 'enum', options: ['INFO', 'WARNING', 'CRITICAL'], default: 'WARNING' },
+      title: { type: 'string', default: 'Peringatan Parameter Mesin' },
+      message: { type: 'string', default: 'Parameter operasional melebihi ambang batas normal.' }
+    },
+    variants: ['INFO', 'WARNING', 'CRITICAL'],
+    responsiveBehavior: 'Animated pulsing banner for safety compliance',
+    example: `<AlarmBanner severity="CRITICAL" title="Overheat" message="Motor 95°C" onAcknowledge={handleAck} />`,
+    sourceFile: 'src/ui-engine/components/MESWidgets.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'BarcodeGenerator',
+    category: 'Industrial MES',
+    description: '1D Code128 bar and 2D QR Code generator with quick clipboard copy.',
+    subComponents: [],
+    props: {
+      value: { type: 'string', default: 'LOT-2026-09-8812' },
+      type: { type: 'enum', options: ['CODE128', 'DATAMATRIX', 'QR'], default: 'CODE128' },
+      showText: { type: 'boolean', default: true }
+    },
+    variants: ['CODE128', 'QR'],
+    responsiveBehavior: 'Scalable SVG barcode display for scanners',
+    example: `<BarcodeGenerator value="LOT-2026-09-8812" type="CODE128" />`,
+    sourceFile: 'src/ui-engine/components/BarcodePrintWidgets.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'PrintZebra',
+    category: 'Industrial MES',
+    description: 'Zebra ZPL thermal label printer ticket preview with printing simulation.',
+    subComponents: [],
+    props: {
+      partNumber: { type: 'string', default: 'PART-ENG-8821' },
+      lotNumber: { type: 'string', default: 'LOT-2026-09-01' },
+      partName: { type: 'string', default: 'Shaft Rotor Assembly' },
+      operator: { type: 'string', default: 'Operator QC' }
+    },
+    variants: ['default'],
+    responsiveBehavior: '50x30mm thermal label ticket simulation',
+    example: `<PrintZebra partNumber="PART-ENG-8821" lotNumber="LOT-2026-09-01" onPrint={handlePrint} />`,
+    sourceFile: 'src/ui-engine/components/BarcodePrintWidgets.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'ScadaMotor',
+    category: 'SCADA HMI',
+    description: 'Industrial 3D induction motor SVG with cooling fins, rotating fan animation, live RPM, and current readout.',
+    subComponents: [],
+    props: {
+      label: { type: 'string', default: 'Motor Penggerak (M-101)' },
+      motorState: { type: 'enum', options: ['STOPPED', 'RUNNING', 'FAULT'], default: 'STOPPED' },
+      rpm: { type: 'number', default: 1450 },
+      current: { type: 'number', default: 12.8 },
+      colorRunning: { type: 'color', default: '#22c55e' },
+      colorStopped: { type: 'color', default: '#64748b' },
+      colorFault: { type: 'color', default: '#ef4444' }
+    },
+    variants: ['STOPPED', 'RUNNING', 'FAULT'],
+    responsiveBehavior: 'Scalable SVG equipment faceplate',
+    example: `<ScadaMotor label="Motor Pompa Air" motorState="RUNNING" rpm={1450} current={12.8} />`,
+    sourceFile: 'src/ui-engine/components/ScadaWidgets.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'ScadaValve',
+    category: 'SCADA HMI',
+    description: 'Industrial pipe solenoid/manual valve with tactile click toggle and live open/closed indicators.',
+    subComponents: [],
+    props: {
+      label: { type: 'string', default: 'Katup Solenoid (V-102)' },
+      valveState: { type: 'enum', options: ['CLOSED', 'OPEN', 'AUTO'], default: 'CLOSED' },
+      colorOpen: { type: 'color', default: '#22c55e' },
+      colorClosed: { type: 'color', default: '#ef4444' }
+    },
+    variants: ['CLOSED', 'OPEN'],
+    responsiveBehavior: 'Interactive touch toggle with immediate feedback',
+    example: `<ScadaValve label="Katup Drain" valveState="OPEN" onToggle={handleToggle} />`,
+    sourceFile: 'src/ui-engine/components/ScadaWidgets.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'ScadaTank',
+    category: 'SCADA HMI',
+    description: 'Storage tank with liquid level height percentage, High/Low alarm limits, and step nudgers.',
+    subComponents: [],
+    props: {
+      label: { type: 'string', default: 'Tangki Penampungan (TK-01)' },
+      capacity: { type: 'number', default: 1000 },
+      level: { type: 'number', default: 650 },
+      unit: { type: 'string', default: 'L' },
+      fluidColor: { type: 'color', default: '#0284c7' },
+      lowAlarm: { type: 'number', default: 150 },
+      highAlarm: { type: 'number', default: 900 }
+    },
+    variants: ['default'],
+    responsiveBehavior: 'Dynamic fluid wave fill animation',
+    example: `<ScadaTank label="Tangki Bahan Baku" capacity={1000} level={750} unit="L" />`,
+    sourceFile: 'src/ui-engine/components/ScadaWidgets.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'ScadaPipe',
+    category: 'SCADA HMI',
+    description: 'Horizontal or vertical fluid piping with animated dasharray flow speed and custom fluid color.',
+    subComponents: [],
+    props: {
+      direction: { type: 'enum', options: ['horizontal', 'vertical'], default: 'horizontal' },
+      fluidColor: { type: 'color', default: '#06b6d4' },
+      flowSpeed: { type: 'number', default: 3 },
+      isActive: { type: 'boolean', default: true }
+    },
+    variants: ['horizontal', 'vertical'],
+    responsiveBehavior: 'Fluid width/height adapting to surrounding layout',
+    example: `<ScadaPipe direction="horizontal" fluidColor="#06b6d4" flowSpeed={3} isActive />`,
+    sourceFile: 'src/ui-engine/components/ScadaWidgets.jsx',
+    dependencies: []
+  },
+  {
+    name: 'ScadaPump',
+    category: 'SCADA HMI',
+    description: 'Centrifugal pump with volute casing, animated rotating impeller, and start/stop toggle.',
+    subComponents: [],
+    props: {
+      label: { type: 'string', default: 'Pompa Sirkulasi (P-101)' },
+      pumpState: { type: 'enum', options: ['STOPPED', 'RUNNING', 'FAULT'], default: 'STOPPED' },
+      rpm: { type: 'number', default: 2900 }
+    },
+    variants: ['STOPPED', 'RUNNING', 'FAULT'],
+    responsiveBehavior: 'Tactile equipment faceplate with animated impeller',
+    example: `<ScadaPump label="Pompa Suplai" pumpState="RUNNING" rpm={2900} />`,
+    sourceFile: 'src/ui-engine/components/ScadaWidgets.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'ScadaConveyor',
+    category: 'SCADA HMI',
+    description: 'Belt conveyor with moving rollers, direction control, speed display, and cargo transfer animation.',
+    subComponents: [],
+    props: {
+      label: { type: 'string', default: 'Belt Conveyor (CV-01)' },
+      conveyorState: { type: 'enum', options: ['RUNNING', 'STOPPED'], default: 'RUNNING' },
+      speed: { type: 'number', default: 1.2 },
+      direction: { type: 'enum', options: ['RIGHT', 'LEFT'], default: 'RIGHT' }
+    },
+    variants: ['RUNNING', 'STOPPED'],
+    responsiveBehavior: 'Wide process equipment banner with animated belt',
+    example: `<ScadaConveyor label="Conveyor Lini 1" conveyorState="RUNNING" speed={1.5} direction="RIGHT" />`,
+    sourceFile: 'src/ui-engine/components/ScadaWidgets.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'ScadaGauge',
+    category: 'SCADA HMI',
+    description: 'Circular needle deflection gauge with safety zones (Normal, Warning, Critical) and units.',
+    subComponents: [],
+    props: {
+      label: { type: 'string', default: 'Pressure Gauge (PT-01)' },
+      value: { type: 'number', default: 4.2 },
+      min: { type: 'number', default: 0 },
+      max: { type: 'number', default: 10 },
+      unit: { type: 'string', default: 'bar' },
+      warnLimit: { type: 'number', default: 7.0 },
+      alarmLimit: { type: 'number', default: 8.5 }
+    },
+    variants: ['default'],
+    responsiveBehavior: 'High precision dial with needle transition',
+    example: `<ScadaGauge label="Tekanan Udara Kompresor" value={5.8} min={0} max={10} unit="bar" />`,
+    sourceFile: 'src/ui-engine/components/ScadaWidgets.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'ScadaDigitalDisplay',
+    category: 'SCADA HMI',
+    description: 'High-contrast 7-segment / LED numeric display panel for shop floor sunlight readability.',
+    subComponents: [],
+    props: {
+      label: { type: 'string', default: 'Flow Rate (FIT-201)' },
+      value: { type: 'number', default: 142.8 },
+      unit: { type: 'string', default: 'm³/h' },
+      status: { type: 'string', default: 'ONLINE' }
+    },
+    variants: ['default'],
+    responsiveBehavior: 'High-contrast industrial display',
+    example: `<ScadaDigitalDisplay label="Debit Air Masuk" value={142.8} unit="m³/h" />`,
+    sourceFile: 'src/ui-engine/components/ScadaWidgets.jsx',
+    dependencies: []
+  },
+  {
+    name: 'ScadaStartStop',
+    category: 'SCADA HMI',
+    description: 'Heavy-duty tactile industrial pushbuttons (START, STOP, RESET) with LED illumination.',
+    subComponents: [],
+    props: {
+      label: { type: 'string', default: 'Kontrol Operasi Panel' }
+    },
+    variants: ['default'],
+    responsiveBehavior: 'Big tactile buttons suitable for gloved fingers',
+    example: `<ScadaStartStop label="Kontrol Mesin Utama" onStart={handleStart} onStop={handleStop} />`,
+    sourceFile: 'src/ui-engine/components/ScadaWidgets.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'ScadaToggleSwitch',
+    category: 'SCADA HMI',
+    description: 'Industrial selector rotary switch (AUTO, MANUAL, OFF) with positive detent state.',
+    subComponents: [],
+    props: {
+      label: { type: 'string', default: 'Mode Operasi (Sel-01)' },
+      mode: { type: 'enum', options: ['AUTO', 'MANUAL', 'OFF'], default: 'AUTO' },
+      options: { type: 'array', default: ['AUTO', 'MANUAL', 'OFF'] }
+    },
+    variants: ['default'],
+    responsiveBehavior: 'Rotary detent selector buttons',
+    example: `<ScadaToggleSwitch label="Mode Kontrol" mode="AUTO" onChange={handleModeChange} />`,
+    sourceFile: 'src/ui-engine/components/ScadaWidgets.jsx',
+    dependencies: []
+  },
+  {
+    name: 'ScadaPlcStatus',
+    category: 'SCADA HMI',
+    description: 'Edge Gateway and PLC communication status card with live heartbeat and cycle time (ms).',
+    subComponents: [],
+    props: {
+      controllerName: { type: 'string', default: 'Siemens S7-1500 (Line 1)' },
+      ipAddress: { type: 'string', default: '192.168.1.120' },
+      protocol: { type: 'string', default: 'Modbus TCP' },
+      cycleTime: { type: 'number', default: 14 },
+      status: { type: 'enum', options: ['ONLINE', 'OFFLINE'], default: 'ONLINE' }
+    },
+    variants: ['ONLINE', 'OFFLINE'],
+    responsiveBehavior: 'Industrial link diagnostic badge',
+    example: `<ScadaPlcStatus controllerName="Siemens S7-1500" ipAddress="192.168.1.120" status="ONLINE" />`,
+    sourceFile: 'src/ui-engine/components/ScadaWidgets.jsx',
+    dependencies: ['lucide-react']
+  },
+  {
+    name: 'ScadaTrend',
+    category: 'SCADA HMI',
+    description: 'Sparkline trend chart for live process variables history (Temperature, Pressure, Speed).',
+    subComponents: [],
+    props: {
+      label: { type: 'string', default: 'Trend Suhu Reaktor (TT-101)' },
+      data: { type: 'array', default: [45, 48, 52, 50, 54, 58, 62, 60, 65, 63, 68] },
+      unit: { type: 'string', default: '°C' }
+    },
+    variants: ['default'],
+    responsiveBehavior: 'Scalable SVG sparkline trend',
+    example: `<ScadaTrend label="Trend Suhu" data={[50, 52, 55, 60]} unit="°C" />`,
+    sourceFile: 'src/ui-engine/components/ScadaWidgets.jsx',
+    dependencies: []
   }
 ];
+

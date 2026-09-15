@@ -308,6 +308,7 @@ const BuilderCopilot = ({
   isGhostPilotRunning = false,
   initialPrompt = null,
   onClearInitialPrompt = null,
+  onGeneratingChange = null,
 }) => {
   const STORAGE_KEY = 'mandor_copilot_history';
 
@@ -719,6 +720,7 @@ const BuilderCopilot = ({
     setInput('');
     setSelectedCanvaDesign(null);
     setIsLoading(true);
+    if (onGeneratingChange) onGeneratingChange(true);
     setStreamingText(''); // UPGRADE 2: reset streaming
 
     try {
@@ -801,6 +803,7 @@ const BuilderCopilot = ({
       }]);
     } finally {
       setIsLoading(false);
+      if (onGeneratingChange) onGeneratingChange(false);
       setStreamingText('');
     }
   };
@@ -1277,9 +1280,9 @@ Apa yang bisa kamu bantu untuk widget ini?`;
       overflow: 'hidden',
       fontFamily: '"Inter", system-ui, -apple-system, sans-serif',
       transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease',
-      transform: isGhostPilotRunning ? 'translateX(calc(100% + 40px))' : 'translateX(0)',
-      opacity: isGhostPilotRunning ? 0 : 1,
-      pointerEvents: isGhostPilotRunning ? 'none' : 'auto',
+      transform: (isGhostPilotRunning || isLoading) ? 'translateX(calc(100% + 40px))' : 'translateX(0)',
+      opacity: (isGhostPilotRunning || isLoading) ? 0 : 1,
+      pointerEvents: (isGhostPilotRunning || isLoading) ? 'none' : 'auto',
     }}>
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}

@@ -18,6 +18,9 @@ import { createQuickBuildCadVisionTemplate } from '../utils/quickbuildVisionDraw
 import { logout } from '../utils/auth';
 import VibeSandpackViewer from './appbuilder/VibeSandpackViewer';
 import GluestackAppPlayer from '../ui-engine/preview/GluestackAppPlayer';
+import TulipPlayerHeader from './player/TulipPlayerHeader';
+import { TulipHelpModal, TulipInfoModal, TulipRestartModal, TulipShopFloorMenuModal } from './player/TulipPlayerModals';
+import { useBarcodeScannerWedge } from '../hooks/useBarcodeScannerWedge';
 
 // ─── Performance: Cache apps in memory to avoid re-fetching ─────────────────────
 let _cachedApps = null;
@@ -1229,6 +1232,21 @@ const AppPlayer = () => {
     // Modals
     const [showCameraModal, setShowCameraModal] = useState(false);
     const [showSignatureModal, setShowSignatureModal] = useState(false);
+    const [showTulipHelp, setShowTulipHelp] = useState(false);
+    const [showTulipInfo, setShowTulipInfo] = useState(false);
+    const [showTulipRestart, setShowTulipRestart] = useState(false);
+    const [showTulipMenu, setShowTulipMenu] = useState(false);
+
+    // Global Hardware Barcode Scanner Listener
+    useBarcodeScannerWedge((barcode) => {
+        console.log('[TulipPlayer] Global Barcode Scanned:', barcode);
+        if (iframeRef.current?.contentWindow) {
+            iframeRef.current.contentWindow.postMessage({
+                type: 'BARCODE_SCANNED',
+                barcode: barcode
+            }, '*');
+        }
+    }, { enabled: !!activeAppId });
 
     // Auth modal
     const [pendingApp, setPendingApp] = useState(null);
@@ -1300,13 +1318,17 @@ const AppPlayer = () => {
             station: stationIdFilter || 'Station-01', 
             operator: operator || 'Operator',
             devMode: devMode ? 'true' : 'false',
-            scaleMode: appScaleMode,
+            scaleMode: 'FIT_SCREEN',
             layoutMode: appLayoutMode,
             devicePreset: activeDevicePresetKey,
-            orientation: activeOrientation
+            orientation: activeOrientation,
+            embedded: 'true',
+            hideHeader: 'true',
+            hideFooter: 'true',
+            kiosk: 'true'
         });
         return `/#/terminal/${activeAppId}?${params.toString()}`;
-    }, [activeAppId, stationIdFilter, operator, devMode, appScaleMode, appLayoutMode, activeDevicePresetKey, activeOrientation]);
+    }, [activeAppId, stationIdFilter, operator, devMode, appLayoutMode, activeDevicePresetKey, activeOrientation]);
 
     // ── Load data with caching ────────────────────────────────────────────────
     const loadData = async () => {
@@ -2109,550 +2131,24 @@ const AppPlayer = () => {
                     boxShadow: sidebarHidden ? 'none' : panelStyle.boxShadow
                 }}>
                     {/* Header */}
+                    {/* Tulip Standard Industrial Header */}
                     {activeApp ? (
-                        <>
-                            {/* Consolidated Header Bar */}
-                            <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                padding: '0 16px',
-                                height: '48px',
-                                backgroundColor: '#090d16', // Ultra dark background
-                                color: 'white',
-                                borderBottom: '1px solid #1e293b',
-                                flexShrink: 0,
-                                position: 'relative'
-                            }}>
-                                {/* Left side: Logo, App Title, Badge, Duration, Step, User/Station Info */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flexWrap: 'nowrap' }}>
-                                    {companyLogo && (
-                                        <img src={companyLogo} alt="Logo" style={{ height: '14px', objectFit: 'contain', marginRight: '2px' }} />
-                                    )}
-                                    <span style={{ fontSize: '1.05rem', fontWeight: 800, color: 'white', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                        {activeApp.name}
-                                    </span>
-                                    <span style={{
-                                        fontSize: '0.65rem', fontWeight: 800, color: 'white', 
-                                        backgroundColor: activeApp.approval_status === 'PUBLISHED' ? '#16a34a' : '#ef4444',
-                                        borderRadius: '4px', padding: '2px 6px', textTransform: 'uppercase', letterSpacing: '0.05em',
-                                        whiteSpace: 'nowrap'
-                                    }}>
-                                        {activeApp.approval_status || 'DRAFT'}
-                                    </span>
-                                    
-                                    <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.15)', flexShrink: 0 }} />
-                                    <span style={{ fontSize: '0.72rem', color: '#cbd5e1', whiteSpace: 'nowrap' }}>
-                                        Duration: <strong style={{ color: 'white', fontFamily: 'monospace' }}>{formatDuration(elapsedSeconds)}</strong>
-                                    </span>
-
-                                    {stepLabel && (
-                                        <>
-                                            <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.15)', flexShrink: 0 }} />
-                                            <span style={{
-                                                fontSize: '0.7rem', fontWeight: 700, color: '#090d16', backgroundColor: '#f1f5f9',
-                                                borderRadius: '4px', padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap',
-                                                overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px'
-                                            }}>
-                                                <ChevronRight size={11} /> {stepLabel}
-                                            </span>
-                                        </>
-                                    )}
-
-                                    <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.15)', flexShrink: 0 }} />
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', fontSize: '0.72rem', color: '#94a3b8' }}>
-                                        <User size={11} color="#3b82f6" />
-                                        <span>USER: <strong style={{ color: 'white' }}>{operator || '-'}</strong></span>
-                                    </div>
-
-                                    <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.15)', flexShrink: 0 }} />
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', fontSize: '0.72rem', color: '#94a3b8', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                        <MapPin size={11} color="#10b981" />
-                                        <span>STATION: <strong style={{ color: 'white' }}>{activeStationName || '-'}</strong></span>
-                                    </div>
-                                </div>
-
-                                {/* Right side: Status, Language, Dev Mode, Fullscreen, Scale Mode, Menu, Logout */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                                    <div style={{ 
-                                        fontSize: '0.62rem', fontWeight: 800, padding: '3px 8px', borderRadius: '20px',
-                                        backgroundColor: isOnline ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
-                                        color: isOnline ? '#4ade80' : '#fca5a5',
-                                        display: 'flex', alignItems: 'center', gap: '4px', border: `1px solid ${isOnline ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`
-                                    }}>
-                                        <span className={`pulse-dot ${isOnline ? 'pulse-dot-success' : 'pulse-dot-danger'}`} style={{ width: '5px', height: '5px' }} />
-                                        {isOnline ? 'ONLINE' : 'OFFLINE'}
-                                    </div>
-
-                                    {/* Language selection */}
-                                    <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '1px 6px', borderRadius: '4px', gap: '2px' }}>
-                                        <Globe size={10} color="#cbd5e1" />
-                                        <select 
-                                            value={currentLanguage} 
-                                            onChange={(e) => changeLanguage(e.target.value)}
-                                            style={{ background: 'transparent', border: 'none', color: '#cbd5e1', fontSize: '0.68rem', fontWeight: 700, outline: 'none', cursor: 'pointer' }}
-                                        >
-                                            <option value="en" style={{ color: 'black' }}>EN</option>
-                                            <option value="id" style={{ color: 'black' }}>ID</option>
-                                            <option value="ja" style={{ color: 'black' }}>JA</option>
-                                        </select>
-                                    </div>
-
-                                    {/* Dev Mode toggle */}
-                                    <button
-                                        onClick={() => setDevMode(!devMode)}
-                                        title="Toggle Developer Mode"
-                                        style={{ 
-                                            padding: '4px 8px', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', 
-                                            backgroundColor: devMode ? 'rgba(255,255,255,0.1)' : 'transparent', color: '#cbd5e1', 
-                                            cursor: 'pointer', display: 'flex', gap: '4px', alignItems: 'center', fontWeight: 700, fontSize: '0.68rem',
-                                            transition: 'all 0.2s'
-                                        }}
-                                    >
-                                        <Code size={10} /> {devMode ? 'Dev' : 'Prod'}
-                                    </button>
-
-                                    {/* Fullscreen Kiosk toggle */}
-                                    <button
-                                        onClick={toggleFullscreen}
-                                        title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-                                        style={{ 
-                                            padding: '4px 8px', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', 
-                                            backgroundColor: isFullscreen ? 'rgba(0,0,0,0.3)' : 'transparent', color: '#cbd5e1', 
-                                            cursor: 'pointer', display: 'flex', gap: '4px', alignItems: 'center', fontWeight: 700, fontSize: '0.68rem',
-                                            transition: 'all 0.2s'
-                                        }}
-                                    >
-                                        {isFullscreen ? <Minimize2 size={10} /> : <Maximize2 size={10} />}
-                                        Kiosk
-                                    </button>
-
-                                    {/* Device Preset Selector & Orientation */}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }} ref={playerDeviceMenuRef}>
-                                        <button
-                                            onClick={() => setShowPlayerDeviceMenu(prev => !prev)}
-                                            title={`Device Preset: ${DEVICE_PRESETS[activeDevicePresetKey]?.label || 'Responsive'}`}
-                                            style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '5px',
-                                                padding: '4px 8px',
-                                                borderRadius: '4px',
-                                                border: '1px solid rgba(255,255,255,0.15)',
-                                                backgroundColor: showPlayerDeviceMenu ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.05)',
-                                                color: activeDevicePresetKey !== 'RESPONSIVE' ? '#38bdf8' : '#cbd5e1',
-                                                fontWeight: 700,
-                                                fontSize: '0.68rem',
-                                                cursor: 'pointer',
-                                                transition: 'all 0.15s'
-                                            }}
-                                        >
-                                            {React.createElement(DEVICE_PRESETS[activeDevicePresetKey]?.icon || LayoutGrid, { size: 11 })}
-                                            <span style={{ maxWidth: '95px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                {DEVICE_PRESETS[activeDevicePresetKey]?.label?.split(' ')[0] || 'Responsive'}
-                                            </span>
-                                            <ChevronDown size={10} style={{ opacity: 0.7 }} />
-                                        </button>
-
-                                        {activeDevicePresetKey !== 'RESPONSIVE' && (
-                                            <button
-                                                onClick={() => setPlayerOrientation(prev => {
-                                                    const current = prev || activeApp?.config?.previewOrientation || 'PORTRAIT';
-                                                    return current === 'PORTRAIT' ? 'LANDSCAPE' : 'PORTRAIT';
-                                                })}
-                                                title={`Orientation: ${activeOrientation} (Click to rotate)`}
-                                                style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    padding: '4px 6px',
-                                                    borderRadius: '4px',
-                                                    border: '1px solid rgba(255,255,255,0.15)',
-                                                    backgroundColor: activeOrientation === 'LANDSCAPE' ? 'rgba(245,158,11,0.18)' : 'rgba(255,255,255,0.05)',
-                                                    color: activeOrientation === 'LANDSCAPE' ? '#fbbf24' : '#cbd5e1',
-                                                    cursor: 'pointer',
-                                                    transition: 'all 0.15s'
-                                                }}
-                                            >
-                                                <RotateCw size={10} />
-                                            </button>
-                                        )}
-
-                                        {showPlayerDeviceMenu && (
-                                            <div style={{
-                                                position: 'absolute',
-                                                top: '30px',
-                                                right: 0,
-                                                width: '230px',
-                                                backgroundColor: '#0f172a',
-                                                border: '1px solid #334155',
-                                                borderRadius: '8px',
-                                                boxShadow: '0 12px 30px rgba(0,0,0,0.5)',
-                                                zIndex: 1000,
-                                                padding: '4px',
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                gap: '2px'
-                                            }}>
-                                                <div style={{ padding: '6px 10px', fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                                    Device Presets
-                                                </div>
-                                                {Object.entries(DEVICE_PRESETS).map(([key, preset]) => {
-                                                    const isSelected = activeDevicePresetKey === key;
-                                                    const PresetIcon = preset.icon || LayoutGrid;
-                                                    return (
-                                                        <button
-                                                            key={key}
-                                                            onClick={() => {
-                                                                setPlayerDevicePreset(key);
-                                                                setShowPlayerDeviceMenu(false);
-                                                            }}
-                                                            style={{
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                justifyContent: 'space-between',
-                                                                padding: '6px 10px',
-                                                                borderRadius: '6px',
-                                                                border: 'none',
-                                                                backgroundColor: isSelected ? '#2563eb' : 'transparent',
-                                                                color: isSelected ? 'white' : '#cbd5e1',
-                                                                fontSize: '0.72rem',
-                                                                fontWeight: isSelected ? 700 : 500,
-                                                                cursor: 'pointer',
-                                                                textAlign: 'left',
-                                                                transition: 'all 0.15s'
-                                                            }}
-                                                            onMouseEnter={e => { if (!isSelected) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.06)'; }}
-                                                            onMouseLeave={e => { if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent'; }}
-                                                        >
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                                <PresetIcon size={12} color={isSelected ? 'white' : '#94a3b8'} />
-                                                                <span>{preset.label}</span>
-                                                            </div>
-                                                            {isSelected && <span style={{ fontSize: '0.75rem' }}>✓</span>}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <button
-                                        onClick={() => setAppScaleMode(prev => prev === 'FIT_SCREEN' ? 'FIT_WIDTH' : 'FIT_SCREEN')}
-                                        title={appScaleMode === 'FIT_SCREEN' ? 'Switch to Fit Width' : 'Switch to Fit Screen'}
-                                        style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '4px',
-                                            padding: '4px 8px',
-                                            borderRadius: '4px',
-                                            border: '1px solid rgba(255,255,255,0.15)',
-                                            backgroundColor: appScaleMode === 'FIT_SCREEN' ? 'rgba(34,197,94,0.18)' : 'rgba(59,130,246,0.18)',
-                                            color: appScaleMode === 'FIT_SCREEN' ? '#86efac' : '#93c5fd',
-                                            fontWeight: 700,
-                                            fontSize: '0.68rem',
-                                            cursor: 'pointer',
-                                            transition: 'all 0.15s'
-                                        }}
-                                    >
-                                        <Maximize2 size={10} />
-                                        {appScaleMode === 'FIT_SCREEN' ? 'Fit Screen' : 'Fit Width'}
-                                    </button>
-
-                                    {activeApp?.config?.devicePreset === 'RESPONSIVE' && (
-                                        <button
-                                            onClick={() => setAppLayoutMode(prev => prev === 'PROPORTIONAL' ? 'RESPONSIVE' : 'PROPORTIONAL')}
-                                            title={appLayoutMode === 'PROPORTIONAL' ? 'Switch to Responsive Stack Layout' : 'Switch to Proportional Canvas Layout'}
-                                            style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '4px',
-                                                padding: '4px 8px',
-                                                borderRadius: '4px',
-                                                border: '1px solid rgba(255,255,255,0.15)',
-                                                backgroundColor: appLayoutMode === 'PROPORTIONAL' ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.05)',
-                                                color: appLayoutMode === 'PROPORTIONAL' ? '#93c5fd' : 'white',
-                                                fontWeight: 700,
-                                                fontSize: '0.68rem',
-                                                cursor: 'pointer',
-                                                transition: 'all 0.15s'
-                                            }}
-                                        >
-                                            <LayoutGrid size={10} />
-                                            {appLayoutMode === 'PROPORTIONAL' ? 'Proportional UI' : 'Responsive Stack'}
-                                        </button>
-                                    )}
-
-                                    <div style={{ position: 'relative', flexShrink: 0 }}>
-                                        <button
-                                            onClick={() => setMenuOpen(!menuOpen)}
-                                            style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '6px',
-                                                padding: '4px 8px',
-                                                borderRadius: '4px',
-                                                border: '1px solid rgba(255,255,255,0.15)',
-                                                backgroundColor: menuOpen ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)',
-                                                color: 'white',
-                                                fontWeight: 700,
-                                                fontSize: '0.68rem',
-                                                cursor: 'pointer',
-                                                transition: 'all 0.15s'
-                                            }}
-                                        >
-                                            <Menu size={12} />
-                                            Menu
-                                            <ChevronDown size={10} style={{ transform: menuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-                                        </button>
-
-                                        {/* Dropdown Menu overlay - Glassmorphic Dark */}
-                                        {menuOpen && (
-                                            <div style={{
-                                                position: 'absolute',
-                                                top: '100%',
-                                                right: 0,
-                                                width: '260px',
-                                                background: 'linear-gradient(180deg, #0f172a 0%, #1e293b 100%)',
-                                                color: 'white',
-                                                borderRadius: '12px',
-                                                boxShadow: '0 20px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.08)',
-                                                padding: '8px 0',
-                                                border: '1px solid rgba(255,255,255,0.08)',
-                                                zIndex: 1000,
-                                                marginTop: '8px',
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                backdropFilter: 'blur(20px)'
-                                            }}>
-                                                {/* Menu Header */}
-                                                <div style={{ padding: '6px 16px 10px', borderBottom: '1px solid rgba(255,255,255,0.08)', marginBottom: '4px' }}>
-                                                    <div style={{ fontSize: '0.6rem', fontWeight: 800, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
-                                                        App Controls
-                                                    </div>
-                                                </div>
-
-                                                {/* Comment item */}
-                                                <button
-                                                    onClick={() => { setShowComments(true); setMenuOpen(false); }}
-                                                    style={{
-                                                        display: 'flex', alignItems: 'center', gap: '12px',
-                                                        padding: '9px 16px', width: '100%', border: 'none',
-                                                        background: 'none', textAlign: 'left', fontSize: '0.82rem',
-                                                        fontWeight: 600, color: 'rgba(255,255,255,0.75)',
-                                                        cursor: 'pointer', transition: 'all 0.15s'
-                                                    }}
-                                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
-                                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
-                                                >
-                                                    <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(100,116,139,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                        <MessageSquare size={13} color="#94a3b8" />
-                                                    </div>
-                                                    <span style={{ flex: 1 }}>Comments</span>
-                                                    {sessionComments.length > 0 && <span style={{ fontSize: '0.68rem', fontWeight: 800, backgroundColor: 'rgba(59,130,246,0.2)', color: '#93c5fd', borderRadius: '10px', padding: '1px 7px' }}>{sessionComments.length}</span>}
-                                                </button>
-
-                                                {/* Pause/Resume item */}
-                                                <button
-                                                    onClick={() => { handlePauseToggle(); setMenuOpen(false); }}
-                                                    style={{
-                                                        display: 'flex', alignItems: 'center', gap: '12px',
-                                                        padding: '9px 16px', width: '100%', border: 'none',
-                                                        background: isPaused ? 'rgba(16,185,129,0.1)' : 'none',
-                                                        textAlign: 'left', fontSize: '0.82rem',
-                                                        fontWeight: 600, color: isPaused ? '#6ee7b7' : 'rgba(255,255,255,0.75)',
-                                                        cursor: 'pointer', transition: 'all 0.15s'
-                                                    }}
-                                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = isPaused ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
-                                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = isPaused ? 'rgba(16,185,129,0.1)' : 'transparent'; e.currentTarget.style.color = isPaused ? '#6ee7b7' : 'rgba(255,255,255,0.75)'; }}
-                                                >
-                                                    <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: isPaused ? 'rgba(16,185,129,0.2)' : 'rgba(245,158,11,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                        {isPaused ? <PlayIcon size={13} color="#34d399" /> : <Pause size={13} color="#fbbf24" />}
-                                                    </div>
-                                                    <span style={{ flex: 1 }}>{isPaused ? 'Resume App' : 'Pause App'}</span>
-                                                </button>
-
-                                                {/* Restart App item */}
-                                                <button
-                                                    onClick={() => { handleRestart(); setMenuOpen(false); }}
-                                                    style={{
-                                                        display: 'flex', alignItems: 'center', gap: '12px',
-                                                        padding: '9px 16px', width: '100%', border: 'none',
-                                                        background: 'none', textAlign: 'left', fontSize: '0.82rem',
-                                                        fontWeight: 600, color: 'rgba(255,255,255,0.75)',
-                                                        cursor: 'pointer', transition: 'all 0.15s'
-                                                    }}
-                                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
-                                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
-                                                >
-                                                    <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(79,70,229,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                        <RotateCcw size={13} color="#a5b4fc" />
-                                                    </div>
-                                                    <span style={{ flex: 1 }}>Restart App</span>
-                                                </button>
-
-                                                <button
-                                                    onClick={() => { handleBackToBuilder(); setMenuOpen(false); }}
-                                                    style={{
-                                                        display: 'flex', alignItems: 'center', gap: '12px',
-                                                        padding: '9px 16px', width: '100%', border: 'none',
-                                                        background: 'none', textAlign: 'left', fontSize: '0.82rem',
-                                                        fontWeight: 600, color: 'rgba(255,255,255,0.75)',
-                                                        cursor: 'pointer', transition: 'all 0.15s'
-                                                    }}
-                                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
-                                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
-                                                >
-                                                    <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(59,130,246,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                        <ExternalLink size={13} color="#93c5fd" />
-                                                    </div>
-                                                    <span style={{ flex: 1 }}>Back to App Builder</span>
-                                                </button>
-
-                                                {/* Change App item */}
-                                                <button
-                                                    onClick={() => { handleChangeApp(); setMenuOpen(false); }}
-                                                    style={{
-                                                        display: 'flex', alignItems: 'center', gap: '12px',
-                                                        padding: '9px 16px', width: '100%', border: 'none',
-                                                        background: 'none', textAlign: 'left', fontSize: '0.82rem',
-                                                        fontWeight: 600, color: 'rgba(255,255,255,0.75)',
-                                                        cursor: 'pointer', transition: 'all 0.15s'
-                                                    }}
-                                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
-                                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
-                                                >
-                                                    <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(8,145,178,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                        <RefreshCw size={13} color="#38bdf8" />
-                                                    </div>
-                                                    <span style={{ flex: 1 }}>Change App</span>
-                                                </button>
-
-                                                {/* Camera Capture item */}
-                                                <button
-                                                    onClick={() => { setShowCameraModal(true); setMenuOpen(false); }}
-                                                    style={{
-                                                        display: 'flex', alignItems: 'center', gap: '12px',
-                                                        padding: '9px 16px', width: '100%', border: 'none',
-                                                        background: 'none', textAlign: 'left', fontSize: '0.82rem',
-                                                        fontWeight: 600, color: 'rgba(255,255,255,0.75)',
-                                                        cursor: 'pointer', transition: 'all 0.15s'
-                                                    }}
-                                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
-                                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
-                                                >
-                                                    <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(13,148,136,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                        <Camera size={13} color="#2dd4bf" />
-                                                    </div>
-                                                    <span style={{ flex: 1 }}>Camera Capture</span>
-                                                </button>
-
-                                                {/* Sign Session item */}
-                                                <button
-                                                    onClick={() => { setShowSignatureModal(true); setMenuOpen(false); }}
-                                                    style={{
-                                                        display: 'flex', alignItems: 'center', gap: '12px',
-                                                        padding: '9px 16px', width: '100%', border: 'none',
-                                                        background: 'none', textAlign: 'left', fontSize: '0.82rem',
-                                                        fontWeight: 600, color: 'rgba(255,255,255,0.75)',
-                                                        cursor: 'pointer', transition: 'all 0.15s'
-                                                    }}
-                                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
-                                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
-                                                >
-                                                    <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(234,88,12,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                        <PenTool size={13} color="#fb923c" />
-                                                    </div>
-                                                    <span style={{ flex: 1 }}>Sign Session</span>
-                                                </button>
-
-                                                {/* Panduan Aplikasi - hanya tampil jika app punya help guide */}
-                                                {activeApp?.config?.helpGuide && (
-                                                    <button
-                                                        onClick={() => { setShowHelpGuide(true); setMenuOpen(false); }}
-                                                        style={{
-                                                            display: 'flex', alignItems: 'center', gap: '12px',
-                                                            padding: '9px 16px', width: '100%', border: 'none',
-                                                            background: 'none', textAlign: 'left', fontSize: '0.82rem',
-                                                            fontWeight: 600, color: 'rgba(255,255,255,0.75)',
-                                                            cursor: 'pointer', transition: 'all 0.15s'
-                                                        }}
-                                                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
-                                                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
-                                                    >
-                                                        <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                            <BookOpen size={13} color="#a5b4fc" />
-                                                        </div>
-                                                        <span style={{ flex: 1 }}>Panduan Aplikasi</span>
-                                                    </button>
-                                                )}
-
-                                                <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.07)', margin: '6px 0' }} />
-
-                                                {/* Debug Panel toggle (if in dev mode) */}
-                                                {devMode && (
-                                                    <button
-                                                        onClick={() => { setShowDebugPanel(!showDebugPanel); setMenuOpen(false); }}
-                                                        style={{
-                                                            display: 'flex', alignItems: 'center', gap: '12px',
-                                                            padding: '9px 16px', width: '100%', border: 'none',
-                                                            background: 'none', textAlign: 'left', fontSize: '0.82rem',
-                                                            fontWeight: 600, color: 'rgba(255,255,255,0.75)',
-                                                            cursor: 'pointer', transition: 'all 0.15s'
-                                                        }}
-                                                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
-                                                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
-                                                    >
-                                                        <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(217,119,6,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                            <Bug size={13} color="#fbbf24" />
-                                                        </div>
-                                                        <span style={{ flex: 1 }}>{showDebugPanel ? 'Hide Debugger' : 'Show Debugger'}</span>
-                                                    </button>
-                                                )}
-
-                                                {/* Tech Details toggle */}
-                                                <button
-                                                    onClick={() => { setShowTechDetails(!showTechDetails); setMenuOpen(false); }}
-                                                    style={{
-                                                        display: 'flex', alignItems: 'center', gap: '12px',
-                                                        padding: '9px 16px', width: '100%', border: 'none',
-                                                        background: 'none', textAlign: 'left', fontSize: '0.82rem',
-                                                        fontWeight: 600, color: 'rgba(255,255,255,0.75)',
-                                                        cursor: 'pointer', transition: 'all 0.15s'
-                                                    }}
-                                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'white'; }}
-                                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
-                                                >
-                                                    <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: 'rgba(71,85,105,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                        <Info size={13} color="#94a3b8" />
-                                                    </div>
-                                                    <span style={{ flex: 1 }}>Technical Details</span>
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Logout */}
-                                    <button
-                                        onClick={() => {
-                                            if (window.confirm("Are you sure you want to log out?")) {
-                                                logout();
-                                                window.location.reload();
-                                            }
-                                        }}
-                                        title="Logout"
-                                        style={{ 
-                                            padding: '4px 8px', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '4px', 
-                                            backgroundColor: 'rgba(239,68,68,0.1)', color: '#fca5a5', 
-                                            cursor: 'pointer', display: 'flex', gap: '4px', alignItems: 'center', fontWeight: 700, fontSize: '0.68rem',
-                                            transition: 'all 0.2s'
-                                        }}
-                                    >
-                                        <LogOut size={10} /> Logout
-                                    </button>
-                                </div>
-                            </div>
-                        </>
+                        <TulipPlayerHeader
+                            appName={activeApp.name}
+                            stepTitle={stepProgress?.stepTitle || (activeApp.config?.steps?.[stepProgress?.stepIndex || 0]?.title) || ''}
+                            stepIndex={stepProgress?.stepIndex || 0}
+                            totalSteps={stepProgress?.totalSteps || (activeApp.config?.steps?.length) || 1}
+                            operator={operator}
+                            stationName={activeStationName}
+                            isOnline={isOnline}
+                            companyLogo={companyLogo}
+                            onOpenHelp={() => setShowTulipHelp(true)}
+                            onOpenInfo={() => setShowTulipInfo(true)}
+                            onRestartApp={() => setShowTulipRestart(true)}
+                            onOpenMenu={() => setShowTulipMenu(true)}
+                            onToggleFullscreen={toggleFullscreen}
+                            isFullscreen={isFullscreen}
+                        />
                     ) : (
                         /* No active app - show simple Row 1 layout only */
                         <div style={{
@@ -2743,16 +2239,18 @@ const AppPlayer = () => {
 
 
 
-                    {/* Main Content Area */}
+                    {/* Main Content Area - Full Edge-to-Edge Tulip Player Canvas */}
                     <div style={{
                         flex: 1,
-                        backgroundColor: activeDevicePresetKey === 'RESPONSIVE' ? '#f8fafc' : '#0a0e1a',
+                        width: '100%',
+                        height: '100%',
+                        backgroundColor: activeApp?.config?.appBackgroundColor || '#ffffff',
                         position: 'relative',
                         overflow: 'hidden',
                         display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: activeDevicePresetKey === 'RESPONSIVE' ? '0' : '16px',
+                        alignItems: 'stretch',
+                        justifyContent: 'stretch',
+                        padding: 0,
                         boxSizing: 'border-box'
                     }}>
                         
@@ -2907,57 +2405,23 @@ const AppPlayer = () => {
                                 />
                             </div>
                         ) : (
-                            activeDevicePresetKey === 'RESPONSIVE' ? (
-                                <iframe
-                                    ref={iframeRef}
-                                    key={`${activeAppId}_${activeDevicePresetKey}_${activeOrientation}_${appScaleMode}_${appLayoutMode}`}
-                                    title="frontline-app-player"
-                                    src={appLaunchUrl}
-                                    onLoad={handleIframeLoad}
-                                    onError={handleIframeError}
-                                    style={{ 
-                                        width: '100%', height: '100%', border: 'none', 
-                                        backgroundColor: activeApp?.config?.appBackgroundColor || 'white',
-                                        pointerEvents: isPaused ? 'none' : 'auto',
-                                        transition: 'filter 0.3s',
-                                        filter: isPaused ? 'blur(2px) grayscale(50%)' : 'none'
-                                    }}
-                                />
-                            ) : (
-                                <div style={{
-                                    width: activeOrientation === 'PORTRAIT' 
-                                        ? `${DEVICE_PRESETS[activeDevicePresetKey]?.width || 768}px` 
-                                        : `${DEVICE_PRESETS[activeDevicePresetKey]?.height || 1024}px`,
-                                    height: activeOrientation === 'PORTRAIT' 
-                                        ? `${DEVICE_PRESETS[activeDevicePresetKey]?.height || 1024}px` 
-                                        : `${DEVICE_PRESETS[activeDevicePresetKey]?.width || 768}px`,
-                                    maxWidth: '100%',
-                                    maxHeight: '100%',
-                                    borderRadius: '16px',
-                                    boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.12)',
-                                    overflow: 'hidden',
-                                    backgroundColor: activeApp?.config?.appBackgroundColor || '#0f172a',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    transition: 'all 0.25s ease'
-                                }}>
-                                    <iframe
-                                        ref={iframeRef}
-                                        key={`${activeAppId}_${activeDevicePresetKey}_${activeOrientation}_${appScaleMode}_${appLayoutMode}`}
-                                        title="frontline-app-player"
-                                        src={appLaunchUrl}
-                                        onLoad={handleIframeLoad}
-                                        onError={handleIframeError}
-                                        style={{ 
-                                            width: '100%', height: '100%', border: 'none', 
-                                            backgroundColor: activeApp?.config?.appBackgroundColor || 'white',
-                                            pointerEvents: isPaused ? 'none' : 'auto',
-                                            transition: 'filter 0.3s',
-                                            filter: isPaused ? 'blur(2px) grayscale(50%)' : 'none'
-                                        }}
-                                    />
-                                </div>
-                            )
+                            <iframe
+                                ref={iframeRef}
+                                key={`${activeAppId}_${activeDevicePresetKey}_${activeOrientation}_${appScaleMode}_${appLayoutMode}`}
+                                title="frontline-app-player"
+                                src={appLaunchUrl}
+                                onLoad={handleIframeLoad}
+                                onError={handleIframeError}
+                                style={{ 
+                                    width: '100%', 
+                                    height: '100%', 
+                                    border: 'none', 
+                                    backgroundColor: activeApp?.config?.appBackgroundColor || 'white',
+                                    pointerEvents: isPaused ? 'none' : 'auto',
+                                    transition: 'filter 0.3s',
+                                    filter: isPaused ? 'blur(2px) grayscale(50%)' : 'none'
+                                }}
+                            />
                         )}
                     </div>
                 </div>
@@ -3059,6 +2523,53 @@ const AppPlayer = () => {
                     </div>
                 )}
             </div>
+
+            {/* Tulip Industrial Frontline Modals */}
+            <TulipHelpModal
+                isOpen={showTulipHelp}
+                onClose={() => setShowTulipHelp(false)}
+                appName={activeApp?.name}
+                currentStep={activeApp?.config?.steps?.[stepProgress?.stepIndex || 0]}
+                helpGuide={activeApp?.config?.helpGuide}
+            />
+            <TulipInfoModal
+                isOpen={showTulipInfo}
+                onClose={() => setShowTulipInfo(false)}
+                activeApp={activeApp}
+                operator={operator}
+                stationName={activeStationName}
+                sessionStartedAt={sessionStartedAt}
+            />
+            <TulipRestartModal
+                isOpen={showTulipRestart}
+                onClose={() => setShowTulipRestart(false)}
+                onConfirm={() => {
+                    setShowTulipRestart(false);
+                    if (iframeRef.current?.contentWindow) {
+                        iframeRef.current.contentWindow.postMessage({ type: 'TULIP_RESTART_APP' }, '*');
+                    }
+                    retryLoad();
+                }}
+            />
+            <TulipShopFloorMenuModal
+                isOpen={showTulipMenu}
+                onClose={() => setShowTulipMenu(false)}
+                onSwitchApp={() => {
+                    setShowTulipMenu(false);
+                    stopSession();
+                }}
+                onToggleFullscreen={toggleFullscreen}
+                isFullscreen={isFullscreen}
+                onBackToBuilder={() => {
+                    setShowTulipMenu(false);
+                    handleBackToBuilder();
+                }}
+                onLogout={() => {
+                    setShowTulipMenu(false);
+                    logout();
+                    window.location.reload();
+                }}
+            />
         </div>
     );
 };

@@ -87,57 +87,6 @@ export default function GhostPilotOverlay({
             }}
           />
         )}
-
-        {/* Main Pointer Arrow */}
-        <div
-          style={{
-            position: 'relative',
-            transform: isClicking ? 'scale(0.85) translate(2px, 2px)' : 'scale(1)',
-            transition: 'transform 0.15s ease'
-          }}
-        >
-          <svg
-            width="26"
-            height="26"
-            viewBox="0 0 24 24"
-            fill="none"
-            style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.4))' }}
-          >
-            <path
-              d="M3 3L10.07 19.97L12.58 12.58L19.97 10.07L3 3Z"
-              fill="#0284c7"
-              stroke="#ffffff"
-              strokeWidth="2"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </div>
-
-        {/* Floating Holographic Label beside Cursor */}
-        <div
-          style={{
-            position: 'absolute',
-            left: '26px',
-            top: '12px',
-            backgroundColor: 'rgba(15, 23, 42, 0.92)',
-            backdropFilter: 'blur(8px)',
-            border: '1px solid rgba(56, 189, 248, 0.4)',
-            borderRadius: '8px',
-            padding: '4px 10px',
-            color: '#f8fafc',
-            fontSize: '11px',
-            fontWeight: 600,
-            whiteSpace: 'nowrap',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            boxShadow: '0 4px 14px rgba(0,0,0,0.3)',
-            animation: 'fadeIn 0.2s ease-out'
-          }}
-        >
-          <Sparkles size={11} color="#38bdf8" />
-          <span>Jarvis RPA Pilot</span>
-        </div>
       </div>
 
       {/* ─── 2. FLOATING JARVIS HUD (Top Center) ───────────────────────── */}
@@ -202,6 +151,57 @@ export default function GhostPilotOverlay({
                 >
                   {isPaused ? 'PAUSED' : 'AUTONOMOUS'}
                 </span>
+
+                {/* Prominent Voice Status Indicator ("tampilkan voice") */}
+                <div
+                  onClick={() => setVoiceEnabled(!voiceEnabled)}
+                  title={voiceEnabled ? 'Suara Jarvis Aktif (Klik untuk mute)' : 'Suara Jarvis Nonaktif (Klik untuk aktifkan)'}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '2px 7px',
+                    borderRadius: '4px',
+                    backgroundColor: voiceEnabled
+                      ? (isSpeaking ? 'rgba(56, 189, 248, 0.25)' : 'rgba(56, 189, 248, 0.12)')
+                      : 'rgba(239, 68, 68, 0.15)',
+                    border: voiceEnabled
+                      ? (isSpeaking ? '1px solid #38bdf8' : '1px solid rgba(56, 189, 248, 0.35)')
+                      : '1px solid rgba(239, 68, 68, 0.35)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: isSpeaking ? '0 0 10px rgba(56, 189, 248, 0.5)' : 'none'
+                  }}
+                >
+                  <span style={{ fontSize: '10px' }}>🎙️</span>
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 800,
+                      letterSpacing: '0.03em',
+                      color: voiceEnabled ? (isSpeaking ? '#38bdf8' : '#7dd3fc') : '#f87171'
+                    }}
+                  >
+                    {voiceEnabled ? (isSpeaking ? 'VOICE AKTIF' : 'VOICE ON') : 'VOICE OFF'}
+                  </span>
+                  {isSpeaking && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '2px', height: '10px', marginLeft: '2px' }}>
+                      {[0.5, 1, 0.6, 1, 0.4].map((h, i) => (
+                        <div
+                          key={i}
+                          style={{
+                            width: '2px',
+                            height: '100%',
+                            backgroundColor: '#38bdf8',
+                            borderRadius: '1px',
+                            transform: `scaleY(${h})`,
+                            animation: `soundWave 0.5s infinite ease-in-out ${i * 0.1}s`
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
               <div style={{ fontSize: '11px', color: '#94a3b8' }}>
                 Langkah {currentStepIndex} dari {totalSteps} ({progressPercent}%)
@@ -209,19 +209,31 @@ export default function GhostPilotOverlay({
             </div>
           </div>
 
-          {/* Voice Waveform Animation Indicator */}
+          {/* Voice Waveform Animation Indicator when Speaking */}
           {isSpeaking && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '3px', height: '18px' }}>
-              {[0.6, 1, 0.4, 0.9, 0.5].map((scale, idx) => (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '3px',
+                height: '20px',
+                padding: '0 8px',
+                borderRadius: '8px',
+                backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                border: '1px solid rgba(56, 189, 248, 0.3)'
+              }}
+            >
+              <span style={{ fontSize: '11px', color: '#38bdf8', marginRight: '3px' }}>🎙️</span>
+              {[0.4, 0.9, 0.5, 1.0, 0.6, 0.8].map((scale, idx) => (
                 <div
                   key={idx}
                   style={{
                     width: '3px',
-                    height: '100%',
+                    height: '14px',
                     backgroundColor: '#38bdf8',
                     borderRadius: '2px',
                     transform: `scaleY(${scale})`,
-                    animation: `soundWave 0.8s infinite ease-in-out ${idx * 0.15}s`
+                    animation: `soundWave 0.6s infinite ease-in-out ${idx * 0.1}s`
                   }}
                 />
               ))}
@@ -236,7 +248,7 @@ export default function GhostPilotOverlay({
               title={voiceEnabled ? 'Nonaktifkan Suara Jarvis' : 'Aktifkan Suara Jarvis'}
               style={{
                 background: voiceEnabled ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255,255,255,0.1)',
+                border: voiceEnabled ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.1)',
                 borderRadius: '8px',
                 color: voiceEnabled ? '#38bdf8' : '#64748b',
                 width: '30px',
@@ -244,7 +256,8 @@ export default function GhostPilotOverlay({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                boxShadow: isSpeaking ? '0 0 8px rgba(56, 189, 248, 0.4)' : 'none'
               }}
             >
               {voiceEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
@@ -328,22 +341,59 @@ export default function GhostPilotOverlay({
         {/* Expanded Details & Progress Bar */}
         {!isMinimized && (
           <>
-            {/* Live Narration */}
+            {/* Live Narration with Voice Visualizer */}
             <div
               style={{
                 fontSize: '12px',
-                color: '#cbd5e1',
+                color: '#f8fafc',
                 lineHeight: 1.4,
-                backgroundColor: 'rgba(0, 0, 0, 0.3)',
-                padding: '6px 10px',
+                backgroundColor: isSpeaking ? 'rgba(2, 132, 199, 0.22)' : 'rgba(0, 0, 0, 0.35)',
+                padding: '8px 12px',
                 borderRadius: '8px',
-                borderLeft: '3px solid #38bdf8',
-                minHeight: '28px',
+                borderLeft: isSpeaking ? '3px solid #38bdf8' : '3px solid rgba(56, 189, 248, 0.4)',
+                border: isSpeaking ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid transparent',
+                boxShadow: isSpeaking ? '0 0 16px rgba(56, 189, 248, 0.25)' : 'none',
+                minHeight: '32px',
                 display: 'flex',
-                alignItems: 'center'
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.2s ease'
               }}
             >
-              {currentActionLabel || 'Menyiapkan instruksi berikutnya...'}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  color: isSpeaking ? '#38bdf8' : '#94a3b8',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  flexShrink: 0
+                }}
+              >
+                <span>🎙️</span>
+                <span>JARVIS:</span>
+              </div>
+              <span style={{ flex: 1, fontWeight: isSpeaking ? 600 : 400 }}>
+                {currentActionLabel || 'Menyiapkan instruksi berikutnya...'}
+              </span>
+              {isSpeaking && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '2px', height: '12px', flexShrink: 0 }}>
+                  {[0.4, 0.9, 0.6, 1.0, 0.5].map((scale, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        width: '2px',
+                        height: '100%',
+                        backgroundColor: '#38bdf8',
+                        borderRadius: '1px',
+                        transform: `scaleY(${scale})`,
+                        animation: `soundWave 0.6s infinite ease-in-out ${idx * 0.12}s`
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Step Progress Line */}

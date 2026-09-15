@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import useAppBuilderHistory from '../hooks/useAppBuilderHistory';
 import useAppBuilderProject from '../hooks/useAppBuilderProject';
 import toast from 'react-hot-toast';
@@ -295,10 +295,49 @@ import { useGhostPilotRPA } from '../hooks/useGhostPilotRPA';
 import GhostPilotOverlay from './appbuilder/GhostPilotOverlay';
 import JarvisFloatingOrb from './appbuilder/JarvisFloatingOrb';
 import MandorReviewModal from './appbuilder/MandorReviewModal';
+import AppTestStudioModal from './appbuilder/AppTestStudioModal';
+import {
+    JarvisPreCodingModal,
+    JarvisTestSimulatorModal,
+    JarvisTestResultModal
+} from './appbuilder/JarvisAppLifecycleModals';
+import { appRegistryService } from '../services/appRegistry/appRegistryService';
+import { BrowserTestRunner } from '../services/testEngine/browserTestRunner';
+import { aiBugAnalyzer } from '../services/testEngine/aiBugAnalyzer';
 
 const AppBuilder = () => {
     const ghostPilot = useGhostPilotRPA();
     const [jarvisPendingPrompt, setJarvisPendingPrompt] = useState(null);
+    const [isJarvisCoding, setIsJarvisCoding] = useState(false);
+    const [isTestStudioOpen, setIsTestStudioOpen] = useState(false);
+
+    // Jarvis 5-Phase App Creation Lifecycle States
+    const [preCodingApproval, setPreCodingApproval] = useState({
+        isOpen: false,
+        pendingRPAArgs: null,
+        appName: '',
+        appCategory: '',
+        planDescription: '',
+        planDetails: {}
+    });
+
+    const [testSimulatorState, setTestSimulatorState] = useState({
+        isOpen: false,
+        progress: 0,
+        total: 0,
+        passed: 0,
+        failed: 0,
+        currentStep: ''
+    });
+
+    const [testResultModal, setTestResultModal] = useState({
+        isOpen: false,
+        results: {}
+    });
+
+    const simulatorRunnerRef = useRef(null);
+    const handleDeviceChangeRef = useRef(null);
+    const handleGenerateTulipBaseLayoutRef = useRef(null);
 
     const {
         appName, setAppName,
@@ -486,6 +525,215 @@ const AppBuilder = () => {
             setIsSandboxAiLoading(false);
         }
     };
+
+    // Auto-sync MaviCore Machine-Readable App Registry whenever state updates
+    useEffect(() => {
+        const timeout = setTimeout(() => {
+            try {
+                appRegistryService.syncFromProjectState({
+                    currentAppId,
+                    appName,
+                    appCategory,
+                    appMeta,
+                    steps,
+                    baseComponents,
+                    appTriggers,
+                    appVariables,
+                    appFunctions,
+                    appTables,
+                    recordPlaceholders
+                });
+            } catch (err) {
+                console.warn('[AppRegistry] Auto-sync background error:', err);
+            }
+        }, 500);
+        return () => clearTimeout(timeout);
+    }, [appName, currentAppId, steps, baseComponents, appTriggers, appVariables, appFunctions]);
+
+    // ── JARVIS 5-PHASE APP CREATION LIFECYCLE HANDLERS ───────────────────────
+
+    // Phase 1: Request Pre-Coding Approval (Sebelum Koding)
+    const handleRequestStartGhostPilot = useCallback((rpaArgs) => {
+        const commands = rpaArgs.commands || [];
+        const screens = [];
+        commands.forEach(cmd => {
+            const p = cmd.payload || {};
+            if (cmd.type?.includes('STEP') || cmd.type?.includes('SCREEN') || cmd.type?.includes('PAGE')) {
+                const title = typeof p === 'string' ? p : (p.title || p.stepTitle || p.screenTitle || p.name);
+                if (title && !screens.includes(title)) screens.push(title);
+            }
+        });
+
+        const widgetsCount = commands.filter(c => c.type?.includes('WIDGET') || c.type?.includes('COMPONENT')).length || commands.length;
+        const triggersCount = commands.filter(c => c.type?.includes('TRIGGER')).length;
+
+        // Open Pre-Coding Briefing Modal
+        setPreCodingApproval({
+            isOpen: true,
+            pendingRPAArgs: rpaArgs,
+            appName: appName || 'Aplikasi MAVI MES',
+            appCategory: appCategory || 'Produksi & QC',
+            planDescription: rpaArgs.planDescription || 'Merancang arsitektur aplikasi sesuai instruksi Anda.',
+            planDetails: {
+                screens,
+                widgetsCount,
+                triggersCount,
+                commandsCount: commands.length
+            }
+        });
+    }, [appName, appCategory]);
+
+    // Phase 2: User approves Pre-Coding ("OK, Jalankan Coding") with Target Device confirmation
+    const handleConfirmPreCodingOk = useCallback((targetDevice) => {
+        const rpaArgs = preCodingApproval.pendingRPAArgs;
+        setPreCodingApproval(prev => ({ ...prev, isOpen: false, pendingRPAArgs: null }));
+
+        // Apply selected target device immediately for precise canvas rendering
+        const deviceKey = targetDevice || 'LAPTOP_HD';
+        if (handleDeviceChangeRef.current) {
+            handleDeviceChangeRef.current(deviceKey);
+        }
+
+        // Auto-generate Base Layout (Header & Footer) if baseComponents is empty
+        if ((baseComponentsRef.current || []).length === 0) {
+            handleGenerateTulipBaseLayoutRef.current?.('BOTH', false);
+        }
+
+        if (rpaArgs && ghostPilot.startRPA) {
+            ghostPilot.startRPA(rpaArgs);
+        }
+    }, [preCodingApproval.pendingRPAArgs, ghostPilot]);
+
+    // User requests plan revision before coding
+    const handleRevisePreCodingPlan = useCallback((revisionText) => {
+        setPreCodingApproval(prev => ({ ...prev, isOpen: false, pendingRPAArgs: null }));
+        setJarvisPendingPrompt(`Revisi rencana pembuatan aplikasi: ${revisionText}`);
+        setIsCopilotOpen(true);
+    }, []);
+
+    // Phase 4: App Registry Test Simulator (Jika OK pada Post-Coding Review)
+    const handleRunAppRegistrySimulator = useCallback(async () => {
+        let registry;
+        try {
+            const syncRes = appRegistryService.syncFromProjectState({
+                currentAppId,
+                appName,
+                appCategory,
+                appMeta,
+                steps,
+                baseComponents,
+                appTriggers,
+                appVariables,
+                appFunctions,
+                appTables,
+                recordPlaceholders
+            });
+            registry = syncRes?.registry;
+        } catch (e) {
+            console.warn('[AppBuilder] Sync error before test:', e);
+        }
+
+        setTestSimulatorState({
+            isOpen: true,
+            progress: 0,
+            total: 0,
+            passed: 0,
+            failed: 0,
+            currentStep: 'Menyiapkan canvas & spesifikasi App Registry...'
+        });
+
+        const runner = new BrowserTestRunner({
+            appId: currentAppId || 'app',
+            registry,
+            appState: { steps, baseComponents, appVariables, appTriggers },
+            onSuiteStart: (data) => {
+                setTestSimulatorState(prev => ({ ...prev, total: data.totalTests }));
+            },
+            onTestStart: (tc) => {
+                setTestSimulatorState(prev => ({ ...prev, currentStep: tc.name }));
+            },
+            onTestComplete: (tc, res) => {
+                setTestSimulatorState(prev => ({
+                    ...prev,
+                    progress: prev.progress + 1,
+                    passed: res.passed ? prev.passed + 1 : prev.passed,
+                    failed: !res.passed ? prev.failed + 1 : prev.failed
+                }));
+            },
+            onSuiteComplete: (results) => {
+                setTestSimulatorState(prev => ({ ...prev, isOpen: false }));
+                const bugs = (results.bugs || []).map(b => ({
+                    ...b,
+                    analysis: aiBugAnalyzer.analyzeBug(b, registry)
+                }));
+                setTestResultModal({
+                    isOpen: true,
+                    results: { ...results, bugs }
+                });
+            }
+        });
+
+        simulatorRunnerRef.current = runner;
+        await runner.runSuite('Quick Test');
+    }, [currentAppId, appName, appCategory, appMeta, steps, baseComponents, appTriggers, appVariables, appFunctions, appTables, recordPlaceholders]);
+
+    // Phase 5: User approves auto-fix revision when test fails
+    const handleApplyTestAutoFix = useCallback((bugs = []) => {
+        setTestResultModal(prev => ({ ...prev, isOpen: false }));
+
+        if (ghostPilot?.speakJarvis) {
+            ghostPilot.speakJarvis(`Memulai perbaikan otomatis AI untuk ${bugs.length} isu yang terdeteksi...`);
+        }
+
+        let currentState = {
+            steps: steps || [],
+            baseComponents: baseComponents || [],
+            appVariables: appVariables || [],
+            appTriggers: appTriggers || [],
+            appFunctions: appFunctions || []
+        };
+
+        const setters = {
+            setSteps,
+            setBaseComponents,
+            setAppVariables,
+            setAppTriggers,
+            setAppFunctions
+        };
+
+        let patchCount = 0;
+        const unhandledBugs = [];
+
+        bugs.forEach(bug => {
+            const analysis = bug.analysis || aiBugAnalyzer.analyzeBug(bug);
+            const patch = analysis?.suggestedFix;
+            if (patch) {
+                const fixResult = aiBugAnalyzer.applyFix(currentState, patch, setters);
+                if (fixResult?.nextState) {
+                    currentState = fixResult.nextState;
+                }
+                patchCount++;
+            } else {
+                unhandledBugs.push(bug);
+            }
+        });
+
+        // If there are unhandled bugs or deep code generation needed, invoke Copilot auto-fix
+        if (unhandledBugs.length > 0) {
+            const issuesText = unhandledBugs.map(b => `- [${b.category || b.type}] ${b.component || 'App'}: ${b.actual || b.message}`).join('\n');
+            const fixPrompt = `Perbaiki aplikasi ${appName || ''} untuk mengatasi kegagalan pengujian:\n${issuesText}\nPastikan urutan pembuatan: (1) Base Layout Header & Footer, (2) Variables, (3) Screens & Widgets, (4) Triggers, (5) Functions. Presisi sesuai target device.`;
+            setJarvisPendingPrompt(fixPrompt);
+            setIsCopilotOpen(true);
+            toast.info(`🔧 Mengirim ${unhandledBugs.length} isu pengujian ke Copilot untuk perbaikan mendalam...`);
+        } else {
+            toast.success(`✨ Berhasil menerapkan ${patchCount} perbaikan otomatis! Menguji ulang...`);
+            // Re-run simulator after state settles
+            setTimeout(() => {
+                handleRunAppRegistrySimulator();
+            }, 700);
+        }
+    }, [handleRunAppRegistrySimulator, setAppVariables, setSteps, setAppTriggers, setBaseComponents, setAppFunctions, steps, baseComponents, appVariables, appTriggers, appFunctions, ghostPilot, appName]);
+
     const [proPrompt, setProPrompt] = useState({
         isOpen: false, title: '', message: '', initialValue: '', onConfirm: null
     });
@@ -740,6 +988,7 @@ const AppBuilder = () => {
             // --- AI Type Normalization Helper extracted to aiHelpers.js ---
 
             switch (type) {
+                case 'CREATE_WIDGET':
                 case 'ADD_WIDGET': {
                     let resolvedType = normalizeType(payload.type);
                     const rawTriggers = payload.triggers || payload.props?.triggers;
@@ -752,19 +1001,102 @@ const AppBuilder = () => {
                     }
 
                     const newComp = sanitizeComponentCoords({
-                        id: `w_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                        id: payload.id || `w_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                         displayName: payload.displayName || COMPONENT_TYPES[resolvedType]?.label || resolvedType,
                         ...payload,
                         type: resolvedType,
                         props: mergedProps
                     }, resolvedType);
 
-                    if (currentStepIdRef.current === 'BASE') {
+                    // 1. Target step resolution (checks stepTitle, screenTitle, stepId, step, screen, page, targetStep)
+                    const targetStepKey = String(
+                        payload.stepTitle || 
+                        payload.screenTitle || 
+                        payload.stepId || 
+                        payload.step || 
+                        payload.screen || 
+                        payload.page || 
+                        payload.targetStep ||
+                        ''
+                    ).trim();
+
+                    let targetStepId = currentStepIdRef.current;
+                    if (targetStepKey) {
+                        const lowerKey = targetStepKey.toLowerCase();
+                        if (lowerKey === 'base' || lowerKey === 'base layout' || lowerKey === 'baselayout' || lowerKey.includes('base layout') || lowerKey.includes('master template')) {
+                            targetStepId = 'BASE';
+                        } else {
+                            // Match Priority:
+                            // 1. Exact ID
+                            // 2. Exact Title (case-insensitive, trimmed)
+                            let match = stepsRef.current.find(s => s.id === targetStepKey);
+                            if (!match) {
+                                match = stepsRef.current.find(s => 
+                                    String(s.title || '').toLowerCase().trim() === lowerKey
+                                );
+                            }
+                            // 3. Smart title match with number guard (prevent 'Screen 2' from matching 'Screen 1' or 'Screen')
+                            if (!match) {
+                                const getNum = (str) => {
+                                    const m = /\b([0-9]+)\b/.exec(str);
+                                    if (m) return m[1];
+                                    if (/\b(1|satu|pertama|first)\b/i.test(str)) return '1';
+                                    if (/\b(2|dua|kedua|second)\b/i.test(str)) return '2';
+                                    if (/\b(3|tiga|ketiga|third)\b/i.test(str)) return '3';
+                                    return null;
+                                };
+                                const targetNum = getNum(lowerKey);
+                                match = stepsRef.current.find(s => {
+                                    const sTitle = String(s.title || '').toLowerCase().trim();
+                                    if (!sTitle) return false;
+                                    const sNum = getNum(sTitle);
+                                    if (targetNum !== null && sNum !== targetNum) return false;
+                                    return sTitle.includes(lowerKey) || (lowerKey.length >= 4 && lowerKey.includes(sTitle));
+                                });
+                            }
+
+                            if (match) {
+                                targetStepId = match.id;
+                            } else {
+                                // Auto-create step if specified stepTitle does not exist yet
+                                const autoStepId = `screen_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                                const autoTitle = payload.stepTitle || payload.screenTitle || payload.step || payload.screen || payload.page || `Screen ${stepsRef.current.length + 1}`;
+                                const autoStep = {
+                                    id: autoStepId,
+                                    title: autoTitle,
+                                    stepType: 'Screen',
+                                    cycleTimeSeconds: 60,
+                                    components: [],
+                                    triggers: [],
+                                    logic: { xml: null, code: '' }
+                                };
+                                const isExplicitPage2 = /\b(2|dua|kedua|second|page\s*2|screen\s*2|halaman\s*2)\b/i.test(autoTitle);
+                                const isDefaultEmpty = !isExplicitPage2 && stepsRef.current.length === 1 && 
+                                    (stepsRef.current[0].id === 'screen_1' || stepsRef.current[0].title === 'Screen 1') &&
+                                    (stepsRef.current[0].components || []).length === 0;
+                                const updatedSteps = isDefaultEmpty ? [autoStep] : [...stepsRef.current, autoStep];
+                                stepsRef.current = updatedSteps;
+                                setSteps(updatedSteps);
+                                targetStepId = autoStepId;
+                            }
+                        }
+                    }
+
+                    // 2. Automatically sync active step view so user and Jarvis work on the right page!
+                    if (targetStepId && targetStepId !== currentStepIdRef.current) {
+                        currentStepIdRef.current = targetStepId;
+                        setCurrentStepId(targetStepId);
+                    }
+
+                    // 3. Mount component into resolved step
+                    if (targetStepId === 'BASE') {
                         const nextBase = [...baseComponentsRef.current, newComp];
                         baseComponentsRef.current = nextBase;
                         setBaseComponents(nextBase);
                     } else {
-                        const nextSteps = stepsRef.current.map(s => s.id === currentStepIdRef.current ? { ...s, components: [...s.components, newComp] } : s);
+                        const nextSteps = stepsRef.current.map(s => 
+                            s.id === targetStepId ? { ...s, components: [...(s.components || []), newComp] } : s
+                        );
                         stepsRef.current = nextSteps;
                         setSteps(nextSteps);
                     }
@@ -927,9 +1259,7 @@ const AppBuilder = () => {
                     const guideMarkdown = payload?.markdown || payload?.content || payload || '';
                     setHelpGuide(String(guideMarkdown));
                     setIsHelpGuideOpen(true);
-                    
-                    setSteps(prev => {
-                        const filteredPrev = prev.filter(s => s.stepType !== 'Help Guide' && !s.title.startsWith('Panduan Aplikasi'));
+                    const filteredPrev = (stepsRef.current || []).filter(s => s.stepType !== 'Help Guide' && !s.title.startsWith('Panduan Aplikasi'));
                         
                         const chunks = [];
                         const parts = String(guideMarkdown).split(/(?=## )/);
@@ -1028,12 +1358,52 @@ const AppBuilder = () => {
                             };
                         });
 
-                        return [...filteredPrev, ...newSteps];
-                    });
+                    const finalSteps = [...filteredPrev, ...newSteps];
+                    stepsRef.current = finalSteps;
+                    setSteps(finalSteps);
                     break;
                 }
-                case 'ADD_STEP': {
-                    const stepComponents = (payload.components || []).map(c => {
+                case 'GENERATE_BASE_LAYOUT':
+                case 'BUILD_BASE_LAYOUT':
+                case 'ADD_BASE_LAYOUT': {
+                    const mode = (payload && typeof payload === 'object' && payload.mode) ? payload.mode : 'BOTH';
+                    handleGenerateTulipBaseLayoutRef.current?.(mode, false);
+                    break;
+                }
+                case 'CREATE_STEP':
+                case 'ADD_STEP':
+                case 'ADD_SCREEN':
+                case 'CREATE_SCREEN':
+                case 'NEW_SCREEN':
+                case 'ADD_PAGE':
+                case 'CREATE_PAGE':
+                case 'NEW_PAGE': {
+                    let targetTitle = '';
+                    if (typeof payload === 'string' && payload.trim()) {
+                        targetTitle = payload.trim();
+                    } else if (payload && typeof payload === 'object') {
+                        targetTitle = payload.title || payload.stepTitle || payload.screenTitle || payload.name || payload.screen || payload.page || payload.stepName || payload.label || '';
+                    }
+                    if (!targetTitle) {
+                        targetTitle = `Screen ${stepsRef.current.length + 1}`;
+                    }
+                    const targetTitleLower = String(targetTitle).toLowerCase().trim();
+                    const targetId = (payload && typeof payload === 'object') ? (payload.id || payload.stepId || '') : '';
+
+                    // Check if step already exists (by ID or exact title) to prevent duplicates
+                    const existingStep = stepsRef.current.find(s => 
+                        (targetId && s.id === targetId) || 
+                        (targetTitleLower && String(s.title || '').toLowerCase().trim() === targetTitleLower)
+                    );
+
+                    if (existingStep) {
+                        currentStepIdRef.current = existingStep.id;
+                        setCurrentStepId(existingStep.id);
+                        break;
+                    }
+
+                    const rawComps = (payload && typeof payload === 'object' && Array.isArray(payload.components)) ? payload.components : [];
+                    const stepComponents = rawComps.map(c => {
                         let resolvedType = normalizeType(c.type);
                         const rawTriggers = c.triggers || c.props?.triggers;
                         const mergedProps = sanitizeAiProps({
@@ -1053,9 +1423,9 @@ const AppBuilder = () => {
                     });
 
                     const newStep = {
-                        id: `screen_${Date.now()}`,
-                        title: payload.title || 'New Screen',
-                        stepType: 'Screen',
+                        id: targetId || `screen_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                        title: targetTitle,
+                        stepType: (payload && typeof payload === 'object' && payload.stepType) || 'Screen',
                         cycleTimeSeconds: 60,
                         components: stepComponents,
                         triggers: [],
@@ -1063,7 +1433,10 @@ const AppBuilder = () => {
                     };
 
                     let nextSteps;
-                    const isDefaultEmptyStep = stepsRef.current.length === 1 &&
+                    // ONLY replace if the existing single step is the virgin default "screen_1" / "Screen 1" with 0 components
+                    // AND the new step is NOT explicitly page 2 / screen 2 / subsequent screen
+                    const isExplicitPage2 = /\b(2|dua|kedua|second|page\s*2|screen\s*2|halaman\s*2)\b/i.test(targetTitle);
+                    const isDefaultEmptyStep = !isExplicitPage2 && stepsRef.current.length === 1 &&
                         (stepsRef.current[0].id === 'screen_1' || stepsRef.current[0].title === 'Screen 1') &&
                         (stepsRef.current[0].components || []).length === 0;
 
@@ -1876,21 +2249,70 @@ const AppBuilder = () => {
                     break;
                 }
 
+                case 'GO_TO_SCREEN':
+                case 'SWITCH_SCREEN':
+                case 'NAVIGATE_SCREEN':
+                case 'GO_TO_PAGE':
                 case 'GO_TO_STEP': {
-                    const targetIdOrTitle = payload?.stepId || payload?.targetId || payload?.title;
-                    const lowerTarget = String(targetIdOrTitle || '').toLowerCase();
-                    const targetStep = stepsRef.current.find(s =>
-                        s.id === targetIdOrTitle ||
-                        String(s.title || '').toLowerCase() === lowerTarget
-                    );
+                    const rawTarget = typeof payload === 'string' ? payload : (payload?.stepId || payload?.targetId || payload?.title || payload?.stepTitle || payload?.screenTitle || payload?.target || payload?.screen || payload?.name);
+                    const targetIdOrTitle = String(rawTarget || '').trim();
+                    const lowerTarget = targetIdOrTitle.toLowerCase();
+                    
+                    if (lowerTarget === 'base') {
+                        currentStepIdRef.current = 'BASE';
+                        setCurrentStepId('BASE');
+                        toast.success('Navigasi ke screen "BASE"', { position: 'bottom-right' });
+                        break;
+                    }
+
+                    // 1. Exact ID
+                    let targetStep = stepsRef.current.find(s => s.id === targetIdOrTitle);
+                    // 2. Exact Title
+                    if (!targetStep && lowerTarget) {
+                        targetStep = stepsRef.current.find(s => String(s.title || '').toLowerCase().trim() === lowerTarget);
+                    }
+                    // 3. Smart title match with number guard
+                    if (!targetStep && lowerTarget) {
+                        const getNum = (str) => {
+                            const m = /\b([0-9]+)\b/.exec(str);
+                            if (m) return m[1];
+                            if (/\b(1|satu|pertama|first)\b/i.test(str)) return '1';
+                            if (/\b(2|dua|kedua|second)\b/i.test(str)) return '2';
+                            if (/\b(3|tiga|ketiga|third)\b/i.test(str)) return '3';
+                            return null;
+                        };
+                        const targetNum = getNum(lowerTarget);
+                        targetStep = stepsRef.current.find(s => {
+                            const sTitle = String(s.title || '').toLowerCase().trim();
+                            if (!sTitle) return false;
+                            const sNum = getNum(sTitle);
+                            if (targetNum !== null && sNum !== targetNum) return false;
+                            return sTitle.includes(lowerTarget) || (lowerTarget.length >= 4 && lowerTarget.includes(sTitle));
+                        });
+                    }
+
                     if (targetStep) {
                         currentStepIdRef.current = targetStep.id;
                         setCurrentStepId(targetStep.id);
                         toast.success(`Navigasi ke screen "${targetStep.title}"`, { position: 'bottom-right' });
-                    } else if (lowerTarget === 'base') {
-                        currentStepIdRef.current = 'BASE';
-                        setCurrentStepId('BASE');
-                        toast.success(`Navigasi ke screen "BASE"`, { position: 'bottom-right' });
+                    } else if (targetIdOrTitle) {
+                        // Auto-create screen if GO_TO_STEP targets a new screen
+                        const newStepId = `screen_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                        const newStep = {
+                            id: newStepId,
+                            title: targetIdOrTitle,
+                            stepType: 'Screen',
+                            cycleTimeSeconds: 60,
+                            components: [],
+                            triggers: [],
+                            logic: { xml: null, code: '' }
+                        };
+                        const nextSteps = [...stepsRef.current, newStep];
+                        stepsRef.current = nextSteps;
+                        setSteps(nextSteps);
+                        currentStepIdRef.current = newStepId;
+                        setCurrentStepId(newStepId);
+                        toast.success(`Layar baru "${targetIdOrTitle}" dibuat & aktif`, { position: 'bottom-right' });
                     } else {
                         toast.error(`Screen "${targetIdOrTitle}" tidak ditemukan`, { position: 'bottom-right' });
                     }
@@ -3734,6 +4156,7 @@ const AppBuilder = () => {
         scaleAllComponents(oldSize.width, oldSize.height, newSize.width, newSize.height);
         setPreviewDevice(newDeviceKey);
     };
+    handleDeviceChangeRef.current = handleDeviceChange;
 
     const handleOrientationToggle = () => {
         const newOrientation = previewOrientation === 'PORTRAIT' ? 'LANDSCAPE' : 'PORTRAIT';
@@ -7235,7 +7658,7 @@ const AppBuilder = () => {
         }
     };
 
-    const handleGenerateTulipBaseLayout = (mode = 'BOTH') => {
+    const handleGenerateTulipBaseLayout = (mode = 'BOTH', switchStep = true) => {
         saveHistory();
         const cW = canvasBaseSize.width || 1000;
         const cH = canvasBaseSize.height || 625;
@@ -7455,13 +7878,17 @@ const AppBuilder = () => {
         }
 
         setBaseComponents(newComps);
-        setCurrentStepId('BASE');
+        baseComponentsRef.current = newComps;
+        if (switchStep) {
+            setCurrentStepId('BASE');
+        }
         toast.success(
             mode === 'BOTH'
                 ? '✨ Base Layout Header (Atas) & Footer (Bawah) berhasil diperbarui!'
                 : (mode === 'HEADER_ONLY' ? '✨ Header Bar (Atas) berhasil ditambahkan ke Base Layout!' : '✨ Footer Bar (Bawah) berhasil ditambahkan ke Base Layout!')
         );
     };
+    handleGenerateTulipBaseLayoutRef.current = handleGenerateTulipBaseLayout;
 
     const {
         handleCreateTemplateApp, handleCreateTuneUpTemplate, handleSave, handleDeleteApp, handlePublish, handleRequestApproval, handleApproveApp, handleImportProject, handleDuplicateProject, handleAutoSave, handleRecoverDraft, getCurrentApp, handleCopyUrl, loadApp
@@ -8227,9 +8654,18 @@ const AppBuilder = () => {
 
         if (comp.props?.visible === false && viewMode === 'PREVIEW') return null;
 
+        const stableMaviId = String(comp.props?.testId || comp.displayName || comp.id || `widget-${idx}`)
+            .toLowerCase()
+            .trim()
+            .replace(/[^\w\s-]/g, '')
+            .replace(/[\s_-]+/g, '-') || 'widget';
+
         return (
             <div
                 key={comp.id}
+                data-mavi-id={stableMaviId}
+                data-testid={stableMaviId}
+                data-component-type={comp.type}
                 className={`${comp.props?.isBlinking ? 'animate-blink' : ''} ${isSelected ? 'ring-2 ring-indigo-500 shadow-lg z-[1500]' : (viewMode === 'DESIGN' ? 'hover:ring-1 hover:ring-indigo-300/50' : '')}`}
                 onContextMenu={(e) => {
                     e.preventDefault();
@@ -14006,7 +14442,7 @@ const AppBuilder = () => {
                              type="button"
                              onMouseDown={(e) => e.stopPropagation()}
                              onClick={(e) => { e.stopPropagation(); setIsCanvasLocked(v => !v); }}
-                             title={isCanvasLocked ? 'Buka kunci — klik untuk menggeser widget lagi' : 'Kunci kanvas — widget tidak bisa digeser'}
+                             title={isCanvasLocked ? 'Kanvas terkunci — klik untuk membuka kunci' : 'Kanvas terbuka (bisa diedit) — klik untuk mengunci'}
                              aria-pressed={isCanvasLocked}
                              style={{
                                  display: 'flex',
@@ -14025,8 +14461,8 @@ const AppBuilder = () => {
                              onMouseEnter={e => { e.currentTarget.style.backgroundColor = isCanvasLocked ? '#c7d2fe' : '#f1f5f9' }}
                              onMouseLeave={e => { e.currentTarget.style.backgroundColor = isCanvasLocked ? '#e0e7ff' : '#f8fafc' }}
                         >
-                            {isCanvasLocked ? <Unlock size={16} color="#4338ca" /> : <Lock size={16} color="var(--text-tertiary)" />}
-                            <span style={{ fontSize: '0.6rem', color: isCanvasLocked ? '#4338ca' : '#475569', fontWeight: 600 }}>{isCanvasLocked ? 'Buka' : 'Kunci'}</span>
+                            {isCanvasLocked ? <Lock size={16} color="#4338ca" /> : <Unlock size={16} color="var(--text-tertiary)" />}
+                            <span style={{ fontSize: '0.6rem', color: isCanvasLocked ? '#4338ca' : '#475569', fontWeight: 600 }}>{isCanvasLocked ? 'Terkunci' : 'Buka'}</span>
                         </button>
                         <button
                              type="button"
@@ -29566,10 +30002,11 @@ D3:0
                     if (code) handleUpdateSandpackCode(code);
                     setIsSandboxOpen(true);
                 }}
-                onStartGhostPilot={ghostPilot.startRPA}
+                onStartGhostPilot={handleRequestStartGhostPilot}
                 isGhostPilotRunning={ghostPilot.isRunning}
                 initialPrompt={jarvisPendingPrompt}
                 onClearInitialPrompt={() => setJarvisPendingPrompt(null)}
+                onGeneratingChange={setIsJarvisCoding}
                 context={{
                     currentStepName: currentStep?.title,
                     currentStepId: currentStepId,
@@ -29625,6 +30062,7 @@ D3:0
             <JarvisFloatingOrb
                 isRunning={ghostPilot.isRunning}
                 isSpeaking={ghostPilot.isSpeaking}
+                isCoding={isJarvisCoding}
                 isCopilotOpen={isCopilotOpen}
                 cursorPos={ghostPilot.cursorPos}
                 currentActionLabel={ghostPilot.currentActionLabel}
@@ -29643,11 +30081,55 @@ D3:0
                 speak={ghostPilot.speakJarvis}
                 onOk={() => {
                     ghostPilot.setShowReviewDialog(false);
+                    // Launch simulator test based on App Registry
+                    setTimeout(() => {
+                        handleRunAppRegistrySimulator();
+                    }, 400);
                 }}
                 onSubmitRevision={(revisionPrompt) => {
                     setJarvisPendingPrompt(`Revisi: ${revisionPrompt}`);
                     setIsCopilotOpen(true);
                 }}
+            />
+
+            {/* Jarvis Pre-Coding Briefing & Plan Approval Modal (Sebelum Koding) */}
+            <JarvisPreCodingModal
+                isOpen={preCodingApproval.isOpen}
+                onClose={() => setPreCodingApproval(prev => ({ ...prev, isOpen: false }))}
+                appName={preCodingApproval.appName}
+                appCategory={preCodingApproval.appCategory}
+                planDescription={preCodingApproval.planDescription}
+                planDetails={preCodingApproval.planDetails}
+                onApproveOk={handleConfirmPreCodingOk}
+                onRequestReview={handleRevisePreCodingPlan}
+                speak={ghostPilot.speakJarvis}
+            />
+
+            {/* Jarvis App Registry Test Simulation HUD */}
+            <JarvisTestSimulatorModal
+                isOpen={testSimulatorState.isOpen}
+                appName={appName}
+                currentStep={testSimulatorState.currentStep}
+                progress={testSimulatorState.progress}
+                total={testSimulatorState.total}
+                passed={testSimulatorState.passed}
+                failed={testSimulatorState.failed}
+                onAbort={() => {
+                    if (simulatorRunnerRef.current) simulatorRunnerRef.current.abort();
+                    setTestSimulatorState(prev => ({ ...prev, isOpen: false }));
+                }}
+            />
+
+            {/* Jarvis Test Result & Failure Revision Decision Modal */}
+            <JarvisTestResultModal
+                isOpen={testResultModal.isOpen}
+                onClose={() => setTestResultModal(prev => ({ ...prev, isOpen: false }))}
+                appName={appName}
+                testResults={testResultModal.results}
+                onApplyAutoFix={handleApplyTestAutoFix}
+                onSkipRevision={() => setTestResultModal(prev => ({ ...prev, isOpen: false }))}
+                onOpenTestStudio={() => setIsTestStudioOpen(true)}
+                speak={ghostPilot.speakJarvis}
             />
 
             {/* Speed Dial Fly Button: Copilot & Sandbox */}
@@ -29869,6 +30351,65 @@ D3:0
                                         </span>
                                     </div>
                                 </button>
+
+                                {/* Test & Health Engine (Playwright & App Registry) */}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsCopilotMenuOpen(false);
+                                        setIsTestStudioOpen(true);
+                                    }}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px',
+                                        padding: '8px 16px 8px 12px',
+                                        borderRadius: '9999px',
+                                        background: 'linear-gradient(135deg, #064e3b 0%, #0f172a 100%)',
+                                        border: '1.5px solid rgba(16, 185, 129, 0.5)',
+                                        color: '#ffffff',
+                                        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 15px rgba(16, 185, 129, 0.3)',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.transform = 'translateY(-2px) scale(1.03)';
+                                        e.currentTarget.style.borderColor = '#34d399';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                                        e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.5)';
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            width: '32px',
+                                            height: '32px',
+                                            borderRadius: '50%',
+                                            background: 'linear-gradient(135deg, #059669 0%, #0284c7 100%)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: '#ffffff',
+                                            boxShadow: '0 2px 8px rgba(5, 150, 105, 0.5)'
+                                        }}
+                                    >
+                                        <Activity size={16} />
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#f8fafc' }}>
+                                                Test & Health
+                                            </span>
+                                            <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', backgroundColor: 'rgba(16, 185, 129, 0.25)', color: '#6ee7b7' }}>
+                                                Playwright
+                                            </span>
+                                        </div>
+                                        <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
+                                            App Registry & Testing
+                                        </span>
+                                    </div>
+                                </button>
                             </div>
                         )}
 
@@ -29981,6 +30522,31 @@ D3:0
                     </div>
                 </div>
             )}
+
+            {/* App Test Studio & Playwright Engine Modal */}
+            <AppTestStudioModal
+                isOpen={isTestStudioOpen}
+                onClose={() => setIsTestStudioOpen(false)}
+                projectState={{
+                    currentAppId,
+                    appName,
+                    appCategory,
+                    appMeta,
+                    steps,
+                    baseComponents,
+                    appTriggers,
+                    appVariables,
+                    appFunctions,
+                    appTables,
+                    recordPlaceholders
+                }}
+                setters={{
+                    setSteps,
+                    setAppVariables,
+                    setAppFunctions,
+                    setAppTriggers
+                }}
+            />
         </div>
 
     );

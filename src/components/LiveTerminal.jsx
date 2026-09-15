@@ -2872,36 +2872,47 @@ const LiveTerminal = () => {
   const [machineTagValues, setMachineTagValues] = useState({});
   const [activeMedia, setActiveMedia] = useState(null); // { type, url, duration }
 
+  const isEmbeddedPlayer = launchParams.get('embedded') === 'true' || window.self !== window.top;
+
   useEffect(() => {
+    if (isEmbeddedPlayer) return; // Skip heavy machine polling in player mode
     const interval = setInterval(async () => {
-      const machines = await getMachines();
-      const newValues = {};
-      machines.forEach(m => {
-        if (m.tagMappings) {
-          m.tagMappings.forEach(tm => {
-            newValues[`${m.id}_${tm.attribute}`] = iotConnector.getLiveValue(tm.tag);
-          });
-        }
-      });
-      setMachineTagValues(newValues);
+      try {
+        const machines = await getMachines();
+        const newValues = {};
+        machines.forEach(m => {
+          if (m.tagMappings) {
+            m.tagMappings.forEach(tm => {
+              newValues[`${m.id}_${tm.attribute}`] = iotConnector.getLiveValue(tm.tag);
+            });
+          }
+        });
+        setMachineTagValues(newValues);
+      } catch (e) {
+        console.warn('Machine polling error:', e);
+      }
     }, 2000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isEmbeddedPlayer]);
 
   const [oeeData, setOeeData] = useState({});
   useEffect(() => {
+    if (isEmbeddedPlayer) return; // Skip heavy OEE calculation in player mode
     const interval = setInterval(async () => {
-      const machines = await getMachines();
-      const newOee = {};
-      for (const m of machines) {
-        // Fetch OEE for last 24h
-        const stats = await calculateOEE(m.id);
-        newOee[m.id] = stats;
+      try {
+        const machines = await getMachines();
+        const newOee = {};
+        for (const m of machines) {
+          const stats = await calculateOEE(m.id);
+          newOee[m.id] = stats;
+        }
+        setOeeData(newOee);
+      } catch (e) {
+        console.warn('OEE polling error:', e);
       }
-      setOeeData(newOee);
-    }, 5000); // Poll OEE every 5s
+    }, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isEmbeddedPlayer]);
 
   // Modbus TCP Background Polling at Runtime
   useEffect(() => {
@@ -3375,8 +3386,45 @@ const LiveTerminal = () => {
   const baseComponents = useMemo(() => selectedApp?.config?.baseComponents || [], [selectedApp]);
   const stepComponents = useMemo(() => activeStep?.components || [], [activeStep]);
   
+  const hasBaseLayoutFooter = useMemo(() => {
+    if (!selectedApp) return false;
+    const all = [...baseComponents, ...stepComponents];
+    return all.some(c => 
+      c.id?.startsWith('base_ftr_') || 
+      c.name === 'base_footer_bar' || 
+      c.displayName === 'Footer Bar' ||
+      (c.type === 'BUTTON' && (
+        c.name === 'base_prev_btn' || 
+        c.name === 'base_next_btn' || 
+        c.props?.label?.toLowerCase().includes('next') || 
+        c.props?.label?.toLowerCase().includes('prev')
+      ))
+    );
+  }, [selectedApp, baseComponents, stepComponents]);
+
+  const shouldHideMandorFooter = Boolean(
+    launchParams.get('hideFooter') === 'true' || 
+    launchParams.get('embedded') === 'true' || 
+    window.self !== window.top ||
+    hasBaseLayoutFooter
+  );
+
+  const shouldHideBaseHeader = Boolean(
+    launchParams.get('hideAppBaseHeader') === 'true' ||
+    (launchParams.get('embedded') === 'true' && launchParams.get('hideHeader') === 'true')
+  );
+
   const appComponents = useMemo(() => {
-    const raw = [...baseComponents, ...stepComponents];
+    let raw = [...baseComponents, ...stepComponents];
+    if (shouldHideBaseHeader) {
+      raw = raw.filter(c => 
+        !c.id?.startsWith('base_hdr_') && 
+        c.name !== 'base_header_bar' && 
+        c.name !== 'base_menu_btn' && 
+        c.name !== 'base_app_title' && 
+        c.name !== 'base_logo_text'
+      );
+    }
     if (!designBaseSize.width || !designBaseSize.height || !canvasBaseSize?.width || !canvasBaseSize?.height) {
       return raw;
     }
@@ -3401,7 +3449,7 @@ const LiveTerminal = () => {
         }
       };
     });
-  }, [baseComponents, stepComponents, designBaseSize, canvasBaseSize]);
+  }, [baseComponents, stepComponents, shouldHideBaseHeader, designBaseSize, canvasBaseSize]);
 
   const selectedAppRef = useRef(selectedApp);
   const currentStepIndexRef = useRef(currentStepIndex);
@@ -3705,6 +3753,32 @@ const LiveTerminal = () => {
       }, '*');
     }
   }, [appVariables]);
+
+  useEffect(() => {
+    if (window.self !== window.top && steps && steps.length > 0) {
+      window.parent.postMessage({
+        type: 'STEP_PROGRESS',
+        stepIndex: currentStepIndex,
+        totalSteps: steps.length,
+        stepTitle: steps[currentStepIndex]?.title || ''
+      }, '*');
+    }
+  }, [currentStepIndex, steps]);
+
+  useEffect(() => {
+    const handleWindowMessage = (e) => {
+      if (!e.data) return;
+      if (e.data.type === 'TULIP_RESTART_APP' || e.data.type === 'RESTART') {
+        setCurrentStepIndex(0);
+        resetInputs();
+      } else if (e.data.type === 'BARCODE_SCANNED' && e.data.barcode) {
+        console.log('[LiveTerminal] Received Barcode from Tulip Player wedge:', e.data.barcode);
+        setBarcodeValues(prev => ({ ...prev, global: e.data.barcode }));
+      }
+    };
+    window.addEventListener('message', handleWindowMessage);
+    return () => window.removeEventListener('message', handleWindowMessage);
+  }, [resetInputs]);
 
   const [appFunctions, setAppFunctions] = useState([]);
   const [recordPlaceholders, setRecordPlaceholders] = useState([]);
@@ -13887,7 +13961,8 @@ const LiveTerminal = () => {
 
       {/* Old horizontal Work Sequence strip removed — now rendered as RIGHT SIDEBAR inside MAIN CONTENT AREA */}
 
-      {/* MANDOR FOOTER BAR - Premium Tactile Navigation (Device Adaptive) */}
+      {/* MANDOR FOOTER BAR - Premium Tactile Navigation (Device Adaptive) - Suppressed when Base Layout footer is present */}
+      {!shouldHideMandorFooter && (
       <div style={{
         height: '56px',
         width: '100%',
@@ -14041,6 +14116,7 @@ const LiveTerminal = () => {
         </div>
       </div>
     </div>
+    )}
 
       {/* Signature Pad Overlay - Ported with new theme */}
       {showSignaturePad && (

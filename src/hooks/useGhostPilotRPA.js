@@ -37,6 +37,92 @@ export function useGhostPilotRPA() {
     voiceEnabledRef.current = voiceEnabled;
   }, [voiceEnabled]);
 
+  // Web Audio Synthesizer Chime for instant audible feedback on every step
+  const playJarvisStepChime = (type = 'step') => {
+    if (typeof window === 'undefined') return;
+    try {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+      if (!window._jarvisAudioContext) {
+        window._jarvisAudioContext = new AudioContextClass();
+      }
+      const ctx = window._jarvisAudioContext;
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      if (type === 'step') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, now); // D5
+        osc.frequency.exponentialRampToValueAtTime(880, now + 0.08); // A5
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.12);
+      } else if (type === 'complete') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523.25, now); // C5
+        osc.frequency.exponentialRampToValueAtTime(1046.5, now + 0.15); // C6
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.22);
+      }
+    } catch (e) {
+      // Audio context blocked or unavailable
+    }
+  };
+
+  // Helper to get Indonesian voice with fallbacks
+  const getIndonesianVoice = () => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return null;
+    const voices = window.speechSynthesis.getVoices();
+    if (!voices || voices.length === 0) return null;
+
+    // 1. Indonesian voice
+    const idVoice = voices.find(v => {
+      const lang = (v.lang || '').toLowerCase();
+      const name = (v.name || '').toLowerCase();
+      return lang.includes('id') || lang.includes('ind') || name.includes('indonesia');
+    });
+    if (idVoice) return idVoice;
+
+    // 2. Natural voice fallback
+    const naturalVoice = voices.find(v => (v.name || '').toLowerCase().includes('natural'));
+    if (naturalVoice) return naturalVoice;
+
+    // 3. Google voice fallback
+    const googleVoice = voices.find(v => (v.name || '').toLowerCase().includes('google'));
+    if (googleVoice) return googleVoice;
+
+    // 4. Default voice
+    const defaultVoice = voices.find(v => v.default);
+    return defaultVoice || voices[0] || null;
+  };
+
+  // Initialize voices cache
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      const handleVoices = () => {
+        window.speechSynthesis.getVoices();
+      };
+      window.speechSynthesis.onvoiceschanged = handleVoices;
+      handleVoices();
+      return () => {
+        if (window.speechSynthesis) {
+          window.speechSynthesis.onvoiceschanged = null;
+        }
+      };
+    }
+  }, []);
+
   // Clean text for speech synthesizer
   const cleanSpeechText = (text = '') => {
     return text
@@ -53,7 +139,7 @@ export function useGhostPilotRPA() {
       .trim();
   };
 
-  // Speak with Indonesian voice if available
+  // Speak with Indonesian voice & guarantee speech on every step
   const speakJarvis = useCallback((text) => {
     return new Promise((resolve) => {
       if (!voiceEnabledRef.current || typeof window === 'undefined' || !('speechSynthesis' in window)) {
@@ -61,37 +147,64 @@ export function useGhostPilotRPA() {
       }
 
       try {
-        if (window.speechSynthesis.paused) {
-          window.speechSynthesis.resume();
-        }
+        // Instant audio chime on every step for crisp feedback
+        playJarvisStepChime('step');
 
         const clean = cleanSpeechText(text);
         if (!clean) return resolve();
 
-        const utterance = new SpeechSynthesisUtterance(clean);
-        utterance.rate = speedRef.current === 2 ? 1.3 : speedRef.current === 4 ? 1.6 : 1.1;
-        utterance.pitch = 1.0;
-
-        // Try to pick an Indonesian voice
-        const voices = window.speechSynthesis.getVoices();
-        const idVoice = voices.find(v => v.lang && (v.lang.toLowerCase().includes('id') || v.lang.toLowerCase().includes('ind')));
-        if (idVoice) {
-          utterance.voice = idVoice;
+        // Prevent Chromium GC bug: retain utterance in global Set
+        if (!window._jarvisUtterancePool) {
+          window._jarvisUtterancePool = new Set();
         }
 
+        // Cancel previous speech cleanly
+        try {
+          if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+            window.speechSynthesis.cancel();
+          }
+          if (window.speechSynthesis.paused) {
+            window.speechSynthesis.resume();
+          }
+        } catch (e) {}
+
+        const utterance = new SpeechSynthesisUtterance(clean);
+        utterance.lang = 'id-ID';
+        utterance.rate = speedRef.current === 2 ? 1.25 : speedRef.current === 4 ? 1.5 : 1.05;
+        utterance.pitch = 1.0;
+
+        const bestVoice = getIndonesianVoice();
+        if (bestVoice) {
+          utterance.voice = bestVoice;
+        }
+
+        window._jarvisUtterancePool.add(utterance);
         setIsSpeaking(true);
 
         let finished = false;
+        let resumeInterval = null;
+
         const complete = () => {
           if (!finished) {
             finished = true;
+            if (resumeInterval) clearInterval(resumeInterval);
+            window._jarvisUtterancePool.delete(utterance);
             setIsSpeaking(false);
             resolve();
           }
         };
 
-        // Generous timeout watchdog: only fires if browser fails to trigger onend
-        const safetyTimeoutMs = Math.max(6000, clean.length * 130 + 4000);
+        // Chromium watchdog: keep speech alive if pause bug occurs
+        resumeInterval = setInterval(() => {
+          if (typeof window !== 'undefined' && window.speechSynthesis) {
+            if (window.speechSynthesis.paused) {
+              window.speechSynthesis.resume();
+            }
+          }
+        }, 1500);
+
+        // Safety timeout so execution never hangs
+        const safetyTimeoutMs = Math.max(3500, Math.min(8000, clean.length * 80 + 2000));
         const timerId = setTimeout(complete, safetyTimeoutMs);
 
         utterance.onend = () => {
@@ -105,10 +218,18 @@ export function useGhostPilotRPA() {
           complete();
         };
 
-        window.speechSynthesis.speak(utterance);
-        if (window.speechSynthesis.paused) {
-          window.speechSynthesis.resume();
-        }
+        // Small timeout before speak to let cancel() settle in Chromium
+        setTimeout(() => {
+          try {
+            if (window.speechSynthesis.paused) {
+              window.speechSynthesis.resume();
+            }
+            window.speechSynthesis.speak(utterance);
+          } catch (speakErr) {
+            console.warn('[GhostPilot] speak() error:', speakErr);
+            complete();
+          }
+        }, 30);
       } catch (err) {
         console.warn('[GhostPilot] Speech synthesis error:', err);
         setIsSpeaking(false);
@@ -160,9 +281,27 @@ export function useGhostPilotRPA() {
       case 'CREATE_VARIABLE': {
         return { x: baseLeft + 150, y: window.innerHeight - 100 };
       }
+      case 'CREATE_STEP':
       case 'ADD_STEP':
-      case 'GO_TO_STEP': {
-        return { x: baseLeft + 200, y: baseTop - 40 };
+      case 'ADD_SCREEN':
+      case 'CREATE_SCREEN':
+      case 'NEW_SCREEN':
+      case 'ADD_PAGE':
+      case 'CREATE_PAGE':
+      case 'NEW_PAGE':
+      case 'GO_TO_STEP':
+      case 'GO_TO_SCREEN':
+      case 'SWITCH_SCREEN':
+      case 'NAVIGATE_SCREEN':
+      case 'GO_TO_PAGE': {
+        const stepTabs = document.querySelector('[data-step-tabs="true"]') ||
+                         document.querySelector('.step-tabs-container') ||
+                         document.querySelector('.app-builder-step-list');
+        if (stepTabs) {
+          const rect = stepTabs.getBoundingClientRect();
+          return { x: rect.left + 150, y: rect.top + 20 };
+        }
+        return { x: baseLeft + 200, y: Math.max(50, baseTop - 40) };
       }
       default:
         return {
@@ -179,9 +318,13 @@ export function useGhostPilotRPA() {
     const stepNum = `Langkah ${index + 1}`;
 
     switch (type) {
+      case 'CREATE_WIDGET':
       case 'ADD_WIDGET': {
         const name = p.displayName || p.type || 'komponen';
-        return `${stepNum}: Menambahkan ${name}.`;
+        const targetStep = p.stepTitle || p.screenTitle || '';
+        return targetStep
+          ? `${stepNum}: Menambahkan ${name} ke ${targetStep}.`
+          : `${stepNum}: Menambahkan ${name}.`;
       }
       case 'UPDATE_WIDGET': {
         return `${stepNum}: Mengatur konfigurasi ${p.widgetName || 'komponen'}.`;
@@ -195,11 +338,24 @@ export function useGhostPilotRPA() {
       case 'CREATE_VARIABLE': {
         return `${stepNum}: Menambahkan variabel ${p.name || ''}.`;
       }
-      case 'ADD_STEP': {
-        return `${stepNum}: Membuat layar baru.`;
+      case 'CREATE_STEP':
+      case 'ADD_STEP':
+      case 'ADD_SCREEN':
+      case 'CREATE_SCREEN':
+      case 'NEW_SCREEN':
+      case 'ADD_PAGE':
+      case 'CREATE_PAGE':
+      case 'NEW_PAGE': {
+        const title = (typeof p === 'string' ? p : (p.title || p.stepTitle || p.screenTitle || p.name || p.screen || p.page)) || 'layar baru';
+        return `${stepNum}: Membuat layar baru "${title}".`;
       }
-      case 'GO_TO_STEP': {
-        return `${stepNum}: Membuka layar tujuan.`;
+      case 'GO_TO_STEP':
+      case 'GO_TO_SCREEN':
+      case 'SWITCH_SCREEN':
+      case 'NAVIGATE_SCREEN':
+      case 'GO_TO_PAGE': {
+        const title = (typeof p === 'string' ? p : (p.stepTitle || p.screenTitle || p.title || p.stepId || p.target || p.screen || p.page)) || 'tujuan';
+        return `${stepNum}: Membuka layar "${title}".`;
       }
       default:
         return `${stepNum}: Menjalankan instruksi.`;
@@ -298,50 +454,51 @@ export function useGhostPilotRPA() {
         const narration = getNarrationForCommand(cmd, i, commands.length);
         setCurrentActionLabel(narration);
 
-        // Move Ghost Cursor smoothly towards target
+        // 1. Move Ghost Cursor smoothly towards target
         setCursorPos(targetPos);
 
-        // Stage ghost preview
+        // 2. Stage ghost preview after cursor starts moving
         if (onStageCommand) {
           setTimeout(() => {
             if (!isStoppedRef.current) onStageCommand(cmd);
-          }, 150);
+          }, 100);
         }
 
-        // Commit visual action precisely when cursor arrives at destination
-        let actionExecuted = false;
-        const executeVisualAction = async () => {
-          if (actionExecuted || isStoppedRef.current) return;
-          actionExecuted = true;
+        // 3. Start speech narration in parallel non-blocking promise
+        const speechPromise = speakJarvis(narration);
 
-          setIsClicking(true);
-          await waitAsync(200);
-          setIsClicking(false);
+        // 4. Wait for cursor glide duration to arrive precisely at target
+        const glideMs = Math.max(220, 450 / (speedRef.current || 1));
+        await waitAsync(glideMs);
+        if (isStoppedRef.current) break;
 
-          if (onApplyCommand) {
-            try {
-              await onApplyCommand(cmd);
-            } catch (err) {
-              console.error('[GhostPilot] Error executing command:', err);
-            }
+        // 5. Visual click simulation at target destination
+        setIsClicking(true);
+        const clickMs = Math.max(100, 160 / (speedRef.current || 1));
+        await waitAsync(clickMs);
+        setIsClicking(false);
+        if (isStoppedRef.current) break;
+
+        // 6. COMMIT VISUAL ACTION FULLY & AWAIT IT TO SETTLE STATE (Prevents race conditions / missed widgets)
+        if (onApplyCommand) {
+          try {
+            await onApplyCommand(cmd);
+          } catch (err) {
+            console.error('[GhostPilot] Error executing command:', err);
           }
+        }
 
-          if (onClearStage) {
-            onClearStage();
-          }
-        };
+        // 7. Clear ghost stage preview
+        if (onClearStage) {
+          onClearStage();
+        }
 
-        const actionTimer = setTimeout(executeVisualAction, Math.max(350, 600 / (speedRef.current || 1)));
+        // 8. Wait for Jarvis speech narration to finish naturally before proceeding
+        await speechPromise;
 
-        // Await speech narration to complete naturally
-        await speakJarvis(narration);
-        clearTimeout(actionTimer);
-
-        // Ensure action execution is finished
-        await executeVisualAction();
-
-        // Rhythmic pause between steps
-        await waitAsync(400);
+        // 9. Rhythmic pause between steps before advancing to the next command
+        const pauseMs = Math.max(180, 350 / (speedRef.current || 1));
+        await waitAsync(pauseMs);
       }
 
       // 3. CLOSING CONCLUSION: Ask user confirmation whether app is OK or needs review
@@ -349,6 +506,7 @@ export function useGhostPilotRPA() {
         setCurrentStepIndex(commands.length);
         const outroNarration = 'Perakitan aplikasi telah selesai sepenuhnya. Apakah aplikasi yang saya buat sudah sesuai, atau ada bagian yang perlu direvisi?';
         setCurrentActionLabel('✅ Mandor App: Apakah aplikasi sudah sesuai atau ada revisi?');
+        playJarvisStepChime('complete');
         await speakJarvis(outroNarration);
         setShowReviewDialog(true);
         await waitAsync(500);
@@ -361,6 +519,7 @@ export function useGhostPilotRPA() {
       setIsRunning(false);
       setIsPaused(false);
       setIsClicking(false);
+      setIsSpeaking(false);
       if (onClearStage) onClearStage();
       if (onFinish) onFinish();
     }
@@ -387,9 +546,15 @@ export function useGhostPilotRPA() {
     isExecutingRef.current = false;
     setIsRunning(false);
     setIsPaused(false);
+    setIsSpeaking(false);
     setShowReviewDialog(false);
     if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
+      try {
+        window.speechSynthesis.cancel();
+      } catch (e) {}
+    }
+    if (typeof window !== 'undefined' && window._jarvisUtterancePool) {
+      window._jarvisUtterancePool.clear();
     }
   }, []);
 

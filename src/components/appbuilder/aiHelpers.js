@@ -34,6 +34,12 @@ export const AI_TYPE_ALIASES = {
     'Button': 'BUTTON', 'button': 'BUTTON',
     'Image': 'IMAGE', 'image': 'IMAGE',
     'Text': 'TEXT', 'text': 'TEXT',
+    'Badge': 'TEXT', 'badge': 'TEXT', 'StatusBadge': 'TEXT',
+    'Alert': 'TEXT', 'alert': 'TEXT', 'Notice': 'TEXT',
+    'Chip': 'BUTTON', 'chip': 'BUTTON', 'Tag': 'BUTTON',
+    'Modal': 'SHAPE_RECTANGLE', 'modal': 'SHAPE_RECTANGLE',
+    'Drawer': 'SHAPE_RECTANGLE', 'drawer': 'SHAPE_RECTANGLE',
+    'Tabs': 'SHAPE_RECTANGLE', 'tabs': 'SHAPE_RECTANGLE',
 };
 
 export const normalizeType = (rawType) => {

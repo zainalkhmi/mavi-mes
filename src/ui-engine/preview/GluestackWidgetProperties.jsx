@@ -91,6 +91,7 @@ export default function GluestackWidgetProperties({
   const isTextLike = ['Heading', 'Text', 'Badge'].includes(compType);
   const isMediaLike = ['Image', 'Video', 'Camera', 'QRCodeScanner', 'BarcodeScanner'].includes(compType);
   const isContainerLike = ['Card', 'Container', 'Box', 'HStack', 'VStack'].includes(compType);
+  const isScadaLike = compType.startsWith('Scada') || compType.startsWith('SCADA_');
 
   return (
     <div className="space-y-4 pt-1 text-slate-700">
@@ -493,6 +494,219 @@ export default function GluestackWidgetProperties({
                     <option value="16:9">16:9 Widescreen (HD Media)</option>
                     <option value="4:3">4:3 Standard</option>
                   </select>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── SCADA HMI PARAMETERS (Phase 2) ────────────────────────── */}
+          {isScadaLike && matchesSearch('scada motor valve tank pump pipe speed rpm level limit') && (
+            <div className="space-y-2.5 p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+              <span className="text-[10px] font-black text-cyan-700 uppercase tracking-wider block">
+                SCADA HMI CONFIGURATION
+              </span>
+
+              {/* State Controls (Motor, Valve, Pump, Conveyor) */}
+              {('motorState' in props || compType === 'ScadaMotor') && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600 block">Status Motor</label>
+                  <select
+                    value={props.motorState || 'STOPPED'}
+                    onChange={(e) => updateProps(selectedComponent.id, { motorState: e.target.value })}
+                    className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white font-semibold"
+                  >
+                    <option value="STOPPED">STOPPED (Mati)</option>
+                    <option value="RUNNING">RUNNING (Berputar)</option>
+                    <option value="FAULT">FAULT (Alarm Kerusakan)</option>
+                  </select>
+                </div>
+              )}
+
+              {('valveState' in props || compType === 'ScadaValve') && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600 block">Status Katup (Valve)</label>
+                  <select
+                    value={props.valveState || 'CLOSED'}
+                    onChange={(e) => updateProps(selectedComponent.id, { valveState: e.target.value })}
+                    className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white font-semibold"
+                  >
+                    <option value="CLOSED">CLOSED (Tertutup)</option>
+                    <option value="OPEN">OPEN (Terbuka)</option>
+                    <option value="AUTO">AUTO (Otomatis PLC)</option>
+                  </select>
+                </div>
+              )}
+
+              {('pumpState' in props || compType === 'ScadaPump') && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600 block">Status Pompa</label>
+                  <select
+                    value={props.pumpState || 'STOPPED'}
+                    onChange={(e) => updateProps(selectedComponent.id, { pumpState: e.target.value })}
+                    className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white font-semibold"
+                  >
+                    <option value="STOPPED">STOPPED (Off)</option>
+                    <option value="RUNNING">RUNNING (Memompa)</option>
+                    <option value="FAULT">FAULT (Trip)</option>
+                  </select>
+                </div>
+              )}
+
+              {('conveyorState' in props || compType === 'ScadaConveyor') && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-600 block">Status Conveyor</label>
+                    <select
+                      value={props.conveyorState || 'RUNNING'}
+                      onChange={(e) => updateProps(selectedComponent.id, { conveyorState: e.target.value })}
+                      className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white font-semibold"
+                    >
+                      <option value="RUNNING">RUNNING</option>
+                      <option value="STOPPED">STOPPED</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-600 block">Arah Gerak</label>
+                    <select
+                      value={props.direction || 'RIGHT'}
+                      onChange={(e) => updateProps(selectedComponent.id, { direction: e.target.value })}
+                      className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white font-semibold"
+                    >
+                      <option value="RIGHT">Kanan (RIGHT)</option>
+                      <option value="LEFT">Kiri (LEFT)</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Numeric Inputs: RPM, Current, Speed */}
+              {'rpm' in props && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600 block">Kecepatan Putaran (RPM)</label>
+                  <input
+                    type="number"
+                    value={props.rpm !== undefined ? props.rpm : 1450}
+                    onChange={(e) => updateProps(selectedComponent.id, { rpm: Number(e.target.value) })}
+                    className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white"
+                  />
+                </div>
+              )}
+
+              {'speed' in props && compType === 'ScadaConveyor' && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600 block">Kecepatan Sabuk (m/s)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={props.speed !== undefined ? props.speed : 1.2}
+                    onChange={(e) => updateProps(selectedComponent.id, { speed: Number(e.target.value) })}
+                    className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white"
+                  />
+                </div>
+              )}
+
+              {/* Tank Props: Capacity, Level, Fluid Color */}
+              {'capacity' in props && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-600 block">Kapasitas Tangki</label>
+                    <input
+                      type="number"
+                      value={props.capacity || 1000}
+                      onChange={(e) => updateProps(selectedComponent.id, { capacity: Number(e.target.value) })}
+                      className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-600 block">Level Saat Ini</label>
+                    <input
+                      type="number"
+                      value={props.level || 650}
+                      onChange={(e) => updateProps(selectedComponent.id, { level: Number(e.target.value) })}
+                      className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {'fluidColor' in props && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600 block">Warna Fluida / Cairan</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={props.fluidColor || '#0284c7'}
+                      onChange={(e) => updateProps(selectedComponent.id, { fluidColor: e.target.value })}
+                      className="w-8 h-8 rounded border border-slate-300 cursor-pointer p-0.5"
+                    />
+                    <span className="text-xs font-mono text-slate-600">{props.fluidColor || '#0284c7'}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Pipe Props: Direction & Flow Speed */}
+              {'flowSpeed' in props && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-600 block">Orientasi Pipa</label>
+                    <select
+                      value={props.direction || 'horizontal'}
+                      onChange={(e) => updateProps(selectedComponent.id, { direction: e.target.value })}
+                      className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white font-semibold"
+                    >
+                      <option value="horizontal">Horizontal (─)</option>
+                      <option value="vertical">Vertical (│)</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-600 block">Kecepatan Aliran</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="5"
+                      value={props.flowSpeed || 3}
+                      onChange={(e) => updateProps(selectedComponent.id, { flowSpeed: Number(e.target.value) })}
+                      className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Gauge Props: Value, Min, Max, Warn, Alarm */}
+              {('warnLimit' in props || compType === 'ScadaGauge') && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-600 block">Warning Threshold</label>
+                    <input
+                      type="number"
+                      value={props.warnLimit || 7.0}
+                      onChange={(e) => updateProps(selectedComponent.id, { warnLimit: Number(e.target.value) })}
+                      className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-600 block">Alarm Threshold</label>
+                    <input
+                      type="number"
+                      value={props.alarmLimit || 8.5}
+                      onChange={(e) => updateProps(selectedComponent.id, { alarmLimit: Number(e.target.value) })}
+                      className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Unit Prop */}
+              {'unit' in props && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600 block">Satuan Rekayasa (Unit)</label>
+                  <input
+                    type="text"
+                    value={props.unit || ''}
+                    onChange={(e) => updateProps(selectedComponent.id, { unit: e.target.value })}
+                    placeholder="bar, L, RPM, m³/h, °C..."
+                    className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white"
+                  />
                 </div>
               )}
             </div>

@@ -107,3 +107,23 @@ export { IconButton } from './TopAppBar';
 export * from './Slider';
 export { default as Slider } from './Slider';
 
+// ─── Industrial MES & Quality Inspection (Phase 1) ────────
+export * from './QualityTolerance';
+export { default as QualityTolerance } from './QualityTolerance';
+
+export * from './QualityPassFail';
+export { default as QualityPassFail } from './QualityPassFail';
+
+export * from './MetrologyWidget';
+export { default as MetrologyWidget } from './MetrologyWidget';
+
+export * from './BalloonDrawingWidget';
+export { default as BalloonDrawingWidget } from './BalloonDrawingWidget';
+
+export * from './MESWidgets';
+
+export * from './BarcodePrintWidgets';
+
+// ─── SCADA HMI & Industrial Automation (Phase 2) ─────────
+export * from './ScadaWidgets';
+export { default as ScadaWidgets } from './ScadaWidgets';

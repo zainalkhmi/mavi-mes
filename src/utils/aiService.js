@@ -821,6 +821,25 @@ ArduinoGraph/RealtimePlotter/PinGraph → ARDUINO_GRAPH
 
 
 ════════════════════════════════════════════════
+🏗️ STRICT 5-PHASE APP GENERATION SEQUENCE (MANDATORY ORDER)
+════════════════════════════════════════════════
+When generating or expanding an application, you MUST emit commands in this EXACT logical sequence:
+1️⃣ PHASE 1 — BASE LAYOUT (Header & Footer):
+   - ALWAYS build the Header container (SHAPE_RECTANGLE x:0, y:0, w:${canvasWidth}, h:${canvasWidth < 500 ? 56 : 64}, backgroundColor:'#0f172a') with Title TEXT and Status indicator first.
+   - ALWAYS build the Footer bar (SHAPE_RECTANGLE x:0, y:${canvasHeight - (canvasWidth < 500 ? 48 : 56)}, w:${canvasWidth}, h:${canvasWidth < 500 ? 48 : 56}, backgroundColor:'#f1f5f9') with Version/Pagination/Action buttons.
+2️⃣ PHASE 2 — VARIABLES & DATA FOUNDATIONS:
+   - Output CREATE_VARIABLE commands for all required state, counters, flags, and selections.
+   - Output CREATE_TABLE and CREATE_RECORD_PLACEHOLDER commands.
+3️⃣ PHASE 3 — SCREENS & COMPONENTS (Precision Sizing):
+   - Output ADD_STEP for any additional screens/pages.
+   - Output ADD_WIDGET commands positioned precisely inside the content zone (between y:${canvasWidth < 500 ? 64 : 76} and y:${canvasHeight - (canvasWidth < 500 ? 60 : 70)}).
+   - Coordinates (x, y, w, h) MUST be clean integers fitting the selected device (${previewDevice}) without overlapping or running off screen.
+4️⃣ PHASE 4 — TRIGGERS & NAVIGATION:
+   - Output CREATE_TRIGGER commands binding buttons to actions (TABLE_RECORD_SAVE, GO_TO_STEP, NEXT_STEP, SET_VARIABLE).
+5️⃣ PHASE 5 — FUNCTIONS & AUTOMATION:
+   - Output CREATE_FUNCTION and CREATE_AUTOMATION commands for complex formulas, validations, and background tasks.
+
+════════════════════════════════════════════════
 🎨 PILLARS OF HIGH-FIDELITY INDUSTRIAL DESIGN (CRITICAL FOR PERFECT ALIGNMENT)
 ════════════════════════════════════════════════
 1. THE GRID & VIEWPORT: All coordinates (x, y, w, h) MUST be clean integers, ideally multiples of 8. Absolutely NO overlapping elements.
@@ -930,7 +949,8 @@ ARDUINO_GRAPH: {label, pin:"A0", maxSamples:50, color:"#00979d"}
 STRUCTURE COMMANDS:
 {type:"SET_APP_NAME", payload:"App Name"}
 {type:"ADD_STEP", payload:{title:"Screen Name"}}
-{type:"ADD_WIDGET", payload:{type:"TYPE", displayName:"Name", x:N, y:N, w:N, h:N, props:{...}}}
+{type:"ADD_WIDGET", payload:{stepTitle:"Screen Name", type:"TYPE", displayName:"Name", x:N, y:N, w:N, h:N, props:{...}}}
+  ↳ CRITICAL: When building multi-screen apps or adding a 2nd screen, ALWAYS include "stepTitle": "Screen Name" in every ADD_WIDGET command!
 
 DATA COMMANDS:
 {type:"CREATE_TABLE", payload:{name:"tableName", columns:[{name:"col1",type:"text"},{name:"col2",type:"number"}]}}
@@ -1128,7 +1148,12 @@ Pattern 2: Conditional Trigger (Validation / Logic)
 7. CONTEXT-AWARE: Don't duplicate existing widgets/tables/variables. Check current context first!
 8. CROSS-REFERENCE: Use displayName to reference widgets in triggers. Use table name for placeholders.
 9. INDUSTRIAL: Manufacturing → use MACHINE_STATUS, GAUGE, CHECKLIST, SIGNATURE, QUALITY_PASS_FAIL.
-10. MULTI-SCREEN: Use ADD_STEP for logical sections. Add GO_TO_STEP trigger actions for navigation buttons.
+10. MULTI-SCREEN & PAGE 2 (CRITICAL):
+    - When user asks for a 2nd screen/page (e.g. "halaman 2", "screen 2", "buatkan screen kedua", "tambah page 2") OR creates an app with multiple screens:
+      • ALWAYS start by outputting: {type:"ADD_STEP", payload:{title:"Nama Layar 2"}} BEFORE generating widgets for that screen!
+      • In EVERY {type:"ADD_WIDGET"} command for that screen, ALWAYS include "stepTitle": "Nama Layar 2" in payload so Jarvis and the builder mount the widgets directly to that screen!
+      • Add navigation buttons between screens with GO_TO_STEP trigger action: {type:"CREATE_TRIGGER", payload:{event:"ON_CLICK", widgetId:"BtnNavigasi", actions:[{type:"GO_TO_STEP", payload:{stepId:"Nama Layar Target"}}]}}
+      • NEVER assume Screen 2 exists without emitting ADD_STEP, and NEVER omit stepTitle in ADD_WIDGET!
 11. VARIABLE BINDING: Input widgets MUST have targetVariable prop matching "tableName.columnName" for auto-harvest.
 12. EDIT MODE: When user asks to "change", "update", "modify", "ubah", "ganti", "edit" something → use UPDATE_WIDGET, UPDATE_TRIGGER, UPDATE_VARIABLE, UPDATE_STEP, UPDATE_FUNCTION.
 13. DELETE MODE: When user asks to "remove", "delete", "hapus", "buang" something → use DELETE_* commands.

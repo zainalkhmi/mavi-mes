@@ -55,6 +55,14 @@ import { createMachineActivityYieldTrackerTemplate } from '../utils/machineActiv
 import { createProductionPlantDashboardTemplate } from '../utils/productionPlantDashboardTemplate';
 import { createDigitalDrawingCheckSheetTemplate } from '../utils/digitalDrawingCheckSheetTemplate';
 import { createQCCheckSheetTemplate } from '../utils/qcCheckSheetTemplate';
+import { createGluestackLoginTemplate } from '../utils/gluestackLoginTemplate';
+import { createGluestackDashboardTemplate } from '../utils/gluestackDashboardTemplate';
+import { createGluestackQCInspectionTemplate } from '../utils/gluestackQCInspectionTemplate';
+import { createGluestackBarcodeScannerTemplate } from '../utils/gluestackBarcodeScannerTemplate';
+import { createGluestackTPMChecklistTemplate } from '../utils/gluestackTPMChecklistTemplate';
+import { createGluestackAndonAlertTemplate } from '../utils/gluestackAndonAlertTemplate';
+import { createGluestackELearningTemplate } from '../utils/gluestackELearningTemplate';
+import { createGluestackDrawingCheckSheetTemplate } from '../utils/gluestackDrawingCheckSheetTemplate';
 import { categories, rawTemplates } from '../utils/appStoreCatalog';
 
 import { saveFrontlineApp, deleteFrontlineApp, getAllFrontlineApps } from '../utils/supabaseFrontlineDB';
@@ -3071,6 +3079,175 @@ const AppStore = () => {
                 } catch (err) {
                     console.warn('Could not create QC Check Sheet tables:', err);
                 }
+            } else if (templateId === 'gluestack-login') {
+                templateApp = createGluestackLoginTemplate();
+            } else if (templateId === 'gluestack-dashboard') {
+                templateApp = createGluestackDashboardTemplate();
+            } else if (templateId === 'gluestack-qc-inspection') {
+                templateApp = createGluestackQCInspectionTemplate();
+                try {
+                    const gsQcTable = await getOrCreateTableAndSeed(allTables, {
+                        name: 'GS_QC_Inspections',
+                        fields: [
+                            { name: 'Work_Order', type: 'text' },
+                            { name: 'Part_Number', type: 'text' },
+                            { name: 'Serial_Number', type: 'text' },
+                            { name: 'Shift', type: 'text' },
+                            { name: 'Inspector', type: 'text' },
+                            { name: 'Bore_Diameter', type: 'number' },
+                            { name: 'Rod_Diameter', type: 'number' },
+                            { name: 'Stroke_Length', type: 'number' },
+                            { name: 'Proof_Pressure', type: 'number' },
+                            { name: 'Visual_Result', type: 'text' },
+                            { name: 'Overall_Decision', type: 'text' },
+                            { name: 'Notes', type: 'text' },
+                            { name: 'Signature', type: 'text' },
+                            { name: 'Timestamp', type: 'datetime' }
+                        ]
+                    });
+                    if (gsQcTable?.id) {
+                        let appStr = JSON.stringify(templateApp);
+                        appStr = appStr.replace(/tbl_gs_qc_inspections/g, gsQcTable.id);
+                        templateApp = JSON.parse(appStr);
+                        templateApp.config.appTables = [gsQcTable.id];
+                    }
+                } catch (gsQcErr) {
+                    console.warn('Could not create GS QC Inspections table:', gsQcErr);
+                }
+            } else if (templateId === 'gluestack-barcode-scanner') {
+                templateApp = createGluestackBarcodeScannerTemplate();
+                try {
+                    const gsScanTable = await getOrCreateTableAndSeed(allTables, {
+                        name: 'GS_Scan_Logs',
+                        fields: [
+                            { name: 'Barcode', type: 'text' },
+                            { name: 'Lot_Number', type: 'text' },
+                            { name: 'Part_Name', type: 'text' },
+                            { name: 'Location', type: 'text' },
+                            { name: 'Qty_Received', type: 'number' },
+                            { name: 'Status', type: 'text' },
+                            { name: 'Operator', type: 'text' },
+                            { name: 'Notes', type: 'text' },
+                            { name: 'Timestamp', type: 'datetime' }
+                        ]
+                    });
+                    if (gsScanTable?.id) {
+                        let appStr = JSON.stringify(templateApp);
+                        appStr = appStr.replace(/tbl_gs_scan_logs/g, gsScanTable.id);
+                        templateApp = JSON.parse(appStr);
+                        templateApp.config.appTables = [gsScanTable.id];
+                    }
+                } catch (gsScanErr) {
+                    console.warn('Could not create GS Scan Logs table:', gsScanErr);
+                }
+            } else if (templateId === 'gluestack-tpm-checklist') {
+                templateApp = createGluestackTPMChecklistTemplate();
+                try {
+                    const gsTpmTable = await getOrCreateTableAndSeed(allTables, {
+                        name: 'GS_TPM_Checks',
+                        fields: [
+                            { name: 'Machine_ID', type: 'text' },
+                            { name: 'Operator', type: 'text' },
+                            { name: 'Shift', type: 'text' },
+                            { name: 'Safety_Items_OK', type: 'number' },
+                            { name: 'Fluid_Items_OK', type: 'number' },
+                            { name: 'Oil_Level_Pct', type: 'number' },
+                            { name: 'Operational_Items_OK', type: 'number' },
+                            { name: 'Total_Items_OK', type: 'number' },
+                            { name: 'Result', type: 'text' },
+                            { name: 'Notes', type: 'text' },
+                            { name: 'Timestamp', type: 'datetime' }
+                        ]
+                    });
+                    if (gsTpmTable?.id) {
+                        let appStr = JSON.stringify(templateApp);
+                        appStr = appStr.replace(/tbl_gs_tpm_checks/g, gsTpmTable.id);
+                        templateApp = JSON.parse(appStr);
+                        templateApp.config.appTables = [gsTpmTable.id];
+                    }
+                } catch (gsTpmErr) {
+                    console.warn('Could not create GS TPM Checks table:', gsTpmErr);
+                }
+            } else if (templateId === 'gluestack-andon-alert') {
+                templateApp = createGluestackAndonAlertTemplate();
+                try {
+                    const gsAndonTable = await getOrCreateTableAndSeed(allTables, {
+                        name: 'GS_Andon_Events',
+                        fields: [
+                            { name: 'Category', type: 'text' },
+                            { name: 'Station_ID', type: 'text' },
+                            { name: 'Severity', type: 'text' },
+                            { name: 'Description', type: 'text' },
+                            { name: 'Reporter', type: 'text' },
+                            { name: 'Line_Stop', type: 'boolean' },
+                            { name: 'Status', type: 'text' },
+                            { name: 'Response_Time_Min', type: 'number' },
+                            { name: 'Timestamp', type: 'datetime' }
+                        ]
+                    });
+                    if (gsAndonTable?.id) {
+                        let appStr = JSON.stringify(templateApp);
+                        appStr = appStr.replace(/tbl_gs_andon_events/g, gsAndonTable.id);
+                        templateApp = JSON.parse(appStr);
+                        templateApp.config.appTables = [gsAndonTable.id];
+                    }
+                } catch (gsAndonErr) {
+                    console.warn('Could not create GS Andon Events table:', gsAndonErr);
+                }
+            } else if (templateId === 'gluestack-elearning') {
+                templateApp = createGluestackELearningTemplate();
+                try {
+                    const gsLearnTable = await getOrCreateTableAndSeed(allTables, {
+                        name: 'GS_Learning_Progress',
+                        fields: [
+                            { name: 'User_NIK', type: 'text' },
+                            { name: 'Course_Title', type: 'text' },
+                            { name: 'Category', type: 'text' },
+                            { name: 'Current_Module', type: 'text' },
+                            { name: 'Progress_Pct', type: 'number' },
+                            { name: 'Study_Hours', type: 'number' },
+                            { name: 'Score', type: 'number' },
+                            { name: 'Certificate_Status', type: 'text' },
+                            { name: 'Last_Active', type: 'datetime' }
+                        ]
+                    });
+                    if (gsLearnTable?.id) {
+                        let appStr = JSON.stringify(templateApp);
+                        appStr = appStr.replace(/tbl_gs_learning_progress/g, gsLearnTable.id);
+                        templateApp = JSON.parse(appStr);
+                        templateApp.config.appTables = [gsLearnTable.id];
+                    }
+                } catch (gsLearnErr) {
+                    console.warn('Could not create GS Learning Progress table:', gsLearnErr);
+                }
+            } else if (templateId === 'gluestack-drawing-checksheet') {
+                templateApp = createGluestackDrawingCheckSheetTemplate();
+                try {
+                    const gsDwgTable = await getOrCreateTableAndSeed(allTables, {
+                        name: 'GS_Drawing_Inspections',
+                        fields: [
+                            { name: 'Work_Order', type: 'text' },
+                            { name: 'Part_Number', type: 'text' },
+                            { name: 'Drawing_No', type: 'text' },
+                            { name: 'Balloon_Total', type: 'number' },
+                            { name: 'Balloon_Passed', type: 'number' },
+                            { name: 'Balloon_Failed', type: 'number' },
+                            { name: 'Thread_Gauge_Result', type: 'text' },
+                            { name: 'Torque_Nm', type: 'number' },
+                            { name: 'Overall_Decision', type: 'text' },
+                            { name: 'Inspector', type: 'text' },
+                            { name: 'Timestamp', type: 'datetime' }
+                        ]
+                    });
+                    if (gsDwgTable?.id) {
+                        let appStr = JSON.stringify(templateApp);
+                        appStr = appStr.replace(/tbl_gs_drawing_inspections/g, gsDwgTable.id);
+                        templateApp = JSON.parse(appStr);
+                        templateApp.config.appTables = [gsDwgTable.id];
+                    }
+                } catch (gsDwgErr) {
+                    console.warn('Could not create GS Drawing Inspections table:', gsDwgErr);
+                }
             } else {
                 toast.error('Template not found', { id: loadingToast });
                 return;
@@ -3135,9 +3312,14 @@ const AppStore = () => {
                     return next;
                 });
 
-                // Navigate to builder for the new app
+                // Navigate to correct builder for the new app
+                const isGluestackApp = savedApp.builder_type === 'gluestack' || (savedApp.config && savedApp.config.screens);
                 setTimeout(() => {
-                    navigate(`/builder?id=${savedApp.id}`);
+                    if (isGluestackApp) {
+                        navigate(`/ui-engine?appId=${savedApp.id}`);
+                    } else {
+                        navigate(`/builder?id=${savedApp.id}`);
+                    }
                 }, 1000);
             }
 
