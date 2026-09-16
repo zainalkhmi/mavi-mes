@@ -14024,12 +14024,15 @@ const AppBuilder = () => {
                         </button>
                         <button
                             type="button"
-                            onClick={(e) => {
+                            onClick={async (e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 if (!currentAppId) {
                                     toast.error('Please save the app first.');
                                     return;
+                                }
+                                if (handleSave) {
+                                    await handleSave(true);
                                 }
                                 const params = new URLSearchParams({
                                     appId: currentAppId,

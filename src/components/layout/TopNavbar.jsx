@@ -17,6 +17,7 @@ import { hasAccess as checkRoleAccess } from '../../utils/roleAccess.js';
 import { logout } from '../../utils/auth.js';
 import NavDropdown from './NavDropdown.jsx';
 import SystemStatusDropdown from './SystemStatusDropdown.jsx';
+import BuilderSelectorModal from './BuilderSelectorModal.jsx';
 
 export default function TopNavbar() {
   const location = useLocation();
@@ -49,7 +50,15 @@ export default function TopNavbar() {
   // Logic dropdown state
   const [isOpen, setIsOpen] = useState(false);
   const [activeSubmenu, setActiveSubmenu] = useState(null);
+  const [isBuilderModalOpen, setIsBuilderModalOpen] = useState(false);
   const menuRef = useRef(null);
+
+  // Listen for open-builder-selector events across the app
+  useEffect(() => {
+    const handleOpenBuilderSelector = () => setIsBuilderModalOpen(true);
+    window.addEventListener('open-builder-selector', handleOpenBuilderSelector);
+    return () => window.removeEventListener('open-builder-selector', handleOpenBuilderSelector);
+  }, []);
 
   // Click outside handler
   useEffect(() => {
@@ -68,44 +77,23 @@ export default function TopNavbar() {
 
   if (isOperatorRoute || isOperator || isChecksheetRoute) return null;
 
+  const currentBuilderBadge = location.pathname.startsWith('/ui-engine') || location.pathname.startsWith('/gluestack')
+    ? 'Mobile'
+    : location.pathname.startsWith('/sandbox')
+      ? 'Generatif'
+      : location.pathname.startsWith('/builder')
+        ? 'PC'
+        : null;
+
   const appItems = [
     {
-      label: 'App Builder',
-      icon: <Boxes size={16} className="text-indigo-600" />,
-      badge: '3 Cabang',
-      items: [
-        { type: 'header', label: 'Suite App Builder (3 Cabang)' },
-        {
-          path: '/builder',
-          matchPaths: ['/builder'],
-          target: '_blank',
-          icon: <Monitor size={18} className="text-blue-600" />,
-          label: '1. PC — Mavi App Builder',
-          shortLabel: 'PC',
-          badge: 'PC / Desktop',
-          description: 'Canvas App Builder untuk PC / Workstation MES'
-        },
-        {
-          path: '/ui-engine',
-          matchPaths: ['/ui-engine', '/gluestack'],
-          target: '_blank',
-          icon: <Smartphone size={18} className="text-purple-600" />,
-          label: '2. Mobile — Gluestack App Builder',
-          shortLabel: 'Mobile',
-          badge: 'Mobile / Tablet',
-          description: 'Gluestack UI Engine Studio untuk Smartphone & Tablet'
-        },
-        {
-          path: '/sandbox',
-          matchPaths: ['/sandbox'],
-          target: '_blank',
-          icon: <Sparkles size={18} className="text-amber-500" />,
-          label: '3. Generatif — Sandbox App Builder',
-          shortLabel: 'Generatif',
-          badge: 'Generatif AI',
-          description: 'Vibe Sandpack AI Code Generator & Live Interactive Sandbox'
-        }
-      ]
+      label: 'App Builder Suite',
+      icon: <Boxes size={18} className="text-indigo-600" />,
+      badge: currentBuilderBadge ? `${currentBuilderBadge} Aktif` : '3 Pilihan',
+      description: 'Modal pilihan PC Mavi, Mobile Gluestack & Sandbox AI',
+      onClick: () => setIsBuilderModalOpen(true),
+      isFeatured: true,
+      matchPaths: ['/builder', '/ui-engine', '/sandbox', '/gluestack']
     },
     { type: 'divider' },
     hasAccess('/file-explorer') && { path: '/file-explorer', icon: <Folder size={16} />, label: 'File Explorer' },
@@ -331,6 +319,12 @@ export default function TopNavbar() {
           </div>
         </div>
       </div>
+
+      {/* 3-Builder Selection Modal */}
+      <BuilderSelectorModal
+        isOpen={isBuilderModalOpen}
+        onClose={() => setIsBuilderModalOpen(false)}
+      />
     </nav>
   );
 }

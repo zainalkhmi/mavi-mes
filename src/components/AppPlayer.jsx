@@ -8,7 +8,8 @@ import {
     LogOut, Menu, ChevronDown, BookOpen, ChevronLeft, Smartphone, Tablet, Monitor, RotateCw
 } from 'lucide-react';
 import { DEVICE_PRESETS } from './appbuilder/utils';
-import { getAllFrontlineApps, getProductionQueue, logPlayerSession, saveFrontlineApp } from '../utils/supabaseFrontlineDB';
+import { getAllFrontlineApps, getFrontlineAppById, getProductionQueue, logPlayerSession, saveFrontlineApp } from '../utils/supabaseFrontlineDB';
+import { getAppBuilderType, BUILDER_TYPES } from '../utils/builderType';
 import { getStations, getEdgeDevices, createTable, getTables } from '../utils/database';
 import iotConnector from '../utils/iotConnector';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -1160,6 +1161,24 @@ function AppHelpGuideScreen({ app, helpGuide, onStart, onSkip }) {
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 const AppPlayer = () => {
+    // URL search parameters (supports both HashRouter and BrowserRouter queries)
+    const searchParams = useMemo(() => {
+        try {
+            const sp = new URLSearchParams(window.location.search);
+            const hash = window.location.hash || '';
+            const hashSearchIndex = hash.indexOf('?');
+            if (hashSearchIndex !== -1) {
+                const hashParams = new URLSearchParams(hash.substring(hashSearchIndex));
+                for (const [key, value] of hashParams.entries()) {
+                    sp.set(key, value); // Hash params take priority
+                }
+            }
+            return sp;
+        } catch {
+            return new URLSearchParams();
+        }
+    }, []);
+
     const [apps, setApps] = useState([]);
     const [stations, setStations] = useState([]);
     const [queue, setQueue] = useState([]);
@@ -1363,20 +1382,8 @@ const AppPlayer = () => {
             setQueue(queueRows || []);
             setStations(stationRows || []);
             
-            // Auto-detect station from URL parameter (supports both HashRouter and BrowserRouter search params)
-            const getCombinedParams = () => {
-                const searchParams = new URLSearchParams(window.location.search);
-                const hash = window.location.hash || '';
-                const hashSearchIndex = hash.indexOf('?');
-                if (hashSearchIndex !== -1) {
-                    const hashParams = new URLSearchParams(hash.substring(hashSearchIndex));
-                    for (const [key, value] of hashParams.entries()) {
-                        searchParams.set(key, value); // Hash params take priority
-                    }
-                }
-                return searchParams;
-            };
-            const params = getCombinedParams();
+            // Auto-detect station and app from URL parameters
+            const params = searchParams;
             const urlStation = params.get('station');
             if (urlStation) {
                 setStationIdFilter(urlStation);
@@ -1390,31 +1397,32 @@ const AppPlayer = () => {
             if (urlAppId) {
                 let app = appRows ? appRows.find(a => a.id === urlAppId) : null;
                 if (!app) {
+                    try {
+                        const fetched = await getFrontlineAppById(urlAppId);
+                        if (fetched) {
+                            app = fetched;
+                            setApps(prev => [app, ...prev.filter(a => a.id !== urlAppId)]);
+                        }
+                    } catch (e) {}
+                }
+                if (!app) {
                     const localJson = localStorage.getItem(`mavi_app_${urlAppId}`);
                     if (localJson) {
                         try {
                             const parsed = JSON.parse(localJson);
                             app = {
                                 id: parsed.id || urlAppId,
-                                name: parsed.name || 'GlueStack App',
-                                builder_type: 'gluestack',
-                                config: {
-                                    components: parsed.screens || [],
+                                name: parsed.name || 'Application',
+                                builder_type: (parsed.screens && !parsed.steps) ? 'gluestack' : 'app_builder',
+                                config: parsed.config || {
+                                    screens: parsed.screens || [],
+                                    steps: parsed.steps || [],
                                     variables: parsed.variables || []
                                 },
                                 approval_status: 'PUBLISHED'
                             };
                             setApps(prev => [app, ...prev.filter(a => a.id !== urlAppId)]);
                         } catch (e) {}
-                    } else if (urlAppId === 'app_1' || urlAppId.startsWith('app_')) {
-                        app = {
-                            id: urlAppId,
-                            name: 'GlueStack App',
-                            builder_type: 'gluestack',
-                            config: { components: [] },
-                            approval_status: 'PUBLISHED'
-                        };
-                        setApps(prev => [app, ...prev.filter(a => a.id !== urlAppId)]);
                     }
                 }
 
@@ -2415,7 +2423,17 @@ const AppPlayer = () => {
                                     isFullScreen={true}
                                 />
                             </div>
-                        ) : (activeApp?.builder_type === 'gluestack' || activeApp?.config?.builder_type === 'gluestack' || (activeApp?.config?.components && Array.isArray(activeApp.config.components)) || activeAppId === 'app_1' || localStorage.getItem(`mavi_app_${activeAppId}`) !== null) ? (
+                        ) : (
+                            !activeApp?.config?.steps?.length &&
+                            !activeApp?.steps?.length &&
+                            (
+                                activeApp?.builder_type === 'gluestack' ||
+                                activeApp?.config?.builder_type === 'gluestack' ||
+                                activeApp?.category === 'GlueStack App' ||
+                                (Array.isArray(activeApp?.config?.screens) && activeApp.config.screens.length > 0) ||
+                                (Array.isArray(activeApp?.screens) && activeApp.screens.length > 0)
+                            )
+                        ) ? (
                             <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
                                 <GluestackAppPlayer
                                     appId={activeAppId}

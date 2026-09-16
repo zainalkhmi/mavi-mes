@@ -190,6 +190,52 @@ export default function NavDropdown({
               );
             }
 
+            // Handle action button items (e.g. modal triggers)
+            if (item.onClick) {
+              const isActionActive = checkActive(item);
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false);
+                    setActiveSubmenu(null);
+                    item.onClick();
+                  }}
+                  className={`w-full text-left flex items-start gap-3 px-4 py-2.5 text-xs transition-colors border-l-4 ${
+                    isActionActive
+                      ? 'border-indigo-600 bg-indigo-50/90 text-indigo-900 font-bold'
+                      : 'border-transparent text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                  } ${item.isFeatured && !isActionActive ? 'bg-indigo-50/30' : ''}`}
+                >
+                  <div className="shrink-0 mt-0.5">{item.icon}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`text-xs flex items-center gap-1.5 ${isActionActive ? 'font-black text-indigo-900' : 'font-bold text-slate-800'}`}>
+                        {item.label}
+                      </span>
+                      {item.badge && (
+                        <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded shrink-0 ${
+                          isActionActive
+                            ? 'bg-indigo-200 text-indigo-900'
+                            : item.isFeatured
+                              ? 'bg-indigo-100 text-indigo-700'
+                              : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {item.badge}
+                        </span>
+                      )}
+                    </div>
+                    {item.description && (
+                      <div className="text-[11px] font-normal text-slate-400 mt-0.5 leading-snug">
+                        {item.description}
+                      </div>
+                    )}
+                  </div>
+                </button>
+              );
+            }
+
             // Regular items (supports rich badge & description)
             const isItemActive = checkActive(item);
             const isItemExternal = item.target === '_blank' || item.newTab;
