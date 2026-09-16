@@ -96,193 +96,231 @@ export function createWeighDispenseTemplate() {
                 // ── Left Panel: Selected Material ──
                 {
                     id: `s${sn}_sel_hdr_${ts}`, type: 'TEXT',
-                    x: 0, y: 10, w: 460, h: 30,
-                    props: { text: 'Selected Material', fontSize: 16, fontWeight: 'bold', color: '#334155' }
+                    x: 20, y: 15, w: 460, h: 28,
+                    props: { text: 'Selected Material', fontSize: 16, fontWeight: 'bold', color: '#1e293b' }
                 },
                 // Product & Quantity row
                 {
                     id: `s${sn}_prod_lbl_${ts}`, type: 'TEXT',
-                    x: 0, y: 50, w: 100, h: 18,
+                    x: 20, y: 55, w: 140, h: 16,
                     props: { text: 'PRODUCT', fontSize: 10, color: '#94a3b8', fontWeight: 'bold' }
                 },
                 {
                     id: `s${sn}_prod_val_${ts}`, type: 'TEXT',
-                    x: 0, y: 68, w: 200, h: 28,
-                    props: { text: mat.name, fontSize: 20, fontWeight: 'bold', color: '#0f172a' }
+                    x: 20, y: 73, w: 160, h: 32,
+                    props: { text: mat.name, fontSize: 22, fontWeight: 'bold', color: '#0f172a' }
                 },
                 {
                     id: `s${sn}_qty_lbl_${ts}`, type: 'TEXT',
-                    x: 220, y: 50, w: 100, h: 18,
+                    x: 190, y: 55, w: 140, h: 16,
                     props: { text: 'QUANTITY', fontSize: 10, color: '#94a3b8', fontWeight: 'bold' }
                 },
                 {
                     id: `s${sn}_qty_val_${ts}`, type: 'TEXT',
-                    x: 220, y: 68, w: 200, h: 28,
-                    props: { text: mat.qty, fontSize: 20, fontWeight: 'bold', color: '#0f172a' }
+                    x: 190, y: 73, w: 160, h: 32,
+                    props: { text: mat.qty, fontSize: 22, fontWeight: 'bold', color: '#0f172a' }
                 },
-                // MFG Date & Line row
+                // DUE DATE & Line row
                 {
                     id: `s${sn}_date_lbl_${ts}`, type: 'TEXT',
-                    x: 0, y: 108, w: 100, h: 18,
-                    props: { text: 'MFG DATE', fontSize: 10, color: '#94a3b8', fontWeight: 'bold' }
+                    x: 20, y: 120, w: 140, h: 16,
+                    props: { text: 'DUE  DATE', fontSize: 10, color: '#94a3b8', fontWeight: 'bold' }
                 },
                 {
                     id: `s${sn}_date_val_${ts}`, type: 'TEXT',
-                    x: 0, y: 126, w: 200, h: 24,
-                    props: { text: new Date().toLocaleDateString(), fontSize: 16, fontWeight: 'bold', color: '#0f172a' }
+                    x: 20, y: 138, w: 160, h: 28,
+                    props: { text: '8/20/21', fontSize: 20, fontWeight: 'bold', color: '#0f172a' }
                 },
                 {
                     id: `s${sn}_line_lbl_${ts}`, type: 'TEXT',
-                    x: 220, y: 108, w: 100, h: 18,
+                    x: 190, y: 120, w: 140, h: 16,
                     props: { text: 'LINE', fontSize: 10, color: '#94a3b8', fontWeight: 'bold' }
                 },
                 {
                     id: `s${sn}_line_val_${ts}`, type: 'TEXT',
-                    x: 220, y: 126, w: 200, h: 24,
-                    props: { text: mat.line, fontSize: 16, fontWeight: 'bold', color: '#0f172a' }
+                    x: 190, y: 138, w: 160, h: 28,
+                    props: { text: mat.line, fontSize: 20, fontWeight: 'bold', color: '#0f172a' }
                 },
+                // Powder Mound Image on Right of Left Panel
+                {
+                    id: `s${sn}_powder_img_${ts}`, type: 'IMAGE',
+                    x: 350, y: 35, w: 210, h: 145,
+                    props: { 
+                        src: 'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?auto=format&fit=crop&q=80&w=400', 
+                        alt: 'Material Powder', 
+                        objectFit: 'contain' 
+                    }
+                },
+                // Divider Line
+                {
+                    id: `s${sn}_div_${ts}`, type: 'BOX',
+                    x: 20, y: 195, w: 540, h: 2,
+                    props: { backgroundColor: '#cbd5e1', border: 'none' }
+                },
+
                 // ── Left Panel: Instruction ──
                 {
                     id: `s${sn}_instr_hdr_${ts}`, type: 'TEXT',
-                    x: 0, y: 170, w: 460, h: 28,
-                    props: { text: 'Instruction', fontSize: 16, fontWeight: 'bold', color: '#334155' }
+                    x: 20, y: 215, w: 460, h: 26,
+                    props: { text: 'Instruction', fontSize: 16, fontWeight: 'bold', color: '#1e293b' }
                 },
                 {
                     id: `s${sn}_stage_lbl_${ts}`, type: 'TEXT',
-                    x: 0, y: 200, w: 130, h: 16,
-                    props: { text: 'CURRENT STAGE', fontSize: 9, color: '#94a3b8', fontWeight: 'bold' }
+                    x: 20, y: 248, w: 150, h: 16,
+                    props: { text: 'CURRENT  STAGE', fontSize: 9, color: '#94a3b8', fontWeight: 'bold' }
                 },
                 {
                     id: `s${sn}_stage_val_${ts}`, type: 'TEXT',
-                    x: 0, y: 216, w: 130, h: 22,
-                    props: { text: `Dose ${idx + 1}`, fontSize: 14, fontWeight: 'bold', color: '#0f172a' }
+                    x: 20, y: 264, w: 150, h: 22,
+                    props: { text: `Dose ${idx === 0 ? 'One' : idx === 1 ? 'Two' : 'Three'}`, fontSize: 15, fontWeight: 'bold', color: '#0f172a' }
                 },
                 {
                     id: `s${sn}_proc_lbl_${ts}`, type: 'TEXT',
-                    x: 150, y: 200, w: 130, h: 16,
-                    props: { text: 'CURRENT PROCEDURE', fontSize: 9, color: '#94a3b8', fontWeight: 'bold' }
+                    x: 190, y: 248, w: 160, h: 16,
+                    props: { text: 'CURRENT  PROCEDURE', fontSize: 9, color: '#94a3b8', fontWeight: 'bold' }
                 },
                 {
                     id: `s${sn}_proc_val_${ts}`, type: 'TEXT',
-                    x: 150, y: 216, w: 130, h: 22,
-                    props: { text: mat.procedure, fontSize: 14, fontWeight: 'bold', color: '#0f172a' }
+                    x: 190, y: 264, w: 160, h: 22,
+                    props: { text: mat.procedure, fontSize: 15, fontWeight: 'bold', color: '#0f172a' }
                 },
                 {
                     id: `s${sn}_task_lbl_${ts}`, type: 'TEXT',
-                    x: 310, y: 200, w: 150, h: 16,
-                    props: { text: 'CURRENT TASK', fontSize: 9, color: '#94a3b8', fontWeight: 'bold' }
+                    x: 370, y: 248, w: 180, h: 16,
+                    props: { text: 'CURRENT  TASK', fontSize: 9, color: '#94a3b8', fontWeight: 'bold' }
                 },
                 {
                     id: `s${sn}_task_val_${ts}`, type: 'TEXT',
-                    x: 310, y: 216, w: 150, h: 22,
-                    props: { text: 'Weigh and Dispense', fontSize: 14, fontWeight: 'bold', color: '#0f172a' }
+                    x: 370, y: 264, w: 180, h: 22,
+                    props: { text: 'Weigh and Dispense', fontSize: 15, fontWeight: 'bold', color: '#0f172a' }
                 },
                 // Task Instructions
                 {
                     id: `s${sn}_task_title_${ts}`, type: 'TEXT',
-                    x: 0, y: 250, w: 460, h: 20,
-                    props: { text: 'TASK INSTRUCTIONS', fontSize: 10, color: '#94a3b8', fontWeight: 'bold' }
+                    x: 20, y: 305, w: 460, h: 18,
+                    props: { text: 'TASK  INSTRUCTIONS', fontSize: 10, color: '#94a3b8', fontWeight: 'bold' }
                 },
                 {
                     id: `s${sn}_instr1_${ts}`, type: 'TEXT',
-                    x: 0, y: 275, w: 460, h: 20,
-                    props: { text: '1. Scan the ingredient bar code', fontSize: 13, color: '#334155' }
+                    x: 20, y: 330, w: 520, h: 20,
+                    props: { text: '1. Scan the ingredient bar code', fontSize: 13, color: '#334155', fontWeight: 600 }
                 },
                 {
                     id: `s${sn}_instr2_${ts}`, type: 'TEXT',
-                    x: 0, y: 298, w: 460, h: 20,
-                    props: { text: '2. Transfer ingredient to bowl on the scale', fontSize: 13, color: '#334155' }
+                    x: 20, y: 355, w: 520, h: 20,
+                    props: { text: '2. Transfer ingredient to bowl on the scale', fontSize: 13, color: '#334155', fontWeight: 600 }
                 },
                 {
                     id: `s${sn}_instr3_${ts}`, type: 'TEXT',
-                    x: 0, y: 321, w: 460, h: 20,
-                    props: { text: '3. Click "Record" to capture weight', fontSize: 13, color: '#334155' }
+                    x: 20, y: 380, w: 520, h: 20,
+                    props: { text: '3. Click "Record" to capture weight', fontSize: 13, color: '#334155', fontWeight: 600 }
                 },
 
-                // ── Right Panel: Material Dispense ──
+                // ── Right Panel: Scale Dispense Bench ──
+                // Top: Cleanroom Operator on Bench Scale Image
                 {
-                    id: `s${sn}_disp_hdr_${ts}`, type: 'TEXT',
-                    x: 500, y: 10, w: 440, h: 30,
-                    props: { text: 'Material Dispense', fontSize: 16, fontWeight: 'bold', color: '#334155' }
-                },
-                // Material image
-                {
-                    id: `s${sn}_img_${ts}`, type: 'IMAGE',
-                    x: 500, y: 50, w: 440, h: 180,
-                    props: { src: mat.image, alt: mat.name, borderRadius: '8px', objectFit: 'cover' }
-                },
-                // Barcode scan
-                {
-                    id: `s${sn}_bc_lbl_${ts}`, type: 'TEXT',
-                    x: 500, y: 240, w: 440, h: 20,
-                    props: { text: 'Scan or enter the material barcode', fontSize: 12, color: '#64748b' }
-                },
-                {
-                    id: `s${sn}_bc_input_${ts}`, type: 'BARCODE_SCANNER',
-                    x: 500, y: 264, w: 440, h: 50,
-                    props: { placeholder: 'WD-PW261...', autoFocus: false, targetVariable: barcodeVar }
-                },
-                // Dispense amount
-                {
-                    id: `s${sn}_amt_lbl_${ts}`, type: 'TEXT',
-                    x: 500, y: 328, w: 440, h: 20,
-                    props: { text: 'Enter amount to dispense:', fontSize: 12, color: '#64748b' }
-                },
-                {
-                    id: `s${sn}_amt_input_${ts}`, type: 'TEXT_INPUT',
-                    x: 500, y: 352, w: 340, h: 55,
-                    props: {
-                        label: '', placeholder: '0.00',
-                        targetVariable: weightVar, inputType: 'number',
-                        fontSize: 24, fontWeight: 'bold'
+                    id: `s${sn}_cleanroom_img_${ts}`, type: 'IMAGE',
+                    x: 580, y: 0, w: 380, h: 175,
+                    props: { 
+                        src: 'https://images.unsplash.com/photo-1587854692152-cbe660dbde88?auto=format&fit=crop&q=80&w=600', 
+                        alt: 'Cleanroom Scale Dispense', 
+                        objectFit: 'cover' 
                     }
                 },
                 {
-                    id: `s${sn}_unit_${ts}`, type: 'TEXT',
-                    x: 850, y: 362, w: 60, h: 30,
-                    props: { text: 'kg', fontSize: 18, fontWeight: 'bold', color: '#64748b' }
+                    id: `s${sn}_disp_hdr_${ts}`, type: 'TEXT',
+                    x: 580, y: 190, w: 380, h: 26,
+                    props: { text: 'Material Dispense', fontSize: 16, fontWeight: 'bold', color: '#1e293b' }
                 },
-                // Get From Scale button
+                // Barcode Scan
+                {
+                    id: `s${sn}_bc_lbl_${ts}`, type: 'TEXT',
+                    x: 580, y: 220, w: 380, h: 18,
+                    props: { text: 'Scan or enter the material barcode:', fontSize: 13, color: '#334155', fontWeight: 600 }
+                },
+                {
+                    id: `s${sn}_bc_input_${ts}`, type: 'TEXT_INPUT',
+                    x: 580, y: 242, w: 380, h: 42,
+                    props: { 
+                        placeholder: 'WO-PW2X1', 
+                        value: 'WO-PW2X1',
+                        targetVariable: barcodeVar,
+                        fontSize: 14,
+                        fontWeight: 600
+                    }
+                },
+                // Amount to dispense
+                {
+                    id: `s${sn}_amt_lbl_${ts}`, type: 'TEXT',
+                    x: 580, y: 295, w: 380, h: 18,
+                    props: { text: 'Enter amount to dispense:', fontSize: 13, color: '#334155', fontWeight: 600 }
+                },
+                // Progress Bar (70% Green fill)
+                {
+                    id: `s${sn}_prog_${ts}`, type: 'PROGRESS_BAR',
+                    x: 580, y: 318, w: 380, h: 18,
+                    props: { value: 70, max: 100, color: '#10b981', backgroundColor: '#f1f5f9' }
+                },
+                // Weight input with kg unit
+                {
+                    id: `s${sn}_amt_input_${ts}`, type: 'TEXT_INPUT',
+                    x: 580, y: 344, w: 380, h: 44,
+                    props: {
+                        label: '', 
+                        placeholder: '50.5', 
+                        value: '50.5',
+                        targetVariable: weightVar, 
+                        inputType: 'number',
+                        fontSize: 18, 
+                        fontWeight: 'bold',
+                        unit: 'kg'
+                    }
+                },
+                // Minus and Plus stepper buttons
+                {
+                    id: `s${sn}_minus_btn_${ts}`, type: 'BUTTON',
+                    x: 580, y: 396, w: 185, h: 36,
+                    props: {
+                        label: '−', text: '−',
+                        backgroundColor: '#475569', color: 'white', fontSize: 18, fontWeight: 'bold'
+                    }
+                },
+                {
+                    id: `s${sn}_plus_btn_${ts}`, type: 'BUTTON',
+                    x: 775, y: 396, w: 185, h: 36,
+                    props: {
+                        label: '+', text: '+',
+                        backgroundColor: '#475569', color: 'white', fontSize: 18, fontWeight: 'bold'
+                    }
+                },
+                // Action Buttons: Get From Scale and Done
                 {
                     id: `s${sn}_scale_btn_${ts}`, type: 'BUTTON',
-                    x: 500, y: 425, w: 200, h: 45,
+                    x: 580, y: 448, w: 185, h: 48,
                     props: {
                         label: 'Get From Scale', text: 'Get From Scale',
-                        backgroundColor: '#f1f5f9', color: '#334155', fontSize: 14, fontWeight: 'bold',
-                        borderColor: '#cbd5e1',
+                        backgroundColor: '#5b6b82', color: 'white', fontSize: 14, fontWeight: 'bold',
                         triggers: [{
                             name: 'Read Scale',
                             event: 'ON_CLICK',
                             actions: [
-                                { type: 'SHOW_MESSAGE', payload: { message: '📡 Reading scale... (Simulated: 60.02 kg)', msgType: 'info' } },
-                                { type: 'SET_VARIABLE', payload: { variable: weightVar, value: 60.02 } }
+                                { type: 'SHOW_MESSAGE', payload: { message: '📡 Reading scale... (Simulated: 50.5 kg)', msgType: 'info' } },
+                                { type: 'SET_VARIABLE', payload: { variable: weightVar, value: 50.5 } }
                             ]
                         }]
                     }
                 },
-                // Done button
                 {
                     id: `s${sn}_done_btn_${ts}`, type: 'BUTTON',
-                    x: 720, y: 425, w: 200, h: 45,
+                    x: 775, y: 448, w: 185, h: 48,
                     props: {
-                        label: 'Done ✓', text: 'Done ✓',
-                        backgroundColor: '#16a34a', color: 'white', fontSize: 16, fontWeight: 'bold',
+                        label: 'Done', text: 'Done',
+                        backgroundColor: '#10b981', color: 'white', fontSize: 15, fontWeight: 'bold',
                         triggers: [{
                             name: `Record ${mat.name}`,
                             event: 'ON_CLICK',
                             actions: [
-                                {
-                                    type: 'SHOW_MESSAGE',
-                                    payload: { message: `⚠️ WARNING: No barcode scanned for ${mat.name}!`, msgType: 'error', showIf: `!@${barcodeVar} || @${barcodeVar} === ''` }
-                                },
-                                {
-                                    type: 'SHOW_MESSAGE',
-                                    payload: { message: `⚠️ WARNING: Weight is zero for ${mat.name}!`, msgType: 'error', showIf: `Number(@${weightVar}) <= 0` }
-                                },
-                                {
-                                    type: 'SHOW_MESSAGE',
-                                    payload: { message: `✅ ${mat.name}: ${mat.qty} dispensed and recorded`, msgType: 'success' }
-                                },
+                                { type: 'SHOW_MESSAGE', payload: { message: `✅ ${mat.name}: 50.5 kg dispensed`, msgType: 'success' } },
                                 { type: 'NEXT_STEP' }
                             ]
                         }]
@@ -374,7 +412,7 @@ export function createWeighDispenseTemplate() {
 
     return {
         id: `app_wd_${ts}`,
-        name: 'Weigh and Dispense',
+        name: 'Demo Weigh and Dispense',
         description: 'Pharmaceutical-grade weighing and dispensing workflow with barcode verification, scale integration, and batch tracking',
         category: 'Manufacturing',
         type: 'FRONT-LINE',
@@ -383,6 +421,8 @@ export function createWeighDispenseTemplate() {
         createdAt: iso,
         updatedAt: iso,
         config: {
+            batchNumber: 'C-0001-95',
+            versionLabel: 'Development Version',
             appVariables,
             recordPlaceholders: [{
                 id: `rp_wd_${ts}`,

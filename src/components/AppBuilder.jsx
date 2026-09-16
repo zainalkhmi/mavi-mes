@@ -3692,6 +3692,14 @@ const AppBuilder = () => {
                 c.displayName = COMPONENT_TYPES[c.type]?.label || c.type;
                 changed = true;
             }
+            // 3. Migrate branding text ("⚡ TULIP APP" -> "⚡ MANDOR APP")
+            if (c.props?.text && (c.props.text.includes('TULIP') || c.props.text.includes('Tulip'))) {
+                c.props = {
+                    ...c.props,
+                    text: c.props.text.replace(/TULIP/g, 'MANDOR').replace(/Tulip/g, 'Mandor')
+                };
+                changed = true;
+            }
             if (changed) hasChanges = true;
         };
 
@@ -7804,7 +7812,7 @@ const AppBuilder = () => {
                 w: 130,
                 h: 24,
                 props: {
-                    text: '⚡ TULIP APP',
+                    text: '⚡ MANDOR APP',
                     fontSize: 13,
                     fontBold: true,
                     textAlign: 'right',
@@ -25806,7 +25814,7 @@ D3:0
                                                         }}
                                                     >
                                                         <Sparkles size={16} />
-                                                        <span>✨ Buat Tulip Header & Footer</span>
+                                                        <span>✨ Buat Mandor Header & Footer</span>
                                                     </button>
                                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                                                         <button

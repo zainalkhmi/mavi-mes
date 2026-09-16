@@ -382,7 +382,7 @@ export function TulipShopFloorMenuModal({
             </div>
             <div>
               <div style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 700, letterSpacing: '0.06em' }}>
-                TULIP PLAYER MENU
+                MANDOR PLAYER MENU
               </div>
               <div style={{ fontSize: '1rem', fontWeight: 800 }}>
                 Pengaturan Frontline
@@ -501,7 +501,7 @@ export function TulipShopFloorMenuModal({
 
         {/* Footer */}
         <div style={{ padding: '14px 20px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Tulip Player Engine v2.4</span>
+          <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Mandor Player Engine v2.4</span>
           <button
             onClick={onClose}
             style={{

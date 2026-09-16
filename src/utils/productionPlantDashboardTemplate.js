@@ -254,8 +254,8 @@ export function createProductionPlantDashboardTemplate() {
 
     return {
         id: `app_plant_dashboard_${ts}`,
-        name: 'Tulip Production Plant Dashboard & Cell Tracker',
-        description: 'Complete Tulip-style plant production dashboard with 6-cell status tracking, Top KPIs, Cell Loading, Downtime Pareto analytics, and live shopfloor input form.',
+        name: 'Mandor Production Plant Dashboard & Cell Tracker',
+        description: 'Complete Mandor plant production dashboard with 6-cell status tracking, Top KPIs, Cell Loading, Downtime Pareto analytics, and live shopfloor input form.',
         category: 'MES Production Suite',
         type: 'FRONT-LINE',
         published: true,

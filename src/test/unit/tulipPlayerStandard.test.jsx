@@ -110,7 +110,7 @@ describe('Tulip Frontline Modals', () => {
       />
     );
 
-    expect(screen.getByText('TULIP PLAYER MENU')).toBeDefined();
+    expect(screen.getByText('MANDOR PLAYER MENU')).toBeDefined();
     expect(screen.getByText('Pengaturan Frontline')).toBeDefined();
 
     const switchBtn = screen.getByText('Ganti Aplikasi Lain');

@@ -3771,6 +3771,10 @@ const LiveTerminal = () => {
       if (e.data.type === 'TULIP_RESTART_APP' || e.data.type === 'RESTART') {
         setCurrentStepIndex(0);
         resetInputs();
+      } else if (e.data.type === 'PREV_STEP' || e.data.type === 'TULIP_PREV_STEP') {
+        handlePrevStep();
+      } else if (e.data.type === 'NEXT_STEP' || e.data.type === 'TULIP_NEXT_STEP') {
+        handleNextStep();
       } else if (e.data.type === 'BARCODE_SCANNED' && e.data.barcode) {
         console.log('[LiveTerminal] Received Barcode from Tulip Player wedge:', e.data.barcode);
         setBarcodeValues(prev => ({ ...prev, global: e.data.barcode }));

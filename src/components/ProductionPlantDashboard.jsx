@@ -190,7 +190,7 @@ export default function ProductionPlantDashboard({ embedded = false }) {
     setDowntimeData(INITIAL_DOWNTIME);
     setOrderStatusData(INITIAL_ORDERS_STATUS);
     setWipData(INITIAL_WIP);
-    toast.success('Reset to Tulip reference preset data!');
+    toast.success('Reset to Mandor reference preset data!');
   };
 
   const toggleFullscreen = () => {
@@ -243,10 +243,10 @@ export default function ProductionPlantDashboard({ embedded = false }) {
               color: '#0a0f1d',
               fontSize: '0.85rem'
             }}>
-              🌷
+              ❖
             </div>
             <span style={{ fontSize: '1.2rem', fontWeight: 900, letterSpacing: '0.04em', color: '#ffffff' }}>
-              TULIP <span style={{ color: '#38bdf8', fontWeight: 400, fontSize: '0.9rem' }}>| MANDOR MES</span>
+              MANDOR <span style={{ color: '#38bdf8', fontWeight: 400, fontSize: '0.9rem' }}>MES</span>
             </span>
           </div>
 
@@ -310,7 +310,7 @@ export default function ProductionPlantDashboard({ embedded = false }) {
 
           <button
             onClick={handleResetToDefaults}
-            title="Reset to Tulip Reference Preset"
+            title="Reset to Mandor Reference Preset"
             style={{
               background: 'rgba(255, 255, 255, 0.05)',
               border: '1px solid rgba(255, 255, 255, 0.12)',
@@ -934,7 +934,7 @@ export default function ProductionPlantDashboard({ embedded = false }) {
                   Shopfloor Production & Cell Data Entry
                 </h2>
                 <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '0.88rem' }}>
-                  Input updates here to immediately drive and reflect on the Tulip Live Production Dashboard.
+                  Input updates here to immediately drive and reflect on the Live Production Dashboard.
                 </p>
               </div>
               <button

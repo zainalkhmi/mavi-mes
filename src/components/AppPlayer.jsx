@@ -19,6 +19,7 @@ import { logout } from '../utils/auth';
 import VibeSandpackViewer from './appbuilder/VibeSandpackViewer';
 import GluestackAppPlayer from '../ui-engine/preview/GluestackAppPlayer';
 import TulipPlayerHeader from './player/TulipPlayerHeader';
+import TulipPlayerFooter from './player/TulipPlayerFooter';
 import { TulipHelpModal, TulipInfoModal, TulipRestartModal, TulipShopFloorMenuModal } from './player/TulipPlayerModals';
 import { useBarcodeScannerWedge } from '../hooks/useBarcodeScannerWedge';
 
@@ -2119,17 +2120,36 @@ const AppPlayer = () => {
                     <DeviceConnectivityWidget />
                 </div>
 
-                {/* ── PLAYER PANE ───────────────────────────────────────────── */}
+                {/* ── PLAYER PANE (Tablet Hardware Chassis Bezel) ─────────── */}
                 <div style={{ 
                     ...panelStyle, 
                     display: 'flex', 
                     flexDirection: 'column', 
                     overflow: 'hidden',
                     height: '100%',
-                    border: sidebarHidden ? 'none' : panelStyle.border,
-                    borderRadius: sidebarHidden ? '0' : panelStyle.borderRadius,
-                    boxShadow: sidebarHidden ? 'none' : panelStyle.boxShadow
+                    backgroundColor: '#0a0f1d',
+                    border: isFullscreen || sidebarHidden ? 'none' : '12px solid #161c28',
+                    borderRadius: isFullscreen || sidebarHidden ? '0' : '20px',
+                    boxShadow: isFullscreen || sidebarHidden ? 'none' : '0 25px 60px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.08)',
+                    position: 'relative'
                 }}>
+                    {/* Tablet Camera Sensor Dot */}
+                    {!isFullscreen && !sidebarHidden && (
+                        <div style={{
+                            position: 'absolute',
+                            top: '-8px',
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            width: '6px',
+                            height: '6px',
+                            borderRadius: '50%',
+                            backgroundColor: '#05070d',
+                            border: '1px solid rgba(255,255,255,0.15)',
+                            zIndex: 60,
+                            pointerEvents: 'none'
+                        }} />
+                    )}
+
                     {/* Header */}
                     {/* Tulip Standard Industrial Header */}
                     {activeApp ? (
@@ -2140,6 +2160,8 @@ const AppPlayer = () => {
                             totalSteps={stepProgress?.totalSteps || (activeApp.config?.steps?.length) || 1}
                             operator={operator}
                             stationName={activeStationName}
+                            batchNumber={activeApp.config?.batchNumber || 'C-0001-95'}
+                            versionLabel={activeApp.is_published ? `v${activeApp.version || 1}` : 'Development Version'}
                             isOnline={isOnline}
                             companyLogo={companyLogo}
                             onOpenHelp={() => setShowTulipHelp(true)}
@@ -2424,6 +2446,26 @@ const AppPlayer = () => {
                             />
                         )}
                     </div>
+
+                    {/* ── Tulip Player Bottom Navigation Footer (1:1 Tulip Standard) ── */}
+                    {activeApp && (
+                        <TulipPlayerFooter
+                            onPrev={() => {
+                                if (iframeRef.current?.contentWindow) {
+                                    iframeRef.current.contentWindow.postMessage({ type: 'PREV_STEP' }, '*');
+                                }
+                            }}
+                            onNext={() => {
+                                if (iframeRef.current?.contentWindow) {
+                                    iframeRef.current.contentWindow.postMessage({ type: 'NEXT_STEP' }, '*');
+                                }
+                            }}
+                            canGoPrev={stepProgress ? stepProgress.stepIndex > 0 : true}
+                            canGoNext={stepProgress ? stepProgress.stepIndex < (stepProgress.totalSteps - 1) : false}
+                            stepIndex={stepProgress?.stepIndex || 0}
+                            totalSteps={stepProgress?.totalSteps || (activeApp.config?.steps?.length || 1)}
+                        />
+                    )}
                 </div>
 
                 {/* ── DEBUG PANEL (Tulip parity: Variable Watcher & Trigger Log) ── */}
