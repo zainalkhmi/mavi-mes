@@ -145,12 +145,38 @@ export default function GluestackAppPlayer({
   }, [propAppId, propMode, propDevMode, searchParams]);
 
   // App Definition state
-  const [appName, setAppName] = useState('GlueStack App');
-  const [screens, setScreens] = useState(DEFAULT_STARTER_APP.screens);
-  const [currentScreenId, setCurrentScreenId] = useState('screen_1');
-  const [variables, setVariables] = useState(DEFAULT_STARTER_APP.variables);
-  const [tables, setTables] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [appName, setAppName] = useState(() => initialAppData?.name || 'GlueStack App');
+  const [screens, setScreens] = useState(() => {
+    if (initialAppData) {
+      const cfg = initialAppData.config || initialAppData;
+      if (cfg.components && cfg.components.length > 0) return cfg.components;
+      if (cfg.screens && cfg.screens.length > 0) return cfg.screens;
+    }
+    return DEFAULT_STARTER_APP.screens;
+  });
+  const [currentScreenId, setCurrentScreenId] = useState(() => {
+    if (initialAppData) {
+      const cfg = initialAppData.config || initialAppData;
+      if (cfg.components && cfg.components.length > 0) return cfg.components[0].id;
+      if (cfg.screens && cfg.screens.length > 0) return cfg.screens[0].id;
+    }
+    return 'screen_1';
+  });
+  const [variables, setVariables] = useState(() => {
+    if (initialAppData) {
+      const cfg = initialAppData.config || initialAppData;
+      if (cfg.variables) return cfg.variables;
+    }
+    return DEFAULT_STARTER_APP.variables;
+  });
+  const [tables, setTables] = useState(() => {
+    if (initialAppData) {
+      const cfg = initialAppData.config || initialAppData;
+      if (cfg.tables) return cfg.tables;
+    }
+    return [];
+  });
+  const [isLoading, setIsLoading] = useState(false);
 
   // Runtime interactive state
   const [formValues, setFormValues] = useState({});
@@ -1404,20 +1430,56 @@ export default function GluestackAppPlayer({
     return (
       <div className="min-h-screen w-full bg-[#f8fafc] text-slate-800 flex flex-col font-sans select-none antialiased">
         {/* Screen Body Components (Pure Real Device edge-to-edge) */}
-        <main className="flex-1 w-full max-w-xl mx-auto p-4 sm:p-6 space-y-4">
-          {(!currentScreen?.components || currentScreen.components.length === 0) ? (
-            <div className="flex flex-col items-center justify-center h-64 text-slate-400 space-y-2 bg-white rounded-2xl border border-slate-200/80 p-6">
-              <Layers className="w-10 h-10 text-slate-300" />
-              <span className="text-sm font-semibold text-slate-500">Layar ini belum memiliki komponen</span>
-            </div>
-          ) : (
-            currentScreen.components.map(comp => (
-              <div key={comp.id} className="transition-all">
-                {renderInteractiveWidget(comp)}
+        {currentScreen?.layoutMode === 'free' ? (
+          <main className="flex-1 w-full max-w-4xl mx-auto p-4 sm:p-6 relative min-h-[640px] overflow-auto">
+            {(!currentScreen?.components || currentScreen.components.length === 0) ? (
+              <div className="flex flex-col items-center justify-center h-64 text-slate-400 space-y-2 bg-white rounded-2xl border border-slate-200/80 p-6">
+                <Layers className="w-10 h-10 text-slate-300" />
+                <span className="text-sm font-semibold text-slate-500">Layar ini belum memiliki komponen</span>
               </div>
-            ))
-          )}
-        </main>
+            ) : (
+              currentScreen.components.map((comp, idx) => {
+                const compX = comp.x !== undefined ? comp.x : (comp.props?.x !== undefined ? comp.props.x : 20);
+                const compY = comp.y !== undefined ? comp.y : (comp.props?.y !== undefined ? comp.props.y : (idx * 60 + 20));
+                const compW = comp.width !== undefined ? comp.width : (comp.props?.width !== undefined ? comp.props.width : 'auto');
+                const compH = comp.height !== undefined ? comp.height : (comp.props?.height !== undefined ? comp.props.height : 'auto');
+                const compZ = comp.zIndex !== undefined ? comp.zIndex : (comp.props?.zIndex !== undefined ? comp.props.zIndex : (idx + 1));
+
+                return (
+                  <div
+                    key={comp.id}
+                    className="transition-all"
+                    style={{
+                      position: 'absolute',
+                      left: `${compX}px`,
+                      top: `${compY}px`,
+                      width: compW === 'auto' || !compW ? 'auto' : (typeof compW === 'number' ? `${compW}px` : compW),
+                      height: compH === 'auto' || !compH ? 'auto' : (typeof compH === 'number' ? `${compH}px` : compH),
+                      zIndex: compZ
+                    }}
+                  >
+                    {renderInteractiveWidget(comp)}
+                  </div>
+                );
+              })
+            )}
+          </main>
+        ) : (
+          <main className="flex-1 w-full max-w-xl mx-auto p-4 sm:p-6 space-y-4">
+            {(!currentScreen?.components || currentScreen.components.length === 0) ? (
+              <div className="flex flex-col items-center justify-center h-64 text-slate-400 space-y-2 bg-white rounded-2xl border border-slate-200/80 p-6">
+                <Layers className="w-10 h-10 text-slate-300" />
+                <span className="text-sm font-semibold text-slate-500">Layar ini belum memiliki komponen</span>
+              </div>
+            ) : (
+              currentScreen.components.map(comp => (
+                <div key={comp.id} className="transition-all">
+                  {renderInteractiveWidget(comp)}
+                </div>
+              ))
+            )}
+          </main>
+        )}
 
         {/* Toast Notification */}
         {activeToast && (
@@ -1646,20 +1708,56 @@ export default function GluestackAppPlayer({
           </div>
 
           {/* Screen Body Components */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#f8fafc]">
-            {(!currentScreen.components || currentScreen.components.length === 0) ? (
-              <div className="flex flex-col items-center justify-center h-48 text-slate-400 space-y-2">
-                <Layers className="w-8 h-8 text-slate-300" />
-                <span className="text-xs font-semibold">Layar ini belum memiliki komponen</span>
-              </div>
-            ) : (
-              currentScreen.components.map(comp => (
-                <div key={comp.id} className="transition-all">
-                  {renderInteractiveWidget(comp)}
+          {currentScreen.layoutMode === 'free' ? (
+            <div className="flex-1 overflow-auto p-4 bg-[#f8fafc] relative min-h-[640px]">
+              {(!currentScreen.components || currentScreen.components.length === 0) ? (
+                <div className="flex flex-col items-center justify-center h-48 text-slate-400 space-y-2">
+                  <Layers className="w-8 h-8 text-slate-300" />
+                  <span className="text-xs font-semibold">Layar ini belum memiliki komponen</span>
                 </div>
-              ))
-            )}
-          </div>
+              ) : (
+                currentScreen.components.map((comp, idx) => {
+                  const compX = comp.x !== undefined ? comp.x : (comp.props?.x !== undefined ? comp.props.x : 20);
+                  const compY = comp.y !== undefined ? comp.y : (comp.props?.y !== undefined ? comp.props.y : (idx * 60 + 20));
+                  const compW = comp.width !== undefined ? comp.width : (comp.props?.width !== undefined ? comp.props.width : 'auto');
+                  const compH = comp.height !== undefined ? comp.height : (comp.props?.height !== undefined ? comp.props.height : 'auto');
+                  const compZ = comp.zIndex !== undefined ? comp.zIndex : (comp.props?.zIndex !== undefined ? comp.props.zIndex : (idx + 1));
+
+                  return (
+                    <div
+                      key={comp.id}
+                      className="transition-all"
+                      style={{
+                        position: 'absolute',
+                        left: `${compX}px`,
+                        top: `${compY}px`,
+                        width: compW === 'auto' || !compW ? 'auto' : (typeof compW === 'number' ? `${compW}px` : compW),
+                        height: compH === 'auto' || !compH ? 'auto' : (typeof compH === 'number' ? `${compH}px` : compH),
+                        zIndex: compZ
+                      }}
+                    >
+                      {renderInteractiveWidget(comp)}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#f8fafc]">
+              {(!currentScreen.components || currentScreen.components.length === 0) ? (
+                <div className="flex flex-col items-center justify-center h-48 text-slate-400 space-y-2">
+                  <Layers className="w-8 h-8 text-slate-300" />
+                  <span className="text-xs font-semibold">Layar ini belum memiliki komponen</span>
+                </div>
+              ) : (
+                currentScreen.components.map(comp => (
+                  <div key={comp.id} className="transition-all">
+                    {renderInteractiveWidget(comp)}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
 
           {/* Simulated Home Indicator Bar */}
           {deviceFrame !== 'responsive' && (

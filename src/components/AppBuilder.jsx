@@ -590,13 +590,14 @@ const AppBuilder = () => {
 
         // Apply selected target device immediately for precise canvas rendering
         const deviceKey = targetDevice || 'LAPTOP_HD';
+        const targetSize = getCanvasSizeForDevice(deviceKey, previewOrientation);
         if (handleDeviceChangeRef.current) {
             handleDeviceChangeRef.current(deviceKey);
         }
 
         // Auto-generate Base Layout (Header & Footer) if baseComponents is empty
         if ((baseComponentsRef.current || []).length === 0) {
-            handleGenerateTulipBaseLayoutRef.current?.('BOTH', false);
+            handleGenerateTulipBaseLayoutRef.current?.('BOTH', false, targetSize);
         }
 
         if (rpaArgs && ghostPilot.startRPA) {
@@ -3610,22 +3611,34 @@ const AppBuilder = () => {
     useEffect(() => {
         if (['DESIGN', 'PREVIEW'].includes(viewMode) && canvasWrapperRef.current) {
             const wrapper = canvasWrapperRef.current;
-            const padding = 40; // Reduced padding for better fit
-            const availableW = wrapper.clientWidth - padding;
-            const availableH = wrapper.clientHeight - padding;
+            const updateScale = () => {
+                if (!wrapper) return;
+                const rect = wrapper.getBoundingClientRect();
+                const padding = 48; // Generous padding so entire canvas (header to footer) fits without scrolling
+                const availableW = Math.max(100, (rect.width || wrapper.clientWidth) - padding);
+                const availableH = Math.max(100, (rect.height || wrapper.clientHeight) - padding);
 
-            const targetW = canvasBaseSize.width;
-            const targetH = canvasBaseSize.height;
+                const targetW = canvasBaseSize.width;
+                const targetH = canvasBaseSize.height;
 
-            const scaleW = availableW / targetW;
-            const scaleH = availableH / targetH;
-            // Tulip-style: always fit to available space, no cap for RESPONSIVE
-            const fitScale = Math.min(scaleW, scaleH);
-            // Ensure minimum scale of 0.1 and maximum of 2.0
-            const clampedScale = Math.min(2.0, Math.max(0.1, fitScale));
+                const scaleW = availableW / targetW;
+                const scaleH = availableH / targetH;
+                // Tulip-style: always fit to available space, no cap for RESPONSIVE
+                const fitScale = Math.min(scaleW, scaleH);
+                // Ensure minimum scale of 0.1 and maximum of 2.0
+                const clampedScale = Math.min(2.0, Math.max(0.1, fitScale));
 
-            setZoomScale(Number(clampedScale.toFixed(2)));
-            setPanOffset({ x: 0, y: 0 }); // Reset pan
+                setZoomScale(Number(clampedScale.toFixed(2)));
+                setPanOffset({ x: 0, y: 0 }); // Reset pan
+            };
+
+            updateScale();
+
+            const ro = new ResizeObserver(() => {
+                updateScale();
+            });
+            ro.observe(wrapper);
+            return () => ro.disconnect();
         }
     }, [previewDevice, previewOrientation, viewMode, canvasBaseSize.width, canvasBaseSize.height]);
 
@@ -4135,13 +4148,49 @@ const AppBuilder = () => {
         const MIN_W = 20;
         const MIN_H = 16;
 
-        const scaleComp = (comp) => ({
-            ...comp,
-            x: Math.round(comp.x * ratioX),
-            y: Math.round(comp.y * ratioY),
-            w: Math.max(MIN_W, Math.round(comp.w * ratioX)),
-            h: Math.max(MIN_H, Math.round(comp.h * ratioY))
-        });
+        const scaleComp = (comp) => {
+            // Keep footer background snapped perfectly to bottom and full width
+            if (comp.name === 'base_footer_bar') {
+                const ftrH = Math.min(comp.h || 56, 56);
+                return {
+                    ...comp,
+                    x: 0,
+                    y: newH - ftrH,
+                    w: newW,
+                    h: ftrH
+                };
+            }
+            // Keep header background snapped to top and full width
+            if (comp.name === 'base_header_bar') {
+                const hdrH = Math.min(comp.h || 56, 56);
+                return {
+                    ...comp,
+                    x: 0,
+                    y: 0,
+                    w: newW,
+                    h: hdrH
+                };
+            }
+            // Keep footer buttons and info inside footer
+            if (comp.id && comp.id.startsWith('base_ftr_')) {
+                const ftrH = 56;
+                const offsetY = comp.name === 'base_step_info' ? 16 : 10;
+                return {
+                    ...comp,
+                    x: comp.name === 'base_next_btn' ? Math.max(0, newW - 136) : (comp.name === 'base_prev_btn' ? 16 : Math.max(140, Math.round((newW - comp.w) / 2))),
+                    y: newH - ftrH + offsetY,
+                    w: comp.w,
+                    h: comp.h
+                };
+            }
+            return {
+                ...comp,
+                x: Math.round(comp.x * ratioX),
+                y: Math.round(comp.y * ratioY),
+                w: Math.max(MIN_W, Math.round(comp.w * ratioX)),
+                h: Math.max(MIN_H, Math.round(comp.h * ratioY))
+            };
+        };
 
         setBaseComponents(prev => prev.map(scaleComp));
         setSteps(prev => prev.map(s => ({
@@ -7658,10 +7707,10 @@ const AppBuilder = () => {
         }
     };
 
-    const handleGenerateTulipBaseLayout = (mode = 'BOTH', switchStep = true) => {
+    const handleGenerateTulipBaseLayout = (mode = 'BOTH', switchStep = true, customSize = null) => {
         saveHistory();
-        const cW = canvasBaseSize.width || 1000;
-        const cH = canvasBaseSize.height || 625;
+        const cW = customSize?.width || canvasBaseSize.width || 1000;
+        const cH = customSize?.height || canvasBaseSize.height || 625;
         const headerH = 56;
         const footerH = 56;
 
@@ -15699,8 +15748,11 @@ const AppBuilder = () => {
                                         height: (viewMode === 'DESIGN' || isPresetCanvasMode)
                                             ? `${canvasBaseSize.height}px`
                                             : 'auto',
-                                        minHeight: (viewMode === 'DESIGN' || isPresetCanvasMode) ? 'none' : '600px',
+                                        minHeight: (viewMode === 'DESIGN' || isPresetCanvasMode) ? `${canvasBaseSize.height}px` : '600px',
+                                        maxHeight: (viewMode === 'DESIGN' || isPresetCanvasMode) ? `${canvasBaseSize.height}px` : 'none',
                                         aspectRatio: (viewMode === 'DESIGN' || isPresetCanvasMode) ? 'none' : '16/10',
+                                        flexShrink: 0,
+                                        boxSizing: 'border-box',
                                         backgroundColor: appThemeMode === 'DARK' ? '#0f172a' : (currentStep?.backgroundColor || appBackgroundColor || '#ffffff'),
                                         backgroundImage: currentStep?.backgroundImage
                                             ? `url(${currentStep.backgroundImage})`
@@ -15718,7 +15770,8 @@ const AppBuilder = () => {
                                         flexDirection: 'column',
                                         alignItems: currentStep?.alignHorizontal === 3 ? 'center' : currentStep?.alignHorizontal === 2 ? 'flex-end' : 'flex-start',
                                         justifyContent: currentStep?.alignVertical === 2 ? 'center' : currentStep?.alignVertical === 3 ? 'flex-end' : 'flex-start',
-                                        overflowY: currentStep?.scrollable !== false ? 'auto' : 'hidden',
+                                        overflowY: (isPresetCanvasMode && currentStep?.scrollable !== true) ? 'hidden' : (currentStep?.scrollable !== false ? 'auto' : 'hidden'),
+                                        overflowX: 'hidden',
                                         transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomScale})`,
                                         transformOrigin: 'center center',
                                         transition: isPanning ? 'none' : 'transform 0.1s ease-out',

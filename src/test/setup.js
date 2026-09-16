@@ -169,12 +169,15 @@ vi.mock('@supabase/supabase-js', () => ({
 
 // ─── Mock React Router ──────────────────────────────────────────────────────
 
-vi.mock('react-router-dom', () => ({
-  ...vi.requireActual('react-router-dom'),
-  useNavigate: () => vi.fn(),
-  useLocation: () => ({ pathname: '/', state: {} }),
-  useParams: () => ({}),
-}));
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => vi.fn(),
+    useLocation: () => ({ pathname: '/', state: {} }),
+    useParams: () => ({}),
+  };
+});
 
 // ─── Mock toast ─────────────────────────────────────────────────────────────
 

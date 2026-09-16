@@ -1215,19 +1215,7 @@ export default function AppCanvas({
   const screenComponents = currentScreen?.components || [];
   const selectedComponent = screenComponents.find(c => c.id === selectedId);
 
-  // Close open palette when clicking outside
-  useEffect(() => {
-    const handleGlobalClick = (e) => {
-      if (!e.target.closest('[data-palette-root]')) {
-        setOpenPalette(null);
-        setActiveDropdown(null);
-      }
-    };
-    window.addEventListener('click', handleGlobalClick);
-    return () => window.removeEventListener('click', handleGlobalClick);
-  }, []);
-
-  // Update Components with History
+  // Update Components with History (Must be declared before updateGeometry/handlers)
   const updateComponents = useCallback((newComponents) => {
     setHistory(prev => [...prev.slice(-20), screens]);
     setFuture([]);
@@ -1253,14 +1241,168 @@ export default function AppCanvas({
     setScreens(next);
   };
 
+  // Layout Mode: Screen-specific or fallback to screenSettings.layoutMode, default 'flow'
+  const isFreeLayout = (currentScreen?.layoutMode || screenSettings.layoutMode || 'flow') === 'free';
+  const [snapToGrid, setSnapToGrid] = useState(true);
+  const gridSize = 10;
+  const canvasContainerRef = useRef(null);
+  const [dragState, setDragState] = useState(null); // { id, startX, startY, origX, origY, origW, origH, type: 'MOVE' | 'RESIZE' }
+
+  // Toggle layout mode between Flow (Responsive) and Free (X-Y)
+  const toggleLayoutMode = useCallback((mode) => {
+    const nextMode = mode || (isFreeLayout ? 'flow' : 'free');
+    setScreens(prev => prev.map(s => {
+      if (s.id === currentScreenId) {
+        let updatedComps = s.components || [];
+        if (nextMode === 'free') {
+          let currentY = 20;
+          updatedComps = updatedComps.map((c) => {
+            const x = c.x !== undefined ? c.x : (c.props?.x !== undefined ? c.props.x : 20);
+            const y = c.y !== undefined ? c.y : (c.props?.y !== undefined ? c.props.y : currentY);
+            currentY += 75;
+            return {
+              ...c,
+              x,
+              y,
+              width: c.width || c.props?.width || 'auto',
+              height: c.height || c.props?.height || 'auto',
+              zIndex: c.zIndex || c.props?.zIndex || 1,
+              props: {
+                ...c.props,
+                x,
+                y,
+                width: c.props?.width || c.width || 'auto',
+                height: c.props?.height || c.height || 'auto',
+                zIndex: c.props?.zIndex || c.zIndex || 1
+              }
+            };
+          });
+        }
+        return { ...s, layoutMode: nextMode, components: updatedComps };
+      }
+      return s;
+    }));
+    setActiveToast({
+      message: nextMode === 'free' ? 'Mode Free Design (X-Y Bebas) Aktif' : 'Mode Flow Layout (Responsive Stack) Aktif',
+      type: 'INFO'
+    });
+  }, [currentScreenId, isFreeLayout]);
+
+  // Update Geometry (X, Y, Width, Height, Z-Index)
+  const updateGeometry = useCallback((id, geom) => {
+    const next = screenComponents.map(c => {
+      if (c.id === id) {
+        return {
+          ...c,
+          ...geom,
+          props: { ...c.props, ...geom }
+        };
+      }
+      return c;
+    });
+    updateComponents(next);
+  }, [screenComponents, updateComponents]);
+
+  // Global mousemove and mouseup listeners for dragging and resizing in Free mode
+  useEffect(() => {
+    if (!dragState) return;
+
+    const handleMouseMove = (e) => {
+      const zoomFactor = (zoom || 100) / 100;
+      const deltaX = (e.clientX - dragState.startX) / zoomFactor;
+      const deltaY = (e.clientY - dragState.startY) / zoomFactor;
+
+      if (dragState.type === 'MOVE') {
+        let newX = Math.max(0, Math.round(dragState.origX + deltaX));
+        let newY = Math.max(0, Math.round(dragState.origY + deltaY));
+        if (snapToGrid) {
+          newX = Math.round(newX / gridSize) * gridSize;
+          newY = Math.round(newY / gridSize) * gridSize;
+        }
+        updateGeometry(dragState.id, { x: newX, y: newY });
+      } else if (dragState.type === 'RESIZE') {
+        let newW = Math.max(40, Math.round(dragState.origW + deltaX));
+        let newH = Math.max(24, Math.round(dragState.origH + deltaY));
+        if (snapToGrid) {
+          newW = Math.round(newW / gridSize) * gridSize;
+          newH = Math.round(newH / gridSize) * gridSize;
+        }
+        updateGeometry(dragState.id, { width: newW, height: newH });
+      }
+    };
+
+    const handleMouseUp = () => {
+      setDragState(null);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [dragState, zoom, snapToGrid, updateGeometry]);
+
+  // Keyboard Arrow Key Nudge for Free Layout
+  useEffect(() => {
+    if (!isFreeLayout || isPreview || !selectedId) return;
+
+    const handleKeyDown = (e) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+
+      const step = e.shiftKey ? 10 : 1;
+      const target = screenComponents.find(c => c.id === selectedId);
+      if (!target) return;
+
+      const currentX = target.x !== undefined ? target.x : (target.props?.x !== undefined ? target.props.x : 0);
+      const currentY = target.y !== undefined ? target.y : (target.props?.y !== undefined ? target.props.y : 0);
+
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        updateGeometry(selectedId, { x: Math.max(0, currentX - step) });
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        updateGeometry(selectedId, { x: currentX + step });
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        updateGeometry(selectedId, { y: Math.max(0, currentY - step) });
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        updateGeometry(selectedId, { y: currentY + step });
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFreeLayout, isPreview, selectedId, screenComponents, updateGeometry]);
+
+  // Close open palette when clicking outside
+  useEffect(() => {
+    const handleGlobalClick = (e) => {
+      if (!e.target.closest('[data-palette-root]')) {
+        setOpenPalette(null);
+        setActiveDropdown(null);
+      }
+    };
+    window.addEventListener('click', handleGlobalClick);
+    return () => window.removeEventListener('click', handleGlobalClick);
+  }, []);
+
   // Add Component to Canvas
   const addComponent = (type, customProps = {}) => {
+    const newX = 20;
+    const newY = screenComponents.length * 75 + 20;
     const newComponent = {
       id: generateId(),
       type,
-      props: { ...getDefaultProps(type), ...customProps },
+      props: { ...getDefaultProps(type), ...customProps, x: newX, y: newY },
       triggers: [],
-      dataSource: { type: 'none', tableId: '', column: '', recordPlaceholderId: '' }
+      dataSource: { type: 'none', tableId: '', column: '', recordPlaceholderId: '' },
+      x: newX,
+      y: newY,
+      width: 'auto',
+      height: 'auto',
+      zIndex: screenComponents.length + 1
     };
     const nextComponents = [...screenComponents, newComponent];
     updateComponents(nextComponents);
@@ -4136,8 +4278,55 @@ export default function AppCanvas({
           })}
         </div>
 
-        {/* Right: Lock + Undo/Redo + Preview Mode */}
+        {/* Right: Layout Mode + Magnet + Lock + Undo/Redo + Preview Mode */}
         <div className="flex items-center gap-2">
+
+          {/* Layout Mode Toggle: Flow (Stack) vs Free (X-Y Absolute) */}
+          <div className="flex items-center p-0.5 bg-slate-100 rounded-xl border border-slate-200 shadow-2xs">
+            <button
+              type="button"
+              onClick={() => toggleLayoutMode('flow')}
+              title="Layout Mengalir (Responsive Vertical Stack)"
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                !isFreeLayout
+                  ? 'bg-white text-[#008784] shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <LayoutGrid className="w-3 h-3" />
+              <span className="hidden md:inline">Flow</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => toggleLayoutMode('free')}
+              title="Free Design: Bebas Geser Posisi X, Y & Resize seperti MAVi App Builder"
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                isFreeLayout
+                  ? 'bg-white text-indigo-600 shadow-xs ring-1 ring-indigo-200'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Move className="w-3 h-3" />
+              <span className="hidden md:inline">Free X-Y</span>
+            </button>
+          </div>
+
+          {/* Snap to Grid (Magnet) toggle button - only when in Free mode */}
+          {isFreeLayout && (
+            <button
+              type="button"
+              onClick={() => setSnapToGrid(!snapToGrid)}
+              title={snapToGrid ? "Snap to Grid Aktif (10px)" : "Snap to Grid Nonaktif"}
+              className={`flex flex-col items-center justify-center px-2 py-1 rounded-xl border text-xs font-bold transition-colors min-w-[40px] cursor-pointer ${
+                snapToGrid
+                  ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                  : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'
+              }`}
+            >
+              <Grid3X3 className="w-3.5 h-3.5 mb-0.5" />
+              <span className="text-[9px]">Snap</span>
+            </button>
+          )}
 
           {/* Buka / Lock Button */}
           <button
@@ -4762,27 +4951,43 @@ export default function AppCanvas({
                 </div>
               )}
 
-              {/* Component Canvas Container */}
-              <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
+              {/* Component Canvas Container (Flow Stack vs Free Design Blueprint) */}
+              <div
+                ref={canvasContainerRef}
+                style={{
+                  backgroundImage: isFreeLayout ? 'radial-gradient(#cbd5e1 1.2px, transparent 1.2px)' : 'none',
+                  backgroundSize: isFreeLayout ? '16px 16px' : 'auto'
+                }}
+                onClick={(e) => {
+                  if (e.target === e.currentTarget && !isPreview) {
+                    setSelectedId(null);
+                  }
+                }}
+                className={`flex-1 p-4 relative ${
+                  isFreeLayout ? 'min-h-[640px] overflow-auto' : 'overflow-y-auto space-y-3 min-h-0'
+                }`}
+              >
                 {screenComponents.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-64 text-slate-400 space-y-2">
                     <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
                       <Layers className="w-6 h-6" />
                     </div>
-                    <div className="text-sm font-bold text-slate-700">Start building your canvas</div>
+                    <div className="text-sm font-bold text-slate-700">Mulai Desain Kanvas</div>
                     <div className="text-xs text-slate-400 text-center max-w-xs">
-                      Drag widgets from the toolbar above or click any category to add components.
+                      {isFreeLayout
+                        ? 'Mode Free Design aktif. Tarik widget ke posisi bebas mana saja di atas kanvas.'
+                        : 'Drag widgets from the toolbar above or click any category to add components.'}
                     </div>
                     <button
                       type="button"
                       onClick={() => addComponent('Button', { text: 'New Button' })}
-                      className="px-4 py-2 bg-[#008784] hover:bg-[#007471] text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1.5 mt-2"
+                      className="px-4 py-2 bg-[#008784] hover:bg-[#007471] text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-1.5 mt-2 cursor-pointer"
                     >
                       <Plus className="w-4 h-4" /> Add Widget
                     </button>
                   </div>
                 ) : (
-                  screenComponents.map((comp) => {
+                  screenComponents.map((comp, idx) => {
                     // Check visibility condition in preview mode
                     if (isPreview && comp.props?.visibilityCondition) {
                       const vc = comp.props.visibilityCondition;
@@ -4802,6 +5007,13 @@ export default function AppCanvas({
 
                     const isBlinking = comp.props?.isBlinking;
                     const isThisDropOpen = comp.type === 'Dropdown' && !!previewDropdownState[comp.id];
+
+                    const compX = comp.x !== undefined ? comp.x : (comp.props?.x !== undefined ? comp.props.x : 20);
+                    const compY = comp.y !== undefined ? comp.y : (comp.props?.y !== undefined ? comp.props.y : (idx * 75 + 20));
+                    const compW = comp.width !== undefined ? comp.width : (comp.props?.width !== undefined ? comp.props.width : 'auto');
+                    const compH = comp.height !== undefined ? comp.height : (comp.props?.height !== undefined ? comp.props.height : 'auto');
+                    const compZ = comp.zIndex !== undefined ? comp.zIndex : (comp.props?.zIndex !== undefined ? comp.props.zIndex : (idx + 1));
+
                     const customStyle = {
                       ...(comp.props?.backgroundColor && comp.props.backgroundColor !== 'transparent' ? { backgroundColor: comp.props.backgroundColor } : {}),
                       ...(comp.props?.color ? { color: comp.props.color } : {}),
@@ -4809,13 +5021,37 @@ export default function AppCanvas({
                       ...(comp.props?.fontWeight === 'bold' ? { fontWeight: 'bold' } : {}),
                       ...(comp.props?.fontStyle === 'italic' ? { fontStyle: 'italic' } : {}),
                       ...(comp.props?.textDecoration === 'underline' ? { textDecoration: 'underline' } : {}),
-                      ...(comp.props?.textAlign ? { textAlign: comp.props.textAlign } : {})
+                      ...(comp.props?.textAlign ? { textAlign: comp.props.textAlign } : {}),
+                      ...(isFreeLayout ? {
+                        position: 'absolute',
+                        left: `${compX}px`,
+                        top: `${compY}px`,
+                        width: compW === 'auto' || !compW ? 'auto' : (typeof compW === 'number' ? `${compW}px` : compW),
+                        height: compH === 'auto' || !compH ? 'auto' : (typeof compH === 'number' ? `${compH}px` : compH),
+                        zIndex: isThisDropOpen ? 50 : compZ
+                      } : {})
                     };
 
                     return (
                       <div
                         key={comp.id}
                         style={customStyle}
+                        onMouseDown={(e) => {
+                          if (isFreeLayout && !isPreview && !isCanvasLocked) {
+                            if (!e.target.closest('button, input, select, textarea, [data-no-drag]')) {
+                              setSelectedId(comp.id);
+                              setActiveRightTab('WIDGET');
+                              setDragState({
+                                id: comp.id,
+                                startX: e.clientX,
+                                startY: e.clientY,
+                                origX: compX,
+                                origY: compY,
+                                type: 'MOVE'
+                              });
+                            }
+                          }
+                        }}
                         onClick={() => {
                           if (!isPreview && !isCanvasLocked) {
                             setSelectedId(comp.id);
@@ -4830,8 +5066,24 @@ export default function AppCanvas({
                           !isPreview && selectedId === comp.id
                             ? 'ring-2 ring-[#714b67] bg-[#714b67]/5 shadow-xs'
                             : !isPreview ? 'hover:ring-1 hover:ring-slate-300' : ''
-                        } ${isBlinking ? 'animate-pulse' : ''} ${!isPreview ? 'cursor-pointer' : ''}`}
+                        } ${isBlinking ? 'animate-pulse' : ''} ${
+                          !isPreview ? (isFreeLayout ? 'cursor-move' : 'cursor-pointer') : ''
+                        }`}
                       >
+                      {/* Free Layout floating coordinate & dimension badge */}
+                      {isFreeLayout && !isPreview && selectedId === comp.id && (
+                        <div
+                          data-no-drag
+                          className="absolute -top-5 left-0 px-1.5 py-0.5 bg-slate-900/90 backdrop-blur-xs text-white rounded text-[9px] font-mono font-bold pointer-events-none shadow-xs z-30 flex items-center gap-1.5 border border-slate-700 select-none"
+                        >
+                          <Move className="w-2.5 h-2.5 text-teal-400" />
+                          <span>X: {compX}</span>
+                          <span>Y: {compY}</span>
+                          {compW !== 'auto' && <span>W: {compW}</span>}
+                          {compH !== 'auto' && <span>H: {compH}</span>}
+                        </div>
+                      )}
+
                       {/* Floating component actions on hover */}
                       {!isPreview && selectedId === comp.id && (
                         <div className="absolute top-1 right-1 flex items-center gap-1 bg-white/90 backdrop-blur-xs p-1 rounded-lg shadow-md z-20 border border-slate-200">
@@ -4869,6 +5121,30 @@ export default function AppCanvas({
                           </button>
                         </div>
                       )}
+
+                      {/* Interactive Resize Handle for Free Layout */}
+                      {isFreeLayout && !isPreview && selectedId === comp.id && (
+                        <div
+                          data-no-drag
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            const currentElem = e.currentTarget.parentElement;
+                            const rect = currentElem.getBoundingClientRect();
+                            const zoomFactor = (zoom || 100) / 100;
+                            setDragState({
+                              id: comp.id,
+                              startX: e.clientX,
+                              startY: e.clientY,
+                              origW: typeof compW === 'number' ? compW : rect.width / zoomFactor,
+                              origH: typeof compH === 'number' ? compH : rect.height / zoomFactor,
+                              type: 'RESIZE'
+                            });
+                          }}
+                          className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-indigo-600 border-2 border-white rounded-full shadow-md cursor-se-resize z-30 hover:scale-125 transition-transform"
+                          title="Tarik untuk mengubah ukuran (Resize W x H)"
+                        />
+                      )}
+
                       {renderPreview(comp)}
                     </div>
                   );
@@ -4936,6 +5212,7 @@ export default function AppCanvas({
               <GluestackWidgetProperties
                 selectedComponent={selectedComponent}
                 updateProps={updateProps}
+                updateGeometry={updateGeometry}
                 updateDataSource={updateDataSource}
                 updateComponentName={(id, name) => {
                   const next = screenComponents.map(c => c.id === id ? { ...c, name } : c);
@@ -4980,6 +5257,44 @@ export default function AppCanvas({
                   }}
                   className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white font-bold text-slate-800"
                 />
+              </div>
+
+              {/* Canvas Layout Mode: Flow (Stack) vs Free (X-Y) */}
+              <div className="space-y-2 p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">
+                  CANVAS LAYOUT MODE
+                </span>
+                <div className="grid grid-cols-2 gap-1.5 p-0.5 bg-slate-200/70 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => toggleLayoutMode('flow')}
+                    className={`py-1.5 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                      !isFreeLayout
+                        ? 'bg-white text-[#008784] shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <span>Flow (Stack)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleLayoutMode('free')}
+                    className={`py-1.5 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                      isFreeLayout
+                        ? 'bg-white text-indigo-600 shadow-xs ring-1 ring-indigo-200'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Move className="w-3.5 h-3.5" />
+                    <span>Free (X-Y)</span>
+                  </button>
+                </div>
+                <div className="text-[10px] text-slate-400 leading-tight">
+                  {isFreeLayout
+                    ? 'Mode Free Design aktif: Setiap widget dapat digeser bebas dan diubah ukurannya pada kanvas X-Y.'
+                    : 'Mode Flow aktif: Widget ditata berurutan secara otomatis dan responsif untuk mobile/tablet.'}
+                </div>
               </div>
 
               {/* Screen Presets */}
@@ -5557,7 +5872,7 @@ export default function AppCanvas({
 
       {/* Floating Toast Notification Banner for Trigger Executions & App Actions */}
       {activeToast && (
-        <div className="fixed bottom-6 right-24 z-50 animate-in fade-in slide-in-from-bottom-5 duration-200">
+        <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-5 duration-200">
           <div className={`flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-2xl border text-xs font-bold text-white ${
             activeToast.type === 'ERROR' ? 'bg-rose-600 border-rose-500' :
             activeToast.type === 'WARNING' ? 'bg-amber-600 border-amber-500' :
@@ -5584,7 +5899,7 @@ export default function AppCanvas({
 
       {/* Dedicated Gluestack Canvas Copilot Floating Action Button (Direct launch, matching MaviCore AppBuilder) */}
       {!isCopilotOpen && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center">
+        <div className="fixed bottom-6 left-6 z-50 flex items-center">
           <button
             type="button"
             onClick={() => setIsCopilotOpen(true)}

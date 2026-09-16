@@ -5,7 +5,8 @@ import {
   Sliders, Eye, EyeOff, Layout, Palette, AlignLeft, AlignCenter,
   AlignRight, Bold, Italic, Underline, ChevronDown, ChevronRight,
   Database, Variable, Play, Link, CheckCircle2, AlertCircle,
-  ExternalLink, Layers, Smartphone, RefreshCw, Hash, SlidersHorizontal
+  ExternalLink, Layers, Smartphone, RefreshCw, Hash, SlidersHorizontal,
+  Move, Maximize2, Minimize2, Grid3X3
 } from 'lucide-react';
 
 const COLOR_PRESETS = [
@@ -25,6 +26,7 @@ const COLOR_PRESETS = [
 export default function GluestackWidgetProperties({
   selectedComponent,
   updateProps,
+  updateGeometry,
   updateDataSource,
   updateComponentName,
   updateComponentDisplayName,
@@ -91,6 +93,20 @@ export default function GluestackWidgetProperties({
   const isTextLike = ['Heading', 'Text', 'Badge'].includes(compType);
   const isMediaLike = ['Image', 'Video', 'Camera', 'QRCodeScanner', 'BarcodeScanner'].includes(compType);
   const isContainerLike = ['Card', 'Container', 'Box', 'HStack', 'VStack'].includes(compType);
+
+  const handleGeometryChange = (field, val) => {
+    if (updateGeometry) {
+      updateGeometry(selectedComponent.id, { [field]: val });
+    } else {
+      updateProps(selectedComponent.id, { [field]: val });
+    }
+  };
+
+  const compX = selectedComponent.x !== undefined ? selectedComponent.x : (props.x !== undefined ? props.x : 0);
+  const compY = selectedComponent.y !== undefined ? selectedComponent.y : (props.y !== undefined ? props.y : 0);
+  const compWidth = selectedComponent.width !== undefined ? selectedComponent.width : (props.width !== undefined ? props.width : 'auto');
+  const compHeight = selectedComponent.height !== undefined ? selectedComponent.height : (props.height !== undefined ? props.height : 'auto');
+  const compZIndex = selectedComponent.zIndex !== undefined ? selectedComponent.zIndex : (props.zIndex !== undefined ? props.zIndex : 1);
   const isScadaLike = compType.startsWith('Scada') || compType.startsWith('SCADA_');
 
   return (
@@ -252,6 +268,7 @@ export default function GluestackWidgetProperties({
           {[
             { id: 'ALL', label: 'All' },
             { id: 'CONTENT', label: 'Content' },
+            { id: 'POSITION', label: 'Posisi & Ukuran' },
             ...(isButtonLike ? [{ id: 'ACTION', label: 'Action' }] : []),
             { id: 'DATA', label: 'Data Binding' },
             { id: 'STYLE', label: 'Style' },
@@ -889,6 +906,139 @@ export default function GluestackWidgetProperties({
                 ))}
               </select>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── 5B. POSITION, DIMENSIONS & FREE CANVAS (X, Y, W, H) ─────────────────── */}
+      {(activeSection === 'ALL' || activeSection === 'POSITION' || activeSection === 'STYLE') && matchesSearch('position dimensi x y width height koordinat bebas free canvas layer') && (
+        <div className="space-y-3 pt-2 border-t border-slate-100">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Move className="w-3.5 h-3.5 text-[#008784]" />
+              <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider">
+                POSISI & UKURAN (FREE DESIGN)
+              </span>
+            </div>
+            <span className="text-[9px] font-bold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
+              X-Y Canvas
+            </span>
+          </div>
+
+          {/* Quick Coordinate Inputs: X & Y */}
+          <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center justify-between">
+                <span>Posisi X</span>
+                <span className="font-mono text-slate-400 font-normal">px</span>
+              </label>
+              <input
+                type="number"
+                value={compX}
+                onChange={(e) => handleGeometryChange('x', Math.max(0, parseInt(e.target.value, 10) || 0))}
+                className="w-full text-xs p-1.5 border border-slate-300 rounded-lg bg-white font-mono font-bold text-slate-800"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center justify-between">
+                <span>Posisi Y</span>
+                <span className="font-mono text-slate-400 font-normal">px</span>
+              </label>
+              <input
+                type="number"
+                value={compY}
+                onChange={(e) => handleGeometryChange('y', Math.max(0, parseInt(e.target.value, 10) || 0))}
+                className="w-full text-xs p-1.5 border border-slate-300 rounded-lg bg-white font-mono font-bold text-slate-800"
+              />
+            </div>
+
+            {/* Width & Height */}
+            <div className="space-y-1 pt-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center justify-between">
+                <span>Lebar (W)</span>
+                <span className="font-mono text-slate-400 font-normal">px</span>
+              </label>
+              <input
+                type="text"
+                placeholder="auto"
+                value={compWidth === 'auto' ? '' : compWidth}
+                onChange={(e) => {
+                  const v = e.target.value.trim();
+                  handleGeometryChange('width', v === '' || v === 'auto' ? 'auto' : (isNaN(Number(v)) ? v : Number(v)));
+                }}
+                className="w-full text-xs p-1.5 border border-slate-300 rounded-lg bg-white font-mono font-bold text-slate-800 placeholder:text-slate-400"
+              />
+            </div>
+            <div className="space-y-1 pt-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center justify-between">
+                <span>Tinggi (H)</span>
+                <span className="font-mono text-slate-400 font-normal">px</span>
+              </label>
+              <input
+                type="text"
+                placeholder="auto"
+                value={compHeight === 'auto' ? '' : compHeight}
+                onChange={(e) => {
+                  const v = e.target.value.trim();
+                  handleGeometryChange('height', v === '' || v === 'auto' ? 'auto' : (isNaN(Number(v)) ? v : Number(v)));
+                }}
+                className="w-full text-xs p-1.5 border border-slate-300 rounded-lg bg-white font-mono font-bold text-slate-800 placeholder:text-slate-400"
+              />
+            </div>
+
+            {/* Layer Z-Index */}
+            <div className="col-span-2 space-y-1 pt-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center justify-between">
+                <span>Layer Z-Index</span>
+                <span className="text-[9px] text-slate-400 font-normal">Tingkat tumpukan</span>
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="999"
+                value={compZIndex}
+                onChange={(e) => handleGeometryChange('zIndex', parseInt(e.target.value, 10) || 1)}
+                className="w-full text-xs p-1.5 border border-slate-300 rounded-lg bg-white font-mono font-bold text-slate-800"
+              />
+            </div>
+          </div>
+
+          {/* Quick Positioning Helpers */}
+          <div className="flex flex-wrap gap-1">
+            <button
+              type="button"
+              onClick={() => handleGeometryChange('x', 16)}
+              className="px-2 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-md text-[10px] font-bold shadow-2xs cursor-pointer"
+            >
+              Rata Kiri (16px)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleGeometryChange('y', 16)}
+              className="px-2 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-md text-[10px] font-bold shadow-2xs cursor-pointer"
+            >
+              Rata Atas (16px)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                handleGeometryChange('width', '100%');
+                handleGeometryChange('x', 0);
+              }}
+              className="px-2 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-md text-[10px] font-bold shadow-2xs cursor-pointer"
+            >
+              Lebar Penuh (100%)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                handleGeometryChange('width', 'auto');
+                handleGeometryChange('height', 'auto');
+              }}
+              className="px-2 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-md text-[10px] font-bold shadow-2xs cursor-pointer"
+            >
+              Reset Auto
+            </button>
           </div>
         </div>
       )}
