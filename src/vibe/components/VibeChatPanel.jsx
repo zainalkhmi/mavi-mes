@@ -31,10 +31,9 @@ import { cleanVibeCode, extractVibeCode } from '../utils/codeCleaner';
 
 export const PROVIDER_MODELS = {
   Gemini: [
-    { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', desc: 'Model kustom Anda (Rekomendasi)', tag: 'Recommended' },
+    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', desc: 'Resmi Google, Super Cepat & Kuota Terbesar (Rekomendasi)', tag: 'Recommended' },
+    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', desc: 'Sangat stabil untuk produksi, anti-error kapasitas', tag: 'Fast' },
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', desc: 'Generasi mutakhir penalaran tinggi' },
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', desc: 'Model resmi terbaru, generasi berikutnya & super cepat' },
-    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', desc: 'Stabil, cepat & efisien untuk kode' },
     { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', desc: 'Kemampuan penalaran kompleks' }
   ],
   OpenAI: [
@@ -60,7 +59,13 @@ export const PROVIDER_MODELS = {
 const isBogusGemini = (id) => {
   if (!id) return true;
   const s = String(id).toLowerCase();
-  return s.includes('flash-latest') || s === 'gemini-flash';
+  return (
+    s.includes('flash-latest') ||
+    s === 'gemini-flash' ||
+    s.includes('gemini-3.') ||
+    s.includes('gemini-3.8') ||
+    s.includes('gemini-3.6')
+  );
 };
 
 export default function VibeChatPanel({
@@ -77,7 +82,7 @@ export default function VibeChatPanel({
   const [isLoading, setIsLoading] = useState(false);
   const [currentStream, setCurrentStream] = useState('');
   const [chatMode, setChatMode] = useState('build'); // 'build' (create/modify app) | 'qa' (tanya jawab / konsultasi)
-  const [planFirstMode, setPlanFirstMode] = useState(true);
+  const [planFirstMode, setPlanFirstMode] = useState(false);
   const chatEndRef = useRef(null);
   const textareaRef = useRef(null);
 
@@ -107,26 +112,26 @@ export default function VibeChatPanel({
         let savedProvider = localStorage.getItem('vibe_active_provider') || 'Gemini';
         let savedModel = localStorage.getItem('vibe_active_model');
         if (isBogusGemini(savedModel)) {
-          savedModel = 'gemini-3.6-flash';
-          localStorage.setItem('vibe_active_model', 'gemini-3.6-flash');
+          savedModel = 'gemini-2.0-flash';
+          localStorage.setItem('vibe_active_model', 'gemini-2.0-flash');
         }
 
         const connector = await getPrimaryAiConnector().catch(() => null);
         if (connector) {
           const aiSet = connector.aiSettings || connector.config || connector || {};
           if (isBogusGemini(aiSet.modelId)) {
-            aiSet.modelId = 'gemini-3.6-flash';
+            aiSet.modelId = 'gemini-2.0-flash';
           }
           setActiveConnector(connector);
           const p = savedProvider || aiSet.provider || 'Gemini';
           const m = !isBogusGemini(savedModel)
-            ? (savedModel || 'gemini-3.6-flash')
-            : (!isBogusGemini(aiSet.modelId) ? aiSet.modelId : (p === 'OpenAI' ? 'gpt-4o-mini' : 'gemini-3.6-flash'));
+            ? (savedModel || 'gemini-2.0-flash')
+            : (!isBogusGemini(aiSet.modelId) ? aiSet.modelId : (p === 'OpenAI' ? 'gpt-4o-mini' : 'gemini-2.0-flash'));
           setSelectedProvider(p);
           setSelectedModelId(m);
         } else {
           setSelectedProvider(savedProvider);
-          setSelectedModelId(savedModel || 'gemini-3.6-flash');
+          setSelectedModelId(savedModel || 'gemini-2.0-flash');
         }
       } catch (err) {
         console.warn('[VibeChatPanel] Failed to load active AI connector:', err);

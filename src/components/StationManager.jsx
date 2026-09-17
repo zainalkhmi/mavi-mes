@@ -19,7 +19,8 @@ import {
     FileText,
     CheckSquare,
     ExternalLink,
-    ShieldCheck
+    ShieldCheck,
+    Download
 } from 'lucide-react';
 import {
     getStations,
@@ -250,6 +251,26 @@ const StationManager = () => {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                             <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>Stations</h2>
                             <div style={{ display: 'flex', gap: '8px' }}>
+                                <a
+                                    href="#/download-player"
+                                    className="mandor-widget-btn"
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        padding: '8px 12px',
+                                        backgroundColor: '#ecfdf5',
+                                        color: '#059669',
+                                        border: '1px solid #a7f3d0',
+                                        borderRadius: '8px',
+                                        fontWeight: 700,
+                                        textDecoration: 'none',
+                                        fontSize: '0.85rem'
+                                    }}
+                                    title="Unduh Dedicated Player untuk Windows & Android Tablet"
+                                >
+                                    <Download size={14} /> Player
+                                </a>
                                 <button onClick={() => setIsCreateGroupModalOpen(true)} className="mandor-widget-btn" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 12px', backgroundColor: 'white', color: '#3b82f6', border: '1px solid #e2e8f0', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
                                     <Layers size={14} /> Group
                                 </button>

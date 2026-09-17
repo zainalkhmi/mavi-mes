@@ -7,10 +7,9 @@ import { getPrimaryAiConnector, saveIntegrationConnector } from './database';
 
 export const SHARED_AI_MODELS = [
   // Google Gemini
-  { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', provider: 'Gemini', icon: '⚡', description: 'Google Resmi Terbaru, Super Cepat & Cerdas (Rekomendasi)' },
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'Gemini', icon: '⚡', description: 'Google Resmi Terbaru, Super Cepat & Kuota Terbesar (Rekomendasi)' },
+  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: 'Gemini', icon: '🚀', description: 'Paling Stabil untuk Produksi, Anti-Error Kapasitas' },
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'Gemini', icon: '🧠', description: 'Generasi Mutakhir Penalaran Tinggi' },
-  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'Gemini', icon: '✨', description: 'Multimodal & Stabil' },
-  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: 'Gemini', icon: '🚀', description: 'Efisien & Cepat' },
   { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'Gemini', icon: '🔬', description: 'Analisis Logika Mendalam' },
   // OpenAI
   { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI', icon: '🤖', description: 'Efisien, Cepat & Terjangkau' },
@@ -128,8 +127,15 @@ const sanitizeGeminiModelId = (modelId) => {
     let clean = String(modelId || '').trim().replace(/^models\//, '');
     if (clean.includes('/')) clean = clean.split('/').pop();
     const lower = clean.toLowerCase();
-    if (!clean || lower.includes('flash-latest') || lower === 'gemini-flash') {
-        return 'gemini-3.6-flash';
+    if (
+        !clean ||
+        lower.includes('flash-latest') ||
+        lower === 'gemini-flash' ||
+        lower.includes('gemini-3.') ||
+        lower.includes('gemini-3.8') ||
+        lower.includes('gemini-3.6')
+    ) {
+        return 'gemini-2.0-flash';
     }
     return clean;
 };
@@ -296,13 +302,13 @@ export const getChatCompletion = async (messages, connector) => {
     }
 
     if (provider === 'gemini') {
-        const primaryModel = sanitizeGeminiModelId(modelId) || 'gemini-3.6-flash';
+        const primaryModel = sanitizeGeminiModelId(modelId) || 'gemini-2.0-flash';
         const candidateModels = [
             primaryModel,
-            'gemini-3.6-flash',
-            'gemini-2.5-flash',
             'gemini-2.0-flash',
-            'gemini-1.5-flash'
+            'gemini-1.5-flash',
+            'gemini-2.5-flash',
+            'gemini-1.5-pro'
         ].filter((m, i, a) => a.indexOf(m) === i);
 
         const payload = {
@@ -1331,13 +1337,13 @@ export const streamBuilderCopilotAdvice = async (userInput, messageHistory, cont
     ];
 
     if (provider === 'gemini') {
-        const primaryModel = sanitizeGeminiModelId(modelId) || 'gemini-3.6-flash';
+        const primaryModel = sanitizeGeminiModelId(modelId) || 'gemini-2.0-flash';
         const candidateModels = [
             primaryModel,
-            'gemini-3.6-flash',
-            'gemini-2.5-flash',
             'gemini-2.0-flash',
-            'gemini-1.5-flash'
+            'gemini-1.5-flash',
+            'gemini-2.5-flash',
+            'gemini-1.5-pro'
         ].filter((m, i, a) => a.indexOf(m) === i);
         
         const combinedSystemPrompt = summaryBlock

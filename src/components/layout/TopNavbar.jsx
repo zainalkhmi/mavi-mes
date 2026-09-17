@@ -8,7 +8,7 @@ import {
   ClipboardCheck, FileSpreadsheet, Boxes, LayoutDashboard, FolderArchive, Layers,
   Workflow, ActivitySquare, Key, LayoutTemplate, GitBranch, Settings2,
   ChevronDown, ChevronRight, Ruler, Scale, Gauge, Shield,
-  AlertTriangle, Smartphone, Sparkles, Code
+  AlertTriangle, Smartphone, Sparkles, Code, Download
 } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 import { useGlobalStore } from '../../store/useGlobalStore.js';
@@ -135,6 +135,13 @@ export default function TopNavbar() {
     hasAccess('/display-devices') && { path: '/display-devices', icon: <Tv size={16} />, label: 'Interfaces' },
     hasAccess('/machines') && { path: '/machines', icon: <Cpu size={16} />, label: 'Machines' },
     hasAccess('/edge-devices') && { path: '/edge-devices', icon: <Activity size={16} />, label: 'Edge Devices' },
+    { type: 'divider' },
+    { 
+      path: '/download-player', 
+      icon: <Download size={16} className="text-emerald-500" />, 
+      label: 'Download Mandor Player (Windows & Android)',
+      description: 'Dedicated Shop Floor Kiosk Player & Station Pairing'
+    },
     { type: 'divider' },
     hasAccess('/plc-settings') && { path: '/plc-settings', icon: <SlidersHorizontal size={16} />, label: 'PLC Settings' },
     { path: '/nodered', icon: <Terminal size={16} />, label: 'Node-RED Dashboard' }

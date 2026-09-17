@@ -104,6 +104,7 @@ const MachineMonitoringDashboard = lazy(() => import('./components/MachineMonito
 const UiEngineStudio = lazy(() => import('./ui-engine/preview/UiEngineStudio'));
 const GluestackAppPlayer = lazy(() => import('./ui-engine/preview/GluestackAppPlayer'));
 const QueryStudio = lazy(() => import('./components/QueryStudio'));
+const DownloadPlayer = lazy(() => import('./components/DownloadPlayer'));
 
 export default function AppRouter({ user, isOperator }) {
   const hasAccess = (path) => checkRoleAccess(user, path);
@@ -118,6 +119,8 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/terminal" element={<LiveTerminal />} />
               <Route path="/terminal/:appId" element={<LiveTerminal />} />
               <Route path="/player" element={<AppPlayer />} />
+              <Route path="/download-player" element={<DownloadPlayer />} />
+              <Route path="/download" element={<DownloadPlayer />} />
               <Route path="/app-player" element={<GluestackAppPlayer />} />
               <Route path="/sandbox-runner" element={<SandboxDeviceRunner />} />
               <Route path="/sandbox-player" element={<SandboxDeviceRunner />} />
@@ -215,6 +218,8 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/terminal/:appId" element={<LiveTerminal />} />
               <Route path="/scada" element={<SCADADashboard />} />
               <Route path="/player" element={<AppPlayer />} />
+              <Route path="/download-player" element={<DownloadPlayer />} />
+              <Route path="/download" element={<DownloadPlayer />} />
               <Route path="/app-player" element={<GluestackAppPlayer />} />
               <Route path="/sandbox-runner" element={<SandboxDeviceRunner />} />
               <Route path="/sandbox-player" element={<SandboxDeviceRunner />} />

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   HelpCircle, Info, RotateCcw, Menu, User, MapPin,
   ChevronRight, Radio, ShieldCheck, Sparkles, LogOut, Maximize2, Minimize2,
-  MessageSquare
+  MessageSquare, Download
 } from 'lucide-react';
 
 /**
@@ -216,6 +216,34 @@ export default function TulipPlayerHeader({
               <span>Info</span>
             </button>
           )}
+
+          {/* Download Player / Kiosk Client */}
+          <a
+            href="#/download-player"
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              background: 'rgba(16, 185, 129, 0.15)',
+              border: '1px solid rgba(16, 185, 129, 0.4)',
+              color: '#34d399',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '2px 8px',
+              borderRadius: '4px',
+              textDecoration: 'none',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.25)'; e.currentTarget.style.color = '#ffffff'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.15)'; e.currentTarget.style.color = '#34d399'; }}
+            title="Download MAVi / Mandor Player for Windows & Android Tablet"
+          >
+            <Download size={11} />
+            <span>Download Player</span>
+          </a>
 
           {/* Restart Button */}
           {onRestartApp && (

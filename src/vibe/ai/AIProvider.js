@@ -25,16 +25,19 @@ export class AIProvider {
   }
 
   static sanitizeGeminiModel(m) {
-    if (!m) return 'gemini-3.6-flash';
+    if (!m) return 'gemini-2.0-flash';
     let clean = String(m).trim().replace(/^models\//, '');
     if (clean.includes('/')) clean = clean.split('/').pop();
     const lower = clean.toLowerCase();
     if (
       lower.includes('flash-latest') ||
       lower === 'gemini-flash' ||
-      lower === 'gemini'
+      lower === 'gemini' ||
+      lower.includes('gemini-3.') ||
+      lower.includes('gemini-3.8') ||
+      lower.includes('gemini-3.6')
     ) {
-      return 'gemini-3.6-flash';
+      return 'gemini-2.0-flash';
     }
     return clean;
   }
@@ -98,10 +101,9 @@ export class AIProvider {
 
       const candidateModels = [
         primaryModel,
-        'gemini-3.6-flash',
-        'gemini-2.5-flash',
         'gemini-2.0-flash',
         'gemini-1.5-flash',
+        'gemini-2.5-flash',
         'gemini-1.5-pro',
         'gemini-2.0-flash-lite-preview-02-05'
       ].filter((m, idx, arr) => arr.indexOf(m) === idx);
@@ -118,10 +120,7 @@ export class AIProvider {
         contents: userAndAssistant,
         generationConfig: {
           temperature: 0.2,
-          maxOutputTokens: 8192,
-          thinkingConfig: {
-            thinkingBudget: 0
-          }
+          maxOutputTokens: 8192
         }
       };
 
@@ -142,81 +141,48 @@ export class AIProvider {
         // Try v1beta first, then v1
         const versionsToTry = ['v1beta', 'v1'];
 
+        versionLoop:
         for (const apiVer of versionsToTry) {
           const url = `https://generativelanguage.googleapis.com/${apiVer}/models/${currentModel}:streamGenerateContent?key=${apiKey}&alt=sse`;
 
-          for (let attempt = 0; attempt < 2; attempt++) {
-            try {
-              response = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-              });
+          try {
+            response = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
 
-              if (response.ok) {
-                break modelLoop;
-              }
-
-              const errJson = await response.json().catch(() => ({}));
-              const errMsg = errJson.error?.message || `Gemini API error (${response.status})`;
-              const err = new Error(errMsg);
-              lastError = err;
-
-              // Extract recommended replacement models from Google's response
-              const matches = [...errMsg.matchAll(/models\/([a-zA-Z0-9.-]+)/g)].map(x => x[1]);
-              const recModel = matches.find(x => !candidateModels.includes(x));
-              if (recModel) {
-                candidateModels.splice(i + 1, 0, recModel);
-              }
-
-              const isUnavailable = response.status === 404 ||
-                                    errMsg.toLowerCase().includes('not found') ||
-                                    errMsg.toLowerCase().includes('no longer available') ||
-                                    errMsg.toLowerCase().includes('not supported');
-
-              if (isUnavailable) {
-                // Dynamically discover supported models from the user's API key
-                if (!hasFetchedAvailableModels) {
-                  hasFetchedAvailableModels = true;
-                  try {
-                    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-                    if (listRes.ok) {
-                      const listData = await listRes.json();
-                      const liveModels = (listData.models || [])
-                        .filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
-                        .map(m => m.name.replace(/^models\//, ''));
-                      
-                      const preferred = liveModels.filter(m => m.includes('flash'));
-                      const others = liveModels.filter(m => !m.includes('flash'));
-                      const discovered = [...preferred, ...others];
-
-                      for (const dm of discovered) {
-                        if (!candidateModels.includes(dm)) {
-                          candidateModels.push(dm);
-                        }
-                      }
-                    }
-                  } catch (_) {}
-                }
-                break; // try next apiVer or next candidate
-              }
-
-              const isHighDemand = response.status === 503 ||
-                                   response.status === 429 ||
-                                   errMsg.toLowerCase().includes('high demand') ||
-                                   errMsg.toLowerCase().includes('overloaded') ||
-                                   errMsg.toLowerCase().includes('resource_exhausted');
-
-              if (isHighDemand && attempt === 0) {
-                await new Promise(r => setTimeout(r, 1200));
-                continue;
-              }
-
-              break;
-            } catch (netErr) {
-              lastError = netErr;
-              break;
+            if (response.ok) {
+              break modelLoop;
             }
+
+            const errJson = await response.json().catch(() => ({}));
+            const errMsg = errJson.error?.message || `Gemini API error (${response.status})`;
+            const err = new Error(errMsg);
+            lastError = err;
+
+            // If 503 (No capacity), 429 (Resource exhausted), or 404 (Not found):
+            // IMMEDIATELY fail over to next candidate model without wasting time or looping
+            const isHighDemand = response.status === 503 ||
+                                 response.status === 429 ||
+                                 errMsg.toLowerCase().includes('high demand') ||
+                                 errMsg.toLowerCase().includes('capacity') ||
+                                 errMsg.toLowerCase().includes('unavailable') ||
+                                 errMsg.toLowerCase().includes('overloaded') ||
+                                 errMsg.toLowerCase().includes('resource_exhausted');
+
+            const isUnavailable = response.status === 404 ||
+                                  errMsg.toLowerCase().includes('not found') ||
+                                  errMsg.toLowerCase().includes('no longer available') ||
+                                  errMsg.toLowerCase().includes('not supported');
+
+            if (isHighDemand || isUnavailable) {
+              console.warn(`[AIProvider] Gemini model "${currentModel}" failed with ${response.status} (${errMsg}). Instantly switching to backup model...`);
+              break versionLoop;
+            }
+          } catch (netErr) {
+            lastError = netErr;
+            break versionLoop;
           }
         }
       }
