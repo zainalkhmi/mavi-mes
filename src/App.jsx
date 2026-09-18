@@ -24,6 +24,7 @@ const SimpleCheckSheetDemo = lazy(() => import('./components/SimpleCheckSheetDem
 const DrawingManagement = lazy(() => import('./components/DrawingManagement'));
 const PLMIntegrationDashboard = lazy(() => import('./components/PLMIntegrationDashboard'));
 const AppPlayer = lazy(() => import('./components/AppPlayer'));
+const TulipFrontlinePlayer = lazy(() => import('./components/player/TulipFrontlinePlayer'));
 const GluestackAppPlayer = lazy(() => import('./ui-engine/preview/GluestackAppPlayer'));
 const MandorMobilePlayer = lazy(() => import('./components/MandorMobilePlayer'));
 const DozukiMobileCheckSheet = lazy(() => import('./components/DozukiMobileCheckSheet'));
@@ -57,6 +58,12 @@ export default function App() {
     location.pathname.startsWith('/terminal') ||
     location.pathname.startsWith('/mobile-player') ||
     location.pathname.startsWith('/tulip-player') ||
+    location.pathname.startsWith('/standalone-player') ||
+    location.pathname.startsWith('/player-app') ||
+    window.location.hash.includes('tulip-player') ||
+    window.location.hash.includes('standalone-player') ||
+    window.location.hash.includes('player-app') ||
+    window.location.hash.includes('mobile-player') ||
     location.pathname.startsWith('/mandor-player') ||
     location.pathname.startsWith('/mandor-checksheet') ||
     location.pathname.startsWith('/mandor-mobile') ||
@@ -138,6 +145,9 @@ export default function App() {
             <Route path="/sandbox" element={<VibeSandpackViewer isStandalone={true} />} />
             <Route path="/pricing" element={<LandingPage initialTab="pricing" />} />
             <Route path="/faq" element={<LandingPage initialTab="faq" />} />
+            <Route path="/tulip-player" element={<TulipFrontlinePlayer />} />
+            <Route path="/standalone-player" element={<TulipFrontlinePlayer />} />
+            <Route path="/player-app" element={<TulipFrontlinePlayer />} />
             <Route path="/player" element={<AppPlayer />} />
             <Route path="/app-player" element={<GluestackAppPlayer />} />
             <Route path="/mobile-player" element={<MandorMobilePlayer />} />
@@ -172,7 +182,7 @@ export default function App() {
   }
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#f1f5f9', fontFamily: "'Inter', sans-serif" }}>
+    <div style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0, flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: isChecksheetRoute ? '#0f172a' : '#f1f5f9', fontFamily: "'Inter', sans-serif" }}>
       <EnterpriseDialogContainer />
       {!isChecksheetRoute && (
         <TopNavbar

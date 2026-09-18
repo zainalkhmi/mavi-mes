@@ -2822,7 +2822,10 @@ const LiveTerminal = () => {
 
   const launchOperator = (launchParams.get('operator') || '').trim();
   const launchStation = (launchParams.get('station') || '').trim();
-  const launchScaleMode = launchParams.get('scaleMode') === 'FIT_WIDTH' ? 'FIT_WIDTH' : 'FIT_SCREEN';
+  const rawScaleParam = launchParams.get('scaleMode');
+  const launchScaleMode = (rawScaleParam === 'FIT_SCREEN' || rawScaleParam === 'FILL' || rawScaleParam === 'STRETCH' || rawScaleParam === 'FIT_WIDTH')
+    ? rawScaleParam
+    : 'FIT_WIDTH';
   const [runtimeScaleMode, setRuntimeScaleMode] = useState(launchScaleMode);
 
   const launchLayoutMode = launchParams.get('layoutMode') || (() => {
@@ -3331,6 +3334,10 @@ const LiveTerminal = () => {
         if (e.data.preset && DEVICE_PRESETS[e.data.preset]) setRuntimeDevicePreset(e.data.preset);
         if (e.data.orientation) setRuntimeOrientation(e.data.orientation);
         if (e.data.scaleMode) setRuntimeScaleMode(e.data.scaleMode);
+      } else if (e.data?.type === 'SET_SCALE_MODE' && e.data.scaleMode) {
+        setRuntimeScaleMode(e.data.scaleMode);
+      } else if (e.data?.scaleMode) {
+        setRuntimeScaleMode(e.data.scaleMode);
       }
     };
     window.addEventListener('message', handleMsg);
@@ -3505,17 +3512,23 @@ const LiveTerminal = () => {
   const runtimeSelectionActive = Boolean(selectedApp || selectedManual);
   const effectiveScalingMode = runtimeSelectionActive ? runtimeScaleMode : scalingMode;
 
-  const scale = useMemo(() => {
-    if (containerWidth <= 0 || layoutWidth <= 0) return 1;
+  const { scaleX, scaleY } = useMemo(() => {
+    if (containerWidth <= 0 || layoutWidth <= 0) return { scaleX: 1, scaleY: 1 };
     const sX = containerWidth / layoutWidth;
-    if (effectiveScalingMode === 'FIT_WIDTH') return sX;
-    if (containerHeight <= 0 || layoutHeight <= 0) return sX;
-    const sY = Math.max(0.1, (containerHeight - 4) / layoutHeight);
-    return Math.min(sX, sY);
+    const sY = (containerHeight > 0 && layoutHeight > 0) ? Math.max(0.1, (containerHeight - 4) / layoutHeight) : sX;
+
+    if (effectiveScalingMode === 'FILL' || effectiveScalingMode === 'STRETCH') {
+      return { scaleX: sX, scaleY: sY };
+    }
+    if (effectiveScalingMode === 'FIT_WIDTH') {
+      return { scaleX: sX, scaleY: sX };
+    }
+    // FIT_SCREEN: proportional scale fitting within screen bounds
+    const s = Math.min(sX, sY);
+    return { scaleX: s, scaleY: s };
   }, [containerWidth, containerHeight, layoutWidth, layoutHeight, effectiveScalingMode]);
 
-  const scaleX = scale;
-  const scaleY = scale;
+  const scale = scaleX;
 
   const canvasFrameRadius = useMemo(() => {
     return '0px'; // Garis siku 90 derajat tajam tanpa chamfer / rounded
@@ -13120,7 +13133,7 @@ const LiveTerminal = () => {
               ref={setCanvasWrapper}
               style={{
                 flex: 1,
-                padding: (isPreset && preset.kind === 'PHONE') ? '20px' : '0px',
+                padding: (isPreset && preset.kind === 'PHONE' && effectiveScalingMode === 'FIT_SCREEN') ? '20px' : '0px',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
@@ -13128,9 +13141,7 @@ const LiveTerminal = () => {
                 position: 'relative',
                 overflowX: (effectiveScalingMode === 'FIT_WIDTH') ? 'auto' : 'hidden',
                 overflowY: (effectiveScalingMode === 'FIT_WIDTH') ? 'auto' : 'hidden',
-                backgroundColor: isResponsiveMode
-                  ? (activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : '#ffffff'))
-                  : (selectedApp?.config?.appThemeMode === 'DARK' ? '#0f172a' : (activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || '#ffffff'))
+                backgroundColor: activeStep?.backgroundColor || selectedApp?.config?.appBackgroundColor || '#ffffff'
               }}
             >
               {/* KONVA HMI CANVAS MODE */}
@@ -13218,8 +13229,13 @@ const LiveTerminal = () => {
               ) : (
                 /* FIXED CANVAS SCALED LAYOUT */
                 <div style={{
-                  width: `${layoutWidth * scale}px`,
-                  height: `${layoutHeight * scale}px`,
+                  width: (effectiveScalingMode === 'FIT_WIDTH' || effectiveScalingMode === 'FILL' || effectiveScalingMode === 'STRETCH')
+                    ? `${layoutWidth * scaleX}px`
+                    : `${layoutWidth * scaleX}px`,
+                  minWidth: (effectiveScalingMode === 'FIT_WIDTH' || effectiveScalingMode === 'FILL' || effectiveScalingMode === 'STRETCH') ? '100%' : 'auto',
+                  height: (effectiveScalingMode === 'FILL' || effectiveScalingMode === 'STRETCH')
+                    ? '100%'
+                    : `${layoutHeight * scaleY}px`,
                   position: 'relative',
                   overflow: 'hidden',
                   flexShrink: 0,
@@ -13234,7 +13250,9 @@ const LiveTerminal = () => {
                     position: 'absolute',
                     top: 0,
                     left: 0,
-                    transform: `scale(${scale})`,
+                    transform: (effectiveScalingMode === 'FILL' || effectiveScalingMode === 'STRETCH')
+                      ? `scale(${scaleX}, ${scaleY})`
+                      : `scale(${scaleX})`,
                     transformOrigin: 'top left',
                     WebkitFontSmoothing: 'antialiased',
                     MozOsxFontSmoothing: 'grayscale',

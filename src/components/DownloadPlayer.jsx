@@ -28,35 +28,16 @@ import { getStations, getInterfaces } from '../utils/database';
 
 export default function DownloadPlayer() {
     const [stations, setStations] = useState([]);
-    const [interfaces, setInterfaces] = useState([]);
+    const [, setInterfaces] = useState([]);
     const [selectedStationId, setSelectedStationId] = useState('');
     const [activeTab, setActiveTab] = useState('windows'); // 'windows' | 'android' | 'pwa' | 'pairing'
     const [pairingCode, setPairingCode] = useState('');
-    const [copied, setCopied] = useState(false);
+    const [, setCopied] = useState(false);
 
     // Host & URL discovery
     const currentOrigin = window.location.origin;
     const currentPath = window.location.pathname.replace(/\/$/, '');
-    const currentHash = window.location.hash || '#';
     const baseUrl = `${currentOrigin}${currentPath}`;
-
-    useEffect(() => {
-        loadData();
-    }, []);
-
-    const loadData = async () => {
-        try {
-            const [sList, iList] = await Promise.all([getStations(), getInterfaces()]);
-            setStations(sList || []);
-            setInterfaces(iList || []);
-            if (sList && sList.length > 0) {
-                setSelectedStationId(sList[0].id);
-                generatePairingCode(sList[0].id);
-            }
-        } catch (err) {
-            console.error('Error loading stations:', err);
-        }
-    };
 
     const generatePairingCode = (stId) => {
         const hash = Math.abs(stId.split('').reduce((acc, c) => acc * 31 + c.charCodeAt(0), 0))
@@ -67,6 +48,23 @@ export default function DownloadPlayer() {
         setPairingCode(`MNDR-${hash}`);
     };
 
+    useEffect(() => {
+        async function loadData() {
+            try {
+                const [sList, iList] = await Promise.all([getStations(), getInterfaces()]);
+                setStations(sList || []);
+                setInterfaces(iList || []);
+                if (sList && sList.length > 0) {
+                    setSelectedStationId(sList[0].id);
+                    generatePairingCode(sList[0].id);
+                }
+            } catch (err) {
+                console.error('Error loading stations:', err);
+            }
+        }
+        loadData();
+    }, []);
+
     const handleStationChange = (id) => {
         setSelectedStationId(id);
         generatePairingCode(id);
@@ -74,8 +72,11 @@ export default function DownloadPlayer() {
 
     const selectedStation = stations.find(s => s.id === selectedStationId);
 
-    const playerTargetUrl = `${baseUrl}${currentHash}/player${selectedStationId ? `?station=${encodeURIComponent(selectedStationId)}` : ''}`;
-    const terminalTargetUrl = `${baseUrl}${currentHash}/terminal${selectedStationId ? `?station=${encodeURIComponent(selectedStationId)}` : ''}`;
+    const stationQuery = selectedStationId ? `?station=${encodeURIComponent(selectedStation?.name || selectedStationId)}` : '';
+    const tulipPlayerUrl = `${currentOrigin}/#/tulip-player${stationQuery}`;
+    const playerTargetUrl = tulipPlayerUrl;
+    const _terminalTargetUrl = `${currentOrigin}/#/terminal${stationQuery}`;
+    void _terminalTargetUrl;
 
     const handleCopy = (text, msg = 'Tersalin ke clipboard!') => {
         navigator.clipboard.writeText(text);
@@ -279,7 +280,27 @@ exit
                     </div>
 
                     {/* Direct Test Buttons */}
-                    <div style={{ display: 'flex', gap: '10px' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                        <button
+                            onClick={() => window.open(tulipPlayerUrl, '_blank')}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                backgroundColor: '#0284c7',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '8px',
+                                padding: '10px 18px',
+                                fontSize: '13px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)'
+                            }}
+                        >
+                            <QrCode size={16} /> Buka Tulip Player (Win/Android)
+                        </button>
                         <button
                             onClick={() => window.open(playerTargetUrl, '_blank')}
                             style={{

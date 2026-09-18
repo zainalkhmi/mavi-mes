@@ -1208,7 +1208,7 @@ const AppPlayer = () => {
     // Player states
     const [isPaused, setIsPaused] = useState(false);
     const [devMode, setDevMode] = useState(() => loadLS(LS_DEV_MODE, false));
-    const [appScaleMode, setAppScaleMode] = useState(() => loadLS(LS_APP_SCALE_MODE, 'FIT_SCREEN'));
+    const [appScaleMode, setAppScaleMode] = useState(() => loadLS(LS_APP_SCALE_MODE, 'FIT_WIDTH'));
     const [appLayoutMode, setAppLayoutMode] = useState(() => {
         try {
             return localStorage.getItem('mandor_runtime_layout_mode') || 'PROPORTIONAL';
@@ -1332,13 +1332,22 @@ const AppPlayer = () => {
         return activeApp?.config?.previewOrientation || 'PORTRAIT';
     }, [playerOrientation, activeApp]);
 
+    const handleChangeScaleMode = useCallback((newMode) => {
+        setAppScaleMode(newMode);
+        saveLS(LS_APP_SCALE_MODE, newMode);
+        if (iframeRef.current?.contentWindow) {
+            iframeRef.current.contentWindow.postMessage({ type: 'SET_SCALE_MODE', scaleMode: newMode }, '*');
+        }
+    }, []);
+
     const appLaunchUrl = useMemo(() => {
         if (!activeAppId) return '';
+        const effectiveScale = appScaleMode || activeApp?.config?.scalingMode || 'FIT_WIDTH';
         const params = new URLSearchParams({ 
             station: stationIdFilter || 'Station-01', 
             operator: operator || 'Operator',
             devMode: devMode ? 'true' : 'false',
-            scaleMode: 'FIT_SCREEN',
+            scaleMode: effectiveScale,
             layoutMode: appLayoutMode,
             devicePreset: activeDevicePresetKey,
             orientation: activeOrientation,
@@ -1348,7 +1357,7 @@ const AppPlayer = () => {
             kiosk: 'true'
         });
         return `/#/terminal/${activeAppId}?${params.toString()}`;
-    }, [activeAppId, stationIdFilter, operator, devMode, appLayoutMode, activeDevicePresetKey, activeOrientation]);
+    }, [activeAppId, stationIdFilter, operator, devMode, appLayoutMode, activeDevicePresetKey, activeOrientation, appScaleMode, activeApp?.config?.scalingMode]);
 
     // ── Load data with caching ────────────────────────────────────────────────
     const loadData = async () => {
@@ -2178,6 +2187,8 @@ const AppPlayer = () => {
                             onOpenMenu={() => setShowTulipMenu(true)}
                             onToggleFullscreen={toggleFullscreen}
                             isFullscreen={isFullscreen}
+                            scaleMode={appScaleMode}
+                            onChangeScaleMode={handleChangeScaleMode}
                         />
                     ) : (
                         /* No active app - show simple Row 1 layout only */
@@ -2629,6 +2640,8 @@ const AppPlayer = () => {
                     logout();
                     window.location.reload();
                 }}
+                scaleMode={appScaleMode}
+                onChangeScaleMode={handleChangeScaleMode}
             />
         </div>
     );

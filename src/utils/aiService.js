@@ -133,7 +133,9 @@ const sanitizeGeminiModelId = (modelId) => {
         lower === 'gemini-flash' ||
         lower.includes('gemini-3.') ||
         lower.includes('gemini-3.8') ||
-        lower.includes('gemini-3.6')
+        lower.includes('gemini-3.6') ||
+        lower.includes('preview-02-05') ||
+        lower.includes('flash-lite-preview')
     ) {
         return 'gemini-2.0-flash';
     }

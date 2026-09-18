@@ -35,7 +35,9 @@ export class AIProvider {
       lower === 'gemini' ||
       lower.includes('gemini-3.') ||
       lower.includes('gemini-3.8') ||
-      lower.includes('gemini-3.6')
+      lower.includes('gemini-3.6') ||
+      lower.includes('preview-02-05') ||
+      lower.includes('flash-lite-preview')
     ) {
       return 'gemini-2.0-flash';
     }
@@ -102,10 +104,10 @@ export class AIProvider {
       const candidateModels = [
         primaryModel,
         'gemini-2.0-flash',
-        'gemini-1.5-flash',
         'gemini-2.5-flash',
-        'gemini-1.5-pro',
-        'gemini-2.0-flash-lite-preview-02-05'
+        'gemini-2.0-flash-lite',
+        'gemini-1.5-flash',
+        'gemini-1.5-pro'
       ].filter((m, idx, arr) => arr.indexOf(m) === idx);
 
       const systemMsg = messages.find(m => m.role === 'system');
@@ -160,6 +162,35 @@ export class AIProvider {
             const errMsg = errJson.error?.message || `Gemini API error (${response.status})`;
             const err = new Error(errMsg);
             lastError = err;
+
+            // Auto extract replacement model suggested by Google error if any
+            const matches = [...errMsg.matchAll(/models\/([a-zA-Z0-9.-]+)/g)].map(x => x[1]);
+            const rec = matches.find(x => !candidateModels.includes(x));
+            if (rec) {
+              candidateModels.splice(i + 1, 0, rec);
+            }
+
+            // Dynamic model listing fallback if model not found or not supported
+            if (!hasFetchedAvailableModels && (errMsg.includes('not found') || errMsg.includes('not supported') || response.status === 404)) {
+              hasFetchedAvailableModels = true;
+              try {
+                const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+                if (listRes.ok) {
+                  const listData = await listRes.json();
+                  const live = (listData.models || [])
+                    .filter(m => Array.isArray(m.supportedGenerationMethods) && (
+                      m.supportedGenerationMethods.includes('streamGenerateContent') ||
+                      m.supportedGenerationMethods.includes('generateContent')
+                    ))
+                    .map(m => m.name.replace(/^models\//, ''));
+                  for (const m of live) {
+                    if (!candidateModels.includes(m)) candidateModels.push(m);
+                  }
+                }
+              } catch {
+                /* silent fallback */
+              }
+            }
 
             // If 503 (No capacity), 429 (Resource exhausted), or 404 (Not found):
             // IMMEDIATELY fail over to next candidate model without wasting time or looping

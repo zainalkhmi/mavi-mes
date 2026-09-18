@@ -11,21 +11,34 @@ export function useZoom() {
   });
 
   useEffect(() => {
+    const isStandalonePage = 
+      window.location.hash.includes('sandbox') ||
+      window.location.hash.includes('player') ||
+      window.location.hash.includes('terminal') ||
+      window.location.hash.includes('checksheet') ||
+      window.location.pathname.includes('sandbox') ||
+      window.location.pathname.includes('player') ||
+      window.location.pathname.includes('terminal');
+
+    const effectiveZoom = isStandalonePage ? 1.0 : zoomLevel;
+
     const root = document.getElementById('root');
     if (root) {
       root.style.transform = '';
       root.style.transformOrigin = '';
-      root.style.zoom = zoomLevel === 1.0 ? '' : zoomLevel;
-      if (zoomLevel !== 1.0) {
-        root.style.height = `calc(100vh / ${zoomLevel})`;
-        root.style.width = `calc(100vw / ${zoomLevel})`;
+      root.style.zoom = effectiveZoom === 1.0 ? '' : effectiveZoom;
+      if (effectiveZoom !== 1.0) {
+        root.style.height = `calc(100vh / ${effectiveZoom})`;
+        root.style.width = `calc(100vw / ${effectiveZoom})`;
       } else {
         root.style.height = '100%';
         root.style.width = '100%';
       }
     }
     document.body.style.zoom = '';
-    localStorage.setItem('mandor-zoom-level', zoomLevel.toFixed(2));
+    if (!isStandalonePage) {
+      localStorage.setItem('mandor-zoom-level', zoomLevel.toFixed(2));
+    }
   }, [zoomLevel]);
 
   useEffect(() => {

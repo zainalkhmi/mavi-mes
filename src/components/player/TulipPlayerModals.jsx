@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   X, HelpCircle, Info, RotateCcw, Menu, ExternalLink, ShieldCheck,
   Activity, Wifi, Monitor, CheckCircle2, AlertTriangle, Play, Sparkles,
-  ArrowRight, KeyRound, Lock, RefreshCw, Smartphone, Tablet
+  ArrowRight, KeyRound, Lock, RefreshCw, Smartphone, Tablet, StretchHorizontal, Maximize2
 } from 'lucide-react';
 
 /**
@@ -331,7 +331,9 @@ export function TulipShopFloorMenuModal({
   onToggleFullscreen,
   isFullscreen,
   onBackToBuilder,
-  onLogout
+  onLogout,
+  scaleMode = 'FIT_WIDTH',
+  onChangeScaleMode
 }) {
   const [networkPing, setNetworkPing] = useState(18);
 
@@ -426,6 +428,88 @@ export function TulipShopFloorMenuModal({
             </div>
             <span style={{ fontSize: '0.72rem', color: '#38bdf8', fontWeight: 700 }}>{isFullscreen ? 'EXIT' : 'ENTER'}</span>
           </button>
+
+          {/* Display Scaling Mode Selector (Eliminates Left/Right Empty Space) */}
+          <div style={{
+            padding: '12px 14px',
+            borderRadius: '12px',
+            backgroundColor: 'rgba(255, 255, 255, 0.04)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <StretchHorizontal size={17} color="#38bdf8" />
+                <span style={{ fontSize: '0.84rem', fontWeight: 700 }}>Mode Skala Layar (Edge-to-Edge)</span>
+              </div>
+              <span style={{ fontSize: '0.7rem', color: '#38bdf8', fontWeight: 700 }}>
+                {scaleMode === 'FIT_WIDTH' ? 'Penuh Lebar' : (scaleMode === 'FILL' || scaleMode === 'STRETCH') ? 'Penuh Layar' : 'Proporsional'}
+              </span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginTop: '2px' }}>
+              <button
+                type="button"
+                onClick={() => onChangeScaleMode && onChangeScaleMode('FIT_WIDTH')}
+                style={{
+                  padding: '8px 4px',
+                  borderRadius: '8px',
+                  border: scaleMode === 'FIT_WIDTH' ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+                  backgroundColor: scaleMode === 'FIT_WIDTH' ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                  color: scaleMode === 'FIT_WIDTH' ? '#38bdf8' : '#cbd5e1',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                Penuh Lebar
+              </button>
+              <button
+                type="button"
+                onClick={() => onChangeScaleMode && onChangeScaleMode('FILL')}
+                style={{
+                  padding: '8px 4px',
+                  borderRadius: '8px',
+                  border: (scaleMode === 'FILL' || scaleMode === 'STRETCH') ? '1px solid #10b981' : '1px solid rgba(255, 255, 255, 0.08)',
+                  backgroundColor: (scaleMode === 'FILL' || scaleMode === 'STRETCH') ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                  color: (scaleMode === 'FILL' || scaleMode === 'STRETCH') ? '#34d399' : '#cbd5e1',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                Penuh Layar
+              </button>
+              <button
+                type="button"
+                onClick={() => onChangeScaleMode && onChangeScaleMode('FIT_SCREEN')}
+                style={{
+                  padding: '8px 4px',
+                  borderRadius: '8px',
+                  border: scaleMode === 'FIT_SCREEN' ? '1px solid #a855f7' : '1px solid rgba(255, 255, 255, 0.08)',
+                  backgroundColor: scaleMode === 'FIT_SCREEN' ? 'rgba(168, 85, 247, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                  color: scaleMode === 'FIT_SCREEN' ? '#c084fc' : '#cbd5e1',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                Proporsional
+              </button>
+            </div>
+            <div style={{ fontSize: '0.68rem', color: '#94a3b8', lineHeight: 1.3 }}>
+              {scaleMode === 'FIT_WIDTH' && '✓ Menghilangkan space kosong di kanan & kiri, mengisi 100% lebar layar.'}
+              {(scaleMode === 'FILL' || scaleMode === 'STRETCH') && '✓ Memenuhi 100% lebar & tinggi monitor tanpa margin/space.'}
+              {scaleMode === 'FIT_SCREEN' && '• Menjaga rasio aspek asli aplikasi.'}
+            </div>
+          </div>
 
           {/* Switch App */}
           <button

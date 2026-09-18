@@ -45,6 +45,7 @@ const AppBuilder = lazy(() => import('./components/AppBuilder'));
 const VibeSandpackViewer = lazy(() => import('./components/appbuilder/VibeSandpackViewer'));
 const SandboxDeviceRunner = lazy(() => import('./components/appbuilder/SandboxDeviceRunner'));
 const AppPlayer = lazy(() => import('./components/AppPlayer'));
+const TulipFrontlinePlayer = lazy(() => import('./components/player/TulipFrontlinePlayer'));
 const MandorMobilePlayer = lazy(() => import('./components/MandorMobilePlayer'));
 const DozukiMobileCheckSheet = lazy(() => import('./components/DozukiMobileCheckSheet'));
 const WorkflowEditor = lazy(() => import('./components/WorkflowEditor'));
@@ -125,7 +126,9 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/sandbox-runner" element={<SandboxDeviceRunner />} />
               <Route path="/sandbox-player" element={<SandboxDeviceRunner />} />
               <Route path="/mobile-player" element={<MandorMobilePlayer />} />
-              <Route path="/tulip-player" element={<MandorMobilePlayer />} />
+              <Route path="/tulip-player" element={<TulipFrontlinePlayer />} />
+              <Route path="/standalone-player" element={<TulipFrontlinePlayer />} />
+              <Route path="/player-app" element={<TulipFrontlinePlayer />} />
               <Route path="/mandor-player" element={<DozukiMobileCheckSheet />} />
               <Route path="/mandor-checksheet" element={<DozukiMobileCheckSheet />} />
               <Route path="/mandor-mobile" element={<DozukiMobileCheckSheet />} />
@@ -224,7 +227,9 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/sandbox-runner" element={<SandboxDeviceRunner />} />
               <Route path="/sandbox-player" element={<SandboxDeviceRunner />} />
               <Route path="/mobile-player" element={<MandorMobilePlayer />} />
-              <Route path="/tulip-player" element={<MandorMobilePlayer />} />
+              <Route path="/tulip-player" element={<TulipFrontlinePlayer />} />
+              <Route path="/standalone-player" element={<TulipFrontlinePlayer />} />
+              <Route path="/player-app" element={<TulipFrontlinePlayer />} />
               <Route path="/mandor-player" element={<DozukiMobileCheckSheet />} />
               <Route path="/mandor-checksheet" element={<DozukiMobileCheckSheet />} />
               <Route path="/mandor-mobile" element={<DozukiMobileCheckSheet />} />

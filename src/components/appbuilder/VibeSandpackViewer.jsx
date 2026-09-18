@@ -2445,7 +2445,19 @@ root.render(
   };
 
   return (
-    <div className={isStandalone ? "w-screen h-screen flex flex-col" : "w-full h-full flex flex-col bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl"} style={isStandalone ? { backgroundColor: '#0f172a', display: 'flex', flexDirection: 'column' } : { minHeight: 0, height: '100%' }}>
+    <div
+      className="w-full h-full flex-1 flex flex-col overflow-hidden"
+      style={{
+        width: '100%',
+        height: '100%',
+        minWidth: 0,
+        minHeight: 0,
+        flex: 1,
+        backgroundColor: '#0f172a',
+        display: 'flex',
+        flexDirection: 'column'
+      }}
+    >
 
       {/* Hide scrollbar on top navbar */}
       <style>{`

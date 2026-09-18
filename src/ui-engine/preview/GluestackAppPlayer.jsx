@@ -1431,7 +1431,7 @@ export default function GluestackAppPlayer({
       <div className="min-h-screen w-full bg-[#f8fafc] text-slate-800 flex flex-col font-sans select-none antialiased">
         {/* Screen Body Components (Pure Real Device edge-to-edge) */}
         {currentScreen?.layoutMode === 'free' ? (
-          <main className="flex-1 w-full max-w-4xl mx-auto p-4 sm:p-6 relative min-h-[640px] overflow-auto">
+          <main className={`flex-1 w-full ${embedded ? 'max-w-none' : 'max-w-5xl'} mx-auto p-4 sm:p-6 relative min-h-[640px] overflow-auto`}>
             {(!currentScreen?.components || currentScreen.components.length === 0) ? (
               <div className="flex flex-col items-center justify-center h-64 text-slate-400 space-y-2 bg-white rounded-2xl border border-slate-200/80 p-6">
                 <Layers className="w-10 h-10 text-slate-300" />
@@ -1465,7 +1465,7 @@ export default function GluestackAppPlayer({
             )}
           </main>
         ) : (
-          <main className="flex-1 w-full max-w-xl mx-auto p-4 sm:p-6 space-y-4">
+          <main className={`flex-1 w-full ${embedded ? 'max-w-none' : 'max-w-4xl'} mx-auto p-4 sm:p-6 space-y-4`}>
             {(!currentScreen?.components || currentScreen.components.length === 0) ? (
               <div className="flex flex-col items-center justify-center h-64 text-slate-400 space-y-2 bg-white rounded-2xl border border-slate-200/80 p-6">
                 <Layers className="w-10 h-10 text-slate-300" />
@@ -1675,14 +1675,14 @@ export default function GluestackAppPlayer({
       </header>
 
       {/* ── MAIN WORKSPACE / RUNNER CANVAS ─────────────────────────────────── */}
-      <main className="flex-1 flex overflow-hidden items-center justify-center p-2 sm:p-4 bg-[#0a0f1d] relative">
+      <main className={`flex-1 flex overflow-hidden ${embedded ? 'p-0 bg-transparent' : 'items-center justify-center p-2 sm:p-4 bg-[#0a0f1d]'} relative`}>
         <div
           className={`h-full flex flex-col bg-white text-slate-800 shadow-2xl transition-all duration-200 overflow-hidden relative ${
             deviceFrame === 'iphone'
               ? 'w-full max-w-[390px] rounded-[36px] border-[8px] border-slate-900 shadow-slate-950/80 ring-1 ring-slate-800'
               : deviceFrame === 'tablet'
               ? 'w-full max-w-[768px] rounded-[28px] border-[8px] border-slate-900 shadow-slate-950/80'
-              : 'w-full h-full rounded-none border-none max-w-4xl'
+              : (embedded ? 'w-full h-full rounded-none border-none max-w-none' : 'w-full h-full rounded-none border-none max-w-none')
           }`}
         >
           {/* Simulated Mobile Status Bar (for phone / tablet frames) */}

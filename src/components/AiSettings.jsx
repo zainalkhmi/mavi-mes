@@ -94,7 +94,7 @@ const AiSettings = () => {
         const isBogus = (id) => {
           if (!id) return true;
           const s = String(id).toLowerCase();
-          return s.includes('gemini-3.') || s.includes('flash-latest') || s === 'gemini-flash';
+          return s.includes('gemini-3.') || s.includes('flash-latest') || s === 'gemini-flash' || s.includes('preview-02-05') || s.includes('flash-lite-preview');
         };
         if (provider === 'Gemini' && isBogus(mid)) {
           mid = 'gemini-2.0-flash';

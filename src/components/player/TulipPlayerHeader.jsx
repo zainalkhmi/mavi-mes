@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   HelpCircle, Info, RotateCcw, Menu, User, MapPin,
   ChevronRight, Radio, ShieldCheck, Sparkles, LogOut, Maximize2, Minimize2,
-  MessageSquare, Download
+  MessageSquare, Download, StretchHorizontal
 } from 'lucide-react';
 
 /**
@@ -31,7 +31,9 @@ export default function TulipPlayerHeader({
   onOpenMenu,
   onOpenFeedback,
   onToggleFullscreen,
-  isFullscreen = false
+  isFullscreen = false,
+  scaleMode = 'FIT_WIDTH',
+  onChangeScaleMode
 }) {
   const [feedbackSuccess, setFeedbackSuccess] = useState(false);
 
@@ -374,6 +376,45 @@ export default function TulipPlayerHeader({
               <span style={{ color: '#94a3b8' }}>{versionLabel || 'Development Version'}</span>
             </div>
           </div>
+
+          {/* Display Scale Mode Toggle (Eliminates Left/Right Empty Space) */}
+          {onChangeScaleMode && (
+            <button
+              type="button"
+              onClick={() => {
+                const nextMode = scaleMode === 'FIT_WIDTH' ? 'FILL' : (scaleMode === 'FILL' || scaleMode === 'STRETCH' ? 'FIT_SCREEN' : 'FIT_WIDTH');
+                onChangeScaleMode(nextMode);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '7px',
+                height: '38px',
+                padding: '0 13px',
+                backgroundColor: (scaleMode === 'FIT_WIDTH' || scaleMode === 'FILL' || scaleMode === 'STRETCH') ? 'rgba(56, 189, 248, 0.15)' : '#1e2638',
+                color: (scaleMode === 'FIT_WIDTH' || scaleMode === 'FILL' || scaleMode === 'STRETCH') ? '#38bdf8' : '#94a3b8',
+                border: (scaleMode === 'FIT_WIDTH' || scaleMode === 'FILL' || scaleMode === 'STRETCH') ? '1px solid rgba(56, 189, 248, 0.45)' : '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+                transition: 'all 0.15s ease'
+              }}
+              title={
+                scaleMode === 'FIT_WIDTH'
+                  ? 'Mode: Penuh Lebar (Fit Width). Klik untuk ganti ke Penuh Layar (Fill)'
+                  : (scaleMode === 'FILL' || scaleMode === 'STRETCH')
+                  ? 'Mode: Penuh Layar (Stretch Fill). Klik untuk ganti ke Proporsional (Fit Screen)'
+                  : 'Mode: Proporsional (Fit Screen). Klik untuk ganti ke Penuh Lebar (Fit Width)'
+              }
+            >
+              <StretchHorizontal size={15} />
+              <span>
+                {scaleMode === 'FIT_WIDTH' ? 'Penuh Lebar' : (scaleMode === 'FILL' || scaleMode === 'STRETCH' ? 'Penuh Layar' : 'Proporsional')}
+              </span>
+            </button>
+          )}
 
           {/* Tulip Menu Button (Exact 1:1 styling: Charcoal box with ≡ Menu) */}
           <button
