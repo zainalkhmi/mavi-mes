@@ -181,15 +181,25 @@ vi.mock('react-router-dom', async () => {
 
 // ─── Mock toast ─────────────────────────────────────────────────────────────
 
-vi.mock('react-hot-toast', () => ({
-  default: {
-    success: vi.fn(),
-    error: vi.fn(),
-    promise: vi.fn(),
-  },
-  success: vi.fn(),
-  error: vi.fn(),
+const mockToast = Object.assign(vi.fn(() => 'mock_toast_id'), {
+  success: vi.fn(() => 'mock_toast_id'),
+  error: vi.fn(() => 'mock_toast_id'),
+  info: vi.fn(() => 'mock_toast_id'),
+  loading: vi.fn(() => 'mock_toast_id'),
+  dismiss: vi.fn(),
+  remove: vi.fn(),
   promise: vi.fn(),
+});
+
+vi.mock('react-hot-toast', () => ({
+  default: mockToast,
+  toast: mockToast,
+  success: mockToast.success,
+  error: mockToast.error,
+  promise: mockToast.promise,
+  useToasterStore: vi.fn(() => ({ toasts: [] })),
+  resolveValue: vi.fn((val) => (typeof val === 'function' ? val() : val)),
+  Toaster: vi.fn(({ children }) => children ? null : null),
 }));
 
 // ─── Mock Sentry ────────────────────────────────────────────────────────────

@@ -14,6 +14,7 @@ import Register from './components/Register';
 import LandingPage from './components/LandingPage';
 
 import { EnterpriseDialogContainer } from './components/common/EnterpriseDialog';
+import ProToaster from './components/common/ProToaster';
 
 const ProductionPlantDashboard = lazy(() => import('./components/ProductionPlantDashboard'));
 const MachineActivityYieldTracker = lazy(() => import('./components/MachineActivityYieldTracker'));
@@ -137,6 +138,7 @@ export default function App() {
     return (
       <div style={{ minHeight: '100vh', width: '100%', display: 'flex', flexDirection: 'column' }}>
         <EnterpriseDialogContainer />
+        <ProToaster position="top-right" limit={2} />
         <Suspense fallback={<LoadingScreen />}>
           <Routes>
             <Route path="/" element={<LandingPage />} />
@@ -184,6 +186,7 @@ export default function App() {
   return (
     <div style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0, flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: isChecksheetRoute ? '#0f172a' : '#f1f5f9', fontFamily: "'Inter', sans-serif" }}>
       <EnterpriseDialogContainer />
+      <ProToaster position="top-right" limit={2} />
       {!isChecksheetRoute && (
         <TopNavbar
           user={currentUser}

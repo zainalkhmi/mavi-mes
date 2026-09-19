@@ -20,6 +20,7 @@ import {
     Layout,
     MousePointer2,
     ShieldCheck,
+    Shield,
     Gauge,
     PlayCircle,
     FileText,
@@ -232,10 +233,18 @@ const ArduinoWidget = lazy(() => import('./appbuilder/ArduinoWidget').then(m => 
 const MeasurementWidget = lazy(() => import('./appbuilder/MeasurementWidget').then(m => ({ default: m.MeasurementWidget })));
 const ListPickerWidget = lazy(() => import('./appbuilder/ListPickerWidget').then(m => ({ default: m.ListPickerWidget })));
 
+// App Testing Engine
+import {
+    runAllTests,
+    AppTestingPanel,
+    TEST_STATUS,
+    simulateUserInteraction
+} from './AppTestingEngine';
+
 // Re-export for backward compatibility (used by AdminSettings.jsx etc.)
 export { COMPONENT_TYPES } from './appbuilder/componentTypes';
 export { CATEGORIZED_COMPONENTS } from './appbuilder/categorizedComponents';
-import { normalizeType, sanitizeComponentCoords } from './appbuilder/aiHelpers';
+import { normalizeType, sanitizeComponentCoords, resolveStepTarget } from './appbuilder/aiHelpers';
 
 import { processDocument } from '../utils/aiService';
 const VisionCamera = lazy(() => import('./VisionCamera'));
@@ -304,6 +313,7 @@ import {
 import { appRegistryService } from '../services/appRegistry/appRegistryService';
 import { BrowserTestRunner } from '../services/testEngine/browserTestRunner';
 import { aiBugAnalyzer } from '../services/testEngine/aiBugAnalyzer';
+import { LiveCrudRunner } from '../services/testEngine/liveCrudRunner';
 
 const AppBuilder = () => {
     const ghostPilot = useGhostPilotRPA();
@@ -334,6 +344,11 @@ const AppBuilder = () => {
         isOpen: false,
         results: {}
     });
+
+    // Comprehensive App Testing State
+    const [comprehensiveTestResults, setComprehensiveTestResults] = useState(null);
+    const [isRunningComprehensiveTest, setIsRunningComprehensiveTest] = useState(false);
+    const [showComprehensiveTestPanel, setShowComprehensiveTestPanel] = useState(false);
 
     const simulatorRunnerRef = useRef(null);
     const handleDeviceChangeRef = useRef(null);
@@ -483,7 +498,7 @@ const AppBuilder = () => {
             const { streamBuilderCopilotAdvice, getBuilderCopilotAdvice } = await import('../utils/aiService');
             const connector = await getPrimaryAiConnector();
             if (!connector) {
-                toast.error('AI Connector belum dikonfigurasi. Silakan buka Integrasi > AI Settings.');
+                toast.error('AI Connector belum dikonfigurasi. Silakan buka Integrasi > AI Settings.', { duration: 5000 });
                 return;
             }
             const context = {
@@ -513,7 +528,7 @@ const AppBuilder = () => {
                 const match = fullText.match(/<vibe_code>([\s\S]*?)<\/vibe_code>/i);
                 if (match && match[1]) {
                     handleUpdateSandpackCode(match[1].trim());
-                    toast.success('⚡ Komponen React Sandbox berhasil di-update oleh AI!');
+                    toast.success('⚡ Komponen React Sandbox berhasil di-update oleh AI!', { duration: 3000 });
                 }
             } else {
                 toast('AI merespon, namun tidak mendeteksi kode React baru. Silakan coba instruksi lebih spesifik.');
@@ -601,9 +616,61 @@ const AppBuilder = () => {
         }
 
         if (rpaArgs && ghostPilot.startRPA) {
-            ghostPilot.startRPA(rpaArgs);
+            ghostPilot.startRPA({
+                ...rpaArgs,
+                onFinish: () => {
+                    if (rpaArgs.onFinish) rpaArgs.onFinish();
+                    setTimeout(() => {
+                        handleRunLiveCrudRealtimeTest();
+                    }, 400);
+                }
+            });
         }
     }, [preCodingApproval.pendingRPAArgs, ghostPilot]);
+
+    // Phase 4B: Automated Real-Time Live CRUD Testing (Input Create, Submit, Read Table, Verify on Canvas)
+    const handleRunLiveCrudRealtimeTest = useCallback(async () => {
+        const currentComps = (stepsRef.current || steps || []).find(s => s.id === currentStepIdRef.current)?.components || [];
+        const canvasEl = document.querySelector('.konvajs-content') ||
+                         document.querySelector('#app-builder-canvas') ||
+                         document.querySelector('[data-canvas-container="true"]') ||
+                         document.querySelector('.canvas-workspace');
+        const canvasRect = canvasEl ? canvasEl.getBoundingClientRect() : null;
+
+        toast.info('🚀 J.A.R.V.I.S: Menjalankan uji coba live CRUD di layar...', { icon: '🤖', duration: 4000 });
+
+        const results = await LiveCrudRunner.runLiveTest({
+            components: currentComps,
+            baseComponents: baseComponentsRef.current || baseComponents || [],
+            appVariables: appVariablesRef.current || appVariables || [],
+            setAppVariables,
+            tables,
+            setTables,
+            ghostPilot,
+            canvasRect,
+            onComplete: (res) => {
+                if (res.issues && res.issues.length > 0) {
+                    setTestResultModal({
+                        isOpen: true,
+                        results: {
+                            total: (res.inputsCount || 0) + (res.submitFound ? 1 : 0) + (res.tableFound ? 1 : 0),
+                            passed: (res.inputsTested || 0) + (res.submitTested ? 1 : 0) + (res.tableVerified ? 1 : 0),
+                            failed: res.issues.length,
+                            bugs: res.issues.map(iss => ({
+                                name: iss.component || 'Live CRUD Test',
+                                message: iss.message,
+                                severity: iss.type,
+                                actual: iss.message
+                            }))
+                        }
+                    });
+                } else {
+                    toast.success('✨ Semua komponen CRUD (Input, Submit, Data) berhasil diuji secara real-time!', { duration: 5000 });
+                }
+            }
+        });
+        return results;
+    }, [steps, baseComponents, appVariables, setAppVariables, tables, setTables, ghostPilot]);
 
     // User requests plan revision before coding
     const handleRevisePreCodingPlan = useCallback((revisionText) => {
@@ -734,6 +801,45 @@ const AppBuilder = () => {
             }, 700);
         }
     }, [handleRunAppRegistrySimulator, setAppVariables, setSteps, setAppTriggers, setBaseComponents, setAppFunctions, steps, baseComponents, appVariables, appTriggers, appFunctions, ghostPilot, appName]);
+
+    // ─── Comprehensive App Testing ──────────────────────────────────────────────────
+    const handleRunComprehensiveTest = useCallback(async () => {
+        setIsRunningComprehensiveTest(true);
+
+        // Build test context
+        const testContext = {
+            steps: steps || [],
+            tables: tables || [],
+            recordPlaceholders: recordPlaceholders || [],
+            appVariables: appVariables || []
+        };
+
+        // Run all comprehensive tests
+        const results = runAllTests(testContext);
+
+        setComprehensiveTestResults(results);
+        setIsRunningComprehensiveTest(false);
+        setShowComprehensiveTestPanel(true);
+
+        // Show summary toast
+        const { summary } = results;
+        if (summary.failed > 0) {
+            toast.error(`🧪 Testing Complete: ${summary.failed} issue(s) found, ${summary.passed} passed`);
+        } else if (summary.warnings > 0) {
+            toast.success(`🧪 Testing Complete: ${summary.warnings} warning(s), ${summary.passed} passed`);
+        } else {
+            toast.success(`🧪 Testing Complete: All ${summary.passed} tests passed!`);
+        }
+
+        return results;
+    }, [steps, tables, recordPlaceholders, appVariables]);
+
+    // Auto-run test after Copilot generates app
+    useEffect(() => {
+        if (isCopilotOpen === false && steps?.length > 0 && comprehensiveTestResults === null) {
+            // Only auto-test once when Copilot closes and app was generated
+        }
+    }, [isCopilotOpen]);
 
     const [proPrompt, setProPrompt] = useState({
         isOpen: false, title: '', message: '', initialValue: '', onConfirm: null
@@ -951,6 +1057,12 @@ const AppBuilder = () => {
             });
         }
 
+        // Fallback for hallucinated variable bindings to targetVariable
+        const rawVar = sanitized.bindToVariable || sanitized.boundVariable || sanitized.variable || sanitized.variableName;
+        if (rawVar && !sanitized.targetVariable) {
+            sanitized.targetVariable = String(rawVar);
+        }
+
         return sanitized;
     };
 
@@ -1023,63 +1135,30 @@ const AppBuilder = () => {
 
                     let targetStepId = currentStepIdRef.current;
                     if (targetStepKey) {
-                        const lowerKey = targetStepKey.toLowerCase();
-                        if (lowerKey === 'base' || lowerKey === 'base layout' || lowerKey === 'baselayout' || lowerKey.includes('base layout') || lowerKey.includes('master template')) {
-                            targetStepId = 'BASE';
+                        const match = resolveStepTarget(stepsRef.current, targetStepKey);
+                        if (match) {
+                            targetStepId = match.id;
                         } else {
-                            // Match Priority:
-                            // 1. Exact ID
-                            // 2. Exact Title (case-insensitive, trimmed)
-                            let match = stepsRef.current.find(s => s.id === targetStepKey);
-                            if (!match) {
-                                match = stepsRef.current.find(s => 
-                                    String(s.title || '').toLowerCase().trim() === lowerKey
-                                );
-                            }
-                            // 3. Smart title match with number guard (prevent 'Screen 2' from matching 'Screen 1' or 'Screen')
-                            if (!match) {
-                                const getNum = (str) => {
-                                    const m = /\b([0-9]+)\b/.exec(str);
-                                    if (m) return m[1];
-                                    if (/\b(1|satu|pertama|first)\b/i.test(str)) return '1';
-                                    if (/\b(2|dua|kedua|second)\b/i.test(str)) return '2';
-                                    if (/\b(3|tiga|ketiga|third)\b/i.test(str)) return '3';
-                                    return null;
-                                };
-                                const targetNum = getNum(lowerKey);
-                                match = stepsRef.current.find(s => {
-                                    const sTitle = String(s.title || '').toLowerCase().trim();
-                                    if (!sTitle) return false;
-                                    const sNum = getNum(sTitle);
-                                    if (targetNum !== null && sNum !== targetNum) return false;
-                                    return sTitle.includes(lowerKey) || (lowerKey.length >= 4 && lowerKey.includes(sTitle));
-                                });
-                            }
-
-                            if (match) {
-                                targetStepId = match.id;
-                            } else {
-                                // Auto-create step if specified stepTitle does not exist yet
-                                const autoStepId = `screen_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-                                const autoTitle = payload.stepTitle || payload.screenTitle || payload.step || payload.screen || payload.page || `Screen ${stepsRef.current.length + 1}`;
-                                const autoStep = {
-                                    id: autoStepId,
-                                    title: autoTitle,
-                                    stepType: 'Screen',
-                                    cycleTimeSeconds: 60,
-                                    components: [],
-                                    triggers: [],
-                                    logic: { xml: null, code: '' }
-                                };
-                                const isExplicitPage2 = /\b(2|dua|kedua|second|page\s*2|screen\s*2|halaman\s*2)\b/i.test(autoTitle);
-                                const isDefaultEmpty = !isExplicitPage2 && stepsRef.current.length === 1 && 
-                                    (stepsRef.current[0].id === 'screen_1' || stepsRef.current[0].title === 'Screen 1') &&
-                                    (stepsRef.current[0].components || []).length === 0;
-                                const updatedSteps = isDefaultEmpty ? [autoStep] : [...stepsRef.current, autoStep];
-                                stepsRef.current = updatedSteps;
-                                setSteps(updatedSteps);
-                                targetStepId = autoStepId;
-                            }
+                            // Auto-create step if specified stepTitle does not exist yet
+                            const autoStepId = `screen_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                            const autoTitle = payload.stepTitle || payload.screenTitle || payload.step || payload.screen || payload.page || `Screen ${stepsRef.current.length + 1}`;
+                            const autoStep = {
+                                id: autoStepId,
+                                title: autoTitle,
+                                stepType: 'Screen',
+                                cycleTimeSeconds: 60,
+                                components: [],
+                                triggers: [],
+                                logic: { xml: null, code: '' }
+                            };
+                            const isExplicitPage2 = /\b(2|dua|kedua|second|page\s*2|screen\s*2|halaman\s*2)\b/i.test(autoTitle);
+                            const isDefaultEmpty = !isExplicitPage2 && stepsRef.current.length === 1 && 
+                                (stepsRef.current[0].id === 'screen_1' || stepsRef.current[0].title === 'Screen 1') &&
+                                (stepsRef.current[0].components || []).length === 0;
+                            const updatedSteps = isDefaultEmpty ? [autoStep] : [...stepsRef.current, autoStep];
+                            stepsRef.current = updatedSteps;
+                            setSteps(updatedSteps);
+                            targetStepId = autoStepId;
                         }
                     }
 
@@ -1087,6 +1166,28 @@ const AppBuilder = () => {
                     if (targetStepId && targetStepId !== currentStepIdRef.current) {
                         currentStepIdRef.current = targetStepId;
                         setCurrentStepId(targetStepId);
+                    }
+
+                    // Smart auto-layout for widgets when coordinates are omitted or at (0, 0)
+                    const targetComps = targetStepId === 'BASE' ? baseComponentsRef.current : (stepsRef.current.find(s => s.id === targetStepId)?.components || []);
+                    const isExplicitCoord = payload.x !== undefined && payload.x !== null && payload.y !== undefined && payload.y !== null;
+
+                    if (!isExplicitCoord && newComp.x === 0 && newComp.y === 0) {
+                        if (newComp.type === 'SHAPE_RECTANGLE' && targetComps.length === 0) {
+                            // Main container card for the step
+                            newComp.x = 20;
+                            newComp.y = 80;
+                            newComp.w = 960;
+                            newComp.h = 480;
+                        } else if (targetComps.length > 0) {
+                            const lastComp = targetComps[targetComps.length - 1];
+                            newComp.x = lastComp.x;
+                            newComp.y = lastComp.y + (lastComp.h || 48) + 16;
+                            if (!payload.w && lastComp.w) newComp.w = lastComp.w;
+                        } else {
+                            newComp.x = 24;
+                            newComp.y = 88;
+                        }
                     }
 
                     // 3. Mount component into resolved step
@@ -1112,7 +1213,7 @@ const AppBuilder = () => {
                 // ─────────────────────────────────────────────────────────────────
                 case 'UPDATE_WIDGET': {
                     const rawName = payload?.widgetName || payload?.name || widgetId || payload?.id;
-                    if (!rawName) { toast.error('UPDATE_WIDGET: widgetName tidak ditemukan', { position: 'bottom-right' }); break; }
+                    if (!rawName) { toast.error('UPDATE_WIDGET: widgetName tidak ditemukan', { position: 'bottom-right', duration: 4000 }); break; }
                     const rawLower = String(rawName).toLowerCase();
 
                     const resolveWidgetId = (list) => {
@@ -1206,7 +1307,7 @@ const AppBuilder = () => {
 
                 case 'DELETE_WIDGET': {
                     const rawName = payload?.widgetName || payload?.name || widgetId || payload?.id;
-                    if (!rawName) { toast.error('DELETE_WIDGET: widgetName tidak ditemukan', { position: 'bottom-right' }); break; }
+                    if (!rawName) { toast.error('DELETE_WIDGET: widgetName tidak ditemukan', { position: 'bottom-right', duration: 4000 }); break; }
                     const rawLower = String(rawName).toLowerCase();
 
                     const resolveWidgetId = (list) => {
@@ -1391,13 +1492,22 @@ const AppBuilder = () => {
                     const targetTitleLower = String(targetTitle).toLowerCase().trim();
                     const targetId = (payload && typeof payload === 'object') ? (payload.id || payload.stepId || '') : '';
 
-                    // Check if step already exists (by ID or exact title) to prevent duplicates
-                    const existingStep = stepsRef.current.find(s => 
+                    // Check if step already exists (by ID, exact title, or robust resolver) to prevent duplicates
+                    let existingStep = stepsRef.current.find(s => 
                         (targetId && s.id === targetId) || 
                         (targetTitleLower && String(s.title || '').toLowerCase().trim() === targetTitleLower)
                     );
+                    if (!existingStep) {
+                        existingStep = resolveStepTarget(stepsRef.current, targetTitle);
+                    }
 
-                    if (existingStep) {
+                    if (existingStep && existingStep.id !== 'BASE') {
+                        // If existing step had a generic name like "Screen 1" and new name is more descriptive, upgrade title
+                        if (existingStep.title !== targetTitle && !/^(screen|halaman|page)\s*[0-9]+$/i.test(targetTitle)) {
+                            const nextSteps = stepsRef.current.map(s => s.id === existingStep.id ? { ...s, title: targetTitle } : s);
+                            stepsRef.current = nextSteps;
+                            setSteps(nextSteps);
+                        }
                         currentStepIdRef.current = existingStep.id;
                         setCurrentStepId(existingStep.id);
                         break;
@@ -1594,16 +1704,12 @@ const AppBuilder = () => {
 
                                 if (!normalized.payload) normalized.payload = {};
 
-                                // 3. Auto-resolve GO_TO_STEP target screen title to step ID
-                                if (normalized.type === 'GO_TO_STEP') {
-                                    let stepTarget = normalized.payload.stepId || normalized.payload.targetId || normalized.payload.screen || normalized.stepId || '';
+                                // 3. Auto-resolve step title→ID inside action payload (handles GO_TO_STEP)
+                                if (normalized.type === 'GO_TO_STEP' || normalized.type === 'GO_TO_SCREEN') {
+                                    const stepTarget = normalized.payload.stepId || normalized.payload.targetId || normalized.payload.title || normalized.stepId || normalized.targetId;
                                     if (stepTarget) {
-                                        const matchStep = stepsRef.current.find(s => 
-                                            s.id === stepTarget || 
-                                            String(s.title || '').toLowerCase() === String(stepTarget).toLowerCase() ||
-                                            String(s.id || '').toLowerCase() === String(stepTarget).toLowerCase()
-                                        );
-                                        if (matchStep) {
+                                        const matchStep = resolveStepTarget(stepsRef.current, stepTarget);
+                                        if (matchStep && matchStep.id !== 'BASE') {
                                             normalized.payload.stepId = matchStep.id;
                                         } else {
                                             normalized.payload.stepId = stepTarget;
@@ -2040,15 +2146,11 @@ const AppBuilder = () => {
                 }
 
                 case 'UPDATE_STEP': {
-                    const sTitle = payload?.stepTitle || payload?.title || payload?.name;
-                    const sTitleLower = String(sTitle || '').toLowerCase();
+                    const sTitle = payload?.stepTitle || payload?.title || payload?.name || payload?.id;
                     const sUpdates = payload?.updates || {};
 
-                    const targetStep = stepsRef.current.find(s =>
-                        s.id === sTitle ||
-                        String(s.title || '').toLowerCase() === sTitleLower
-                    );
-                    if (!targetStep) {
+                    const targetStep = resolveStepTarget(stepsRef.current, sTitle);
+                    if (!targetStep || targetStep.id === 'BASE') {
                         toast.error(`Screen "${sTitle}" tidak ditemukan`, { position: 'bottom-right' });
                         break;
                     }
@@ -2057,18 +2159,14 @@ const AppBuilder = () => {
                     stepsRef.current = nextSteps;
                     setSteps(nextSteps);
 
-                    toast.success(`✏️ Screen "${sTitle}" diperbarui`, { position: 'bottom-right' });
+                    toast.success(`✏️ Screen "${targetStep.title || sTitle}" diperbarui`, { position: 'bottom-right' });
                     break;
                 }
 
                 case 'DELETE_STEP': {
-                    const sTitle = payload?.stepTitle || payload?.title || payload?.name;
-                    const sTitleLower = String(sTitle || '').toLowerCase();
-                    const targetStep = stepsRef.current.find(s =>
-                        s.id === sTitle ||
-                        String(s.title || '').toLowerCase() === sTitleLower
-                    );
-                    if (!targetStep) {
+                    const sTitle = payload?.stepTitle || payload?.title || payload?.name || payload?.id;
+                    const targetStep = resolveStepTarget(stepsRef.current, sTitle);
+                    if (!targetStep || targetStep.id === 'BASE') {
                         toast.error(`Screen "${sTitle}" tidak ditemukan`, { position: 'bottom-right' });
                         break;
                     }
@@ -2262,35 +2360,11 @@ const AppBuilder = () => {
                     if (lowerTarget === 'base') {
                         currentStepIdRef.current = 'BASE';
                         setCurrentStepId('BASE');
-                        toast.success('Navigasi ke screen "BASE"', { position: 'bottom-right' });
+                        toast.success('Navigasi ke screen "BASE"', { position: 'bottom-right', duration: 3000 });
                         break;
                     }
 
-                    // 1. Exact ID
-                    let targetStep = stepsRef.current.find(s => s.id === targetIdOrTitle);
-                    // 2. Exact Title
-                    if (!targetStep && lowerTarget) {
-                        targetStep = stepsRef.current.find(s => String(s.title || '').toLowerCase().trim() === lowerTarget);
-                    }
-                    // 3. Smart title match with number guard
-                    if (!targetStep && lowerTarget) {
-                        const getNum = (str) => {
-                            const m = /\b([0-9]+)\b/.exec(str);
-                            if (m) return m[1];
-                            if (/\b(1|satu|pertama|first)\b/i.test(str)) return '1';
-                            if (/\b(2|dua|kedua|second)\b/i.test(str)) return '2';
-                            if (/\b(3|tiga|ketiga|third)\b/i.test(str)) return '3';
-                            return null;
-                        };
-                        const targetNum = getNum(lowerTarget);
-                        targetStep = stepsRef.current.find(s => {
-                            const sTitle = String(s.title || '').toLowerCase().trim();
-                            if (!sTitle) return false;
-                            const sNum = getNum(sTitle);
-                            if (targetNum !== null && sNum !== targetNum) return false;
-                            return sTitle.includes(lowerTarget) || (lowerTarget.length >= 4 && lowerTarget.includes(sTitle));
-                        });
-                    }
+                    const targetStep = resolveStepTarget(stepsRef.current, targetIdOrTitle);
 
                     if (targetStep) {
                         currentStepIdRef.current = targetStep.id;
@@ -3591,7 +3665,7 @@ const AppBuilder = () => {
             width: previewOrientation === 'PORTRAIT' ? canvasPreset.width : canvasPreset.height,
             height: previewOrientation === 'PORTRAIT' ? canvasPreset.height : canvasPreset.width
         }
-        : { width: 1000, height: 625 };
+        : { width: 1280, height: 720 };
 
     const canvasFrameRadius = !isPresetCanvasMode
         ? '8px'
@@ -3749,7 +3823,8 @@ const AppBuilder = () => {
         if (isCanvasLocked) {
             toast.error("Kanvas terkunci. Silakan klik tombol 'Buka' (Unlock) untuk mengedit.", {
                 icon: '🔒',
-                style: { borderRadius: '10px', background: '#333', color: '#fff' }
+                style: { borderRadius: '10px', background: '#333', color: '#fff' },
+                duration: 4000
             });
             return;
         }
@@ -3793,7 +3868,8 @@ const AppBuilder = () => {
         if (idsToDelete.length === 0 && selectedCompIds.length > 0) {
             toast.error("Widget sedang dikunci, buka kunci untuk menghapus", {
                 icon: '🔒',
-                style: { borderRadius: '10px', background: '#333', color: '#fff' }
+                style: { borderRadius: '10px', background: '#333', color: '#fff' },
+                duration: 4000
             });
             setContextMenu({ isOpen: false, x: 0, y: 0, compId: null });
             return;
@@ -4143,7 +4219,7 @@ const AppBuilder = () => {
     // --- Responsive Device Switching: proportionally scale all widgets ---
     const getCanvasSizeForDevice = (deviceKey, orientation) => {
         const preset = DEVICE_PRESETS[deviceKey] || DEVICE_PRESETS.RESPONSIVE;
-        if (!preset.width) return { width: 1000, height: 625 }; // RESPONSIVE fallback
+        if (!preset.width) return { width: 1280, height: 720 }; // RESPONSIVE fallback (16:9 Widescreen Laptop standard)
         return orientation === 'PORTRAIT'
             ? { width: preset.width, height: preset.height }
             : { width: preset.height, height: preset.width }; // LANDSCAPE flips
@@ -5068,7 +5144,7 @@ const AppBuilder = () => {
                             toast.success(`Inference finished: ${predictedLabel} (${(confidence * 100).toFixed(1)}%)`);
                         }
                     } else {
-                        toast.error('No Vision Model configured for inference action.');
+                        toast.error('No Vision Model configured for inference action.', { duration: 5000 });
                     }
                     break;
                 }
@@ -5192,8 +5268,8 @@ const AppBuilder = () => {
                 case 'GO_TO_STEP': {
                     const target = action.payload?.stepId || action.payload?.targetId || action.payload?.screen;
                     if (target) {
-                        const matchStep = steps.find(s => s.id === target || String(s.title || '').toLowerCase() === String(target).toLowerCase());
-                        if (matchStep) {
+                        const matchStep = resolveStepTarget(steps, target);
+                        if (matchStep && matchStep.id !== 'BASE') {
                             setCurrentStepId(matchStep.id);
                         } else {
                             setCurrentStepId(target);
@@ -5257,7 +5333,7 @@ const AppBuilder = () => {
                         console.log(`[Developer Mode] Simulated Record ${recName} in table ${tableId}`, { id: recId, data: resolvedData });
                         
                         // In Preview, simulation log
-                        toast.success('Simulated: Record saved successfully.');
+                        toast.success('Simulated: Record saved successfully.', { duration: 3000 });
                     } else {
                         if (action.type === 'CREATE_RECORD') {
                             addTableRecord(tableId, resolvedData)
@@ -5489,7 +5565,7 @@ const AppBuilder = () => {
                             const finalRec = updatedData.id ? updatedData : { ...updatedData, id: `sim_${Date.now()}`, recordId: updatedData.recordId || createRecordId || `rec_${Date.now()}` };
                             setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: finalRec }));
                             console.log(`[Developer Mode] Simulated SAVE of record`, finalRec);
-                            toast.success('💾 Data tersimpan (Dev Mode Simulation)');
+                            toast.success('💾 Data tersimpan (Dev Mode Simulation)', { duration: 3000 });
                             return true;
                         }
 
@@ -5505,7 +5581,7 @@ const AppBuilder = () => {
                                 setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: saved }));
                                 console.log(`[Builder Dev] Created record with data`, saved);
                             }
-                            toast.success('💾 Data berhasil disimpan ke tabel.');
+                            toast.success('💾 Data berhasil disimpan ke tabel.', { duration: 3000 });
                             return true;
                         } catch (err) {
                             console.error('[Builder Dev] Save failed:', err);
@@ -5516,13 +5592,13 @@ const AppBuilder = () => {
                     const handleDelete = async () => {
                         const rec = recordPlaceholderData[placeholder.id];
                         if (!rec || !rec.id) {
-                            toast.error('❌ DELETE: Record belum di-load.');
+                            toast.error('❌ DELETE: Record belum di-load.', { duration: 4000 });
                             return false;
                         }
                         if (viewMode === 'PREVIEW') {
                             setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: null }));
                             console.log(`[Developer Mode] Simulated DELETE of record ${rec.id}`);
-                            toast.success('🗑️ Record dihapus (Dev Mode Simulation)');
+                            toast.success('🗑️ Record dihapus (Dev Mode Simulation)', { duration: 3000 });
                             return true;
                         }
                         // deleteTableRecord only needs the row id
@@ -7167,7 +7243,8 @@ const AppBuilder = () => {
         if (isCanvasLocked) {
             toast.error("Kanvas terkunci. Silakan klik tombol 'Buka' (Unlock) untuk mengedit.", {
                 icon: '🔒',
-                style: { borderRadius: '10px', background: '#333', color: '#fff' }
+                style: { borderRadius: '10px', background: '#333', color: '#fff' },
+                duration: 4000
             });
             return null;
         }
@@ -7233,7 +7310,8 @@ const AppBuilder = () => {
         if (isCanvasLocked) {
             toast.error("Kanvas terkunci. Silakan klik tombol 'Buka' (Unlock) untuk mengedit.", {
                 icon: '🔒',
-                style: { borderRadius: '10px', background: '#333', color: '#fff' }
+                style: { borderRadius: '10px', background: '#333', color: '#fff' },
+                duration: 4000
             });
             return;
         }
@@ -7243,7 +7321,8 @@ const AppBuilder = () => {
         if (comp.props?.locked) {
             toast.error("Widget sedang dikunci, buka kunci untuk menghapus", {
                 icon: '🔒',
-                style: { borderRadius: '10px', background: '#333', color: '#fff' }
+                style: { borderRadius: '10px', background: '#333', color: '#fff' },
+                duration: 4000
             });
             return;
         }
@@ -7320,7 +7399,8 @@ const AppBuilder = () => {
         if (isCanvasLocked) {
             toast.error("Kanvas terkunci. Silakan klik tombol 'Buka' (Unlock) untuk mengedit.", {
                 icon: '🔒',
-                style: { borderRadius: '10px', background: '#333', color: '#fff' }
+                style: { borderRadius: '10px', background: '#333', color: '#fff' },
+                duration: 4000
             });
             return;
         }
@@ -7453,7 +7533,8 @@ const AppBuilder = () => {
         if (isCanvasLocked && viewMode === 'DESIGN') {
             toast.error("Kanvas terkunci. Silakan klik tombol 'Buka' (Unlock) untuk mengedit.", {
                 icon: '🔒',
-                style: { borderRadius: '10px', background: '#333', color: '#fff' }
+                style: { borderRadius: '10px', background: '#333', color: '#fff' },
+                duration: 4000
             });
             return;
         }
@@ -7500,7 +7581,8 @@ const AppBuilder = () => {
         if (isCanvasLocked && viewMode === 'DESIGN') {
             toast.error("Kanvas terkunci. Silakan klik tombol 'Buka' (Unlock) untuk mengedit.", {
                 icon: '🔒',
-                style: { borderRadius: '10px', background: '#333', color: '#fff' }
+                style: { borderRadius: '10px', background: '#333', color: '#fff' },
+                duration: 4000
             });
             return;
         }
@@ -7524,7 +7606,8 @@ const AppBuilder = () => {
         if (isCanvasLocked && viewMode === 'DESIGN') {
             toast.error("Kanvas terkunci. Silakan klik tombol 'Buka' (Unlock) untuk mengedit.", {
                 icon: '🔒',
-                style: { borderRadius: '10px', background: '#333', color: '#fff' }
+                style: { borderRadius: '10px', background: '#333', color: '#fff' },
+                duration: 4000
             });
             return;
         }
@@ -7717,17 +7800,17 @@ const AppBuilder = () => {
 
     const handleGenerateTulipBaseLayout = (mode = 'BOTH', switchStep = true, customSize = null) => {
         saveHistory();
-        const cW = customSize?.width || canvasBaseSize.width || 1000;
-        const cH = customSize?.height || canvasBaseSize.height || 625;
+        const cW = customSize?.width || canvasBaseSize.width || 1280;
+        const cH = customSize?.height || canvasBaseSize.height || 720;
         const headerH = 56;
-        const footerH = 56;
+        const footerH = 50;
 
         let newComps = [...baseComponents];
 
         if (mode === 'BOTH' || mode === 'HEADER_ONLY') {
             newComps = newComps.filter(c => !c.id.startsWith('base_hdr_'));
 
-            // 1. Header Background (At TOP: y=0)
+            // 1. Header Background (At TOP: y=0, height=56px, Tulip Dark Slate Grey matching Gambar 2)
             newComps.push({
                 id: `base_hdr_bg_${Date.now()}`,
                 name: 'base_header_bar',
@@ -7739,32 +7822,75 @@ const AppBuilder = () => {
                 h: headerH,
                 props: {
                     shapeVariant: 'rectangle',
-                    backgroundColor: '#1e293b',
-                    borderColor: '#334155',
+                    backgroundColor: '#384353',
+                    borderColor: 'rgba(0,0,0,0.25)',
                     borderWidth: 1,
                     borderRadius: 0,
-                    locked: false
+                    locked: false,
+                    zIndex: 2000
                 }
             });
 
-            // 2. Menu Button (Top Left)
+            // 2. Micro Status Bar Top (Tulip Brand on left, Station & User on right)
             newComps.push({
-                id: `base_hdr_menu_${Date.now() + 1}`,
+                id: `base_hdr_brand_${Date.now() + 1}`,
+                name: 'base_brand_text',
+                displayName: 'Tulip Brand',
+                type: 'TEXT',
+                x: 16,
+                y: 4,
+                w: 160,
+                h: 16,
+                props: {
+                    text: '❖ TULIP',
+                    fontSize: 11,
+                    fontBold: true,
+                    textColor: '#93c5fd',
+                    backgroundColor: 'transparent',
+                    zIndex: 2001
+                }
+            });
+
+            newComps.push({
+                id: `base_hdr_station_${Date.now() + 2}`,
+                name: 'base_station_user_text',
+                displayName: 'Station & User Info',
+                type: 'TEXT',
+                x: Math.max(0, cW - 330),
+                y: 4,
+                w: 314,
+                h: 16,
+                props: {
+                    text: 'Station: Station-01  •  User: Operator',
+                    fontSize: 11,
+                    fontBold: false,
+                    textAlign: 'right',
+                    textAlignment: 2,
+                    textColor: '#cbd5e1',
+                    backgroundColor: 'transparent',
+                    zIndex: 2001
+                }
+            });
+
+            // 3. Menu Button (Tulip Standard ≡ Menu)
+            newComps.push({
+                id: `base_hdr_menu_${Date.now() + 3}`,
                 name: 'base_menu_btn',
                 displayName: 'Menu Button',
                 type: 'BUTTON',
-                x: 16,
-                y: 10,
-                w: 110,
-                h: 36,
+                x: 14,
+                y: 22,
+                w: 96,
+                h: 28,
                 props: {
                     label: '☰ Menu',
                     text: '☰ Menu',
-                    backgroundColor: '#334155',
+                    backgroundColor: '#475569',
                     textColor: '#ffffff',
-                    borderRadius: 6,
-                    fontWeight: '600',
-                    fontSize: 14,
+                    borderRadius: 4,
+                    fontWeight: '700',
+                    fontSize: 12,
+                    zIndex: 2002,
                     triggers: [{
                         id: `trig_menu_${Date.now()}`,
                         name: 'Cancel / Open Menu',
@@ -7781,42 +7907,26 @@ const AppBuilder = () => {
                 }
             });
 
-            // 3. Header Title (Top Center)
-            const titleW = 380;
+            // 4. Header Title (Centered, Large Bold White, matching "Machine Terminal" in Gambar 2)
+            const titleW = Math.min(500, cW - 240);
             newComps.push({
-                id: `base_hdr_title_${Date.now() + 2}`,
+                id: `base_hdr_title_${Date.now() + 4}`,
                 name: 'base_app_title',
                 displayName: 'Step / App Title',
                 type: 'TEXT',
-                x: Math.max(130, Math.round((cW - titleW) / 2)),
-                y: 14,
+                x: Math.round((cW - titleW) / 2),
+                y: 20,
                 w: titleW,
-                h: 28,
+                h: 32,
                 props: {
-                    text: appName || 'App Title',
+                    text: appName || 'Machine Terminal',
                     fontSize: 18,
                     fontBold: true,
                     textAlign: 'center',
-                    textColor: '#ffffff'
-                }
-            });
-
-            // 4. Header Logo / Branding (Top Right)
-            newComps.push({
-                id: `base_hdr_logo_${Date.now() + 3}`,
-                name: 'base_logo_text',
-                displayName: 'Company Logo',
-                type: 'TEXT',
-                x: Math.max(0, cW - 150),
-                y: 16,
-                w: 130,
-                h: 24,
-                props: {
-                    text: '⚡ MANDOR APP',
-                    fontSize: 13,
-                    fontBold: true,
-                    textAlign: 'right',
-                    textColor: '#94a3b8'
+                    textAlignment: 1,
+                    textColor: '#ffffff',
+                    backgroundColor: 'transparent',
+                    zIndex: 2002
                 }
             });
         }
@@ -7824,9 +7934,9 @@ const AppBuilder = () => {
         if (mode === 'BOTH' || mode === 'FOOTER_ONLY') {
             newComps = newComps.filter(c => !c.id.startsWith('base_ftr_'));
 
-            // 5. Footer Background (At BOTTOM: y=cH - footerH)
+            // 5. Footer Background (At BOTTOM: y=cH - footerH, Tulip Dark Slate)
             newComps.push({
-                id: `base_ftr_bg_${Date.now() + 4}`,
+                id: `base_ftr_bg_${Date.now() + 5}`,
                 name: 'base_footer_bar',
                 displayName: 'Footer Bar',
                 type: 'SHAPE_RECTANGLE',
@@ -7836,34 +7946,71 @@ const AppBuilder = () => {
                 h: footerH,
                 props: {
                     shapeVariant: 'rectangle',
-                    backgroundColor: '#ffffff',
-                    borderColor: '#e2e8f0',
+                    backgroundColor: '#262f3d',
+                    borderColor: 'rgba(255,255,255,0.08)',
                     borderWidth: 1,
                     borderRadius: 0,
-                    locked: false
+                    locked: false,
+                    zIndex: 2000
                 }
             });
 
-            // 6. Previous Step Button (Bottom Left)
+            // 6. ANDON Button (Bottom Left, red button as seen in Gambar 2!)
             newComps.push({
-                id: `base_ftr_prev_${Date.now() + 5}`,
+                id: `base_ftr_andon_${Date.now() + 6}`,
+                name: 'base_andon_btn',
+                displayName: 'Andon Button',
+                type: 'BUTTON',
+                x: 14,
+                y: cH - footerH + 8,
+                w: 96,
+                h: 34,
+                props: {
+                    label: 'ANDON',
+                    text: 'ANDON',
+                    backgroundColor: '#dc2626',
+                    textColor: '#ffffff',
+                    borderRadius: 4,
+                    fontWeight: '800',
+                    fontSize: 12,
+                    zIndex: 2002,
+                    triggers: [{
+                        id: `trig_andon_${Date.now()}`,
+                        name: 'Trigger Andon',
+                        event: 'CLICK',
+                        enabled: true,
+                        clauses: [{
+                            id: `cl_${Date.now()}`,
+                            match: 'ALL',
+                            conditions: [],
+                            actions: [{ type: 'TRIGGER_ANDON', payload: {} }]
+                        }],
+                        elseActions: []
+                    }]
+                }
+            });
+
+            // 7. Previous Step Button (Bottom Left, beside ANDON)
+            newComps.push({
+                id: `base_ftr_prev_${Date.now() + 7}`,
                 name: 'base_prev_btn',
                 displayName: 'Previous Button',
                 type: 'BUTTON',
-                x: 16,
-                y: cH - footerH + 10,
-                w: 120,
-                h: 36,
+                x: 118,
+                y: cH - footerH + 8,
+                w: 100,
+                h: 34,
                 props: {
                     label: '← Previous',
                     text: '← Previous',
-                    backgroundColor: '#ffffff',
-                    textColor: '#1e293b',
-                    borderColor: '#cbd5e1',
+                    backgroundColor: '#475569',
+                    textColor: '#ffffff',
+                    borderColor: 'rgba(255,255,255,0.15)',
                     borderWidth: 1,
-                    borderRadius: 6,
+                    borderRadius: 4,
                     fontWeight: '600',
-                    fontSize: 14,
+                    fontSize: 12,
+                    zIndex: 2002,
                     triggers: [{
                         id: `trig_prev_${Date.now()}`,
                         name: 'Go to Previous Screen',
@@ -7880,43 +8027,47 @@ const AppBuilder = () => {
                 }
             });
 
-            // 7. Step Navigation Info (Bottom Center)
-            const infoW = 220;
+            // 8. Step Navigation Info (Bottom Center)
+            const infoW = 240;
             newComps.push({
-                id: `base_ftr_info_${Date.now() + 6}`,
+                id: `base_ftr_info_${Date.now() + 8}`,
                 name: 'base_step_info',
                 displayName: 'Navigation Info',
                 type: 'TEXT',
-                x: Math.max(140, Math.round((cW - infoW) / 2)),
-                y: cH - footerH + 16,
+                x: Math.max(226, Math.round((cW - infoW) / 2)),
+                y: cH - footerH + 14,
                 w: infoW,
-                h: 24,
+                h: 22,
                 props: {
                     text: 'Frontline Step Flow',
                     fontSize: 12,
                     textAlign: 'center',
-                    textColor: '#94a3b8'
+                    textAlignment: 1,
+                    textColor: '#94a3b8',
+                    backgroundColor: 'transparent',
+                    zIndex: 2001
                 }
             });
 
-            // 8. Next Step Button (Bottom Right)
+            // 9. Next Step Button (Bottom Right)
             newComps.push({
-                id: `base_ftr_next_${Date.now() + 7}`,
+                id: `base_ftr_next_${Date.now() + 9}`,
                 name: 'base_next_btn',
                 displayName: 'Next Button',
                 type: 'BUTTON',
-                x: Math.max(0, cW - 136),
-                y: cH - footerH + 10,
-                w: 120,
-                h: 36,
+                x: Math.max(0, cW - 116),
+                y: cH - footerH + 8,
+                w: 102,
+                h: 34,
                 props: {
                     label: 'Next →',
                     text: 'Next →',
                     backgroundColor: '#2563eb',
                     textColor: '#ffffff',
-                    borderRadius: 6,
-                    fontWeight: '600',
-                    fontSize: 14,
+                    borderRadius: 4,
+                    fontWeight: '700',
+                    fontSize: 13,
+                    zIndex: 2002,
                     triggers: [{
                         id: `trig_next_${Date.now()}`,
                         name: 'Go to Next Screen',
@@ -7941,9 +8092,226 @@ const AppBuilder = () => {
         }
         toast.success(
             mode === 'BOTH'
-                ? '✨ Base Layout Header (Atas) & Footer (Bawah) berhasil diperbarui!'
-                : (mode === 'HEADER_ONLY' ? '✨ Header Bar (Atas) berhasil ditambahkan ke Base Layout!' : '✨ Footer Bar (Bawah) berhasil ditambahkan ke Base Layout!')
+                ? '✨ Base Layout Tulip 1:1 (Header & Footer) berhasil diperbarui!'
+                : (mode === 'HEADER_ONLY' ? '✨ Tulip Header Bar berhasil diterapkan!' : '✨ Tulip Footer Bar berhasil diterapkan!')
         );
+    };
+
+    const handleApplyTulipMachineTerminalTemplate = () => {
+        saveHistory();
+        const cW = 1280;
+        const cH = 720;
+
+        setAppName('Machine Terminal');
+        setAppBackgroundColor('#f1f5f9');
+        setPreviewDevice('RESPONSIVE');
+        setScalingMode('FIT_WIDTH');
+
+        handleGenerateTulipBaseLayout('BOTH', false, { width: cW, height: cH });
+
+        const ts = Date.now();
+        const terminalComponents = [
+            // Row 1 - Left: METRICS Card
+            {
+                id: `c_metrics_bg_${ts}`,
+                name: 'card_metrics_bg',
+                displayName: 'Metrics Card',
+                type: 'SHAPE_RECTANGLE',
+                x: 16, y: 68, w: 610, h: 110,
+                props: { shapeVariant: 'rectangle', backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderWidth: 1, borderRadius: 8, zIndex: 100 }
+            },
+            {
+                id: `c_metrics_lbl_${ts}`,
+                name: 'label_metrics',
+                displayName: 'Metrics Label',
+                type: 'TEXT',
+                x: 28, y: 76, w: 120, h: 18,
+                props: { text: 'METRICS', fontSize: 11, fontBold: true, textColor: '#64748b', zIndex: 101 }
+            },
+            {
+                id: `c_metrics_vals_${ts}`,
+                name: 'text_metrics_values',
+                displayName: 'Metrics Values',
+                type: 'TEXT',
+                x: 28, y: 94, w: 586, h: 72,
+                props: {
+                    text: '33.5%       66.6%       51.1%       98.3%\nOEE          AVAILABILITY   PERFORMANCE      QUALITY',
+                    fontSize: 16, fontBold: true, textAlign: 'center', textAlignment: 1, textColor: '#0f172a', zIndex: 102
+                }
+            },
+
+            // Row 1 - Right: 3 KPI Cards
+            // 1. PARTS MADE
+            {
+                id: `c_parts_bg_${ts}`,
+                name: 'card_parts_made',
+                type: 'SHAPE_RECTANGLE',
+                x: 642, y: 68, w: 196, h: 110,
+                props: { shapeVariant: 'rectangle', backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderWidth: 1, borderRadius: 8, zIndex: 100 }
+            },
+            {
+                id: `c_parts_txt_${ts}`,
+                name: 'text_parts_made',
+                type: 'TEXT',
+                x: 652, y: 76, w: 176, h: 56,
+                props: { text: 'PARTS MADE\n5297', fontSize: 11, fontBold: true, textAlign: 'center', textAlignment: 1, textColor: '#0f172a', zIndex: 101 }
+            },
+            {
+                id: `c_parts_btn_${ts}`,
+                name: 'btn_add_part',
+                type: 'BUTTON',
+                x: 658, y: 136, w: 164, h: 30,
+                props: { label: 'ADD', text: 'ADD', backgroundColor: '#3b82f6', textColor: '#ffffff', borderRadius: 4, fontWeight: 'bold', fontSize: 12, zIndex: 102 }
+            },
+
+            // 2. DEFECTS
+            {
+                id: `c_defects_bg_${ts}`,
+                name: 'card_defects',
+                type: 'SHAPE_RECTANGLE',
+                x: 852, y: 68, w: 196, h: 110,
+                props: { shapeVariant: 'rectangle', backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderWidth: 1, borderRadius: 8, zIndex: 100 }
+            },
+            {
+                id: `c_defects_txt_${ts}`,
+                name: 'text_defects',
+                type: 'TEXT',
+                x: 862, y: 76, w: 176, h: 56,
+                props: { text: 'DEFECTS\n89', fontSize: 11, fontBold: true, textAlign: 'center', textAlignment: 1, textColor: '#0f172a', zIndex: 101 }
+            },
+            {
+                id: `c_defects_btn_${ts}`,
+                name: 'btn_add_defect',
+                type: 'BUTTON',
+                x: 868, y: 136, w: 164, h: 30,
+                props: { label: 'ADD', text: 'ADD', backgroundColor: '#3b82f6', textColor: '#ffffff', borderRadius: 4, fontWeight: 'bold', fontSize: 12, zIndex: 102 }
+            },
+
+            // 3. PARTS / HR
+            {
+                id: `c_rate_bg_${ts}`,
+                name: 'card_rate',
+                type: 'SHAPE_RECTANGLE',
+                x: 1062, y: 68, w: 202, h: 110,
+                props: { shapeVariant: 'rectangle', backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderWidth: 1, borderRadius: 8, zIndex: 100 }
+            },
+            {
+                id: `c_rate_txt_${ts}`,
+                name: 'text_rate',
+                type: 'TEXT',
+                x: 1072, y: 76, w: 182, h: 56,
+                props: { text: 'PARTS / HR\n700', fontSize: 11, fontBold: true, textAlign: 'center', textAlignment: 1, textColor: '#0f172a', zIndex: 101 }
+            },
+            {
+                id: `c_rate_btn_${ts}`,
+                name: 'btn_change_rate',
+                type: 'BUTTON',
+                x: 1078, y: 136, w: 170, h: 30,
+                props: { label: 'CHANGE', text: 'CHANGE', backgroundColor: '#3b82f6', textColor: '#ffffff', borderRadius: 4, fontWeight: 'bold', fontSize: 12, zIndex: 102 }
+            },
+
+            // Row 2 - Left: CURRENT STATUS
+            {
+                id: `c_status_bg_${ts}`,
+                name: 'card_status_bg',
+                type: 'SHAPE_RECTANGLE',
+                x: 16, y: 190, w: 610, h: 466,
+                props: { shapeVariant: 'rectangle', backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderWidth: 1, borderRadius: 8, zIndex: 100 }
+            },
+            {
+                id: `c_status_lbl_${ts}`,
+                name: 'label_current_status',
+                type: 'TEXT',
+                x: 28, y: 200, w: 200, h: 20,
+                props: { text: 'CURRENT STATUS', fontSize: 11, fontBold: true, textColor: '#64748b', zIndex: 101 }
+            },
+            {
+                id: `c_machine_badge_${ts}`,
+                name: 'badge_dmg_mori',
+                type: 'TEXT',
+                x: 28, y: 228, w: 170, h: 160,
+                props: {
+                    text: 'DMG Mori\n\n22:58\nRunning',
+                    fontSize: 14, fontBold: true, backgroundColor: '#15803d', textColor: '#ffffff', textAlign: 'center', textAlignment: 1, borderRadius: 6, zIndex: 102
+                }
+            },
+            {
+                id: `c_pareto_chart_${ts}`,
+                name: 'chart_downtime_pareto',
+                displayName: 'Downtime Pareto',
+                type: 'CHART',
+                x: 210, y: 228, w: 404, h: 160,
+                props: {
+                    title: 'Downtime Pareto - Today',
+                    chartType: 'bar',
+                    labels: ['No Operator', 'M/C Malfunction', 'Tool Break', 'No Material', 'Clean Up'],
+                    datasets: [{ label: 'Minutes', data: [45, 38, 14, 8, 4], backgroundColor: '#0284c7' }],
+                    zIndex: 102
+                }
+            },
+            {
+                id: `c_uptime_timeline_${ts}`,
+                name: 'timeline_machine_uptime',
+                displayName: 'Machine Uptime Timeline',
+                type: 'MACHINE_TIMELINE',
+                x: 28, y: 406, w: 586, h: 230,
+                props: {
+                    title: 'Machine Uptime - DMG Mori (9:00:00 AM - 12:00:00 PM)',
+                    machineId: 'DMG Mori',
+                    zIndex: 102
+                }
+            },
+
+            // Row 2 - Right: NOTES
+            {
+                id: `c_notes_bg_${ts}`,
+                name: 'card_notes_bg',
+                type: 'SHAPE_RECTANGLE',
+                x: 642, y: 190, w: 622, h: 466,
+                props: { shapeVariant: 'rectangle', backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderWidth: 1, borderRadius: 8, zIndex: 100 }
+            },
+            {
+                id: `c_notes_lbl_${ts}`,
+                name: 'label_notes',
+                type: 'TEXT',
+                x: 654, y: 200, w: 200, h: 20,
+                props: { text: 'NOTES', fontSize: 11, fontBold: true, textColor: '#64748b', zIndex: 101 }
+            },
+            {
+                id: `c_notes_tbl_${ts}`,
+                name: 'table_machine_notes',
+                displayName: 'Notes Log Table',
+                type: 'INTERACTIVE_TABLE',
+                x: 654, y: 228, w: 598, h: 350,
+                props: {
+                    title: 'Operator & Maintenance Notes',
+                    columns: ['Updated by', 'Notes', 'Last Updated'],
+                    data: [
+                        { 'Updated by': 'Sarah Ashley', 'Notes': 'Machine went offline for maintenance', 'Last Updated': '2021-01-15 14:30:12' },
+                        { 'Updated by': 'Operator 01', 'Notes': 'Tool offset calibration complete', 'Last Updated': '2021-01-15 11:15:00' },
+                        { 'Updated by': 'Supervisor', 'Notes': 'Shift handover approved without issues', 'Last Updated': '2021-01-15 09:00:00' }
+                    ],
+                    zIndex: 102
+                }
+            },
+            {
+                id: `c_add_note_btn_${ts}`,
+                name: 'btn_add_note',
+                type: 'BUTTON',
+                x: 1122, y: 598, w: 130, h: 38,
+                props: { label: 'ADD NOTE', text: 'ADD NOTE', backgroundColor: '#3b82f6', textColor: '#ffffff', borderRadius: 4, fontWeight: 'bold', fontSize: 12, zIndex: 103 }
+            }
+        ];
+
+        setSteps([{
+            id: `step_terminal_${ts}`,
+            title: 'Machine Terminal',
+            stepType: 'Step',
+            backgroundColor: '#f1f5f9',
+            components: terminalComponents
+        }]);
+        setCurrentStepId(`step_terminal_${ts}`);
+        toast.success('🎉 Template Tulip Machine Terminal (Gambar 2) berhasil diterapkan!', { duration: 3000 });
     };
     handleGenerateTulipBaseLayoutRef.current = handleGenerateTulipBaseLayout;
 
@@ -9499,7 +9867,10 @@ const AppBuilder = () => {
                     fontSize: `${comp.props.fontSize || 14}px`,
                     fontWeight: (comp.props.fontBold || comp.props.fontWeight === 'bold') ? 'bold' : 'normal',
                     fontStyle: comp.props.fontItalic ? 'italic' : 'normal',
-                    textAlign: txtAlignMap[comp.props.textAlignment] || 'left',
+                    textAlign: txtAlignMap[comp.props.textAlignment] || comp.props.textAlign || 'left',
+                    display: (comp.props.textAlign === 'center' || comp.props.textAlignment === 1) ? 'flex' : 'block',
+                    alignItems: (comp.props.textAlign === 'center' || comp.props.textAlignment === 1) ? 'center' : 'stretch',
+                    justifyContent: (comp.props.textAlign === 'center' || comp.props.textAlignment === 1) ? 'center' : 'flex-start',
                     padding: comp.props.hasMargins !== false ? '4px 8px' : '0px',
                     wordBreak: 'break-word',
                     whiteSpace: 'pre-wrap',
@@ -14028,7 +14399,7 @@ const AppBuilder = () => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 if (!currentAppId) {
-                                    toast.error('Please save the app first.');
+                                    toast.error('Please save the app first.', { duration: 4000 });
                                     return;
                                 }
                                 if (handleSave) {
@@ -14075,7 +14446,7 @@ const AppBuilder = () => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 if (!currentAppId) {
-                                    toast.error('Please save the app first.');
+                                    toast.error('Please save the app first.', { duration: 4000 });
                                     return;
                                 }
                                 if (window.location.search) {
@@ -25796,7 +26167,7 @@ D3:0
                                             {baseComponents.length === 0 && (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                                     <label style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                                        Quick Layout Generators
+                                                        Tulip Layout Generators (Gambar 2)
                                                     </label>
                                                     <button
                                                         onClick={() => handleGenerateTulipBaseLayout('BOTH')}
@@ -25805,19 +26176,40 @@ D3:0
                                                             alignItems: 'center',
                                                             justifyContent: 'center',
                                                             gap: '8px',
-                                                            padding: '12px 14px',
+                                                            padding: '11px 14px',
+                                                            backgroundColor: '#384353',
+                                                            color: '#ffffff',
+                                                            border: '1px solid rgba(255,255,255,0.15)',
+                                                            borderRadius: '8px',
+                                                            cursor: 'pointer',
+                                                            fontWeight: 700,
+                                                            fontSize: '0.84rem',
+                                                            boxShadow: '0 2px 6px rgba(0, 0, 0, 0.2)'
+                                                        }}
+                                                    >
+                                                        <Sparkles size={16} color="#38bdf8" />
+                                                        <span>✨ Terapkan Base Layout Tulip (Gambar 2)</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={handleApplyTulipMachineTerminalTemplate}
+                                                        style={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            gap: '8px',
+                                                            padding: '11px 14px',
                                                             backgroundColor: '#0284c7',
                                                             color: '#ffffff',
                                                             border: 'none',
                                                             borderRadius: '8px',
                                                             cursor: 'pointer',
                                                             fontWeight: 700,
-                                                            fontSize: '0.85rem',
-                                                            boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)'
+                                                            fontSize: '0.84rem',
+                                                            boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)'
                                                         }}
                                                     >
-                                                        <Sparkles size={16} />
-                                                        <span>✨ Buat Mandor Header & Footer</span>
+                                                        <Monitor size={16} />
+                                                        <span>💻 Terapkan Full App Machine Terminal (Gambar 2)</span>
                                                     </button>
                                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                                                         <button
@@ -25861,17 +26253,26 @@ D3:0
                                                         Widgets on Base Layout ({baseComponents.length})
                                                     </label>
                                                     {baseComponents.length > 0 && (
-                                                        <button
-                                                            onClick={() => {
-                                                                if (window.confirm('Kosongkan semua widget di Base Layout?')) {
-                                                                    saveHistory();
-                                                                    setBaseComponents([]);
-                                                                }
-                                                            }}
-                                                            style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}
-                                                        >
-                                                            Hapus Semua
-                                                        </button>
+                                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                            <button
+                                                                onClick={() => handleGenerateTulipBaseLayout('BOTH')}
+                                                                title="Ganti ke Base Layout Tulip 1:1 (Header & Footer)"
+                                                                style={{ background: 'none', border: 'none', color: '#0284c7', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}
+                                                            >
+                                                                🔄 Reset ke Tulip
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    if (window.confirm('Kosongkan semua widget di Base Layout?')) {
+                                                                        saveHistory();
+                                                                        setBaseComponents([]);
+                                                                    }
+                                                                }}
+                                                                style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}
+                                                            >
+                                                                Hapus Semua
+                                                            </button>
+                                                        </div>
                                                     )}
                                                 </div>
 
@@ -30071,6 +30472,7 @@ D3:0
                 initialPrompt={jarvisPendingPrompt}
                 onClearInitialPrompt={() => setJarvisPendingPrompt(null)}
                 onGeneratingChange={setIsJarvisCoding}
+                onFinishAssembly={handleRunLiveCrudRealtimeTest}
                 context={{
                     currentStepName: currentStep?.title,
                     currentStepId: currentStepId,
@@ -30145,10 +30547,10 @@ D3:0
                 speak={ghostPilot.speakJarvis}
                 onOk={() => {
                     ghostPilot.setShowReviewDialog(false);
-                    // Launch simulator test based on App Registry
+                    // Launch real-time live CRUD test & simulator
                     setTimeout(() => {
-                        handleRunAppRegistrySimulator();
-                    }, 400);
+                        handleRunLiveCrudRealtimeTest();
+                    }, 300);
                 }}
                 onSubmitRevision={(revisionPrompt) => {
                     setJarvisPendingPrompt(`Revisi: ${revisionPrompt}`);
@@ -30195,6 +30597,30 @@ D3:0
                 onOpenTestStudio={() => setIsTestStudioOpen(true)}
                 speak={ghostPilot.speakJarvis}
             />
+
+            {/* Comprehensive App Testing Panel */}
+            {showComprehensiveTestPanel && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        top: '64px',
+                        right: '12px',
+                        bottom: '12px',
+                        width: '480px',
+                        zIndex: 1001,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        maxHeight: 'calc(100vh - 88px)'
+                    }}
+                >
+                    <AppTestingPanel
+                        appConfig={{ steps, tables, recordPlaceholders, appVariables }}
+                        onRunTests={handleRunComprehensiveTest}
+                        testResults={comprehensiveTestResults}
+                        isRunning={isRunningComprehensiveTest}
+                    />
+                </div>
+            )}
 
             {/* Speed Dial Fly Button: Copilot & Sandbox */}
             {copilotEnabled && (
@@ -30471,6 +30897,65 @@ D3:0
                                         </div>
                                         <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
                                             App Registry & Testing
+                                        </span>
+                                    </div>
+                                </button>
+
+                                {/* Quick App Testing - Comprehensive Widget Validation */}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsCopilotMenuOpen(false);
+                                        handleRunComprehensiveTest();
+                                    }}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px',
+                                        padding: '8px 16px 8px 12px',
+                                        borderRadius: '9999px',
+                                        background: 'linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%)',
+                                        border: '1.5px solid rgba(139, 92, 246, 0.5)',
+                                        color: '#ffffff',
+                                        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 15px rgba(139, 92, 246, 0.3)',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.transform = 'translateY(-2px) scale(1.03)';
+                                        e.currentTarget.style.borderColor = '#c4b5fd';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                                        e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.5)';
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            width: '32px',
+                                            height: '32px',
+                                            borderRadius: '50%',
+                                            background: 'linear-gradient(135deg, #7c3aed 0%, #db2777 100%)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: '#ffffff',
+                                            boxShadow: '0 2px 8px rgba(124, 58, 237, 0.5)'
+                                        }}
+                                    >
+                                        <Shield size={16} />
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#f8fafc' }}>
+                                                Quick Test
+                                            </span>
+                                            <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', backgroundColor: 'rgba(139, 92, 246, 0.25)', color: '#c4b5fd' }}>
+                                                Widget Validation
+                                            </span>
+                                        </div>
+                                        <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
+                                            Binding, Triggers & Navigation
                                         </span>
                                     </div>
                                 </button>

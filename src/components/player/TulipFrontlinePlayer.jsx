@@ -5,7 +5,8 @@ import {
   Battery, X, Sparkles, Layers
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
-import toast, { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';
+import ProToaster from '../common/ProToaster';
 import { getAllFrontlineApps } from '../../utils/supabaseFrontlineDB';
 import { getAllUsers, getCurrentUser } from '../../utils/auth';
 import { useBarcodeScannerWedge } from '../../hooks/useBarcodeScannerWedge';
@@ -579,8 +580,6 @@ export default function TulipFrontlinePlayer() {
       overflow: 'hidden',
       userSelect: 'none'
     }}>
-      <Toaster position="top-right" toastOptions={{ style: { background: '#1e293b', color: '#fff', fontSize: '0.85rem' } }} />
-
       {/* ──────────────────────────────────────────────────────────────────────────
           TULIP PLAYER TOP BAR (Persistent Frontline Header)
       ────────────────────────────────────────────────────────────────────────── */}

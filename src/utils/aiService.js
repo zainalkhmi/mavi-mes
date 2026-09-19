@@ -624,36 +624,50 @@ Output your plan inside a <builder_cmds> block with valid JSON:
       "type": "ADD_WIDGET",
       "payload": {
         "stepTitle": "1. Dashboard Produksi",
-        "type": "Card",
-        "displayName": "OEE Metric Card",
-        "props": { "title": "OEE Line 1", "content": "88.5% Target Achieved" }
+        "type": "SHAPE_RECTANGLE",
+        "displayName": "Card Container Dashboard",
+        "x": 20, "y": 80, "w": 960, "h": 460,
+        "props": { "backgroundColor": "#ffffff", "borderRadius": 12, "borderWidth": 1, "bordercolor": "#e2e8f0" }
       }
     },
     {
       "type": "ADD_WIDGET",
       "payload": {
         "stepTitle": "1. Dashboard Produksi",
-        "type": "Progress",
-        "displayName": "Target Output Progress",
-        "props": { "label": "Shift Output Progress", "value": 85 }
+        "type": "TEXT",
+        "displayName": "Header Dashboard",
+        "x": 40, "y": 100, "w": 400, "h": 32,
+        "props": { "text": "📊 Monitoring Jalur Produksi Utama", "fontSize": 20, "fontWeight": "bold", "color": "#0f172a" }
       }
     },
     {
       "type": "ADD_WIDGET",
       "payload": {
         "stepTitle": "1. Dashboard Produksi",
-        "type": "Badge",
-        "displayName": "Machine Status Badge",
-        "props": { "text": "MESIN: RUNNING", "action": "success" }
+        "type": "MACHINE_STATUS",
+        "displayName": "Status Mesin 1",
+        "x": 40, "y": 150, "w": 280, "h": 90,
+        "props": { "status": "RUNNING", "label": "CNC Milling Station 01" }
       }
     },
     {
       "type": "ADD_WIDGET",
       "payload": {
         "stepTitle": "1. Dashboard Produksi",
-        "type": "Button",
+        "type": "GAUGE",
+        "displayName": "OEE Gauge",
+        "x": 340, "y": 150, "w": 280, "h": 90,
+        "props": { "label": "Efisiensi OEE Shift", "value": 88, "unit": "%", "color": "#2563eb" }
+      }
+    },
+    {
+      "type": "ADD_WIDGET",
+      "payload": {
+        "stepTitle": "1. Dashboard Produksi",
+        "type": "BUTTON",
         "displayName": "BtnKeDataTabel",
-        "props": { "text": "Lihat Data Tabel & Log ➔", "variant": "primary" }
+        "x": 720, "y": 470, "w": 240, "h": 48,
+        "props": { "text": "Buka Halaman Riwayat & Log ➔", "backgroundColor": "#2563eb", "color": "#ffffff", "fontWeight": "bold", "shape": 1 }
       }
     },
     {
@@ -677,15 +691,37 @@ Output your plan inside a <builder_cmds> block with valid JSON:
       "type": "ADD_WIDGET",
       "payload": {
         "stepTitle": "2. Data Tabel & Log",
-        "type": "Table",
+        "type": "SHAPE_RECTANGLE",
+        "displayName": "Card Container Tabel",
+        "x": 20, "y": 80, "w": 960, "h": 460,
+        "props": { "backgroundColor": "#ffffff", "borderRadius": 12, "borderWidth": 1, "bordercolor": "#e2e8f0" }
+      }
+    },
+    {
+      "type": "ADD_WIDGET",
+      "payload": {
+        "stepTitle": "2. Data Tabel & Log",
+        "type": "TEXT",
+        "displayName": "Header Tabel",
+        "x": 40, "y": 100, "w": 400, "h": 32,
+        "props": { "text": "📋 Log Riwayat Data & Work Order", "fontSize": 20, "fontWeight": "bold", "color": "#0f172a" }
+      }
+    },
+    {
+      "type": "ADD_WIDGET",
+      "payload": {
+        "stepTitle": "2. Data Tabel & Log",
+        "type": "INTERACTIVE_TABLE",
         "displayName": "Tabel Log Monitoring",
+        "x": 40, "y": 150, "w": 920, "h": 280,
         "props": {
+          "tableId": "monitoring_produksi",
           "title": "Tabel Monitoring Produksi Pabrik",
-          "headers": ["Work Order", "Mesin", "OEE", "Status"],
-          "rows": [
-            ["WO-901", "CNC Mill 1", "88%", "RUNNING"],
-            ["WO-902", "Lathe 3", "92%", "RUNNING"],
-            ["WO-903", "Stamping 2", "76%", "MAINTENANCE"]
+          "columns": [
+            { "header": "Work Order", "key": "work_order" },
+            { "header": "Mesin", "key": "mesin" },
+            { "header": "OEE", "key": "oee" },
+            { "header": "Status", "key": "status" }
           ]
         }
       }
@@ -694,9 +730,10 @@ Output your plan inside a <builder_cmds> block with valid JSON:
       "type": "ADD_WIDGET",
       "payload": {
         "stepTitle": "2. Data Tabel & Log",
-        "type": "Button",
+        "type": "BUTTON",
         "displayName": "BtnKembaliDashboard",
-        "props": { "text": "⬅ Kembali ke Dashboard", "variant": "outline" }
+        "x": 40, "y": 470, "w": 220, "h": 48,
+        "props": { "text": "⬅ Kembali ke Dashboard", "backgroundColor": "#64748b", "color": "#ffffff", "fontWeight": "bold", "shape": 1 }
       }
     },
     {
@@ -898,18 +935,18 @@ Vertical: header y=0 h=${canvasWidth < 500 ? 56 : 64}, content starts y=${canvas
 📋 WIDGET PROPS REFERENCE
 ════════════════════════════════════════════════
 TEXT: {text, fontSize, color, fontWeight:"bold|normal", textAlignment:0/1/2, backgroundColor}
-TEXT_INPUT: {hint, text, textcolor, backgroundColor, enabled:true, readOnly:false, multiLine:false}
-TEXT_AREA: {hint, text, textcolor, backgroundColor, multiLine:true}
-NUMBER_INPUT: {label, value:0, min:0, max:100, step:1}
+TEXT_INPUT: {hint, text, textcolor, backgroundColor, enabled:true, readOnly:false, multiLine:false, targetVariable:""}
+TEXT_AREA: {hint, text, textcolor, backgroundColor, multiLine:true, targetVariable:""}
+NUMBER_INPUT: {label, value:0, min:0, max:100, step:1, targetVariable:""}
 BUTTON: {text, backgroundColor, color, fontSize:14, fontWeight:"bold", shape:1, textAlignment:1}
-DROPDOWN: {elements:["Option 1","Option 2"], prompt:"Select...", backgroundColor, textcolor}
-MULTI_SELECT: {options:["A","B"], placeholder:"Select...", maxSelections:5}
-RADIO_GROUP: {label:"Choose:", options:["Option A","Option B"]}
-CHECKBOX: {text:"Label", checked:false, textColor, fontSize:14}
-BOOLEAN_TOGGLE: {text:"Enable", on:false, trackColorActive:"#10b981", trackColorInactive:"#94a3b8"}
-SLIDER: {minValue:0, maxValue:100, defaultValue:50, colorLeft:"#3b82f6", colorRight:"#e2e8f0"}
-DATE_PICKER: {text:"", fontSize:14, backgroundColor}
-DATETIME_PICKER: {text:"", fontSize:14}
+DROPDOWN: {elements:["Option 1","Option 2"], prompt:"Select...", backgroundColor, textcolor, targetVariable:""}
+MULTI_SELECT: {options:["A","B"], placeholder:"Select...", maxSelections:5, targetVariable:""}
+RADIO_GROUP: {label:"Choose:", options:["Option A","Option B"], targetVariable:""}
+CHECKBOX: {text:"Label", checked:false, textColor, fontSize:14, targetVariable:""}
+BOOLEAN_TOGGLE: {text:"Enable", on:false, trackColorActive:"#10b981", trackColorInactive:"#94a3b8", targetVariable:""}
+SLIDER: {minValue:0, maxValue:100, defaultValue:50, colorLeft:"#3b82f6", colorRight:"#e2e8f0", targetVariable:""}
+DATE_PICKER: {text:"", fontSize:14, backgroundColor, targetVariable:""}
+DATETIME_PICKER: {text:"", fontSize:14, targetVariable:""}
 VARIABLE_TEXT: {variableName:"", prefix:"", suffix:"", fontSize:16, color, fontWeight:"bold"}
 IMAGE: {picture:"", alternateText:"", scaling:0, clickable:false}
 INTERACTIVE_TABLE: {tableId:"", title:"", columns:[{header:"Name",key:"name"}], enableFilter:true, enableExport:true, pageSize:20}
@@ -1156,12 +1193,17 @@ Pattern 2: Conditional Trigger (Validation / Logic)
 7. CONTEXT-AWARE: Don't duplicate existing widgets/tables/variables. Check current context first!
 8. CROSS-REFERENCE: Use displayName to reference widgets in triggers. Use table name for placeholders.
 9. INDUSTRIAL: Manufacturing → use MACHINE_STATUS, GAUGE, CHECKLIST, SIGNATURE, QUALITY_PASS_FAIL.
-10. MULTI-SCREEN & PAGE 2 (CRITICAL):
-    - When user asks for a 2nd screen/page (e.g. "halaman 2", "screen 2", "buatkan screen kedua", "tambah page 2") OR creates an app with multiple screens:
-      • ALWAYS start by outputting: {type:"ADD_STEP", payload:{title:"Nama Layar 2"}} BEFORE generating widgets for that screen!
-      • In EVERY {type:"ADD_WIDGET"} command for that screen, ALWAYS include "stepTitle": "Nama Layar 2" in payload so Jarvis and the builder mount the widgets directly to that screen!
-      • Add navigation buttons between screens with GO_TO_STEP trigger action: {type:"CREATE_TRIGGER", payload:{event:"ON_CLICK", widgetId:"BtnNavigasi", actions:[{type:"GO_TO_STEP", payload:{stepId:"Nama Layar Target"}}]}}
-      • NEVER assume Screen 2 exists without emitting ADD_STEP, and NEVER omit stepTitle in ADD_WIDGET!
+10. MULTI-SCREEN & MULTI-PAGE PRECISION (CRITICAL):
+    - When creating a multi-screen app (or adding 2nd, 3rd, or subsequent pages):
+      • Output ADD_STEP for EVERY screen with numbered descriptive title: e.g. "1. Form Input QC", "2. Data Tabel & Log", "3. Rekap & Summary".
+      • In EVERY {type:"ADD_WIDGET"} command, ALWAYS include "stepTitle" matching the EXACT title of that screen so Jarvis mounts the widget directly to that screen!
+      • On EVERY screen, ALWAYS place a Container Card (SHAPE_RECTANGLE at x:20, y:80, w:Math.min(960, canvasWidth-40), h:460, backgroundColor:"#ffffff") FIRST before any child widgets.
+      • Place all child widgets inside the card with explicit coordinates (x, y, w, h) matching grid multiples of 4. NEVER omit x and y coordinates!
+      • Connect all screens with seamless navigation action buttons + CREATE_TRIGGER:
+        - Screen 1: Lanjut/Next button with GO_TO_STEP trigger to Screen 2.
+        - Screen 2: Kembali/Back button (GO_TO_STEP to Screen 1) and Next button (GO_TO_STEP to Screen 3).
+        - Final Screen: Kembali/Back button and Selesai/Complete button (trigger with COMPLETE_APP or SHOW_NOTIFICATION action).
+      • NEVER assume Screen 2 or Screen 3 exists without emitting ADD_STEP, and NEVER omit stepTitle in ADD_WIDGET!
 11. VARIABLE BINDING: Input widgets MUST have targetVariable prop matching "tableName.columnName" for auto-harvest.
 12. EDIT MODE: When user asks to "change", "update", "modify", "ubah", "ganti", "edit" something → use UPDATE_WIDGET, UPDATE_TRIGGER, UPDATE_VARIABLE, UPDATE_STEP, UPDATE_FUNCTION.
 13. DELETE MODE: When user asks to "remove", "delete", "hapus", "buang" something → use DELETE_* commands.

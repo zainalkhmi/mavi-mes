@@ -180,5 +180,58 @@ describe('Copilot Step & Widget Routing', () => {
         expect(resolveTargetStrict('Screen 2')).toBe(null); // Does NOT falsely match Screen 1 or Screen!
         expect(resolveTargetStrict('Halaman 2')).toBe(null); // Does NOT falsely match Screen 1 or Screen!
     });
+
+    it('uses resolveStepTarget to match ordinal and title variations without creating phantom screens', async () => {
+        const { resolveStepTarget } = await import('../../components/appbuilder/aiHelpers');
+
+        const mockSteps = [
+            { id: 'screen_1', title: '1. Dashboard Produksi', components: [] },
+            { id: 'screen_2', title: '2. Form Input QC', components: [] },
+            { id: 'screen_3', title: '3. Data Tabel & Log', components: [] }
+        ];
+
+        // 1. Exact ID
+        expect(resolveStepTarget(mockSteps, 'screen_1')?.id).toBe('screen_1');
+        expect(resolveStepTarget(mockSteps, 'screen_2')?.id).toBe('screen_2');
+        expect(resolveStepTarget(mockSteps, 'screen_3')?.id).toBe('screen_3');
+
+        // 2. Exact Title
+        expect(resolveStepTarget(mockSteps, '1. Dashboard Produksi')?.id).toBe('screen_1');
+        expect(resolveStepTarget(mockSteps, '2. Form Input QC')?.id).toBe('screen_2');
+
+        // 3. Clean Title (omitting numbers)
+        expect(resolveStepTarget(mockSteps, 'Dashboard Produksi')?.id).toBe('screen_1');
+        expect(resolveStepTarget(mockSteps, 'Form Input QC')?.id).toBe('screen_2');
+        expect(resolveStepTarget(mockSteps, 'Data Tabel & Log')?.id).toBe('screen_3');
+
+        // 4. Ordinal references (Screen 2, Halaman 2, Page 2, Layar 2)
+        expect(resolveStepTarget(mockSteps, 'Screen 2')?.id).toBe('screen_2');
+        expect(resolveStepTarget(mockSteps, 'Halaman 2')?.id).toBe('screen_2');
+        expect(resolveStepTarget(mockSteps, 'Page 2')?.id).toBe('screen_2');
+        expect(resolveStepTarget(mockSteps, 'Layar 2')?.id).toBe('screen_2');
+        expect(resolveStepTarget(mockSteps, 'Screen 1')?.id).toBe('screen_1');
+        expect(resolveStepTarget(mockSteps, 'Halaman 1')?.id).toBe('screen_1');
+        expect(resolveStepTarget(mockSteps, 'Screen 3')?.id).toBe('screen_3');
+
+        // 5. Ordinal on unnumbered steps
+        const unnumberedSteps = [
+            { id: 's_dash', title: 'Dashboard', components: [] },
+            { id: 's_form', title: 'Input Form', components: [] }
+        ];
+        expect(resolveStepTarget(unnumberedSteps, 'Screen 1')?.id).toBe('s_dash');
+        expect(resolveStepTarget(unnumberedSteps, 'Screen 2')?.id).toBe('s_form');
+        expect(resolveStepTarget(unnumberedSteps, 'Halaman 2')?.id).toBe('s_form');
+
+        // 6. Base layout
+        expect(resolveStepTarget(mockSteps, 'BASE')?.id).toBe('BASE');
+        expect(resolveStepTarget(mockSteps, 'Base Layout')?.id).toBe('BASE');
+
+        // 7. Non-existent should return null and never falsely match Screen 1
+        const singleStep = [{ id: 'screen_1', title: 'Screen 1', components: [] }];
+        expect(resolveStepTarget(singleStep, 'Screen 2')).toBe(null);
+        expect(resolveStepTarget(mockSteps, 'Screen 99')).toBe(null);
+        expect(resolveStepTarget(mockSteps, 'Unknown Screen')).toBe(null);
+    });
 });
+
 

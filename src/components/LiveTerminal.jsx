@@ -121,7 +121,8 @@ import {
   Compass,
   Sun
 } from 'lucide-react';
-import { toast, Toaster } from 'react-hot-toast';
+import { toast } from 'react-hot-toast';
+import ProToaster from './common/ProToaster';
 import obd2Service from '../utils/obd2Service';
 import automationEngine from '../utils/automationEngine';
 import WebcamComp from 'react-webcam';
@@ -174,7 +175,7 @@ const OBD2_DEFAULT_PIDS = {
   'OBD2_BARO': '0133'
 };
 const DEVICE_PRESETS = {
-  RESPONSIVE: { label: 'Responsive', width: 1000, height: 625, kind: 'RESPONSIVE', icon: LayoutGrid },
+  RESPONSIVE: { label: 'Responsive 16:9', width: 1280, height: 720, kind: 'RESPONSIVE', icon: LayoutGrid },
   PHONE_APP_INVENTOR: { label: 'Phone size (Mobile) (420x750)', width: 420, height: 750, kind: 'PHONE', icon: Smartphone },
   TABLET_APP_INVENTOR: { label: 'Tablet size (480x675)', width: 480, height: 675, kind: 'TABLET', icon: Tablet },
   IPHONE_14: { label: 'iPhone 14 (393x852)', width: 393, height: 852, kind: 'PHONE', icon: Smartphone },
@@ -3364,8 +3365,8 @@ const LiveTerminal = () => {
     const preset = DEVICE_PRESETS[effectivePresetKey] || DEVICE_PRESETS.RESPONSIVE;
     
     if (effectivePresetKey === 'RESPONSIVE') {
-      // Fixed design canvas — will be stretched to fill the full screen via transform scale
-      return { width: 1000, height: 625 };
+      // Fixed design canvas — 16:9 HD widescreen standard matching Tulip laptop terminal
+      return { width: 1280, height: 720 };
     }
     
     return {
@@ -3386,8 +3387,8 @@ const LiveTerminal = () => {
       };
     }
     
-    // 2. Standard Responsive / Desktop canvas default (1000x625)
-    return { width: 1000, height: 625 };
+    // 2. Standard Responsive / Desktop canvas default (1280x720 16:9 Widescreen)
+    return { width: 1280, height: 720 };
   }, [selectedApp]);
 
   const baseComponents = useMemo(() => selectedApp?.config?.baseComponents || [], [selectedApp]);
@@ -4732,15 +4733,6 @@ const LiveTerminal = () => {
         });
       }
     });
-
-    // Fire ON_APP_START triggers (Tulip-style Actions & Blockly)
-    if (app.config?.appTriggers) {
-      const startTriggers = app.config.appTriggers.filter(t => t.event === 'ON_APP_START');
-      for (const trig of startTriggers) {
-        await executeTrigger(trig);
-      }
-    }
-    executeBlocklyLogic('ON_APP_START');
 
     // Fire ON_STEP_ENTER for the first step
     const firstStep = appSteps[0];
@@ -14406,7 +14398,6 @@ const LiveTerminal = () => {
           50% { opacity: 0.5; transform: scale(0.85); }
         }
       `}</style>
-      <Toaster position="top-right" />
     </div>
   );
 };

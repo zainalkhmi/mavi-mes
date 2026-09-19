@@ -93,3 +93,106 @@ export const sanitizeComponentCoords = (comp, compType) => {
 
     return normalized;
 };
+
+/**
+ * Extract step/screen number from title or key (handles 1, 2, 'satu', 'dua', 'kedua', etc.)
+ */
+export const getStepNumber = (str) => {
+    const s = String(str || '').toLowerCase();
+    const m = /\b([0-9]+)\b/.exec(s);
+    if (m) return parseInt(m[1], 10);
+    if (/\b(1|satu|pertama|first)\b/i.test(s)) return 1;
+    if (/\b(2|dua|kedua|second)\b/i.test(s)) return 2;
+    if (/\b(3|tiga|ketiga|third)\b/i.test(s)) return 3;
+    if (/\b(4|empat|keempat|fourth)\b/i.test(s)) return 4;
+    if (/\b(5|lima|kelima|fifth)\b/i.test(s)) return 5;
+    if (/\b(6|enam|keenam|sixth)\b/i.test(s)) return 6;
+    if (/\b(7|tujuh|ketujuh|seventh)\b/i.test(s)) return 7;
+    if (/\b(8|delapan|kedelapan|eighth)\b/i.test(s)) return 8;
+    if (/\b(9|sembilan|kesembilan|ninth)\b/i.test(s)) return 9;
+    if (/\b(10|sepuluh|kesepuluh|tenth)\b/i.test(s)) return 10;
+    return null;
+};
+
+/**
+ * Clean step title by removing leading step/screen numbers and symbols
+ */
+export const cleanStepTitle = (str) => String(str || '').toLowerCase()
+    .replace(/^(step|screen|halaman|layar|page)?\s*[0-9]+[\.\:\-\s]*/i, '')
+    .replace(/[^a-z0-9]/g, ' ')
+    .trim();
+
+/**
+ * Robust step resolver for multi-screen apps.
+ * Resolves target key (ID, exact title, ordinal like "Screen 2", or clean name) to the step object.
+ */
+export const resolveStepTarget = (steps = [], targetKey = '') => {
+    if (!targetKey || !Array.isArray(steps) || steps.length === 0) return null;
+
+    const rawKey = String(targetKey).trim();
+    const lowerKey = rawKey.toLowerCase();
+
+    // 1. Check Base Layout
+    if (lowerKey === 'base' || lowerKey === 'base layout' || lowerKey === 'baselayout' || lowerKey.includes('base layout') || lowerKey.includes('master template')) {
+        return { id: 'BASE', title: 'Base Layout' };
+    }
+
+    // 2. Exact ID match
+    const matchById = steps.find(s => s && s.id === rawKey);
+    if (matchById) return matchById;
+
+    // 3. Exact Title match (case-insensitive, trimmed)
+    const matchByTitle = steps.find(s => String(s?.title || '').trim().toLowerCase() === lowerKey);
+    if (matchByTitle) return matchByTitle;
+
+    // 4. Generic ordinal matching (e.g. "Screen 2", "Halaman 2", "Page 2", "Layar 2", "Step 2")
+    const isGenericOrdinal = /^(screen|halaman|page|layar|step)\s*([0-9]+|satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan|sepuluh|pertama|kedua|ketiga|keempat|kelima|first|second|third|fourth|fifth)$/i.test(rawKey);
+    const targetNum = getStepNumber(rawKey);
+
+    if (isGenericOrdinal && targetNum !== null) {
+        // Find step with explicit number in title matching targetNum
+        const matchByTitleNum = steps.find(s => s && getStepNumber(s.title) === targetNum);
+        if (matchByTitleNum) return matchByTitleNum;
+
+        // Fallback to array index if valid
+        if (steps[targetNum - 1]) {
+            return steps[targetNum - 1];
+        }
+    }
+
+    // 5. Cleaned Title match (ignoring prefixes like "1. ", "Screen 2: ", etc.)
+    const cleanedKey = cleanStepTitle(rawKey);
+    if (cleanedKey && cleanedKey.length >= 3) {
+        const matchByClean = steps.find(s => s && cleanStepTitle(s.title) === cleanedKey);
+        if (matchByClean) return matchByClean;
+    }
+
+    // 6. Substring & Fuzzy match with number conflict guard
+    const matchFuzzy = steps.find(s => {
+        if (!s) return false;
+        const sTitle = String(s.title || '').trim().toLowerCase();
+        if (!sTitle) return false;
+
+        const sNum = getStepNumber(sTitle);
+        // Number guard: Never match step 1 with step 2
+        if (targetNum !== null && sNum !== null && targetNum !== sNum) {
+            return false;
+        }
+
+        const sClean = cleanStepTitle(sTitle);
+        if (cleanedKey && sClean && (sClean.includes(cleanedKey) || cleanedKey.includes(sClean))) {
+            return true;
+        }
+
+        return sTitle.includes(lowerKey) || (lowerKey.length >= 4 && lowerKey.includes(sTitle));
+    });
+
+    if (matchFuzzy) return matchFuzzy;
+
+    // 7. Last resort for ordinal if number matches step position
+    if (targetNum !== null && steps[targetNum - 1]) {
+        return steps[targetNum - 1];
+    }
+
+    return null;
+};

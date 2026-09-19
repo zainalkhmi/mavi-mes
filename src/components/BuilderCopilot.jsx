@@ -309,6 +309,7 @@ const BuilderCopilot = ({
   initialPrompt = null,
   onClearInitialPrompt = null,
   onGeneratingChange = null,
+  onFinishAssembly = null,
 }) => {
   const STORAGE_KEY = 'mandor_copilot_history';
 
@@ -1153,6 +1154,12 @@ Apa yang bisa kamu bantu untuk widget ini?`;
       ...prev,
       isActive: false
     }));
+
+    if (onFinishAssembly) {
+      setTimeout(() => {
+        onFinishAssembly();
+      }, 400);
+    }
   };
 
   // ── GHOST PILOT RPA EXECUTION HANDLER ──────────────────────────────────────
@@ -1194,6 +1201,7 @@ Apa yang bisa kamu bantu untuk widget ini?`;
       onStartGhostPilot({
         commands: commandsToExecute,
         planDescription: planDesc,
+        onFinish: onFinishAssembly,
         onSnapshot: async () => {
           try {
             await onApplyCommand({ type: 'CREATE_SNAPSHOT', payload: {} });

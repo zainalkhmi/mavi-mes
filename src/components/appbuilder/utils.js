@@ -4,7 +4,7 @@ import {
 } from 'lucide-react';
 
 export const DEVICE_PRESETS = {
-    RESPONSIVE: { label: 'Responsive', width: null, height: null, icon: LayoutGrid, kind: 'RESPONSIVE' },
+    RESPONSIVE: { label: 'Responsive 16:9 (Fit Screen)', width: 1280, height: 720, icon: LayoutGrid, kind: 'RESPONSIVE' },
     PHONE_APP_INVENTOR: { label: 'Phone size (Mobile) (420x750)', width: 420, height: 750, icon: Smartphone, kind: 'PHONE' },
     TABLET_APP_INVENTOR: { label: 'Tablet size (480x675)', width: 480, height: 675, icon: Tablet, kind: 'TABLET' },
     IPHONE_14: { label: 'iPhone 14 (393x852)', width: 393, height: 852, icon: Smartphone, kind: 'PHONE' },
