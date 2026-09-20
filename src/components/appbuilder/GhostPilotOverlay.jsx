@@ -3,11 +3,18 @@ import {
   Play, Pause, Square, Volume2, VolumeX, Sparkles, Bot,
   MousePointer2, ChevronUp, ChevronDown, Activity, Zap
 } from 'lucide-react';
+import RobotArmCursor, { RobotArmHUD } from './RobotArmCursor';
 
 /**
  * GhostPilotOverlay
- * High-tech visual overlay rendering the Ghost Cursor and Floating Jarvis HUD
+ * High-tech visual overlay rendering the Ghost Cursor / Robot Arm and Floating HUD
  * when Ghost Pilot RPA is autonomously building apps in AppBuilder.
+ *
+ * Features:
+ * - Robot Arm Cursor (industrial robot arm visual)
+ * - Ghost Cursor (classic hologram cursor)
+ * - RobotArmHUD (status panel)
+ * - Toggle between robot arm and ghost cursor modes
  */
 export default function GhostPilotOverlay({
   isRunning,
@@ -24,9 +31,11 @@ export default function GhostPilotOverlay({
   setVoiceEnabled,
   onPause,
   onResume,
-  onStop
+  onStop,
+  cursorMode = 'robot-arm' // 'robot-arm' | 'ghost' | 'both'
 }) {
   const [isMinimized, setIsMinimized] = useState(false);
+  const [useRobotArm, setUseRobotArm] = useState(true); // Toggle between robot arm and ghost
 
   if (!isRunning) return null;
 
@@ -42,54 +51,84 @@ export default function GhostPilotOverlay({
         overflow: 'hidden'
       }}
     >
-      {/* ─── 1. GHOST CURSOR (Smooth Glide & Click Ripple) ───────────────── */}
-      <div
-        style={{
-          position: 'absolute',
-          left: cursorPos.x,
-          top: cursorPos.y,
-          transform: 'translate(-6px, -6px)',
-          transition: 'left 0.45s cubic-bezier(0.25, 1, 0.5, 1), top 0.45s cubic-bezier(0.25, 1, 0.5, 1)',
-          pointerEvents: 'none',
-          zIndex: 100000
-        }}
-      >
-        {/* Glow halo */}
+      {/* ─── ROBOT ARM CURSOR (Industrial Robot Arm) ───────────────────────── */}
+      {(useRobotArm || cursorMode === 'robot-arm' || cursorMode === 'both') && (
+        <RobotArmCursor
+          cursorPos={cursorPos}
+          isRunning={isRunning && !isPaused}
+          isGripping={isClicking}
+          isHovering={false}
+          currentAction={currentActionLabel}
+          speed={speed}
+        />
+      )}
+
+      {/* ─── GHOST CURSOR (Classic Hologram) ──────────────────────────── */}
+      {(!useRobotArm || cursorMode === 'ghost' || cursorMode === 'both') && (
         <div
           style={{
             position: 'absolute',
-            width: '40px',
-            height: '40px',
-            borderRadius: '50%',
-            backgroundColor: 'rgba(59, 130, 246, 0.25)',
-            boxShadow: '0 0 24px rgba(59, 130, 246, 0.8), 0 0 48px rgba(147, 51, 234, 0.4)',
-            transform: 'translate(-50%, -50%)',
-            left: '6px',
-            top: '6px',
-            animation: 'ghostPulse 1.8s infinite ease-in-out'
+            left: cursorPos.x,
+            top: cursorPos.y,
+            transform: 'translate(-6px, -6px)',
+            transition: 'left 0.45s cubic-bezier(0.25, 1, 0.5, 1), top 0.45s cubic-bezier(0.25, 1, 0.5, 1)',
+            pointerEvents: 'none',
+            zIndex: 100000
           }}
-        />
-
-        {/* Click Ripple Wave */}
-        {isClicking && (
+        >
+          {/* Glow halo */}
           <div
             style={{
               position: 'absolute',
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              backgroundColor: 'rgba(59, 130, 246, 0.25)',
+              boxShadow: '0 0 24px rgba(59, 130, 246, 0.8), 0 0 48px rgba(147, 51, 234, 0.4)',
+              transform: 'translate(-50%, -50%)',
               left: '6px',
               top: '6px',
-              width: '60px',
-              height: '60px',
-              borderRadius: '50%',
-              border: '2px solid #38bdf8',
-              transform: 'translate(-50%, -50%) scale(1.6)',
-              opacity: 0,
-              transition: 'transform 0.3s ease-out, opacity 0.3s ease-out'
+              animation: 'ghostPulse 1.8s infinite ease-in-out'
             }}
           />
-        )}
-      </div>
 
-      {/* ─── 2. FLOATING JARVIS HUD (Top Center) ───────────────────────── */}
+          {/* Click Ripple Wave */}
+          {isClicking && (
+            <div
+              style={{
+                position: 'absolute',
+                left: '6px',
+                top: '6px',
+                width: '60px',
+                height: '60px',
+                borderRadius: '50%',
+                border: '2px solid #38bdf8',
+                transform: 'translate(-50%, -50%) scale(1.6)',
+                opacity: 0,
+                transition: 'transform 0.3s ease-out, opacity 0.3s ease-out'
+              }}
+            />
+          )}
+        </div>
+      )}
+
+      {/* ─── ROBOT ARM HUD (Top Status Panel) ──────────────────────────── */}
+      {useRobotArm && (
+        <RobotArmHUD
+          isRunning={isRunning && !isPaused}
+          isGripping={isClicking}
+          currentAction={currentActionLabel}
+          speed={speed}
+          progress={currentStepIndex}
+          total={totalSteps}
+          onSpeedChange={setSpeed}
+          onPause={isPaused ? onResume : onPause}
+          onStop={onStop}
+        />
+      )}
+
+      {/* ─── JARVIS HUD (Top Center - Classic) ────────────────────────── */}
+      {!useRobotArm && (
       <div
         style={{
           position: 'absolute',
@@ -417,7 +456,60 @@ export default function GhostPilotOverlay({
             </div>
           </>
         )}
+
+        {/* Mode Toggle Button */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          padding: '8px',
+          borderTop: '1px solid rgba(56, 189, 248, 0.2)',
+          gap: '8px'
+        }}>
+          <button
+            onClick={() => setUseRobotArm(!useRobotArm)}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '8px',
+              border: '1px solid rgba(0, 229, 255, 0.3)',
+              background: useRobotArm ? 'rgba(0, 229, 255, 0.15)' : 'transparent',
+              color: '#00e5ff',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s'
+            }}
+          >
+            <span style={{ fontSize: '14px' }}>{useRobotArm ? '🦾' : '👻'}</span>
+            {useRobotArm ? 'Robot Arm Mode' : 'Ghost Mode'}
+          </button>
+        </div>
       </div>
+      )}
+
+      {/* Minimize toggle */}
+      <button
+        onClick={() => setIsMinimized(!isMinimized)}
+        style={{
+          position: 'fixed',
+          top: useRobotArm ? '80px' : (isMinimized ? '20px' : '130px'),
+          right: '20px',
+          pointerEvents: 'auto',
+          background: 'rgba(2, 12, 20, 0.9)',
+          border: '1px solid rgba(0, 229, 255, 0.3)',
+          borderRadius: '8px',
+          padding: '8px',
+          cursor: 'pointer',
+          color: '#00e5ff',
+          transition: 'all 0.2s',
+          zIndex: 100002
+        }}
+        title={useRobotArm ? 'Minimize HUD' : (isMinimized ? 'Expand HUD' : 'Minimize HUD')}
+      >
+        {isMinimized ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+      </button>
 
       <style>{`
         @keyframes ghostPulse {

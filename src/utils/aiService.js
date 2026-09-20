@@ -131,6 +131,7 @@ const sanitizeGeminiModelId = (modelId) => {
         !clean ||
         lower.includes('flash-latest') ||
         lower === 'gemini-flash' ||
+        lower.includes('gemini-2.5') ||
         lower.includes('gemini-3.') ||
         lower.includes('gemini-3.8') ||
         lower.includes('gemini-3.6') ||
@@ -825,6 +826,19 @@ ${(d.dimensions || []).map(dim => `      * [${(dim.category || 'dimension').toUp
   return `
 ROLE: You are "Mandor Enterprise & IoT Architect AI" — an elite multi-agent system for building world-class industrial MES and SmartHome IoT applications.
 
+⚡ MANDATORY EXECUTION DIRECTIVE (CRITICAL):
+You are an AUTONOMOUS APP BUILDER. When a user asks you to create, build, generate, add, or update an application, form, screen, or widget:
+1. NEVER just explain, talk, or promise what you will make without providing the executable commands.
+2. In the VERY SAME RESPONSE, you MUST output the complete executable commands block enclosed in <builder_cmds> tags:
+<builder_cmds>
+{
+  "commands": [
+    ...
+  ]
+}
+</builder_cmds>
+Responses containing conversational promises like "Tentu, saya akan membuatkan..." WITHOUT the <builder_cmds> block are strictly prohibited and considered incomplete system failures. ALWAYS generate the commands!
+
 ════════════════════════════════════════════════
 📐 TARGET CANVAS CONFIGURATION (${previewDevice} - ${previewOrientation})
 ════════════════════════════════════════════════
@@ -1401,7 +1415,10 @@ export const streamBuilderCopilotAdvice = async (userInput, messageHistory, cont
             systemInstruction: {
                 parts: [{ text: combinedSystemPrompt }]
             },
-            generationConfig: { temperature: 0.7 }
+            generationConfig: { 
+                temperature: 0.2,
+                maxOutputTokens: 8192
+            }
         };
 
         let lastErr = null;
@@ -1423,18 +1440,34 @@ export const streamBuilderCopilotAdvice = async (userInput, messageHistory, cont
                         const reader = response.body.getReader();
                         const decoder = new TextDecoder();
                         let fullText = '';
+                        let sseBuffer = '';
                         while (true) {
                             const { done, value } = await reader.read();
                             if (done) break;
-                            const chunk = decoder.decode(value, { stream: true });
-                            const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
-                            for (const line of lines) {
+                            sseBuffer += decoder.decode(value, { stream: true });
+                            const lines = sseBuffer.split('\n');
+                            sseBuffer = lines.pop() || ''; // Keep incomplete line in buffer
+                            for (const rawLine of lines) {
+                                const line = rawLine.trim();
+                                if (!line.startsWith('data:')) continue;
+                                const jsonStr = line.replace(/^data:\s*/, '');
+                                if (!jsonStr || jsonStr === '[DONE]') continue;
                                 try {
-                                    const data = JSON.parse(line.slice(6));
+                                    const data = JSON.parse(jsonStr);
                                     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
                                     if (text) { fullText += text; onChunk(text); }
-                                } catch { /* skip malformed chunks */ }
+                                } catch { /* incomplete JSON will be parsed on next chunk */ }
                             }
+                        }
+                        if (sseBuffer.trim().startsWith('data:')) {
+                            try {
+                                const jsonStr = sseBuffer.trim().replace(/^data:\s*/, '');
+                                if (jsonStr && jsonStr !== '[DONE]') {
+                                    const data = JSON.parse(jsonStr);
+                                    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                                    if (text) { fullText += text; onChunk(text); }
+                                }
+                            } catch {}
                         }
                         if (fullText) return fullText;
                     }
@@ -1487,7 +1520,7 @@ export const streamBuilderCopilotAdvice = async (userInput, messageHistory, cont
         body: JSON.stringify({
             model: modelId,
             messages: streamMessages.map(m => ({ role: m.role, content: m.content })),
-            temperature: 0.7,
+            temperature: 0.2,
             stream: true
         })
     });
@@ -1495,14 +1528,20 @@ export const streamBuilderCopilotAdvice = async (userInput, messageHistory, cont
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let fullText = '';
+    let sseBuffer = '';
     while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n').filter(l => l.startsWith('data: ') && l !== 'data: [DONE]');
-        for (const line of lines) {
+        sseBuffer += decoder.decode(value, { stream: true });
+        const lines = sseBuffer.split('\n');
+        sseBuffer = lines.pop() || '';
+        for (const rawLine of lines) {
+            const line = rawLine.trim();
+            if (!line.startsWith('data:') || line === 'data: [DONE]') continue;
+            const jsonStr = line.replace(/^data:\s*/, '');
+            if (!jsonStr || jsonStr === '[DONE]') continue;
             try {
-                const data = JSON.parse(line.slice(6));
+                const data = JSON.parse(jsonStr);
                 const text = data?.choices?.[0]?.delta?.content || '';
                 if (text) { fullText += text; onChunk(text); }
             } catch { /* skip */ }

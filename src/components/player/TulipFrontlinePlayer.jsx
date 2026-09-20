@@ -266,6 +266,11 @@ export default function TulipFrontlinePlayer() {
     setIsLoginModalOpen(false);
     setPendingAppToRun(null);
 
+    try {
+      sessionStorage.setItem(`mavi_launch_app_${app.id}`, JSON.stringify(app));
+      localStorage.setItem(`mavi_launch_app_${app.id}`, JSON.stringify(app));
+    } catch (e) {}
+
     // Update Recents
     setRecentApps(prevRecents => {
       const updated = [app, ...prevRecents.filter(a => a.id !== app.id)].slice(0, 6);

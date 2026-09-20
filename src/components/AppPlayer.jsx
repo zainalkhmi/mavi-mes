@@ -1303,6 +1303,10 @@ const AppPlayer = () => {
 
     useEffect(() => {
         if (!activeApp) return;
+        try {
+            sessionStorage.setItem(`mavi_launch_app_${activeApp.id}`, JSON.stringify(activeApp));
+            localStorage.setItem(`mavi_launch_app_${activeApp.id}`, JSON.stringify(activeApp));
+        } catch (e) {}
         const cfgPreset = activeApp.config?.devicePreset || activeApp.config?.previewDevice;
         const cfgOrient = activeApp.config?.previewOrientation;
         const cfgScale = activeApp.config?.scalingMode;
@@ -1436,6 +1440,10 @@ const AppPlayer = () => {
                 }
 
                 if (app) {
+                    try {
+                        sessionStorage.setItem(`mavi_launch_app_${urlAppId}`, JSON.stringify(app));
+                        localStorage.setItem(`mavi_launch_app_${urlAppId}`, JSON.stringify(app));
+                    } catch (e) {}
                     setOperator(params.get('operator') || 'Designer');
                     setStationIdFilter(urlStation || 'Test Station 1');
                     setActiveAppId(urlAppId);
@@ -1574,6 +1582,12 @@ const AppPlayer = () => {
         setOperator(opName);
         setStationIdFilter(stn); // update station if changed in modal
 
+        // Instant cache for iframe terminal
+        try {
+            sessionStorage.setItem(`mavi_launch_app_${pendingApp.id}`, JSON.stringify(pendingApp));
+            localStorage.setItem(`mavi_launch_app_${pendingApp.id}`, JSON.stringify(pendingApp));
+        } catch (e) {}
+
         // Track recent
         setRecentIds((prev) => {
             const next = [pendingApp.id, ...prev.filter((id) => id !== pendingApp.id)].slice(0, RECENT_MAX);
@@ -1590,7 +1604,7 @@ const AppPlayer = () => {
         setSessionComments([]);
 
         // Show help guide splash if app has one
-        const launchingApp = apps.find(a => a.id === pendingApp.id);
+        const launchingApp = apps.find(a => a.id === pendingApp.id) || pendingApp;
         const guide = launchingApp?.config?.helpGuide || '';
         setShowHelpGuide(!!guide.trim());
 

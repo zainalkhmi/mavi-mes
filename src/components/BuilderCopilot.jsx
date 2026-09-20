@@ -668,6 +668,14 @@ const BuilderCopilot = ({
       if (fromTag) return fromTag;
     }
 
+    // 1b. Check for unclosed <builder_cmds> tag (if stream cut off before closing tag)
+    const openTagMatch = text.match(/<builder_cmds>([\s\S]*)/i);
+    if (openTagMatch) {
+      let candidate = cleanJsonLike(openTagMatch[1]);
+      const fromOpenTag = tryParse(candidate);
+      if (fromOpenTag) return fromOpenTag;
+    }
+
     // 2. Check for fenced ```json ... ``` blocks containing "commands"
     const fenceMatches = text.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi);
     for (const match of fenceMatches) {
@@ -708,7 +716,8 @@ const BuilderCopilot = ({
 
     if ((!text.trim() && !selectedFile) || isLoading) return;
 
-    const shouldAutoGhost = options.autoRunGhost || autoGhostPilot;
+    const isBuildPrompt = /buat|create|bikin|generate|pasang|tambah|susun|dashboard|form|qc|inspeksi|layout|app|monitoring|scada|inventory|maintenance/i.test(text);
+    const shouldAutoGhost = options.autoRunGhost || autoGhostPilot || (chipMode === 'build' && isBuildPrompt);
 
     const userMessage = {
       role: 'user',
@@ -1794,6 +1803,37 @@ Apa yang bisa kamu bantu untuk widget ini?`;
                       onMouseLeave={e => e.currentTarget.style.background = 'none'}
                     >
                       <BrainCircuit size={11} /> Kirim ke Antigravity
+                    </button>
+                  </div>
+                )}
+
+                {msg.role === 'assistant' && !msg.isError && (!safePack?.safeCommands || safePack.safeCommands.length === 0) && idx > 0 && !msg.content?.includes('<vibe_code>') && (
+                  <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #e2e8f0' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleSend('Tolong sekarang juga buatkan dan pasang langsung seluruh komponen ke canvas untuk rencana di atas. Wajib sertakan format <builder_cmds>{"commands":[...]}</builder_cmds> lengkap dengan widgets agar langsung terpasang di canvas.', { autoRunGhost: true });
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        color: 'white',
+                        borderRadius: '8px',
+                        border: 'none',
+                        fontSize: '0.78rem',
+                        fontWeight: 800,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.35)',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      <Sparkles size={14} />
+                      <span>⚡ Pasang Komponen ke Canvas Sekarang ➔</span>
                     </button>
                   </div>
                 )}

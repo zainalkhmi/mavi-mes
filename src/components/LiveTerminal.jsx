@@ -4471,13 +4471,86 @@ const LiveTerminal = () => {
   useEffect(() => {
     const loadData = async () => {
       try {
+        // --- 1. INSTANT FAST-PATH FOR APP LAUNCH ---
+        // If an appId is provided (e.g. from App Player or direct URL), check local caches first for instant 0ms launch
+        if (appId) {
+          let instantMatch = null;
+          try {
+            const cachedDirect = sessionStorage.getItem(`mavi_launch_app_${appId}`) ||
+                                 localStorage.getItem(`mavi_launch_app_${appId}`) ||
+                                 localStorage.getItem(`mavi_app_${appId}`);
+            if (cachedDirect) {
+              const parsed = JSON.parse(cachedDirect);
+              if (parsed && (parsed.config || parsed.steps)) {
+                instantMatch = parsed;
+              }
+            }
+
+            if (!instantMatch) {
+              const localKeys = ['draft_frontline_apps', 'mandor_offline_vault', 'offline_apps_cache'];
+              for (const key of localKeys) {
+                const raw = localStorage.getItem(key);
+                if (raw) {
+                  const local = JSON.parse(raw);
+                  if (Array.isArray(local)) {
+                    const found = local.find(a => String(a.id) === String(appId) || String(a.name || '').toLowerCase() === String(appId).toLowerCase());
+                    if (found && (found.config || found.steps)) {
+                      instantMatch = found;
+                      break;
+                    }
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('[LiveTerminal] Fast cache check failed:', e);
+          }
+
+          if (instantMatch) {
+            console.log('[LiveTerminal] Fast-path launched from local cache:', instantMatch.name);
+            handleStartApp(instantMatch, { skipDbWait: true });
+            setLoading(false);
+            // Fetch station metadata in background without blocking screen
+            getStations().then(st => setStations(st || [])).catch(() => {});
+            return;
+          }
+
+          // If not in local cache, fetch ONLY the single requested app with a fast timeout (do not wait for manuals/checksheets)
+          try {
+            const [singleApp, stns] = await Promise.all([
+              Promise.race([
+                getFrontlineAppById(appId),
+                new Promise((_, rej) => setTimeout(() => rej(new Error('App fetch timeout')), 4000))
+              ]).catch(err => {
+                console.warn('[LiveTerminal] Fast single-app fetch error:', err);
+                return null;
+              }),
+              Promise.race([
+                getStations(),
+                new Promise((_, rej) => setTimeout(() => rej(new Error('Stations timeout')), 2500))
+              ]).catch(() => [])
+            ]);
+
+            if (stns && stns.length > 0) setStations(stns);
+
+            if (singleApp) {
+              handleStartApp(singleApp, { skipDbWait: true });
+              setLoading(false);
+              return;
+            }
+          } catch (err) {
+            console.warn('[LiveTerminal] Single app load attempt error:', err);
+          }
+        }
+
+        // --- 2. REGULAR SELECTION LIST LOADING (when no appId or fallback) ---
         const [manualData, appData, queueData, stationData, interfaceData, checksheetData] = await Promise.all([
-          listManualSummaries(),
-          getAllFrontlineApps(),
-          getProductionQueue(),
-          getStations(),
-          getInterfaces(),
-          getAllChecksheets()
+          listManualSummaries().catch(() => []),
+          getAllFrontlineApps().catch(() => []),
+          getProductionQueue().catch(() => []),
+          getStations().catch(() => []),
+          getInterfaces().catch(() => []),
+          getAllChecksheets().catch(() => [])
         ]);
 
         setStations(stationData || []);
@@ -4488,7 +4561,6 @@ const LiveTerminal = () => {
         // --- UNIVERSAL DEEP SEARCH LOGIC ---
         let combinedApps = appData || [];
         try {
-          // Check all known keys
           const keys = ['mandor_offline_vault', 'offline_apps_cache', 'draft_frontline_apps'];
           keys.forEach(key => {
             const raw = localStorage.getItem(key);
@@ -4514,8 +4586,6 @@ const LiveTerminal = () => {
         // --- ENFORCE STATION-BASED ACCESS CONTROL ---
         const user = getCurrentUser();
         const allUsers = getAllUsers();
-        // Get fresh user data to ensure latest assignments are respected without re-login
-        // We use ID first, then fallback to Name/Username match for robustness
         const freshUser = allUsers.find(u => u.id === user?.id) ||
           allUsers.find(u => u.username === user?.username) ||
           allUsers.find(u => u.name === user?.name) ||
@@ -4524,19 +4594,15 @@ const LiveTerminal = () => {
         let filteredApps = appId ? combinedApps : visibleApps;
 
         if (freshUser && freshUser.role === 'OPERATOR') {
-          // 1. Filter Apps: If specific app assigned, search in ALL apps (including drafts)
           if (freshUser.assignedApp && freshUser.assignedApp !== 'ALL' && freshUser.assignedApp !== 'NONE') {
             let assigned = combinedApps.find(a => String(a.id) === String(freshUser.assignedApp));
-            // Fallback to name search if ID doesn't match
             if (!assigned) {
               assigned = combinedApps.find(a => a.name === freshUser.assignedApp);
             }
             filteredApps = assigned ? [assigned] : [];
           }
 
-          // 2. Sync Station Context: Resolve name if ID is assigned
           if (freshUser.assignedStation && freshUser.assignedStation !== 'ALL' && freshUser.assignedStation !== 'NONE') {
-            // Try to find station name from metadata
             const stationMatch = (stationData || []).find(s => String(s.id) === String(freshUser.assignedStation));
             const stationName = stationMatch ? stationMatch.name : freshUser.assignedStation;
             setAppContext(prev => ({ ...prev, station: stationName }));
@@ -4549,16 +4615,14 @@ const LiveTerminal = () => {
         if (appId && combinedApps.length > 0) {
           let match = combinedApps.find(a => String(a.id) === String(appId));
           if (!match) {
-            // Try Name fallback if ID didn't work
             const searchName = String(appId).toLowerCase();
             match = combinedApps.find(a => String(a.name || '').toLowerCase() === searchName);
           }
 
-          // Only auto-load if it's in the filtered list (or user is admin/engineer)
           const isAllowed = freshUser?.role !== 'OPERATOR' || !freshUser?.assignedApp || freshUser.assignedApp === 'ALL' || String(match?.id) === String(freshUser.assignedApp);
 
           if (match && isAllowed) {
-            await handleStartApp(match);
+            await handleStartApp(match, { skipDbWait: true });
           }
         }
       } catch (err) {
@@ -4568,11 +4632,7 @@ const LiveTerminal = () => {
       }
     };
     loadData();
-  }, [appId]); // Added stations dependency to ensure station name resolves once metadata is loaded
-
-
-
-
+  }, [appId]);
 
   const handleOpenChecksheet = (cs) => {
     localStorage.setItem('mandor_published_checksheet', JSON.stringify(cs));
@@ -4603,7 +4663,6 @@ const LiveTerminal = () => {
       setQualityData({});
       setQuantityLog({});
       
-      // Initialize variables and placeholders for Manuals if they exist
       const config = fullManual.content || {};
       const resolvedVariables = (config.appVariables || []).map(v => ({ ...v, value: v.defaultValue }));
       setAppVariables(resolvedVariables);
@@ -4613,8 +4672,6 @@ const LiveTerminal = () => {
       setBoundData({});
       
       resetInputs();
-
-
 
       logEvent({
         type: AUDIT_EVENTS.CYCLE_START,
@@ -4631,21 +4688,32 @@ const LiveTerminal = () => {
     }
   };
 
-  const handleStartApp = async (app) => {
+  const handleStartApp = async (app, options = {}) => {
     // Track Recent Apps
     const newRecent = [app.id, ...recentApps.filter(id => id !== app.id)].slice(0, 8);
     setRecentApps(newRecent);
     localStorage.setItem('mandor_terminal_recent', JSON.stringify(newRecent));
 
-    // Fetch the latest config from database in real-time
-    let latestApp = app;
+    // Cache locally for instant next launch
     try {
-      const dbApp = await getFrontlineAppById(app.id);
-      if (dbApp) {
-        latestApp = dbApp;
+      sessionStorage.setItem(`mavi_launch_app_${app.id}`, JSON.stringify(app));
+      localStorage.setItem(`mavi_launch_app_${app.id}`, JSON.stringify(app));
+    } catch (e) {}
+
+    let latestApp = app;
+    // Only refetch from database if app has NO config/steps or explicit request
+    if (!options.skipDbWait && (!app.config || !app.config.steps || app.config.steps.length === 0)) {
+      try {
+        const dbApp = await Promise.race([
+          getFrontlineAppById(app.id),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout')), 2500))
+        ]);
+        if (dbApp) {
+          latestApp = dbApp;
+        }
+      } catch (e) {
+        console.warn("Failed to fetch latest app config from database, using cached app list config:", e);
       }
-    } catch (e) {
-      console.warn("Failed to fetch latest app config from database, using cached app list config:", e);
     }
 
     // Enterprise Governance: Use published_config if published and NOT in dev mode, else draft config
@@ -4657,24 +4725,30 @@ const LiveTerminal = () => {
       is_published: isDev ? false : latestApp.is_published
     };
 
-    setGlobalLogic(effectiveConfig.globalLogic || null);
+    setGlobalLogic(effectiveConfig?.globalLogic || null);
     setSelectedApp(normalizedApp);
     setSelectedManual(null);
     setStatus('RUNNING');
     setTimer(0);
     setCurrentStepIndex(0);
+    // Hide loading view immediately so canvas renders without delay!
+    setLoading(false);
 
-    // Fire Global/App Start logic (Legacy Actions)
-    if (effectiveConfig.appTriggers) {
+    // Fire Global/App Start logic (Legacy Actions) in non-blocking async block
+    if (effectiveConfig?.appTriggers) {
       const startTriggers = effectiveConfig.appTriggers.filter(t => t.event === 'ON_APP_START');
-      for (const trig of startTriggers) {
-        await executeTrigger(trig);
-      }
+      (async () => {
+        for (const trig of startTriggers) {
+          try {
+            await executeTrigger(trig);
+          } catch (te) {
+            console.warn('[LiveTerminal] Start trigger error:', te);
+          }
+        }
+      })();
     }
 
     // Fire Global/App Start logic (Blockly)
-    // Note: We use a small timeout to ensure state (selectedApp, globalLogic) is committed if needed,
-    // though executeBlocklyLogic should be able to handle normalizedApp directly if we pass it.
     setTimeout(() => {
       executeBlocklyLogic('ON_APP_START');
     }, 50);
@@ -4713,7 +4787,7 @@ const LiveTerminal = () => {
           const remote = globals.find(g => g.name === v.name);
           return remote ? { ...v, value: remote.value?.val ?? remote.value } : v;
         }));
-      });
+      }).catch(() => {});
     }
 
     setBoundData({});
@@ -4734,15 +4808,19 @@ const LiveTerminal = () => {
       }
     });
 
-    // Fire ON_STEP_ENTER for the first step
+    // Fire ON_STEP_ENTER for the first step in non-blocking async block
     const firstStep = appSteps[0];
-    if (firstStep) {
-      if (firstStep.triggers) {
-        const enterTriggers = firstStep.triggers.filter(t => t.event === 'ON_STEP_ENTER');
+    if (firstStep && firstStep.triggers) {
+      const enterTriggers = firstStep.triggers.filter(t => t.event === 'ON_STEP_ENTER');
+      (async () => {
         for (const trig of enterTriggers) {
-          await executeTrigger(trig);
+          try {
+            await executeTrigger(trig);
+          } catch (te) {
+            console.warn('[LiveTerminal] Step enter trigger error:', te);
+          }
         }
-      }
+      })();
     }
 
     logEvent({

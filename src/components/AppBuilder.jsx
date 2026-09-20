@@ -30522,6 +30522,7 @@ D3:0
                 onPause={ghostPilot.pauseRPA}
                 onResume={ghostPilot.resumeRPA}
                 onStop={ghostPilot.stopRPA}
+                cursorMode="robot-arm"
             />
 
             {/* Holographic J.A.R.V.I.S. Arc Reactor Floating Orb (Left side, follows component on Canvas when building) */}
