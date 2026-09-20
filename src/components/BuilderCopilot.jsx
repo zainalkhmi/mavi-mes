@@ -647,7 +647,20 @@ const BuilderCopilot = ({
   // ── parseCommands ──────────────────────────────────────────────────────────
   const parseCommands = (text) => {
     if (!text) return null;
-    const isCommandPayload = (parsed) => parsed && Array.isArray(parsed.commands);
+    const isCommandPayload = (parsed) => {
+      if (!parsed) return false;
+      if (Array.isArray(parsed.commands)) return true;
+      if (Array.isArray(parsed) && parsed.length > 0 && (parsed[0]?.type || parsed[0]?.widgetType)) return true;
+      if (parsed?.type && typeof parsed.type === 'string') return true;
+      return false;
+    };
+    const normalizeParsed = (parsed) => {
+      if (!parsed) return null;
+      if (Array.isArray(parsed.commands)) return parsed;
+      if (Array.isArray(parsed)) return { commands: parsed };
+      if (parsed.type) return { commands: [parsed] };
+      return null;
+    };
     const cleanJsonLike = (raw = '') => raw
       .replace(/```json/gi, '').replace(/```/g, '')
       .replace(/\/\/.*$/gm, '').trim();
@@ -655,7 +668,7 @@ const BuilderCopilot = ({
       if (!candidate) return null;
       try {
         const parsed = JSON.parse(candidate);
-        return isCommandPayload(parsed) ? parsed : null;
+        return isCommandPayload(parsed) ? normalizeParsed(parsed) : null;
       } catch (err) {
         return null;
       }
@@ -676,20 +689,20 @@ const BuilderCopilot = ({
       if (fromOpenTag) return fromOpenTag;
     }
 
-    // 2. Check for fenced ```json ... ``` blocks containing "commands"
+    // 2. Check for fenced ```json ... ``` blocks containing "commands" or array of commands
     const fenceMatches = text.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi);
     for (const match of fenceMatches) {
       const candidate = cleanJsonLike(match[1]);
-      if (candidate.includes('"commands"')) {
+      if (candidate.includes('"commands"') || candidate.includes('"type"')) {
         const fromFence = tryParse(candidate);
         if (fromFence) return fromFence;
       }
     }
 
     // 3. Fallback: Scan for any top-level JSON object containing "commands": [
-    const startIdx = text.indexOf('{"commands"');
-    if (startIdx !== -1) {
-      const braceIndices = [];
+    const matchCommands = text.match(/\{\s*"commands"\s*:/i);
+    if (matchCommands && matchCommands.index !== undefined) {
+      const startIdx = matchCommands.index;
       let depth = 0;
       for (let i = startIdx; i < text.length; i++) {
         if (text[i] === '{') depth++;
@@ -698,6 +711,25 @@ const BuilderCopilot = ({
           if (depth === 0) {
             const rawObj = text.slice(startIdx, i + 1);
             const fromScan = tryParse(cleanJsonLike(rawObj));
+            if (fromScan) return fromScan;
+            break;
+          }
+        }
+      }
+    }
+
+    // 4. Fallback: Scan for direct JSON array of command objects [ { "type": ... } ]
+    const matchArray = text.match(/\[\s*\{\s*"(?:type|widgetType|componentType)"\s*:/i);
+    if (matchArray && matchArray.index !== undefined) {
+      const startIdx = matchArray.index;
+      let depth = 0;
+      for (let i = startIdx; i < text.length; i++) {
+        if (text[i] === '[') depth++;
+        else if (text[i] === ']') {
+          depth--;
+          if (depth === 0) {
+            const rawArr = text.slice(startIdx, i + 1);
+            const fromScan = tryParse(cleanJsonLike(rawArr));
             if (fromScan) return fromScan;
             break;
           }
@@ -716,8 +748,7 @@ const BuilderCopilot = ({
 
     if ((!text.trim() && !selectedFile) || isLoading) return;
 
-    const isBuildPrompt = /buat|create|bikin|generate|pasang|tambah|susun|dashboard|form|qc|inspeksi|layout|app|monitoring|scada|inventory|maintenance/i.test(text);
-    const shouldAutoGhost = options.autoRunGhost || autoGhostPilot || (chipMode === 'build' && isBuildPrompt);
+    const shouldAutoGhost = options.autoRunGhost || autoGhostPilot;
 
     const userMessage = {
       role: 'user',
@@ -1297,9 +1328,9 @@ Apa yang bisa kamu bantu untuk widget ini?`;
       overflow: 'hidden',
       fontFamily: '"Inter", system-ui, -apple-system, sans-serif',
       transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease',
-      transform: (isGhostPilotRunning || isLoading) ? 'translateX(calc(100% + 40px))' : 'translateX(0)',
-      opacity: (isGhostPilotRunning || isLoading) ? 0 : 1,
-      pointerEvents: (isGhostPilotRunning || isLoading) ? 'none' : 'auto',
+      transform: isGhostPilotRunning ? 'translateX(calc(100% + 40px))' : 'translateX(0)',
+      opacity: isGhostPilotRunning ? 0 : 1,
+      pointerEvents: isGhostPilotRunning ? 'none' : 'auto',
     }}>
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
@@ -1939,74 +1970,75 @@ Apa yang bisa kamu bantu untuk widget ini?`;
                           })}
                         </div>
 
-                        {/* Confirmation & Ghost Pilot RPA Buttons */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
+                        {/* Confirmation & Execution Buttons */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+                          {/* 1. Instant Apply Direct to Canvas (Fastest, 1-Click) */}
                           <button
-                            onClick={() => handleGhostPilotRun(idx, msg)}
-                            disabled={safePack.hardFail || safePack.safeCommands.length === 0 || isGhostPilotRunning}
+                            onClick={() => handleApprovePlan(idx, msg)}
+                            disabled={safePack.hardFail || safePack.safeCommands.length === 0}
                             style={{
                               width: '100%',
-                              padding: '10px 14px',
-                              background: safePack.hardFail || isGhostPilotRunning ? '#94a3b8' : 'linear-gradient(135deg, #0284c7 0%, #7c3aed 100%)',
+                              padding: '11px 16px',
+                              background: safePack.hardFail ? '#94a3b8' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                               color: 'white',
                               border: 'none',
-                              borderRadius: '8px',
-                              fontSize: '0.82rem',
+                              borderRadius: '10px',
+                              fontSize: '0.84rem',
                               fontWeight: 800,
-                              cursor: safePack.hardFail || isGhostPilotRunning ? 'default' : 'pointer',
+                              cursor: safePack.hardFail ? 'default' : 'pointer',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
                               gap: '8px',
-                              boxShadow: safePack.hardFail || isGhostPilotRunning ? 'none' : '0 4px 14px rgba(2, 132, 199, 0.35)',
-                              transition: 'all 0.2s',
+                              boxShadow: safePack.hardFail ? 'none' : '0 4px 14px rgba(16, 185, 129, 0.35)',
+                              transition: 'all 0.15s'
                             }}
                           >
-                            <Sparkles size={15} /> 👻 Jalankan Ghost Pilot RPA (Jarvis Voice & Cursor)
+                            <Sparkles size={16} /> ⚡ Pasang Langsung ke Canvas ({safePack.safeCommands.length} Komponen)
                           </button>
 
+                          {/* 2. Ghost Pilot RPA (Jarvis Voice & Hologram Cursor) */}
                           <div style={{ display: 'flex', gap: '8px' }}>
                             <button
-                              onClick={() => handleApprovePlan(idx, msg)}
-                              disabled={safePack.hardFail || safePack.safeCommands.length === 0}
+                              onClick={() => handleGhostPilotRun(idx, msg)}
+                              disabled={safePack.hardFail || safePack.safeCommands.length === 0 || isGhostPilotRunning}
                               style={{
                                 flex: 1,
-                                padding: '8px 12px',
-                                background: safePack.hardFail ? '#cbd5e1' : '#f8fafc',
-                                color: safePack.hardFail ? '#94a3b8' : '#0f172a',
-                                border: '1px solid #cbd5e1',
+                                padding: '9px 12px',
+                                background: safePack.hardFail || isGhostPilotRunning ? '#cbd5e1' : 'linear-gradient(135deg, #0284c7 0%, #7c3aed 100%)',
+                                color: 'white',
+                                border: 'none',
                                 borderRadius: '8px',
                                 fontSize: '0.78rem',
                                 fontWeight: 700,
-                                cursor: safePack.hardFail ? 'default' : 'pointer',
+                                cursor: safePack.hardFail || isGhostPilotRunning ? 'default' : 'pointer',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 gap: '6px',
-                                transition: 'all 0.2s',
+                                boxShadow: safePack.hardFail || isGhostPilotRunning ? 'none' : '0 2px 8px rgba(2, 132, 199, 0.25)',
+                                transition: 'all 0.15s'
                               }}
                             >
-                              <Check size={13} /> Eksekusi Langsung
+                              <Bot size={14} /> 👻 Jalankan Ghost Pilot (Jarvis)
                             </button>
                             <button
                               onClick={handleRevisePlan}
                               style={{
-                                padding: '8px 12px',
-                                background: '#fffbeb',
-                                color: '#b45309',
-                                border: '1px solid #fcd34d',
+                                padding: '9px 14px',
+                                background: '#f8fafc',
+                                color: '#475569',
+                                border: '1px solid #cbd5e1',
                                 borderRadius: '8px',
                                 fontSize: '0.78rem',
                                 fontWeight: 700,
                                 cursor: 'pointer',
                                 display: 'flex',
                                 alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '6px',
-                                transition: 'all 0.2s',
+                                gap: '5px'
                               }}
                             >
-                              <Edit3 size={13} /> Revisi
+                              Revisi
                             </button>
                           </div>
                         </div>

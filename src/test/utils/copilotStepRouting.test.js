@@ -232,6 +232,29 @@ describe('Copilot Step & Widget Routing', () => {
         expect(resolveStepTarget(mockSteps, 'Screen 99')).toBe(null);
         expect(resolveStepTarget(mockSteps, 'Unknown Screen')).toBe(null);
     });
+
+    it('normalizes specific widget commands like ADD_BUTTON, ADD_INPUT, ADD_CARD without being blocked', () => {
+        const rawCommandData = {
+            commands: [
+                { type: 'ADD_BUTTON', payload: { label: 'Submit Part' } },
+                { type: 'ADD_INPUT', payload: { label: 'Operator ID' } },
+                { type: 'CREATE_CARD', payload: { label: 'Card Container' } },
+                { type: 'ADD_TABLE', payload: { name: 'Daftar Inspeksi' } }
+            ]
+        };
+
+        const result = sanitizeCopilotCommands(rawCommandData);
+        expect(result.hardFail).toBe(false);
+        expect(result.safeCommands.length).toBe(4);
+        expect(result.safeCommands[0].type).toBe('ADD_WIDGET');
+        expect(result.safeCommands[0].payload.type).toBe('BUTTON');
+        expect(result.safeCommands[1].type).toBe('ADD_WIDGET');
+        expect(result.safeCommands[1].payload.type).toBe('TEXT_INPUT');
+        expect(result.safeCommands[2].type).toBe('ADD_WIDGET');
+        expect(result.safeCommands[2].payload.type).toBe('SHAPE_RECTANGLE');
+        expect(result.safeCommands[3].type).toBe('ADD_WIDGET');
+        expect(result.safeCommands[3].payload.type).toBe('INTERACTIVE_TABLE');
+    });
 });
 
 

@@ -155,10 +155,40 @@ const buildContextIndex = (context = {}) => {
     };
 };
 
+const WIDGET_PREFIX_REGEX = /^(ADD_|CREATE_|NEW_|INSERT_)(BUTTON|INPUT|TEXT_INPUT|TEXT|LABEL|TITLE|HEADING|CARD|RECTANGLE|CONTAINER|TABLE|INTERACTIVE_TABLE|CHART|IMAGE|GAUGE|CHECKBOX|SWITCH|TOGGLE|DROPDOWN|SELECT|CAMERA|NUMPAD|QR|BARCODE)$/i;
+
+const WIDGET_TYPE_MAP = {
+    BUTTON: 'BUTTON',
+    INPUT: 'TEXT_INPUT',
+    TEXT_INPUT: 'TEXT_INPUT',
+    TEXT: 'TEXT',
+    LABEL: 'TEXT',
+    TITLE: 'TEXT',
+    HEADING: 'TEXT',
+    CARD: 'SHAPE_RECTANGLE',
+    RECTANGLE: 'SHAPE_RECTANGLE',
+    CONTAINER: 'SHAPE_RECTANGLE',
+    TABLE: 'INTERACTIVE_TABLE',
+    INTERACTIVE_TABLE: 'INTERACTIVE_TABLE',
+    CHART: 'CHART',
+    IMAGE: 'IMAGE',
+    GAUGE: 'GAUGE',
+    CHECKBOX: 'CHECKBOX',
+    SWITCH: 'TOGGLE_SWITCH',
+    TOGGLE: 'TOGGLE_SWITCH',
+    DROPDOWN: 'DROPDOWN',
+    SELECT: 'DROPDOWN',
+    CAMERA: 'VISION_CAMERA',
+    NUMPAD: 'NUMPAD_INPUT',
+    QR: 'QR_SCANNER',
+    BARCODE: 'BARCODE_SCANNER'
+};
+
 const normalizeCommandType = (type) => {
     if (!type) return '';
     const t = String(type).trim().toUpperCase().replace(/\s+/g, '_').replace(/-/g, '_');
     if (t === 'CREATE_WIDGET' || t === 'NEW_WIDGET' || t === 'INSERT_WIDGET' || t === 'ADD_COMPONENT' || t === 'CREATE_COMPONENT') return 'ADD_WIDGET';
+    if (WIDGET_PREFIX_REGEX.test(t)) return 'ADD_WIDGET';
     if (t === 'CREATE_STEP' || t === 'NEW_STEP' || t === 'ADD_SCREEN' || t === 'CREATE_SCREEN' || t === 'NEW_SCREEN' || t === 'ADD_PAGE' || t === 'CREATE_PAGE' || t === 'NEW_PAGE') return 'ADD_STEP';
     if (t === 'UPDATE_SCREEN' || t === 'RENAME_SCREEN' || t === 'UPDATE_PAGE') return 'UPDATE_STEP';
     if (t === 'DELETE_SCREEN' || t === 'REMOVE_SCREEN' || t === 'DELETE_PAGE') return 'DELETE_STEP';
@@ -200,9 +230,17 @@ const normalizePayloadShape = (cmd) => {
         payload.title = payload.title || payload.stepTitle || payload.screenTitle || payload.name || payload.screen || payload.page || payload.stepName || payload.label || next.title || next.stepTitle || next.name || 'New Screen';
     }
 
+    // Detect widget type from raw cmd.type if e.g. ADD_BUTTON
+    const rawType = String(cmd?.type || '').toUpperCase().trim();
+    const rawTypeSuffix = rawType.replace(/^(ADD_|CREATE_|NEW_|INSERT_)/, '');
+    const mappedWidgetType = WIDGET_TYPE_MAP[rawTypeSuffix];
+
     // Widget type normalization
     if (next.type === 'ADD_WIDGET' || next.type === 'CREATE_WIDGET') {
-        payload.type = payload.type || payload.widgetType || payload.componentType || next.type || next.widgetType || next.componentType || 'BUTTON';
+        payload.type = payload.type || payload.widgetType || payload.componentType || payload.widget || payload.component || mappedWidgetType || next.widgetType || next.componentType || next.widget || next.component || 'BUTTON';
+        if (payload.type === 'ADD_WIDGET' || payload.type === 'CREATE_WIDGET') {
+            payload.type = mappedWidgetType || 'BUTTON';
+        }
     }
 
     // Trigger normalization
