@@ -230,8 +230,8 @@ const normalizePayloadShape = (cmd) => {
         payload.title = payload.title || payload.stepTitle || payload.screenTitle || payload.name || payload.screen || payload.page || payload.stepName || payload.label || next.title || next.stepTitle || next.name || 'New Screen';
     }
 
-    // Detect widget type from raw cmd.type if e.g. ADD_BUTTON
-    const rawType = String(cmd?.type || '').toUpperCase().trim();
+    // Detect widget type from raw cmd._rawType or cmd.type if e.g. ADD_BUTTON
+    const rawType = String(cmd?._rawType || cmd?.type || '').toUpperCase().trim();
     const rawTypeSuffix = rawType.replace(/^(ADD_|CREATE_|NEW_|INSERT_)/, '');
     const mappedWidgetType = WIDGET_TYPE_MAP[rawTypeSuffix];
 
@@ -317,7 +317,7 @@ export const sanitizeCopilotCommands = (commandData, context = {}, options = {})
 
     const safeCommands = commands
         .map((raw, cmdIndex) => {
-            const normalized = normalizePayloadShape({ ...raw, type: normalizeCommandType(raw?.type) });
+            const normalized = normalizePayloadShape({ ...raw, _rawType: raw?.type, type: normalizeCommandType(raw?.type) });
             const cmdWarnings = [];
 
             if (!normalized.type) {

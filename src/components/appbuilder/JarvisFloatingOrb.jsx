@@ -297,54 +297,6 @@ export default function JarvisFloatingOrb({
           </div>
         )}
 
-        {isRunning && currentActionLabel && !isCoding && (
-          <div
-            style={{
-              padding: '6px 14px',
-              backgroundColor: 'rgba(2, 12, 20, 0.95)',
-              border: isSpeaking ? '1.5px solid #00e5ff' : '1px solid rgba(0, 229, 255, 0.5)',
-              borderRadius: '16px',
-              color: '#00e5ff',
-              fontSize: '11px',
-              fontFamily: '"Orbitron", "Inter", sans-serif',
-              fontWeight: 700,
-              letterSpacing: '0.5px',
-              whiteSpace: 'nowrap',
-              boxShadow: isSpeaking
-                ? '0 0 24px rgba(0, 229, 255, 0.8), 0 4px 16px rgba(0,0,0,0.8)'
-                : '0 0 12px rgba(0, 229, 255, 0.4)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              zIndex: 10003,
-              backdropFilter: 'blur(8px)',
-              transition: 'all 0.2s ease'
-            }}
-          >
-            {/* Visual Voice indicator ("tampilkan voice") */}
-            {isSpeaking ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '2px', height: '12px' }}>
-                <span style={{ fontSize: '11px', marginRight: '2px' }}>🎙️</span>
-                {[0.4, 1.0, 0.6, 0.9, 0.5].map((scale, i) => (
-                  <span
-                    key={i}
-                    style={{
-                      width: '2.5px',
-                      height: '100%',
-                      backgroundColor: '#00e5ff',
-                      borderRadius: '1px',
-                      animation: `soundWave 0.6s infinite ease-in-out ${i * 0.1}s`,
-                      transform: `scaleY(${scale})`
-                    }}
-                  />
-                ))}
-              </div>
-            ) : (
-              <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#00e5ff', boxShadow: '0 0 8px #00e5ff' }} />
-            )}
-            <span>{currentActionLabel}</span>
-          </div>
-        )}
 
         <div
           onClick={handleOrbClick}
