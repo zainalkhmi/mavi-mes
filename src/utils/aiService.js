@@ -7,10 +7,11 @@ import { getPrimaryAiConnector, saveIntegrationConnector } from './database';
 
 export const SHARED_AI_MODELS = [
   // Google Gemini
-  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'Gemini', icon: '⚡', description: 'Google Resmi Terbaru, Super Cepat & Kuota Terbesar (Rekomendasi)' },
-  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: 'Gemini', icon: '🚀', description: 'Paling Stabil untuk Produksi, Anti-Error Kapasitas' },
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'Gemini', icon: '🧠', description: 'Generasi Mutakhir Penalaran Tinggi' },
-  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'Gemini', icon: '🔬', description: 'Analisis Logika Mendalam' },
+  { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', provider: 'Gemini', icon: '⚡', description: 'Google Resmi Terbaru, Super Cepat & Kuota Terbesar (Rekomendasi)' },
+  { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro Preview', provider: 'Gemini', icon: '🧠', description: 'Google Frontier Reasoning & Enterprise Intelligence' },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'Gemini', icon: '🚀', description: 'Generasi Mutakhir Penalaran Tinggi' },
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'Gemini', icon: '⚡', description: 'Model Stabil Fallback' },
+  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: 'Gemini', icon: '🔬', description: 'Paling Hemat Kuota' },
   // OpenAI
   { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI', icon: '🤖', description: 'Efisien, Cepat & Terjangkau' },
   { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI', icon: '🔥', description: 'Flagship Performa Maksimal' },
@@ -131,14 +132,13 @@ const sanitizeGeminiModelId = (modelId) => {
         !clean ||
         lower.includes('flash-latest') ||
         lower === 'gemini-flash' ||
-        lower.includes('gemini-2.5') ||
-        lower.includes('gemini-3.') ||
-        lower.includes('gemini-3.8') ||
-        lower.includes('gemini-3.6') ||
+        lower === 'gemini' ||
+        lower.includes('2.0-flash') ||
+        lower.includes('3.5-flash') ||
         lower.includes('preview-02-05') ||
         lower.includes('flash-lite-preview')
     ) {
-        return 'gemini-2.0-flash';
+        return 'gemini-3.6-flash';
     }
     return clean;
 };
@@ -305,14 +305,15 @@ export const getChatCompletion = async (messages, connector) => {
     }
 
     if (provider === 'gemini') {
-        const primaryModel = sanitizeGeminiModelId(modelId) || 'gemini-2.0-flash';
+        const primaryModel = sanitizeGeminiModelId(modelId) || 'gemini-3.6-flash';
         const candidateModels = [
             primaryModel,
-            'gemini-2.0-flash',
-            'gemini-1.5-flash',
+            'gemini-3.6-flash',
+            'gemini-3.1-pro-preview',
             'gemini-2.5-flash',
-            'gemini-1.5-pro'
-        ].filter((m, i, a) => a.indexOf(m) === i);
+            'gemini-2.0-flash',
+            'gemini-1.5-flash'
+        ].filter(Boolean).filter((m, i, a) => a.indexOf(m) === i);
 
         const payload = {
             contents: messages.map(m => ({
@@ -347,7 +348,7 @@ export const getChatCompletion = async (messages, connector) => {
                     // Extract replacement model if Google suggested one (e.g. models/gemini-3.6-flash)
                     const matches = [...errMsg.matchAll(/models\/([a-zA-Z0-9.-]+)/g)].map(x => x[1]);
                     const rec = matches.find(x => !candidateModels.includes(x));
-                    if (rec) {
+                    if (rec && !rec.includes('tts') && !rec.includes('audio')) {
                         candidateModels.splice(i + 1, 0, rec);
                     }
 
@@ -358,7 +359,13 @@ export const getChatCompletion = async (messages, connector) => {
                             if (listRes.ok) {
                                 const listData = await listRes.json();
                                 const live = (listData.models || [])
-                                    .filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+                                    .filter(m => {
+                                        const name = (m.name || '').toLowerCase();
+                                        if (name.includes('tts') || name.includes('audio') || name.includes('embedding') || name.includes('imagen') || name.includes('image-generation') || name.includes('aqa') || name.includes('robotics')) {
+                                            return false;
+                                        }
+                                        return Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent');
+                                    })
                                     .map(m => m.name.replace(/^models\//, ''));
                                 for (const m of live) {
                                     if (!candidateModels.includes(m)) candidateModels.push(m);

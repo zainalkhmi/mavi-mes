@@ -25,7 +25,7 @@ export class AIProvider {
   }
 
   static sanitizeGeminiModel(m) {
-    if (!m) return 'gemini-2.0-flash';
+    if (!m) return 'gemini-3.6-flash';
     let clean = String(m).trim().replace(/^models\//, '');
     if (clean.includes('/')) clean = clean.split('/').pop();
     const lower = clean.toLowerCase();
@@ -33,14 +33,12 @@ export class AIProvider {
       lower.includes('flash-latest') ||
       lower === 'gemini-flash' ||
       lower === 'gemini' ||
-      lower.includes('gemini-3.') ||
-      lower.includes('gemini-3.8') ||
-      lower.includes('gemini-3.6') ||
+      lower.includes('3.5-flash') ||
+      lower.includes('2.0-flash') ||
       lower.includes('preview-02-05') ||
-      lower.includes('flash-lite-preview') ||
-      lower.includes('gemini-2.0-flash')
+      lower.includes('flash-lite-preview')
     ) {
-      return 'gemini-3.5-flash-preview';
+      return 'gemini-3.6-flash';
     }
     return clean;
   }
@@ -57,7 +55,7 @@ export class AIProvider {
       const overrideSettings = overrideConnector?.aiSettings || overrideConnector?.config || overrideConnector || {};
       const effectiveApiKey = overrideSettings.apiKey || primarySettings.apiKey;
       const prov = overrideSettings.provider || primarySettings.provider || 'gemini';
-      let rawModel = overrideSettings.modelId || primarySettings.modelId || 'gemini-2.0-flash';
+      let rawModel = overrideSettings.modelId || primarySettings.modelId || 'gemini-3.6-flash';
       if (this.normalizeProvider(prov) === 'gemini') {
         rawModel = this.sanitizeGeminiModel(rawModel);
       }
@@ -104,12 +102,12 @@ export class AIProvider {
 
       const candidateModels = [
         primaryModel,
-        'gemini-3.5-flash-preview',
+        'gemini-3.6-flash',
+        'gemini-3.1-pro-preview',
+        'gemini-2.5-flash',
         'gemini-2.0-flash',
-        'gemini-1.5-flash',
-        'gemini-2.5-pro',
-        'gemini-1.5-pro'
-      ].filter((m, idx, arr) => arr.indexOf(m) === idx);
+        'gemini-1.5-flash'
+      ].filter(Boolean).filter((m, idx, arr) => arr.indexOf(m) === idx);
 
       const systemMsg = messages.find(m => m.role === 'system');
       const userAndAssistant = messages
@@ -167,7 +165,7 @@ export class AIProvider {
             // Auto extract replacement model suggested by Google error if any
             const matches = [...errMsg.matchAll(/models\/([a-zA-Z0-9.-]+)/g)].map(x => x[1]);
             const rec = matches.find(x => !candidateModels.includes(x));
-            if (rec) {
+            if (rec && !rec.includes('tts') && !rec.includes('audio')) {
               candidateModels.splice(i + 1, 0, rec);
             }
 
@@ -179,10 +177,16 @@ export class AIProvider {
                 if (listRes.ok) {
                   const listData = await listRes.json();
                   const live = (listData.models || [])
-                    .filter(m => Array.isArray(m.supportedGenerationMethods) && (
-                      m.supportedGenerationMethods.includes('streamGenerateContent') ||
-                      m.supportedGenerationMethods.includes('generateContent')
-                    ))
+                    .filter(m => {
+                      const name = (m.name || '').toLowerCase();
+                      if (name.includes('tts') || name.includes('audio') || name.includes('embedding') || name.includes('imagen') || name.includes('image-generation') || name.includes('aqa') || name.includes('robotics')) {
+                        return false;
+                      }
+                      return Array.isArray(m.supportedGenerationMethods) && (
+                        m.supportedGenerationMethods.includes('streamGenerateContent') ||
+                        m.supportedGenerationMethods.includes('generateContent')
+                      );
+                    })
                     .map(m => m.name.replace(/^models\//, ''));
                   for (const m of live) {
                     if (!candidateModels.includes(m)) candidateModels.push(m);
