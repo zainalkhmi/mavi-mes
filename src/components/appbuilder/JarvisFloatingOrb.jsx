@@ -270,32 +270,7 @@ export default function JarvisFloatingOrb({
     <>
       {/* Floating J.A.R.V.I.S. Arc Reactor Orb Button (Left side, Canvas Center when coding, follows component on Canvas when building) */}
       <div style={containerStyle}>
-        {isCoding && (
-          <div
-            style={{
-              padding: '6px 14px',
-              backgroundColor: 'rgba(2, 12, 20, 0.95)',
-              border: '1.5px solid #00e5ff',
-              borderRadius: '16px',
-              color: '#00e5ff',
-              fontSize: '11px',
-              fontFamily: '"Orbitron", "Inter", sans-serif',
-              fontWeight: 700,
-              letterSpacing: '0.5px',
-              whiteSpace: 'nowrap',
-              boxShadow: '0 0 24px rgba(0, 229, 255, 0.6), 0 4px 16px rgba(0,0,0,0.7)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              zIndex: 10003,
-              animation: 'pulse 1.5s infinite',
-              backdropFilter: 'blur(8px)'
-            }}
-          >
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#00e5ff', boxShadow: '0 0 10px #00e5ff' }} />
-            <span>Saya sedang coding, tunggu sampai selesai...</span>
-          </div>
-        )}
+
 
 
         <div

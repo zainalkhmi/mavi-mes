@@ -317,16 +317,46 @@ INSTRUKSI:
   }
 
   /**
-   * Parses the AI response text into a plan and a list of file actions
+   * Parses the AI response text into a plan, packages, table schemas, and a list of file actions
    * @param {string} responseText
    * @param {string} [defaultPath='/App.jsx']
-   * @returns {{ plan: string | null, fileActions: Array<{ path: string, action: 'create'|'modify'|'delete', content: string }> }}
+   * @returns {{ plan: string | null, packages: string[], tableSchemas: Array<{ name: string, fields: any[] }>, fileActions: Array<{ path: string, action: 'create'|'modify'|'delete'|'patch', content: string, search?: string, replace?: string }> }}
    */
   static parseResponse(responseText = '', defaultPath = '/App.jsx') {
     let plan = null;
     const planMatch = responseText.match(/<ai_plan>([\s\S]*?)<\/ai_plan>/i);
     if (planMatch && planMatch[1]) {
       plan = planMatch[1].trim();
+    }
+
+    // Emergent.sh feature: Parse requested npm dependencies
+    const packages = [];
+    const pkgMatch = responseText.match(/<(?:packages|npm_dependencies)>([\s\S]*?)<\/(?:packages|npm_dependencies)>/i);
+    if (pkgMatch && pkgMatch[1]) {
+      try {
+        const parsed = JSON.parse(pkgMatch[1].trim());
+        if (Array.isArray(parsed)) {
+          packages.push(...parsed);
+        }
+      } catch {
+        // Fallback: split by comma or newline
+        const lines = pkgMatch[1].split(/[\n,]/).map(s => s.trim().replace(/['"\[\]]/g, '')).filter(Boolean);
+        packages.push(...lines);
+      }
+    }
+
+    // Emergent.sh feature: Parse requested database table schema
+    const tableSchemas = [];
+    const tableRegex = /<table_schema\s+name=["']([^"']+)["']>([\s\S]*?)<\/table_schema>/gi;
+    let tMatch;
+    while ((tMatch = tableRegex.exec(responseText)) !== null) {
+      const name = tMatch[1].trim();
+      try {
+        const fields = JSON.parse(tMatch[2].trim());
+        tableSchemas.push({ name, fields: Array.isArray(fields) ? fields : [] });
+      } catch {
+        tableSchemas.push({ name, fields: [] });
+      }
     }
 
     const fileActions = [];
@@ -363,7 +393,7 @@ INSTRUKSI:
       }
     }
 
-    // 3. Robust fallback: Check for markdown code blocks or direct React component code
+    // 4. Robust fallback: Check for markdown code blocks or direct React component code
     if (fileActions.length === 0) {
       const codeBlockMatch = responseText.match(/```(?:jsx|javascript|js|react|tsx)?\s*([\s\S]*?)```/i);
       if (codeBlockMatch && codeBlockMatch[1] && (codeBlockMatch[1].includes('export default') || codeBlockMatch[1].includes('return'))) {
@@ -381,6 +411,6 @@ INSTRUKSI:
       }
     }
 
-    return { plan, fileActions };
+    return { plan, packages, tableSchemas, fileActions };
   }
 }

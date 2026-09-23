@@ -37,9 +37,10 @@ export class AIProvider {
       lower.includes('gemini-3.8') ||
       lower.includes('gemini-3.6') ||
       lower.includes('preview-02-05') ||
-      lower.includes('flash-lite-preview')
+      lower.includes('flash-lite-preview') ||
+      lower.includes('gemini-2.0-flash')
     ) {
-      return 'gemini-2.0-flash';
+      return 'gemini-3.5-flash-preview';
     }
     return clean;
   }
@@ -103,10 +104,10 @@ export class AIProvider {
 
       const candidateModels = [
         primaryModel,
+        'gemini-3.5-flash-preview',
         'gemini-2.0-flash',
-        'gemini-2.5-flash',
-        'gemini-2.0-flash-lite',
         'gemini-1.5-flash',
+        'gemini-2.5-pro',
         'gemini-1.5-pro'
       ].filter((m, idx, arr) => arr.indexOf(m) === idx);
 

@@ -78,6 +78,7 @@ import { ProjectVersionControl } from '../../vibe/filesystem/ProjectVersionContr
 import { AIProvider } from '../../vibe/ai/AIProvider';
 import { AgenticPromptEngine } from '../../vibe/ai/AgenticPromptEngine';
 import { RuntimeManager } from '../../vibe/runtime/RuntimeManager';
+import { EmergentAgentPipeline } from '../../vibe/ai/EmergentAgentPipeline';
 import { ErrorFixEngine } from '../../vibe/autofix/ErrorFixEngine';
 import { MAVICORE_UIKIT_VIRTUAL_FILE } from '../../vibe/uikit';
 import { MAVICORE_SDK_VIRTUAL_FILE, MAVICORE_BRIDGE_VIRTUAL_FILE, MAVICORE_UI_VIRTUAL_FILE, SHADCN_UI_VIRTUAL_FILES } from '../../vibe/sdk';
@@ -1127,8 +1128,8 @@ button {
         name: 'mavicore-app',
         version: '1.0.0',
         dependencies: {
-          '@ionic/react': '^7.0.0',
-          'ionicons': '^7.0.0',
+          'react': '^18.2.0',
+          'react-dom': '^18.2.0',
           'lucide-react': 'latest',
           'recharts': 'latest',
           'framer-motion': '^11.0.0'
@@ -1626,6 +1627,35 @@ root.render(
     { id: 'GPT-4o', name: 'GPT-4o', icon: '🧠', color: '#6366f1' },
     { id: 'Claude-3.5', name: 'Claude 3.5', icon: '💎', color: '#ec4899' },
   ];
+
+  // Emergent.sh Agent & Pipeline state
+  const [stepHistory, setStepHistory] = useState([]);
+  const [activeEngine, setActiveEngine] = useState('sandpack');
+  const pipelineRef = useRef(null);
+
+  const handleDownloadProjectZip = useCallback(async () => {
+    try {
+      const { default: JSZip } = await import('jszip');
+      const zip = new JSZip();
+      const allFiles = vfs.getAllFilesRecord();
+      for (const [path, content] of Object.entries(allFiles)) {
+        const cleanPath = path.replace(/^\//, '');
+        zip.file(cleanPath, content);
+      }
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(appName || 'mavi-vibe-app').toLowerCase().replace(/\s+/g, '-')}-project.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('📦 Project ZIP berhasil diunduh!');
+    } catch (err) {
+      toast.error(`Gagal mendownload ZIP: ${err.message}`);
+    }
+  }, [vfs, appName]);
 
   // Modals state
   const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
@@ -2906,6 +2936,24 @@ root.render(
             {isSavingApp ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
           </button>
 
+          {/* Download Project ZIP button (Emergent.sh style export) - ICON ONLY */}
+          <button
+            type="button"
+            onClick={handleDownloadProjectZip}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: '28px', height: '28px', borderRadius: '6px', border: 'none',
+              background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+              color: '#fff',
+              cursor: 'pointer',
+              boxShadow: '0 2px 6px rgba(99, 102, 241, 0.35)',
+              transition: 'all 0.15s'
+            }}
+            title="Download Full Project ZIP (Export untuk VS Code / Cursor)"
+          >
+            <FolderOpen size={13} />
+          </button>
+
           {/* 6. Frontline Publish button - ICON ONLY */}
           <button
             type="button"
@@ -3045,86 +3093,60 @@ root.render(
                   onPromptConsumed={() => setChatInitialPrompt('')}
                   settings={null}
                   onCodeGenerated={async (rawCode) => {
-                    // Support both multi-file projects (<file_action path="..." ...>) and single-file multi-page layouts
-                    const { fileActions } = AgenticPromptEngine.parseResponse(rawCode, '/App.js');
-                    let mainCode = '';
-
-                    if (fileActions && fileActions.length > 0) {
-                      for (const action of fileActions) {
-                        const cleanContent = cleanVibeCode(action.content || '');
-                        vfs.writeFile(action.path, cleanContent);
-                        if (action.path === '/App.js' || action.path === '/App.jsx') {
-                          mainCode = cleanContent;
-                          vfs.writeFile('/App.js', cleanContent);
-                          vfs.writeFile('/App.jsx', cleanContent);
-                        }
-                        if (sandpackBridgeRef.current) {
-                          sandpackBridgeRef.current.updateFile(action.path, cleanContent);
-                          if (action.path === '/App.js' || action.path === '/App.jsx') {
-                            sandpackBridgeRef.current.updateFile('/App.js', cleanContent);
-                            sandpackBridgeRef.current.updateFile('/App.jsx', cleanContent);
-                            sandpackBridgeRef.current.openFile('/App.js');
+                    if (!pipelineRef.current) {
+                      pipelineRef.current = new EmergentAgentPipeline({
+                        vfs,
+                        runtimeManager,
+                        versionControl,
+                        onStepChange: (step, history) => {
+                          setStepHistory(history);
+                          setLogs(prev => [...prev, { timestamp: new Date(), text: `[Agent] ${step.label} (${step.status})` }]);
+                        },
+                        onLog: (entry) => setLogs(prev => [...prev, entry]),
+                        onFileWritten: (path, content) => {
+                          if (path === '/App.js' || path === '/App.jsx') {
+                            lastKnownExternalCodeRef.current = content;
+                            if (onCodeChange) onCodeChange(content);
                           }
+                        },
+                        onTableSync: (table, count) => {
+                          setConnectedTable(table);
+                          setLiveRecordCount(count);
+                          getTables().then(tbls => {
+                            if (Array.isArray(tbls)) setAvailableTables(tbls);
+                          });
                         }
-                      }
+                      });
                     }
 
-                    if (!mainCode) {
-                      let code = cleanVibeCode(rawCode);
-                      // Safeguard: If code starts with `return (` without a function wrapper, wrap it
-                      if (/^\s*return\s*\(/.test(code) && !/function\s+\w+\s*\(|=>\s*\(?|export\s+default|const\s+\w+\s*=\s*\(/i.test(code.slice(0, 100))) {
-                        code = `export default function App() {\n  ${code}\n}`;
-                        console.log('[Sandbox] Wrapped orphan `return (` in function App()');
-                      }
-                      mainCode = code;
-                      vfs.writeFile('/App.js', code);
-                      vfs.writeFile('/App.jsx', code);
+                    try {
+                      const res = await pipelineRef.current.execute({
+                        rawResponse: rawCode,
+                        prompt: inlinePrompt || chatInitialPrompt || appName,
+                        sandpackBridge: sandpackBridgeRef.current
+                      });
+
+                      setActiveFilePath('/App.js');
+                      const updatedFiles = vfs.getAllFilesRecord();
+                      setFilesRecord(updatedFiles);
+                      setFileTree(vfs.getFileTree());
+                      setFilesRevision(prev => prev + 1);
+                      setErrors([]);
+
                       if (sandpackBridgeRef.current) {
-                        sandpackBridgeRef.current.updateFile('/App.js', code);
-                        sandpackBridgeRef.current.updateFile('/App.jsx', code);
-                        sandpackBridgeRef.current.openFile('/App.js');
+                        sandpackBridgeRef.current.openFile?.('/App.js');
+                        sandpackBridgeRef.current.runSandpack?.();
                       }
-                    }
 
-                    lastKnownExternalCodeRef.current = mainCode;
-                    setActiveFilePath('/App.js');
-                    const updatedFiles = vfs.getAllFilesRecord();
-                    setFilesRecord(updatedFiles);
-                    setFileTree(vfs.getFileTree());
-                    setFilesRevision(prev => prev + 1);
-                    setErrors([]);
+                      try {
+                        localStorage.setItem('vibe_sandbox_autosave', res.mainCode);
+                        localStorage.setItem('vibe_sandbox_autosave_time', new Date().toISOString());
+                      } catch {}
 
-                    // ⚡ Instantly update Sandpack in-memory instance & live device screen!
-                    if (sandpackBridgeRef.current) {
-                      sandpackBridgeRef.current.openFile?.('/App.js');
-                      sandpackBridgeRef.current.runSandpack?.();
-                    }
-
-                    try {
-                      localStorage.setItem('vibe_sandbox_autosave', mainCode);
-                      localStorage.setItem('vibe_sandbox_autosave_time', new Date().toISOString());
-                    } catch {}
-
-                    if (onCodeChange) onCodeChange(mainCode);
-
-                    toast.success('⚡ Aplikasi profesional berhasil diterapkan ke live preview!');
-                    try {
-                      const res = await syncVibeAppToTable(mainCode);
-                      if (res?.table) {
-                        setConnectedTable(res.table);
-                        setLiveRecordCount(res.recordCount);
-                        toast.success(
-                          res.isNew
-                            ? `Tabel "${res.table.name}" berhasil dibuat di Database MaviCore!`
-                            : `Tabel "${res.table.name}" tersinkronisasi (${res.recordCount} data tersimpan)!`,
-                          { duration: 4000 }
-                        );
-                        getTables().then(tbls => {
-                          if (Array.isArray(tbls)) setAvailableTables(tbls);
-                        });
-                      }
-                    } catch (syncErr) {
-                      console.warn('Auto table sync error:', syncErr);
+                      toast.success('⚡ Aplikasi Emergent berhasil dieksekusi & live!');
+                    } catch (err) {
+                      console.error('[Emergent Pipeline Error]', err);
+                      toast.error(`Eksekusi gagal: ${err.message}`);
                     }
                   }}
                 />
@@ -3206,22 +3228,17 @@ root.render(
               dependencies: {
                 'react': '^18.2.0',
                 'react-dom': '^18.2.0',
-                'react-is': '^18.2.0',
-                '@nextui-org/react': '^2.2.0',
-                'framer-motion': '^10.16.0',
-                'lucide-react': 'latest',
+                'lucide-react': '^0.344.0',
+                'framer-motion': '^10.16.4',
                 'clsx': '^2.0.0',
-                'tailwind-merge': '^2.0.0',
-                'class-variance-authority': '^0.7.0',
-                'recharts': '^2.10.0',
-                'tailwindcss': '^3.4.0',
-                'autoprefixer': '^10.4.0',
-                'postcss': '^8.4.0'
+                'tailwind-merge': '^2.0.0'
               }
             }}
             options={{
               activeFile: activeFilePath,
               visibleFiles: [activeFilePath],
+              initMode: 'immediate',
+              bundlerTimeOut: 60000,
               externalResources: [
                 'https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css',
                 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap'
@@ -3629,6 +3646,19 @@ root.render(
             logs={logs}
             errors={errors}
             aiActivity={aiActivity}
+            stepHistory={stepHistory}
+            connectedTable={connectedTable}
+            liveRecordCount={liveRecordCount}
+            activeEngine={activeEngine}
+            onSwitchEngine={(eng) => {
+              setActiveEngine(eng);
+              try {
+                runtimeManager.switchEngine(eng);
+                toast.success(`Engine dialihkan ke: ${eng}`);
+              } catch (err) {
+                toast.error(err.message);
+              }
+            }}
             onTriggerAutoFix={handleTriggerAutoFix}
             isAutoFixing={isAutoFixing}
             onClearLogs={() => { setLogs([]); setErrors([]); }}

@@ -184,11 +184,22 @@ const WIDGET_TYPE_MAP = {
     BARCODE: 'BARCODE_SCANNER'
 };
 
+const RAW_WIDGET_TYPES = new Set([
+    'BUTTON', 'INPUT', 'TEXT_INPUT', 'TEXT', 'LABEL', 'TITLE', 'HEADING',
+    'CARD', 'RECTANGLE', 'CONTAINER', 'TABLE', 'INTERACTIVE_TABLE', 'CHART',
+    'IMAGE', 'GAUGE', 'CHECKBOX', 'SWITCH', 'TOGGLE', 'DROPDOWN', 'SELECT',
+    'CAMERA', 'NUMPAD', 'QR', 'BARCODE', 'QRCODESCANNER', 'VIDEOPLAYER',
+    'TABS', 'MODAL', 'DRAWER', 'ACCORDION', 'SPINNER', 'TIMER', 'COUNTER',
+    'FAB', 'FORM', 'BADGE', 'AVATAR', 'ALERT', 'TOAST', 'PROGRESS',
+    'SHAPE_RECTANGLE', 'SHAPE_CIRCLE'
+]);
+
 const normalizeCommandType = (type) => {
     if (!type) return '';
     const t = String(type).trim().toUpperCase().replace(/\s+/g, '_').replace(/-/g, '_');
     if (t === 'CREATE_WIDGET' || t === 'NEW_WIDGET' || t === 'INSERT_WIDGET' || t === 'ADD_COMPONENT' || t === 'CREATE_COMPONENT') return 'ADD_WIDGET';
     if (WIDGET_PREFIX_REGEX.test(t)) return 'ADD_WIDGET';
+    if (RAW_WIDGET_TYPES.has(t)) return 'ADD_WIDGET';
     if (t === 'CREATE_STEP' || t === 'NEW_STEP' || t === 'ADD_SCREEN' || t === 'CREATE_SCREEN' || t === 'NEW_SCREEN' || t === 'ADD_PAGE' || t === 'CREATE_PAGE' || t === 'NEW_PAGE') return 'ADD_STEP';
     if (t === 'UPDATE_SCREEN' || t === 'RENAME_SCREEN' || t === 'UPDATE_PAGE') return 'UPDATE_STEP';
     if (t === 'DELETE_SCREEN' || t === 'REMOVE_SCREEN' || t === 'DELETE_PAGE') return 'DELETE_STEP';
@@ -218,7 +229,15 @@ const normalizePayloadShape = (cmd) => {
     }
 
     // Pull root-level fields if payload is empty or missing key properties
-    const rootKeys = ['event', 'on', 'trigger', 'widgetId', 'widgetName', 'target', 'componentId', 'actions', 'clauses', 'conditions', 'elseActions', 'name', 'title', 'stepId', 'stepTitle', 'screenTitle', 'step', 'screen', 'page', 'stepName', 'targetStep', 'tableId', 'tableName', 'variableName', 'variable', 'defaultValue', 'columns', 'fields', 'markdown', 'content', 'code', 'logic', 'description'];
+    const rootKeys = [
+        'event', 'on', 'trigger', 'widgetId', 'widgetName', 'target', 'componentId',
+        'actions', 'clauses', 'conditions', 'elseActions', 'name', 'title', 'stepId',
+        'stepTitle', 'screenTitle', 'step', 'screen', 'page', 'stepName', 'targetStep',
+        'tableId', 'tableName', 'variableName', 'variable', 'defaultValue', 'columns',
+        'fields', 'markdown', 'content', 'code', 'logic', 'description',
+        'displayName', 'props', 'x', 'y', 'w', 'h', 'width', 'height', 'text', 'label',
+        'widgetType', 'componentType', 'triggers', 'dataSource'
+    ];
     rootKeys.forEach(k => {
         if (next[k] !== undefined && payload[k] === undefined) {
             payload[k] = next[k];
@@ -230,16 +249,26 @@ const normalizePayloadShape = (cmd) => {
         payload.title = payload.title || payload.stepTitle || payload.screenTitle || payload.name || payload.screen || payload.page || payload.stepName || payload.label || next.title || next.stepTitle || next.name || 'New Screen';
     }
 
-    // Detect widget type from raw cmd._rawType or cmd.type if e.g. ADD_BUTTON
+    // Detect widget type from raw cmd._rawType or cmd.type if e.g. ADD_BUTTON or raw 'CARD'
     const rawType = String(cmd?._rawType || cmd?.type || '').toUpperCase().trim();
     const rawTypeSuffix = rawType.replace(/^(ADD_|CREATE_|NEW_|INSERT_)/, '');
-    const mappedWidgetType = WIDGET_TYPE_MAP[rawTypeSuffix];
+    const mappedWidgetType = WIDGET_TYPE_MAP[rawTypeSuffix] || (RAW_WIDGET_TYPES.has(rawType) ? WIDGET_TYPE_MAP[rawType] || rawType : null);
 
     // Widget type normalization
     if (next.type === 'ADD_WIDGET' || next.type === 'CREATE_WIDGET') {
-        payload.type = payload.type || payload.widgetType || payload.componentType || payload.widget || payload.component || mappedWidgetType || next.widgetType || next.componentType || next.widget || next.component || 'BUTTON';
-        if (payload.type === 'ADD_WIDGET' || payload.type === 'CREATE_WIDGET') {
-            payload.type = mappedWidgetType || 'BUTTON';
+        payload.type = payload.type || payload.widgetType || payload.componentType || payload.widget || payload.component || mappedWidgetType || next.widgetType || next.componentType || next.widget || next.component;
+        if (!payload.type && (payload.displayName || payload.name)) {
+            const nameUpper = String(payload.displayName || payload.name).toUpperCase();
+            if (nameUpper.includes('BUTTON') || nameUpper.includes('TOMBOL') || nameUpper.includes('BTN')) payload.type = 'Button';
+            else if (nameUpper.includes('INPUT') || nameUpper.includes('MASUKKAN')) payload.type = 'Input';
+            else if (nameUpper.includes('CARD') || nameUpper.includes('KARTU') || nameUpper.includes('CONTAINER')) payload.type = 'Card';
+            else if (nameUpper.includes('TABLE') || nameUpper.includes('TABEL')) payload.type = 'Table';
+            else if (nameUpper.includes('TEXT') || nameUpper.includes('JUDUL') || nameUpper.includes('HEADER') || nameUpper.includes('TITLE')) payload.type = 'Text';
+            else if (nameUpper.includes('QR') || nameUpper.includes('SCAN')) payload.type = 'QRCodeScanner';
+            else payload.type = 'Card';
+        }
+        if (!payload.type || payload.type === 'ADD_WIDGET' || payload.type === 'CREATE_WIDGET') {
+            payload.type = mappedWidgetType || 'Card';
         }
     }
 
@@ -314,6 +343,20 @@ export const sanitizeCopilotCommands = (commandData, context = {}, options = {})
         }];
         warnings.push(`[REPAIR] Detected a flat column list in commands. Automatically wrapped ${columns.length} columns into a single 'CREATE_TABLE' command.`);
     }
+
+    // Detect and auto-wrap if commands contain raw widget definitions without explicit type
+    commands = commands.map((cmd, idx) => {
+        if (!cmd || typeof cmd !== 'object') return cmd;
+        const hasWidgetTraits = cmd.displayName || cmd.widgetName || cmd.props || cmd.widgetType || cmd.componentType || cmd.x !== undefined || cmd.y !== undefined;
+        if (!cmd.type && hasWidgetTraits) {
+            warnings.push(`[REPAIR] Auto-wrapped widget #${idx + 1} ("${cmd.displayName || cmd.name || 'Component'}") into 'ADD_WIDGET' command.`);
+            return {
+                type: 'ADD_WIDGET',
+                payload: cmd
+            };
+        }
+        return cmd;
+    });
 
     const safeCommands = commands
         .map((raw, cmdIndex) => {

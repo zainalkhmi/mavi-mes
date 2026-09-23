@@ -24,7 +24,7 @@ const PROVIDERS = [
 
 const DEFAULT_MODELS = {
   Gemini: [
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Recommended - Super Fast & Next Gen)' },
+    { id: 'gemini-3.5-flash-preview', name: 'Gemini 2.0 Flash (Recommended - Super Fast & Next Gen)' },
     { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Production Stable & Fast)' },
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Next Gen Reasoning)' },
     { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro (Complex Analysis)' }
@@ -67,7 +67,7 @@ const AiSettings = () => {
   const [activeProvider, setActiveProvider] = useState('Gemini');
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
-  const [modelId, setModelId] = useState('gemini-2.0-flash');
+  const [modelId, setModelId] = useState('gemini-3.5-flash-preview');
   const [availableModels, setAvailableModels] = useState([]);
   const [isFetchingModels, setIsFetchingModels] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -90,14 +90,14 @@ const AiSettings = () => {
         setActiveProvider(provider);
         setApiKey(aiSettings.apiKey || '');
         setBaseUrl(aiSettings.baseUrl || '');
-        let mid = aiSettings.modelId || (provider === 'Gemini' ? 'gemini-2.0-flash' : 'gpt-4o-mini');
+        let mid = aiSettings.modelId || (provider === 'Gemini' ? 'gemini-3.5-flash-preview' : 'gpt-4o-mini');
         const isBogus = (id) => {
           if (!id) return true;
           const s = String(id).toLowerCase();
           return s.includes('gemini-3.') || s.includes('flash-latest') || s === 'gemini-flash' || s.includes('preview-02-05') || s.includes('flash-lite-preview');
         };
         if (provider === 'Gemini' && isBogus(mid)) {
-          mid = 'gemini-2.0-flash';
+          mid = 'gemini-3.5-flash-preview';
         }
         setModelId(mid);
 
@@ -145,7 +145,7 @@ const AiSettings = () => {
     const defaultModelsForNewProvider = DEFAULT_MODELS[newProviderId] || [];
     const defaultModelIdForNewProvider = defaultModelsForNewProvider.length > 0 
       ? defaultModelsForNewProvider[0].id 
-      : (newProviderId === 'Gemini' ? 'gemini-2.0-flash' : '');
+      : (newProviderId === 'Gemini' ? 'gemini-3.5-flash-preview' : '');
 
     const nextConfig = configs[newProviderId] || {
       apiKey: '',

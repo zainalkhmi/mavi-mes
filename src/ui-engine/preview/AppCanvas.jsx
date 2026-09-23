@@ -2170,6 +2170,11 @@ export default function AppCanvas({
         setScreens(nextScreens);
         selectedIdRef.current = newComp.id;
         setSelectedId(newComp.id);
+        // Ensure canvas view navigates to the target screen so user sees the components immediately
+        if (currentScreenIdRef.current !== targetScreenId) {
+          currentScreenIdRef.current = targetScreenId;
+          setCurrentScreenId(targetScreenId);
+        }
         break;
       }
       case 'UPDATE_WIDGET': {

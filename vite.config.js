@@ -20,8 +20,8 @@ const securityHeaders = {
     "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.storage https://*.googleusercontent.com https://images.unsplash.com https://w0.peakpx.com",
     "media-src 'self' blob: data: https://assets.mixkit.co https://*.mixkit.co",
-    "connect-src 'self' http: https: ws: wss: data: blob:",
-    "frame-src 'self' blob: data: http://localhost:* http://127.0.0.1:* https://*.mandor.cloud https://mandor.cloud https://*.codesandbox.io https://codesandbox.io",
+    "connect-src 'self' http: https: ws: wss: data: blob: https://*.csb.app https://*.codesandbox.io",
+    "frame-src 'self' blob: data: http://localhost:* http://127.0.0.1:* https://*.mandor.cloud https://mandor.cloud https://*.codesandbox.io https://codesandbox.io https://*.csb.app https://csb.app",
     "frame-ancestors 'self' http://localhost:* http://127.0.0.1:* https://*.mandor.cloud https://mandor.cloud https://*.vercel.app",
   ].join('; '),
 };
@@ -130,7 +130,7 @@ export default defineConfig({
     // Security headers for development
     headers: {
       ...securityHeaders,
-      // Relax CSP for dev
+      // Relax CSP for dev and allow Sandpack runtime / bundler iframes
       'Content-Security-Policy': [
         "default-src 'self'",
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' ws://localhost:* http://localhost:* https://cdn.jsdelivr.net https://cdn.tailwindcss.com blob:",
@@ -138,8 +138,8 @@ export default defineConfig({
         "font-src 'self' https://fonts.gstatic.com data:",
         "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.storage https://*.googleusercontent.com https://images.unsplash.com https://w0.peakpx.com",
         "media-src 'self' blob: data: https://assets.mixkit.co https://*.mixkit.co",
-        "connect-src 'self' http: https: ws: wss: data: blob:",
-        "frame-src 'self' blob: data: http://localhost:* http://127.0.0.1:* https://*.mandor.cloud https://mandor.cloud https://*.codesandbox.io https://codesandbox.io",
+        "connect-src 'self' http: https: ws: wss: data: blob: https://*.csb.app https://*.codesandbox.io",
+        "frame-src 'self' blob: data: http://localhost:* http://127.0.0.1:* https://*.mandor.cloud https://mandor.cloud https://*.codesandbox.io https://codesandbox.io https://*.csb.app https://csb.app",
         "frame-ancestors 'self' http://localhost:* http://127.0.0.1:* https://*.mandor.cloud https://mandor.cloud https://*.vercel.app",
       ].join('; '),
     },

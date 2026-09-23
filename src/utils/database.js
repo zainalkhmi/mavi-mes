@@ -270,7 +270,7 @@ export async function getPrimaryAiConnector() {
             mid.includes('flash-latest') ||
             mid === 'gemini-flash'
         )) {
-            aiSet.modelId = 'gemini-2.0-flash';
+            aiSet.modelId = 'gemini-3.5-flash-preview';
         }
         return conn;
     };

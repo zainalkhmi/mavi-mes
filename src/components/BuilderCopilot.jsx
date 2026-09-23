@@ -645,32 +645,121 @@ const BuilderCopilot = ({
   }, [messages, isLoading]);
 
   // ── parseCommands ──────────────────────────────────────────────────────────
+  // ── parseCommands ──────────────────────────────────────────────────────────
   const parseCommands = (text) => {
     if (!text) return null;
     const isCommandPayload = (parsed) => {
       if (!parsed) return false;
       if (Array.isArray(parsed.commands)) return true;
-      if (Array.isArray(parsed) && parsed.length > 0 && (parsed[0]?.type || parsed[0]?.widgetType)) return true;
+      if (Array.isArray(parsed.widgets)) return true;
+      if (Array.isArray(parsed.components)) return true;
+      if (Array.isArray(parsed) && parsed.length > 0) return true;
       if (parsed?.type && typeof parsed.type === 'string') return true;
+      if (parsed?.displayName || parsed?.widgetType || parsed?.componentType || parsed?.props) return true;
       return false;
     };
     const normalizeParsed = (parsed) => {
       if (!parsed) return null;
       if (Array.isArray(parsed.commands)) return parsed;
-      if (Array.isArray(parsed)) return { commands: parsed };
+      if (Array.isArray(parsed.widgets)) {
+        return {
+          commands: parsed.widgets.map(w => (w?.type?.startsWith('ADD_') ? w : { type: 'ADD_WIDGET', payload: w }))
+        };
+      }
+      if (Array.isArray(parsed.components)) {
+        return {
+          commands: parsed.components.map(w => (w?.type?.startsWith('ADD_') ? w : { type: 'ADD_WIDGET', payload: w }))
+        };
+      }
+      if (Array.isArray(parsed)) {
+        return {
+          commands: parsed.map(item => {
+            if (!item || typeof item !== 'object') return null;
+            if (item.type && (item.type.startsWith('ADD_') || item.type.startsWith('CREATE_') || item.type.startsWith('UPDATE_') || item.type.startsWith('DELETE_') || item.type.startsWith('GO_TO_') || item.type === 'SET_APP_NAME')) {
+              return item;
+            }
+            return {
+              type: 'ADD_WIDGET',
+              payload: item
+            };
+          }).filter(Boolean)
+        };
+      }
       if (parsed.type) return { commands: [parsed] };
+      if (parsed.displayName || parsed.props || parsed.widgetType || parsed.componentType) {
+        return { commands: [{ type: 'ADD_WIDGET', payload: parsed }] };
+      }
       return null;
     };
-    const cleanJsonLike = (raw = '') => raw
-      .replace(/```json/gi, '').replace(/```/g, '')
-      .replace(/\/\/.*$/gm, '').trim();
+    const cleanJsonLike = (raw = '') => {
+      if (!raw) return '';
+      let cleaned = raw
+        .replace(/```(?:json)?/gi, '').replace(/```/g, '')
+        .replace(/\/\*[\s\S]*?\*\//g, '') // remove block comments
+        .replace(/\/\/.*$/gm, '') // remove line comments
+        .replace(/,\s*([}\]])/g, '$1') // fix trailing commas
+        .trim();
+
+      const firstBrace = cleaned.indexOf('{');
+      const firstBracket = cleaned.indexOf('[');
+      let startIdx = -1;
+      if (firstBrace !== -1 && firstBracket !== -1) startIdx = Math.min(firstBrace, firstBracket);
+      else if (firstBrace !== -1) startIdx = firstBrace;
+      else if (firstBracket !== -1) startIdx = firstBracket;
+      if (startIdx > 0) cleaned = cleaned.slice(startIdx);
+
+      return cleaned.trim();
+    };
+
     const tryParse = (candidate) => {
       if (!candidate) return null;
+      const cleaned = cleanJsonLike(candidate);
+      if (!cleaned) return null;
       try {
-        const parsed = JSON.parse(candidate);
+        const parsed = JSON.parse(cleaned);
         return isCommandPayload(parsed) ? normalizeParsed(parsed) : null;
       } catch (err) {
-        return null;
+        // Robust healing for truncated/cut-off JSON streams
+        try {
+          let inString = false;
+          let escaped = false;
+          const stack = [];
+          let repaired = '';
+          for (let i = 0; i < cleaned.length; i++) {
+            const ch = cleaned[i];
+            if (escaped) {
+              escaped = false;
+              repaired += ch;
+              continue;
+            }
+            if (ch === '\\') {
+              escaped = true;
+              repaired += ch;
+              continue;
+            }
+            if (ch === '"') {
+              inString = !inString;
+              repaired += ch;
+              continue;
+            }
+            if (!inString) {
+              if (ch === '{' || ch === '[') stack.push(ch === '{' ? '}' : ']');
+              else if (ch === '}' || ch === ']') {
+                if (stack.length && stack[stack.length - 1] === ch) stack.pop();
+              }
+            }
+            repaired += ch;
+          }
+          if (inString) repaired += '"';
+          repaired = repaired.replace(/,\s*$/, '');
+          while (stack.length > 0) {
+            repaired += stack.pop();
+          }
+          const parsedHealed = JSON.parse(repaired);
+          return isCommandPayload(parsedHealed) ? normalizeParsed(parsedHealed) : null;
+        } catch {
+          return null;
+        }
       }
     };
 
@@ -689,11 +778,11 @@ const BuilderCopilot = ({
       if (fromOpenTag) return fromOpenTag;
     }
 
-    // 2. Check for fenced ```json ... ``` blocks containing "commands" or array of commands
+    // 2. Check for fenced ```json ... ``` blocks containing "commands", "widgets", or array of commands/components
     const fenceMatches = text.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi);
     for (const match of fenceMatches) {
       const candidate = cleanJsonLike(match[1]);
-      if (candidate.includes('"commands"') || candidate.includes('"type"')) {
+      if (candidate.includes('"commands"') || candidate.includes('"widgets"') || candidate.includes('"components"') || candidate.includes('"type"') || candidate.includes('"displayName"')) {
         const fromFence = tryParse(candidate);
         if (fromFence) return fromFence;
       }
@@ -716,10 +805,15 @@ const BuilderCopilot = ({
           }
         }
       }
+      if (depth > 0) {
+        const rawObj = text.slice(startIdx);
+        const fromScan = tryParse(cleanJsonLike(rawObj));
+        if (fromScan) return fromScan;
+      }
     }
 
-    // 4. Fallback: Scan for direct JSON array of command objects [ { "type": ... } ]
-    const matchArray = text.match(/\[\s*\{\s*"(?:type|widgetType|componentType)"\s*:/i);
+    // 4. Fallback: Scan for direct JSON array of command or widget objects [ { ... } ]
+    const matchArray = text.match(/\[\s*\{\s*"(?:type|widgetType|componentType|displayName|name)"\s*:/i);
     if (matchArray && matchArray.index !== undefined) {
       const startIdx = matchArray.index;
       let depth = 0;
@@ -734,6 +828,35 @@ const BuilderCopilot = ({
             break;
           }
         }
+      }
+      if (depth > 0) {
+        const rawArr = text.slice(startIdx);
+        const fromScan = tryParse(cleanJsonLike(rawArr));
+        if (fromScan) return fromScan;
+      }
+    }
+
+    // 5. Fallback: Scan for any object containing "displayName": "..."
+    const matchSingleWidget = text.match(/\{\s*"(?:displayName|widgetType|componentType)"\s*:/i);
+    if (matchSingleWidget && matchSingleWidget.index !== undefined) {
+      const startIdx = matchSingleWidget.index;
+      let depth = 0;
+      for (let i = startIdx; i < text.length; i++) {
+        if (text[i] === '{') depth++;
+        else if (text[i] === '}') {
+          depth--;
+          if (depth === 0) {
+            const rawObj = text.slice(startIdx, i + 1);
+            const fromScan = tryParse(cleanJsonLike(rawObj));
+            if (fromScan) return fromScan;
+            break;
+          }
+        }
+      }
+      if (depth > 0) {
+        const rawObj = text.slice(startIdx);
+        const fromScan = tryParse(cleanJsonLike(rawObj));
+        if (fromScan) return fromScan;
       }
     }
 
@@ -830,10 +953,14 @@ const BuilderCopilot = ({
       const assistantMsg = { role: 'assistant', content: response, timestamp: new Date() };
       setMessages(prev => {
         const nextMsgs = [...prev, assistantMsg];
-        if (shouldAutoGhost && response && (response.includes('<builder_cmds>') || response.includes('"commands":'))) {
-          setTimeout(() => {
-            handleGhostPilotRun(nextMsgs.length - 1, assistantMsg);
-          }, 700);
+        if (shouldAutoGhost && response) {
+          const parsedAuto = parseCommands(response);
+          const safeAuto = parsedAuto ? sanitizeCopilotCommands(parsedAuto, enrichedContext) : null;
+          if (safeAuto?.safeCommands?.length > 0) {
+            setTimeout(() => {
+              handleGhostPilotRun(nextMsgs.length - 1, assistantMsg);
+            }, 600);
+          }
         }
         return nextMsgs;
       });
@@ -1214,9 +1341,6 @@ Apa yang bisa kamu bantu untuk widget ini?`;
 
     if (!safePack || !safePack.safeCommands || safePack.safeCommands.length === 0) return;
 
-    // 1. Mark as approved in state
-    setMessages(prev => prev.map((m, i) => i === msgIdx ? { ...m, isApproved: true } : m));
-
     // Extract plan description for opening briefing
     let planDesc = parsePlan(msg.content);
     if (!planDesc) {
@@ -1238,6 +1362,8 @@ Apa yang bisa kamu bantu untuk widget ini?`;
     });
 
     if (onStartGhostPilot) {
+      // 1. Mark as approved in state
+      setMessages(prev => prev.map((m, i) => i === msgIdx ? { ...m, isApproved: true } : m));
       onStartGhostPilot({
         commands: commandsToExecute,
         planDescription: planDesc,
@@ -1269,7 +1395,7 @@ Apa yang bisa kamu bantu untuk widget ini?`;
         onClearStage: onLeaveCommand
       });
     } else {
-      // Fallback to normal execution if Ghost Pilot prop is unavailable
+      // Fallback to direct execution if Ghost Pilot overlay is unavailable (e.g. Gluestack Mobile Canvas)
       await handleApprovePlan(msgIdx, msg);
     }
   };
@@ -1843,7 +1969,13 @@ Apa yang bisa kamu bantu untuk widget ini?`;
                     <button
                       type="button"
                       onClick={() => {
-                        handleSend('Tolong sekarang juga buatkan dan pasang langsung seluruh komponen ke canvas untuk rencana di atas. Wajib sertakan format <builder_cmds>{"commands":[...]}</builder_cmds> lengkap dengan widgets agar langsung terpasang di canvas.', { autoRunGhost: true });
+                        const parsedNow = parseCommands(msg.content);
+                        const safeNow = parsedNow ? sanitizeCopilotCommands(parsedNow, context) : null;
+                        if (safeNow?.safeCommands?.length > 0) {
+                          handleApprovePlan(idx, msg);
+                        } else {
+                          handleSend('Tolong sekarang juga buatkan dan pasang langsung seluruh komponen ke canvas untuk rencana di atas. Wajib sertakan format <builder_cmds>{"commands":[...]}</builder_cmds> lengkap dengan widgets agar langsung terpasang di canvas.', { autoRunGhost: true });
+                        }
                       }}
                       style={{
                         width: '100%',

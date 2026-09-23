@@ -27,11 +27,12 @@ import toast, { Toaster } from 'react-hot-toast';
 import { getPrimaryAiConnector, saveIntegrationConnector } from '../../utils/database';
 import { updateSharedAiModel } from '../../utils/aiService';
 import { streamVibeAI, generateVibeCode, isTruncatedResponse } from '../../utils/ai/VibeAIStreamService';
-import { cleanVibeCode, extractVibeCode } from '../utils/codeCleaner';
+import { cleanVibeCode, extractVibeCode, healTruncatedReactCode } from '../utils/codeCleaner';
+import AgentActivityCard from './AgentActivityCard';
 
 export const PROVIDER_MODELS = {
   Gemini: [
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', desc: 'Resmi Google, Super Cepat & Kuota Terbesar (Rekomendasi)', tag: 'Recommended' },
+    { id: 'gemini-3.5-flash-preview', name: 'Gemini 2.0 Flash', desc: 'Resmi Google, Super Cepat & Kuota Terbesar (Rekomendasi)', tag: 'Recommended' },
     { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', desc: 'Sangat stabil untuk produksi, anti-error kapasitas', tag: 'Fast' },
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', desc: 'Generasi mutakhir penalaran tinggi' },
     { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', desc: 'Kemampuan penalaran kompleks' }
@@ -100,7 +101,7 @@ export default function VibeChatPanel({
   // Active AI Model & Provider state
   const [activeConnector, setActiveConnector] = useState(null);
   const [selectedProvider, setSelectedProvider] = useState('Gemini');
-  const [selectedModelId, setSelectedModelId] = useState('gemini-2.0-flash');
+  const [selectedModelId, setSelectedModelId] = useState('gemini-3.5-flash-preview');
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const modelDropdownRef = useRef(null);
@@ -112,26 +113,26 @@ export default function VibeChatPanel({
         let savedProvider = localStorage.getItem('vibe_active_provider') || 'Gemini';
         let savedModel = localStorage.getItem('vibe_active_model');
         if (isBogusGemini(savedModel)) {
-          savedModel = 'gemini-2.0-flash';
-          localStorage.setItem('vibe_active_model', 'gemini-2.0-flash');
+          savedModel = 'gemini-3.5-flash-preview';
+          localStorage.setItem('vibe_active_model', 'gemini-3.5-flash-preview');
         }
 
         const connector = await getPrimaryAiConnector().catch(() => null);
         if (connector) {
           const aiSet = connector.aiSettings || connector.config || connector || {};
           if (isBogusGemini(aiSet.modelId)) {
-            aiSet.modelId = 'gemini-2.0-flash';
+            aiSet.modelId = 'gemini-3.5-flash-preview';
           }
           setActiveConnector(connector);
           const p = savedProvider || aiSet.provider || 'Gemini';
           const m = !isBogusGemini(savedModel)
-            ? (savedModel || 'gemini-2.0-flash')
-            : (!isBogusGemini(aiSet.modelId) ? aiSet.modelId : (p === 'OpenAI' ? 'gpt-4o-mini' : 'gemini-2.0-flash'));
+            ? (savedModel || 'gemini-3.5-flash-preview')
+            : (!isBogusGemini(aiSet.modelId) ? aiSet.modelId : (p === 'OpenAI' ? 'gpt-4o-mini' : 'gemini-3.5-flash-preview'));
           setSelectedProvider(p);
           setSelectedModelId(m);
         } else {
           setSelectedProvider(savedProvider);
-          setSelectedModelId(savedModel || 'gemini-2.0-flash');
+          setSelectedModelId(savedModel || 'gemini-3.5-flash-preview');
         }
       } catch (err) {
         console.warn('[VibeChatPanel] Failed to load active AI connector:', err);
@@ -400,43 +401,24 @@ PENTING & WAJIB: Tuntaskan seluruh bagian plan di atas secara terperinci. Rancan
 CRITICAL EXECUTION CONSTRAINTS:
 1. The preview runs directly in-browser using Sandpack. React, Tailwind CSS, Lucide React icons, Framer Motion, and shadcn/ui components (Button, Card, Badge, Input, Dialog, Tabs, cn) are ALREADY pre-installed and available via '@/components/ui/...' and '@/lib/utils'.
 2. DO NOT output package.json, terminal commands, or instructions on how to install or run the project (like npm install or creating directories).
-3. ARSITEKTUR APLIKASI WEB ENTERPRISE DENGAN MULTI-PAGE & LAYOUT (WAJIB):
-   Aplikasi yang Anda buat HARUS dirancang sebagai APLIKASI WEB PROFESIONAL MULTI-HALAMAN DENGAN LAYOUT LENGKAP (BUKAN hanya 1 halaman statis sederhana):
+3. ARSITEKTUR APLIKASI ENTERPRISE & TUNTAS (ANTI-TRUNCATION):
+   Aplikasi HARUS dirancang LENGKAP, CANTIK, dan BERFUNGSI PENUH tanpa terpotong:
    
-   A. SHELL & LAYOUT NAVIGASI UTAMA (SIDEBAR + HEADER):
-      - SIDEBAR NAVIGASI (KIRI):
-        * Logo sistem & Judul ("MaviCore MES Pro ● Live" dengan badge hijau aktif).
-        * Tombol Navigasi Halaman dengan icon Lucide, label, badge, dan highlight aktif cerah (bg-indigo-600 text-white shadow-lg shadow-indigo-500/30):
-          - 'dashboard' -> 📊 Dashboard & Telemetri
-          - 'inspection' -> 📝 Formulir Inspeksi / Input Operasional
-          - 'history' -> 📋 Riwayat Data & Log Sheet
-          - 'analytics' -> 📈 Analisis Cacat & Tren Output
-          - 'settings' -> ⚙️ Standar Parameter & Pengaturan Line
-        * Profil Operator di bagian bawah sidebar (Nama Operator, Shift, Role: Line Leader).
-        * Tombol Toggle Collapse/Expand sidebar.
-      
-      - TOP NAVIGATION BAR (HEADER ATAS):
-        * Breadcrumbs jalur halaman (misal: "Produksi > Input Inspeksi Part").
-        * Pemilih Line / Mesin aktif (Line A - Stamping, Line B - CNC, Line C - Assembly).
-        * Status Koneksi Database MaviCore (Pill Hijau "● Bridge Online").
-        * Jam Digital Real-Time (HH:mm:ss).
-        * Tombol Cepat Aksi: "+ Catat Data Baru" (Membuka modal input cepat atau berpindah ke halaman form).
+   A. SHELL & LAYOUT NAVIGASI UTAMA (HEADER + TABS):
+      - Header Atas: Brand sistem ("MaviCore MES Pro ● Live" badge hijau), jam digital, status bridge "● Online", dan tombol aksi "+ Catat Data".
+      - Navigasi Tab / View Switcher: Menggunakan state navigasi ringkas:
+        const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard' | 'operations'
+       - View 1 ('dashboard'): 📊 Dashboard KPI (OEE, Total Part, Defect, Uptime).
+       - View 2 ('operations'): 📝 Formulir Input & 📋 Tabel Data Real-time (CRUD Lengkap).
 
-   B. MULTI-PAGE ROUTING BERBASIS STATE:
-      Gunakan state navigasi di App:
-      const [currentView, setCurrentView] = useState('dashboard');
-      Bagi antarmuka menjadi halaman-halaman mandiri yang kaya fitur:
-      - <DashboardView />: Ringkasan metrik KPI warna-warni (OEE, Total Output, Good Parts, Defects, Uptime), status mesin live, progress bar capaian, dan log aktivitas terkini.
-      - <InspectionView />: Halaman formulir input komprehensif untuk operator dengan kolom parameter lengkap, pengecekan toleransi Min/Nominal/Max, tombol penilaian OK/NG, dan tombol submit simpan data.
-      - <HistoryView />: Halaman tabel data database lengkap dengan input pencarian, filter status/shift, sorting, modal lihat detail, edit data inline, dan tombol hapus data.
-      - <AnalyticsView />: Grafik pareto penyebab cacat (scratch, dimensi, crack) dan persentase scrap rate.
-      - <SettingsView />: Konfigurasi ambang batas toleransi, target cycle time, dan jadwal shift operator.
+    B. SINKRONISASI DATA REAKTIF:
+       - Berbagi state data terpadu dengan MaviCore Table Bridge (window.MaviCoreBridge).
+       - Simpan data dari formulir langsung muncul di tabel dan memperbarui kartu metrik seketika.
 
-   C. SINKRONISASI DATA ANTAR HALAMAN (REAKTIF):
-      - Seluruh halaman berbagi state data yang sama (shared state) dan terhubung ke window.MaviCoreBridge.
-      - Setiap data baru yang disimpan di halaman "Formulir Inspeksi" otomatis langsung muncul di tabel "Riwayat Data" dan memperbarui kartu metrik di "Dashboard".
-
-4. ALWAYS wrap the entire runnable React component inside <vibe_code> ... </vibe_code> tags. DILARANG KERAS menyertakan markdown code fences (\`\`\`jsx atau \`\`\`) di dalam tag <vibe_code>. Tulis langsung kode JSX mentah di dalamnya.
+ 4. ALWAYS wrap the entire runnable React component inside <vibe_code> ... </vibe_code> tags. DILARANG KERAS menyertakan markdown code fences di dalam tag <vibe_code>. Tulis langsung kode JSX mentah di dalamnya.
+ 5. WAJIB SELESAIKAN KODE 100% UTUH (MAX 250-350 BARIS):
+    - Jangan menulis kode berulang yang menghabiskan token LLM.
+    - Komponen harus mandiri, padat, dan tuntas sampai kurung penutup "}" dan tag penutup vibe_code.
 5. VISUAL AESTHETICS & DYAD UI ENGINE (STUNNING INDUSTRIAL DESIGN):
    Gunakan komponen React mandiri dengan Tailwind CSS yang indah, tactile, modern, dan colourfull (DILARANG KAKU HITAM PUTIH / MONOKROM):
    - BACKGROUND HARUS KAYA WARNA (COLOURFUL RADIAL MESH):
@@ -487,11 +469,12 @@ Setiap aplikasi yang mencatat atau mengelola data WAJIB memiliki fungsi CRUD len
             setCurrentStream(prev => prev + chunk);
           },
           onComplete: (result) => {
-            const extractedCode = extractVibeCode(result.text);
-            if (extractedCode) {
+            const rawRes = result?.text || '';
+            const extractedCode = extractVibeCode(rawRes) || cleanVibeCode(rawRes) || healTruncatedReactCode(rawRes);
+            if (extractedCode && (extractedCode.includes('return') || extractedCode.includes('export default') || extractedCode.includes('function App'))) {
               onCodeGenerated(extractedCode);
             }
-            setMessages(prev => [...prev, { role: 'assistant', type: 'code', content: result.text }]);
+            setMessages(prev => [...prev, { role: 'assistant', type: 'code', content: rawRes }]);
             setCurrentStream('');
           },
           onError: (err) => {
@@ -1483,6 +1466,20 @@ function MessageBubble({
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  if (type === 'agent_activity') {
+    return (
+      <div style={{ width: '100%' }}>
+        <AgentActivityCard
+          steps={typeof content === 'object' ? (content.steps || []) : []}
+          currentStep={typeof content === 'object' ? content.currentStep : null}
+          isFinished={typeof content === 'object' ? content.isFinished : true}
+          hasError={typeof content === 'object' ? content.hasError : false}
+          errorText={typeof content === 'object' ? content.errorText : ''}
+        />
+      </div>
+    );
+  }
 
   return (
     <div style={{

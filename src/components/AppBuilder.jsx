@@ -474,8 +474,7 @@ const AppBuilder = () => {
 
     const [publishModal, setPublishModal] = useState({ isOpen: false, url: '' });
 
-    // ─── Copilot & Sandbox Separation + Speed Dial Fly Button ───
-    const [isCopilotMenuOpen, setIsCopilotMenuOpen] = useState(false);
+    // ─── Copilot & Sandbox Separation ───
     const [isSandboxOpen, setIsSandboxOpen] = useState(false);
     const [sandpackCode, setSandpackCode] = useState(() => {
         return CLEAN_BLANK_APP_CODE;
@@ -30622,382 +30621,35 @@ D3:0
                 </div>
             )}
 
-            {/* Speed Dial Fly Button: Copilot & Sandbox */}
-            {copilotEnabled && (
-                <>
-                    {/* Click outside backdrop when speed dial menu is open */}
-                    {isCopilotMenuOpen && (
-                        <div
-                            onClick={() => setIsCopilotMenuOpen(false)}
-                            style={{
-                                position: 'fixed',
-                                inset: 0,
-                                zIndex: 998,
-                                background: 'rgba(0, 0, 0, 0.25)',
-                                backdropFilter: 'blur(2px)'
-                            }}
-                        />
-                    )}
-
-                    {/* Speed Dial Container */}
-                    <div
-                        style={{
-                            position: 'fixed',
-                            bottom: '80px',
-                            right: viewMode === 'DESIGN' ? '364px' : '24px',
-                            zIndex: 999,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'flex-end',
-                            gap: '10px',
-                            transition: 'right 0.2s ease-in-out'
-                        }}
-                    >
-                        {/* 2 Flyout Action Buttons (Copilot & Sandbox) */}
-                        {isCopilotMenuOpen && (
-                            <div
-                                style={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: '10px',
-                                    alignItems: 'flex-end',
-                                    marginBottom: '4px'
-                                }}
-                            >
-                                {/* Option 1: Copilot Mavi (Canvas) */}
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setIsCopilotOpen(true);
-                                        setIsCopilotMenuOpen(false);
-                                    }}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '10px',
-                                        padding: '8px 16px 8px 12px',
-                                        borderRadius: '9999px',
-                                        background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-                                        border: '1.5px solid rgba(59, 130, 246, 0.5)',
-                                        color: '#ffffff',
-                                        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 15px rgba(59, 130, 246, 0.3)',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.transform = 'translateY(-2px) scale(1.03)';
-                                        e.currentTarget.style.borderColor = '#60a5fa';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.transform = 'translateY(0) scale(1)';
-                                        e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.5)';
-                                    }}
-                                >
-                                    <div
-                                        style={{
-                                            width: '32px',
-                                            height: '32px',
-                                            borderRadius: '50%',
-                                            background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            color: '#ffffff',
-                                            boxShadow: '0 2px 8px rgba(59, 130, 246, 0.5)'
-                                        }}
-                                    >
-                                        <Wand2 size={16} />
-                                    </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#f8fafc' }}>
-                                                Copilot Mavi
-                                            </span>
-                                            <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', backgroundColor: 'rgba(59, 130, 246, 0.25)', color: '#93c5fd' }}>
-                                                Canvas
-                                            </span>
-                                        </div>
-                                        <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
-                                            AI Architect & Widget Builder
-                                        </span>
-                                    </div>
-                                </button>
-
-                                {/* Option 2: Sandbox AI (Live Code) */}
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        // Open sandbox in new tab
-                                        window.open('/#/sandbox', '_blank');
-                                        setIsCopilotMenuOpen(false);
-                                    }}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '10px',
-                                        padding: '8px 16px 8px 12px',
-                                        borderRadius: '9999px',
-                                        background: 'linear-gradient(135deg, #090d16 0%, #030712 100%)',
-                                        border: '1.5px solid rgba(56, 189, 248, 0.5)',
-                                        color: '#ffffff',
-                                        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 15px rgba(56, 189, 248, 0.3)',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.transform = 'translateY(-2px) scale(1.03)';
-                                        e.currentTarget.style.borderColor = '#38bdf8';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.transform = 'translateY(0) scale(1)';
-                                        e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.5)';
-                                    }}
-                                >
-                                    <div
-                                        style={{
-                                            width: '32px',
-                                            height: '32px',
-                                            borderRadius: '50%',
-                                            background: 'linear-gradient(135deg, #0284c7 0%, #a855f7 100%)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            color: '#ffffff',
-                                            boxShadow: '0 2px 8px rgba(2, 132, 199, 0.5)'
-                                        }}
-                                    >
-                                        <Sparkles size={16} />
-                                    </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#f8fafc' }}>
-                                                Sandbox AI
-                                            </span>
-                                            <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', backgroundColor: 'rgba(56, 189, 248, 0.25)', color: '#38bdf8' }}>
-                                                Live Code
-                                            </span>
-                                        </div>
-                                        <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
-                                            React CodeSandbox & HMI Vibe
-                                        </span>
-                                    </div>
-                                </button>
-
-                                {/* Option 3: Mobile Native (Gluestack UI) */}
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        window.open('/#/gluestack', '_blank');
-                                        setIsCopilotMenuOpen(false);
-                                    }}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '10px',
-                                        padding: '8px 16px 8px 12px',
-                                        borderRadius: '9999px',
-                                        background: 'linear-gradient(135deg, #2a1625 0%, #0f172a 100%)',
-                                        border: '1.5px solid rgba(168, 85, 247, 0.5)',
-                                        color: '#ffffff',
-                                        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 15px rgba(168, 85, 247, 0.3)',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.transform = 'translateY(-2px) scale(1.03)';
-                                        e.currentTarget.style.borderColor = '#c084fc';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.transform = 'translateY(0) scale(1)';
-                                        e.currentTarget.style.borderColor = 'rgba(168, 85, 247, 0.5)';
-                                    }}
-                                >
-                                    <div
-                                        style={{
-                                            width: '32px',
-                                            height: '32px',
-                                            borderRadius: '50%',
-                                            background: 'linear-gradient(135deg, #714b67 0%, #008784 100%)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            color: '#ffffff',
-                                            boxShadow: '0 2px 8px rgba(113, 75, 103, 0.5)'
-                                        }}
-                                    >
-                                        <Smartphone size={16} />
-                                    </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#f8fafc' }}>
-                                                Mobile Native
-                                            </span>
-                                            <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', backgroundColor: 'rgba(168, 85, 247, 0.25)', color: '#d8b4fe' }}>
-                                                Gluestack
-                                            </span>
-                                        </div>
-                                        <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
-                                            Gluestack UI & Mobile Engine
-                                        </span>
-                                    </div>
-                                </button>
-
-                                {/* Test & Health Engine (Playwright & App Registry) */}
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setIsCopilotMenuOpen(false);
-                                        setIsTestStudioOpen(true);
-                                    }}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '10px',
-                                        padding: '8px 16px 8px 12px',
-                                        borderRadius: '9999px',
-                                        background: 'linear-gradient(135deg, #064e3b 0%, #0f172a 100%)',
-                                        border: '1.5px solid rgba(16, 185, 129, 0.5)',
-                                        color: '#ffffff',
-                                        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 15px rgba(16, 185, 129, 0.3)',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.transform = 'translateY(-2px) scale(1.03)';
-                                        e.currentTarget.style.borderColor = '#34d399';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.transform = 'translateY(0) scale(1)';
-                                        e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.5)';
-                                    }}
-                                >
-                                    <div
-                                        style={{
-                                            width: '32px',
-                                            height: '32px',
-                                            borderRadius: '50%',
-                                            background: 'linear-gradient(135deg, #059669 0%, #0284c7 100%)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            color: '#ffffff',
-                                            boxShadow: '0 2px 8px rgba(5, 150, 105, 0.5)'
-                                        }}
-                                    >
-                                        <Activity size={16} />
-                                    </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#f8fafc' }}>
-                                                Test & Health
-                                            </span>
-                                            <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', backgroundColor: 'rgba(16, 185, 129, 0.25)', color: '#6ee7b7' }}>
-                                                Playwright
-                                            </span>
-                                        </div>
-                                        <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
-                                            App Registry & Testing
-                                        </span>
-                                    </div>
-                                </button>
-
-                                {/* Quick App Testing - Comprehensive Widget Validation */}
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setIsCopilotMenuOpen(false);
-                                        handleRunComprehensiveTest();
-                                    }}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '10px',
-                                        padding: '8px 16px 8px 12px',
-                                        borderRadius: '9999px',
-                                        background: 'linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%)',
-                                        border: '1.5px solid rgba(139, 92, 246, 0.5)',
-                                        color: '#ffffff',
-                                        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 15px rgba(139, 92, 246, 0.3)',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.transform = 'translateY(-2px) scale(1.03)';
-                                        e.currentTarget.style.borderColor = '#c4b5fd';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.transform = 'translateY(0) scale(1)';
-                                        e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.5)';
-                                    }}
-                                >
-                                    <div
-                                        style={{
-                                            width: '32px',
-                                            height: '32px',
-                                            borderRadius: '50%',
-                                            background: 'linear-gradient(135deg, #7c3aed 0%, #db2777 100%)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            color: '#ffffff',
-                                            boxShadow: '0 2px 8px rgba(124, 58, 237, 0.5)'
-                                        }}
-                                    >
-                                        <Shield size={16} />
-                                    </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#f8fafc' }}>
-                                                Quick Test
-                                            </span>
-                                            <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', backgroundColor: 'rgba(139, 92, 246, 0.25)', color: '#c4b5fd' }}>
-                                                Widget Validation
-                                            </span>
-                                        </div>
-                                        <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
-                                            Binding, Triggers & Navigation
-                                        </span>
-                                    </div>
-                                </button>
-                            </div>
-                        )}
-
-                        {/* Main Floating Action Button (Fly Button) */}
-                        {!isCopilotOpen && (
-                            <button
-                                type="button"
-                                onClick={() => setIsCopilotMenuOpen(v => !v)}
-                                style={{
-                                    width: '56px',
-                                    height: '56px',
-                                    borderRadius: '28px',
-                                    background: isCopilotMenuOpen
-                                        ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
-                                        : 'linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)',
-                                    color: 'white',
-                                    border: 'none',
-                                    boxShadow: isCopilotMenuOpen
-                                        ? '0 10px 20px -3px rgba(239, 68, 68, 0.5)'
-                                        : '0 10px 20px -3px rgba(37, 99, 235, 0.5)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    cursor: 'pointer',
-                                    transition: 'transform 0.2s, background 0.2s, box-shadow 0.2s',
-                                }}
-                                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
-                                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                                title={isCopilotMenuOpen ? 'Tutup Menu AI' : 'Buka Menu AI (Copilot & Sandbox)'}
-                            >
-                                {isCopilotMenuOpen ? (
-                                    <X size={24} />
-                                ) : (
-                                    <Wand2 size={24} />
-                                )}
-                            </button>
-                        )}
-                    </div>
-                </>
+            {/* Copilot Floating Action Button */}
+            {copilotEnabled && !isCopilotOpen && (
+                <button
+                    type="button"
+                    onClick={() => setIsCopilotOpen(true)}
+                    style={{
+                        position: 'fixed',
+                        bottom: '80px',
+                        right: viewMode === 'DESIGN' ? '364px' : '24px',
+                        width: '56px',
+                        height: '56px',
+                        borderRadius: '28px',
+                        background: 'linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)',
+                        color: 'white',
+                        border: 'none',
+                        boxShadow: '0 10px 20px -3px rgba(37, 99, 235, 0.5)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        zIndex: 999,
+                        transition: 'transform 0.2s, right 0.2s ease-in-out'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                    title="Buka Copilot Mavi"
+                >
+                    <Wand2 size={24} />
+                </button>
             )}
 
             {/* Dedicated Sandbox Studio Window / Modal */}

@@ -341,22 +341,15 @@ export default function SandboxDeviceRunner() {
         files={filesRecord}
         customSetup={{
           dependencies: {
-            'react': '^18.2.0',
-            'react-dom': '^18.2.0',
-            'react-is': '^18.2.0',
-            '@nextui-org/react': '^2.2.0',
-            'framer-motion': '^10.16.0',
-            'lucide-react': 'latest',
+            'lucide-react': '^0.344.0',
+            'framer-motion': '^10.16.4',
             'clsx': '^2.0.0',
-            'tailwind-merge': '^2.0.0',
-            'class-variance-authority': '^0.7.0',
-            'recharts': '^2.10.0',
-            'tailwindcss': '^3.4.0',
-            'autoprefixer': '^10.4.0',
-            'postcss': '^8.4.0'
+            'tailwind-merge': '^2.0.0'
           }
         }}
         options={{
+          initMode: 'immediate',
+          bundlerTimeOut: 60000,
           externalResources: [
             'https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css',
             'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap'
