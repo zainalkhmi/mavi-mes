@@ -25,20 +25,33 @@ export class AIProvider {
   }
 
   static sanitizeGeminiModel(m) {
-    if (!m) return 'gemini-3.6-flash';
+    if (!m) return 'gemini-3.5-flash';
     let clean = String(m).trim().replace(/^models\//, '');
     if (clean.includes('/')) clean = clean.split('/').pop();
     const lower = clean.toLowerCase();
+    // Keep verified real models active
+    if (
+      lower === 'gemini-3.5-flash' ||
+      lower === 'gemini-3.8-flash' ||
+      lower === 'gemini-3.7-flash' ||
+      lower === 'gemini-3.6-flash' ||
+      lower === 'gemini-3-flash-preview' ||
+      lower === 'gemini-3.5-flash-lite'
+    ) {
+      return lower;
+    }
+    // Discontinued / alias models map to gemini-3.5-flash (verified live, 200 OK)
     if (
       lower.includes('flash-latest') ||
       lower === 'gemini-flash' ||
       lower === 'gemini' ||
-      lower.includes('3.5-flash') ||
+      lower.includes('2.5-flash') ||
       lower.includes('2.0-flash') ||
+      lower.includes('1.5-flash') ||
       lower.includes('preview-02-05') ||
       lower.includes('flash-lite-preview')
     ) {
-      return 'gemini-3.6-flash';
+      return 'gemini-3.5-flash';
     }
     return clean;
   }
@@ -55,7 +68,7 @@ export class AIProvider {
       const overrideSettings = overrideConnector?.aiSettings || overrideConnector?.config || overrideConnector || {};
       const effectiveApiKey = overrideSettings.apiKey || primarySettings.apiKey;
       const prov = overrideSettings.provider || primarySettings.provider || 'gemini';
-      let rawModel = overrideSettings.modelId || primarySettings.modelId || 'gemini-3.6-flash';
+      let rawModel = overrideSettings.modelId || primarySettings.modelId || 'gemini-3.5-flash';
       if (this.normalizeProvider(prov) === 'gemini') {
         rawModel = this.sanitizeGeminiModel(rawModel);
       }
@@ -102,11 +115,8 @@ export class AIProvider {
 
       const candidateModels = [
         primaryModel,
-        'gemini-3.6-flash',
-        'gemini-3.1-pro-preview',
-        'gemini-2.5-flash',
-        'gemini-2.0-flash',
-        'gemini-1.5-flash'
+        'gemini-3.5-flash',
+        'gemini-3-flash-preview'
       ].filter(Boolean).filter((m, idx, arr) => arr.indexOf(m) === idx);
 
       const systemMsg = messages.find(m => m.role === 'system');
@@ -134,10 +144,12 @@ export class AIProvider {
       let response = null;
       let lastError = null;
       let hasFetchedAvailableModels = false;
+      const failedModels = new Set();
 
       modelLoop:
       for (let i = 0; i < candidateModels.length; i++) {
         const currentModel = candidateModels[i];
+        if (failedModels.has(currentModel)) continue;
 
         // Try v1beta first, then v1
         const versionsToTry = ['v1beta', 'v1'];
@@ -146,79 +158,106 @@ export class AIProvider {
         for (const apiVer of versionsToTry) {
           const url = `https://generativelanguage.googleapis.com/${apiVer}/models/${currentModel}:streamGenerateContent?key=${apiKey}&alt=sse`;
 
-          try {
-            response = await fetch(url, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
-            });
+          // Allow up to 2 retry attempts for 503 high-demand temporary spikes
+          let retryCount = 0;
+          const maxRetries = 2;
 
-            if (response.ok) {
-              break modelLoop;
-            }
+          while (retryCount <= maxRetries) {
+            try {
+              response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+              });
 
-            const errJson = await response.json().catch(() => ({}));
-            const errMsg = errJson.error?.message || `Gemini API error (${response.status})`;
-            const err = new Error(errMsg);
-            lastError = err;
-
-            // Auto extract replacement model suggested by Google error if any
-            const matches = [...errMsg.matchAll(/models\/([a-zA-Z0-9.-]+)/g)].map(x => x[1]);
-            const rec = matches.find(x => !candidateModels.includes(x));
-            if (rec && !rec.includes('tts') && !rec.includes('audio')) {
-              candidateModels.splice(i + 1, 0, rec);
-            }
-
-            // Dynamic model listing fallback if model not found or not supported
-            if (!hasFetchedAvailableModels && (errMsg.includes('not found') || errMsg.includes('not supported') || response.status === 404)) {
-              hasFetchedAvailableModels = true;
-              try {
-                const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-                if (listRes.ok) {
-                  const listData = await listRes.json();
-                  const live = (listData.models || [])
-                    .filter(m => {
-                      const name = (m.name || '').toLowerCase();
-                      if (name.includes('tts') || name.includes('audio') || name.includes('embedding') || name.includes('imagen') || name.includes('image-generation') || name.includes('aqa') || name.includes('robotics')) {
-                        return false;
-                      }
-                      return Array.isArray(m.supportedGenerationMethods) && (
-                        m.supportedGenerationMethods.includes('streamGenerateContent') ||
-                        m.supportedGenerationMethods.includes('generateContent')
-                      );
-                    })
-                    .map(m => m.name.replace(/^models\//, ''));
-                  for (const m of live) {
-                    if (!candidateModels.includes(m)) candidateModels.push(m);
-                  }
-                }
-              } catch {
-                /* silent fallback */
+              if (response.ok) {
+                break modelLoop;
               }
-            }
 
-            // If 503 (No capacity), 429 (Resource exhausted), or 404 (Not found):
-            // IMMEDIATELY fail over to next candidate model without wasting time or looping
-            const isHighDemand = response.status === 503 ||
-                                 response.status === 429 ||
-                                 errMsg.toLowerCase().includes('high demand') ||
-                                 errMsg.toLowerCase().includes('capacity') ||
-                                 errMsg.toLowerCase().includes('unavailable') ||
-                                 errMsg.toLowerCase().includes('overloaded') ||
-                                 errMsg.toLowerCase().includes('resource_exhausted');
+              const errJson = await response.json().catch(() => ({}));
+              const errMsg = errJson.error?.message || `Gemini API error (${response.status})`;
+              const err = new Error(errMsg);
+              lastError = err;
 
-            const isUnavailable = response.status === 404 ||
-                                  errMsg.toLowerCase().includes('not found') ||
-                                  errMsg.toLowerCase().includes('no longer available') ||
-                                  errMsg.toLowerCase().includes('not supported');
+              // Check if 503 temporary demand spike (Google explicitly advises retrying later)
+              const is503HighDemand = response.status === 503 ||
+                                      errMsg.toLowerCase().includes('high demand') ||
+                                      errMsg.toLowerCase().includes('spikes in demand') ||
+                                      errMsg.toLowerCase().includes('capacity') ||
+                                      errMsg.toLowerCase().includes('overloaded');
 
-            if (isHighDemand || isUnavailable) {
-              console.warn(`[AIProvider] Gemini model "${currentModel}" failed with ${response.status} (${errMsg}). Instantly switching to backup model...`);
+              if (is503HighDemand && retryCount < maxRetries) {
+                retryCount++;
+                const delayMs = 2000 * retryCount;
+                console.warn(`[AIProvider] Gemini model "${currentModel}" experienced 503 high demand. Retrying in ${delayMs}ms (attempt ${retryCount}/${maxRetries})...`);
+                await new Promise(r => setTimeout(r, delayMs));
+                continue; // retry fetch
+              }
+
+              // Check if 429 Quota Exceeded (Resource Exhausted) -> switch immediately to backup model
+              const isQuotaExceeded = response.status === 429 ||
+                                      errMsg.toLowerCase().includes('quota') ||
+                                      errMsg.toLowerCase().includes('resource_exhausted') ||
+                                      errMsg.toLowerCase().includes('rate limit');
+
+              if (isQuotaExceeded) {
+                failedModels.add(currentModel);
+                console.warn(`[AIProvider] Gemini model "${currentModel}" quota reached (${response.status}: ${errMsg}). Switching to backup model...`);
+                break versionLoop;
+              }
+
+              // Permanent model deprecation / 404
+              const isUnavailable = response.status === 404 ||
+                                    errMsg.toLowerCase().includes('not found') ||
+                                    errMsg.toLowerCase().includes('no longer available') ||
+                                    errMsg.toLowerCase().includes('not supported');
+
+              if (isUnavailable) {
+                failedModels.add(currentModel);
+              }
+
+              // Auto extract replacement model suggested by Google error if any
+              const matches = [...errMsg.matchAll(/models\/([a-zA-Z0-9.-]+)/g)].map(x => x[1]);
+              for (const rec of matches) {
+                if (rec && !candidateModels.includes(rec) && !failedModels.has(rec) && !rec.includes('tts') && !rec.includes('audio')) {
+                  candidateModels.splice(i + 1, 0, rec);
+                }
+              }
+
+              // Dynamic model listing fallback if model not found or not supported
+              if (!hasFetchedAvailableModels && isUnavailable) {
+                hasFetchedAvailableModels = true;
+                try {
+                  const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+                  if (listRes.ok) {
+                    const listData = await listRes.json();
+                    const live = (listData.models || [])
+                      .filter(m => {
+                        const name = (m.name || '').toLowerCase();
+                        if (name.includes('tts') || name.includes('audio') || name.includes('embedding') || name.includes('imagen') || name.includes('image-generation') || name.includes('aqa') || name.includes('robotics')) {
+                          return false;
+                        }
+                        return Array.isArray(m.supportedGenerationMethods) && (
+                          m.supportedGenerationMethods.includes('streamGenerateContent') ||
+                          m.supportedGenerationMethods.includes('generateContent')
+                        );
+                      })
+                      .map(m => m.name.replace(/^models\//, ''));
+                    for (const m of live) {
+                      if (!candidateModels.includes(m) && !failedModels.has(m)) candidateModels.push(m);
+                    }
+                  }
+                } catch {
+                  /* silent fallback */
+                }
+              }
+
+              console.warn(`[AIProvider] Gemini model "${currentModel}" failed with ${response.status} (${errMsg}). Switching to backup model...`);
+              break versionLoop;
+            } catch (netErr) {
+              lastError = netErr;
               break versionLoop;
             }
-          } catch (netErr) {
-            lastError = netErr;
-            break versionLoop;
           }
         }
       }

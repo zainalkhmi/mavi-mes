@@ -312,7 +312,7 @@ export function cleanVibeCode(rawCode) {
       if (fnMatch && fnMatch[1]) {
         cleaned += `\nexport default ${fnMatch[1]};`;
       } else {
-        cleaned += `\nexport default App;`;
+        cleaned += `\n\nexport default function App() {\n  return (\n    <div className="min-h-screen p-6 flex flex-col items-center justify-center" style={{ backgroundColor: '#f8fafc', color: '#0f172a' }}>\n      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm max-w-md w-full text-center space-y-3">\n        <div className="w-12 h-12 bg-sky-100 text-sky-600 rounded-xl flex items-center justify-center mx-auto text-xl font-bold">⚡</div>\n        <h2 className="text-base font-bold text-slate-900">MaviCore MES App</h2>\n        <p className="text-xs text-slate-500">Komponen sedang disiapkan. Klik "🔄 Lanjutkan Koding" di panel chat untuk menyelesaikan kode secara utuh.</p>\n      </div>\n    </div>\n  );\n}`;
       }
     }
   }
@@ -471,8 +471,19 @@ export function healTruncatedReactCode(code) {
     if (missingBraces > 0) {
       healed += '\n' + '}'.repeat(missingBraces);
     }
-  } else if (missingBraces > 0) {
-    healed += '\n' + '}'.repeat(missingBraces);
+  } else {
+    // If no component function exists at all (e.g. stopped during mock data)
+    // Close open brackets and braces
+    const strippedNow = stripStringsAndComments(healed);
+    const oBrackets = (strippedNow.match(/\[/g) || []).length;
+    const cBrackets = (strippedNow.match(/\]/g) || []).length;
+    if (oBrackets > cBrackets) {
+      healed += '\n' + ']'.repeat(oBrackets - cBrackets) + ';';
+    }
+    if (missingBraces > 0) {
+      healed += '\n' + '}'.repeat(missingBraces);
+    }
+    healed += `\n\nexport default function App() {\n  return (\n    <div className="min-h-screen p-6 flex flex-col items-center justify-center" style={{ backgroundColor: '#f8fafc', color: '#0f172a' }}>\n      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm max-w-md w-full text-center space-y-3">\n        <div className="w-12 h-12 bg-sky-100 text-sky-600 rounded-xl flex items-center justify-center mx-auto text-xl font-bold">⚡</div>\n        <h2 className="text-base font-bold text-slate-900">MaviCore MES App</h2>\n        <p className="text-xs text-slate-500">Komponen sedang disiapkan. Klik "🔄 Lanjutkan Koding" di panel chat untuk menyelesaikan kode secara utuh.</p>\n      </div>\n    </div>\n  );\n}`;
   }
 
   return healed.trim();

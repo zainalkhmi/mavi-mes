@@ -832,12 +832,14 @@ function SandpackLiveBridge({ onBridgeReady }) {
       onBridgeReadyRef.current({
         updateFile: (path, content) => {
           try {
+            if (!path || content == null) return;
+            const safeContent = typeof content === 'string' ? content : String(content);
             // Guard: skip if the file in Sandpack already has the exact same content
             const currentCode = sandpackRef.current?.files?.[path]?.code;
-            if (currentCode === content) {
+            if (currentCode === safeContent) {
               return;
             }
-            sandpackRef.current?.updateFile(path, content, true);
+            sandpackRef.current?.updateFile(path, safeContent, true);
           } catch (e) {
             console.error('Sandpack updateFile error:', e);
           }
@@ -1320,6 +1322,30 @@ root.render(
   const [currentAppId, setCurrentAppId] = useState(null);
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempAppName, setTempAppName] = useState('');
+
+  // Bulletproof sanitization of virtual files for Sandpack to prevent "Cannot read properties of null (reading 'code')"
+  const sanitizedSandpackFiles = useMemo(() => {
+    const result = {};
+    if (filesRecord && typeof filesRecord === 'object') {
+      for (const [rawPath, rawVal] of Object.entries(filesRecord)) {
+        if (!rawPath || typeof rawPath !== 'string') continue;
+        const normPath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+        if (typeof rawVal === 'string') {
+          result[normPath] = rawVal;
+        } else if (rawVal && typeof rawVal.code === 'string') {
+          result[normPath] = rawVal.code;
+        } else if (rawVal != null) {
+          result[normPath] = String(rawVal);
+        } else {
+          result[normPath] = '';
+        }
+      }
+    }
+    if (!result['/App.js'] && !result['/App.jsx']) {
+      result['/App.js'] = effectiveInitialCode || CLEAN_BLANK_APP_CODE;
+    }
+    return result;
+  }, [filesRecord, effectiveInitialCode]);
 
   // Pre-emptive auto-heal on mount to instantly cure any legacy duplicate imports or rogue closures
   useEffect(() => {
@@ -3223,7 +3249,7 @@ root.render(
             key={`${appMode}-${filesRevision}`}
             template="react"
             theme="dark"
-            files={filesRecord}
+            files={sanitizedSandpackFiles}
             customSetup={{
               dependencies: {
                 'react': '^18.2.0',

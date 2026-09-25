@@ -32,10 +32,8 @@ import AgentActivityCard from './AgentActivityCard';
 
 export const PROVIDER_MODELS = {
   Gemini: [
-    { id: 'gemini-3.5-flash-preview', name: 'Gemini 2.0 Flash', desc: 'Resmi Google, Super Cepat & Kuota Terbesar (Rekomendasi)', tag: 'Recommended' },
-    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', desc: 'Sangat stabil untuk produksi, anti-error kapasitas', tag: 'Fast' },
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', desc: 'Generasi mutakhir penalaran tinggi' },
-    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', desc: 'Kemampuan penalaran kompleks' }
+    { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', desc: 'Google Resmi, Super Cepat & Kuota Terbesar (Paling Stabil & Rekomendasi)', tag: 'Recommended' },
+    { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview', desc: 'Model Stabil Fallback', tag: 'Fast' }
   ],
   OpenAI: [
     { id: 'gpt-4o-mini', name: 'GPT-4o Mini', desc: 'Efisien, cepat & cerdas', tag: 'Fast' },
@@ -63,9 +61,13 @@ const isBogusGemini = (id) => {
   return (
     s.includes('flash-latest') ||
     s === 'gemini-flash' ||
-    s.includes('gemini-3.') ||
-    s.includes('gemini-3.8') ||
-    s.includes('gemini-3.6')
+    s.includes('2.0-flash') ||
+    s.includes('1.5-flash') ||
+    s.includes('2.5-flash') ||
+    s.includes('1.5-pro') ||
+    s.includes('2.5-pro') ||
+    s.includes('preview-02-05') ||
+    s.includes('3.5-flash-preview')
   );
 };
 
@@ -101,7 +103,7 @@ export default function VibeChatPanel({
   // Active AI Model & Provider state
   const [activeConnector, setActiveConnector] = useState(null);
   const [selectedProvider, setSelectedProvider] = useState('Gemini');
-  const [selectedModelId, setSelectedModelId] = useState('gemini-3.5-flash-preview');
+  const [selectedModelId, setSelectedModelId] = useState('gemini-3.5-flash');
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const modelDropdownRef = useRef(null);
@@ -113,26 +115,26 @@ export default function VibeChatPanel({
         let savedProvider = localStorage.getItem('vibe_active_provider') || 'Gemini';
         let savedModel = localStorage.getItem('vibe_active_model');
         if (isBogusGemini(savedModel)) {
-          savedModel = 'gemini-3.5-flash-preview';
-          localStorage.setItem('vibe_active_model', 'gemini-3.5-flash-preview');
+          savedModel = 'gemini-3.5-flash';
+          localStorage.setItem('vibe_active_model', 'gemini-3.5-flash');
         }
 
         const connector = await getPrimaryAiConnector().catch(() => null);
         if (connector) {
           const aiSet = connector.aiSettings || connector.config || connector || {};
           if (isBogusGemini(aiSet.modelId)) {
-            aiSet.modelId = 'gemini-3.5-flash-preview';
+            aiSet.modelId = 'gemini-3.5-flash';
           }
           setActiveConnector(connector);
           const p = savedProvider || aiSet.provider || 'Gemini';
           const m = !isBogusGemini(savedModel)
-            ? (savedModel || 'gemini-3.5-flash-preview')
-            : (!isBogusGemini(aiSet.modelId) ? aiSet.modelId : (p === 'OpenAI' ? 'gpt-4o-mini' : 'gemini-3.5-flash-preview'));
+            ? (savedModel || 'gemini-3.5-flash')
+            : (!isBogusGemini(aiSet.modelId) ? aiSet.modelId : (p === 'OpenAI' ? 'gpt-4o-mini' : 'gemini-3.5-flash'));
           setSelectedProvider(p);
           setSelectedModelId(m);
         } else {
           setSelectedProvider(savedProvider);
-          setSelectedModelId(savedModel || 'gemini-3.5-flash-preview');
+          setSelectedModelId(savedModel || 'gemini-3.5-flash');
         }
       } catch (err) {
         console.warn('[VibeChatPanel] Failed to load active AI connector:', err);
@@ -1789,8 +1791,9 @@ function MessageBubble({
               <button
                 type="button"
                 onClick={() => {
-                  const code = extractVibeCode(content) || cleanVibeCode(content);
-                  if (code && code.trim().length > 20) {
+                  const rawCode = extractVibeCode(content) || cleanVibeCode(content);
+                  const code = cleanVibeCode(rawCode);
+                  if (code && code.trim().length > 30 && (code.includes('export default') || code.includes('function App'))) {
                     onApplyCode(code);
                     setApplied(true);
                     toast.success('⚡ Kode berhasil diterapkan ke /App.js dan layar preview!');

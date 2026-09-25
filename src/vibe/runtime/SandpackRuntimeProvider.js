@@ -23,7 +23,14 @@ export class SandpackRuntimeProvider {
    * @param {Record<string, string>} filesRecord
    */
   async mountProject(filesRecord) {
-    this.files = { ...filesRecord };
+    this.files = {};
+    if (filesRecord && typeof filesRecord === 'object') {
+      for (const [k, v] of Object.entries(filesRecord)) {
+        if (!k) continue;
+        const normKey = k.startsWith('/') ? k : `/${k}`;
+        this.files[normKey] = typeof v === 'string' ? v : (v && typeof v.code === 'string' ? v.code : (v != null ? String(v) : ''));
+      }
+    }
     // Ensure styles.css and App.jsx exist
     if (!this.files['/styles.css']) {
       this.files['/styles.css'] = `body { margin: 0; background: #f8fafc; color: #0f172a; font-family: sans-serif; }`;
@@ -34,8 +41,10 @@ export class SandpackRuntimeProvider {
   }
 
   async writeFile(path, content) {
-    this.files[path] = content;
-    this.addLog(`[SandpackRuntime] File diupdate: ${path}`);
+    if (!path) return false;
+    const norm = path.startsWith('/') ? path : `/${path}`;
+    this.files[norm] = content != null ? (typeof content === 'string' ? content : String(content)) : '';
+    this.addLog(`[SandpackRuntime] File diupdate: ${norm}`);
     return true;
   }
 

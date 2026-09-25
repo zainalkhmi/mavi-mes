@@ -9,7 +9,7 @@ import { cleanVibeCode } from '../utils/codeCleaner.js';
 export class VirtualFile {
   constructor(path, content = '', isBinary = false) {
     this.path = this.normalizePath(path);
-    this.content = content;
+    this.content = content != null ? (typeof content === 'string' ? content : String(content)) : '';
     this.isBinary = isBinary;
     this.updatedAt = new Date();
   }
@@ -83,9 +83,9 @@ export class ProjectFileSystem {
    */
   writeFile(path, content) {
     const norm = this.normalizePath(path);
-    let finalContent = content;
-    if (typeof content === 'string' && (norm === '/App.js' || norm === '/App.jsx')) {
-      finalContent = cleanVibeCode(content);
+    let finalContent = content != null ? content : '';
+    if (typeof finalContent === 'string' && (norm === '/App.js' || norm === '/App.jsx')) {
+      finalContent = cleanVibeCode(finalContent);
     }
     const isBin = typeof finalContent !== 'string';
     const file = new VirtualFile(norm, finalContent, isBin);
@@ -205,7 +205,9 @@ export class ProjectFileSystem {
   getAllFilesRecord() {
     const record = {};
     for (const [path, file] of this.files.entries()) {
-      record[path] = file.content;
+      if (!path) continue;
+      const content = file?.content;
+      record[path] = typeof content === 'string' ? content : (content != null ? String(content) : '');
     }
     return record;
   }

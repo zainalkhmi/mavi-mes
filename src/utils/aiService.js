@@ -7,11 +7,11 @@ import { getPrimaryAiConnector, saveIntegrationConnector } from './database';
 
 export const SHARED_AI_MODELS = [
   // Google Gemini
-  { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', provider: 'Gemini', icon: '⚡', description: 'Google Resmi Terbaru, Super Cepat & Kuota Terbesar (Rekomendasi)' },
-  { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro Preview', provider: 'Gemini', icon: '🧠', description: 'Google Frontier Reasoning & Enterprise Intelligence' },
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'Gemini', icon: '🚀', description: 'Generasi Mutakhir Penalaran Tinggi' },
-  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'Gemini', icon: '⚡', description: 'Model Stabil Fallback' },
-  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: 'Gemini', icon: '🔬', description: 'Paling Hemat Kuota' },
+  { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', provider: 'Gemini', icon: '⚡', description: 'Google Resmi, Super Cepat & Kuota Terbesar (Paling Stabil & Rekomendasi)' },
+  { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', provider: 'Gemini', icon: '🚀', description: 'Google Frontier Generasi Terbaru' },
+  { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', provider: 'Gemini', icon: '⚡', description: 'Generasi Mutakhir Penalaran Cepat' },
+  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview', provider: 'Gemini', icon: '✨', description: 'Model Stabil Fallback' },
+  { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash Lite', provider: 'Gemini', icon: '🔬', description: 'Ringan & Paling Hemat Kuota' },
   // OpenAI
   { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI', icon: '🤖', description: 'Efisien, Cepat & Terjangkau' },
   { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI', icon: '🔥', description: 'Flagship Performa Maksimal' },
@@ -129,16 +129,28 @@ const sanitizeGeminiModelId = (modelId) => {
     if (clean.includes('/')) clean = clean.split('/').pop();
     const lower = clean.toLowerCase();
     if (
+        lower === 'gemini-3.5-flash' ||
+        lower === 'gemini-3.8-flash' ||
+        lower === 'gemini-3.7-flash' ||
+        lower === 'gemini-3.6-flash' ||
+        lower === 'gemini-3-flash-preview' ||
+        lower === 'gemini-3.5-flash-lite'
+    ) {
+        return lower;
+    }
+    if (
         !clean ||
         lower.includes('flash-latest') ||
         lower === 'gemini-flash' ||
         lower === 'gemini' ||
+        lower.includes('2.5-flash') ||
         lower.includes('2.0-flash') ||
-        lower.includes('3.5-flash') ||
+        lower.includes('1.5-flash') ||
+        lower.includes('2.5-pro') ||
         lower.includes('preview-02-05') ||
         lower.includes('flash-lite-preview')
     ) {
-        return 'gemini-3.6-flash';
+        return 'gemini-3.5-flash';
     }
     return clean;
 };
@@ -305,14 +317,11 @@ export const getChatCompletion = async (messages, connector) => {
     }
 
     if (provider === 'gemini') {
-        const primaryModel = sanitizeGeminiModelId(modelId) || 'gemini-3.6-flash';
+        const primaryModel = sanitizeGeminiModelId(modelId) || 'gemini-3.5-flash';
         const candidateModels = [
             primaryModel,
-            'gemini-3.6-flash',
-            'gemini-3.1-pro-preview',
-            'gemini-2.5-flash',
-            'gemini-2.0-flash',
-            'gemini-1.5-flash'
+            'gemini-3.5-flash',
+            'gemini-3-flash-preview'
         ].filter(Boolean).filter((m, i, a) => a.indexOf(m) === i);
 
         const payload = {
@@ -1402,14 +1411,12 @@ export const streamBuilderCopilotAdvice = async (userInput, messageHistory, cont
     ];
 
     if (provider === 'gemini') {
-        const primaryModel = sanitizeGeminiModelId(modelId) || 'gemini-2.0-flash';
+        const primaryModel = sanitizeGeminiModelId(modelId) || 'gemini-3.5-flash';
         const candidateModels = [
             primaryModel,
-            'gemini-2.0-flash',
-            'gemini-1.5-flash',
-            'gemini-2.5-flash',
-            'gemini-1.5-pro'
-        ].filter((m, i, a) => a.indexOf(m) === i);
+            'gemini-3.5-flash',
+            'gemini-3-flash-preview'
+        ].filter(Boolean).filter((m, i, a) => a.indexOf(m) === i);
         
         const combinedSystemPrompt = summaryBlock
             ? `${fullSystemPrompt}\n\n📋 SESSION SUMMARY:\n${context.sessionSummary}`

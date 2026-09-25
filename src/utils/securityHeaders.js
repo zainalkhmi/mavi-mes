@@ -16,7 +16,7 @@ export const securityHeaders = {
   'Referrer-Policy': 'strict-origin-when-cross-origin',
 
   // Permissions Policy
-  'Permissions-Policy': 'camera=*, microphone=*, geolocation=()',
+  'Permissions-Policy': 'camera=*, microphone=*, geolocation=(), unload=*',
 
   // XSS Protection (legacy browsers)
   'X-XSS-Protection': '1; mode=block',

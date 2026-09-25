@@ -8,38 +8,55 @@ export const MODEL_CONFIG = {
     default: 'gpt-4-turbo'
   },
   gemini: {
-    models: ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-1.5-pro'],
-    default: 'gemini-2.0-flash'
+    models: ['gemini-3.5-flash', 'gemini-3-flash-preview', 'gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'],
+    default: 'gemini-3.5-flash'
   }
 };
 
 /**
- * Checks if a response appears truncated (Plan or Code)
+ * Checks if a response appears genuinely truncated (Plan or Code)
  */
 export function isTruncatedResponse(text, isPlan = false) {
   if (!text || typeof text !== 'string') return false;
   const trimmed = text.trim();
-  if (trimmed.length < 30) return false;
+  if (trimmed.length < 50) return false;
 
   if (isPlan) {
-    // A complete plan should have "Verification Plan" and not end mid-sentence or mid-expression
     const hasVerification = /##\s*(?:🛡️\s*)?Verification Plan/i.test(trimmed);
     const endsAbruptly = /[:(\-–—,]\s*$/.test(trimmed) || 
                          /\b(?:contoh|misal|seperti|yaitu|kolom|field|tabel|recordId)\s*:?\s*$/i.test(trimmed);
-    return !hasVerification || endsAbruptly;
+    return !hasVerification && endsAbruptly;
   }
 
-  // Code inspection
+  // 1. Explicit <vibe_code> tag check
   const hasOpenVibe = /<vibe[-_]code[^>]*>/i.test(trimmed);
   const hasCloseVibe = /<\/vibe[-_]code>/i.test(trimmed);
-  if (hasOpenVibe && !hasCloseVibe) return true;
+  if (hasOpenVibe) {
+    return !hasCloseVibe;
+  }
 
+  // 2. Markdown fence count: an odd number of ``` indicates an unclosed code block
+  const fenceMatches = trimmed.match(/```/g);
+  if (fenceMatches && fenceMatches.length % 2 === 1) {
+    return true;
+  }
+
+  // 3. If there is already a complete closed markdown fence containing the component, it is NOT truncated
+  if (/```(?:jsx|js|tsx|javascript)?[\s\S]*?(?:export\s+default\s+function|function\s+App)[\s\S]*?```/i.test(trimmed)) {
+    return false;
+  }
+
+  // 4. Standalone code without fences: check brace balance
   const hasExportOrFn = /export\s+default\s+function|function\s+App/i.test(trimmed);
   if (hasExportOrFn) {
-    const endsCleanly = /\}\s*;?\s*$/.test(trimmed) || /<\/vibe[-_]code>\s*$/i.test(trimmed);
-    const endsWithDangling = /[=+\-*/&|,:(.?]\s*$/.test(trimmed);
-    const hasReturn = /return\s*\(?/i.test(trimmed);
-    if (!endsCleanly || endsWithDangling || !hasReturn) return true;
+    const openBraces = (trimmed.match(/\{/g) || []).length;
+    const closeBraces = (trimmed.match(/\}/g) || []).length;
+    if (openBraces > closeBraces) {
+      return true; // Still inside unclosed block
+    }
+    // Only flag genuine dangling code operators (assignment, binary operators, colon)
+    const endsWithDanglingOperator = /[=+\-*/&|:]\s*$/.test(trimmed);
+    if (endsWithDanglingOperator) return true;
   }
 
   return false;
@@ -49,7 +66,7 @@ export async function streamVibeAI({
   messages,
   settings = {},
   autoContinue = true,
-  maxContinuations = 2,
+  maxContinuations = 1,
   onChunk,
   onToolCall,
   onComplete,
@@ -76,6 +93,9 @@ export async function streamVibeAI({
       let round = 0;
       while (round < maxContinuations && isTruncatedResponse(fullText, isPlan)) {
         round++;
+        // Small pacing pause before continuation to prevent Google API 503 high demand spike
+        await new Promise(r => setTimeout(r, 1200));
+
         const continuationPrompt = isPlan
           ? 'Respons Implementation Plan Anda terpotong di tengah jalan. Lanjutkan penulisan SEGERA tepat dari kata terakhir yang terhenti tanpa mengulang teks sebelumnya, dan tuntaskan seluruh bagian plan sampai selesai termasuk ## 🛡️ Verification Plan.'
           : 'Your previous React code output was cut off mid-code due to token length limits. Continue outputting IMMEDIATELY from the exact point you stopped without repeating previous imports or code lines. Complete the remaining JSX return and function closing, and terminate with </vibe_code>.';

@@ -235,10 +235,24 @@ export default function SandboxDeviceRunner() {
         finalFiles['/mavicoreUi'] = MAVICORE_UI_VIRTUAL_FILE;
         finalFiles['/components/mavicore-ui.js'] = MAVICORE_UI_VIRTUAL_FILE;
         finalFiles['/components/MaviCoreUI.jsx'] = MAVICORE_UI_VIRTUAL_FILE;
-        finalFiles['/node_modules/mavicore-ui/index.js'] = MAVICORE_UI_VIRTUAL_FILE;
         Object.assign(finalFiles, SHADCN_UI_VIRTUAL_FILES);
 
-        setFilesRecord(finalFiles);
+        const sanitizedFiles = {};
+        for (const [k, v] of Object.entries(finalFiles)) {
+          if (!k) continue;
+          const normKey = k.startsWith('/') ? k : `/${k}`;
+          if (typeof v === 'string') {
+            sanitizedFiles[normKey] = v;
+          } else if (v && typeof v.code === 'string') {
+            sanitizedFiles[normKey] = v.code;
+          } else if (v != null) {
+            sanitizedFiles[normKey] = String(v);
+          } else {
+            sanitizedFiles[normKey] = '';
+          }
+        }
+
+        setFilesRecord(sanitizedFiles);
       } catch (err) {
         console.error('[SandboxDeviceRunner] Load error:', err);
         if (isMounted) {
