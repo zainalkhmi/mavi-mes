@@ -7,11 +7,9 @@ import { getPrimaryAiConnector, saveIntegrationConnector } from './database';
 
 export const SHARED_AI_MODELS = [
   // Google Gemini
-  { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', provider: 'Gemini', icon: '⚡', description: 'Google Resmi, Super Cepat & Kuota Terbesar (Paling Stabil & Rekomendasi)' },
-  { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', provider: 'Gemini', icon: '🚀', description: 'Google Frontier Generasi Terbaru' },
-  { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', provider: 'Gemini', icon: '⚡', description: 'Generasi Mutakhir Penalaran Cepat' },
-  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview', provider: 'Gemini', icon: '✨', description: 'Model Stabil Fallback' },
-  { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash Lite', provider: 'Gemini', icon: '🔬', description: 'Ringan & Paling Hemat Kuota' },
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'Gemini', icon: '⚡', description: 'Google Resmi, Super Cepat & Kuota Terbesar (Paling Stabil & Rekomendasi)' },
+  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: 'Gemini', icon: '🚀', description: 'Model Produksi Stabil, Hemat & Cepat' },
+  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'Gemini', icon: '🧠', description: 'Penalaran Mendalam & Pembuatan Kode Kompleks' },
   // OpenAI
   { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI', icon: '🤖', description: 'Efisien, Cepat & Terjangkau' },
   { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI', icon: '🔥', description: 'Flagship Performa Maksimal' },
@@ -128,29 +126,9 @@ const sanitizeGeminiModelId = (modelId) => {
     let clean = String(modelId || '').trim().replace(/^models\//, '');
     if (clean.includes('/')) clean = clean.split('/').pop();
     const lower = clean.toLowerCase();
-    if (
-        lower === 'gemini-3.5-flash' ||
-        lower === 'gemini-3.8-flash' ||
-        lower === 'gemini-3.7-flash' ||
-        lower === 'gemini-3.6-flash' ||
-        lower === 'gemini-3-flash-preview' ||
-        lower === 'gemini-3.5-flash-lite'
-    ) {
-        return lower;
-    }
-    if (
-        !clean ||
-        lower.includes('flash-latest') ||
-        lower === 'gemini-flash' ||
-        lower === 'gemini' ||
-        lower.includes('2.5-flash') ||
-        lower.includes('2.0-flash') ||
-        lower.includes('1.5-flash') ||
-        lower.includes('2.5-pro') ||
-        lower.includes('preview-02-05') ||
-        lower.includes('flash-lite-preview')
-    ) {
-        return 'gemini-3.5-flash';
+
+    if (!clean || lower.includes('gemini-3.') || lower.includes('gemini-2.5') || lower.includes('flash-latest') || lower === 'gemini-flash' || lower === 'gemini') {
+        return 'gemini-2.0-flash';
     }
     return clean;
 };
@@ -317,11 +295,12 @@ export const getChatCompletion = async (messages, connector) => {
     }
 
     if (provider === 'gemini') {
-        const primaryModel = sanitizeGeminiModelId(modelId) || 'gemini-3.5-flash';
+        const primaryModel = sanitizeGeminiModelId(modelId) || 'gemini-2.0-flash';
         const candidateModels = [
             primaryModel,
-            'gemini-3.5-flash',
-            'gemini-3-flash-preview'
+            'gemini-2.0-flash',
+            'gemini-1.5-flash',
+            'gemini-1.5-pro'
         ].filter(Boolean).filter((m, i, a) => a.indexOf(m) === i);
 
         const payload = {
@@ -1411,11 +1390,12 @@ export const streamBuilderCopilotAdvice = async (userInput, messageHistory, cont
     ];
 
     if (provider === 'gemini') {
-        const primaryModel = sanitizeGeminiModelId(modelId) || 'gemini-3.5-flash';
+        const primaryModel = sanitizeGeminiModelId(modelId) || 'gemini-2.0-flash';
         const candidateModels = [
             primaryModel,
-            'gemini-3.5-flash',
-            'gemini-3-flash-preview'
+            'gemini-2.0-flash',
+            'gemini-1.5-flash',
+            'gemini-1.5-pro'
         ].filter(Boolean).filter((m, i, a) => a.indexOf(m) === i);
         
         const combinedSystemPrompt = summaryBlock

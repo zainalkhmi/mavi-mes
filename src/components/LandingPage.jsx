@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Layout,
@@ -65,7 +65,9 @@ import {
   ShieldAlert,
   Tag,
   Share2,
-  ThumbsUp
+  ThumbsUp,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 import { categories as catalogCategories, rawTemplates as catalogTemplates } from '../utils/appStoreCatalog';
 
@@ -91,6 +93,33 @@ const LandingPage = ({ initialTab = 'overview' }) => {
 
   // Pricing, FAQ, Modals & Demo Credentials States
   const [selectedOverviewVideo, setSelectedOverviewVideo] = useState('mfg-solution'); // 'mfg-solution' | 'mandor-way' | 'mandor-ops' | 'overview' | 'checksheet' | 'wi'
+  const [isVideoMuted, setIsVideoMuted] = useState(false);
+  const videoRef = useRef(null);
+
+  const toggleVideoAudio = () => {
+    setIsVideoMuted(prev => {
+      const next = !prev;
+      if (videoRef.current) {
+        videoRef.current.muted = next;
+        if (!next) {
+          videoRef.current.volume = 1.0;
+          videoRef.current.play().catch(() => {});
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleSelectOverviewVideo = (videoId) => {
+    setSelectedOverviewVideo(videoId);
+    if (videoRef.current) {
+      videoRef.current.muted = isVideoMuted;
+      if (!isVideoMuted) {
+        videoRef.current.volume = 1.0;
+      }
+      videoRef.current.play().catch(() => {});
+    }
+  };
   const [openFaqIndex, setOpenFaqIndex] = useState(0);
   const [copiedDemo, setCopiedDemo] = useState(false);
   const [isWalkthroughModalOpen, setIsWalkthroughModalOpen] = useState(false);
@@ -639,7 +668,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                   {/* Video Selector Buttons */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     <button
-                      onClick={() => setSelectedOverviewVideo('mfg-solution')}
+                      onClick={() => handleSelectOverviewVideo('mfg-solution')}
                       style={{
                         background: selectedOverviewVideo === 'mfg-solution' ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : 'rgba(255, 255, 255, 0.06)',
                         border: selectedOverviewVideo === 'mfg-solution' ? '1px solid rgba(99, 102, 241, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
@@ -661,7 +690,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                     </button>
 
                     <button
-                      onClick={() => setSelectedOverviewVideo('mandor-way')}
+                      onClick={() => handleSelectOverviewVideo('mandor-way')}
                       style={{
                         background: selectedOverviewVideo === 'mandor-way' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'rgba(255, 255, 255, 0.06)',
                         border: selectedOverviewVideo === 'mandor-way' ? '1px solid rgba(245, 158, 11, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
@@ -683,7 +712,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                     </button>
 
                     <button
-                      onClick={() => setSelectedOverviewVideo('mandor-ops')}
+                      onClick={() => handleSelectOverviewVideo('mandor-ops')}
                       style={{
                         background: selectedOverviewVideo === 'mandor-ops' ? 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)' : 'rgba(255, 255, 255, 0.06)',
                         border: selectedOverviewVideo === 'mandor-ops' ? '1px solid rgba(6, 182, 212, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
@@ -705,7 +734,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                     </button>
 
                     <button
-                      onClick={() => setSelectedOverviewVideo('overview')}
+                      onClick={() => handleSelectOverviewVideo('overview')}
                       style={{
                         background: selectedOverviewVideo === 'overview' ? 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)' : 'rgba(255, 255, 255, 0.06)',
                         border: selectedOverviewVideo === 'overview' ? '1px solid rgba(59, 130, 246, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
@@ -726,7 +755,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                     </button>
 
                     <button
-                      onClick={() => setSelectedOverviewVideo('checksheet')}
+                      onClick={() => handleSelectOverviewVideo('checksheet')}
                       style={{
                         background: selectedOverviewVideo === 'checksheet' ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : 'rgba(255, 255, 255, 0.06)',
                         border: selectedOverviewVideo === 'checksheet' ? '1px solid rgba(52, 211, 153, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
@@ -747,7 +776,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                     </button>
 
                     <button
-                      onClick={() => setSelectedOverviewVideo('wi')}
+                      onClick={() => handleSelectOverviewVideo('wi')}
                       style={{
                         background: selectedOverviewVideo === 'wi' ? 'linear-gradient(135deg, #9333ea 0%, #7e22ce 100%)' : 'rgba(255, 255, 255, 0.06)',
                         border: selectedOverviewVideo === 'wi' ? '1px solid rgba(168, 85, 247, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
@@ -765,6 +794,29 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                     >
                       <FileText size={13} color={selectedOverviewVideo === 'wi' ? '#c084fc' : '#94a3b8'} />
                       Video 6: Work Instruction (WI)
+                    </button>
+
+                    <button
+                      onClick={toggleVideoAudio}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        background: !isVideoMuted ? 'rgba(34, 197, 94, 0.16)' : 'rgba(239, 68, 68, 0.16)',
+                        border: !isVideoMuted ? '1px solid rgba(34, 197, 94, 0.45)' : '1px solid rgba(239, 68, 68, 0.45)',
+                        color: !isVideoMuted ? '#4ade80' : '#f87171',
+                        padding: '4px 10px',
+                        borderRadius: '100px',
+                        fontSize: '0.72rem',
+                        fontWeight: 800,
+                        letterSpacing: '0.04em',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                      }}
+                      title={isVideoMuted ? "Audio mati. Klik untuk menyalakan suara!" : "Audio aktif. Klik untuk mematikan suara."}
+                    >
+                      {!isVideoMuted ? <Volume2 size={12} /> : <VolumeX size={12} />}
+                      {!isVideoMuted ? 'AUDIO: ON' : 'AUDIO: OFF'}
                     </button>
 
                     <div style={{
@@ -793,13 +845,56 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                   background: '#000',
                   boxShadow: '0 10px 30px rgba(0,0,0,0.6)'
                 }}>
+                  {isVideoMuted && (
+                    <button
+                      onClick={toggleVideoAudio}
+                      style={{
+                        position: 'absolute',
+                        top: '16px',
+                        right: '16px',
+                        zIndex: 10,
+                        background: 'rgba(15, 23, 42, 0.9)',
+                        backdropFilter: 'blur(8px)',
+                        border: '1px solid rgba(56, 189, 248, 0.5)',
+                        color: '#38bdf8',
+                        padding: '8px 14px',
+                        borderRadius: '12px',
+                        fontWeight: 800,
+                        fontSize: '0.8rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      <VolumeX size={15} color="#f87171" />
+                      <span>Audio Dimatikan · <strong style={{ color: '#38bdf8', textDecoration: 'underline' }}>Klik Nyalakan Suara</strong></span>
+                    </button>
+                  )}
                   <video
+                    ref={videoRef}
                     key={selectedOverviewVideo}
                     controls
                     autoPlay
-                    muted
+                    muted={isVideoMuted}
                     playsInline
                     preload="metadata"
+                    onVolumeChange={(e) => {
+                      if (e.currentTarget) {
+                        setIsVideoMuted(e.currentTarget.muted);
+                      }
+                    }}
+                    onLoadedMetadata={(e) => {
+                      if (e.currentTarget) {
+                        e.currentTarget.muted = isVideoMuted;
+                        if (!isVideoMuted) {
+                          e.currentTarget.volume = 1.0;
+                        }
+                        e.currentTarget.play().catch(() => {});
+                      }
+                    }}
                     onEnded={() => {
                       setSelectedOverviewVideo(prev => {
                         if (prev === 'mfg-solution') return 'mandor-way';
@@ -810,6 +905,9 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                         return 'mfg-solution';
                       });
                     }}
+                    onError={(e) => {
+                      console.error("Video load error for:", e.currentTarget?.src, e.currentTarget?.error);
+                    }}
                     style={{
                       width: '100%',
                       height: 'auto',
@@ -819,12 +917,12 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                       borderRadius: '16px'
                     }}
                     src={
-                      selectedOverviewVideo === 'mfg-solution' ? '/assets/mfg-solution.mp4' :
-                      selectedOverviewVideo === 'mandor-way' ? '/assets/mandor-way.mp4' :
-                      selectedOverviewVideo === 'mandor-ops' ? '/assets/mandor-ops.mp4' :
-                      selectedOverviewVideo === 'overview' ? '/assets/mandor-core-overview-1.mp4' :
-                      selectedOverviewVideo === 'checksheet' ? '/assets/mandor-core-check-sheet.mp4' :
-                      '/assets/wi.mp4'
+                      selectedOverviewVideo === 'mfg-solution' ? '/assets/mfg-solution.mp4?v=2' :
+                      selectedOverviewVideo === 'mandor-way' ? '/assets/mavi-way.mp4?v=2' :
+                      selectedOverviewVideo === 'mandor-ops' ? '/assets/mavi-ops.mp4?v=2' :
+                      selectedOverviewVideo === 'overview' ? '/assets/mavi-core-overview-1.mp4?v=2' :
+                      selectedOverviewVideo === 'checksheet' ? '/assets/mavi-core-check-sheet.mp4?v=2' :
+                      '/assets/wi.mp4?v=2'
                     }
                   >
                     Your browser does not support the video tag.

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   GluestackUIProvider
 } from '../adapters/GluestackAdapter';
@@ -50,6 +50,7 @@ import {
 } from 'lucide-react';
 
 export default function UiEngineStudio({ canvasMode = true }) {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('canvas'); // default to canvas editor
   const [selectedTemplateId, setSelectedTemplateId] = useState('inspection');
@@ -648,7 +649,13 @@ export default function UiEngineStudio({ canvasMode = true }) {
             </p>
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
               <button
-                onClick={() => setIncompatibleNotice(null)}
+                onClick={() => {
+                  setIncompatibleNotice(null);
+                  try {
+                    const cleanHash = window.location.hash.split('?')[0];
+                    window.history.replaceState({}, '', cleanHash);
+                  } catch (e) {}
+                }}
                 style={{
                   padding: '10px 18px',
                   borderRadius: '8px',
@@ -664,7 +671,17 @@ export default function UiEngineStudio({ canvasMode = true }) {
               </button>
               <button
                 onClick={() => {
-                  window.location.href = incompatibleNotice.recommendedUrl;
+                  if (incompatibleNotice?.recommendedUrl) {
+                    const targetUrl = incompatibleNotice.recommendedUrl;
+                    const cleanRoute = targetUrl.replace(/^\/?#/, '');
+                    try {
+                      navigate(cleanRoute);
+                    } catch (e) {
+                      console.warn('[UiEngineStudio] Navigate error:', e);
+                    }
+                    window.location.href = window.location.origin + window.location.pathname + targetUrl;
+                    window.location.reload();
+                  }
                 }}
                 style={{
                   padding: '10px 20px',

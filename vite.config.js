@@ -29,6 +29,22 @@ const securityHeaders = {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
+    {
+      name: 'video-asset-fallback',
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          if (req.url) {
+            req.url = req.url
+              .replace('/assets/mandor-way.mp4', '/assets/mavi-way.mp4')
+              .replace('/assets/mandor-ops.mp4', '/assets/mavi-ops.mp4')
+              .replace('/assets/mandor-core-overview-1.mp4', '/assets/mavi-core-overview-1.mp4')
+              .replace('/assets/mandor-core-check-sheet.mp4', '/assets/mavi-core-check-sheet.mp4')
+              .replace('/assets/mandor-core-wi.mp4', '/assets/wi.mp4');
+          }
+          next();
+        });
+      }
+    },
     tailwindcss(),
     react(),
     VitePWA({

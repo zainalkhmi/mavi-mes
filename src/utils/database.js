@@ -267,10 +267,11 @@ export async function getPrimaryAiConnector() {
         if (isGemini && (
             !aiSet.modelId ||
             mid.includes('gemini-3.') ||
+            mid.includes('gemini-2.5') ||
             mid.includes('flash-latest') ||
             mid === 'gemini-flash'
         )) {
-            aiSet.modelId = 'gemini-3.5-flash-preview';
+            aiSet.modelId = 'gemini-2.0-flash';
         }
         return conn;
     };

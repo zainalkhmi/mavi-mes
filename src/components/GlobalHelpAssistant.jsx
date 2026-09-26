@@ -1470,7 +1470,7 @@ export default function GlobalHelpAssistant() {
   const [isMcpLoading, setIsMcpLoading] = useState(false);
 
   // Model selector state
-  const [selectedModel, setSelectedModel] = useState('gemini-3.6-flash');
+  const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash');
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
 
   const AI_MODELS = SHARED_AI_MODELS;
@@ -1553,7 +1553,7 @@ export default function GlobalHelpAssistant() {
       try {
         const connector = await getPrimaryAiConnector();
         setAiConnector(connector);
-        const activeModel = connector?.aiSettings?.modelId || connector?.config?.modelId || 'gemini-3.6-flash';
+        const activeModel = connector?.aiSettings?.modelId || connector?.config?.modelId || 'gemini-2.0-flash';
         setSelectedModel(activeModel);
       } catch (err) {
         console.warn("Could not load AI connector:", err);
@@ -1600,12 +1600,12 @@ export default function GlobalHelpAssistant() {
         ...aiConnector,
         aiSettings: {
           ...effectiveSettings,
-          modelId: selectedModel || effectiveSettings.modelId || 'gemini-3.6-flash'
+          modelId: selectedModel || effectiveSettings.modelId || 'gemini-2.0-flash'
         },
         config: {
           ...(aiConnector?.config || {}),
           ...effectiveSettings,
-          modelId: selectedModel || effectiveSettings.modelId || 'gemini-3.6-flash'
+          modelId: selectedModel || effectiveSettings.modelId || 'gemini-2.0-flash'
         }
       };
 
@@ -1677,12 +1677,12 @@ export default function GlobalHelpAssistant() {
         ...aiConnector,
         aiSettings: {
           ...effectiveSettings,
-          modelId: selectedModel || effectiveSettings.modelId || 'gemini-3.6-flash'
+          modelId: selectedModel || effectiveSettings.modelId || 'gemini-2.0-flash'
         },
         config: {
           ...(aiConnector?.config || {}),
           ...effectiveSettings,
-          modelId: selectedModel || effectiveSettings.modelId || 'gemini-3.6-flash'
+          modelId: selectedModel || effectiveSettings.modelId || 'gemini-2.0-flash'
         }
       };
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   SandpackProvider,
   SandpackLayout,
@@ -1070,6 +1071,7 @@ export default function VibeSandpackViewer({
   onClose = null,
   isStandalone = false
 }) {
+  const navigate = useNavigate();
   const effectiveInitialCode = code && code.trim().length > 0 ? code : CLEAN_BLANK_APP_CODE;
   const sandpackBridgeRef = useRef(null);
   const handleBridgeReady = useCallback((bridge) => {
@@ -1142,7 +1144,7 @@ import { createRoot } from "react-dom/client";
 import "./styles.css";
 import "./mavicore-bridge.js";
 
-import * as AppModule from "./App";
+import * as AppModule from "./App.js";
 
 class SandboxErrorBoundary extends React.Component {
   constructor(props) {
@@ -1261,8 +1263,8 @@ function AppRunner() {
   const Component = AppModule.default || AppModule.App || Object.values(AppModule).find(v => typeof v === 'function');
   if (!Component || typeof Component !== 'function') {
     return (
-      <div style={{ padding: '32px 16px', textAlign: 'center', color: '#94a3b8', fontFamily: 'system-ui, sans-serif' }}>
-        <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#f8fafc', marginBottom: '6px' }}>Komponen App Tidak Ditemukan</h3>
+      <div style={{ padding: '32px 16px', textAlign: 'center', color: '#1e293b', fontFamily: 'system-ui, sans-serif' }}>
+        <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#ef4444', marginBottom: '6px' }}>Komponen App Tidak Ditemukan</h3>
         <p style={{ fontSize: '12px', color: '#64748b' }}>Pastikan file /App.js memiliki <code>export default function App()</code>.</p>
       </div>
     );
@@ -1341,9 +1343,18 @@ root.render(
         }
       }
     }
-    if (!result['/App.js'] && !result['/App.jsx']) {
-      result['/App.js'] = effectiveInitialCode || CLEAN_BLANK_APP_CODE;
-    }
+    // Guarantee that both /App.js and /App.jsx exist, match, and are never empty
+    const rawAppJs = result['/App.js'];
+    const rawAppJsx = result['/App.jsx'];
+    const canonicalMainCode =
+      (rawAppJs && typeof rawAppJs === 'string' && rawAppJs.trim().length > 20)
+        ? rawAppJs
+        : (rawAppJsx && typeof rawAppJsx === 'string' && rawAppJsx.trim().length > 20)
+          ? rawAppJsx
+          : (effectiveInitialCode || CLEAN_BLANK_APP_CODE);
+
+    result['/App.js'] = canonicalMainCode;
+    result['/App.jsx'] = canonicalMainCode;
     return result;
   }, [filesRecord, effectiveInitialCode]);
 
@@ -3965,7 +3976,13 @@ root.render(
             </p>
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
               <button
-                onClick={() => setIncompatibleNotice(null)}
+                onClick={() => {
+                  setIncompatibleNotice(null);
+                  try {
+                    const cleanHash = window.location.hash.split('?')[0];
+                    window.history.replaceState({}, '', cleanHash);
+                  } catch (e) {}
+                }}
                 style={{
                   padding: '10px 18px',
                   borderRadius: '8px',
@@ -3981,7 +3998,17 @@ root.render(
               </button>
               <button
                 onClick={() => {
-                  window.location.href = incompatibleNotice.recommendedUrl;
+                  if (incompatibleNotice?.recommendedUrl) {
+                    const targetUrl = incompatibleNotice.recommendedUrl;
+                    const cleanRoute = targetUrl.replace(/^\/?#/, '');
+                    try {
+                      navigate(cleanRoute);
+                    } catch (e) {
+                      console.warn('[VibeSandpackViewer] Navigate error:', e);
+                    }
+                    window.location.href = window.location.origin + window.location.pathname + targetUrl;
+                    window.location.reload();
+                  }
                 }}
                 style={{
                   padding: '10px 20px',

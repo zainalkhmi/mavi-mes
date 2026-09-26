@@ -51,13 +51,17 @@ export class ProjectFileSystem {
       const isBin = typeof finalContent !== 'string';
       this.files.set(norm, new VirtualFile(norm, finalContent, isBin));
     }
-    // Mirror /App.js to /App.jsx if missing, or vice versa
-    if (this.files.has('/App.js') && !this.files.has('/App.jsx')) {
-      const f = this.files.get('/App.js');
-      this.files.set('/App.jsx', new VirtualFile('/App.jsx', f.content, f.isBinary));
-    } else if (this.files.has('/App.jsx') && !this.files.has('/App.js')) {
-      const f = this.files.get('/App.jsx');
-      this.files.set('/App.js', new VirtualFile('/App.js', f.content, f.isBinary));
+    // Mirror and synchronize /App.js to /App.jsx strictly
+    const appJs = this.files.get('/App.js');
+    const appJsx = this.files.get('/App.jsx');
+    const bestContent = (appJs?.content && String(appJs.content).trim())
+      ? appJs.content
+      : (appJsx?.content && String(appJsx.content).trim())
+        ? appJsx.content
+        : '';
+    if (bestContent) {
+      this.files.set('/App.js', new VirtualFile('/App.js', bestContent, false));
+      this.files.set('/App.jsx', new VirtualFile('/App.jsx', bestContent, false));
     }
     this.notify();
   }

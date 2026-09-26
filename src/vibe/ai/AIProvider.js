@@ -25,33 +25,12 @@ export class AIProvider {
   }
 
   static sanitizeGeminiModel(m) {
-    if (!m) return 'gemini-3.5-flash';
+    if (!m) return 'gemini-2.0-flash';
     let clean = String(m).trim().replace(/^models\//, '');
     if (clean.includes('/')) clean = clean.split('/').pop();
     const lower = clean.toLowerCase();
-    // Keep verified real models active
-    if (
-      lower === 'gemini-3.5-flash' ||
-      lower === 'gemini-3.8-flash' ||
-      lower === 'gemini-3.7-flash' ||
-      lower === 'gemini-3.6-flash' ||
-      lower === 'gemini-3-flash-preview' ||
-      lower === 'gemini-3.5-flash-lite'
-    ) {
-      return lower;
-    }
-    // Discontinued / alias models map to gemini-3.5-flash (verified live, 200 OK)
-    if (
-      lower.includes('flash-latest') ||
-      lower === 'gemini-flash' ||
-      lower === 'gemini' ||
-      lower.includes('2.5-flash') ||
-      lower.includes('2.0-flash') ||
-      lower.includes('1.5-flash') ||
-      lower.includes('preview-02-05') ||
-      lower.includes('flash-lite-preview')
-    ) {
-      return 'gemini-3.5-flash';
+    if (lower === 'gemini-flash' || lower === 'gemini' || lower.includes('flash-latest') || lower.includes('gemini-3.') || lower.includes('gemini-2.5')) {
+      return 'gemini-2.0-flash';
     }
     return clean;
   }
@@ -68,7 +47,7 @@ export class AIProvider {
       const overrideSettings = overrideConnector?.aiSettings || overrideConnector?.config || overrideConnector || {};
       const effectiveApiKey = overrideSettings.apiKey || primarySettings.apiKey;
       const prov = overrideSettings.provider || primarySettings.provider || 'gemini';
-      let rawModel = overrideSettings.modelId || primarySettings.modelId || 'gemini-3.5-flash';
+      let rawModel = overrideSettings.modelId || primarySettings.modelId || 'gemini-2.0-flash';
       if (this.normalizeProvider(prov) === 'gemini') {
         rawModel = this.sanitizeGeminiModel(rawModel);
       }
@@ -115,8 +94,9 @@ export class AIProvider {
 
       const candidateModels = [
         primaryModel,
-        'gemini-3.5-flash',
-        'gemini-3-flash-preview'
+        'gemini-2.0-flash',
+        'gemini-1.5-flash',
+        'gemini-1.5-pro'
       ].filter(Boolean).filter((m, idx, arr) => arr.indexOf(m) === idx);
 
       const systemMsg = messages.find(m => m.role === 'system');

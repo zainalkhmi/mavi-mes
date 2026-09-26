@@ -74,9 +74,9 @@ RULES:
 `;
 
   if (provider.includes('gemini') || !provider || provider === 'google') {
-    let cleanModel = String(settings.modelId || 'gemini-3.5-flash-preview').replace(/^models\//, '').trim();
-    if (cleanModel.includes('flash-latest') || cleanModel === 'gemini-flash') {
-      cleanModel = 'gemini-3.5-flash-preview';
+    let cleanModel = String(settings.modelId || 'gemini-2.0-flash').replace(/^models\//, '').trim();
+    if (cleanModel.includes('flash-latest') || cleanModel === 'gemini-flash' || cleanModel.includes('gemini-3.')) {
+      cleanModel = 'gemini-2.0-flash';
     }
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${apiKey}`;
 

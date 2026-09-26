@@ -481,7 +481,16 @@ const BuilderCopilot = ({
   }, [isOpen]);
 
   const currentProvider = aiConnector?.aiSettings?.provider || aiConnector?.config?.provider || 'Gemini';
-  const currentModelId = aiConnector?.aiSettings?.modelId || aiConnector?.config?.modelId || 'gemini-2.0-flash';
+  let rawModelId = aiConnector?.aiSettings?.modelId || aiConnector?.config?.modelId || 'gemini-2.0-flash';
+  if (currentProvider.toLowerCase().includes('gemini') && (
+    rawModelId.includes('gemini-3.') ||
+    rawModelId.includes('gemini-2.5') ||
+    rawModelId.includes('flash-latest') ||
+    rawModelId === 'gemini-flash'
+  )) {
+    rawModelId = 'gemini-2.0-flash';
+  }
+  const currentModelId = rawModelId;
 
   const handleModelChange = async (newModelId) => {
     try {
@@ -506,7 +515,6 @@ const BuilderCopilot = ({
       Gemini: [
         { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Recommended - Super Fast & Next Gen)' },
         { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Production Stable & Fast)' },
-        { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Next Gen Reasoning)' },
         { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro (Complex Analysis)' }
       ],
       OpenAI: [
@@ -899,26 +907,27 @@ const BuilderCopilot = ({
         throw new Error('AI Connector belum dikonfigurasi. Silakan buka Integrasi > AI Settings.');
       }
 
+      const enrichedContext = {
+        ...context,
+        selectedWidget: selectedWidget || null,
+        sessionSummary,
+        vibeMode: context?.vibeMode || 'CANVAS',
+        relatedApps: (selectedApps || []).map(app => ({
+          id: app.id,
+          name: app.name,
+          category: app.category,
+          screens: (app.config?.steps || app.config?.components || []).map(s => s.title || s.displayName || s.type),
+          variables: (app.config?.variables || []).map(v => ({ name: v.name, type: v.type, defaultValue: v.defaultValue })),
+          tablesUsed: app.config?.tablesUsed || []
+        }))
+      };
+
       let response;
       if (selectedFile) {
-        response = await getBuilderVisionAdvice(selectedFile, context, activeConn);
+        response = await getBuilderVisionAdvice(selectedFile, enrichedContext, activeConn);
         setSelectedFile(null);
       } else {
         const history = messages.slice(-8).map(m => ({ role: m.role, content: m.content }));
-        const enrichedContext = {
-          ...context,
-          selectedWidget: selectedWidget || null,
-          sessionSummary,
-          vibeMode: context?.vibeMode || 'CANVAS',
-          relatedApps: (selectedApps || []).map(app => ({
-            id: app.id,
-            name: app.name,
-            category: app.category,
-            screens: (app.config?.steps || app.config?.components || []).map(s => s.title || s.displayName || s.type),
-            variables: (app.config?.variables || []).map(v => ({ name: v.name, type: v.type, defaultValue: v.defaultValue })),
-            tablesUsed: app.config?.tablesUsed || []
-          }))
-        };
 
         // UPGRADE 2: Try streaming first, fallback to non-streaming
         try {
@@ -2308,7 +2317,9 @@ Apa yang bisa kamu bantu untuk widget ini?`;
                 <Wand2 size={12} color="white" />
               </div>
               <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Copilot</span>
-              <span style={{ fontSize: '0.6rem', color: '#a5b4fc', fontWeight: 700 }}>● streaming...</span>
+              <span style={{ fontSize: '0.65rem', color: '#6366f1', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Loader2 size={11} className="animate-spin" /> Menulis kode & komponen...
+              </span>
             </div>
             <div style={{
               maxWidth: '88%', padding: '12px 16px', borderRadius: '4px 18px 18px 18px',
@@ -2317,7 +2328,33 @@ Apa yang bisa kamu bantu untuk widget ini?`;
               boxShadow: '0 2px 8px rgba(0,0,0,0.06)', whiteSpace: 'pre-wrap',
               borderLeft: '3px solid #6366f1',
             }}>
-              {streamingText.replace(/<builder_cmds>[\s\S]*?<\/builder_cmds>/gi, '').replace(/<ai_plan>[\s\S]*?<\/ai_plan>/gi, '').trim()}
+              {(() => {
+                const stripped = streamingText
+                  .replace(/<builder_cmds>[\s\S]*?(?:<\/builder_cmds>|$)/gi, '')
+                  .replace(/<ai_plan>[\s\S]*?(?:<\/ai_plan>|$)/gi, '')
+                  .replace(/<vibe_code>[\s\S]*?(?:<\/vibe_code>|$)/gi, '')
+                  .trim();
+                const isWritingCmds = streamingText.includes('<builder_cmds>') || streamingText.includes('{"commands"');
+                const tokenEst = Math.round(streamingText.length / 4);
+                if (stripped) {
+                  return (
+                    <>
+                      {stripped}
+                      {isWritingCmds && (
+                        <div style={{ marginTop: '10px', padding: '8px 12px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', fontSize: '0.75rem', color: '#166534', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Loader2 size={13} className="animate-spin" /> Merakit komponen canvas & database ({tokenEst} token)...
+                        </div>
+                      )}
+                    </>
+                  );
+                }
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4338ca', fontWeight: 600, fontSize: '0.8rem' }}>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>Sedang merakit widget & logika canvas ({tokenEst} token)...</span>
+                  </div>
+                );
+              })()}
               <span style={{ display: 'inline-block', width: '2px', height: '14px', background: '#6366f1', marginLeft: '2px', verticalAlign: 'text-bottom', animation: 'blink 0.8s step-end infinite' }} />
             </div>
           </div>
@@ -2330,6 +2367,9 @@ Apa yang bisa kamu bantu untuk widget ini?`;
                 <Wand2 size={12} color="white" />
               </div>
               <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Copilot</span>
+              <span style={{ fontSize: '0.65rem', color: '#6366f1', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Loader2 size={11} className="animate-spin" /> Menghubungkan ke AI...
+              </span>
             </div>
             <TypingDots />
           </div>
