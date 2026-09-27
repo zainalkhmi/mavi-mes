@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   SandpackProvider,
   SandpackLayout,
@@ -56,11 +55,7 @@ import {
   Play,
   FileCode,
   QrCode,
-  Wifi,
-  Save,
-  FilePlus,
-  UploadCloud,
-  Boxes
+  Wifi
 } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import toast, { Toaster } from 'react-hot-toast';
@@ -79,20 +74,17 @@ import { ProjectVersionControl } from '../../vibe/filesystem/ProjectVersionContr
 import { AIProvider } from '../../vibe/ai/AIProvider';
 import { AgenticPromptEngine } from '../../vibe/ai/AgenticPromptEngine';
 import { RuntimeManager } from '../../vibe/runtime/RuntimeManager';
-import { EmergentAgentPipeline } from '../../vibe/ai/EmergentAgentPipeline';
 import { ErrorFixEngine } from '../../vibe/autofix/ErrorFixEngine';
 import { MAVICORE_UIKIT_VIRTUAL_FILE } from '../../vibe/uikit';
-import { MAVICORE_SDK_VIRTUAL_FILE, MAVICORE_BRIDGE_VIRTUAL_FILE, MAVICORE_UI_VIRTUAL_FILE, SHADCN_UI_VIRTUAL_FILES } from '../../vibe/sdk';
+import { MAVICORE_SDK_VIRTUAL_FILE, MAVICORE_BRIDGE_VIRTUAL_FILE } from '../../vibe/sdk';
 
 import FileTreeExplorer from '../../vibe/components/FileTreeExplorer';
 import AiChangesReviewModal from '../../vibe/components/AiChangesReviewModal';
 import ManufacturingTemplatesModal from '../../vibe/components/ManufacturingTemplatesModal';
 import BuildModal from '../../vibe/components/BuildModal';
-import WidgetCatalogModal from '../../vibe/components/WidgetCatalogModal';
 import VibeChatPanel from '../../vibe/components/VibeChatPanel';
 import BottomTerminalPanel from '../../vibe/components/BottomTerminalPanel';
-import { cleanVibeCode, healTruncatedReactCode, extractVibeCode, autoFixMissingImports, autoFixSyntaxErrors } from '../../vibe/utils/codeCleaner';
-import { DyadCAGResolver, DyadPatchEngine } from '../../vibe/ai/DyadEngine';
+import { cleanVibeCode, healTruncatedReactCode, extractVibeCode, autoFixMissingImports } from '../../vibe/utils/codeCleaner';
 
 // ═══════════════════════════════════════════════════════════════════
 // 🔌 MaviCore Real-time Data Bridge Helper
@@ -330,7 +322,6 @@ import {
   Activity, CheckCircle2, XCircle, TrendingUp, Users, Settings,
   Bell, ChevronRight, Play, Pause, RotateCcw, Zap, Factory, RefreshCw, Trash2
 } from 'lucide-react';
-import { KPICard, ScadaProdCounter, StatusBadge, TelemetryGauge } from './mavicore-ui';
 
 // ─── Inject MaviCore Bridge ───
 ${MAVICORE_BRIDGE_CODE}
@@ -512,8 +503,8 @@ export default function IndustrialDashboard() {
             <div>
               <h1 className="text-2xl font-bold text-slate-900">Stasiun Assembly A1</h1>
               <div className="flex items-center gap-2 mt-1">
-                <StatusBadge status={isRunning ? 'RUNNING' : 'DOWNTIME'} />
-                <span className="text-xs text-slate-500 font-semibold">{isRunning ? 'Lini Aktif - Produksi Normal' : 'Lini Berhenti'}</span>
+                <span className="w-2 h-2 rounded-full bg-green-500 pulse-dot" />
+                <span className="text-sm text-slate-500">{isRunning ? 'Lini Aktif - Produksi Normal' : 'Lini Berhenti'}</span>
               </div>
             </div>
           </div>
@@ -552,22 +543,26 @@ export default function IndustrialDashboard() {
           ))}
         </div>
 
-        {/* ─── 3 MAVICORE UI KPI CARDS ─── */}
+        {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <KPICard title="TOTAL OUTPUT" value={(productionCount + rejectCount).toLocaleString()} unit="pcs" trend="+12%" color="indigo" icon={Factory} />
-          <KPICard title="EFISIENSI LINI" value={efficiency + '%'} unit="Yield" trend="+3.2%" color="emerald" icon={TrendingUp} />
-          <KPICard title="OPERATOR AKTIF" value="8" unit="Staff" trend="Shift 1" color="amber" icon={Users} />
-        </div>
-
-        {/* ─── MAVICORE SCADA COUNTER & TELEMETRY ─── */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="md:col-span-2">
-            <ScadaProdCounter target={2000} actual={productionCount} defect={rejectCount} />
-          </div>
-          <div className="space-y-3">
-            <TelemetryGauge title="Stasiun Feed Rate" value="120" unit="m/min" status={isRunning ? 'OPTIMAL' : 'WARN'} />
-            <TelemetryGauge title="Hydraulic Pressure" value="142" unit="Bar" status={isRunning ? 'OPTIMAL' : 'WARN'} />
-          </div>
+          {stats.map((stat, i) => (
+            <motion.div
+              key={stat.label}
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: i * 0.1 }}
+              className="stat-card rounded-2xl p-5"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: stat.color + '18' }}>
+                  <stat.icon className="w-5 h-5" style={{ color: stat.color }} />
+                </div>
+                <span className="text-xs px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-200 font-semibold">{stat.trend}</span>
+              </div>
+              <div className="text-3xl font-extrabold text-slate-900 mb-1">{stat.value}</div>
+              <div className="text-sm font-medium text-slate-500">{stat.label}</div>
+            </motion.div>
+          ))}
         </div>
 
         {/* Main Cards */}
@@ -833,14 +828,12 @@ function SandpackLiveBridge({ onBridgeReady }) {
       onBridgeReadyRef.current({
         updateFile: (path, content) => {
           try {
-            if (!path || content == null) return;
-            const safeContent = typeof content === 'string' ? content : String(content);
             // Guard: skip if the file in Sandpack already has the exact same content
             const currentCode = sandpackRef.current?.files?.[path]?.code;
-            if (currentCode === safeContent) {
+            if (currentCode === content) {
               return;
             }
-            sandpackRef.current?.updateFile(path, safeContent, true);
+            sandpackRef.current?.updateFile(path, content, true);
           } catch (e) {
             console.error('Sandpack updateFile error:', e);
           }
@@ -1071,7 +1064,6 @@ export default function VibeSandpackViewer({
   onClose = null,
   isStandalone = false
 }) {
-  const navigate = useNavigate();
   const effectiveInitialCode = code && code.trim().length > 0 ? code : CLEAN_BLANK_APP_CODE;
   const sandpackBridgeRef = useRef(null);
   const handleBridgeReady = useCallback((bridge) => {
@@ -1132,11 +1124,10 @@ button {
         name: 'mavicore-app',
         version: '1.0.0',
         dependencies: {
-          'react': '^18.2.0',
-          'react-dom': '^18.2.0',
+          '@ionic/react': '^7.0.0',
+          'ionicons': '^7.0.0',
           'lucide-react': 'latest',
-          'recharts': 'latest',
-          'framer-motion': '^11.0.0'
+          'recharts': 'latest'
         }
       }, null, 2),
       '/index.js': `import React, { StrictMode } from "react";
@@ -1144,152 +1135,16 @@ import { createRoot } from "react-dom/client";
 import "./styles.css";
 import "./mavicore-bridge.js";
 
-import * as AppModule from "./App.js";
-
-class SandboxErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error };
-  }
-  componentDidCatch(error, errorInfo) {
-    console.error("[Sandbox Runtime Error]", error, errorInfo);
-    if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
-      window.parent.postMessage({
-        type: 'MAVICORE_DEVICE_ERROR',
-        error: error?.message || String(error),
-        stack: errorInfo?.componentStack || error?.stack || ''
-      }, '*');
-    }
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div style={{
-          minHeight: '100vh',
-          backgroundColor: '#f8fafc',
-          color: '#0f172a',
-          fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
-          padding: '24px 16px',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxSizing: 'border-box'
-        }}>
-          <div style={{
-            maxWidth: '400px',
-            width: '100%',
-            backgroundColor: '#ffffff',
-            borderRadius: '20px',
-            border: '1px solid #fee2e2',
-            boxShadow: '0 10px 25px -5px rgba(239, 68, 68, 0.12)',
-            padding: '20px',
-            textAlign: 'center'
-          }}>
-            <div style={{
-              width: '44px',
-              height: '44px',
-              borderRadius: '12px',
-              backgroundColor: '#fef2f2',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: '12px',
-              fontSize: '22px'
-            }}>
-              ⚠️
-            </div>
-            <h3 style={{
-              fontSize: '15px',
-              fontWeight: 800,
-              color: '#b91c1c',
-              margin: '0 0 6px 0'
-            }}>
-              Komponen Mengalami Kendala
-            </h3>
-            <p style={{
-              fontSize: '12px',
-              color: '#64748b',
-              margin: '0 0 12px 0',
-              lineHeight: 1.4
-            }}>
-              Terjadi runtime error saat komponen React dirender:
-            </p>
-            <div style={{
-              backgroundColor: '#fff1f2',
-              border: '1px solid #fecdd3',
-              borderRadius: '10px',
-              padding: '10px 12px',
-              color: '#9f1239',
-              fontSize: '11px',
-              fontFamily: 'ui-monospace, monospace',
-              textAlign: 'left',
-              wordBreak: 'break-word',
-              marginBottom: '16px',
-              maxHeight: '140px',
-              overflowY: 'auto'
-            }}>
-              {this.state.error?.message || String(this.state.error)}
-            </div>
-            <button
-              type="button"
-              onClick={() => this.setState({ hasError: false, error: null })}
-              style={{
-                width: '100%',
-                padding: '9px 14px',
-                borderRadius: '10px',
-                backgroundColor: '#ef4444',
-                color: '#ffffff',
-                border: 'none',
-                fontWeight: 700,
-                fontSize: '12px',
-                cursor: 'pointer'
-              }}
-            >
-              Coba Muat Ulang Komponen
-            </button>
-          </div>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
-function AppRunner() {
-  const Component = AppModule.default || AppModule.App || Object.values(AppModule).find(v => typeof v === 'function');
-  if (!Component || typeof Component !== 'function') {
-    return (
-      <div style={{ padding: '32px 16px', textAlign: 'center', color: '#1e293b', fontFamily: 'system-ui, sans-serif' }}>
-        <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#ef4444', marginBottom: '6px' }}>Komponen App Tidak Ditemukan</h3>
-        <p style={{ fontSize: '12px', color: '#64748b' }}>Pastikan file /App.js memiliki <code>export default function App()</code>.</p>
-      </div>
-    );
-  }
-  return React.createElement(Component);
-}
+import App from "./App";
 
 const root = createRoot(document.getElementById("root"));
 root.render(
   <StrictMode>
-    <SandboxErrorBoundary>
-      <AppRunner />
-    </SandboxErrorBoundary>
+    <App />
   </StrictMode>
 );
 `,
-      '/mavicore-ui.jsx': MAVICORE_UI_VIRTUAL_FILE,
-      '/mavicore-ui.js': MAVICORE_UI_VIRTUAL_FILE,
-      '/mavicore-ui': MAVICORE_UI_VIRTUAL_FILE,
-      '/mavicoreUi.js': MAVICORE_UI_VIRTUAL_FILE,
-      '/mavicoreUi': MAVICORE_UI_VIRTUAL_FILE,
-      '/components/mavicore-ui.js': MAVICORE_UI_VIRTUAL_FILE,
-      '/components/MaviCoreUI.jsx': MAVICORE_UI_VIRTUAL_FILE,
-      '/node_modules/mavicore-ui/index.js': MAVICORE_UI_VIRTUAL_FILE,
-      '/node_modules/mavicore-ui/package.json': JSON.stringify({ name: 'mavicore-ui', main: 'index.js' }),
+      '/mavicore-ui.jsx': MAVICORE_UIKIT_VIRTUAL_FILE,
       '/mavicore-sdk.js': MAVICORE_SDK_VIRTUAL_FILE,
       '/mavicore-sdk': MAVICORE_SDK_VIRTUAL_FILE,
       '/mavicoreSdk.js': MAVICORE_SDK_VIRTUAL_FILE,
@@ -1303,8 +1158,7 @@ root.render(
       '/node_modules/mavicore-bridge/index.js': MAVICORE_BRIDGE_VIRTUAL_FILE,
       '/node_modules/mavicore-bridge/package.json': JSON.stringify({ name: 'mavicore-bridge', main: 'index.js' }),
       '/node_modules/mavicoreBridge/index.js': MAVICORE_BRIDGE_VIRTUAL_FILE,
-      '/node_modules/mavicoreBridge/package.json': JSON.stringify({ name: 'mavicoreBridge', main: 'index.js' }),
-      ...SHADCN_UI_VIRTUAL_FILES
+      '/node_modules/mavicoreBridge/package.json': JSON.stringify({ name: 'mavicoreBridge', main: 'index.js' })
     };
     return new ProjectFileSystem(initialFiles);
   });
@@ -1325,73 +1179,18 @@ root.render(
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempAppName, setTempAppName] = useState('');
 
-  // Bulletproof sanitization of virtual files for Sandpack to prevent "Cannot read properties of null (reading 'code')"
-  const sanitizedSandpackFiles = useMemo(() => {
-    const result = {};
-    if (filesRecord && typeof filesRecord === 'object') {
-      for (const [rawPath, rawVal] of Object.entries(filesRecord)) {
-        if (!rawPath || typeof rawPath !== 'string') continue;
-        const normPath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
-        if (typeof rawVal === 'string') {
-          result[normPath] = rawVal;
-        } else if (rawVal && typeof rawVal.code === 'string') {
-          result[normPath] = rawVal.code;
-        } else if (rawVal != null) {
-          result[normPath] = String(rawVal);
-        } else {
-          result[normPath] = '';
-        }
-      }
-    }
-    // Guarantee that both /App.js and /App.jsx exist, match, and are never empty
-    const rawAppJs = result['/App.js'];
-    const rawAppJsx = result['/App.jsx'];
-    const canonicalMainCode =
-      (rawAppJs && typeof rawAppJs === 'string' && rawAppJs.trim().length > 20)
-        ? rawAppJs
-        : (rawAppJsx && typeof rawAppJsx === 'string' && rawAppJsx.trim().length > 20)
-          ? rawAppJsx
-          : (effectiveInitialCode || CLEAN_BLANK_APP_CODE);
-
-    result['/App.js'] = canonicalMainCode;
-    result['/App.jsx'] = canonicalMainCode;
-    return result;
-  }, [filesRecord, effectiveInitialCode]);
-
-  // Pre-emptive auto-heal on mount to instantly cure any legacy duplicate imports or rogue closures
-  useEffect(() => {
-    try {
-      const current = vfs.readFile('/App.js') || vfs.readFile('/App.jsx');
-      if (current) {
-        const cleaned = cleanVibeCode(current);
-        if (cleaned && cleaned.trim() !== current.trim()) {
-          vfs.writeFile('/App.js', cleaned);
-          setFilesRecord(vfs.getAllFilesRecord());
-          setFilesRevision(prev => prev + 1);
-          if (onCodeChange) onCodeChange(cleaned);
-        }
-      }
-    } catch (_) {}
-  }, []);
-
   // Sync external code prop if updated externally
   useEffect(() => {
     if (code && code.trim() && code !== lastKnownExternalCodeRef.current) {
       lastKnownExternalCodeRef.current = code;
-      const cleaned = cleanVibeCode(code);
-      vfs.writeFile('/App.js', cleaned);
+      vfs.writeFile('/App.js', code);
       setFilesRecord(vfs.getAllFilesRecord());
       setFileTree(vfs.getFileTree());
-      autoFixAttemptsRef.current = 0;
-      isAutoFixingRef.current = false;
-      setErrors([]);
-      setFilesRevision(prev => prev + 1);
       if (sandpackBridgeRef.current) {
-        sandpackBridgeRef.current.updateFile('/App.js', cleaned);
-        sandpackBridgeRef.current.runSandpack?.();
+        sandpackBridgeRef.current.updateFile('/App.js', code);
       }
     }
-  }, [code, vfs, onCodeChange]);
+  }, [code, vfs]);
 
   // UI state
   const [viewMode, setViewMode] = useState('preview'); // 'preview' | 'code' | 'split'
@@ -1515,17 +1314,6 @@ root.render(
     vfs.writeFile('/mavicoreSdk.js', MAVICORE_SDK_VIRTUAL_FILE);
     vfs.writeFile('/mavicoreSdk', MAVICORE_SDK_VIRTUAL_FILE);
     vfs.writeFile('/node_modules/mavicore-sdk/index.js', MAVICORE_SDK_VIRTUAL_FILE);
-    vfs.writeFile('/mavicore-ui.jsx', MAVICORE_UI_VIRTUAL_FILE);
-    vfs.writeFile('/mavicore-ui.js', MAVICORE_UI_VIRTUAL_FILE);
-    vfs.writeFile('/mavicore-ui', MAVICORE_UI_VIRTUAL_FILE);
-    vfs.writeFile('/mavicoreUi.js', MAVICORE_UI_VIRTUAL_FILE);
-    vfs.writeFile('/mavicoreUi', MAVICORE_UI_VIRTUAL_FILE);
-    vfs.writeFile('/components/mavicore-ui.js', MAVICORE_UI_VIRTUAL_FILE);
-    vfs.writeFile('/components/MaviCoreUI.jsx', MAVICORE_UI_VIRTUAL_FILE);
-    vfs.writeFile('/node_modules/mavicore-ui/index.js', MAVICORE_UI_VIRTUAL_FILE);
-    Object.entries(SHADCN_UI_VIRTUAL_FILES).forEach(([path, content]) => {
-      vfs.writeFile(path, content);
-    });
     setFilesRecord(vfs.getAllFilesRecord());
     setFileTree(vfs.getFileTree());
   }, []);
@@ -1650,11 +1438,9 @@ root.render(
     return cleanup;
   }, []);
 
-  // Dyad Studio Panels state
+  // Panels state
   const [isFilesPanelOpen, setIsFilesPanelOpen] = useState(true);
-  const [isChatPanelOpen, setIsChatPanelOpen] = useState(true);
-  const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
-  const [rightPanelTab, setRightPanelTab] = useState('both'); // 'editor' | 'files' | 'both'
+  const [isChatPanelOpen, setIsChatPanelOpen] = useState(isStandalone ? false : true);
   const [isTerminalPanelOpen, setIsTerminalPanelOpen] = useState(false);
   const [selectedAIModel, setSelectedAIModel] = useState('MiniMax-M2.7');
 
@@ -1664,35 +1450,6 @@ root.render(
     { id: 'GPT-4o', name: 'GPT-4o', icon: '🧠', color: '#6366f1' },
     { id: 'Claude-3.5', name: 'Claude 3.5', icon: '💎', color: '#ec4899' },
   ];
-
-  // Emergent.sh Agent & Pipeline state
-  const [stepHistory, setStepHistory] = useState([]);
-  const [activeEngine, setActiveEngine] = useState('sandpack');
-  const pipelineRef = useRef(null);
-
-  const handleDownloadProjectZip = useCallback(async () => {
-    try {
-      const { default: JSZip } = await import('jszip');
-      const zip = new JSZip();
-      const allFiles = vfs.getAllFilesRecord();
-      for (const [path, content] of Object.entries(allFiles)) {
-        const cleanPath = path.replace(/^\//, '');
-        zip.file(cleanPath, content);
-      }
-      const blob = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${(appName || 'mavi-vibe-app').toLowerCase().replace(/\s+/g, '-')}-project.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success('📦 Project ZIP berhasil diunduh!');
-    } catch (err) {
-      toast.error(`Gagal mendownload ZIP: ${err.message}`);
-    }
-  }, [vfs, appName]);
 
   // Modals state
   const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
@@ -1755,13 +1512,11 @@ root.render(
         const updatedFiles = vfs.getAllFilesRecord();
         setFilesRecord(updatedFiles);
         setFileTree(vfs.getFileTree());
-        setFilesRevision(prev => prev + 1);
         const appCode = vfs.readFile('/App.js') || vfs.readFile('/App.jsx');
         if (appCode) {
           lastKnownExternalCodeRef.current = appCode;
           if (sandpackBridgeRef.current) {
             sandpackBridgeRef.current.updateFile('/App.js', appCode);
-            sandpackBridgeRef.current.runSandpack?.();
           }
           try { localStorage.setItem('vibe_sandbox_autosave', appCode); } catch {}
           if (onCodeChange) onCodeChange(appCode);
@@ -1798,14 +1553,14 @@ root.render(
       clearTimeout(autoFixDebounceTimerRef.current);
     }
 
-    // Fast-track auto-fix: immediately attempt heuristic repair in 200ms
+    // Debounce to collect rapid cascading errors and run full auto-repair loop
     autoFixDebounceTimerRef.current = setTimeout(async () => {
-      if (autoFixAttemptsRef.current >= 6) {
+      if (autoFixAttemptsRef.current >= 4) {
         setLogs(prev => [...prev, {
           timestamp: new Date(),
-          text: `[Auto-Fix] ⚠️ Batas percobaan auto-fix (6x) tercapai. Silakan periksa kode di tab editor.`
+          text: `[Auto-Fix] ⚠️ Batas percobaan auto-fix (4x) tercapai. Silakan cek kode di tab editor.`
         }]);
-        toast.error('Batas auto-fix tercapai. Silakan periksa error di tab code.');
+        toast.error('Batas auto-fix 4x tercapai. Silakan periksa pesan error di terminal.');
         return;
       }
 
@@ -1813,51 +1568,15 @@ root.render(
       isAutoFixingRef.current = true;
       setIsAutoFixing(true);
 
-      // 0. Safety: Immediately restore virtual bridge/UI files if corrupted or reported in error
-      if (/mavicore[-_]?bridge/i.test(cleanErrMsg)) {
-        vfs.writeFile('/mavicore-bridge.js', MAVICORE_BRIDGE_VIRTUAL_FILE);
-        vfs.writeFile('/mavicore-bridge', MAVICORE_BRIDGE_VIRTUAL_FILE);
-        vfs.writeFile('/mavicoreBridge.js', MAVICORE_BRIDGE_VIRTUAL_FILE);
-        vfs.writeFile('/mavicoreBridge', MAVICORE_BRIDGE_VIRTUAL_FILE);
-        vfs.writeFile('/mavicore_bridge.js', MAVICORE_BRIDGE_VIRTUAL_FILE);
-        vfs.writeFile('/mavicore_bridge', MAVICORE_BRIDGE_VIRTUAL_FILE);
-        vfs.writeFile('/node_modules/mavicore-bridge/index.js', MAVICORE_BRIDGE_VIRTUAL_FILE);
-        if (sandpackBridgeRef.current) {
-          sandpackBridgeRef.current.updateFile('/mavicore-bridge.js', MAVICORE_BRIDGE_VIRTUAL_FILE);
-          sandpackBridgeRef.current.updateFile('/mavicore-bridge', MAVICORE_BRIDGE_VIRTUAL_FILE);
-        }
-      }
-      if (/mavicore[-_]?ui/i.test(cleanErrMsg)) {
-        vfs.writeFile('/mavicore-ui.js', MAVICORE_UI_VIRTUAL_FILE);
-        vfs.writeFile('/mavicore-ui.jsx', MAVICORE_UI_VIRTUAL_FILE);
-        vfs.writeFile('/mavicore-ui', MAVICORE_UI_VIRTUAL_FILE);
-        vfs.writeFile('/node_modules/mavicore-ui/index.js', MAVICORE_UI_VIRTUAL_FILE);
-        if (sandpackBridgeRef.current) {
-          sandpackBridgeRef.current.updateFile('/mavicore-ui.js', MAVICORE_UI_VIRTUAL_FILE);
-        }
-      }
-      if (/components\/ui|lib\/utils/i.test(cleanErrMsg)) {
-        Object.entries(SHADCN_UI_VIRTUAL_FILES).forEach(([p, c]) => {
-          vfs.writeFile(p, c);
-          if (sandpackBridgeRef.current) {
-            sandpackBridgeRef.current.updateFile(p, c);
-          }
-        });
-      }
-
-      // Safe target path: Never allow auto-fix to target protected system SDK files
-      let targetPath = activeFilePathRef.current || '/App.js';
-      if (/mavicore|index\.js|package\.json|styles\.css|node_modules/i.test(targetPath)) {
-        targetPath = '/App.js';
-      }
+      const targetPath = activeFilePathRef.current || '/App.js';
       const currentCode = vfs.readFile(targetPath) || vfs.readFile('/App.js') || vfs.readFile('/App.jsx');
 
       setLogs(prev => [...prev, {
         timestamp: new Date(),
-        text: `[Auto-Fix #${autoFixAttemptsRef.current}/6] ⚡ Mendeteksi error runtime/sintaks. Mengaplikasikan perbaikan otomatis...`
+        text: `[Auto-Fix #${autoFixAttemptsRef.current}/4] 🔍 Mengambil kode dari device untuk dianalisis & diperbaiki...`
       }]);
 
-      // 1. Quick Heuristic Missing Imports & Duplicate Declarations
+      // 1. Quick Heuristic Missing Imports
       try {
         if (currentCode) {
           const importFixed = autoFixMissingImports(currentCode, cleanErrMsg);
@@ -1866,11 +1585,9 @@ root.render(
             const updatedFiles = vfs.getAllFilesRecord();
             setFilesRecord(updatedFiles);
             setFileTree(vfs.getFileTree());
-            setFilesRevision(prev => prev + 1);
             lastKnownExternalCodeRef.current = importFixed;
             if (sandpackBridgeRef.current) {
               sandpackBridgeRef.current.updateFile(targetPath, importFixed);
-              sandpackBridgeRef.current.runSandpack?.();
             }
             try { localStorage.setItem('vibe_sandbox_autosave', importFixed); } catch {}
             if (onCodeChange) onCodeChange(importFixed);
@@ -1879,9 +1596,9 @@ root.render(
             setIsAutoFixing(false);
             setLogs(prev => [...prev, {
               timestamp: new Date(),
-              text: `[Auto-Fix] ✅ Berhasil memperbaiki import & deklarasi (${targetPath}). Device dimuat ulang...`
+              text: `[Auto-Fix] ✅ Berhasil menambahkan import otomatis (${targetPath}). Menjalankan ulang di device...`
             }]);
-            toast.success('⚡ Auto-Fix: Import & deklarasi berhasil diperbaiki otomatis!');
+            toast.success('⚡ Berhasil memperbaiki import otomatis! Re-running...');
             scheduleHealthyCheck();
             return;
           }
@@ -1890,21 +1607,18 @@ root.render(
         console.warn('Heuristic import auto-fix failed:', e);
       }
 
-      // 2. Quick Heuristic Syntax Auto-Heal (solves truncated codes & rogue syntax errors like extra `);`)
+      // 2. Quick Heuristic Syntax Auto-Heal
       try {
         if (currentCode) {
-          const syntaxFixed = autoFixSyntaxErrors(currentCode, cleanErrMsg);
-          const healed = syntaxFixed || healTruncatedReactCode(cleanVibeCode(currentCode));
+          const healed = healTruncatedReactCode(currentCode);
           if (healed && healed.trim() !== currentCode.trim()) {
             vfs.writeFile(targetPath, healed);
             const updatedFiles = vfs.getAllFilesRecord();
             setFilesRecord(updatedFiles);
             setFileTree(vfs.getFileTree());
-            setFilesRevision(prev => prev + 1);
             lastKnownExternalCodeRef.current = healed;
             if (sandpackBridgeRef.current) {
               sandpackBridgeRef.current.updateFile(targetPath, healed);
-              sandpackBridgeRef.current.runSandpack?.();
             }
             try { localStorage.setItem('vibe_sandbox_autosave', healed); } catch {}
             if (onCodeChange) onCodeChange(healed);
@@ -1913,9 +1627,9 @@ root.render(
             setIsAutoFixing(false);
             setLogs(prev => [...prev, {
               timestamp: new Date(),
-              text: `[Auto-Fix] ✅ Sintaks kode diperbaiki instan oleh Healer (${targetPath}). Device dimuat ulang...`
+              text: `[Auto-Fix] ✅ Sintaks kode diperbaiki instan oleh Healer (${targetPath}). Menjalankan ulang di device...`
             }]);
-            toast.success('⚡ Auto-Fix: Sintaks kode diperbaiki otomatis!');
+            toast.success('⚡ Sintaks diperbaiki otomatis! Re-running...');
             scheduleHealthyCheck();
             return;
           }
@@ -1930,7 +1644,7 @@ root.render(
         text: `[Auto-Fix] 🤖 Menganalisis kode dan error dengan AI Debugger...`
       }]);
       errorFixEngine.attemptAutoFix(cleanErrMsg, targetPath);
-    }, 200);
+    }, 600);
   }, [vfs, onCodeChange, errorFixEngine, scheduleHealthyCheck]);
 
   // ─── Pro Editor & Component Inspector Handlers ───
@@ -2239,14 +1953,10 @@ root.render(
     setAiActivity({ stage: 'thinking', message: 'Menganalisis prompt & arsitektur proyek...' });
 
     try {
-      // Dyad CAG: Resolve relevant project files on-demand
-      const allFiles = vfs ? vfs.getFileList() : [];
-      const relevantFiles = DyadCAGResolver.resolveRelevantFiles(userMsg, allFiles);
-
       const systemPrompt = AgenticPromptEngine.buildSystemPrompt({
         appMode,
         vfs,
-        context: { connectedTable, tables: [], relevantFiles }
+        context: { connectedTable, tables: [] }
       });
 
       const messages = [
@@ -2258,7 +1968,7 @@ root.render(
       setAiActivity({ stage: 'generating', message: 'Menghasilkan rencana & file kode...' });
       const fullResponse = await AIProvider.getCompletion(messages);
 
-      // Parse plan, multi-file actions, and Dyad atomic search-replace patches
+      // Parse plan and file actions
       const { plan, fileActions } = AgenticPromptEngine.parseResponse(fullResponse);
 
       setChatHistory(prev => [...prev, {
@@ -2285,7 +1995,7 @@ root.render(
     }
   };
 
-  // Apply AI Changes after review (supports whole-file write and Dyad atomic search-replace patch)
+  // Apply AI Changes after review
   const handleApplyFileActions = () => {
     if (pendingFileActions.length === 0) return;
 
@@ -2293,29 +2003,10 @@ root.render(
       if (action.action === 'delete') {
         vfs.deleteFile(action.path);
         setLogs(prev => [...prev, { timestamp: new Date(), text: `[File Deleted] ${action.path}` }]);
-      } else if (action.action === 'patch' && action.search && action.replace) {
-        const existingCode = vfs.readFile(action.path) || '';
-        const patchResult = DyadPatchEngine.applySearchReplace(existingCode, action.search, action.replace);
-        if (patchResult.success) {
-          vfs.writeFile(action.path, patchResult.code);
-          setLogs(prev => [...prev, { timestamp: new Date(), text: `[Dyad Patch Applied] ${action.path}` }]);
-          if (action.path === '/App.js' || action.path === '/App.jsx') {
-            if (onCodeChange) onCodeChange(patchResult.code);
-          }
-        } else {
-          console.warn('[Dyad Patch Fallback]', patchResult.error);
-          vfs.writeFile(action.path, action.content || existingCode);
-        }
       } else {
         vfs.writeFile(action.path, action.content);
         setLogs(prev => [...prev, { timestamp: new Date(), text: `[File Updated] ${action.path}` }]);
         if (action.path === '/App.js' || action.path === '/App.jsx') {
-          vfs.writeFile('/App.js', action.content);
-          vfs.writeFile('/App.jsx', action.content);
-          if (sandpackBridgeRef.current) {
-            sandpackBridgeRef.current.updateFile('/App.js', action.content);
-            sandpackBridgeRef.current.updateFile('/App.jsx', action.content);
-          }
           if (onCodeChange) onCodeChange(action.content);
         }
       }
@@ -2466,45 +2157,6 @@ root.render(
     }
   };
 
-  // Widget Catalog Modal state & Inserter
-  const [isWidgetCatalogOpen, setIsWidgetCatalogOpen] = useState(false);
-
-  const handleInsertWidgetCode = (importStatement, sampleSnippet) => {
-    let current = vfs.readFile('/App.js') || vfs.readFile('/App.jsx') || '';
-    if (!current) return;
-    
-    // 1. Add import statement at top if not present
-    if (!current.includes("from './mavicore-ui'") && !current.includes('from "./mavicore-ui"')) {
-      current = importStatement + '\n' + current;
-    } else {
-      const importMatch = importStatement.match(/import\s*\{([^}]+)\}/);
-      if (importMatch) {
-        const newNames = importMatch[1].split(',').map(s => s.trim());
-        current = current.replace(/import\s*\{([^}]+)\}\s*from\s*['"][^'"]*mavicore-ui[^'"]*['"]/, (m, existing) => {
-          const existingList = existing.split(',').map(s => s.trim());
-          const merged = Array.from(new Set([...existingList, ...newNames])).join(', ');
-          return `import { ${merged} } from './mavicore-ui'`;
-        });
-      }
-    }
-    
-    // 2. Insert sample snippet inside the main return JSX before the last closing </div>
-    const lastDivIdx = current.lastIndexOf('</div>');
-    if (lastDivIdx > 0) {
-      current = current.slice(0, lastDivIdx) + '\n      {/* Widget MaviCore UI */}\n      <div className="my-4">\n        ' + sampleSnippet.replace(/\n/g, '\n        ') + '\n      </div>\n' + current.slice(lastDivIdx);
-    }
-    
-    vfs.writeFile('/App.js', current);
-    setFilesRecord(vfs.getAllFilesRecord());
-    setFileTree(vfs.getFileTree());
-    if (sandpackBridgeRef.current) {
-      sandpackBridgeRef.current.updateFile('/App.js', current);
-    }
-    if (onCodeChange) onCodeChange(current);
-    setIsWidgetCatalogOpen(false);
-    toast.success('Widget berhasil disisipkan ke /App.js!');
-  };
-
   // Switch App Mode (Web vs Mobile)
   const handleSwitchAppMode = (mode) => {
     setAppMode(mode);
@@ -2512,19 +2164,7 @@ root.render(
   };
 
   return (
-    <div
-      className="w-full h-full flex-1 flex flex-col overflow-hidden"
-      style={{
-        width: '100%',
-        height: '100%',
-        minWidth: 0,
-        minHeight: 0,
-        flex: 1,
-        backgroundColor: '#0f172a',
-        display: 'flex',
-        flexDirection: 'column'
-      }}
-    >
+    <div className={isStandalone ? "w-screen h-screen flex flex-col" : "w-full h-full flex flex-col bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl"} style={isStandalone ? { backgroundColor: '#0f172a', display: 'flex', flexDirection: 'column' } : { minHeight: 0, height: '100%' }}>
 
       {/* Hide scrollbar on top navbar */}
       <style>{`
@@ -2561,47 +2201,14 @@ root.render(
           )}
 
           <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '2px 8px',
-            borderRadius: '7px',
-            backgroundColor: 'rgba(0,0,0,0.3)',
-            border: '1px solid rgba(255,255,255,0.15)'
+            width: '28px', height: '28px', borderRadius: '7px',
+            background: 'linear-gradient(135deg, #f43f5e, #f59e0b, #8b5cf6)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
           }}>
-            <div style={{
-              width: '20px', height: '20px', borderRadius: '5px',
-              background: 'linear-gradient(135deg, #f43f5e, #f59e0b, #8b5cf6)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
-            }}>
-              <Sparkles size={11} color="#fff" />
-            </div>
-            <span style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.5px', color: '#fff' }}>
-              DYAD STUDIO
-            </span>
+            <Sparkles size={13} color="#fff" />
           </div>
 
-          {/* AI Copilot Panel Toggle - ICON ONLY */}
-          <button
-            type="button"
-            onClick={() => setIsChatPanelOpen(prev => !prev)}
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
-              width: '28px', height: '28px', borderRadius: '6px',
-              backgroundColor: isChatPanelOpen ? 'rgba(56, 189, 248, 0.25)' : 'rgba(0,0,0,0.22)',
-              border: isChatPanelOpen ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.1)',
-              color: isChatPanelOpen ? '#38bdf8' : '#cbd5e1',
-              cursor: 'pointer', transition: 'all 0.15s'
-            }}
-            title={isChatPanelOpen ? "Dyad Copilot: ON (Klik untuk tutup panel)" : "Dyad Copilot: OFF (Klik untuk buka panel)"}
-          >
-            <Bot size={14} />
-            <span style={{
-              position: 'absolute', top: '3px', right: '3px', width: '5px', height: '5px', borderRadius: '50%',
-              backgroundColor: isChatPanelOpen ? '#38bdf8' : '#64748b',
-              boxShadow: isChatPanelOpen ? '0 0 6px #38bdf8' : 'none'
-            }} />
-          </button>
+
 
           {/* Editable App Name */}
           {isEditingName ? (
@@ -2710,96 +2317,81 @@ root.render(
             </div>
           )}
 
-          {/* 1. Mode Switcher (WEB APP vs MOBILE APP) - ICON ONLY */}
-          <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.25)', borderRadius: '6px', padding: '2px', border: '1px solid rgba(255,255,255,0.1)' }}>
+          {/* 1. Mode Switcher (WEB APP vs MOBILE APP) */}
+          <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.22)', borderRadius: '7px', padding: '2px', border: '1px solid rgba(255,255,255,0.1)' }}>
             <button
               type="button"
               onClick={() => handleSwitchAppMode('web')}
               style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: '24px', height: '24px', borderRadius: '4px', border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '4px',
+                padding: '3px 8px', borderRadius: '5px', border: 'none', cursor: 'pointer',
                 backgroundColor: appMode === 'web' ? '#0ea5e9' : 'transparent',
-                color: appMode === 'web' ? '#fff' : '#94a3b8', transition: 'all 0.15s'
+                color: '#fff', fontSize: '0.72rem', fontWeight: 700, transition: 'all 0.15s'
               }}
               title="Web App Mode (React + Tailwind)"
             >
-              <Globe size={13} />
+              <Globe size={12} />
+              <span>WEB APP</span>
             </button>
             <button
               type="button"
               onClick={() => handleSwitchAppMode('mobile')}
               style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: '24px', height: '24px', borderRadius: '4px', border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '4px',
+                padding: '3px 8px', borderRadius: '5px', border: 'none', cursor: 'pointer',
                 backgroundColor: appMode === 'mobile' ? '#8b5cf6' : 'transparent',
-                color: appMode === 'mobile' ? '#fff' : '#94a3b8', transition: 'all 0.15s'
+                color: '#fff', fontSize: '0.72rem', fontWeight: 700, transition: 'all 0.15s'
               }}
               title="Mobile App Mode (Ionic + Capacitor)"
             >
-              <Smartphone size={13} />
+              <Smartphone size={12} />
+              <span>MOBILE APP</span>
             </button>
           </div>
 
-          {/* 2. Undo AI button - ICON ONLY */}
+          {/* 2. Undo AI button */}
           <button
             type="button"
             onClick={handleUndo}
             disabled={!versionControl.canUndo()}
             style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: '28px', height: '28px', borderRadius: '6px',
-              backgroundColor: versionControl.canUndo() ? 'rgba(239, 68, 68, 0.25)' : 'rgba(255,255,255,0.06)',
-              border: versionControl.canUndo() ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid rgba(255,255,255,0.1)',
-              color: versionControl.canUndo() ? '#fca5a5' : '#64748b',
+              display: 'flex', alignItems: 'center', gap: '4px',
+              padding: '4px 8px', borderRadius: '6px',
+              backgroundColor: versionControl.canUndo() ? 'rgba(239, 68, 68, 0.3)' : 'rgba(255,255,255,0.06)',
+              border: versionControl.canUndo() ? '1px solid rgba(239, 68, 68, 0.6)' : '1px solid rgba(255,255,255,0.1)',
+              color: versionControl.canUndo() ? '#fca5a5' : '#94a3b8',
               cursor: versionControl.canUndo() ? 'pointer' : 'not-allowed',
-              transition: 'all 0.15s'
+              fontSize: '0.72rem', fontWeight: 600, transition: 'all 0.15s'
             }}
-            title={versionControl.canUndo() ? "Undo perubahan AI terakhir" : "Belum ada riwayat AI untuk di-undo"}
+            title={versionControl.canUndo() ? "Undo perubahan kode AI terakhir" : "Belum ada riwayat AI untuk di-undo"}
           >
-            <RotateCcw size={13} />
+            <RotateCcw size={12} />
+            <span>Undo AI</span>
           </button>
 
-          {/* Reset Kosong button - ICON ONLY */}
           <button
             type="button"
             onClick={handleNewBlankApp}
             style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: '28px', height: '28px', borderRadius: '6px',
+              display: 'flex', alignItems: 'center', gap: '4px',
+              padding: '4px 8px', borderRadius: '6px',
               backgroundColor: 'rgba(255,255,255,0.06)',
               border: '1px solid rgba(255,255,255,0.1)',
               color: '#94a3b8',
               cursor: 'pointer',
-              transition: 'all 0.15s'
+              fontSize: '0.72rem', fontWeight: 600, transition: 'all 0.15s'
             }}
-            title="Reset ke Template Kosong Baru"
+            title="Bersihkan Sandbox (mulai aplikasi baru dari awal)"
           >
-            <FilePlus size={13} />
-          </button>
-
-          {/* Katalog Widget MaviCore UI - ICON ONLY */}
-          <button
-            type="button"
-            onClick={() => setIsWidgetCatalogOpen(true)}
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: '28px', height: '28px', borderRadius: '6px',
-              backgroundColor: 'rgba(99, 102, 241, 0.25)',
-              border: '1px solid rgba(99, 102, 241, 0.5)',
-              color: '#a5b4fc',
-              cursor: 'pointer',
-              transition: 'all 0.15s'
-            }}
-            title="Katalog Widget MaviCore UI (Numpad, Quality, SCADA, dll)"
-          >
-            <Boxes size={13} />
+            <RotateCcw size={12} />
+            <span>Reset Kosong</span>
           </button>
         </div>
 
         {/* Center Group: View Mode + 3. Device Selector + Reload */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
           {/* View Mode (Preview / Code / Split) */}
-          <div style={{ display: 'flex', backgroundColor: 'rgba(0,0,0,0.22)', padding: '2px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ display: 'flex', backgroundColor: 'rgba(0,0,0,0.22)', padding: '2px', borderRadius: '7px', border: '1px solid rgba(255,255,255,0.08)' }}>
             {[
               { key: 'preview', icon: <Eye size={13} />, label: 'Preview', color: '#3498db' },
               { key: 'code', icon: <Code size={13} />, label: 'Code', color: '#f39c12' },
@@ -2808,21 +2400,14 @@ root.render(
               <button
                 key={item.key}
                 type="button"
-                onClick={() => {
-                  setViewMode(item.key);
-                  if (item.key === 'preview') {
-                    setIsRightPanelOpen(false);
-                  } else {
-                    setIsRightPanelOpen(true);
-                  }
-                }}
+                onClick={() => setViewMode(item.key)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '3px',
-                  padding: '3px 7px', borderRadius: '4px', border: 'none', cursor: 'pointer',
+                  padding: '3px 7px', borderRadius: '5px', border: 'none', cursor: 'pointer',
                   backgroundColor: viewMode === item.key ? item.color : 'transparent',
                   color: '#fff', fontSize: '0.7rem', fontWeight: 600, transition: 'all 0.15s'
                 }}
-                title={`Mode Tampilan: ${item.label}`}
+                title={`Mode tampilan: ${item.label}`}
               >
                 {item.icon}
                 <span className="hidden sm:inline">{item.label}</span>
@@ -2831,7 +2416,7 @@ root.render(
           </div>
 
           {/* 3. Device Selector */}
-          <div style={{ display: 'flex', backgroundColor: 'rgba(0,0,0,0.22)', padding: '2px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ display: 'flex', backgroundColor: 'rgba(0,0,0,0.22)', padding: '2px', borderRadius: '7px', border: '1px solid rgba(255,255,255,0.08)' }}>
             {[
               { key: 'responsive', label: 'Auto', icon: <Maximize2 size={12} /> },
               { key: 'desktop', label: 'Desktop', icon: <Monitor size={12} /> },
@@ -2844,7 +2429,7 @@ root.render(
                 onClick={() => setViewportSize(item.key)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '3px',
-                  padding: '3px 7px', borderRadius: '4px', border: 'none', cursor: 'pointer',
+                  padding: '3px 7px', borderRadius: '5px', border: 'none', cursor: 'pointer',
                   backgroundColor: viewportSize === item.key ? '#fff' : 'transparent',
                   color: viewportSize === item.key ? '#017E84' : '#fff',
                   fontSize: '0.7rem', fontWeight: viewportSize === item.key ? 700 : 500,
@@ -2853,12 +2438,12 @@ root.render(
                 title={`Device Viewport: ${item.label}`}
               >
                 {item.icon}
-                <span className="hidden sm:inline">{item.label}</span>
+                <span>{item.label}</span>
               </button>
             ))}
           </div>
 
-          {/* Edit Komponen / Inspeksi Layar - ICON ONLY */}
+          {/* Edit Komponen / Inspeksi Layar */}
           <button
             type="button"
             onClick={() => {
@@ -2871,157 +2456,146 @@ root.render(
               });
             }}
             style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: '28px', height: '28px', borderRadius: '6px',
+              display: 'flex', alignItems: 'center', gap: '5px',
+              padding: '4px 9px', borderRadius: '7px',
               backgroundColor: isInspectModeActive ? '#0284c7' : 'rgba(0,0,0,0.22)',
               border: isInspectModeActive ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.08)',
               color: isInspectModeActive ? '#ffffff' : '#94a3b8',
+              fontSize: '0.7rem', fontWeight: 700,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              boxShadow: isInspectModeActive ? '0 0 10px rgba(14, 165, 233, 0.5)' : 'none'
+              boxShadow: isInspectModeActive ? '0 0 12px rgba(14, 165, 233, 0.5)' : 'none'
             }}
-            title={isInspectModeActive ? "Mode Inspeksi Aktif (Klik komponen di layar)" : "Inspeksi & Edit Komponen Layar"}
+            title="Klik komponen di layar untuk langsung meloncat ke baris kodenya di editor"
           >
-            <MousePointerClick size={13} />
+            <MousePointerClick size={12} />
+            <span className="hidden sm:inline">{isInspectModeActive ? 'Inspeksi Aktif' : 'Edit Komponen'}</span>
           </button>
 
-          {/* Reload - ICON ONLY */}
+          {/* Reload */}
           <button
             type="button"
             onClick={() => { const ifr = document.querySelector('.sp-preview-iframe'); if (ifr && ifr.contentWindow) ifr.contentWindow.location.reload(); else toast.success('Reloaded'); }}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '6px', border: 'none', backgroundColor: 'rgba(0,0,0,0.2)', color: '#fff', cursor: 'pointer' }}
             title="Reload Preview"
           >
-            <RotateCw size={13} />
+            <RotateCw size={12} />
           </button>
         </div>
 
-        {/* Right Group: 4. Table Sync, 5. Build APK, 6. Frontline Publish, Copy, Close - ICON ONLY */}
+        {/* Right Group: 4. Table Sync, 5. Build APK, 6. Frontline Publish, Copy, Close */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-          {/* 4. Table Sync button - ICON ONLY */}
+          {/* 4. Table Sync button */}
           <button
             type="button"
             onClick={handleSyncTable}
             disabled={isSyncingTable}
             style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: '28px', height: '28px', borderRadius: '6px',
-              background: connectedTable ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : 'rgba(139, 92, 246, 0.25)',
-              border: '1px solid rgba(139, 92, 246, 0.5)',
-              color: '#c4b5fd',
+              display: 'flex', alignItems: 'center', gap: '5px',
+              padding: '5px 10px', borderRadius: '6px', border: 'none',
+              background: connectedTable ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+              color: '#fff', fontSize: '0.72rem', fontWeight: 700,
               cursor: isSyncingTable ? 'not-allowed' : 'pointer',
-              boxShadow: '0 2px 6px rgba(139, 92, 246, 0.25)',
+              boxShadow: '0 2px 6px rgba(139, 92, 246, 0.35)',
               transition: 'all 0.15s'
             }}
-            title={isSyncingTable ? 'Menyinkronkan tabel...' : connectedTable ? `Tabel Terhubung: ${connectedTable.name} (Klik untuk resync)` : 'Sinkronisasi Tabel Database MaviCore'}
+            title="Sinkronisasi Tabel Database MaviCore"
           >
-            <Database size={13} className={isSyncingTable ? 'animate-spin' : ''} />
+            <Database size={12} className={isSyncingTable ? 'animate-spin' : ''} />
+            <span>{isSyncingTable ? 'Syncing...' : connectedTable ? `Sync: ${connectedTable.name}` : 'Table Sync'}</span>
           </button>
 
-          {/* 5. Build APK button - ICON ONLY */}
+          {/* 5. Build APK button */}
           <button
             type="button"
             onClick={() => setIsBuildModalOpen(true)}
             style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: '28px', height: '28px', borderRadius: '6px', border: 'none',
+              display: 'flex', alignItems: 'center', gap: '5px',
+              padding: '5px 11px', borderRadius: '6px', border: 'none',
               background: 'linear-gradient(135deg, #f97316, #ea580c)',
-              color: '#fff',
+              color: '#fff', fontSize: '0.72rem', fontWeight: 700,
               cursor: 'pointer',
               boxShadow: '0 2px 6px rgba(249, 115, 22, 0.35)',
               transition: 'all 0.15s'
             }}
             title="Build Android APK / Capacitor Package"
           >
-            <Download size={13} />
+            <Smartphone size={12} />
+            <span>Build APK</span>
           </button>
 
-          {/* Live Real Device (QR Code) button - ICON ONLY */}
+          {/* Live Real Device (QR Code) button */}
           <button
             type="button"
             onClick={handleOpenLiveDevice}
             style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: '28px', height: '28px', borderRadius: '6px', border: 'none',
+              display: 'flex', alignItems: 'center', gap: '5px',
+              padding: '5px 11px', borderRadius: '6px', border: 'none',
               background: 'linear-gradient(135deg, #06b6d4, #0891b2)',
-              color: '#fff',
+              color: '#fff', fontSize: '0.72rem', fontWeight: 700,
               cursor: 'pointer',
               boxShadow: '0 2px 6px rgba(6, 182, 212, 0.35)',
               transition: 'all 0.15s'
             }}
             title="Buka Aplikasi Langsung di Real Live Device (Scan QR HP)"
           >
-            <QrCode size={13} />
+            <QrCode size={12} />
+            <span>Live Device</span>
           </button>
 
-          {/* Save Sandbox App button - ICON ONLY */}
+          {/* Save Sandbox App button */}
           <button
             type="button"
             onClick={handleSaveSandboxApp}
             disabled={isSavingApp}
             style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: '28px', height: '28px', borderRadius: '6px', border: 'none',
+              display: 'flex', alignItems: 'center', gap: '5px',
+              padding: '5px 11px', borderRadius: '6px', border: 'none',
               background: 'linear-gradient(135deg, #0284c7, #0369a1)',
-              color: '#fff',
+              color: '#fff', fontSize: '0.72rem', fontWeight: 700,
               cursor: isSavingApp ? 'not-allowed' : 'pointer',
               boxShadow: '0 2px 6px rgba(2, 132, 199, 0.35)',
               transition: 'all 0.15s'
             }}
             title={deployedApp ? "Simpan perubahan aplikasi saat ini" : "Simpan sebagai aplikasi baru di Apps Sandbox"}
           >
-            {isSavingApp ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+            {isSavingApp ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+            <span>{isSavingApp ? 'Menyimpan...' : deployedApp ? 'Simpan App' : 'Simpan Baru'}</span>
           </button>
 
-          {/* Download Project ZIP button (Emergent.sh style export) - ICON ONLY */}
-          <button
-            type="button"
-            onClick={handleDownloadProjectZip}
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: '28px', height: '28px', borderRadius: '6px', border: 'none',
-              background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
-              color: '#fff',
-              cursor: 'pointer',
-              boxShadow: '0 2px 6px rgba(99, 102, 241, 0.35)',
-              transition: 'all 0.15s'
-            }}
-            title="Download Full Project ZIP (Export untuk VS Code / Cursor)"
-          >
-            <FolderOpen size={13} />
-          </button>
-
-          {/* 6. Frontline Publish button - ICON ONLY */}
+          {/* 6. Frontline Publish button */}
           <button
             type="button"
             onClick={handleOpenDeployModal}
             style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: '28px', height: '28px', borderRadius: '6px', border: 'none',
+              display: 'flex', alignItems: 'center', gap: '5px',
+              padding: '5px 12px', borderRadius: '6px', border: 'none',
               background: 'linear-gradient(135deg, #10b981, #059669)',
-              color: '#fff',
+              color: '#fff', fontSize: '0.72rem', fontWeight: 700,
               cursor: 'pointer',
               boxShadow: '0 2px 6px rgba(16, 185, 129, 0.35)',
               transition: 'all 0.15s'
             }}
             title="Publish ke Frontline Apps untuk Operator Shop Floor"
           >
-            <Rocket size={13} />
+            <Rocket size={12} />
+            <span>Frontline Publish</span>
           </button>
 
-          {/* Copy Code - ICON ONLY */}
+          {/* Copy Code */}
           <button
             type="button"
             onClick={handleCopyCode}
             style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: '28px', height: '28px', borderRadius: '6px', border: 'none',
+              display: 'flex', alignItems: 'center', gap: '4px',
+              padding: '5px 8px', borderRadius: '6px', border: 'none',
               backgroundColor: 'rgba(0,0,0,0.25)', color: '#fff',
-              cursor: 'pointer'
+              cursor: 'pointer', fontSize: '0.7rem'
             }}
             title="Salin Kode ke Clipboard"
           >
-            {copied ? <Check size={13} color="#4ade80" /> : <Copy size={13} />}
+            {copied ? <Check size={12} color="#4ade80" /> : <Copy size={12} />}
+            <span>{copied ? 'Disalin' : 'Copy'}</span>
           </button>
 
           {/* Close */}
@@ -3042,189 +2616,61 @@ root.render(
         </div>
       </div>
 
-      {/* ═══════════ MAIN WORKSPACE: DYAD STUDIO 3-PANEL ARCHITECTURE ═══════════ */}
-      {/* 1. LEFT: DYAD COPILOT | 2. CENTER: LIVE PREVIEW CANVAS | 3. RIGHT: CODE & FILES */}
-      <div className="flex-1 w-full overflow-hidden flex" style={{ minHeight: 0, backgroundColor: '#0b1120' }}>
+      {/* ═══════════ MAIN WORKSPACE (LEFT FILES + CENTER SANDPACK + RIGHT COPILOT) ═══════════ */}
+      <div className="flex-1 w-full overflow-hidden flex" style={{ minHeight: 0, backgroundColor: '#0f172a' }}>
 
-        {/* ─── 1. LEFT PANEL: DYAD AI COPILOT ─── */}
+        {/* 1. LEFT FILE TREE PANEL (Collapsible) */}
         <div style={{
-          width: isChatPanelOpen ? '410px' : '0px',
-          minWidth: isChatPanelOpen ? '360px' : '0px',
-          maxWidth: '460px',
-          height: '100%',
-          transition: 'width 0.22s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.22s cubic-bezier(0.4, 0, 0.2, 1)',
+          width: isFilesPanelOpen ? '230px' : '0px',
+          minWidth: isFilesPanelOpen ? '230px' : '0px',
+          transition: 'width 0.2s ease, min-width 0.2s ease',
           overflow: 'hidden',
           display: 'flex',
-          flexDirection: 'column',
-          backgroundColor: '#0a0f1d',
-          borderRight: isChatPanelOpen ? '1px solid #1e293b' : 'none',
-          position: 'relative',
-          zIndex: 20
+          flexDirection: 'column'
         }}>
-          {isChatPanelOpen && (
-            <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-              {/* Dyad Copilot Top Header Bar */}
-              <div style={{
-                height: '40px',
-                minHeight: '40px',
-                backgroundColor: '#070b14',
-                borderBottom: '1px solid #1e293b',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0 12px',
-                color: '#f8fafc',
-                userSelect: 'none'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{
-                    width: '22px', height: '22px', borderRadius: '6px',
-                    background: 'linear-gradient(135deg, #0ea5e9, #8b5cf6)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center'
-                  }}>
-                    <Sparkles size={12} color="#fff" />
-                  </div>
-                  <div>
-                    <span style={{ fontSize: '0.78rem', fontWeight: 800, letterSpacing: '0.5px', background: 'linear-gradient(135deg, #38bdf8, #c084fc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                      DYAD COPILOT
-                    </span>
-                    <span style={{ fontSize: '0.62rem', color: '#10b981', marginLeft: '6px', fontWeight: 700 }}>
-                      ● ACTIVE
-                    </span>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setIsChatPanelOpen(false)}
-                    style={{
-                      background: 'rgba(255,255,255,0.06)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      color: '#94a3b8',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '24px',
-                      height: '24px',
-                      borderRadius: '5px',
-                      transition: 'all 0.15s'
-                    }}
-                    title="Tutup Panel Copilot (Perbesar Preview)"
-                  >
-                    <PanelLeftClose size={13} />
-                  </button>
-                </div>
-              </div>
-
-              {/* VibeChatPanel Engine */}
-              <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-                <VibeChatPanel
-                  context={{
-                    appName: appName,
-                    files: filesRecord,
-                    tables: availableTables
-                  }}
-                  initialPrompt={chatInitialPrompt}
-                  onPromptConsumed={() => setChatInitialPrompt('')}
-                  settings={null}
-                  onCodeGenerated={async (rawCode) => {
-                    if (!pipelineRef.current) {
-                      pipelineRef.current = new EmergentAgentPipeline({
-                        vfs,
-                        runtimeManager,
-                        versionControl,
-                        onStepChange: (step, history) => {
-                          setStepHistory(history);
-                          setLogs(prev => [...prev, { timestamp: new Date(), text: `[Agent] ${step.label} (${step.status})` }]);
-                        },
-                        onLog: (entry) => setLogs(prev => [...prev, entry]),
-                        onFileWritten: (path, content) => {
-                          if (path === '/App.js' || path === '/App.jsx') {
-                            lastKnownExternalCodeRef.current = content;
-                            if (onCodeChange) onCodeChange(content);
-                          }
-                        },
-                        onTableSync: (table, count) => {
-                          setConnectedTable(table);
-                          setLiveRecordCount(count);
-                          getTables().then(tbls => {
-                            if (Array.isArray(tbls)) setAvailableTables(tbls);
-                          });
-                        }
-                      });
-                    }
-
-                    try {
-                      const res = await pipelineRef.current.execute({
-                        rawResponse: rawCode,
-                        prompt: inlinePrompt || chatInitialPrompt || appName,
-                        sandpackBridge: sandpackBridgeRef.current
-                      });
-
-                      setActiveFilePath('/App.js');
-                      const updatedFiles = vfs.getAllFilesRecord();
-                      setFilesRecord(updatedFiles);
-                      setFileTree(vfs.getFileTree());
-                      setFilesRevision(prev => prev + 1);
-                      setErrors([]);
-
-                      if (sandpackBridgeRef.current) {
-                        sandpackBridgeRef.current.openFile?.('/App.js');
-                        sandpackBridgeRef.current.runSandpack?.();
-                      }
-
-                      try {
-                        localStorage.setItem('vibe_sandbox_autosave', res.mainCode);
-                        localStorage.setItem('vibe_sandbox_autosave_time', new Date().toISOString());
-                      } catch {}
-
-                      toast.success('⚡ Aplikasi Emergent berhasil dieksekusi & live!');
-                    } catch (err) {
-                      console.error('[Emergent Pipeline Error]', err);
-                      toast.error(`Eksekusi gagal: ${err.message}`);
-                    }
-                  }}
-                />
-              </div>
-            </div>
+          {isFilesPanelOpen && (
+            <FileTreeExplorer
+              tree={fileTree}
+              activePath={activeFilePath}
+              onSelectFile={(path) => setActiveFilePath(path)}
+              onCreateFile={(newPath) => {
+                vfs.writeFile(newPath, '// New file\n');
+                setFilesRecord(vfs.getAllFilesRecord());
+                setFileTree(vfs.getFileTree());
+                setActiveFilePath(newPath);
+              }}
+              onDeleteFile={(delPath) => {
+                vfs.deleteFile(delPath);
+                setFilesRecord(vfs.getAllFilesRecord());
+                setFileTree(vfs.getFileTree());
+                if (activeFilePath === delPath) setActiveFilePath('/App.js');
+              }}
+              onOpenTemplates={() => setIsTemplatesModalOpen(true)}
+              sandboxApps={sandboxAppsList}
+              activeAppId={deployedApp?.id || null}
+              onSelectApp={handleSelectSandboxApp}
+              onDeleteApp={handleDeleteSandboxApp}
+              onNewApp={handleNewBlankApp}
+              isLoadingApps={isLoadingSandboxApps}
+            />
           )}
         </div>
 
-        {/* Collapsed Copilot Trigger */}
-        {!isChatPanelOpen && (
-          <button
-            type="button"
-            onClick={() => setIsChatPanelOpen(true)}
-            style={{
-              width: '26px',
-              backgroundColor: '#0a0f1d',
-              borderRight: '1px solid #1e293b',
-              borderLeft: 'none',
-              borderTop: 'none',
-              borderBottom: 'none',
-              color: '#38bdf8',
-              cursor: 'pointer',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              padding: '12px 0',
-              zIndex: 20,
-              transition: 'background 0.15s'
-            }}
-            title="Buka Dyad AI Copilot"
-          >
-            <Sparkles size={13} />
-            <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: '0.66rem', fontWeight: 800, letterSpacing: '1.5px', color: '#94a3b8' }}>
-              COPILOT
-            </span>
-          </button>
-        )}
+        {/* Toggle Files Panel button */}
+        <button
+          type="button"
+          onClick={() => setIsFilesPanelOpen(v => !v)}
+          style={{
+            width: '18px', backgroundColor: '#0a0f1d', borderRight: '1px solid #1e293b',
+            borderLeft: 'none', borderTop: 'none', borderBottom: 'none',
+            color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}
+          title={isFilesPanelOpen ? 'Tutup File Explorer' : 'Buka File Explorer'}
+        >
+          {isFilesPanelOpen ? <PanelLeftClose size={12} /> : <PanelLeftOpen size={12} />}
+        </button>
 
-        {/* ─── SANDPACK PROVIDER (WRAPS CENTER PREVIEW & RIGHT CODE STUDIO) ─── */}
+        {/* 2. CENTER: SANDPACK EDITOR + LIVE PREVIEW */}
         <div className="vibe-sandpack-root flex-1 overflow-hidden flex flex-col" style={{ minWidth: 0, flex: 1, position: 'relative', backgroundColor: '#0f172a' }}>
           <style>{`
             .vibe-sandpack-root .sp-wrapper {
@@ -3255,27 +2701,35 @@ root.render(
           `}</style>
 
           <Toaster position="top-right" toastOptions={{ style: { background: '#1e293b', color: '#f8fafc', border: '1px solid #334155' } }} />
-
           <SandpackProvider
             key={`${appMode}-${filesRevision}`}
             template="react"
             theme="dark"
-            files={sanitizedSandpackFiles}
+            files={filesRecord}
             customSetup={{
               dependencies: {
                 'react': '^18.2.0',
                 'react-dom': '^18.2.0',
-                'lucide-react': '^0.344.0',
-                'framer-motion': '^10.16.4',
+                'react-is': '^18.2.0',
+                // NextUI + Framer Motion
+                '@nextui-org/react': '^2.2.0',
+                'framer-motion': '^10.16.0',
+                // Icons & Utilities
+                'lucide-react': 'latest',
                 'clsx': '^2.0.0',
-                'tailwind-merge': '^2.0.0'
+                'tailwind-merge': '^2.0.0',
+                'class-variance-authority': '^0.7.0',
+                // Charts
+                'recharts': '^2.10.0',
+                // Tailwind CSS
+                'tailwindcss': '^3.4.0',
+                'autoprefixer': '^10.4.0',
+                'postcss': '^8.4.0'
               }
             }}
             options={{
               activeFile: activeFilePath,
               visibleFiles: [activeFilePath],
-              initMode: 'immediate',
-              bundlerTimeOut: 60000,
               externalResources: [
                 'https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css',
                 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap'
@@ -3291,388 +2745,202 @@ root.render(
               onLog={handleSandpackLog}
             />
 
-            <SandpackLayout style={{ height: '100%', minHeight: '100%', border: 'none', borderRadius: 0, flex: 1, display: 'flex', alignSelf: 'stretch', backgroundColor: '#020617' }}>
+            <SandpackLayout style={{ height: '100%', minHeight: '100%', border: 'none', borderRadius: 0, flex: 1, display: 'flex', alignSelf: 'stretch' }}>
+              {(viewMode === 'split' || viewMode === 'code') && (
+                <div style={{
+                  height: '100%',
+                  minHeight: '100%',
+                  width: viewMode === 'code' ? '100%' : '44%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  borderRight: '1px solid #1e293b',
+                  overflow: 'hidden'
+                }}>
+                  <SandpackProEditorBar
+                    activePath={activeFilePath}
+                    onRunCode={handleRunEditorCode}
+                    onFormatCode={handleFormatEditorCode}
+                    isInspectActive={isInspectModeActive}
+                    onToggleInspect={() => setIsInspectModeActive(prev => !prev)}
+                  />
+                  <SandpackCodeEditor
+                    showLineNumbers
+                    showInlineErrors
+                    wrapContent
+                    style={{
+                      flex: 1,
+                      height: '100%',
+                      minHeight: 0,
+                      fontFamily: 'monospace',
+                      fontSize: '12px'
+                    }}
+                  />
+                </div>
+              )}
 
-              {/* ─── 2. CENTER PANEL: LIVE PREVIEW CANVAS ─── */}
-              {(viewMode === 'preview' || viewMode === 'split') && (
+              {(viewMode === 'split' || viewMode === 'preview') && (
                 <div style={{
                   position: 'relative',
                   flex: 1,
                   height: '100%',
                   minHeight: '100%',
                   display: 'flex',
-                  flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  overflow: 'hidden',
-                  backgroundColor: '#030712'
+                  overflow: 'auto',
+                  backgroundColor: '#020617',
+                  padding: viewportSize === 'responsive' ? 0 : '16px'
                 }}>
+                  {/* Floating Inspection Banner */}
+                  {isInspectModeActive && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 14,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      zIndex: 100,
+                      backgroundColor: 'rgba(15, 23, 42, 0.94)',
+                      border: '1px solid #0284c7',
+                      boxShadow: '0 8px 24px rgba(2, 132, 199, 0.4)',
+                      borderRadius: '24px',
+                      padding: '6px 16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      color: '#38bdf8',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      backdropFilter: 'blur(8px)',
+                      pointerEvents: 'auto'
+                    }}>
+                      <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#38bdf8', boxShadow: '0 0 8px #38bdf8' }} />
+                      <span>🎯 Mode Inspeksi: Klik komponen di layar untuk langsung meloncat ke kodenya</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsInspectModeActive(false)}
+                        style={{
+                          background: 'rgba(255,255,255,0.1)',
+                          border: 'none',
+                          color: '#94a3b8',
+                          borderRadius: '50%',
+                          width: '18px',
+                          height: '18px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          fontSize: '10px',
+                          marginLeft: '4px'
+                        }}
+                        title="Tutup mode inspeksi"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
 
-                  {/* Dyad Canvas Top Action Floating Strip */}
+                  {/* Device Container */}
                   <div style={{
-                    width: '100%',
-                    height: '38px',
-                    backgroundColor: '#0a0f1d',
-                    borderBottom: '1px solid #1e293b',
+                    width: viewportSize === 'mobile' ? '390px' : (viewportSize === 'tablet' ? '768px' : '100%'),
+                    maxWidth: '100%',
+                    height: '100%',
+                    maxHeight: viewportSize === 'mobile' ? '820px' : (viewportSize === 'tablet' ? '1000px' : '100%'),
+                    borderRadius: viewportSize === 'mobile' ? '44px' : (viewportSize === 'tablet' ? '24px' : (viewportSize === 'desktop' ? '12px' : '0')),
+                    border: viewportSize === 'mobile' ? '10px solid #1e293b' : (viewportSize === 'tablet' ? '12px solid #1e293b' : (viewportSize === 'desktop' ? '1px solid #1e293b' : 'none')),
+                    boxShadow: viewportSize === 'responsive' ? 'none' : '0 25px 60px -12px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08)',
                     display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0 12px',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                    backgroundColor: '#f8fafc',
+                    transition: 'width 0.3s ease, max-height 0.3s ease',
                     flexShrink: 0
                   }}>
-                    {/* Viewport indicators */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b' }}>CANVAS:</span>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#38bdf8', textTransform: 'uppercase' }}>
-                        {viewportSize} {viewportSize === 'mobile' ? '(390 × 820)' : viewportSize === 'tablet' ? '(768 × 1024)' : ''}
-                      </span>
-                    </div>
-
-                    {/* Quick right side tools */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      {viewMode === 'preview' && (
-                        <button
-                          type="button"
-                          onClick={() => { setViewMode('split'); setIsRightPanelOpen(true); }}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: '4px',
-                            padding: '3px 8px', borderRadius: '5px',
-                            backgroundColor: 'rgba(255,255,255,0.08)',
-                            border: '1px solid rgba(255,255,255,0.12)',
-                            color: '#cbd5e1', fontSize: '0.68rem', fontWeight: 600,
-                            cursor: 'pointer'
-                          }}
-                          title="Buka Code Editor & File Explorer di panel kanan"
-                        >
-                          <Code size={11} color="#f59e0b" />
-                          <span>Buka Editor & Files</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Device Container Preview Area */}
-                  <div style={{
-                    flex: 1,
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    overflow: 'auto',
-                    padding: viewportSize === 'responsive' ? 0 : '16px',
-                    position: 'relative'
-                  }}>
-                    {/* Floating Inspection Banner */}
-                    {isInspectModeActive && (
-                      <div style={{
-                        position: 'absolute',
-                        top: 14,
-                        left: '50%',
-                        transform: 'translateX(-50%)',
-                        zIndex: 100,
-                        backgroundColor: 'rgba(15, 23, 42, 0.94)',
-                        border: '1px solid #0284c7',
-                        boxShadow: '0 8px 24px rgba(2, 132, 199, 0.4)',
-                        borderRadius: '24px',
-                        padding: '6px 16px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                        color: '#38bdf8',
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
-                        backdropFilter: 'blur(8px)',
-                        pointerEvents: 'auto'
-                      }}>
-                        <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#38bdf8', boxShadow: '0 0 8px #38bdf8' }} />
-                        <span>🎯 Mode Inspeksi: Klik komponen di layar untuk langsung meloncat ke kodenya</span>
-                        <button
-                          type="button"
-                          onClick={() => setIsInspectModeActive(false)}
-                          style={{
-                            background: 'rgba(255,255,255,0.1)',
-                            border: 'none',
-                            color: '#94a3b8',
-                            borderRadius: '50%',
-                            width: '18px',
-                            height: '18px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                            fontSize: '10px',
-                            marginLeft: '4px'
-                          }}
-                          title="Tutup mode inspeksi"
-                        >
-                          ✕
-                        </button>
+                    {/* Dynamic Island for Mobile */}
+                    {viewportSize === 'mobile' && (
+                      <div style={{ height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', borderBottom: '1px solid rgba(0,0,0,0.05)', flexShrink: 0 }}>
+                        <div style={{ width: '92px', height: '18px', backgroundColor: '#0f172a', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 8px' }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#0284c7' }} />
+                          <span style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: '#334155' }} />
+                        </div>
                       </div>
                     )}
 
-                    {/* Device Container */}
-                    <div style={{
-                      width: viewportSize === 'mobile' ? '390px' : (viewportSize === 'tablet' ? '768px' : '100%'),
-                      maxWidth: '100%',
-                      height: '100%',
-                      maxHeight: viewportSize === 'mobile' ? '820px' : (viewportSize === 'tablet' ? '1000px' : '100%'),
-                      borderRadius: viewportSize === 'mobile' ? '44px' : (viewportSize === 'tablet' ? '24px' : (viewportSize === 'desktop' ? '12px' : '0')),
-                      border: viewportSize === 'mobile' ? '10px solid #1e293b' : (viewportSize === 'tablet' ? '12px solid #1e293b' : (viewportSize === 'desktop' ? '1px solid #1e293b' : 'none')),
-                      boxShadow: viewportSize === 'responsive' ? 'none' : '0 25px 60px -12px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      overflow: 'hidden',
-                      backgroundColor: '#f8fafc',
-                      transition: 'width 0.3s ease, max-height 0.3s ease',
-                      flexShrink: 0
-                    }}>
-                      {/* Dynamic Island for Mobile */}
-                      {viewportSize === 'mobile' && (
-                        <div style={{ height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', borderBottom: '1px solid rgba(0,0,0,0.05)', flexShrink: 0 }}>
-                          <div style={{ width: '92px', height: '18px', backgroundColor: '#0f172a', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 8px' }}>
-                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#0284c7' }} />
-                            <span style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: '#334155' }} />
-                          </div>
-                        </div>
-                      )}
+                    {/* Camera Dot for Tablet */}
+                    {viewportSize === 'tablet' && (
+                      <div style={{ height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', flexShrink: 0 }}>
+                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#cbd5e1' }} />
+                      </div>
+                    )}
 
-                      {/* Camera Dot for Tablet */}
-                      {viewportSize === 'tablet' && (
-                        <div style={{ height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', flexShrink: 0 }}>
-                          <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#cbd5e1' }} />
+                    {/* Mac Chrome Bar for Desktop */}
+                    {viewportSize === 'desktop' && (
+                      <div style={{
+                        height: '34px', backgroundColor: '#ffffff', borderBottom: '1px solid #e2e8f0',
+                        display: 'flex', alignItems: 'center', padding: '0 12px', gap: '12px', flexShrink: 0
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
+                          <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
+                          <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#10b981' }} />
                         </div>
-                      )}
-
-                      {/* Mac Chrome Bar for Desktop */}
-                      {viewportSize === 'desktop' && (
                         <div style={{
-                          height: '34px', backgroundColor: '#ffffff', borderBottom: '1px solid #e2e8f0',
-                          display: 'flex', alignItems: 'center', padding: '0 12px', gap: '12px', flexShrink: 0
+                          flex: 1, maxWidth: '480px', margin: '0 auto', height: '22px', backgroundColor: '#f1f5f9',
+                          borderRadius: '6px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center',
+                          padding: '0 8px', gap: '6px', fontSize: '0.7rem', color: '#64748b'
                         }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
-                            <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
-                            <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#10b981' }} />
-                          </div>
-                          <div style={{
-                            flex: 1, maxWidth: '480px', margin: '0 auto', height: '22px', backgroundColor: '#f1f5f9',
-                            borderRadius: '6px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center',
-                            padding: '0 8px', gap: '6px', fontSize: '0.7rem', color: '#64748b'
-                          }}>
-                            <Lock size={10} color="#10b981" />
-                            <span style={{ color: '#0f172a', fontWeight: 600 }}>https://mavicore.mes</span>
-                            <span style={{ color: '#94a3b8' }}>/runtime</span>
-                          </div>
+                          <Lock size={10} color="#10b981" />
+                          <span style={{ color: '#0f172a', fontWeight: 600 }}>https://mavicore.mes</span>
+                          <span style={{ color: '#94a3b8' }}>/runtime</span>
                         </div>
-                      )}
+                      </div>
+                    )}
 
-                      {/* Sandpack Preview */}
-                      <div style={{ flex: 1, minHeight: 0, width: '100%', height: '100%', overflow: 'hidden', position: 'relative' }}>
-                        {errors.length > 0 && (
-                          <div style={{
-                            position: 'absolute', top: 12, left: 12, right: 12, zIndex: 999,
-                            backgroundColor: 'rgba(15, 23, 42, 0.96)', border: '1px solid #ef4444',
-                            backdropFilter: 'blur(12px)', color: '#fff', borderRadius: '12px',
-                            padding: '10px 14px', display: 'flex', alignItems: 'center',
-                            justifyContent: 'space-between', gap: '12px',
-                            boxShadow: '0 12px 30px rgba(239, 68, 68, 0.25)', fontSize: '0.78rem'
-                          }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-                              <span style={{ fontSize: '1.1rem' }}>⚠️</span>
-                              <div style={{ overflow: 'hidden' }}>
-                                <div style={{ fontWeight: 700, color: '#fca5a5' }}>Syntax / Build Error Terdeteksi</div>
-                                <div style={{ fontSize: '0.7rem', color: '#94a3b8', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                                  {typeof errors[0] === 'string' ? errors[0].split('\n')[0] : errors[0]?.message}
-                                </div>
+                    {/* Sandpack Preview */}
+                    <div style={{ flex: 1, minHeight: 0, width: '100%', height: '100%', overflow: 'hidden', position: 'relative' }}>
+                      {errors.length > 0 && (
+                        <div style={{
+                          position: 'absolute', top: 12, left: 12, right: 12, zIndex: 999,
+                          backgroundColor: 'rgba(15, 23, 42, 0.96)', border: '1px solid #ef4444',
+                          backdropFilter: 'blur(12px)', color: '#fff', borderRadius: '12px',
+                          padding: '10px 14px', display: 'flex', alignItems: 'center',
+                          justifyContent: 'space-between', gap: '12px',
+                          boxShadow: '0 12px 30px rgba(239, 68, 68, 0.25)', fontSize: '0.78rem'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                            <span style={{ fontSize: '1.1rem' }}>⚠️</span>
+                            <div style={{ overflow: 'hidden' }}>
+                              <div style={{ fontWeight: 700, color: '#fca5a5' }}>Syntax / Build Error Terdeteksi</div>
+                              <div style={{ fontSize: '0.7rem', color: '#94a3b8', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                {typeof errors[0] === 'string' ? errors[0].split('\n')[0] : errors[0]?.message}
                               </div>
                             </div>
-                            <button
-                              type="button"
-                              disabled={isAutoFixing}
-                              onClick={handleTriggerAutoFix}
-                              style={{
-                                backgroundColor: '#ef4444', color: '#ffffff', border: 'none',
-                                padding: '7px 14px', borderRadius: '8px', fontWeight: 800,
-                                cursor: isAutoFixing ? 'not-allowed' : 'pointer',
-                                display: 'flex', alignItems: 'center', gap: '6px',
-                                flexShrink: 0, boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)'
-                              }}
-                            >
-                              {isAutoFixing ? <Loader2 size={13} className="animate-spin" /> : <Wrench size={13} />}
-                              <span>{isAutoFixing ? 'Memperbaiki...' : '⚡ Auto-Fix Sekarang'}</span>
-                            </button>
                           </div>
-                        )}
-                        <SandpackPreview
-                          showOpenInCodeSandbox={false}
-                          showRefreshButton={true}
-                          style={{ height: '100%', width: '100%', backgroundColor: '#f8fafc' }}
-                        />
-                      </div>
+                          <button
+                            type="button"
+                            disabled={isAutoFixing}
+                            onClick={handleTriggerAutoFix}
+                            style={{
+                              backgroundColor: '#ef4444', color: '#ffffff', border: 'none',
+                              padding: '7px 14px', borderRadius: '8px', fontWeight: 800,
+                              cursor: isAutoFixing ? 'not-allowed' : 'pointer',
+                              display: 'flex', alignItems: 'center', gap: '6px',
+                              flexShrink: 0, boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)'
+                            }}
+                          >
+                            {isAutoFixing ? <Loader2 size={13} className="animate-spin" /> : <Wrench size={13} />}
+                            <span>{isAutoFixing ? 'Memperbaiki...' : '⚡ Auto-Fix Sekarang'}</span>
+                          </button>
+                        </div>
+                      )}
+                      <SandpackPreview
+                        showOpenInCodeSandbox={false}
+                        showRefreshButton={true}
+                        style={{ height: '100%', width: '100%', backgroundColor: '#f8fafc' }}
+                      />
                     </div>
                   </div>
                 </div>
               )}
-
-              {/* ─── 3. RIGHT PANEL: CODE EDITOR & FILE EXPLORER STUDIO ─── */}
-              {(viewMode === 'split' || viewMode === 'code' || isRightPanelOpen) && (
-                <div style={{
-                  height: '100%',
-                  minHeight: '100%',
-                  width: viewMode === 'code' ? '100%' : '520px',
-                  minWidth: viewMode === 'code' ? '100%' : '380px',
-                  maxWidth: viewMode === 'code' ? '100%' : '650px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  borderLeft: '1px solid #1e293b',
-                  backgroundColor: '#0a0f1d',
-                  overflow: 'hidden',
-                  zIndex: 10
-                }}>
-                  {/* Right Studio Header with Dyad-style Sub-Tabs */}
-                  <div style={{
-                    height: '40px',
-                    minHeight: '40px',
-                    backgroundColor: '#070b14',
-                    borderBottom: '1px solid #1e293b',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0 10px',
-                    userSelect: 'none'
-                  }}>
-                    {/* Tab Switcher: Files | Code | Split */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '3px', backgroundColor: 'rgba(255,255,255,0.06)', padding: '2px', borderRadius: '6px' }}>
-                      {[
-                        { key: 'editor', label: 'Code Editor', icon: <Code size={12} /> },
-                        { key: 'files', label: 'Files', icon: <FolderOpen size={12} /> },
-                        { key: 'both', label: 'Split Files + Code', icon: <Columns size={12} /> }
-                      ].map(tab => (
-                        <button
-                          key={tab.key}
-                          type="button"
-                          onClick={() => setRightPanelTab(tab.key)}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: '4px',
-                            padding: '3px 8px', borderRadius: '4px', border: 'none',
-                            backgroundColor: rightPanelTab === tab.key ? '#0284c7' : 'transparent',
-                            color: rightPanelTab === tab.key ? '#fff' : '#94a3b8',
-                            fontSize: '0.7rem', fontWeight: rightPanelTab === tab.key ? 700 : 500,
-                            cursor: 'pointer', transition: 'all 0.15s'
-                          }}
-                        >
-                          {tab.icon}
-                          <span>{tab.label}</span>
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Close / Minimize Right Panel */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setViewMode('preview');
-                        setIsRightPanelOpen(false);
-                      }}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#64748b',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: '24px',
-                        height: '24px',
-                        borderRadius: '4px'
-                      }}
-                      title="Tutup Editor (Kembali ke Full Preview)"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-
-                  {/* Body of Right Studio */}
-                  <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
-
-                    {/* File Tree Section (shown in 'files' or 'both' mode) */}
-                    {(rightPanelTab === 'files' || rightPanelTab === 'both') && (
-                      <div style={{
-                        width: rightPanelTab === 'both' ? '210px' : '100%',
-                        minWidth: rightPanelTab === 'both' ? '210px' : '100%',
-                        borderRight: rightPanelTab === 'both' ? '1px solid #1e293b' : 'none',
-                        height: '100%',
-                        overflow: 'hidden',
-                        display: 'flex',
-                        flexDirection: 'column'
-                      }}>
-                        <FileTreeExplorer
-                          tree={fileTree}
-                          activePath={activeFilePath}
-                          onSelectFile={(path) => {
-                            setActiveFilePath(path);
-                            if (sandpackBridgeRef.current) {
-                              sandpackBridgeRef.current.openFile(path);
-                            }
-                          }}
-                          onCreateFile={(newPath) => {
-                            vfs.writeFile(newPath, '// New file\n');
-                            setFilesRecord(vfs.getAllFilesRecord());
-                            setFileTree(vfs.getFileTree());
-                            setActiveFilePath(newPath);
-                          }}
-                          onDeleteFile={(delPath) => {
-                            vfs.deleteFile(delPath);
-                            setFilesRecord(vfs.getAllFilesRecord());
-                            setFileTree(vfs.getFileTree());
-                            if (activeFilePath === delPath) setActiveFilePath('/App.js');
-                          }}
-                          onOpenTemplates={() => setIsTemplatesModalOpen(true)}
-                          sandboxApps={sandboxAppsList}
-                          activeAppId={deployedApp?.id || null}
-                          onSelectApp={handleSelectSandboxApp}
-                          onDeleteApp={handleDeleteSandboxApp}
-                          onNewApp={handleNewBlankApp}
-                          isLoadingApps={isLoadingSandboxApps}
-                        />
-                      </div>
-                    )}
-
-                    {/* Code Editor Section (shown in 'editor' or 'both' mode) */}
-                    {(rightPanelTab === 'editor' || rightPanelTab === 'both') && (
-                      <div style={{
-                        flex: 1,
-                        minWidth: 0,
-                        height: '100%',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        overflow: 'hidden'
-                      }}>
-                        <SandpackProEditorBar
-                          activePath={activeFilePath}
-                          onRunCode={handleRunEditorCode}
-                          onFormatCode={handleFormatEditorCode}
-                          isInspectActive={isInspectModeActive}
-                          onToggleInspect={() => setIsInspectModeActive(prev => !prev)}
-                        />
-                        <SandpackCodeEditor
-                          showLineNumbers
-                          showInlineErrors
-                          wrapContent
-                          style={{
-                            flex: 1,
-                            height: '100%',
-                            minHeight: 0,
-                            fontFamily: 'monospace',
-                            fontSize: '12px'
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
             </SandpackLayout>
           </SandpackProvider>
 
@@ -3683,25 +2951,87 @@ root.render(
             logs={logs}
             errors={errors}
             aiActivity={aiActivity}
-            stepHistory={stepHistory}
-            connectedTable={connectedTable}
-            liveRecordCount={liveRecordCount}
-            activeEngine={activeEngine}
-            onSwitchEngine={(eng) => {
-              setActiveEngine(eng);
-              try {
-                runtimeManager.switchEngine(eng);
-                toast.success(`Engine dialihkan ke: ${eng}`);
-              } catch (err) {
-                toast.error(err.message);
-              }
-            }}
             onTriggerAutoFix={handleTriggerAutoFix}
             isAutoFixing={isAutoFixing}
             onClearLogs={() => { setLogs([]); setErrors([]); }}
           />
         </div>
 
+        {/* RIGHT PANEL: VIBECHAT STREAMING */}
+        {isStandalone && (
+          <div style={{
+            width: '420px',
+            minWidth: '380px',
+            maxWidth: '480px',
+            height: '100%',
+            borderLeft: '1px solid #1e293b',
+            display: 'flex',
+            flexDirection: 'column',
+            flexShrink: 0,
+            overflow: 'hidden',
+            backgroundColor: '#0f172a'
+          }}>
+            <VibeChatPanel
+              context={{
+                appName: appName,
+                files: filesRecord,
+                tables: availableTables
+              }}
+              initialPrompt={chatInitialPrompt}
+              onPromptConsumed={() => setChatInitialPrompt('')}
+              settings={null}
+              onCodeGenerated={async (rawCode) => {
+                let code = cleanVibeCode(rawCode);
+
+                // Safeguard: If code starts with `return (` without a function wrapper, wrap it
+                if (/^\s*return\s*\(/.test(code) && !/function\s+\w+\s*\(|=>\s*\(?|export\s+default|const\s+\w+\s*=\s*\(/i.test(code.slice(0, 100))) {
+                  code = `export default function App() {\n  ${code}\n}`;
+                  console.log('[Sandbox] Wrapped orphan `return (` in function App()');
+                }
+
+                vfs.writeFile('/App.js', code);
+                lastKnownExternalCodeRef.current = code;
+                setFilesRecord(vfs.getAllFilesRecord());
+                setFilesRevision(prev => prev + 1);
+                setErrors([]);
+
+                // ⚡ Instantly update Sandpack in-memory instance & live device screen!
+                if (sandpackBridgeRef.current) {
+                  sandpackBridgeRef.current.updateFile('/App.js', code);
+                  sandpackBridgeRef.current.openFile('/App.js');
+                  sandpackBridgeRef.current.runSandpack?.();
+                }
+
+                try {
+                  localStorage.setItem('vibe_sandbox_autosave', code);
+                  localStorage.setItem('vibe_sandbox_autosave_time', new Date().toISOString());
+                } catch {}
+
+                if (onCodeChange) onCodeChange(code);
+
+                toast.success('⚡ Kode berhasil diterapkan ke layar device!');
+                try {
+                  const res = await syncVibeAppToTable(code);
+                  if (res?.table) {
+                    setConnectedTable(res.table);
+                    setLiveRecordCount(res.recordCount);
+                    toast.success(
+                      res.isNew
+                        ? `Tabel "${res.table.name}" berhasil dibuat di Database MaviCore!`
+                        : `Tabel "${res.table.name}" tersinkronisasi (${res.recordCount} data tersimpan)!`,
+                      { duration: 4000 }
+                    );
+                    getTables().then(tbls => {
+                      if (Array.isArray(tbls)) setAvailableTables(tbls);
+                    });
+                  }
+                } catch (syncErr) {
+                  console.warn('Auto table sync error:', syncErr);
+                }
+              }}
+            />
+          </div>
+        )}
       </div>
 {/* ═══════════ MODALS ═══════════ */}
       {/* 1. AI Changes Review Modal */}
@@ -3716,18 +3046,9 @@ root.render(
       <ManufacturingTemplatesModal
         isOpen={isTemplatesModalOpen}
         onClose={() => setIsTemplatesModalOpen(false)}
-        onSelectTemplate={(tmpl, options = {}) => {
+        onSelectTemplate={(tmpl) => {
           setIsTemplatesModalOpen(false);
-          if (options.directLoad && tmpl?.code) {
-            vfs.writeFile('/App.js', tmpl.code);
-            setFilesRecord(vfs.getAllFilesRecord());
-            setFileTree(vfs.getFileTree());
-            versionControl.createSnapshot(vfs.getAllFilesRecord(), `Loaded PRO Template: ${tmpl.title}`);
-            if (onCodeChange) onCodeChange(tmpl.code);
-            if (tmpl.title) setAppName(tmpl.title.replace(' (PRO)', ''));
-            setLogs(prev => [...prev, { timestamp: new Date(), text: `[PRO Template Loaded] ${tmpl.title}` }]);
-            toast.success(`⚡ Berhasil memuat Template PRO: ${tmpl.title}`);
-          } else if (tmpl?.prompt) {
+          if (tmpl?.prompt) {
             setChatInitialPrompt(tmpl.prompt);
           }
         }}
@@ -3924,13 +3245,6 @@ root.render(
         </div>
       )}
 
-      {/* 7. Katalog Widget MaviCore UI Modal */}
-      <WidgetCatalogModal
-        isOpen={isWidgetCatalogOpen}
-        onClose={() => setIsWidgetCatalogOpen(false)}
-        onInsertCode={handleInsertWidgetCode}
-      />
-
       {/* Incompatible Builder Warning Modal */}
       {incompatibleNotice && (
         <div style={{
@@ -3976,13 +3290,7 @@ root.render(
             </p>
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
               <button
-                onClick={() => {
-                  setIncompatibleNotice(null);
-                  try {
-                    const cleanHash = window.location.hash.split('?')[0];
-                    window.history.replaceState({}, '', cleanHash);
-                  } catch (e) {}
-                }}
+                onClick={() => setIncompatibleNotice(null)}
                 style={{
                   padding: '10px 18px',
                   borderRadius: '8px',
@@ -3998,17 +3306,7 @@ root.render(
               </button>
               <button
                 onClick={() => {
-                  if (incompatibleNotice?.recommendedUrl) {
-                    const targetUrl = incompatibleNotice.recommendedUrl;
-                    const cleanRoute = targetUrl.replace(/^\/?#/, '');
-                    try {
-                      navigate(cleanRoute);
-                    } catch (e) {
-                      console.warn('[VibeSandpackViewer] Navigate error:', e);
-                    }
-                    window.location.href = window.location.origin + window.location.pathname + targetUrl;
-                    window.location.reload();
-                  }
+                  window.location.href = incompatibleNotice.recommendedUrl;
                 }}
                 style={{
                   padding: '10px 20px',
