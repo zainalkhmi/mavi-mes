@@ -12,6 +12,7 @@ import TableAppGeneratorModal from './TableAppGeneratorModal';
 import ExcelImportModal from './ExcelImportModal';
 import ExcelExportButton from './ExcelExportButton';
 import IndustrialTemplatesModal from './IndustrialTemplatesModal';
+import SpreadsheetToTableModal from './SpreadsheetToTableModal';
 import toast, { Toaster } from 'react-hot-toast';
 import {
     getTables,
@@ -374,6 +375,9 @@ const TableManager = () => {
 
     // Excel Import State
     const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
+
+    // AppSheet-style Spreadsheet-to-Table Modal State
+    const [isSpreadsheetModalOpen, setIsSpreadsheetModalOpen] = useState(false);
 
     // Industrial Table Templates State
     const [isIndustrialTemplatesOpen, setIsIndustrialTemplatesOpen] = useState(false);
@@ -1397,30 +1401,52 @@ const TableManager = () => {
 
                     <div style={{ padding: '0 24px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <span style={{ fontSize: '0.78rem', fontWeight: 700, color: TOKENS.sidebarTextMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Tables</span>
-                        <button
-                            onClick={() => {
-                                setNewTableName('');
-                                setNewTableDescription('');
-                                setIsCreateModalOpen(true);
-                            }}
-                            title="Create Table"
-                            style={{
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                color: TOKENS.primary,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                padding: '4px',
-                                borderRadius: '6px',
-                                transition: 'all 0.15s'
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = TOKENS.primaryLight}
-                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                        >
-                            <Plus size={16} />
-                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <button
+                                onClick={() => setIsSpreadsheetModalOpen(true)}
+                                title="New Table from Excel / Spreadsheet (AppSheet Model)"
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    color: '#10b981',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: '4px',
+                                    borderRadius: '6px',
+                                    transition: 'all 0.15s'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#ecfdf5'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            >
+                                <FileSpreadsheet size={16} />
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setNewTableName('');
+                                    setNewTableDescription('');
+                                    setIsCreateModalOpen(true);
+                                }}
+                                title="Create Blank Table"
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    color: TOKENS.primary,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: '4px',
+                                    borderRadius: '6px',
+                                    transition: 'all 0.15s'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = TOKENS.primaryLight}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            >
+                                <Plus size={16} />
+                            </button>
+                        </div>
                     </div>
 
                     {/* Search */}
@@ -2976,7 +3002,44 @@ const TableManager = () => {
                             <div style={{ fontWeight: 900, fontSize: '1.4rem', color: TOKENS.text, letterSpacing: '-0.02em' }}>Create New Table</div>
                             <button onClick={() => setIsCreateModalOpen(false)} style={{ border: 'none', background: 'none', color: TOKENS.textMuted, cursor: 'pointer', padding: '8px', borderRadius: '12px' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}><X size={24} /></button>
                         </div>
-                        <div style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                        <div style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                            <div
+                                onClick={() => {
+                                    setIsCreateModalOpen(false);
+                                    setIsSpreadsheetModalOpen(true);
+                                }}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '12px 16px',
+                                    borderRadius: '14px',
+                                    backgroundColor: '#f0fdf4',
+                                    border: '1px solid #bbf7d0',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#dcfce7'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f0fdf4'}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}>
+                                        <FileSpreadsheet size={18} />
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#166534' }}>Import from Spreadsheet (AppSheet Mode)</div>
+                                        <div style={{ fontSize: '0.75rem', color: '#15803d' }}>Buat tabel otomatis dari file Excel atau Google Sheet</div>
+                                    </div>
+                                </div>
+                                <ChevronRight size={18} color="#16a34a" />
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 700 }}>
+                                <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
+                                <span>ATAU BUAT MANUAL</span>
+                                <div style={{ flex: 1, height: '1px', backgroundColor: '#e2e8f0' }} />
+                            </div>
+
                             <div>
                                 <label style={{ display: 'block', fontSize: '0.85rem', color: TOKENS.text, marginBottom: '10px', fontWeight: 700 }}>Table Name</label>
                                 <input
@@ -3865,6 +3928,22 @@ const TableManager = () => {
                     }
                     await loadRecords(selectedTable.id);
                     return { imported };
+                }}
+            />
+
+            {/* Spreadsheet to Table Modal (AppSheet Mode) */}
+            <SpreadsheetToTableModal
+                isOpen={isSpreadsheetModalOpen}
+                onClose={() => setIsSpreadsheetModalOpen(false)}
+                onTableCreated={async (newTableId) => {
+                    await loadTables();
+                    if (newTableId) {
+                        setSelectedTableId(newTableId);
+                    }
+                }}
+                onOpenAppGenerator={(table) => {
+                    setSelectedTableForGenerator(table);
+                    setIsAppGeneratorOpen(true);
                 }}
             />
 

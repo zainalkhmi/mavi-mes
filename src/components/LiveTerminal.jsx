@@ -4978,13 +4978,28 @@ const LiveTerminal = () => {
     const targetValue = await resolveSourceValue(rightSource, rightValue, '', eventPayload);
 
     switch (operator) {
-      case '==': return String(actualValue) === String(targetValue);
-      case '!=': return String(actualValue) !== String(targetValue);
+      case '==': return String(actualValue).toLowerCase() === String(targetValue).toLowerCase();
+      case '!=': return String(actualValue).toLowerCase() !== String(targetValue).toLowerCase();
       case '>': return Number(actualValue) > Number(targetValue);
       case '<': return Number(actualValue) < Number(targetValue);
       case '>=': return Number(actualValue) >= Number(targetValue);
       case '<=': return Number(actualValue) <= Number(targetValue);
-      case 'CONTAINS': return String(actualValue).includes(String(targetValue));
+      case 'CONTAINS': return String(actualValue).toLowerCase().includes(String(targetValue).toLowerCase());
+      case 'DOES_NOT_CONTAIN': return !String(actualValue).toLowerCase().includes(String(targetValue).toLowerCase());
+      case 'STARTS_WITH': return String(actualValue).toLowerCase().startsWith(String(targetValue).toLowerCase());
+      case 'ENDS_WITH': return String(actualValue).toLowerCase().endsWith(String(targetValue).toLowerCase());
+      case 'IS_WITHIN_RANGE': {
+        const parts = String(targetValue ?? '').split(/[,:\s\.\.]+/).filter(Boolean);
+        if (parts.length >= 2) {
+          const min = Number(parts[0]);
+          const max = Number(parts[1]);
+          const cur = Number(actualValue);
+          if (!isNaN(min) && !isNaN(max) && !isNaN(cur)) {
+            return cur >= Math.min(min, max) && cur <= Math.max(min, max);
+          }
+        }
+        return false;
+      }
       case 'IS_EMPTY': return !actualValue || String(actualValue).trim() === '';
       case 'IS_NOT_EMPTY': return actualValue && String(actualValue).trim() !== '';
       default: return true;
@@ -5610,6 +5625,45 @@ const LiveTerminal = () => {
                 await upsertGlobalVariable(vDef.name, vDef.type || 'TEXT', vDef.defaultValue || '');
               }
             }
+          } else if (type === 'ARRAY_PUSH') {
+            const { varPath, value, valueType } = payload;
+            const resolvedVal = await resolveSourceValue(valueType || 'STATIC', value, '', eventPayload);
+            setAppVariables(prev => prev.map(v => {
+              if (v.name === varPath || v.id === varPath) {
+                const curArr = Array.isArray(v.value) ? [...v.value] : (v.value ? [v.value] : []);
+                curArr.push(resolvedVal);
+                return { ...v, value: curArr };
+              }
+              return v;
+            }));
+            toast.success(`Appended to array ${varPath}`);
+          } else if (type === 'ARRAY_POP') {
+            const { varPath, resultVar } = payload;
+            setAppVariables(prev => {
+              let poppedVal = undefined;
+              const nextVars = prev.map(v => {
+                if (v.name === varPath || v.id === varPath) {
+                  const curArr = Array.isArray(v.value) ? [...v.value] : [];
+                  poppedVal = curArr.pop();
+                  return { ...v, value: curArr };
+                }
+                return v;
+              });
+              if (resultVar && poppedVal !== undefined) {
+                return nextVars.map(v => (v.name === resultVar || v.id === resultVar) ? { ...v, value: poppedVal } : v);
+              }
+              return nextVars;
+            });
+            toast.success(`Popped item from ${varPath}`);
+          } else if (type === 'ARRAY_CLEAR') {
+            const { varPath } = payload;
+            setAppVariables(prev => prev.map(v => {
+              if (v.name === varPath || v.id === varPath) {
+                return { ...v, value: [] };
+              }
+              return v;
+            }));
+            toast.success(`Cleared array ${varPath}`);
           } else if (type === 'AI_PROCESS') {
             const { promptType, prompt, inputVar, resultVar } = payload;
             const actualPrompt = promptType === 'VARIABLE' ? (appVariables.find(v => v.name === prompt)?.value || '') : prompt;
@@ -5822,6 +5876,21 @@ const LiveTerminal = () => {
             await handleCompleteApp();
           } else if (action.type === 'CANCEL_APP') {
             await handleCancelApp();
+          } else if (action.type === 'SWITCH_APP') {
+            const targetApp = action.payload?.targetApp;
+            toast.success(`Switching to app: ${targetApp || 'Launcher'}`);
+            if (targetApp) {
+              window.location.hash = `#/player?app=${encodeURIComponent(targetApp)}`;
+            }
+          } else if (action.type === 'LOGOUT_USER') {
+            toast.success('Logging out user session...');
+            try {
+              const { logout } = await import('../utils/auth');
+              await logout();
+            } catch (e) {
+              localStorage.removeItem('mandor_session');
+              window.location.hash = '#/login';
+            }
           } else if (action.type === 'SAVE_APP_DATA') {
             await handleSaveAppData();
           } else if (action.type === 'CREATE_RECORD' || action.type === 'UPDATE_RECORD') {

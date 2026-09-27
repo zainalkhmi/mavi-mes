@@ -96,7 +96,10 @@ const UserManager = () => {
                 return;
             }
 
-            saveUser(currentUser);
+            const saved = saveUser(currentUser);
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('mavi_user_created', { detail: saved || currentUser }));
+            }
             setSuccess(`User ${currentUser.username} successfully saved.`);
             setIsEditing(false);
             loadUsers();

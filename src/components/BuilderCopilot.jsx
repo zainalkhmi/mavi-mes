@@ -481,14 +481,14 @@ const BuilderCopilot = ({
   }, [isOpen]);
 
   const currentProvider = aiConnector?.aiSettings?.provider || aiConnector?.config?.provider || 'Gemini';
-  let rawModelId = aiConnector?.aiSettings?.modelId || aiConnector?.config?.modelId || 'gemini-2.0-flash';
+  let rawModelId = aiConnector?.aiSettings?.modelId || aiConnector?.config?.modelId || 'gemini-3.8-flash';
   if (currentProvider.toLowerCase().includes('gemini') && (
-    rawModelId.includes('gemini-3.') ||
-    rawModelId.includes('gemini-2.5') ||
+    rawModelId.includes('gemini-2.0') ||
+    rawModelId.includes('gemini-1.5') ||
     rawModelId.includes('flash-latest') ||
     rawModelId === 'gemini-flash'
   )) {
-    rawModelId = 'gemini-2.0-flash';
+    rawModelId = 'gemini-3.8-flash';
   }
   const currentModelId = rawModelId;
 
@@ -513,9 +513,9 @@ const BuilderCopilot = ({
     // Fallback static list aligned with AiSettings.jsx
     const defaults = {
       Gemini: [
-        { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Recommended - Super Fast & Next Gen)' },
-        { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Production Stable & Fast)' },
-        { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro (Complex Analysis)' }
+        { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash (Recommended - Super Fast & Next Gen)' },
+        { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash (Stable Fallback)' },
+        { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro (Complex Analysis)' }
       ],
       OpenAI: [
         { id: 'gpt-4o-mini', name: 'GPT-4o Mini (Fast & Cost-Efficient)' },

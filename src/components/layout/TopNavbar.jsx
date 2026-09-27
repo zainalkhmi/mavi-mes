@@ -8,7 +8,7 @@ import {
   ClipboardCheck, FileSpreadsheet, Boxes, LayoutDashboard, FolderArchive, Layers,
   Workflow, ActivitySquare, Key, LayoutTemplate, GitBranch, Settings2,
   ChevronDown, ChevronRight, Ruler, Scale, Gauge, Shield,
-  AlertTriangle, Smartphone, Sparkles, Code, Download
+  AlertTriangle, Smartphone, Sparkles, Code, Download, Package
 } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 import { useGlobalStore } from '../../store/useGlobalStore.js';
@@ -38,11 +38,7 @@ export default function TopNavbar() {
     window.location.hash.includes('standalone=true') ||
     window.location.hash.includes('mode=companion') ||
     location.pathname.startsWith('/app-player') ||
-    window.location.hash.includes('app-player') ||
-    location.pathname.startsWith('/sandbox-runner') ||
-    window.location.hash.includes('sandbox-runner') ||
-    location.pathname.startsWith('/sandbox-player') ||
-    window.location.hash.includes('sandbox-player');
+    window.location.hash.includes('app-player');
 
   const isOperatorRoute = location.pathname.startsWith('/player') || location.pathname.startsWith('/app-player') || location.pathname.startsWith('/terminal');
   const hasAccess = (path) => checkRoleAccess(user, path);
@@ -79,21 +75,19 @@ export default function TopNavbar() {
 
   const currentBuilderBadge = location.pathname.startsWith('/ui-engine') || location.pathname.startsWith('/gluestack')
     ? 'Mobile'
-    : location.pathname.startsWith('/sandbox')
-      ? 'Generatif'
-      : location.pathname.startsWith('/builder')
-        ? 'PC'
-        : null;
+    : location.pathname.startsWith('/builder')
+      ? 'PC'
+      : null;
 
   const appItems = [
     {
       label: 'App Builder Suite',
       icon: <Boxes size={18} className="text-indigo-600" />,
-      badge: currentBuilderBadge ? `${currentBuilderBadge} Aktif` : '3 Pilihan',
-      description: 'Modal pilihan PC Mavi, Mobile Gluestack & Sandbox AI',
+      badge: currentBuilderBadge ? `${currentBuilderBadge} Aktif` : '2 Pilihan',
+      description: 'Modal pilihan PC Mavi & Mobile Gluestack',
       onClick: () => setIsBuilderModalOpen(true),
       isFeatured: true,
-      matchPaths: ['/builder', '/ui-engine', '/sandbox', '/gluestack']
+      matchPaths: ['/builder', '/ui-engine', '/gluestack']
     },
     { type: 'divider' },
     hasAccess('/file-explorer') && { path: '/file-explorer', icon: <Folder size={16} />, label: 'File Explorer' },
@@ -113,6 +107,12 @@ export default function TopNavbar() {
       icon: <Code size={16} className="text-indigo-600" />, 
       label: 'Query Studio (Visual Builder & SQL)',
       description: 'DbGate-style Visual JOIN Canvas, SQL Editor & Live Data Runner'
+    },
+    { 
+      path: '/odoo', 
+      icon: <Package size={16} className="text-[#714b67]" />, 
+      label: 'Odoo ERP Studio',
+      description: 'Integrasi penuh Odoo: Baca, Tambah, Edit, Hapus & Manipulasi Data'
     },
     { type: 'divider' },
     hasAccess('/connectors') && { path: '/connectors', icon: <Link2 size={16} />, label: 'Connectors' },

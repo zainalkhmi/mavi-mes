@@ -24,9 +24,9 @@ const PROVIDERS = [
 
 const DEFAULT_MODELS = {
   Gemini: [
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Recommended - Super Cepat & Next Gen)' },
-    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Production Stable & Cepat)' },
-    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro (Analisis Kompleks)' }
+    { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash (Recommended - Super Cepat & Next Gen)' },
+    { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash (Stabil Fallback)' },
+    { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro (Analisis Kompleks)' }
   ],
   OpenAI: [
     { id: 'gpt-4o-mini', name: 'GPT-4o Mini (Fast & Cost-Efficient)' },
@@ -66,7 +66,7 @@ const AiSettings = () => {
   const [activeProvider, setActiveProvider] = useState('Gemini');
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
-  const [modelId, setModelId] = useState('gemini-2.0-flash');
+  const [modelId, setModelId] = useState('gemini-3.8-flash');
   const [availableModels, setAvailableModels] = useState([]);
   const [isFetchingModels, setIsFetchingModels] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -89,14 +89,14 @@ const AiSettings = () => {
         setActiveProvider(provider);
         setApiKey(aiSettings.apiKey || '');
         setBaseUrl(aiSettings.baseUrl || '');
-        let mid = aiSettings.modelId || (provider === 'Gemini' ? 'gemini-2.0-flash' : 'gpt-4o-mini');
+        let mid = aiSettings.modelId || (provider === 'Gemini' ? 'gemini-3.8-flash' : 'gpt-4o-mini');
         const isBogusOrOld = (id) => {
           if (!id) return true;
           const s = String(id).toLowerCase();
-          return s.includes('gemini-3.') || s.includes('gemini-2.5') || s.includes('flash-latest') || s === 'gemini-flash' || s === 'gemini';
+          return s.includes('gemini-2.0') || s.includes('gemini-1.5') || s.includes('flash-latest') || s === 'gemini-flash' || s === 'gemini';
         };
         if (provider === 'Gemini' && isBogusOrOld(mid)) {
-          mid = 'gemini-2.0-flash';
+          mid = 'gemini-3.8-flash';
         }
         setModelId(mid);
 
@@ -144,7 +144,7 @@ const AiSettings = () => {
     const defaultModelsForNewProvider = DEFAULT_MODELS[newProviderId] || [];
     const defaultModelIdForNewProvider = defaultModelsForNewProvider.length > 0 
       ? defaultModelsForNewProvider[0].id 
-      : (newProviderId === 'Gemini' ? 'gemini-2.0-flash' : '');
+      : (newProviderId === 'Gemini' ? 'gemini-3.8-flash' : '');
 
     const nextConfig = configs[newProviderId] || {
       apiKey: '',

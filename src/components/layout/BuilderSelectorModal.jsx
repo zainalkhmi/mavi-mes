@@ -35,9 +35,8 @@ export default function BuilderSelectorModal({ isOpen, onClose }) {
   const currentPath = location.pathname;
   const isPcActive = currentPath === '/builder' || currentPath.startsWith('/builder');
   const isMobileActive = currentPath === '/ui-engine' || currentPath.startsWith('/ui-engine') || currentPath.startsWith('/gluestack');
-  const isSandboxActive = currentPath === '/sandbox' || currentPath.startsWith('/sandbox');
 
-  // Keyboard navigation: Escape to close, 1/2/3 to select
+  // Keyboard navigation: Escape to close, 1/2 to select
   useEffect(() => {
     if (!isOpen) return;
 
@@ -48,8 +47,6 @@ export default function BuilderSelectorModal({ isOpen, onClose }) {
         handleNavigate('/builder');
       } else if (e.key === '2' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         handleNavigate('/ui-engine');
-      } else if (e.key === '3' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        handleNavigate('/sandbox');
       }
     };
 
@@ -130,37 +127,6 @@ export default function BuilderSelectorModal({ isOpen, onClose }) {
         { icon: <Tablet size={13} />, text: 'Free X-Y & Responsive Mobile Grid' },
         { icon: <Zap size={13} />, text: 'Camera Barcode & Touch Ready' }
       ]
-    },
-    {
-      id: 'sandbox_builder',
-      num: '3',
-      key: 'sandbox',
-      title: 'Generatif — Sandbox App Builder',
-      badge: 'Generatif AI',
-      category: 'Vibe Sandpack AI Code Generator',
-      path: '/sandbox',
-      isActive: isSandboxActive,
-      theme: {
-        glow: 'hover:border-amber-500/80 hover:shadow-amber-500/20',
-        badgeBg: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-        iconBg: 'bg-gradient-to-br from-amber-500 via-orange-500 to-emerald-500 shadow-amber-500/30',
-        buttonBg: 'bg-gradient-to-r from-amber-500 via-orange-500 to-emerald-600 hover:from-amber-400 hover:to-emerald-500 text-white shadow-amber-600/30',
-        borderActive: 'border-amber-500 ring-2 ring-amber-500/30 bg-amber-950/20'
-      },
-      icon: (
-        <div className="relative">
-          <Sparkles size={32} className="text-white drop-shadow" />
-          <div className="absolute -bottom-1.5 -right-1.5 p-1 rounded-md bg-slate-900/90 border border-amber-400/40 text-amber-300 shadow-sm">
-            <Bot size={14} />
-          </div>
-        </div>
-      ),
-      description: 'Sintesis aplikasi React MES secara instan menggunakan AI Prompt Engine dan Sandpack live interactive code sandbox.',
-      features: [
-        { icon: <BrainCircuit size={13} />, text: 'AI Prompt-to-React Generator' },
-        { icon: <Wand2 size={13} />, text: 'Live Interactive Sandpack Runner' },
-        { icon: <Sparkles size={13} />, text: 'Otonom Code Synthesis & Preview' }
-      ]
     }
   ];
 
@@ -173,11 +139,11 @@ export default function BuilderSelectorModal({ isOpen, onClose }) {
       aria-labelledby="builder-modal-title"
     >
       <div
-        className="relative w-full max-w-5xl bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl shadow-black/80 overflow-hidden text-slate-100 animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]"
+        className="relative w-full max-w-3xl bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl shadow-black/80 overflow-hidden text-slate-100 animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Ambient Top Glow */}
-        <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-amber-500" />
+        <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-blue-500 to-purple-500" />
         <div className="absolute -top-24 left-1/4 w-96 h-32 bg-blue-500/10 blur-3xl rounded-full pointer-events-none" />
         <div className="absolute -top-24 right-1/4 w-96 h-32 bg-purple-500/10 blur-3xl rounded-full pointer-events-none" />
 
@@ -186,13 +152,13 @@ export default function BuilderSelectorModal({ isOpen, onClose }) {
           <div className="space-y-1">
             <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wider uppercase bg-slate-800/80 border border-slate-700/60 text-slate-300">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Suite App Builder • 3 Pilihan Lingkungan
+              Suite App Builder • 2 Pilihan Lingkungan
             </div>
             <h2 id="builder-modal-title" className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
               <span>Pilih Lingkungan App Builder</span>
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 max-w-2xl leading-relaxed">
-              MaviCore menyediakan 3 arsitektur builder khusus. Pilih studio yang sesuai dengan kebutuhan PC MES, Mobile Operator, atau AI Generatif.
+              MaviCore menyediakan 2 arsitektur builder khusus. Pilih studio yang sesuai dengan kebutuhan PC MES atau Mobile Operator.
             </p>
           </div>
 
@@ -205,9 +171,9 @@ export default function BuilderSelectorModal({ isOpen, onClose }) {
           </button>
         </div>
 
-        {/* Modal Body: 3 Builder Cards */}
+        {/* Modal Body: 2 Builder Cards */}
         <div className="relative p-6 overflow-y-auto flex-1">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {builders.map((builder) => (
               <div
                 key={builder.id}

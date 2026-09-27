@@ -355,6 +355,8 @@ export default function SandboxDeviceRunner() {
         files={filesRecord}
         customSetup={{
           dependencies: {
+            'react': '^18.2.0',
+            'react-dom': '^18.2.0',
             'lucide-react': '^0.344.0',
             'framer-motion': '^10.16.4',
             'clsx': '^2.0.0',
@@ -363,7 +365,8 @@ export default function SandboxDeviceRunner() {
         }}
         options={{
           initMode: 'immediate',
-          bundlerTimeOut: 60000,
+          bundlerTimeOut: 120000,
+          bundlerURL: 'https://sandpack-bundler.codesandbox.io',
           externalResources: [
             'https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css',
             'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap'

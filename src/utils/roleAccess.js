@@ -3,8 +3,6 @@ export const hasAccess = (user, path) => {
   if (
     path === '/player' || path.startsWith('/player') ||
     path === '/app-player' || path.startsWith('/app-player') ||
-    path === '/sandbox-runner' || path.startsWith('/sandbox-runner') ||
-    path === '/sandbox-player' || path.startsWith('/sandbox-player') ||
     path === '/terminal' || path.startsWith('/terminal')
   ) {
     return true;
@@ -30,7 +28,7 @@ export const hasAccess = (user, path) => {
   // Connector Supervisor
   if (role === 'CONNECTOR_SUPERVISOR') {
     const allowed = [
-      '/', '/builder', '/ui-engine', '/gluestack', '/sandbox', '/flutter-builder','/file-explorer', '/store', '/app-management', '/variables',
+      '/', '/builder', '/ui-engine', '/gluestack', '/flutter-builder','/file-explorer', '/store', '/app-management', '/variables',
       '/connectors', '/functions', '/automations', '/analytics', '/dashboards', '/reports', '/mcp-server',
       '/checksheets', '/checksheet-management', '/checksheet-manager', '/inspector-designer', '/drawing-checksheet', '/qa-checksheet', '/simple-checksheet',
       '/drawing-management', '/plm-integration', '/plm',
@@ -42,7 +40,7 @@ export const hasAccess = (user, path) => {
   // Station Supervisor
   if (role === 'STATION_SUPERVISOR') {
     const allowed = [
-      '/', '/builder', '/ui-engine', '/gluestack', '/sandbox', '/flutter-builder','/file-explorer', '/store', '/app-management', '/variables',
+      '/', '/builder', '/ui-engine', '/gluestack', '/flutter-builder','/file-explorer', '/store', '/app-management', '/variables',
       '/stations', '/display-devices', '/machines', '/edge-devices', '/iot-hub', '/vision', '/mcp-server',
       '/checksheets', '/checksheet-management', '/checksheet-manager', '/inspector-designer', '/drawing-checksheet', '/qa-checksheet', '/simple-checksheet',
       '/drawing-management', '/plm-integration', '/plm',
@@ -54,7 +52,7 @@ export const hasAccess = (user, path) => {
   // Tulip Tables Supervisor
   if (role === 'TABLES_SUPERVISOR') {
     const allowed = [
-      '/', '/builder', '/ui-engine', '/gluestack', '/sandbox', '/flutter-builder','/file-explorer', '/store', '/app-management', '/variables',
+      '/', '/builder', '/ui-engine', '/gluestack', '/flutter-builder','/file-explorer', '/store', '/app-management', '/variables',
       '/tables', '/checksheets', '/checksheet-management', '/checksheet-manager', '/inspector-designer', '/drawing-checksheet', '/qa-checksheet', '/simple-checksheet',
       '/drawing-management', '/plm-integration', '/plm',
       '/analytics', '/dashboards', '/reports', '/player', '/terminal', '/voice-inspection', '/predictive-maintenance'
@@ -65,7 +63,7 @@ export const hasAccess = (user, path) => {
   // Application Engineer
   if (role === 'APPLICATION_ENGINEER' || role === 'ENGINEER') {
     const allowed = [
-      '/', '/builder', '/ui-engine', '/gluestack', '/sandbox', '/flutter-builder','/file-explorer', '/store', '/app-management', '/variables',
+      '/', '/builder', '/ui-engine', '/gluestack', '/flutter-builder','/file-explorer', '/store', '/app-management', '/variables',
       '/checksheets', '/checksheet-management', '/checksheet-manager', '/inspector-designer', '/drawing-checksheet', '/qa-checksheet', '/simple-checksheet',
       '/drawing-management', '/plm-integration', '/plm',
       '/analytics', '/dashboards', '/reports', '/player', '/terminal', '/voice-inspection', '/predictive-maintenance'

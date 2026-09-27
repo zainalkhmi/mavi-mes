@@ -4413,6 +4413,10 @@ const AppBuilder = () => {
         else if (['>=', 'GTE', 'GREATER_THAN_OR_EQUAL'].includes(rawOp)) operator = '>=';
         else if (['<=', 'LTE', 'LESS_THAN_OR_EQUAL'].includes(rawOp)) operator = '<=';
         else if (['CONTAINS', 'INCLUDES', 'CONTAIN', 'INCLUDE'].includes(rawOp)) operator = 'CONTAINS';
+        else if (['DOES_NOT_CONTAIN', 'NOT_CONTAINS', 'NOT_INCLUDES', 'DOESNT_CONTAIN'].includes(rawOp)) operator = 'DOES_NOT_CONTAIN';
+        else if (['STARTS_WITH', 'START_WITH', 'BEGINS_WITH'].includes(rawOp)) operator = 'STARTS_WITH';
+        else if (['ENDS_WITH', 'END_WITH'].includes(rawOp)) operator = 'ENDS_WITH';
+        else if (['IS_WITHIN_RANGE', 'BETWEEN', 'RANGE', 'WITHIN_RANGE'].includes(rawOp)) operator = 'IS_WITHIN_RANGE';
         else if (['IS_EMPTY', 'EMPTY', 'NULL', 'IS_NULL'].includes(rawOp)) operator = 'IS_EMPTY';
         else if (['IS_NOT_EMPTY', 'NOT_EMPTY', 'NOT_NULL', 'IS_NOT_NULL'].includes(rawOp)) operator = 'IS_NOT_EMPTY';
 
@@ -4424,6 +4428,21 @@ const AppBuilder = () => {
             case '>=': return Number(leftVal) >= Number(rightVal);
             case '<=': return Number(leftVal) <= Number(rightVal);
             case 'CONTAINS': return String(leftVal ?? '').toLowerCase().includes(String(rightVal ?? '').toLowerCase());
+            case 'DOES_NOT_CONTAIN': return !String(leftVal ?? '').toLowerCase().includes(String(rightVal ?? '').toLowerCase());
+            case 'STARTS_WITH': return String(leftVal ?? '').toLowerCase().startsWith(String(rightVal ?? '').toLowerCase());
+            case 'ENDS_WITH': return String(leftVal ?? '').toLowerCase().endsWith(String(rightVal ?? '').toLowerCase());
+            case 'IS_WITHIN_RANGE': {
+                const parts = String(rightVal ?? '').split(/[,:\s\.\.]+/).filter(Boolean);
+                if (parts.length >= 2) {
+                    const min = Number(parts[0]);
+                    const max = Number(parts[1]);
+                    const cur = Number(leftVal);
+                    if (!isNaN(min) && !isNaN(max) && !isNaN(cur)) {
+                        return cur >= Math.min(min, max) && cur <= Math.max(min, max);
+                    }
+                }
+                return false;
+            }
             case 'IS_EMPTY': return leftVal === undefined || leftVal === null || String(leftVal).trim() === '';
             case 'IS_NOT_EMPTY': return leftVal !== undefined && leftVal !== null && String(leftVal).trim() !== '';
             default: return true;
@@ -5071,6 +5090,58 @@ const AppBuilder = () => {
                     if (v) {
                         setValidatedVariableValue(varPath, v.defaultValue || '', 'CLEAR_VARIABLE');
                     }
+                    break;
+                }
+                case 'ARRAY_PUSH': {
+                    const { varPath, value, valueType } = action.payload || {};
+                    const resolved = resolveValue(value, valueType || 'STATIC');
+                    const v = appVariables.find(av => av.name === varPath);
+                    if (v) {
+                        const curArr = Array.isArray(v.value) ? [...v.value] : (v.value ? [v.value] : []);
+                        curArr.push(resolved);
+                        setValidatedVariableValue(varPath, curArr, 'ARRAY_PUSH');
+                        toast.success(`Appended to ${varPath} (Length: ${curArr.length})`);
+                    }
+                    break;
+                }
+                case 'ARRAY_POP': {
+                    const { varPath, resultVar } = action.payload || {};
+                    const v = appVariables.find(av => av.name === varPath);
+                    if (v) {
+                        const curArr = Array.isArray(v.value) ? [...v.value] : [];
+                        const popped = curArr.pop();
+                        setValidatedVariableValue(varPath, curArr, 'ARRAY_POP');
+                        if (resultVar && popped !== undefined) {
+                            setValidatedVariableValue(resultVar, popped, 'ARRAY_POP');
+                        }
+                        toast.success(`Popped from ${varPath}`);
+                    }
+                    break;
+                }
+                case 'ARRAY_CLEAR': {
+                    const { varPath } = action.payload || {};
+                    setValidatedVariableValue(varPath, [], 'ARRAY_CLEAR');
+                    toast.success(`Cleared array ${varPath}`);
+                    break;
+                }
+                case 'SWITCH_APP': {
+                    const { targetApp } = action.payload || {};
+                    toast.success(`Switching to app: ${targetApp || 'Launcher'}`);
+                    if (runtimeCtx) runtimeCtx.transitionExecuted = true;
+                    if (targetApp) {
+                        window.location.hash = `#/builder?app=${encodeURIComponent(targetApp)}`;
+                    }
+                    break;
+                }
+                case 'LOGOUT_USER': {
+                    toast.success('Logging out user session...');
+                    if (runtimeCtx) runtimeCtx.transitionExecuted = true;
+                    import('../utils/auth').then(({ logout }) => {
+                        logout();
+                    }).catch(() => {
+                        localStorage.removeItem('mandor_session');
+                        window.location.hash = '#/login';
+                    });
                     break;
                 }
                 case 'AI_PROCESS': {
@@ -27555,6 +27626,108 @@ D3:0
                                                         </select>
                                                     </div>
                                                 );
+                                            case 'ARRAY_PUSH':
+                                                return (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                            <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-quaternary)', minWidth: '80px' }}>Target Array</label>
+                                                            <select
+                                                                value={act.payload.varPath || ''}
+                                                                onChange={(e) => updatePayload({ varPath: e.target.value })}
+                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
+                                                            >
+                                                                <option value="">Select array variable...</option>
+                                                                {appVariables.map(v => <option key={v.name} value={v.name}>{v.name} ({v.type || 'array'})</option>)}
+                                                            </select>
+                                                        </div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                            <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-quaternary)', minWidth: '80px' }}>Item Value</label>
+                                                            <div style={{ flex: 1, display: 'flex', gap: '4px' }}>
+                                                                <select
+                                                                    value={act.payload.valueType || 'STATIC'}
+                                                                    onChange={(e) => updatePayload({ valueType: e.target.value, value: '' })}
+                                                                    style={{ padding: '4px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.7rem', backgroundColor: 'var(--bg-accent-light)' }}
+                                                                >
+                                                                    <option value="STATIC">Static Value</option>
+                                                                    <option value="VARIABLE">Variable</option>
+                                                                    <option value="EXPRESSION">Expression</option>
+                                                                </select>
+                                                                {act.payload.valueType === 'VARIABLE' ? (
+                                                                    <select
+                                                                        value={act.payload.value || ''}
+                                                                        onChange={(e) => updatePayload({ value: e.target.value })}
+                                                                        style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
+                                                                    >
+                                                                        <option value="">Select source variable...</option>
+                                                                        {appVariables.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
+                                                                    </select>
+                                                                ) : (
+                                                                    <input
+                                                                        value={act.payload.value || ''}
+                                                                        onChange={(e) => updatePayload({ value: e.target.value })}
+                                                                        placeholder="Value to push..."
+                                                                        style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
+                                                                    />
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            case 'ARRAY_POP':
+                                                return (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                            <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-quaternary)', minWidth: '80px' }}>Target Array</label>
+                                                            <select
+                                                                value={act.payload.varPath || ''}
+                                                                onChange={(e) => updatePayload({ varPath: e.target.value })}
+                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
+                                                            >
+                                                                <option value="">Select array variable...</option>
+                                                                {appVariables.map(v => <option key={v.name} value={v.name}>{v.name} ({v.type || 'array'})</option>)}
+                                                            </select>
+                                                        </div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                            <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-quaternary)', minWidth: '80px' }}>Save Popped To</label>
+                                                            <select
+                                                                value={act.payload.resultVar || ''}
+                                                                onChange={(e) => updatePayload({ resultVar: e.target.value })}
+                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
+                                                            >
+                                                                <option value="">Discard (do not save)</option>
+                                                                {appVariables.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            case 'ARRAY_CLEAR':
+                                                return (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-quaternary)', minWidth: '80px' }}>Target Array</label>
+                                                        <select
+                                                            value={act.payload.varPath || ''}
+                                                            onChange={(e) => updatePayload({ varPath: e.target.value })}
+                                                            style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
+                                                        >
+                                                            <option value="">Select array variable...</option>
+                                                            {appVariables.map(v => <option key={v.name} value={v.name}>{v.name} ({v.type || 'array'})</option>)}
+                                                        </select>
+                                                    </div>
+                                                );
+                                            case 'SWITCH_APP':
+                                                return (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-quaternary)', minWidth: '80px' }}>Target App</label>
+                                                        <input
+                                                            value={act.payload.targetApp || ''}
+                                                            onChange={(e) => updatePayload({ targetApp: e.target.value })}
+                                                            placeholder="App Name or ID..."
+                                                            style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
+                                                        />
+                                                    </div>
+                                                );
+                                            case 'LOGOUT_USER':
+                                                return <div style={{ fontSize: '0.85rem', color: 'var(--text-quaternary)', fontStyle: 'italic', padding: '8px' }}>Logs out the current user session and returns to login screen.</div>;
                                             case 'AI_PROCESS':
                                                 return (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -28291,7 +28464,7 @@ D3:0
                                                                                         next[cIdx].conditions[index].operator = e.target.value;
                                                                                         setTriggerEditor({ ...triggerEditor, trigger: { ...triggerEditor.trigger, clauses: next } });
                                                                                     }}
-                                                                                    style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem', width: '80px', fontWeight: 700, textAlign: 'center' }}
+                                                                                    style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem', minWidth: '90px', fontWeight: 700, textAlign: 'center' }}
                                                                                 >
                                                                                     <option value="==">=</option>
                                                                                     <option value="!=">≠</option>
@@ -28300,6 +28473,10 @@ D3:0
                                                                                     <option value=">=">≥</option>
                                                                                     <option value="<=">≤</option>
                                                                                     <option value="CONTAINS">contains</option>
+                                                                                    <option value="DOES_NOT_CONTAIN">does not contain</option>
+                                                                                    <option value="STARTS_WITH">starts with</option>
+                                                                                    <option value="ENDS_WITH">ends with</option>
+                                                                                    <option value="IS_WITHIN_RANGE">is within range [min, max]</option>
                                                                                     <option value="IS_EMPTY">is empty</option>
                                                                                     <option value="IS_NOT_EMPTY">is not empty</option>
                                                                                 </select>
@@ -28361,6 +28538,11 @@ D3:0
                                                                                         <option value="INCREMENT_VARIABLE">Variable: Increment</option>
                                                                                         <option value="CLEAR_VARIABLE">Variable: Clear</option>
                                                                                     </optgroup>
+                                                                                    <optgroup label="Data Manipulation (Array)">
+                                                                                        <option value="ARRAY_PUSH">Array: Push (Append Item)</option>
+                                                                                        <option value="ARRAY_POP">Array: Pop (Remove Last Item)</option>
+                                                                                        <option value="ARRAY_CLEAR">Array: Clear All Items</option>
+                                                                                    </optgroup>
                                                                                     <optgroup label="Notifications">
                                                                                         <option value="SHOW_MESSAGE">Notification: Show Message</option>
                                                                                     </optgroup>
@@ -28393,7 +28575,7 @@ D3:0
                                                                                         <option value="APP_REFRESH">App: Refresh All Data</option>
                                                                                         <option value="PRINT_SCREEN">App: Print Screen / Area</option>
                                                                                         {(() => {
-                                                                                            const isTransitionActionType = (t) => ['GO_TO_STEP', 'NEXT_STEP', 'PREV_STEP', 'COMPLETE_APP', 'CANCEL_APP'].includes(String(t || ''));
+                                                                                            const isTransitionActionType = (t) => ['GO_TO_STEP', 'NEXT_STEP', 'PREV_STEP', 'COMPLETE_APP', 'CANCEL_APP', 'SWITCH_APP', 'LOGOUT_USER'].includes(String(t || ''));
                                                                                             const actionsList = triggerEditor.trigger?.clauses?.[cIdx]?.actions || [];
                                                                                             const transitionExists = actionsList.some((a, idx) => idx !== aIdx && isTransitionActionType(a?.type));
                                                                                             return (
@@ -28403,6 +28585,8 @@ D3:0
                                                                                                     <option value="GO_TO_STEP" disabled={transitionExists && !isTransitionActionType(act.type)}>App: Go to Specific Screen</option>
                                                                                                     <option value="COMPLETE_APP" disabled={transitionExists && !isTransitionActionType(act.type)}>App: Complete App</option>
                                                                                                     <option value="CANCEL_APP" disabled={transitionExists && !isTransitionActionType(act.type)}>App: Cancel App</option>
+                                                                                                    <option value="SWITCH_APP" disabled={transitionExists && !isTransitionActionType(act.type)}>App: Switch to App</option>
+                                                                                                    <option value="LOGOUT_USER" disabled={transitionExists && !isTransitionActionType(act.type)}>App: Log Out User</option>
                                                                                                 </>
                                                                                             );
                                                                                         })()}
@@ -28484,6 +28668,11 @@ D3:0
                                                                                     <option value="INCREMENT_VARIABLE">Variable: Increment</option>
                                                                                     <option value="CLEAR_VARIABLE">Variable: Clear</option>
                                                                                 </optgroup>
+                                                                                <optgroup label="Data Manipulation (Array)">
+                                                                                    <option value="ARRAY_PUSH">Array: Push (Append Item)</option>
+                                                                                    <option value="ARRAY_POP">Array: Pop (Remove Last Item)</option>
+                                                                                    <option value="ARRAY_CLEAR">Array: Clear All Items</option>
+                                                                                </optgroup>
                                                                                 <optgroup label="Notifications">
                                                                                     <option value="SHOW_MESSAGE">Notification: Show Message</option>
                                                                                 </optgroup>
@@ -28510,7 +28699,7 @@ D3:0
                                                                                     <option value="PRINT_REPORT_TEMPLATE">Report: Print / Generate PDF</option>
                                                                                     <option value="PRINT_SCREEN">App: Print Screen / Area</option>
                                                                                     {(() => {
-                                                                                        const isTransitionActionType = (t) => ['GO_TO_STEP', 'NEXT_STEP', 'PREV_STEP', 'COMPLETE_APP', 'CANCEL_APP'].includes(String(t || ''));
+                                                                                        const isTransitionActionType = (t) => ['GO_TO_STEP', 'NEXT_STEP', 'PREV_STEP', 'COMPLETE_APP', 'CANCEL_APP', 'SWITCH_APP', 'LOGOUT_USER'].includes(String(t || ''));
                                                                                         const actionsList = triggerEditor.trigger?.elseActions || [];
                                                                                         const transitionExists = actionsList.some((a, idx) => idx !== eIdx && isTransitionActionType(a?.type));
                                                                                         return (
@@ -28520,6 +28709,8 @@ D3:0
                                                                                                 <option value="GO_TO_STEP" disabled={transitionExists && !isTransitionActionType(act.type)}>App: Go to Specific Screen</option>
                                                                                                 <option value="COMPLETE_APP" disabled={transitionExists && !isTransitionActionType(act.type)}>App: Complete App</option>
                                                                                                 <option value="CANCEL_APP" disabled={transitionExists && !isTransitionActionType(act.type)}>App: Cancel App</option>
+                                                                                                <option value="SWITCH_APP" disabled={transitionExists && !isTransitionActionType(act.type)}>App: Switch to App</option>
+                                                                                                <option value="LOGOUT_USER" disabled={transitionExists && !isTransitionActionType(act.type)}>App: Log Out User</option>
                                                                                             </>
                                                                                         );
                                                                                     })()}

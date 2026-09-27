@@ -20,7 +20,7 @@ const ShiftHandoffSettings = () => {
   // AI Settings
   const [aiSettings, setAiSettings] = useState({
     provider: 'gemini',
-    modelId: 'gemini-1.5-pro',
+    modelId: 'gemini-3.8-flash',
     apiKey: '',
     baseUrl: '',
     temperature: 0.7,

@@ -42,8 +42,6 @@ export default function App() {
 
   const isOperatorRoute = location.pathname.startsWith('/player') || location.pathname.startsWith('/app-player') || location.pathname.startsWith('/terminal');
   const isChecksheetRoute = 
-    location.pathname.startsWith('/sandbox') ||
-    window.location.hash.includes('sandbox') ||
     location.pathname.startsWith('/drawing-checksheet') ||
     location.pathname.startsWith('/qa-checksheet') ||
     location.pathname.startsWith('/live-checksheet') ||
@@ -52,10 +50,6 @@ export default function App() {
     location.pathname.startsWith('/player') ||
     location.pathname.startsWith('/app-player') ||
     window.location.hash.includes('app-player') ||
-    location.pathname.startsWith('/sandbox-runner') ||
-    window.location.hash.includes('sandbox-runner') ||
-    location.pathname.startsWith('/sandbox-player') ||
-    window.location.hash.includes('sandbox-player') ||
     location.pathname.startsWith('/terminal') ||
     location.pathname.startsWith('/mobile-player') ||
     location.pathname.startsWith('/tulip-player') ||
@@ -144,7 +138,7 @@ export default function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/store" element={<LandingPage initialTab="store" />} />
             <Route path="/builder" element={<LandingPage initialTab="builder" />} />
-            <Route path="/sandbox" element={<VibeSandpackViewer isStandalone={true} />} />
+            <Route path="/sandbox" element={<Navigate to="/builder" replace />} />
             <Route path="/pricing" element={<LandingPage initialTab="pricing" />} />
             <Route path="/faq" element={<LandingPage initialTab="faq" />} />
             <Route path="/tulip-player" element={<TulipFrontlinePlayer />} />

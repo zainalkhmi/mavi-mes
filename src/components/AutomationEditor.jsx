@@ -1057,9 +1057,9 @@ const AUTOMATION_TEMPLATES = [
     category: 'AI & Automation',
     nodes: [
       { id: 'start-node', type: 'event', position: { x: 60, y: 160 }, data: { triggerType: 'TABLE_ROW_ADDED', label: 'Inspeksi QC Ditambahkan' } },
-      { id: 'node_ai_agent', type: 'ai_agent', position: { x: 260, y: 145 }, data: { label: 'AI Agent (MES Assistant)', agentType: 'Tools Agent', provider: 'Gemini', modelId: 'gemini-1.5-pro' } },
+      { id: 'node_ai_agent', type: 'ai_agent', position: { x: 260, y: 145 }, data: { label: 'AI Agent (MES Assistant)', agentType: 'Tools Agent', provider: 'Gemini', modelId: 'gemini-3.8-flash' } },
       
-      { id: 'sub_model_gemini', type: 'sub_model', position: { x: 180, y: 310 }, data: { label: 'Google Gemini Model', provider: 'Gemini', modelId: 'gemini-1.5-pro' } },
+      { id: 'sub_model_gemini', type: 'sub_model', position: { x: 180, y: 310 }, data: { label: 'Google Gemini Model', provider: 'Gemini', modelId: 'gemini-3.8-flash' } },
       { id: 'sub_memory_buffer', type: 'sub_memory', position: { x: 290, y: 310 }, data: { label: 'Window Buffer Memory' } },
       { id: 'sub_tool_wiki', type: 'sub_tool', position: { x: 400, y: 310 }, data: { label: 'Wikipedia Tool' } },
       { id: 'sub_tool_db', type: 'sub_tool', position: { x: 510, y: 310 }, data: { label: 'Postgres DB Tool' } },
@@ -1752,8 +1752,8 @@ const AutomationEditor = () => {
         { type: 'respond_webhook', label: 'Respond to Webhook', icon: Send, data: { label: 'Respond 200 OK', statusCode: 200 } },
       ],
       ai: [
-        { type: 'ai_agent', label: 'AI Agent Container', icon: Bot, data: { label: 'AI Agent Assistant', agentType: 'Tools Agent', provider: 'Gemini', modelId: 'gemini-1.5-pro' } },
-        { type: 'sub_model', label: 'Google Gemini Model', icon: Sparkles, data: { label: 'Google Gemini Model', provider: 'Gemini', modelId: 'gemini-1.5-pro' } },
+        { type: 'ai_agent', label: 'AI Agent Container', icon: Bot, data: { label: 'AI Agent Assistant', agentType: 'Tools Agent', provider: 'Gemini', modelId: 'gemini-3.8-flash' } },
+        { type: 'sub_model', label: 'Google Gemini Model', icon: Sparkles, data: { label: 'Google Gemini Model', provider: 'Gemini', modelId: 'gemini-3.8-flash' } },
         { type: 'sub_model', label: 'OpenAI Chat Model', icon: Sparkles, data: { label: 'OpenAI Chat Model', provider: 'OpenAI', modelId: 'gpt-4o' } },
         { type: 'sub_model', label: 'Anthropic Claude Model', icon: Sparkles, data: { label: 'Anthropic Claude Model', provider: 'Claude', modelId: 'claude-3-5-sonnet' } },
         { type: 'sub_model', label: 'Ollama Local LLM', icon: CpuIcon, data: { label: 'Ollama Local LLM', provider: 'Ollama', modelId: 'llama3:8b' } },
@@ -3404,7 +3404,7 @@ const AutomationEditor = () => {
                           value={selectedNode.data.provider || 'Gemini'}
                           onChange={(e) => {
                             const provider = e.target.value;
-                            const defaultModel = provider === 'Gemini' ? 'gemini-1.5-pro' : provider === 'OpenAI' ? 'gpt-4o' : provider === 'Claude' ? 'claude-3-5-sonnet' : 'llama3:8b';
+                            const defaultModel = provider === 'Gemini' ? 'gemini-3.8-flash' : provider === 'OpenAI' ? 'gpt-4o' : provider === 'Claude' ? 'claude-3-5-sonnet' : 'llama3:8b';
                             setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, provider, modelId: defaultModel } } : n));
                           }}
                           style={{ width: '100%', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
@@ -3545,7 +3545,7 @@ const AutomationEditor = () => {
                           onChange={(e) => {
                             const provider = e.target.value;
                             const label = `${provider} Model`;
-                            const defaultModel = provider === 'Gemini' ? 'gemini-2.0-flash' : provider === 'OpenAI' ? 'gpt-4o' : provider === 'Claude' ? 'claude-3-5-sonnet' : 'llama3:8b';
+                            const defaultModel = provider === 'Gemini' ? 'gemini-3.8-flash' : provider === 'OpenAI' ? 'gpt-4o' : provider === 'Claude' ? 'claude-3-5-sonnet' : 'llama3:8b';
                             setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, provider, label, modelId: defaultModel } } : n));
                           }}
                           style={{ width: '100%', padding: '9px', marginTop: '4px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.8rem' }}
@@ -3560,7 +3560,7 @@ const AutomationEditor = () => {
                       <div>
                         <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Model Version / ID</label>
                         <select
-                          value={selectedNode.data.modelId || 'gemini-2.0-flash'}
+                          value={selectedNode.data.modelId || 'gemini-3.8-flash'}
                           onChange={(e) => {
                             const modelId = e.target.value;
                             setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, modelId } } : n));
@@ -3588,10 +3588,9 @@ const AutomationEditor = () => {
                             </>
                           ) : (
                             <>
-                              <option value="gemini-2.0-flash">gemini-2.0-flash (Latest Next Gen & Super Fast)</option>
-                              <option value="gemini-1.5-flash">gemini-1.5-flash (Fast & Stable)</option>
-                              <option value="gemini-2.5-flash">gemini-2.5-flash (Next Gen Reasoning)</option>
-                              <option value="gemini-1.5-pro">gemini-1.5-pro (Complex Analysis)</option>
+                              <option value="gemini-3.8-flash">gemini-3.8-flash (Latest Next Gen & Super Fast)</option>
+                              <option value="gemini-3.5-flash">gemini-3.5-flash (Stable Fallback)</option>
+                              <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview (Complex Analysis)</option>
                             </>
                           )}
                         </select>

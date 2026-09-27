@@ -40,6 +40,7 @@ class ReportDesignerErrorBoundary extends Component {
 
 const TableManager = lazy(() => import('./components/TableManager'));
 const ConnectorManager = lazy(() => import('./components/ConnectorManager'));
+const OdooStudio = lazy(() => import('./components/OdooStudio'));
 const UserManager = lazy(() => import('./components/UserManager'));
 const AppBuilder = lazy(() => import('./components/AppBuilder'));
 const VibeSandpackViewer = lazy(() => import('./components/appbuilder/VibeSandpackViewer'));
@@ -123,8 +124,8 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/download-player" element={<DownloadPlayer />} />
               <Route path="/download" element={<DownloadPlayer />} />
               <Route path="/app-player" element={<GluestackAppPlayer />} />
-              <Route path="/sandbox-runner" element={<SandboxDeviceRunner />} />
-              <Route path="/sandbox-player" element={<SandboxDeviceRunner />} />
+              <Route path="/sandbox-runner" element={<Navigate to="/player" replace />} />
+              <Route path="/sandbox-player" element={<Navigate to="/player" replace />} />
               <Route path="/mobile-player" element={<MandorMobilePlayer />} />
               <Route path="/tulip-player" element={<TulipFrontlinePlayer />} />
               <Route path="/standalone-player" element={<TulipFrontlinePlayer />} />
@@ -170,7 +171,7 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/iot-hub" element={hasAccess('/iot-hub') ? <IoTHubManager /> : <Navigate to="/" replace />} />
               <Route path="/plc-settings" element={hasAccess('/plc-settings') ? <PlcSettings /> : <Navigate to="/" replace />} />
               <Route path="/builder" element={hasAccess('/builder') ? <AppBuilder /> : <Navigate to="/" replace />} />
-              <Route path="/sandbox" element={<VibeSandpackViewer isStandalone={true} />} />
+              <Route path="/sandbox" element={<Navigate to="/builder" replace />} />
               <Route path="/file-explorer" element={hasAccess('/file-explorer') ? <FileExplorer /> : <Navigate to="/" replace />} />
               <Route path="/store" element={hasAccess('/store') ? <AppStore /> : <Navigate to="/" replace />} />
               <Route path="/checksheets" element={<CheckSheetManager />} />
@@ -189,6 +190,9 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/sql-builder" element={<QueryStudio />} />
               <Route path="/query-editor" element={<QueryStudio />} />
               <Route path="/connectors" element={hasAccess('/connectors') ? <ConnectorManager /> : <Navigate to="/" replace />} />
+              <Route path="/odoo" element={<OdooStudio />} />
+              <Route path="/odoo-erp" element={<OdooStudio />} />
+              <Route path="/odoo-studio" element={<OdooStudio />} />
               <Route path="/mcp-server" element={hasAccess('/mcp-server') ? <McpServerManager /> : <Navigate to="/" replace />} />
               <Route path="/variables" element={hasAccess('/variables') ? <VariableManager /> : <Navigate to="/" replace />} />
               <Route path="/analytics" element={hasAccess('/analytics') ? <AnalysisManager /> : <Navigate to="/" replace />} />
@@ -224,8 +228,8 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/download-player" element={<DownloadPlayer />} />
               <Route path="/download" element={<DownloadPlayer />} />
               <Route path="/app-player" element={<GluestackAppPlayer />} />
-              <Route path="/sandbox-runner" element={<SandboxDeviceRunner />} />
-              <Route path="/sandbox-player" element={<SandboxDeviceRunner />} />
+              <Route path="/sandbox-runner" element={<Navigate to="/player" replace />} />
+              <Route path="/sandbox-player" element={<Navigate to="/player" replace />} />
               <Route path="/mobile-player" element={<MandorMobilePlayer />} />
               <Route path="/tulip-player" element={<TulipFrontlinePlayer />} />
               <Route path="/standalone-player" element={<TulipFrontlinePlayer />} />

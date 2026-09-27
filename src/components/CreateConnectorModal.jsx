@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { 
     X, ChevronRight, ChevronDown, Zap, FilePlus 
 } from 'lucide-react';
+import { ERP_PRESETS } from '../utils/connectorHub';
 
 const CreateConnectorModal = ({ isOpen, onClose, onSave }) => {
     const [formData, setFormData] = useState({
@@ -73,7 +74,20 @@ const CreateConnectorModal = ({ isOpen, onClose, onSave }) => {
     };
 
     const handleSave = () => {
-        onSave(formData);
+        let finalData = { ...formData };
+        if (formData.type === 'ODOO') {
+            finalData.functions = ERP_PRESETS.ODOO || [];
+            if (!finalData.serverAddress || finalData.serverAddress === 'api.weather.gov') {
+                finalData.serverAddress = 'http://localhost:8069';
+            }
+            finalData.baseUrl = finalData.serverAddress;
+            finalData.auth = {
+                type: 'BASIC',
+                username: formData.username,
+                password: formData.password
+            };
+        }
+        onSave(finalData);
         onClose();
     };
 
@@ -161,6 +175,13 @@ const CreateConnectorModal = ({ isOpen, onClose, onSave }) => {
                                             <div>
                                                 <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>SQL</div>
                                                 <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Use this to access external databases.</div>
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                                            <input type="radio" checked={formData.type === 'ODOO'} onChange={() => setFormData({...formData, type: 'ODOO', name: 'Odoo ERP Connector', serverAddress: 'http://localhost:8069', databaseName: 'odoo_mes_db'})} />
+                                            <div>
+                                                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#714b67' }}>Odoo ERP</div>
+                                                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Connect to Odoo (v14–v17+) via JSON-RPC for Manufacturing Orders, Work Orders & Stock.</div>
                                             </div>
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
@@ -287,7 +308,7 @@ const CreateConnectorModal = ({ isOpen, onClose, onSave }) => {
                                     <span style={{ fontSize: '0.85rem' }}>Use custom port</span>
                                 </div>
 
-                                {formData.type === 'SQL' && (
+                                {(formData.type === 'SQL' || formData.type === 'ODOO') && (
                                     <>
                                         <div>
                                             <label style={labelStyle}>Database</label>

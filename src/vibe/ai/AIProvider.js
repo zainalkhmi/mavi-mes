@@ -25,12 +25,12 @@ export class AIProvider {
   }
 
   static sanitizeGeminiModel(m) {
-    if (!m) return 'gemini-2.0-flash';
+    if (!m) return 'gemini-3.8-flash';
     let clean = String(m).trim().replace(/^models\//, '');
     if (clean.includes('/')) clean = clean.split('/').pop();
     const lower = clean.toLowerCase();
-    if (lower === 'gemini-flash' || lower === 'gemini' || lower.includes('flash-latest') || lower.includes('gemini-3.') || lower.includes('gemini-2.5')) {
-      return 'gemini-2.0-flash';
+    if (lower === 'gemini-flash' || lower === 'gemini' || lower.includes('flash-latest') || lower.includes('gemini-2.0') || lower.includes('gemini-2.5') || lower.includes('gemini-1.5')) {
+      return 'gemini-3.8-flash';
     }
     return clean;
   }
@@ -47,7 +47,7 @@ export class AIProvider {
       const overrideSettings = overrideConnector?.aiSettings || overrideConnector?.config || overrideConnector || {};
       const effectiveApiKey = overrideSettings.apiKey || primarySettings.apiKey;
       const prov = overrideSettings.provider || primarySettings.provider || 'gemini';
-      let rawModel = overrideSettings.modelId || primarySettings.modelId || 'gemini-2.0-flash';
+      let rawModel = overrideSettings.modelId || primarySettings.modelId || 'gemini-3.8-flash';
       if (this.normalizeProvider(prov) === 'gemini') {
         rawModel = this.sanitizeGeminiModel(rawModel);
       }
@@ -94,9 +94,12 @@ export class AIProvider {
 
       const candidateModels = [
         primaryModel,
-        'gemini-2.0-flash',
-        'gemini-1.5-flash',
-        'gemini-1.5-pro'
+        'gemini-3.6-flash',
+        'gemini-3.5-flash',
+        'gemini-flash-latest',
+        'gemini-3.8-flash',
+        'gemini-3.5-flash-lite',
+        'gemini-3.1-flash-lite'
       ].filter(Boolean).filter((m, idx, arr) => arr.indexOf(m) === idx);
 
       const systemMsg = messages.find(m => m.role === 'system');
@@ -131,113 +134,104 @@ export class AIProvider {
         const currentModel = candidateModels[i];
         if (failedModels.has(currentModel)) continue;
 
-        // Try v1beta first, then v1
-        const versionsToTry = ['v1beta', 'v1'];
+        // Gemini 3.x models are served on v1beta
+        const versionsToTry = ['v1beta'];
 
         versionLoop:
         for (const apiVer of versionsToTry) {
           const url = `https://generativelanguage.googleapis.com/${apiVer}/models/${currentModel}:streamGenerateContent?key=${apiKey}&alt=sse`;
 
-          // Allow up to 2 retry attempts for 503 high-demand temporary spikes
-          let retryCount = 0;
-          const maxRetries = 2;
+          try {
+            response = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
 
-          while (retryCount <= maxRetries) {
-            try {
-              response = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-              });
+            if (response.ok) {
+              console.log(`[AIProvider] ✅ Successfully streaming from Gemini model: "${currentModel}" (${apiVer})`);
+              break modelLoop;
+            }
 
-              if (response.ok) {
-                break modelLoop;
-              }
+            const errJson = await response.json().catch(() => ({}));
+            const errMsg = errJson.error?.message || `Gemini API error (${response.status})`;
+            const err = new Error(errMsg);
+            lastError = err;
 
-              const errJson = await response.json().catch(() => ({}));
-              const errMsg = errJson.error?.message || `Gemini API error (${response.status})`;
-              const err = new Error(errMsg);
-              lastError = err;
+            // Mark this model as failed so we don't retry it in this request
+            failedModels.add(currentModel);
 
-              // Check if 503 temporary demand spike (Google explicitly advises retrying later)
-              const is503HighDemand = response.status === 503 ||
-                                      errMsg.toLowerCase().includes('high demand') ||
-                                      errMsg.toLowerCase().includes('spikes in demand') ||
-                                      errMsg.toLowerCase().includes('capacity') ||
-                                      errMsg.toLowerCase().includes('overloaded');
+            // Check if 503 high demand spike -> immediately pivot to next candidate model
+            const is503HighDemand = response.status === 503 ||
+                                    errMsg.toLowerCase().includes('high demand') ||
+                                    errMsg.toLowerCase().includes('spikes in demand') ||
+                                    errMsg.toLowerCase().includes('capacity') ||
+                                    errMsg.toLowerCase().includes('overloaded');
 
-              if (is503HighDemand && retryCount < maxRetries) {
-                retryCount++;
-                const delayMs = 2000 * retryCount;
-                console.warn(`[AIProvider] Gemini model "${currentModel}" experienced 503 high demand. Retrying in ${delayMs}ms (attempt ${retryCount}/${maxRetries})...`);
-                await new Promise(r => setTimeout(r, delayMs));
-                continue; // retry fetch
-              }
-
-              // Check if 429 Quota Exceeded (Resource Exhausted) -> switch immediately to backup model
-              const isQuotaExceeded = response.status === 429 ||
-                                      errMsg.toLowerCase().includes('quota') ||
-                                      errMsg.toLowerCase().includes('resource_exhausted') ||
-                                      errMsg.toLowerCase().includes('rate limit');
-
-              if (isQuotaExceeded) {
-                failedModels.add(currentModel);
-                console.warn(`[AIProvider] Gemini model "${currentModel}" quota reached (${response.status}: ${errMsg}). Switching to backup model...`);
-                break versionLoop;
-              }
-
-              // Permanent model deprecation / 404
-              const isUnavailable = response.status === 404 ||
-                                    errMsg.toLowerCase().includes('not found') ||
-                                    errMsg.toLowerCase().includes('no longer available') ||
-                                    errMsg.toLowerCase().includes('not supported');
-
-              if (isUnavailable) {
-                failedModels.add(currentModel);
-              }
-
-              // Auto extract replacement model suggested by Google error if any
-              const matches = [...errMsg.matchAll(/models\/([a-zA-Z0-9.-]+)/g)].map(x => x[1]);
-              for (const rec of matches) {
-                if (rec && !candidateModels.includes(rec) && !failedModels.has(rec) && !rec.includes('tts') && !rec.includes('audio')) {
-                  candidateModels.splice(i + 1, 0, rec);
-                }
-              }
-
-              // Dynamic model listing fallback if model not found or not supported
-              if (!hasFetchedAvailableModels && isUnavailable) {
-                hasFetchedAvailableModels = true;
-                try {
-                  const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-                  if (listRes.ok) {
-                    const listData = await listRes.json();
-                    const live = (listData.models || [])
-                      .filter(m => {
-                        const name = (m.name || '').toLowerCase();
-                        if (name.includes('tts') || name.includes('audio') || name.includes('embedding') || name.includes('imagen') || name.includes('image-generation') || name.includes('aqa') || name.includes('robotics')) {
-                          return false;
-                        }
-                        return Array.isArray(m.supportedGenerationMethods) && (
-                          m.supportedGenerationMethods.includes('streamGenerateContent') ||
-                          m.supportedGenerationMethods.includes('generateContent')
-                        );
-                      })
-                      .map(m => m.name.replace(/^models\//, ''));
-                    for (const m of live) {
-                      if (!candidateModels.includes(m) && !failedModels.has(m)) candidateModels.push(m);
-                    }
-                  }
-                } catch {
-                  /* silent fallback */
-                }
-              }
-
-              console.warn(`[AIProvider] Gemini model "${currentModel}" failed with ${response.status} (${errMsg}). Switching to backup model...`);
-              break versionLoop;
-            } catch (netErr) {
-              lastError = netErr;
+            if (is503HighDemand) {
+              console.warn(`[AIProvider] Gemini model "${currentModel}" is busy (503 high demand). Instantly switching to backup model...`);
               break versionLoop;
             }
+
+            // Check if 429 Quota Exceeded -> switch immediately
+            const isQuotaExceeded = response.status === 429 ||
+                                    errMsg.toLowerCase().includes('quota') ||
+                                    errMsg.toLowerCase().includes('resource_exhausted') ||
+                                    errMsg.toLowerCase().includes('rate limit');
+
+            if (isQuotaExceeded) {
+              console.warn(`[AIProvider] Gemini model "${currentModel}" quota reached (${response.status}). Switching to backup model...`);
+              break versionLoop;
+            }
+
+            // Permanent model deprecation / 404
+            const isUnavailable = response.status === 404 ||
+                                  errMsg.toLowerCase().includes('not found') ||
+                                  errMsg.toLowerCase().includes('no longer available') ||
+                                  errMsg.toLowerCase().includes('not supported');
+
+            // Auto extract replacement model suggested by Google error if any
+            const matches = [...errMsg.matchAll(/models\/([a-zA-Z0-9.-]+)/g)].map(x => x[1]);
+            for (const rec of matches) {
+              if (rec && !candidateModels.includes(rec) && !failedModels.has(rec) && !rec.includes('tts') && !rec.includes('audio')) {
+                candidateModels.splice(i + 1, 0, rec);
+              }
+            }
+
+            // Dynamic model listing fallback if model not found or not supported
+            if (!hasFetchedAvailableModels && isUnavailable) {
+              hasFetchedAvailableModels = true;
+              try {
+                const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+                if (listRes.ok) {
+                  const listData = await listRes.json();
+                  const live = (listData.models || [])
+                    .filter(m => {
+                      const name = (m.name || '').toLowerCase();
+                      if (name.includes('tts') || name.includes('audio') || name.includes('embedding') || name.includes('imagen') || name.includes('image-generation') || name.includes('aqa') || name.includes('robotics')) {
+                        return false;
+                      }
+                      return Array.isArray(m.supportedGenerationMethods) && (
+                        m.supportedGenerationMethods.includes('streamGenerateContent') ||
+                        m.supportedGenerationMethods.includes('generateContent')
+                      );
+                    })
+                    .map(m => m.name.replace(/^models\//, ''));
+                  for (const m of live) {
+                    if (!candidateModels.includes(m) && !failedModels.has(m)) candidateModels.push(m);
+                  }
+                }
+              } catch {
+                /* silent fallback */
+              }
+            }
+
+            console.warn(`[AIProvider] Gemini model "${currentModel}" failed with ${response.status} (${errMsg}). Switching to backup model...`);
+            break versionLoop;
+          } catch (netErr) {
+            lastError = netErr;
+            failedModels.add(currentModel);
+            break versionLoop;
           }
         }
       }

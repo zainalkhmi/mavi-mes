@@ -193,7 +193,7 @@ export const WORKFLOW_TEMPLATES = [
         difficulty: 'Advanced',
         nodes: [
             { type: 'event', data: { triggerType: 'WEBHOOK', label: 'Image Received' } },
-            { type: 'ai_agent', data: { label: 'AI Analysis', model: 'gemini-1.5-pro' } },
+            { type: 'ai_agent', data: { label: 'AI Analysis', model: 'gemini-3.8-flash' } },
             { type: 'decision', data: { label: 'Pass/Fail?' } },
             { type: 'action', data: { type: 'TELEGRAM', label: 'Notify' } }
         ],

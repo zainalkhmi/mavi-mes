@@ -683,7 +683,7 @@ class AutomationEngine {
           const primarySettings = primaryConn?.aiSettings || primaryConn?.config || {};
 
           const provider = modelNode?.data?.provider || currentNode.data?.provider || primarySettings.provider || 'Gemini';
-          const modelId = modelNode?.data?.modelId || currentNode.data?.modelId || primarySettings.modelId || (provider === 'Gemini' ? 'gemini-1.5-pro' : provider === 'OpenAI' ? 'gpt-4o' : provider === 'Claude' ? 'claude-3-5-sonnet' : 'llama3:8b');
+          const modelId = modelNode?.data?.modelId || currentNode.data?.modelId || primarySettings.modelId || (provider === 'Gemini' ? 'gemini-3.8-flash' : provider === 'OpenAI' ? 'gpt-4o' : provider === 'Claude' ? 'claude-3-5-sonnet' : 'llama3:8b');
           const apiKey = modelNode?.data?.apiKey || currentNode.data?.apiKey || primarySettings.apiKey;
           const baseUrl = modelNode?.data?.baseUrl || currentNode.data?.baseUrl || primarySettings.baseUrl;
 

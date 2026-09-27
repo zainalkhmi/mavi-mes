@@ -104,37 +104,6 @@ const FileExplorer = () => {
       ];
     }
 
-    if (bType === BUILDER_TYPES.SANDBOX) {
-      return [
-        {
-          label: 'Edit di Sandbox Vibe',
-          icon: <Edit3 size={15} />,
-          url: `/sandbox?appId=${app.id}`,
-          bg: '#fffbeb',
-          border: '#fde68a',
-          color: '#d97706',
-          hoverBg: '#fef3c7'
-        },
-        {
-          label: 'Jalankan (Sandbox Runner)',
-          icon: <Play size={15} />,
-          url: `/sandbox-runner?appId=${app.id}&mode=companion`,
-          bg: '#ecfeff',
-          border: '#a5f3fc',
-          color: '#0891b2',
-          hoverBg: '#cffafe'
-        },
-        {
-          label: 'Buka di Live Real Device (HP)',
-          icon: <Smartphone size={15} />,
-          url: `/sandbox-runner?appId=${app.id}&mode=companion`,
-          bg: '#f8fafc',
-          border: '#cbd5e1',
-          color: '#475569',
-          hoverBg: '#e2e8f0'
-        }
-      ];
-    }
 
     // Default: Mavi Builder (app_builder / PC)
     return [
