@@ -50,6 +50,7 @@ const TulipFrontlinePlayer = lazy(() => import('./components/player/TulipFrontli
 const MandorMobilePlayer = lazy(() => import('./components/MandorMobilePlayer'));
 const DozukiMobileCheckSheet = lazy(() => import('./components/DozukiMobileCheckSheet'));
 const WorkflowEditor = lazy(() => import('./components/WorkflowEditor'));
+const AutomationEditor = lazy(() => import('./components/AutomationEditor'));
 const AutomationDashboard = lazy(() => import('./components/AutomationDashboard'));
 const ExecutionMonitor = lazy(() => import('./components/ExecutionMonitor'));
 const CredentialManager = lazy(() => import('./components/CredentialManager'));
@@ -211,7 +212,9 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/users" element={hasAccess('/users') ? <UserManager /> : <Navigate to="/" replace />} />
               <Route path="/apps/data-entry-form-example" element={<DataEntryFormGuide />} />
               <Route path="/automations" element={hasAccess('/automations') ? <AutomationDashboard /> : <Navigate to="/" replace />} />
-              <Route path="/automations/editor" element={hasAccess('/automations') ? <WorkflowEditor /> : <Navigate to="/" replace />} />
+              <Route path="/automations/editor" element={hasAccess('/automations') ? <AutomationEditor /> : <Navigate to="/" replace />} />
+              <Route path="/automations/workflow" element={hasAccess('/automations') ? <WorkflowEditor /> : <Navigate to="/" replace />} />
+              <Route path="/automations/n8n" element={hasAccess('/automations') ? <WorkflowEditor /> : <Navigate to="/" replace />} />
               <Route path="/automations/monitor" element={hasAccess('/automations') ? <ExecutionMonitor /> : <Navigate to="/" replace />} />
               <Route path="/automations/credentials" element={hasAccess('/automations') ? <CredentialManager /> : <Navigate to="/" replace />} />
               <Route path="/automations/templates" element={hasAccess('/automations') ? <TemplateGallery /> : <Navigate to="/" replace />} />

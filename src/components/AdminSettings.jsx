@@ -31,7 +31,7 @@ const WIDGET_TITLES = {
   SELECT_PICKER: "Dropdown Select",
   WIDGET_CONTAINER: "Widget Container",
   INTERACTIVE_TABLE: "Interactive Table",
-  TULIP_TABLE: "Tulip DB Table",
+  TULIP_TABLE: "Common Data Table",
   CSV_UPLOADER: "CSV File Uploader",
   EXPORT_BUTTON: "Data Export Button",
   IMAGE: "Image Box",

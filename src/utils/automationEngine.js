@@ -1,6 +1,7 @@
 import { addTableRecord, updateTableRecord, getPrimaryAiConnector } from './database';
 import obd2Service from './obd2Service';
 import * as aiService from './aiService';
+import { workflowRealtimeManager } from './workflowEngineCore';
 
 /**
  * Automation Engine
@@ -234,13 +235,22 @@ class AutomationEngine {
         active: true
       }));
 
-      const legacyAutos = autos.map(auto => {
-        if (auto.published) return { ...auto.published, type: 'legacy', id: auto.id, name: auto.name };
-        if (auto.nodes) return { ...auto, type: 'legacy' };
-        return null;
-      }).filter(Boolean);
+      // Also load workflows created via WorkflowEditor
+      const savedActiveWfs = localStorage.getItem('mes_active_workflows');
+      const activeWfs = savedActiveWfs ? JSON.parse(savedActiveWfs) : [];
+      const mappedActiveWfs = activeWfs.map(w => {
+        const graph = w.graph_data || w.graphData || {};
+        return {
+          id: w.id,
+          name: w.name,
+          nodes: graph.nodes || w.nodes || [],
+          edges: graph.edges || w.edges || [],
+          active: true,
+          type: 'n8n_native'
+        };
+      });
 
-      return [...legacyAutos, ...mappedFns];
+      return [...legacyAutos, ...mappedFns, ...mappedActiveWfs];
     } catch (e) {
       console.error('Failed to load automations:', e);
       return [];
@@ -302,6 +312,15 @@ class AutomationEngine {
         console.error('[AutomationEngine] Listener error:', err);
       }
     });
+
+    // Also notify WorkflowRealtimeManager for N8N / MES workflows
+    try {
+      if (workflowRealtimeManager && typeof workflowRealtimeManager.handleIncomingAppEvent === 'function') {
+        workflowRealtimeManager.handleIncomingAppEvent(eventType, eventData);
+      }
+    } catch (rtErr) {
+      console.warn('[AutomationEngine] workflowRealtimeManager dispatch error:', rtErr);
+    }
 
     const relevantAutomations = this.automations.filter(auto => {
       if (!auto.active && auto.type !== 'function') return false;

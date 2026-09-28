@@ -162,7 +162,7 @@ export const rawTemplates = [
                 { event: 'ON_STATUS_DOWN', function: 'Navigates to Downtime Reason step and prompts operator for root cause selection.' },
                 { event: 'ON_NO_TARGET_STATUS', function: 'Suppresses target increments during OFF / BREAK periods.' }
             ],
-            mechanism: 'Employs Tulip Common Data Model for discrete machine tracking and shop floor yield visibility.',
+            mechanism: 'Employs MANDOR Common Data Model for discrete machine tracking and shop floor yield visibility.',
             steps: [
                 { name: 'Select Product & Takt Calculator', description: 'Input Order ID, operation duration, and target demand.' },
                 { name: 'Main Production & Status Logging', description: 'Log good/defective parts and switch machine operating states.' },
@@ -173,10 +173,10 @@ export const rawTemplates = [
     },
     {
         id: 'production-plant-dashboard',
-        name: 'Tulip Production Plant Dashboard & Cell Tracker',
+        name: 'Production Plant Dashboard & Cell Tracker',
         category: 'MES Production Suite',
-        description: 'Complete Tulip-style plant production dashboard with 6-cell status tracking (Complete, Target, Defects), 4 Top KPIs, Cell Loading, Downtime Pareto analytics, Orders by Status, and WIP inventory tracking with live shopfloor input form.',
-        longDescription: 'Comprehensive Tulip-style production plant operational dashboard and frontline terminal. Visualizes real-time performance across production cells (Rotor, Endbell, Housing, Motor Assembly, Final Inspection, Shipping), orders due today, backlog, and Pareto downtime analytics with an integrated Shopfloor Data Entry mode.',
+        description: 'Complete plant production dashboard with 6-cell status tracking (Complete, Target, Defects), 4 Top KPIs, Cell Loading, Downtime Pareto analytics, Orders by Status, and WIP inventory tracking with live shopfloor input form.',
+        longDescription: 'Comprehensive production plant operational dashboard and frontline terminal. Visualizes real-time performance across production cells (Rotor, Endbell, Housing, Motor Assembly, Final Inspection, Shipping), orders due today, backlog, and Pareto downtime analytics with an integrated Shopfloor Data Entry mode.',
         icon: <BarChart3 size={28} color="#3b82f6" />,
         bg: 'linear-gradient(135deg, #0a0f1d 0%, #1e293b 100%)',
         accent: '#38bdf8',
@@ -202,7 +202,7 @@ export const rawTemplates = [
             triggers: [
                 { event: 'ON_CELL_LOG_SUBMIT', function: 'Updates cell completion and recalculates overall target attainment.' },
                 { event: 'ON_DOWNTIME_LOGGED', function: 'Re-sorts Pareto downtime rankings and recalculates cumulative curve.' },
-                { event: 'ON_RESET_PRESET', function: 'Restores Tulip benchmark reference demo values.' }
+                { event: 'ON_RESET_PRESET', function: 'Restores benchmark reference demo values.' }
             ],
             mechanism: 'Composes frontline telemetry, station logs, and ERP order tracking into an executive and shopfloor andon dashboard.',
             steps: [
@@ -213,7 +213,7 @@ export const rawTemplates = [
     },
     {
         id: 'skill-manager',
-        name: 'Skill Manager (Tulip Standard)',
+        name: 'Skill Manager (Industry Standard)',
         category: 'MES Production Suite',
         description: 'Track, update, and assign operator skills on the shop floor with an interactive Skill Matrix heatmap, skill definition management, and automated matrix generation.',
         longDescription: 'The Skill Manager application enables supervisors to track, update, and assign operator skills on the shop floor. Features an interactive Skill Matrix heatmap with cell inspection, instant proficiency adjustment (Beginner, Intermediate, Advanced, Expert), skill definition archiving, and batch generation of matrix records for operators and stations/products.',

@@ -61,6 +61,11 @@ import { getPrimaryAiConnector } from '../utils/database';
 import { getChatCompletion } from '../utils/aiService';
 import { getAllUsers, saveUser } from '../utils/auth';
 import { addTableRecord } from '../utils/supabaseTablesDB';
+import {
+  executeWorkflowGraph,
+  executeSingleNode,
+  workflowRealtimeManager
+} from '../utils/workflowEngineCore';
 
 // ─── SVG LOGOS FOR N8N NODES ───
 const SlackLogo = () => (
@@ -1185,6 +1190,8 @@ export const WorkflowEditorContent = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isRunning, setIsRunning] = useState(false);
   const [showRunModal, setShowRunModal] = useState(false);
+  const [isWorkflowActive, setIsWorkflowActive] = useState(true);
+  const [showEventSimModal, setShowEventSimModal] = useState(false);
   const [runPayload, setRunPayload] = useState({
     name: 'Budi Santoso',
     username: 'bsantoso',
@@ -1194,9 +1201,7 @@ export const WorkflowEditorContent = () => {
     slackWebhookUrl: ''
   });
   const [executionLogs, setExecutionLogs] = useState([
-    { id: '1', timestamp: new Date().toLocaleTimeString(), node: 'On Create User', status: 'SUCCESS', details: 'Form received from MES Shopfloor' },
-    { id: '2', timestamp: new Date().toLocaleTimeString(), node: 'AI Agent', status: 'SUCCESS', details: 'Claude 3.5 processed role prompt' },
-    { id: '3', timestamp: new Date().toLocaleTimeString(), node: 'Slack Action', status: 'SUCCESS', details: 'Notification posted to #management' }
+    { id: '1', timestamp: new Date().toLocaleTimeString(), node: 'Workflow Engine', status: 'SUCCESS', details: 'Engine siap & mendengarkan trigger real-time MES' }
   ]);
   const reactFlow = useReactFlow();
 
@@ -1214,7 +1219,7 @@ export const WorkflowEditorContent = () => {
     fetchWorkflows();
   }, [fetchWorkflows]);
 
-  // ─── SAVE WORKFLOW TO SUPABASE DATABASE ────────────────────────
+  // ─── SAVE WORKFLOW TO SUPABASE DATABASE & REAL-TIME ENGINE ─────────
   const handleSaveWorkflow = async () => {
     setIsSaving(true);
     const saveToastId = toast.loading('Menyimpan alur kerja ke database MES...', { id: 'save_wf' });
@@ -1224,7 +1229,7 @@ export const WorkflowEditorContent = () => {
         description: `Dibuat di Mandor MES Studio pada ${new Date().toLocaleDateString()}`,
         graphData: { nodes, edges },
         triggerConfig: { count: nodes.filter(n => n.type === 'n8n_trigger').length },
-        isActive: true
+        isActive: isWorkflowActive
       };
 
       let result;
@@ -1235,15 +1240,35 @@ export const WorkflowEditorContent = () => {
         if (result?.id) setWorkflowId(result.id);
       }
 
+      const activeId = workflowId || result?.id || `wf_${Date.now()}`;
+      // Register with app-wide real-time engine
+      workflowRealtimeManager.saveActiveWorkflow({
+        id: activeId,
+        name: workflowName,
+        graph_data: { nodes, edges },
+        graphData: { nodes, edges },
+        is_active: isWorkflowActive,
+        isActive: isWorkflowActive
+      });
+
       setLastSavedTime(new Date().toLocaleTimeString());
       await fetchWorkflows();
-      toast.success(`Workflow "${workflowName}" berhasil disimpan!`, { id: 'save_wf', icon: '💾' });
+      toast.success(`Workflow "${workflowName}" tersimpan & Aktif Real-Time!`, { id: 'save_wf', icon: '💾' });
     } catch (err) {
       console.error('Failed to save workflow:', err);
       // Fallback local persistence
-      localStorage.setItem(`mes_wf_${Date.now()}`, JSON.stringify({ name: workflowName, nodes, edges }));
+      const localId = workflowId || `mes_wf_${Date.now()}`;
+      workflowRealtimeManager.saveActiveWorkflow({
+        id: localId,
+        name: workflowName,
+        graph_data: { nodes, edges },
+        graphData: { nodes, edges },
+        is_active: isWorkflowActive,
+        isActive: isWorkflowActive
+      });
+      localStorage.setItem(localId, JSON.stringify({ name: workflowName, nodes, edges }));
       setLastSavedTime(new Date().toLocaleTimeString());
-      toast.success(`Workflow "${workflowName}" tersimpan (Lokal)!`, { id: 'save_wf', icon: '💾' });
+      toast.success(`Workflow "${workflowName}" tersimpan & Aktif Real-Time (Lokal)!`, { id: 'save_wf', icon: '💾' });
     } finally {
       setIsSaving(false);
     }
@@ -1426,357 +1451,197 @@ export const WorkflowEditorContent = () => {
   }, [nodes, setNodes]);
 
   // =====================================================
-  // REAL WORKFLOW EXECUTION ENGINE (INTEGRATED TO MAVI MES)
+  // REAL WORKFLOW EXECUTION ENGINE (GRAPH-BASED & REAL-TIME)
   // =====================================================
-  const executeRealWorkflow = async (userData = runPayload) => {
+  const executeRealWorkflow = async (customPayload = null) => {
     if (isRunning) return;
     setIsRunning(true);
     setShowConsole(true);
     setShowRunModal(false);
-    toast.loading(`Menjalankan alur integrasi: ${userData.name}...`, { id: 'real_engine_run' });
+
+    // Identify primary trigger on canvas
+    const triggerNode = nodes.find(n => n.type === 'n8n_trigger') || nodes[0];
+    const mesType = triggerNode?.data?.mesType || '';
+
+    let effectivePayload = customPayload;
+    if (!effectivePayload) {
+      if (mesType === 'table_trigger_create' || mesType === 'table_trigger_update') {
+        const targetTbl = triggerNode?.data?.parameters?.tableName || 'work_orders';
+        effectivePayload = {
+          event: mesType === 'table_trigger_create' ? 'TABLE_ROW_ADDED' : 'TABLE_ROW_UPDATED',
+          tableName: targetTbl,
+          recordId: `WO_${Date.now().toString().slice(-4)}`,
+          order_number: `WO-2026-${Date.now().toString().slice(-3)}`,
+          part_name: 'Flange Machined Part A',
+          qty: 250,
+          status: 'IN_PROCESS',
+          operator: runPayload.name || 'Budi Santoso',
+          timestamp: new Date().toISOString()
+        };
+      } else if (mesType === 'machine_trigger_status') {
+        effectivePayload = {
+          event: 'MACHINE_STATUS_CHANGE',
+          machineId: triggerNode?.data?.parameters?.machineId || 'CNC-01',
+          status: triggerNode?.data?.parameters?.triggerStatus || 'FAULT',
+          spindleRpm: 0,
+          temperatureC: 86.4,
+          vibrationMmS: 5.8,
+          timestamp: new Date().toISOString()
+        };
+      } else if (mesType === 'machine_trigger_threshold') {
+        effectivePayload = {
+          event: 'SENSOR_THRESHOLD_EXCEEDED',
+          machineId: triggerNode?.data?.parameters?.machineId || 'CNC-01',
+          metric: triggerNode?.data?.parameters?.metric || 'TEMP',
+          measuredValue: 88.5,
+          threshold: triggerNode?.data?.parameters?.threshold || '> 80',
+          unit: '°C',
+          timestamp: new Date().toISOString()
+        };
+      } else if (mesType === 'qc_defect') {
+        effectivePayload = {
+          event: 'QC_DEFECT_SUBMITTED',
+          checksheet: triggerNode?.data?.parameters?.checksheet || 'Flange-QC',
+          defectCategory: triggerNode?.data?.parameters?.defectCategory || 'Burr, Dimension NG',
+          defectCode: 'DEF-DIM-01',
+          partId: 'PART-4892',
+          inspector: runPayload.name || 'Siti Rahma',
+          timestamp: new Date().toISOString()
+        };
+      } else if (mesType === 'caliper_reading') {
+        effectivePayload = {
+          event: 'CALIPER_READING_RECEIVED',
+          readingMm: 45.035,
+          nominal: 45.000,
+          unit: 'mm',
+          timestamp: new Date().toISOString()
+        };
+      } else {
+        effectivePayload = {
+          ...runPayload,
+          event: 'MANUAL_EXECUTION_TRIGGER',
+          timestamp: new Date().toISOString()
+        };
+      }
+    }
+
+    toast.loading(`Menjalankan alur kerja "${workflowName}"...`, { id: 'real_engine_run' });
 
     // 1. Reset all visual states
     setNodes(nds => nds.map(n => ({
       ...n,
-      data: { ...n.data, _executing: false, _success: false, _skipped: false }
+      data: { ...n.data, _executing: false, _success: false, _skipped: false, _error: false }
     })));
     setEdges(eds => eds.map(e => ({
       ...e,
-      style: { stroke: '#8b8b99', strokeWidth: 2, strokeDasharray: e.style?.strokeDasharray }
+      animated: false,
+      style: { stroke: '#8b8b99', strokeWidth: 2 }
     })));
 
-    const now = () => new Date().toLocaleTimeString();
-    const addLog = (nodeName, status, details) => {
-      setExecutionLogs(prev => [{
-        id: String(Date.now() + Math.random()),
-        timestamp: now(),
-        node: nodeName,
-        status,
-        details
-      }, ...prev]);
-    };
-
     try {
-      // ─── STEP 1: TRIGGER NODE (On 'Create User' form submission) ───
-      setNodes(nds => nds.map(n => n.id === 'node-trigger' ? { ...n, data: { ...n.data, _executing: true } } : n));
-      await new Promise(r => setTimeout(r, 400));
-      
-      const triggerPayload = {
-        event: 'CREATE_USER_FORM_SUBMISSION',
-        source: 'MAVI_MES_FRONTEND',
-        timestamp: new Date().toISOString(),
-        user: { ...userData }
-      };
-      setNodes(nds => nds.map(n => n.id === 'node-trigger' ? { ...n, data: { ...n.data, _executing: false, _success: true, lastOutput: triggerPayload } } : n));
-      addLog("Trigger (Form Submission)", "SUCCESS", `Form 'Create User' diterima: ${userData.name} (${userData.role}) - Dept: ${userData.department}`);
-      setEdges(eds => eds.map(e => e.id === 'e-trigger-agent' ? { ...e, style: { stroke: '#22c55e', strokeWidth: 2.5 } } : e));
-
-      // ─── STEP 2: SUB-NODES (AI Model, Postgres Memory, Entra ID, Jira) ───
-      const subNodes = [
-        { id: 'sub-anthropic', name: 'Anthropic AI Model', desc: 'AI Copilot Provider diinisialisasi via AI Settings.' },
-        { id: 'sub-postgres', name: 'Postgres Chat Memory', desc: 'Sesi operator & cache wewenang pengguna disinkronkan.' },
-        { id: 'sub-entra', name: 'Microsoft Entra ID', desc: 'Mapping tenant user directory & security group departemen.' },
-        { id: 'sub-jira', name: 'Jira Software', desc: 'Board penugasan & tiket onboarding teknisi disiapkan.' }
-      ];
-      for (const sn of subNodes) {
-        setNodes(nds => nds.map(n => n.id === sn.id ? { ...n, data: { ...n.data, _executing: true } } : n));
-        await new Promise(r => setTimeout(r, 200));
-        setNodes(nds => nds.map(n => n.id === sn.id ? { ...n, data: { ...n.data, _executing: false, _success: true, lastOutput: { status: 'OK', target: sn.name, timestamp: new Date().toISOString() } } } : n));
-        addLog(sn.name, "SUCCESS", sn.desc);
-      }
-
-      // ─── STEP 3: AI AGENT REASONING ───
-      setNodes(nds => nds.map(n => n.id === 'node-agent' ? { ...n, data: { ...n.data, _executing: true } } : n));
-      
-      const isManagerRole = Boolean(
-        ['manager', 'admin', 'supervisor', 'head', 'director', 'lead', 'chief'].some(r =>
-          (userData.role || '').toLowerCase().includes(r)
-        )
-      );
-
-      let aiDecision = null;
-      try {
-        const primaryConn = await getPrimaryAiConnector();
-        const agentPrompt = nodes.find(n => n.id === 'node-agent')?.data?.parameters?.prompt ||
-          'Process user onboarding and determine department privileges.';
-
-        if (primaryConn?.aiSettings?.apiKey) {
-          const messages = [
-            {
-              role: 'system',
-              content: `You are MAVI MES AI Agent Copilot. ${agentPrompt}. Respond ONLY in valid JSON matching this schema:
-              {
-                "isManager": boolean,
-                "roleCategory": "Manager" | "Operator",
-                "privileges": string[],
-                "departmentAssigned": string,
-                "reasoning": string
-              }`
-            },
-            {
-              role: 'user',
-              content: `New User: Name: ${userData.name}, Role: ${userData.role}, Department: ${userData.department}, Email: ${userData.email}`
+      const result = await executeWorkflowGraph({
+        nodes,
+        edges,
+        initialPayload: effectivePayload,
+        stepDelayMs: 400,
+        onStepProgress: ({ nodeId, status, nodeLabel, output, isDecision, decisionBranch, log }) => {
+          if (status === 'executing') {
+            setNodes(nds => nds.map(n => n.id === nodeId ? { ...n, data: { ...n.data, _executing: true, _success: false, _skipped: false, _error: false } } : n));
+            setEdges(eds => eds.map(e => e.target === nodeId ? { ...e, animated: true, style: { stroke: '#38bdf8', strokeWidth: 3 } } : e));
+          } else if (status === 'success') {
+            setNodes(nds => nds.map(n => n.id === nodeId ? { ...n, data: { ...n.data, _executing: false, _success: true, lastOutput: output } } : n));
+            
+            if (isDecision) {
+              const activeHandle = decisionBranch;
+              setEdges(eds => eds.map(e => {
+                if (e.source === nodeId) {
+                  if (e.sourceHandle === activeHandle || (!e.sourceHandle && activeHandle === 'true')) {
+                    return { ...e, animated: true, style: { stroke: '#22c55e', strokeWidth: 3 } };
+                  } else {
+                    return { ...e, animated: false, style: { stroke: '#2e2e38', strokeWidth: 1.5, strokeDasharray: '4,4' } };
+                  }
+                }
+                return e;
+              }));
             }
-          ];
-          const rawAi = await getChatCompletion(messages, primaryConn);
-          const jsonMatch = rawAi?.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            aiDecision = JSON.parse(jsonMatch[0]);
+          } else if (status === 'skipped') {
+            setNodes(nds => nds.map(n => n.id === nodeId ? { ...n, data: { ...n.data, _executing: false, _skipped: true } } : n));
+          } else if (status === 'error') {
+            setNodes(nds => nds.map(n => n.id === nodeId ? { ...n, data: { ...n.data, _executing: false, _error: true, lastOutput: output } } : n));
+          }
+
+          if (log) {
+            setExecutionLogs(prev => [log, ...prev]);
           }
         }
-      } catch (err) {
-        console.warn('[WorkflowEngine] AI Call fallback to heuristic:', err);
-      }
+      });
 
-      if (!aiDecision) {
-        aiDecision = {
-          isManager: isManagerRole,
-          roleCategory: isManagerRole ? 'Manager' : 'Operator',
-          privileges: isManagerRole
-            ? ['dashboard_all', 'approve_workorders', 'user_management', 'export_reports', 'scada_control']
-            : ['station_hmi', 'view_workorders', 'log_inspection'],
-          departmentAssigned: userData.department || 'Production Line 1',
-          approvalStatus: 'AUTO_APPROVED',
-          reasoning: `AI Agent mengevaluasi wewenang untuk "${userData.name}" (${userData.role}). Diberikan akses ${isManagerRole ? 'Tingkat Manajerial & Approval' : 'Operator Stasiun Frontline'}.`
-        };
-      }
-
-      await new Promise(r => setTimeout(r, 500));
-      setNodes(nds => nds.map(n => n.id === 'node-agent' ? { ...n, data: { ...n.data, _executing: false, _success: true, lastOutput: aiDecision } } : n));
-      addLog("AI Agent Reasoning", "SUCCESS", `Hasil Evaluasi: ${aiDecision.reasoning}`);
-      setEdges(eds => eds.map(e => e.id === 'e-agent-decision' ? { ...e, style: { stroke: '#22c55e', strokeWidth: 2.5 } } : e));
-
-      // ─── STEP 4: DECISION NODE (Is a manager?) ───
-      setNodes(nds => nds.map(n => n.id === 'node-decision' ? { ...n, data: { ...n.data, _executing: true } } : n));
-      await new Promise(r => setTimeout(r, 400));
-      
-      const isManager = Boolean(aiDecision.isManager ?? isManagerRole);
-      const decisionOutput = {
-        rule: 'role.toLowerCase().includes("manager")',
-        evaluatedRole: userData.role,
-        isManager,
-        branchSelected: isManager ? 'true' : 'false'
-      };
-
-      setNodes(nds => nds.map(n => n.id === 'node-decision' ? { ...n, data: { ...n.data, _executing: false, _success: true, lastOutput: decisionOutput } } : n));
-      addLog("Decision (Is a manager?)", "SUCCESS", `Evaluasi Aturan: Hasil = ${isManager ? 'TRUE (Cabang Manajer Terpilih)' : 'FALSE (Cabang Non-Manajer / Operator Terpilih)'}`);
-
-      // Highlight active edge and dim inactive edge
-      if (isManager) {
-        setEdges(eds => eds.map(e => {
-          if (e.id === 'e-decision-slack-true') return { ...e, style: { stroke: '#22c55e', strokeWidth: 3 }, animated: true };
-          if (e.id === 'e-decision-slack-false') return { ...e, style: { stroke: '#2e2e38', strokeWidth: 1, strokeDasharray: '4,4' } };
-          return e;
-        }));
-      } else {
-        setEdges(eds => eds.map(e => {
-          if (e.id === 'e-decision-slack-false') return { ...e, style: { stroke: '#38bdf8', strokeWidth: 3 }, animated: true };
-          if (e.id === 'e-decision-slack-true') return { ...e, style: { stroke: '#2e2e38', strokeWidth: 1, strokeDasharray: '4,4' } };
-          return e;
-        }));
-      }
-
-      // ─── STEP 5: ACTION DISPATCH (Branching) ───
-      if (isManager) {
-        // Mark false branch as skipped
-        setNodes(nds => nds.map(n => n.id === 'node-slack-profile' ? { ...n, data: { ...n.data, _skipped: true } } : n));
-        
-        // Execute TRUE branch (Add to channel - Slack)
-        setNodes(nds => nds.map(n => n.id === 'node-slack-channel' ? { ...n, data: { ...n.data, _executing: true } } : n));
-        await new Promise(r => setTimeout(r, 400));
-
-        // 1. Dispatch real Slack Webhook if URL is configured
-        if (userData.slackWebhookUrl) {
-          try {
-            await slackConnector.sendWebhook({
-              webhookUrl: userData.slackWebhookUrl,
-              text: `🚀 *MAVI MES New User Onboarding:*\n• *Nama:* ${userData.name}\n• *Role:* ${userData.role}\n• *Departemen:* ${userData.department}\n• *Wewenang:* ${aiDecision.privileges?.join(', ')}\n_Pengguna telah otomatis diundang ke channel #management._`
-            });
-            addLog("Slack Action Dispatcher", "SUCCESS", `Pesan Webhook terkirim ke Slack URL.`);
-          } catch (e) {
-            console.warn('Slack Webhook call failed:', e);
-          }
-        }
-
-        // 2. Real Save User to MAVI MES User DB
-        try {
-          saveUser({
-            name: userData.name,
-            username: userData.username || userData.name.toLowerCase().replace(/\s+/g, '_'),
-            password: '123',
-            role: 'ADMINISTRATOR',
-            assignedStation: 'ALL',
-            assignedApp: 'ALL'
-          });
-          addLog("MAVI User DB", "SUCCESS", `Akun user '${userData.username}' berhasil didaftarkan di MAVI MES (Role: ADMINISTRATOR).`);
-        } catch (e) {
-          console.warn('User DB save fallback:', e);
-        }
-
-        // 3. Real Log to MAVI SystemLogs
-        try {
-          await addTableRecord('SystemLogs', {
-            message: `[Workflow AI Onboarding] User ${userData.name} (${userData.role}) berhasil di-onboard sebagai Manajer. Slack notification dispatched.`,
-            timestamp: new Date().toISOString(),
-            source: 'WorkflowEngine'
-          });
-        } catch (e) {}
-
-        const actionOutput = {
-          status: 'SUCCESS',
-          action: 'ADD_TO_SLACK_CHANNEL',
-          channel: '#management',
-          user: userData.name,
-          assignedRole: 'ADMINISTRATOR',
-          timestamp: new Date().toISOString()
-        };
-        setNodes(nds => nds.map(n => n.id === 'node-slack-channel' ? { ...n, data: { ...n.data, _executing: false, _success: true, lastOutput: actionOutput } } : n));
-        addLog("Slack Action Dispatcher", "SUCCESS", `Notifikasi berhasil dikirimkan ke channel #management & akun Manajer aktif.`);
-        
-        toast.success(`🎉 Berhasil! ${userData.name} onboarded sebagai Manajer & diundang ke Slack #management!`, {
-          id: 'real_engine_run',
-          icon: '🚀',
-          duration: 5000
-        });
-      } else {
-        // Mark true branch as skipped
-        setNodes(nds => nds.map(n => n.id === 'node-slack-channel' ? { ...n, data: { ...n.data, _skipped: true } } : n));
-        
-        // Execute FALSE branch (Update profile - MAVI Operator Record)
-        setNodes(nds => nds.map(n => n.id === 'node-slack-profile' ? { ...n, data: { ...n.data, _executing: true } } : n));
-        await new Promise(r => setTimeout(r, 400));
-
-        // 1. Real Save User to MAVI MES User DB
-        try {
-          saveUser({
-            name: userData.name,
-            username: userData.username || userData.name.toLowerCase().replace(/\s+/g, '_'),
-            password: '123',
-            role: 'STATION_OPERATOR',
-            assignedStation: 'Station 1',
-            assignedApp: 'ALL'
-          });
-          addLog("MAVI User DB", "SUCCESS", `Akun operator '${userData.username}' berhasil didaftarkan di MAVI MES (Role: STATION_OPERATOR).`);
-        } catch (e) {
-          console.warn('User DB save fallback:', e);
-        }
-
-        // 2. Real Log to MAVI SystemLogs
-        try {
-          await addTableRecord('SystemLogs', {
-            message: `[Workflow AI Onboarding] Profil Operator ${userData.name} (${userData.role}) berhasil diperbarui dan ditugaskan ke Station 1.`,
-            timestamp: new Date().toISOString(),
-            source: 'WorkflowEngine'
-          });
-        } catch (e) {}
-
-        const actionOutput = {
-          status: 'SUCCESS',
-          action: 'UPDATE_OPERATOR_PROFILE',
-          user: userData.name,
-          assignedStation: 'Station 1',
-          assignedRole: 'STATION_OPERATOR',
-          timestamp: new Date().toISOString()
-        };
-        setNodes(nds => nds.map(n => n.id === 'node-slack-profile' ? { ...n, data: { ...n.data, _executing: false, _success: true, lastOutput: actionOutput } } : n));
-        addLog("Update profile", "SUCCESS", `Profil Operator ${userData.name} diperbarui di MAVI MES & ditugaskan ke Station 1.`);
-
-        toast.success(`✅ Berhasil! Profil Operator ${userData.name} diperbarui di MAVI MES!`, {
-          id: 'real_engine_run',
-          icon: '👤',
-          duration: 5000
-        });
-      }
+      toast.success(`🎉 Berhasil! Seluruh ${result.totalExecuted} langkah selesai dieksekusi secara nyata!`, {
+        id: 'real_engine_run',
+        icon: '⚡',
+        duration: 5000
+      });
 
     } catch (err) {
       console.error('Real workflow execution error:', err);
       toast.error(`Eksekusi gagal: ${err.message}`, { id: 'real_engine_run' });
-      addLog("Workflow Engine", "ERROR", err.message);
+      setExecutionLogs(prev => [{
+        id: String(Date.now()),
+        timestamp: new Date().toLocaleTimeString(),
+        node: 'Workflow Engine',
+        status: 'ERROR',
+        details: err.message
+      }, ...prev]);
     } finally {
       setIsRunning(false);
     }
   };
 
-  // ─── TEST WIDGET STEP HANDLER ───
+  // ─── TEST WIDGET STEP HANDLER (REAL DYNAMIC NODE EXECUTION) ───
   const handleTestWidgetStep = async (node) => {
     if (!node) return;
     toast.loading(`Menguji Node: ${node.data?.label || node.id}...`, { id: 'test_node_step' });
-    
-    const testUser = { ...runPayload };
-    let resultOutput = {};
 
-    if (node.id === 'node-trigger' || node.type === 'n8n_trigger') {
-      resultOutput = {
-        event: 'CREATE_USER_FORM_SUBMISSION',
-        form: 'Create User',
-        timestamp: new Date().toISOString(),
-        payload: testUser
-      };
-      toast.success(`Trigger form disimulasikan! Data payload siap.`, { id: 'test_node_step', icon: '⚡' });
-    } else if (node.id === 'node-agent' || node.type === 'n8n_agent') {
-      try {
-        const primaryConn = await getPrimaryAiConnector();
-        if (primaryConn?.aiSettings?.apiKey) {
-          const res = await getChatCompletion([
-            { role: 'system', content: 'You are MAVI MES AI Agent. Evaluate user onboarding for: ' + JSON.stringify(testUser) },
-            { role: 'user', content: 'Process onboarding privileges.' }
-          ], primaryConn);
-          resultOutput = { aiResponse: res, status: 'LIVE_AI_SUCCESS', timestamp: new Date().toISOString() };
-        } else {
-          resultOutput = {
-            roleEvaluation: testUser.role.toLowerCase().includes('manager') ? 'Manager' : 'Operator',
-            privileges: ['dashboard_all', 'approve_workorders', 'user_management'],
-            status: 'HEURISTIC_SUCCESS',
-            note: 'Model AI Copilot aktif. Sambungkan API Key di /ai-settings untuk live inference penuh.',
-            timestamp: new Date().toISOString()
-          };
-        }
-      } catch (e) {
-        resultOutput = { status: 'HEURISTIC_EVAL', role: 'Manager', privileges: ['dashboard_all'], timestamp: new Date().toISOString() };
+    try {
+      const result = await executeSingleNode(node, runPayload);
+
+      // Update node with lastOutput
+      setNodes(nds => nds.map(n => n.id === node.id ? { ...n, data: { ...n.data, lastOutput: result.output, _success: result.success } } : n));
+      
+      setExecutionLogs(prev => [{
+        id: String(Date.now()),
+        timestamp: new Date().toLocaleTimeString(),
+        node: `[Test Step] ${node.data?.label || node.id}`,
+        status: result.success ? 'SUCCESS' : 'ERROR',
+        details: `${node.data?.label || node.id} dieksekusi nyata (${result.duration}ms).`,
+        output: result.output
+      }, ...prev]);
+
+      if (result.success) {
+        toast.success(`Node "${node.data?.label}" berhasil diuji! Data JSON diperbarui.`, { id: 'test_node_step', icon: '⚡' });
+      } else {
+        toast.error(`Uji node gagal: ${result.error}`, { id: 'test_node_step' });
       }
-      toast.success(`AI Agent reasoning berhasil diuji!`, { id: 'test_node_step', icon: '🤖' });
-    } else if (node.id === 'node-decision' || node.type === 'n8n_decision') {
-      const isMgr = testUser.role.toLowerCase().includes('manager');
-      resultOutput = {
-        condition: 'role.toLowerCase().includes("manager")',
-        evaluatedValue: testUser.role,
-        result: isMgr,
-        branchSelected: isMgr ? 'true (Add to channel)' : 'false (Update profile)',
-        timestamp: new Date().toISOString()
-      };
-      toast.success(`Rule evaluasi berhasil: Hasil = ${isMgr ? 'TRUE' : 'FALSE'}`, { id: 'test_node_step', icon: '🔀' });
-    } else if (node.id === 'node-slack-channel' || node.type === 'n8n_action') {
-      resultOutput = {
-        action: 'invite_channel',
-        targetChannel: node.data?.parameters?.channel || '#management',
-        user: testUser.name,
-        status: 'DISPATCHED_TO_MES_LOGS',
-        timestamp: new Date().toISOString()
-      };
-      toast.success(`Action step berhasil dikirim ke antrean dispatcher!`, { id: 'test_node_step', icon: '🚀' });
-    } else {
-      resultOutput = {
-        subNodeType: node.data?.subType || 'tool',
-        status: 'CONNECTED',
-        latencyMs: Math.floor(Math.random() * 30) + 12,
-        timestamp: new Date().toISOString()
-      };
-      toast.success(`Sub-node ${node.data?.label} aktif & terhubung!`, { id: 'test_node_step', icon: '✅' });
+    } catch (err) {
+      toast.error(`Uji node error: ${err.message}`, { id: 'test_node_step' });
     }
-
-    // Update node with lastOutput
-    setNodes(nds => nds.map(n => n.id === node.id ? { ...n, data: { ...n.data, lastOutput: resultOutput, _success: true } } : n));
-    setExecutionLogs(prev => [{
-      id: String(Date.now()),
-      timestamp: new Date().toLocaleTimeString(),
-      node: `[Test] ${node.data?.label || node.id}`,
-      status: 'TEST_OK',
-      details: JSON.stringify(resultOutput).slice(0, 100) + '...'
-    }, ...prev]);
   };
 
-  // ─── LISTEN FOR USER CREATION IN MAVI MES APP (/users) ───
+  // ─── REAL-TIME APP EVENT SUBSCRIPTION ───
   useEffect(() => {
+    const unsubscribe = workflowRealtimeManager.subscribe((historyItem) => {
+      if (historyItem.workflowId === workflowId || historyItem.workflowName === workflowName) {
+        setExecutionLogs(prev => [{
+          id: historyItem.id,
+          timestamp: new Date(historyItem.timestamp).toLocaleTimeString(),
+          node: `[Real-Time Trigger: ${historyItem.eventType}]`,
+          status: historyItem.status,
+          details: `Dijalankan otomatis oleh sistem via event real-time (${historyItem.stepsExecuted} langkah).`,
+          output: historyItem.outputs
+        }, ...prev]);
+      }
+    });
+
     const handleMaviUserCreated = (event) => {
       const newUser = event.detail;
       if (newUser && newUser.name) {
@@ -1814,8 +1679,11 @@ export const WorkflowEditorContent = () => {
     };
 
     window.addEventListener('mavi_user_created', handleMaviUserCreated);
-    return () => window.removeEventListener('mavi_user_created', handleMaviUserCreated);
-  }, [runPayload]);
+    return () => {
+      unsubscribe();
+      window.removeEventListener('mavi_user_created', handleMaviUserCreated);
+    };
+  }, [workflowId, workflowName, runPayload]);
 
   const [showClearModal, setShowClearModal] = useState(false);
 
@@ -1986,8 +1854,29 @@ export const WorkflowEditorContent = () => {
                 width: '260px'
               }}
             />
-            <div style={{ fontSize: '10px', color: '#22c55e', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <CheckCheck size={12} /> Native MES Engine Active
+            <div
+              onClick={() => {
+                setIsWorkflowActive(!isWorkflowActive);
+                toast.success(`Real-Time MES Engine: ${!isWorkflowActive ? 'AKTIF (Mendengarkan Event)' : 'DIJEDA'}`, { icon: !isWorkflowActive ? '🟢' : '⚪' });
+              }}
+              style={{
+                fontSize: '10px',
+                color: isWorkflowActive ? '#22c55e' : '#94a3b8',
+                fontWeight: 800,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                cursor: 'pointer',
+                padding: '2px 8px',
+                backgroundColor: isWorkflowActive ? '#22c55e15' : '#272733',
+                borderRadius: '12px',
+                border: `1px solid ${isWorkflowActive ? '#22c55e50' : '#383848'}`,
+                marginTop: '2px'
+              }}
+              title="Klik untuk mengaktifkan / menjeda eksekusi real-time di aplikasi"
+            >
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: isWorkflowActive ? '#22c55e' : '#71717a', display: 'inline-block', boxShadow: isWorkflowActive ? '0 0 8px #22c55e' : 'none' }}></span>
+              {isWorkflowActive ? 'Native MES Engine Active (Real-Time)' : 'Native MES Engine Paused'}
             </div>
           </div>
         </div>
@@ -2068,6 +1957,27 @@ export const WorkflowEditorContent = () => {
             }}
           >
             <Sparkles size={13} /> Presets
+          </button>
+
+          {/* Real-time Event Simulator button */}
+          <button
+            onClick={() => setShowEventSimModal(true)}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '6px',
+              backgroundColor: '#f59e0b20',
+              border: '1px solid #f59e0b',
+              color: '#fbbf24',
+              fontSize: '11px',
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+            title="Uji kirim event real-time langsung ke alur kerja"
+          >
+            <Zap size={13} /> ⚡ Tes Event Real-Time
           </button>
 
           {/* Create New Workflow Button */}
@@ -2353,7 +2263,280 @@ export const WorkflowEditorContent = () => {
       </div>
 
       {/* ─── REAL WORKFLOW EXECUTION / TEST MODAL ───────────────────── */}
-      {showRunModal && (
+      {showRunModal && (() => {
+        const triggerNode = nodes.find(n => n.type === 'n8n_trigger') || nodes[0];
+        const mesType = triggerNode?.data?.mesType || '';
+        const triggerLabel = triggerNode?.data?.label || 'Alur Kerja';
+
+        return (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 10000,
+              backgroundColor: 'rgba(0,0,0,0.85)',
+              backdropFilter: 'blur(6px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '24px'
+            }}
+          >
+            <div
+              style={{
+                width: '560px',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                backgroundColor: '#18181f',
+                border: '1px solid #383848',
+                borderRadius: '16px',
+                padding: '24px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '16px',
+                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.8)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: '#ff6d5a20', border: '1px solid #ff6d5a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Play size={20} color="#ff6d5a" />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#ffffff' }}>Jalankan Alur Kerja Nyata</h3>
+                    <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: '#94a3b8' }}>
+                      Pemicu: <span style={{ color: '#38bdf8', fontWeight: 700 }}>{triggerLabel}</span>
+                    </p>
+                  </div>
+                </div>
+                <button onClick={() => setShowRunModal(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* ─── DYNAMIC PRESET BUTTONS ACCORDING TO TRIGGER TYPE ─── */}
+              {mesType?.startsWith('table_') ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#38bdf8' }}>Pilih Skenario Baris Tabel:</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => executeRealWorkflow({
+                        event: 'TABLE_ROW_ADDED',
+                        tableName: triggerNode.data?.parameters?.tableName || 'work_orders',
+                        recordId: `WO_${Date.now().toString().slice(-4)}`,
+                        order_number: 'WO-2026-FLG-01',
+                        part_name: 'Flange Bearing 45mm',
+                        qty: 500,
+                        status: 'IN_PROCESS',
+                        operator: 'Budi Santoso (Line A)'
+                      })}
+                      style={{ padding: '10px', borderRadius: '8px', backgroundColor: '#212127', border: '1px solid #383844', color: '#fff', fontSize: '11px', cursor: 'pointer', textAlign: 'left' }}
+                    >
+                      📋 <b>Work Order Baru</b>
+                      <div style={{ fontSize: '10px', color: '#94a3b8' }}>WO-2026-FLG-01 (Qty: 500)</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => executeRealWorkflow({
+                        event: 'TABLE_ROW_ADDED',
+                        tableName: triggerNode.data?.parameters?.tableName || 'inspection_results',
+                        recordId: `QC_${Date.now().toString().slice(-4)}`,
+                        checksheet: 'Flange-QC',
+                        defect_found: 'Burr Excess',
+                        verdict: 'NG',
+                        operator: 'Siti Rahma'
+                      })}
+                      style={{ padding: '10px', borderRadius: '8px', backgroundColor: '#212127', border: '1px solid #383844', color: '#fff', fontSize: '11px', cursor: 'pointer', textAlign: 'left' }}
+                    >
+                      🔬 <b>QC Defect Row</b>
+                      <div style={{ fontSize: '10px', color: '#fca5a5' }}>Defect: Burr Excess (NG)</div>
+                    </button>
+                  </div>
+                </div>
+              ) : mesType?.startsWith('machine_') ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#38bdf8' }}>Pilih Skenario Telemetri Mesin:</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => executeRealWorkflow({
+                        event: 'MACHINE_STATUS_CHANGE',
+                        machineId: triggerNode.data?.parameters?.machineId || 'CNC-01',
+                        status: 'FAULT',
+                        spindleRpm: 0,
+                        temperatureC: 88.5,
+                        vibrationMmS: 6.2
+                      })}
+                      style={{ padding: '10px', borderRadius: '8px', backgroundColor: '#7f1d1d20', border: '1px solid #7f1d1d', color: '#fca5a5', fontSize: '11px', cursor: 'pointer', textAlign: 'left' }}
+                    >
+                      🔴 <b>Mesin FAULT / Breakdown</b>
+                      <div style={{ fontSize: '10px', color: '#94a3b8' }}>CNC-01 Spindle Alert</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => executeRealWorkflow({
+                        event: 'SENSOR_THRESHOLD_EXCEEDED',
+                        machineId: triggerNode.data?.parameters?.machineId || 'CNC-01',
+                        metric: 'TEMP',
+                        measuredValue: 92.4,
+                        threshold: '> 80',
+                        unit: '°C'
+                      })}
+                      style={{ padding: '10px', borderRadius: '8px', backgroundColor: '#f59e0b20', border: '1px solid #f59e0b', color: '#fbbf24', fontSize: '11px', cursor: 'pointer', textAlign: 'left' }}
+                    >
+                      🔥 <b>Overheat Sensor (&gt; 80°C)</b>
+                      <div style={{ fontSize: '10px', color: '#94a3b8' }}>Suhu Spindle: 92.4°C</div>
+                    </button>
+                  </div>
+                </div>
+              ) : mesType === 'qc_defect' || mesType === 'caliper_reading' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#38bdf8' }}>Pilih Skenario QC & Metrologi:</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => executeRealWorkflow({
+                        event: 'CALIPER_READING_RECEIVED',
+                        readingMm: 45.025,
+                        nominal: 45.000,
+                        upper: 0.05,
+                        lower: 0.05,
+                        isPass: true
+                      })}
+                      style={{ padding: '10px', borderRadius: '8px', backgroundColor: '#22c55e20', border: '1px solid #22c55e', color: '#4ade80', fontSize: '11px', cursor: 'pointer', textAlign: 'left' }}
+                    >
+                      ✅ <b>Dimensi PASS (45.025 mm)</b>
+                      <div style={{ fontSize: '10px', color: '#94a3b8' }}>Dalam toleransi nominal</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => executeRealWorkflow({
+                        event: 'CALIPER_READING_RECEIVED',
+                        readingMm: 45.088,
+                        nominal: 45.000,
+                        upper: 0.05,
+                        lower: 0.05,
+                        isPass: false
+                      })}
+                      style={{ padding: '10px', borderRadius: '8px', backgroundColor: '#ef444420', border: '1px solid #ef4444', color: '#fca5a5', fontSize: '11px', cursor: 'pointer', textAlign: 'left' }}
+                    >
+                      ❌ <b>Dimensi NG (45.088 mm)</b>
+                      <div style={{ fontSize: '10px', color: '#94a3b8' }}>Melebihi batas atas +0.05</div>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#38bdf8' }}>Preset Cepat:</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setRunPayload({
+                        name: 'Budi Santoso',
+                        username: 'bsantoso',
+                        role: 'Plant Production Manager',
+                        department: 'Assembly Line 1',
+                        email: 'budi.santoso@mavi-mes.com',
+                        slackWebhookUrl: runPayload.slackWebhookUrl
+                      })}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        backgroundColor: runPayload.role?.toLowerCase().includes('manager') ? '#ff6d5a20' : '#212127',
+                        border: `1px solid ${runPayload.role?.toLowerCase().includes('manager') ? '#ff6d5a' : '#383844'}`,
+                        color: '#ffffff',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        textAlign: 'left'
+                      }}
+                    >
+                      👔 <b>Uji Manajer (Branch True)</b>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRunPayload({
+                        name: 'Rudi Haryanto',
+                        username: 'rharyanto',
+                        role: 'Station Operator',
+                        department: 'CNC Milling Line',
+                        email: 'rudi.haryanto@mavi-mes.com',
+                        slackWebhookUrl: runPayload.slackWebhookUrl
+                      })}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        backgroundColor: !runPayload.role?.toLowerCase().includes('manager') ? '#38bdf820' : '#212127',
+                        border: `1px solid ${!runPayload.role?.toLowerCase().includes('manager') ? '#38bdf8' : '#383844'}`,
+                        color: '#ffffff',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        textAlign: 'left'
+                      }}
+                    >
+                      👷 <b>Uji Operator (Branch False)</b>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Form Input Data */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Nama Operator / Pengirim</label>
+                  <input
+                    type="text"
+                    value={runPayload.name}
+                    onChange={(e) => setRunPayload({ ...runPayload, name: e.target.value })}
+                    style={{ width: '100%', padding: '8px 10px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#fff', fontSize: '11px' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Role / Jabatan</label>
+                  <input
+                    type="text"
+                    value={runPayload.role}
+                    onChange={(e) => setRunPayload({ ...runPayload, role: e.target.value })}
+                    style={{ width: '100%', padding: '8px 10px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#fff', fontSize: '11px' }}
+                  />
+                </div>
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                    Slack Webhook URL (Opsional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="https://hooks.slack.com/services/..."
+                    value={runPayload.slackWebhookUrl}
+                    onChange={(e) => setRunPayload({ ...runPayload, slackWebhookUrl: e.target.value })}
+                    style={{ width: '100%', padding: '8px 10px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#fff', fontSize: '11px' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowRunModal(false)}
+                  style={{ flex: 1, padding: '10px', borderRadius: '8px', backgroundColor: '#272733', color: '#cbd5e1', border: '1px solid #383848', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeRealWorkflow()}
+                  style={{ flex: 2, padding: '10px', borderRadius: '8px', backgroundColor: '#ff6d5a', color: '#ffffff', border: 'none', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 2px 10px rgba(255,109,90,0.4)' }}
+                >
+                  <Play size={16} /> ⚡ Jalankan Alur Sekarang
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ─── REAL-TIME EVENT SIMULATOR MODAL ────────────────────────── */}
+      {showEventSimModal && (
         <div
           style={{
             position: 'fixed',
@@ -2369,170 +2552,136 @@ export const WorkflowEditorContent = () => {
         >
           <div
             style={{
-              width: '540px',
+              width: '520px',
               backgroundColor: '#18181f',
-              border: '1px solid #383848',
+              border: '1px solid #f59e0b',
               borderRadius: '16px',
               padding: '24px',
               display: 'flex',
               flexDirection: 'column',
-              gap: '18px',
+              gap: '16px',
               boxShadow: '0 25px 50px -12px rgba(0,0,0,0.8)'
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: '#ff6d5a20', border: '1px solid #ff6d5a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Play size={20} color="#ff6d5a" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: '#f59e0b20', border: '1px solid #f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Zap size={18} color="#fbbf24" />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#ffffff' }}>Jalankan Integrasi Alur Kerja Nyata</h3>
-                  <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: '#94a3b8' }}>Eksekusi live AI reasoning, database MAVI MES, evaluasi cabang wewenang & Slack dispatcher.</p>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#ffffff' }}>Simulator Event Real-Time MES</h3>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: '#94a3b8' }}>Kirim event langsung ke sistem untuk menguji alur kerja otomatis</p>
                 </div>
               </div>
-              <button onClick={() => setShowRunModal(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+              <button onClick={() => setShowEventSimModal(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
                 <X size={18} />
               </button>
             </div>
 
-            {/* Quick Presets */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '11px', fontWeight: 700, color: '#38bdf8' }}>Pilih Preset Uji Cepat:</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                <button
-                  type="button"
-                  onClick={() => setRunPayload({
-                    name: 'Budi Santoso',
-                    username: 'bsantoso',
-                    role: 'Plant Production Manager',
-                    department: 'Assembly Line 1',
-                    email: 'budi.santoso@mavi-mes.com',
-                    slackWebhookUrl: runPayload.slackWebhookUrl
-                  })}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    backgroundColor: runPayload.role.toLowerCase().includes('manager') ? '#ff6d5a20' : '#212127',
-                    border: `1px solid ${runPayload.role.toLowerCase().includes('manager') ? '#ff6d5a' : '#383844'}`,
-                    color: '#ffffff',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    textAlign: 'left'
-                  }}
-                >
-                  👔 <b>Test Manager</b>
-                  <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 400 }}>Cabang True -&gt; Slack #management</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setRunPayload({
-                    name: 'Rudi Haryanto',
-                    username: 'rharyanto',
-                    role: 'Station Operator',
-                    department: 'CNC Milling Line',
-                    email: 'rudi.haryanto@mavi-mes.com',
-                    slackWebhookUrl: runPayload.slackWebhookUrl
-                  })}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    backgroundColor: !runPayload.role.toLowerCase().includes('manager') ? '#38bdf820' : '#212127',
-                    border: `1px solid ${!runPayload.role.toLowerCase().includes('manager') ? '#38bdf8' : '#383844'}`,
-                    color: '#ffffff',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    textAlign: 'left'
-                  }}
-                >
-                  👷 <b>Test Operator</b>
-                  <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 400 }}>Cabang False -&gt; Update Profile</div>
-                </button>
-              </div>
-            </div>
-
-            {/* Input Form */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Nama Lengkap</label>
-                <input
-                  type="text"
-                  value={runPayload.name}
-                  onChange={(e) => setRunPayload({ ...runPayload, name: e.target.value })}
-                  style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#fff', fontSize: '12px' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Username MES</label>
-                <input
-                  type="text"
-                  value={runPayload.username}
-                  onChange={(e) => setRunPayload({ ...runPayload, username: e.target.value })}
-                  style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#fff', fontSize: '12px' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Role / Jabatan</label>
-                <input
-                  type="text"
-                  value={runPayload.role}
-                  onChange={(e) => setRunPayload({ ...runPayload, role: e.target.value })}
-                  style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#fff', fontSize: '12px' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Departemen</label>
-                <input
-                  type="text"
-                  value={runPayload.department}
-                  onChange={(e) => setRunPayload({ ...runPayload, department: e.target.value })}
-                  style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#fff', fontSize: '12px' }}
-                />
-              </div>
-
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Email</label>
-                <input
-                  type="email"
-                  value={runPayload.email}
-                  onChange={(e) => setRunPayload({ ...runPayload, email: e.target.value })}
-                  style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#fff', fontSize: '12px' }}
-                />
-              </div>
-
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
-                  Slack Webhook URL <span style={{ color: '#71717a', fontWeight: 400 }}>(Opsional - kosongkan untuk internal MES log)</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="https://hooks.slack.com/services/..."
-                  value={runPayload.slackWebhookUrl}
-                  onChange={(e) => setRunPayload({ ...runPayload, slackWebhookUrl: e.target.value })}
-                  style={{ width: '100%', padding: '8px 12px', backgroundColor: '#111116', border: '1px solid #2e2e3a', borderRadius: '6px', color: '#fff', fontSize: '12px' }}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <button
-                type="button"
-                onClick={() => setShowRunModal(false)}
-                style={{ flex: 1, padding: '10px', borderRadius: '8px', backgroundColor: '#272733', color: '#cbd5e1', border: '1px solid #383848', fontWeight: 700, cursor: 'pointer' }}
+                onClick={() => {
+                  workflowRealtimeManager.emitEvent('TABLE_ROW_ADDED', {
+                    tableName: 'work_orders',
+                    recordId: `WO_${Date.now().toString().slice(-4)}`,
+                    record: {
+                      order_number: `WO-LIVE-${Date.now().toString().slice(-3)}`,
+                      part_name: 'Flange Housing A',
+                      qty: 300,
+                      status: 'NEW_ORDER',
+                      timestamp: new Date().toISOString()
+                    }
+                  });
+                  setShowEventSimModal(false);
+                  toast.success('Event TABLE_ROW_ADDED (work_orders) berhasil dikirim!');
+                }}
+                style={{ padding: '12px', borderRadius: '8px', backgroundColor: '#111116', border: '1px solid #282834', color: '#ffffff', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px' }}
               >
-                Batal
+                <div style={{ width: '30px', height: '30px', borderRadius: '6px', backgroundColor: '#22c55e20', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Plus size={16} color="#4ade80" />
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: 800 }}>Table: On Record Added</div>
+                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>Kirim baris baru ke tabel 'work_orders'</div>
+                </div>
               </button>
+
               <button
-                type="button"
-                onClick={() => executeRealWorkflow(runPayload)}
-                style={{ flex: 2, padding: '10px', borderRadius: '8px', backgroundColor: '#ff6d5a', color: '#ffffff', border: 'none', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 2px 10px rgba(255,109,90,0.4)' }}
+                onClick={() => {
+                  workflowRealtimeManager.emitEvent('MACHINE_STATUS_CHANGE', {
+                    machineId: 'CNC-01',
+                    status: 'FAULT',
+                    spindleRpm: 0,
+                    temperatureC: 89.2,
+                    vibrationMmS: 6.4,
+                    timestamp: new Date().toISOString()
+                  });
+                  setShowEventSimModal(false);
+                  toast.success('Event MACHINE_STATUS_CHANGE (FAULT CNC-01) berhasil dikirim!');
+                }}
+                style={{ padding: '12px', borderRadius: '8px', backgroundColor: '#111116', border: '1px solid #282834', color: '#ffffff', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px' }}
               >
-                <Play size={16} /> ⚡ Jalankan Integrasi Nyata
+                <div style={{ width: '30px', height: '30px', borderRadius: '6px', backgroundColor: '#ef444420', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Cpu size={16} color="#f87171" />
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: 800 }}>Machine Status: FAULT (CNC-01)</div>
+                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>Simulasikan mesin error/breakdown mendadak</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => {
+                  workflowRealtimeManager.emitEvent('QC_DEFECT_SUBMITTED', {
+                    checksheet: 'Flange-QC',
+                    defectCategory: 'Burr, Dimension NG',
+                    defectCode: 'DEF-DIM-99',
+                    severity: 'CRITICAL',
+                    timestamp: new Date().toISOString()
+                  });
+                  setShowEventSimModal(false);
+                  toast.success('Event QC_DEFECT_SUBMITTED berhasil dikirim!');
+                }}
+                style={{ padding: '12px', borderRadius: '8px', backgroundColor: '#111116', border: '1px solid #282834', color: '#ffffff', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px' }}
+              >
+                <div style={{ width: '30px', height: '30px', borderRadius: '6px', backgroundColor: '#f59e0b20', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <AlertCircle size={16} color="#fbbf24" />
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: 800 }}>QC Defect Checksheet Submitted</div>
+                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>Simulasikan temuan cacat kualitas NG dari checksheet</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => {
+                  workflowRealtimeManager.emitEvent('CALIPER_READING', {
+                    readingMm: 45.035,
+                    unit: 'mm',
+                    sensor: 'Bluetooth-Caliper-01',
+                    timestamp: new Date().toISOString()
+                  });
+                  setShowEventSimModal(false);
+                  toast.success('Event CALIPER_READING (45.035 mm) berhasil dikirim!');
+                }}
+                style={{ padding: '12px', borderRadius: '8px', backgroundColor: '#111116', border: '1px solid #282834', color: '#ffffff', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px' }}
+              >
+                <div style={{ width: '30px', height: '30px', borderRadius: '6px', backgroundColor: '#06b6d420', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Sliders size={16} color="#22d3ee" />
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: 800 }}>Caliper Measurement Input</div>
+                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>Simulasikan sinyal metrologi digital Bluetooth (45.035 mm)</div>
+                </div>
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+              <button
+                onClick={() => setShowEventSimModal(false)}
+                style={{ padding: '8px 16px', borderRadius: '8px', backgroundColor: '#272733', color: '#cbd5e1', border: '1px solid #383848', fontWeight: 700, cursor: 'pointer' }}
+              >
+                Tutup
               </button>
             </div>
           </div>

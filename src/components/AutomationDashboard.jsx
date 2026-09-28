@@ -218,11 +218,11 @@ export const AutomationDashboard = () => {
                 </h2>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
                     <QuickActionCard
-                        title="Workflow Editor"
+                        title="Automation Editor"
                         description="Create and edit automation workflows with visual drag-and-drop editor"
                         icon={Workflow}
-                        color="#6366f1"
-                        link="/automations"
+                        color="#714B67"
+                        link="/automations/editor"
                     />
                     <QuickActionCard
                         title="Execution Monitor"
@@ -314,7 +314,7 @@ export const AutomationDashboard = () => {
                             {automations.slice(0, 5).map(auto => (
                                 <Link
                                     key={auto.id}
-                                    to={`/automations?edit=${auto.id}`}
+                                    to={`/automations/editor?edit=${auto.id}`}
                                     style={{
                                         padding: '12px 16px', display: 'flex',
                                         justifyContent: 'space-between', alignItems: 'center',

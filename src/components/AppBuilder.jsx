@@ -7905,14 +7905,14 @@ const AppBuilder = () => {
             newComps.push({
                 id: `base_hdr_brand_${Date.now() + 1}`,
                 name: 'base_brand_text',
-                displayName: 'Tulip Brand',
+                displayName: 'Mandor Brand',
                 type: 'TEXT',
                 x: 16,
                 y: 4,
                 w: 160,
                 h: 16,
                 props: {
-                    text: '❖ TULIP',
+                    text: '❖ MANDOR',
                     fontSize: 11,
                     fontBold: true,
                     textColor: '#93c5fd',
@@ -8162,8 +8162,8 @@ const AppBuilder = () => {
         }
         toast.success(
             mode === 'BOTH'
-                ? '✨ Base Layout Tulip 1:1 (Header & Footer) berhasil diperbarui!'
-                : (mode === 'HEADER_ONLY' ? '✨ Tulip Header Bar berhasil diterapkan!' : '✨ Tulip Footer Bar berhasil diterapkan!')
+                ? '✨ Base Layout Mandor (Header & Footer) berhasil diperbarui!'
+                : (mode === 'HEADER_ONLY' ? '✨ Header Bar berhasil diterapkan!' : '✨ Footer Bar berhasil diterapkan!')
         );
     };
 
@@ -8381,7 +8381,7 @@ const AppBuilder = () => {
             components: terminalComponents
         }]);
         setCurrentStepId(`step_terminal_${ts}`);
-        toast.success('🎉 Template Tulip Machine Terminal (Gambar 2) berhasil diterapkan!', { duration: 3000 });
+        toast.success('🎉 Template Machine Terminal berhasil diterapkan!', { duration: 3000 });
     };
     handleGenerateTulipBaseLayoutRef.current = handleGenerateTulipBaseLayout;
 
@@ -26237,7 +26237,7 @@ D3:0
                                             {baseComponents.length === 0 && (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                                     <label style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                                        Tulip Layout Generators (Gambar 2)
+                                                        Standard Layout Generators
                                                     </label>
                                                     <button
                                                         onClick={() => handleGenerateTulipBaseLayout('BOTH')}
@@ -26258,7 +26258,7 @@ D3:0
                                                         }}
                                                     >
                                                         <Sparkles size={16} color="#38bdf8" />
-                                                        <span>✨ Terapkan Base Layout Tulip (Gambar 2)</span>
+                                                        <span>✨ Terapkan Base Layout Mandor</span>
                                                     </button>
                                                     <button
                                                         onClick={handleApplyTulipMachineTerminalTemplate}
@@ -26326,10 +26326,10 @@ D3:0
                                                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                                             <button
                                                                 onClick={() => handleGenerateTulipBaseLayout('BOTH')}
-                                                                title="Ganti ke Base Layout Tulip 1:1 (Header & Footer)"
+                                                                title="Ganti ke Base Layout Mandor (Header & Footer)"
                                                                 style={{ background: 'none', border: 'none', color: '#0284c7', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}
                                                             >
-                                                                🔄 Reset ke Tulip
+                                                                🔄 Reset Layout
                                                             </button>
                                                             <button
                                                                 onClick={() => {

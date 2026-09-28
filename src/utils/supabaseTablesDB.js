@@ -380,14 +380,21 @@ export async function addTableRecord(tableId, recordData) {
         if (error) throw error;
         const record = rowToRecord(data);
 
-        // Fire automation trigger
+        // Fire automation trigger & window real-time event
+        const eventDetail = {
+            tableId: normalizedTableId,
+            tableName: table?.name || normalizedTableId,
+            recordId: record.recordId,
+            record: record,
+            source: 'DATABASE'
+        };
+
         if (automationEngine && typeof automationEngine.trigger === 'function') {
-            automationEngine.trigger('TABLE_ROW_ADDED', {
-                tableId: normalizedTableId,
-                recordId: record.recordId,
-                record: record,
-                source: 'DATABASE'
-            });
+            automationEngine.trigger('TABLE_ROW_ADDED', eventDetail);
+        }
+
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('mavi:table_row_added', { detail: eventDetail }));
         }
 
         return record;
@@ -459,15 +466,22 @@ export async function updateTableRecord(recordInternalId, updateData) {
 
     const record = rowToRecord(updatedList[0]);
 
+    const updateDetail = {
+        tableId: existing.table_id,
+        tableName: table?.name || existing.table_id,
+        recordId: existing.record_id,
+        record: record,
+        previousRecord: rowToRecord(existing),
+        updatedFields: updateData,
+        source: 'DATABASE'
+    };
+
     if (automationEngine && typeof automationEngine.trigger === 'function') {
-        automationEngine.trigger('TABLE_ROW_UPDATED', {
-            tableId: existing.table_id,
-            recordId: existing.record_id,
-            record: record,
-            previousRecord: rowToRecord(existing),
-            updatedFields: updateData,
-            source: 'DATABASE'
-        });
+        automationEngine.trigger('TABLE_ROW_UPDATED', updateDetail);
+    }
+
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('mavi:table_row_updated', { detail: updateDetail }));
     }
 
     return record;
