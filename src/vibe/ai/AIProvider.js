@@ -446,4 +446,132 @@ export class AIProvider {
     }, connectorOverride);
     return result;
   }
+
+  /**
+   * Multimodal Vision Analysis (Astra-grade continuous frame / image inspection)
+   * Supports Gemini (inline_data) and OpenAI/OpenRouter (image_url base64).
+   * @param {object} params
+   * @param {string} params.prompt
+   * @param {string} params.imageBase64 - base64 string or data:image/... url
+   * @param {string} [params.mimeType] - 'image/jpeg' or 'image/png'
+   * @param {string} [params.systemPrompt]
+   * @param {object} [connectorOverride]
+   * @returns {Promise<string>}
+   */
+  static async analyzeVision({ prompt, imageBase64, mimeType = 'image/jpeg', systemPrompt = '' }, connectorOverride = null) {
+    if (!imageBase64) {
+      throw new Error('Image base64 is required for vision analysis.');
+    }
+    const cleanBase64 = imageBase64.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '');
+    const connector = await this.resolveConnector(connectorOverride);
+    const settings = connector.aiSettings || connector.config || connector;
+    const provider = this.normalizeProvider(settings.provider);
+    const apiKey = settings.apiKey;
+    const modelId = String(settings.modelId || '').trim();
+
+    // 1. Google Gemini Multimodal
+    if (provider === 'gemini') {
+      const primaryModel = this.sanitizeGeminiModel(modelId);
+      const candidateModels = [
+        primaryModel,
+        'gemini-3.8-flash',
+        'gemini-3.6-flash',
+        'gemini-3.5-flash',
+        'gemini-flash-latest'
+      ].filter(Boolean).filter((m, idx, arr) => arr.indexOf(m) === idx);
+
+      const parts = [
+        { text: prompt || 'Analisis gambar ini secara mendalam dalam konteks industri MES dan manufaktur.' },
+        {
+          inline_data: {
+            mime_type: mimeType,
+            data: cleanBase64
+          }
+        }
+      ];
+
+      const payload = {
+        contents: [
+          {
+            role: 'user',
+            parts
+          }
+        ],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 2048
+        }
+      };
+
+      if (systemPrompt) {
+        payload.systemInstruction = {
+          parts: [{ text: systemPrompt }]
+        };
+      }
+
+      for (const m of candidateModels) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`;
+        try {
+          const resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            const text = data.candidates?.[0]?.content?.parts?.map(p => p.text).join('') || '';
+            if (text) return text;
+          }
+        } catch (e) {
+          console.warn(`[AIProvider] Gemini vision failed on ${m}:`, e);
+        }
+      }
+    }
+
+    // 2. OpenAI / OpenRouter Multimodal
+    const defaultVisionModel = provider === 'openrouter' ? 'google/gemini-flash-1.5' : 'gpt-4o-mini';
+    let baseUrl = 'https://api.openai.com/v1';
+    if (provider === 'openrouter') baseUrl = 'https://openrouter.ai/api/v1';
+    else if (settings.baseUrl) baseUrl = settings.baseUrl;
+
+    const cleanBaseUrl = String(baseUrl).replace(/\/$/, '');
+    const headers = { 'Content-Type': 'application/json' };
+    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+    const formattedImageUrl = imageBase64.startsWith('data:') ? imageBase64 : `data:${mimeType};base64,${cleanBase64}`;
+
+    const messages = [];
+    if (systemPrompt) {
+      messages.push({ role: 'system', content: systemPrompt });
+    }
+    messages.push({
+      role: 'user',
+      content: [
+        { type: 'text', text: prompt || 'Analisis gambar ini.' },
+        {
+          type: 'image_url',
+          image_url: { url: formattedImageUrl }
+        }
+      ]
+    });
+
+    const resp = await fetch(`${cleanBaseUrl}/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: modelId || defaultVisionModel,
+        messages,
+        max_tokens: 2048,
+        temperature: 0.2
+      })
+    });
+
+    if (!resp.ok) {
+      const errJson = await resp.json().catch(() => ({}));
+      throw new Error(errJson.error?.message || `Vision API error (${resp.status})`);
+    }
+
+    const data = await resp.json();
+    return data.choices?.[0]?.message?.content || '';
+  }
 }

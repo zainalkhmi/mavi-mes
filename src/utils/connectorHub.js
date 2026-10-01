@@ -52,6 +52,8 @@ function buildAuthHeaders(auth = {}) {
     case 'BEARER':
     case 'API_KEY':
       return { Authorization: `Bearer ${auth.token || auth.apiKey || ''}` };
+    case 'TOKEN':
+      return { Authorization: `Token ${auth.token || auth.apiKey || ''}` };
     case 'API_KEY_HEADER':
       return { [auth.headerName || 'X-API-Key']: auth.apiKey || '' };
     case 'OAUTH2':
@@ -866,6 +868,64 @@ export const ERP_PRESETS = {
       ],
       outputs: [{ name: 'total', path: 'rows[0].total', label: 'Count' }]
     }
+  ],
+
+  PAPERLESS: [
+    {
+      id: 'paperless_search',
+      name: 'Search Documents (OCR Full-Text)',
+      path: '/api/documents/',
+      method: 'GET',
+      inputs: [
+        { name: 'query', label: 'OCR Search Query', type: 'string', in: 'query', default: '' },
+        { name: 'page', label: 'Page Number', type: 'number', in: 'query', default: 1 },
+        { name: 'page_size', label: 'Page Size', type: 'number', in: 'query', default: 20 },
+        { name: 'ordering', label: 'Sort Order', type: 'string', in: 'query', default: '-created' }
+      ],
+      outputs: [
+        { name: 'count', path: 'count', label: 'Total Matches' },
+        { name: 'results', path: 'results', label: 'Document Records' }
+      ]
+    },
+    {
+      id: 'paperless_get_document',
+      name: 'Get Document Details & OCR Content',
+      path: '/api/documents/{documentId}/',
+      method: 'GET',
+      inputs: [
+        { name: 'documentId', label: 'Document ID', type: 'number', in: 'path', required: true }
+      ],
+      outputs: [
+        { name: 'title', path: 'title', label: 'Title' },
+        { name: 'content', path: 'content', label: 'OCR Extracted Text' },
+        { name: 'created', path: 'created', label: 'Created At' },
+        { name: 'tags', path: 'tags', label: 'Tag IDs' }
+      ]
+    },
+    {
+      id: 'paperless_list_tags',
+      name: 'List Document Tags',
+      path: '/api/tags/',
+      method: 'GET',
+      inputs: [
+        { name: 'page_size', label: 'Page Size', type: 'number', in: 'query', default: 100 }
+      ],
+      outputs: [
+        { name: 'results', path: 'results', label: 'Tags List' }
+      ]
+    },
+    {
+      id: 'paperless_list_types',
+      name: 'List Document Types',
+      path: '/api/document_types/',
+      method: 'GET',
+      inputs: [
+        { name: 'page_size', label: 'Page Size', type: 'number', in: 'query', default: 100 }
+      ],
+      outputs: [
+        { name: 'results', path: 'results', label: 'Document Types' }
+      ]
+    }
   ]
 };
 
@@ -878,6 +938,7 @@ export const CONNECTOR_TYPES = [
   { value: 'MQTT',     label: 'MQTT / IoT',          icon: 'Zap',      color: '#f59e0b', description: 'MQTT broker for IoT devices' },
   { value: 'SUPABASE', label: 'Supabase',            icon: 'HardDrive',color: '#3ecf8e', description: 'Direct Supabase integration' },
   { value: 'CANVA',    label: 'Canva Connect',      icon: 'Palette',  color: '#00c4cc', description: 'Connect to Canva API to dynamically pull mockups or asset designs' },
+  { value: 'PAPERLESS',label: 'Paperless-ngx DMS',  icon: 'FileText', color: '#059669', description: 'Paperless-ngx REST API for OCR document indexing, QC reports & drawings' },
 ];
 
 export default {

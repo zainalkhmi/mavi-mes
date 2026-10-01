@@ -56,6 +56,10 @@ const CreateConnectorModal = ({ isOpen, onClose, onSave }) => {
             apiKey: '',
             defaultFolderId: '',
             exportFormat: 'PNG'
+        },
+        paperlessSettings: {
+            apiKey: '',
+            defaultDocType: 'QC Checksheet'
         }
     });
 
@@ -85,6 +89,17 @@ const CreateConnectorModal = ({ isOpen, onClose, onSave }) => {
                 type: 'BASIC',
                 username: formData.username,
                 password: formData.password
+            };
+        }
+        if (formData.type === 'PAPERLESS') {
+            finalData.functions = ERP_PRESETS.PAPERLESS || [];
+            if (!finalData.serverAddress || finalData.serverAddress === 'api.weather.gov') {
+                finalData.serverAddress = 'http://localhost:8000';
+            }
+            finalData.baseUrl = finalData.serverAddress;
+            finalData.auth = {
+                type: 'TOKEN',
+                token: formData.paperlessSettings?.apiKey || formData.password || ''
             };
         }
         onSave(finalData);
@@ -231,6 +246,13 @@ const CreateConnectorModal = ({ isOpen, onClose, onSave }) => {
                                             <div>
                                                 <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>Canva Connect</div>
                                                 <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Connect to Canva API to dynamically pull mockups or asset designs.</div>
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                                            <input type="radio" checked={formData.type === 'PAPERLESS'} onChange={() => setFormData({...formData, type: 'PAPERLESS', name: 'Paperless-ngx DMS', serverAddress: 'http://localhost:8000'})} />
+                                            <div>
+                                                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#059669' }}>Paperless-ngx DMS</div>
+                                                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Connect to Paperless-ngx REST API for document archiving, full-text OCR indexing, and technical drawings.</div>
                                             </div>
                                         </div>
                                     </div>
@@ -594,6 +616,26 @@ const CreateConnectorModal = ({ isOpen, onClose, onSave }) => {
                                                   <option>JPG</option>
                                                   <option>PDF</option>
                                               </select>
+                                          </div>
+                                      </>
+                                  )}
+                                  {formData.type === 'PAPERLESS' && (
+                                      <>
+                                          <div>
+                                              <label style={labelStyle}>API Token (Token Authentication)</label>
+                                              <input 
+                                                  type="password"
+                                                  style={inputStyle} 
+                                                  placeholder="e.g. 9f4a12c8b74f..."
+                                                  value={formData.paperlessSettings?.apiKey || ''}
+                                                  onChange={e => setFormData({
+                                                      ...formData, 
+                                                      paperlessSettings: { ...(formData.paperlessSettings || {}), apiKey: e.target.value }
+                                                  })}
+                                              />
+                                              <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '4px' }}>
+                                                  Dapatkan API token dari Paperless-ngx Admin ➔ My Profile ➔ API Auth Tokens.
+                                              </div>
                                           </div>
                                       </>
                                   )}
