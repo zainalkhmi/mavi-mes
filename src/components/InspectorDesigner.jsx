@@ -2257,48 +2257,107 @@ export default function InspectorDesigner() {
   };
   
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      backgroundColor: '#0b1120',
-      color: '#f8fafc',
-      fontFamily: "'Inter', sans-serif",
-      overflow: 'hidden',
-      width: '100%',
-      height: '100%'
-    }}>
+    <div 
+      className="odoo-inspector-designer"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        backgroundColor: '#f1f5f9',
+        color: '#1e293b',
+        fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+        overflow: 'hidden',
+        width: '100%',
+        height: '100%'
+      }}
+    >
+      {/* Scoped Odoo Studio CSS Theme */}
+      <style>{`
+        .odoo-inspector-designer {
+          --odoo-purple: #714b67;
+          --odoo-purple-dark: #5c3b53;
+          --odoo-teal: #008784;
+          --odoo-teal-dark: #007370;
+          --odoo-border: #e2e8f0;
+          --odoo-border-input: #cbd5e1;
+        }
+        .odoo-inspector-designer input[type="text"],
+        .odoo-inspector-designer input[type="number"],
+        .odoo-inspector-designer input[type="date"],
+        .odoo-inspector-designer select,
+        .odoo-inspector-designer textarea {
+          background-color: #ffffff !important;
+          color: #1e293b !important;
+          border: 1px solid #cbd5e1 !important;
+          border-radius: 6px !important;
+          transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+        }
+        .odoo-inspector-designer input:focus,
+        .odoo-inspector-designer select:focus,
+        .odoo-inspector-designer textarea:focus {
+          border-color: #008784 !important;
+          box-shadow: 0 0 0 2.5px rgba(0, 135, 132, 0.18) !important;
+          outline: none !important;
+        }
+        .odoo-inspector-designer input::placeholder,
+        .odoo-inspector-designer textarea::placeholder {
+          color: #94a3b8 !important;
+        }
+        .odoo-inspector-designer select option {
+          background-color: #ffffff !important;
+          color: #1e293b !important;
+        }
+        /* Custom scrollbar Odoo style */
+        .odoo-inspector-designer ::-webkit-scrollbar {
+          width: 6px;
+          height: 6px;
+        }
+        .odoo-inspector-designer ::-webkit-scrollbar-track {
+          background: #f1f5f9;
+        }
+        .odoo-inspector-designer ::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 4px;
+        }
+        .odoo-inspector-designer ::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
+      `}</style>
       <Toaster position="top-right" />
       
-      {/* ─── Header ─── */}
+      {/* ─── Header: Odoo Studio Aesthetic ─── */}
       <div style={{
         height: '56px',
-        backgroundColor: '#0f172a',
-        borderBottom: '1px solid #1e293b',
+        backgroundColor: '#714b67',
+        backgroundImage: 'linear-gradient(135deg, #714b67 0%, #5d3d54 100%)',
+        borderBottom: '1px solid rgba(0, 0, 0, 0.15)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '0 20px'
+        padding: '0 20px',
+        boxShadow: '0 2px 8px rgba(113, 75, 103, 0.25)',
+        zIndex: 40
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{
-            width: '32px', height: '32px',
-            backgroundColor: '#8b5cf6',
+            width: '34px', height: '34px',
+            backgroundColor: '#008784',
             borderRadius: '8px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 2px 6px rgba(0, 135, 132, 0.35)'
           }}>
-            <Ruler size={18} color="white" />
+            <Ruler size={19} color="white" />
           </div>
           <div>
-            <div style={{ fontWeight: 800, fontSize: '1rem', color: '#fff' }}>
+            <div style={{ fontWeight: 800, fontSize: '0.98rem', color: '#ffffff', letterSpacing: '-0.01em' }}>
               INSPECTOR DESIGNER STUDIO
             </div>
-            <div style={{ fontSize: '0.65rem', color: '#64748b' }}>
-              Design QC inspection workflows
+            <div style={{ fontSize: '0.66rem', color: '#f3e8ff', opacity: 0.9 }}>
+              Design QC inspection workflows • Odoo Studio Mode
             </div>
           </div>
         </div>
         
-        {/* Top Step Indicator (7-Step Process) - Icon Only */}
+        {/* Top Step Indicator (7-Step Process) - Odoo Status Pipeline */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           {[
             { num: 1, label: 'Header', icon: ClipboardList, color: '#38bdf8' },
@@ -2321,43 +2380,43 @@ export default function InspectorDesigner() {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    width: '35px',
-                    height: '35px',
+                    width: '34px',
+                    height: '34px',
                     borderRadius: '50%',
                     backgroundColor: isActive 
-                      ? 'rgba(139, 92, 246, 0.35)' 
+                      ? '#008784' 
                       : isCompleted 
-                      ? 'rgba(16, 185, 129, 0.18)' 
-                      : 'rgba(30, 41, 59, 0.65)',
+                      ? '#10b981' 
+                      : 'rgba(255, 255, 255, 0.16)',
                     border: isActive 
-                      ? '2px solid #a78bfa' 
+                      ? '2px solid #ffffff' 
                       : isCompleted 
-                      ? '1.5px solid #10b981' 
-                      : '1.5px solid #334155',
+                      ? '1.5px solid rgba(255, 255, 255, 0.9)' 
+                      : '1.5px solid rgba(255, 255, 255, 0.28)',
                     cursor: 'pointer',
                     transition: 'all 0.18s ease',
-                    transform: isActive ? 'scale(1.08)' : 'scale(1)',
-                    boxShadow: isActive ? '0 0 14px rgba(139, 92, 246, 0.5)' : 'none',
+                    transform: isActive ? 'scale(1.1)' : 'scale(1)',
+                    boxShadow: isActive ? '0 0 12px rgba(0, 135, 132, 0.8), 0 2px 6px rgba(0,0,0,0.2)' : 'none',
                     padding: 0
                   }}
                   onMouseEnter={e => {
-                    if (!isActive) e.currentTarget.style.backgroundColor = 'rgba(51, 65, 85, 0.8)';
+                    if (!isActive && !isCompleted) e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.28)';
                   }}
                   onMouseLeave={e => {
-                    if (!isActive) e.currentTarget.style.backgroundColor = isCompleted ? 'rgba(16, 185, 129, 0.18)' : 'rgba(30, 41, 59, 0.65)';
+                    if (!isActive && !isCompleted) e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.16)';
                   }}
                 >
                   <div style={{
                     width: '26px', height: '26px',
                     borderRadius: '50%',
-                    backgroundColor: isActive ? '#8b5cf6' : isCompleted ? '#10b981' : 'transparent',
+                    backgroundColor: 'transparent',
                     color: 'white',
                     display: 'flex', alignItems: 'center', justifyContent: 'center'
                   }}>
                     {isCompleted ? (
-                      <Check size={16} strokeWidth={3} />
+                      <Check size={16} strokeWidth={3} color="white" />
                     ) : (
-                      <IconCmp size={16} strokeWidth={isActive ? 2.5 : 2} color={isActive ? 'white' : s.color} />
+                      <IconCmp size={15} strokeWidth={isActive ? 2.6 : 2} color="white" />
                     )}
                   </div>
                 </button>
@@ -2366,12 +2425,11 @@ export default function InspectorDesigner() {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    padding: '0 2px',
-                    color: currentStep > s.num ? '#10b981' : currentStep === s.num ? '#a78bfa' : '#64748b',
-                    filter: currentStep > s.num ? 'drop-shadow(0 0 6px rgba(16, 185, 129, 0.6))' : currentStep === s.num ? 'drop-shadow(0 0 6px rgba(167, 139, 250, 0.6))' : 'none',
+                    padding: '0 1px',
+                    color: currentStep > s.num ? '#a7f3d0' : currentStep === s.num ? '#ffffff' : 'rgba(255, 255, 255, 0.35)',
                     transition: 'all 0.2s ease'
                   }}>
-                    <ArrowRight size={18} strokeWidth={2.8} />
+                    <ArrowRight size={16} strokeWidth={2.5} />
                   </div>
                 )}
               </React.Fragment>
@@ -2379,27 +2437,29 @@ export default function InspectorDesigner() {
           })}
         </div>
 
-        {/* ── Right Toolbar: ISO Controls & Actions ── */}
+        {/* ── Right Toolbar: ISO Controls & Actions (Odoo Pill & Glass Style) ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           {/* ISO 9001 Status Badge */}
           <div 
             title={`Status: ${checkSheetStatus ? checkSheetStatus.toUpperCase() : 'DRAFT'}`}
             style={{
-              padding: '4px 8px',
-              borderRadius: '12px',
-              backgroundColor: checkSheetStatus === 'draft' ? '#64748b' :
+              padding: '4px 10px',
+              borderRadius: '14px',
+              backgroundColor: checkSheetStatus === 'draft' ? 'rgba(255, 255, 255, 0.2)' :
                                checkSheetStatus === 'pending_approval' ? '#f59e0b' :
-                               checkSheetStatus === 'approved' ? '#22c55e' :
-                               checkSheetStatus === 'released' ? '#3b82f6' : '#ef4444',
+                               checkSheetStatus === 'approved' ? '#10b981' :
+                               checkSheetStatus === 'released' ? '#008784' : '#ef4444',
               color: 'white',
-              fontSize: '0.65rem',
+              fontSize: '0.68rem',
               fontWeight: 800,
               display: 'flex',
               alignItems: 'center',
-              gap: '4px'
+              gap: '5px',
+              border: '1px solid rgba(255, 255, 255, 0.25)',
+              letterSpacing: '0.04em'
             }}
           >
-            <ShieldCheck size={12} />
+            <ShieldCheck size={13} />
             <span>
               {checkSheetStatus === 'draft' ? 'DRAFT' :
                checkSheetStatus === 'pending_approval' ? 'PENDING' :
@@ -2414,10 +2474,10 @@ export default function InspectorDesigner() {
             style={{
               width: '32px',
               height: '32px',
-              backgroundColor: '#1e293b',
-              color: '#38bdf8',
-              border: '1px solid #0284c7',
-              borderRadius: '8px',
+              backgroundColor: 'rgba(255, 255, 255, 0.15)',
+              color: '#ffffff',
+              border: '1px solid rgba(255, 255, 255, 0.25)',
+              borderRadius: '7px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -2425,8 +2485,8 @@ export default function InspectorDesigner() {
               transition: 'all 0.15s'
             }}
             title="Dokumen ISO 9001 (Checksheet Management)"
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#0c1a2e'}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#1e293b'}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.25)'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)'}
           >
             <FolderArchive size={16} />
           </button>
@@ -2436,26 +2496,26 @@ export default function InspectorDesigner() {
             onClick={() => setShowTemplateModal(true)}
             style={{
               height: '32px',
-              padding: '0 8px',
-              backgroundColor: '#1e293b',
-              color: '#f8fafc',
-              border: '1px solid #334155',
-              borderRadius: '8px',
+              padding: '0 10px',
+              backgroundColor: 'rgba(255, 255, 255, 0.15)',
+              color: '#ffffff',
+              border: '1px solid rgba(255, 255, 255, 0.25)',
+              borderRadius: '7px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '4px',
+              gap: '5px',
               fontSize: '0.72rem',
               fontWeight: 700,
               transition: 'all 0.15s'
             }}
             title={`Template Library (${savedTemplates.length})`}
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#334155'}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#1e293b'}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.25)'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)'}
           >
             <FileText size={15} />
-            <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>({savedTemplates.length})</span>
+            <span style={{ fontSize: '0.68rem', color: '#f3e8ff' }}>({savedTemplates.length})</span>
           </button>
 
           {/* Revision History */}
@@ -2463,29 +2523,29 @@ export default function InspectorDesigner() {
             onClick={() => setShowRevisionModal(true)}
             style={{
               height: '32px',
-              padding: '0 8px',
-              backgroundColor: '#1e293b',
-              color: '#f8fafc',
-              border: '1px solid #334155',
-              borderRadius: '8px',
+              padding: '0 10px',
+              backgroundColor: 'rgba(255, 255, 255, 0.15)',
+              color: '#ffffff',
+              border: '1px solid rgba(255, 255, 255, 0.25)',
+              borderRadius: '7px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '4px',
+              gap: '5px',
               fontSize: '0.72rem',
               fontWeight: 700,
               transition: 'all 0.15s'
             }}
             title={`Revision History (Rev ${revisionNo})`}
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#334155'}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#1e293b'}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.25)'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)'}
           >
             <Clock size={15} />
-            <span style={{ fontSize: '0.68rem', color: '#38bdf8' }}>{revisionNo}</span>
+            <span style={{ fontSize: '0.68rem', color: '#67e8f9', fontWeight: 800 }}>{revisionNo}</span>
           </button>
 
-          <div style={{ width: '1px', height: '20px', backgroundColor: '#334155', margin: '0 2px' }} />
+          <div style={{ width: '1px', height: '20px', backgroundColor: 'rgba(255, 255, 255, 0.25)', margin: '0 2px' }} />
 
           {/* Create New Check Sheet */}
           <button
@@ -2493,20 +2553,20 @@ export default function InspectorDesigner() {
             style={{
               width: '32px',
               height: '32px',
-              backgroundColor: '#10b981',
+              backgroundColor: '#008784',
               color: 'white',
-              border: 'none',
-              borderRadius: '8px',
+              border: '1px solid rgba(255, 255, 255, 0.3)',
+              borderRadius: '7px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 2px 10px rgba(16, 185, 129, 0.35)',
+              boxShadow: '0 2px 8px rgba(0, 135, 132, 0.4)',
               transition: 'all 0.15s'
             }}
             title="Create New Check Sheet (Buat Baru)"
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#059669'}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#10b981'}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#007370'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#008784'}
           >
             <PlusCircle size={16} />
           </button>
@@ -2517,10 +2577,10 @@ export default function InspectorDesigner() {
             style={{
               width: '32px',
               height: '32px',
-              backgroundColor: '#1e293b',
-              color: '#38bdf8',
-              border: '1px solid #0284c7',
-              borderRadius: '8px',
+              backgroundColor: 'rgba(255, 255, 255, 0.15)',
+              color: '#ffffff',
+              border: '1px solid rgba(255, 255, 255, 0.25)',
+              borderRadius: '7px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -2528,8 +2588,8 @@ export default function InspectorDesigner() {
               transition: 'all 0.15s'
             }}
             title="Buka Project (Open)"
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#0c1a2e'}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#1e293b'}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.25)'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)'}
           >
             <FolderOpen size={16} />
           </button>
@@ -2540,20 +2600,20 @@ export default function InspectorDesigner() {
             style={{
               width: '32px',
               height: '32px',
-              backgroundColor: '#10b981',
+              backgroundColor: '#008784',
               color: 'white',
-              border: 'none',
-              borderRadius: '8px',
+              border: '1px solid rgba(255, 255, 255, 0.3)',
+              borderRadius: '7px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)',
+              boxShadow: '0 2px 8px rgba(0, 135, 132, 0.4)',
               transition: 'all 0.15s'
             }}
             title="Simpan Project (Save)"
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#059669'}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#10b981'}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#007370'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#008784'}
           >
             <Save size={16} />
           </button>
@@ -2564,10 +2624,10 @@ export default function InspectorDesigner() {
             style={{
               width: '32px',
               height: '32px',
-              backgroundColor: '#334155',
-              color: '#f8fafc',
-              border: 'none',
-              borderRadius: '8px',
+              backgroundColor: 'rgba(255, 255, 255, 0.12)',
+              color: '#ffffff',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              borderRadius: '7px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -2575,8 +2635,8 @@ export default function InspectorDesigner() {
               transition: 'all 0.15s'
             }}
             title="Back to QA Checksheet"
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#475569'}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#334155'}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.22)'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.12)'}
           >
             <ArrowLeft size={16} />
           </button>
@@ -2587,26 +2647,26 @@ export default function InspectorDesigner() {
         
         {/* ─── LEFT PANEL: Navigation & Tools ─── */}
         <div style={{
-          backgroundColor: '#0f172a',
-          borderRight: '1px solid #1e293b',
+          backgroundColor: '#ffffff',
+          borderRight: '1px solid #e2e8f0',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden'
         }}>
           <div style={{
-            padding: '10px 12px',
-            borderBottom: '1px solid #1e293b',
-            backgroundColor: '#090d16'
+            padding: '12px 14px',
+            borderBottom: '1px solid #e2e8f0',
+            backgroundColor: '#f8fafc'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {currentStep === 1 && <ClipboardList size={16} color="#38bdf8" />}
-              {currentStep === 2 && <Layers size={16} color="#a78bfa" />}
-              {currentStep === 3 && <Ruler size={16} color="#f59e0b" />}
-              {currentStep === 4 && <Database size={16} color="#10b981" />}
-              {currentStep === 5 && <SlidersHorizontal size={16} color="#ec4899" />}
-              {currentStep === 6 && <FileSpreadsheet size={16} color="#8b5cf6" />}
-              {currentStep === 7 && <Sparkles size={16} color="#06b6d4" />}
-              <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#f8fafc' }}>
+              {currentStep === 1 && <ClipboardList size={16} color="#714b67" />}
+              {currentStep === 2 && <Layers size={16} color="#008784" />}
+              {currentStep === 3 && <Ruler size={16} color="#714b67" />}
+              {currentStep === 4 && <Database size={16} color="#008784" />}
+              {currentStep === 5 && <SlidersHorizontal size={16} color="#714b67" />}
+              {currentStep === 6 && <FileSpreadsheet size={16} color="#008784" />}
+              {currentStep === 7 && <Sparkles size={16} color="#008784" />}
+              <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#1e293b' }}>
                 {currentStep === 1 ? '1. Parameter Header & Info' :
                  currentStep === 2 ? '2. Upload Drawing / CAD' :
                  currentStep === 3 ? '3. Inspection Parameters' :
@@ -2624,22 +2684,24 @@ export default function InspectorDesigner() {
 
               {/* ISO 9001 Document Info Card */}
               <div style={{
-                backgroundColor: '#1e293b',
-                borderRadius: '10px',
+                backgroundColor: '#faf8fc',
+                borderRadius: '8px',
                 padding: '12px',
                 marginBottom: '12px',
-                border: '1px solid #8b5cf6'
+                border: '1px solid #e9d5ff',
+                borderLeft: '4px solid #714b67',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                  <Shield size={16} color="#8b5cf6" />
-                  <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#a78bfa' }}>
+                  <Shield size={16} color="#714b67" />
+                  <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#714b67' }}>
                     ISO 9001:2015 DOCUMENT CONTROL
                   </span>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                   <div>
-                    <label style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                    <label style={{ fontSize: '0.62rem', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>
                       Document No
                     </label>
                     <input
@@ -2650,18 +2712,18 @@ export default function InspectorDesigner() {
                       style={{
                         width: '100%',
                         padding: '6px 8px',
-                        backgroundColor: '#090d16',
-                        border: '1px solid #334155',
+                        backgroundColor: '#f1f5f9',
+                        border: '1px solid #cbd5e1',
                         borderRadius: '4px',
-                        color: '#8b5cf6',
+                        color: '#714b67',
                         fontSize: '0.75rem',
-                        fontWeight: 700,
+                        fontWeight: 800,
                         outline: 'none'
                       }}
                     />
                   </div>
                   <div>
-                    <label style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                    <label style={{ fontSize: '0.62rem', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>
                       Revision
                     </label>
                     <select
@@ -2670,11 +2732,12 @@ export default function InspectorDesigner() {
                       style={{
                         width: '100%',
                         padding: '6px 8px',
-                        backgroundColor: '#1e293b',
-                        border: '1px solid #334155',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #cbd5e1',
                         borderRadius: '4px',
-                        color: 'white',
+                        color: '#1e293b',
                         fontSize: '0.75rem',
+                        fontWeight: 600,
                         outline: 'none'
                       }}
                     >
@@ -2684,7 +2747,7 @@ export default function InspectorDesigner() {
                     </select>
                   </div>
                   <div>
-                    <label style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                    <label style={{ fontSize: '0.62rem', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>
                       Effective Date
                     </label>
                     <input
@@ -2694,17 +2757,17 @@ export default function InspectorDesigner() {
                       style={{
                         width: '100%',
                         padding: '6px 8px',
-                        backgroundColor: '#1e293b',
-                        border: '1px solid #334155',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #cbd5e1',
                         borderRadius: '4px',
-                        color: 'white',
+                        color: '#1e293b',
                         fontSize: '0.75rem',
                         outline: 'none'
                       }}
                     />
                   </div>
                   <div>
-                    <label style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                    <label style={{ fontSize: '0.62rem', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>
                       Next Review
                     </label>
                     <input
@@ -2714,10 +2777,10 @@ export default function InspectorDesigner() {
                       style={{
                         width: '100%',
                         padding: '6px 8px',
-                        backgroundColor: '#1e293b',
-                        border: '1px solid #334155',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #cbd5e1',
                         borderRadius: '4px',
-                        color: 'white',
+                        color: '#1e293b',
                         fontSize: '0.75rem',
                         outline: 'none'
                       }}
@@ -2729,15 +2792,15 @@ export default function InspectorDesigner() {
               {/* Master Data Header */}
               <div style={{ marginBottom: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                  <ClipboardList size={14} color="#22c55e" />
-                  <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#22c55e' }}>
+                  <ClipboardList size={14} color="#008784" />
+                  <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#008784', letterSpacing: '0.03em' }}>
                     MASTER DATA HEADER
                   </span>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <div>
-                    <label style={{ fontSize: '0.68rem', fontWeight: 800, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                    <label style={{ fontSize: '0.68rem', fontWeight: 800, color: '#008784', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
                       <span>Nama Check Sheet / Title *</span>
                     </label>
                     <input
@@ -2748,20 +2811,20 @@ export default function InspectorDesigner() {
                       style={{
                         width: '100%',
                         padding: '8px 10px',
-                        backgroundColor: '#1e293b',
-                        border: '1.5px solid #0284c7',
+                        backgroundColor: '#ffffff',
+                        border: '1.5px solid #008784',
                         borderRadius: '6px',
-                        color: '#ffffff',
+                        color: '#1e293b',
                         fontSize: '0.82rem',
                         fontWeight: 700,
                         outline: 'none',
-                        boxShadow: '0 0 10px rgba(56, 189, 248, 0.15)'
+                        boxShadow: '0 0 0 2px rgba(0, 135, 132, 0.1)'
                       }}
                     />
                   </div>
 
                   <div>
-                    <label style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                    <label style={{ fontSize: '0.65rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>
                       Part No / Part Number *
                     </label>
                     <input
@@ -2772,10 +2835,10 @@ export default function InspectorDesigner() {
                       style={{
                         width: '100%',
                         padding: '8px 10px',
-                        backgroundColor: '#1e293b',
-                        border: '1px solid #334155',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #cbd5e1',
                         borderRadius: '6px',
-                        color: 'white',
+                        color: '#1e293b',
                         fontSize: '0.8rem',
                         outline: 'none'
                       }}
@@ -2783,7 +2846,7 @@ export default function InspectorDesigner() {
                   </div>
 
                   <div>
-                    <label style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                    <label style={{ fontSize: '0.65rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>
                       Part Name / Description *
                     </label>
                     <input
@@ -2794,10 +2857,10 @@ export default function InspectorDesigner() {
                       style={{
                         width: '100%',
                         padding: '8px 10px',
-                        backgroundColor: '#1e293b',
-                        border: '1px solid #334155',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #cbd5e1',
                         borderRadius: '6px',
-                        color: 'white',
+                        color: '#1e293b',
                         fontSize: '0.8rem',
                         outline: 'none'
                       }}
@@ -2805,7 +2868,7 @@ export default function InspectorDesigner() {
                   </div>
 
                   <div>
-                    <label style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                    <label style={{ fontSize: '0.65rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>
                       Customer / Pelanggan
                     </label>
                     <input
@@ -2816,10 +2879,10 @@ export default function InspectorDesigner() {
                       style={{
                         width: '100%',
                         padding: '8px 10px',
-                        backgroundColor: '#1e293b',
-                        border: '1px solid #334155',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #cbd5e1',
                         borderRadius: '6px',
-                        color: 'white',
+                        color: '#1e293b',
                         fontSize: '0.8rem',
                         outline: 'none'
                       }}
@@ -2827,7 +2890,7 @@ export default function InspectorDesigner() {
                   </div>
 
                   <div>
-                    <label style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '4px' }}>
+                    <label style={{ fontSize: '0.65rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>
                       Process / Proses
                     </label>
                     <input
@@ -2838,10 +2901,10 @@ export default function InspectorDesigner() {
                       style={{
                         width: '100%',
                         padding: '8px 10px',
-                        backgroundColor: '#1e293b',
-                        border: '1px solid #334155',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #cbd5e1',
                         borderRadius: '6px',
-                        color: 'white',
+                        color: '#1e293b',
                         fontSize: '0.8rem',
                         outline: 'none'
                       }}
@@ -4695,7 +4758,9 @@ export default function InspectorDesigner() {
           onMouseLeave={currentStep !== 6 ? handleCanvasMouseUp : undefined}
           style={{
             position: 'relative',
-            backgroundColor: currentStep === 6 ? '#0b1120' : '#090d16',
+            backgroundColor: currentStep === 6 ? '#f8fafc' : '#eef2f6',
+            backgroundImage: currentStep === 6 ? 'none' : 'radial-gradient(#cbd5e1 1.2px, transparent 1.2px)',
+            backgroundSize: '24px 24px',
             overflow: 'hidden',
             cursor: currentStep === 6 ? 'default' : isPanning ? 'grabbing' : isDragging ? 'move' : 'crosshair',
             display: 'flex',
@@ -4707,31 +4772,31 @@ export default function InspectorDesigner() {
             userSelect: 'none'
           }}
         >
-          {/* HUD Compact Vertical Floating Toolbar on Left Side of Canvas */}
+          {/* HUD Compact Vertical Floating Toolbar on Left Side of Canvas - Odoo Studio Clean Glass */}
           {currentStep !== 6 && (
             <div style={{
               position: 'absolute',
-              top: '12px',
-              left: '12px',
+              top: '14px',
+              left: '14px',
               zIndex: 30,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               gap: '6px',
-              backgroundColor: 'rgba(15, 23, 42, 0.94)',
-              backdropFilter: 'blur(10px)',
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(12px)',
               padding: '6px 5px',
               borderRadius: '10px',
-              border: '1px solid #334155',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.6)'
+              border: '1px solid #cbd5e1',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.08)'
             }}>
               {/* Point Counter Badge */}
               <div 
                 style={{
                   padding: '4px 6px',
                   borderRadius: '6px',
-                  backgroundColor: 'rgba(139, 92, 246, 0.15)',
-                  border: '1px solid rgba(139, 92, 246, 0.3)',
+                  backgroundColor: '#eff6ff',
+                  border: '1px solid #bfdbfe',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
@@ -4741,13 +4806,13 @@ export default function InspectorDesigner() {
                 }}
                 title={`${checkPoints.length} Titik Ukur / Balon`}
               >
-                <Target size={13} color="#a855f7" />
-                <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#c084fc', marginTop: '1px' }}>
+                <Target size={13} color="#008784" />
+                <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#008784', marginTop: '1px' }}>
                   {checkPoints.length}
                 </span>
               </div>
 
-              <div style={{ width: '22px', height: '1px', backgroundColor: '#334155' }} />
+              <div style={{ width: '22px', height: '1px', backgroundColor: '#e2e8f0' }} />
 
               {/* Add Pin Mode Toggle */}
               <button
@@ -4755,20 +4820,20 @@ export default function InspectorDesigner() {
                 style={{
                   width: '32px',
                   height: '32px',
-                  backgroundColor: isAddPinMode ? '#16a34a' : '#1e293b',
-                  color: '#ffffff',
-                  border: isAddPinMode ? '1.5px solid #22c55e' : '1px solid #475569',
+                  backgroundColor: isAddPinMode ? '#008784' : '#ffffff',
+                  color: isAddPinMode ? '#ffffff' : '#008784',
+                  border: isAddPinMode ? '1.5px solid #007370' : '1px solid #cbd5e1',
                   borderRadius: '7px',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: isAddPinMode ? '0 0 12px rgba(34, 197, 94, 0.6)' : 'none',
+                  boxShadow: isAddPinMode ? '0 0 10px rgba(0, 135, 132, 0.45)' : 'none',
                   transition: 'all 0.15s ease'
                 }}
                 title={isAddPinMode ? 'Mode Pin Aktif (Klik Canvas untuk Pin)' : 'Tambah Titik Balon (+ Pin)'}
               >
-                <PlusCircle size={16} color={isAddPinMode ? '#ffffff' : '#22c55e'} />
+                <PlusCircle size={16} color={isAddPinMode ? '#ffffff' : '#008784'} />
               </button>
 
               {/* 🪄 1-Click Auto-Balloon Feature Extractor (Solid & Vibrant) */}
@@ -6291,18 +6356,18 @@ export default function InspectorDesigner() {
 
         {/* ─── RIGHT PANEL: Properties Editor / Report Schema Inspector ─── */}
         <div style={{
-          backgroundColor: '#0f172a',
-          borderLeft: '1px solid #1e293b',
+          backgroundColor: '#ffffff',
+          borderLeft: '1px solid #e2e8f0',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden'
         }}>
           <div style={{
-            padding: '12px',
-            borderBottom: '1px solid #1e293b',
-            backgroundColor: '#090d16'
+            padding: '12px 14px',
+            borderBottom: '1px solid #e2e8f0',
+            backgroundColor: '#f8fafc'
           }}>
-            <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#8b5cf6' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#714b67', letterSpacing: '-0.01em' }}>
               {currentStep === 6 ? 'Report Schema & Data Binding' : activePoint ? 'Edit Point #' + activePoint.pointNumber : 'Point Properties'}
             </span>
           </div>
@@ -7407,20 +7472,20 @@ export default function InspectorDesigner() {
           {/* Bottom Actions */}
           <div style={{
             padding: '12px',
-            borderTop: '1px solid #1e293b',
-            backgroundColor: '#090d16',
+            borderTop: '1px solid #e2e8f0',
+            backgroundColor: '#ffffff',
             display: 'flex',
             flexDirection: 'column',
-            gap: '6px'
+            gap: '8px'
           }}>
             <button
               onClick={handleSaveTemplate}
               disabled={isSaving}
               style={{
                 padding: '10px',
-                backgroundColor: '#1e293b',
-                color: '#f8fafc',
-                border: '1px solid #334155',
+                backgroundColor: '#ffffff',
+                color: '#334155',
+                border: '1px solid #cbd5e1',
                 borderRadius: '6px',
                 fontSize: '0.78rem',
                 fontWeight: 700,
@@ -7428,8 +7493,12 @@ export default function InspectorDesigner() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '6px'
+                gap: '6px',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                transition: 'all 0.15s ease'
               }}
+              onMouseEnter={e => { if (!isSaving) e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+              onMouseLeave={e => { if (!isSaving) e.currentTarget.style.backgroundColor = '#ffffff'; }}
             >
               <Save size={14} />
               {isSaving ? 'Saving...' : 'Save as Template'}
@@ -7439,19 +7508,23 @@ export default function InspectorDesigner() {
               onClick={handleExportToCheckSheet}
               style={{
                 padding: '12px',
-                backgroundColor: '#22c55e',
-                color: '#0f172a',
+                backgroundColor: '#008784',
+                backgroundImage: 'linear-gradient(135deg, #008784 0%, #007370 100%)',
+                color: '#ffffff',
                 border: 'none',
                 borderRadius: '6px',
-                fontSize: '0.82rem',
+                fontSize: '0.84rem',
                 fontWeight: 800,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '8px',
-                boxShadow: '0 4px 12px rgba(34, 197, 94, 0.4)'
+                boxShadow: '0 4px 14px rgba(0, 135, 132, 0.35)',
+                transition: 'all 0.15s ease'
               }}
+              onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(1.06)'; }}
+              onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
             >
               <PlayCircle size={16} />
               Export to Digital Check Sheet

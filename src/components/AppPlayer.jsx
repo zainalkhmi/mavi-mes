@@ -63,9 +63,85 @@ const formatDuration = (secs) => {
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 };
 
+// ─── Local App Storage Helpers for Zero-Latency App Loading ─────────────────
+function getLocalAppById(id) {
+    if (!id) return null;
+    try {
+        const direct = sessionStorage.getItem(`mavi_launch_app_${id}`) ||
+                       localStorage.getItem(`mavi_launch_app_${id}`) ||
+                       localStorage.getItem(`mavi_app_${id}`);
+        if (direct) {
+            const parsed = JSON.parse(direct);
+            if (parsed && (parsed.config || parsed.steps || parsed.screens)) {
+                return {
+                    id: parsed.id || id,
+                    name: parsed.name || 'Frontline App',
+                    builder_type: parsed.builder_type || ((parsed.screens && !parsed.steps) ? 'gluestack' : 'app_builder'),
+                    config: parsed.config || {
+                        screens: parsed.screens || [],
+                        steps: parsed.steps || [],
+                        variables: parsed.variables || []
+                    },
+                    approval_status: parsed.approval_status || 'PUBLISHED',
+                    version: parsed.version || 1
+                };
+            }
+        }
+
+        const keys = ['draft_frontline_apps', 'offline_apps_cache', 'mandor_offline_vault', 'mavi_ui_engine_apps'];
+        for (const key of keys) {
+            const raw = localStorage.getItem(key);
+            if (raw) {
+                const arr = JSON.parse(raw);
+                if (Array.isArray(arr)) {
+                    const match = arr.find(a => String(a.id) === String(id) || String(a.name || '').toLowerCase() === String(id).toLowerCase());
+                    if (match) return match;
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('[AppPlayer] Error reading local app by id:', e);
+    }
+    return null;
+}
+
+function getAllLocalApps() {
+    const appsMap = new Map();
+    try {
+        const keys = ['mavi_ui_engine_apps', 'draft_frontline_apps', 'offline_apps_cache', 'mandor_offline_vault'];
+        for (const key of keys) {
+            const raw = localStorage.getItem(key);
+            if (raw) {
+                const list = JSON.parse(raw);
+                if (Array.isArray(list)) {
+                    list.forEach(a => {
+                        if (a && a.id && !appsMap.has(a.id)) {
+                            appsMap.set(a.id, a);
+                        }
+                    });
+                }
+            }
+        }
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && (k.startsWith('mavi_app_') || k.startsWith('mavi_launch_app_'))) {
+                try {
+                    const val = JSON.parse(localStorage.getItem(k));
+                    if (val && val.id && !appsMap.has(val.id)) {
+                        appsMap.set(val.id, val);
+                    }
+                } catch {}
+            }
+        }
+    } catch (e) {
+        console.warn('[AppPlayer] Error reading local apps:', e);
+    }
+    return Array.from(appsMap.values());
+}
+
 // ─── sub-components ──────────────────────────────────────────────────────────
 
-function FilterTabs({ active, onChange }) {
+const FilterTabs = React.memo(function FilterTabs({ active, onChange }) {
     const tabs = ['All', 'Recent', 'Favorites', 'Pending'];
     return (
         <div style={{ display: 'flex', gap: '4px', marginBottom: '10px' }}>
@@ -91,9 +167,9 @@ function FilterTabs({ active, onChange }) {
             ))}
         </div>
     );
-}
+});
 
-function AppCard({ app, isActive, isFavorite, isRecent, onLaunch, onFavorite }) {
+const AppCard = React.memo(function AppCard({ app, isActive, isFavorite, isRecent, onLaunch, onFavorite }) {
     const gradient = appGradient(app.name);
     const bgImage = app.config?.thumbnail ? `url(${app.config.thumbnail})` : gradient;
     
@@ -214,7 +290,7 @@ function AppCard({ app, isActive, isFavorite, isRecent, onLaunch, onFavorite }) 
             </div>
         </div>
     );
-}
+});
 
 function AuthModal({ app, operatorDefault, stationDefault, stations = [], onConfirm, onCancel }) {
     const [opName, setOpName] = useState(operatorDefault || '');
@@ -367,7 +443,7 @@ function AuthModal({ app, operatorDefault, stationDefault, stations = [], onConf
     );
 }
 
-function DeviceConnectivityWidget() {
+const DeviceConnectivityWidget = React.memo(function DeviceConnectivityWidget() {
     const [devices, setDevices] = useState([]);
     const [iotStatus, setIotStatus] = useState('disconnected');
 
@@ -419,7 +495,7 @@ function DeviceConnectivityWidget() {
             </div>
         </div>
     );
-}
+});
 
 
 
@@ -1179,10 +1255,31 @@ const AppPlayer = () => {
         }
     }, []);
 
-    const [apps, setApps] = useState([]);
+    // Extract URL parameters immediately
+    const urlAppId = searchParams.get('appId') || searchParams.get('app') || '';
+    const urlStation = searchParams.get('station') || '';
+    const urlOperator = searchParams.get('operator') || '';
+
+    // Synchronously resolve local app for instant 0ms mount
+    const initialLocalApp = useMemo(() => getLocalAppById(urlAppId), [urlAppId]);
+
+    const [apps, setApps] = useState(() => {
+        if (_cachedApps && _cachedApps.length > 0) return _cachedApps;
+        const local = getAllLocalApps();
+        if (initialLocalApp && !local.some(a => a.id === initialLocalApp.id)) {
+            return [initialLocalApp, ...local];
+        }
+        return local;
+    });
+
     const [stations, setStations] = useState([]);
     const [queue, setQueue] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(() => {
+        if (initialLocalApp) return false;
+        if (_cachedApps && _cachedApps.length > 0) return false;
+        const local = getAllLocalApps();
+        return local.length === 0;
+    });
     const [error, setError] = useState('');
     const [search, setSearch] = useState('');
     const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -1199,11 +1296,10 @@ const AppPlayer = () => {
     }, []);
     
     // Auto-detect station from URL if available, else keep state
-    const [stationIdFilter, setStationIdFilter] = useState(''); 
-    const [operator, setOperator] = useState('');
-    const [activeAppId, setActiveAppId] = useState('');
-    const [sessionStartedAt, setSessionStartedAt] = useState(null);
-    const [elapsedSeconds, setElapsedSeconds] = useState(0);
+    const [stationIdFilter, setStationIdFilter] = useState(() => urlStation || ''); 
+    const [operator, setOperator] = useState(() => urlOperator || 'Designer');
+    const [activeAppId, setActiveAppId] = useState(() => initialLocalApp ? initialLocalApp.id : (urlAppId || ''));
+    const [sessionStartedAt, setSessionStartedAt] = useState(() => (initialLocalApp || urlAppId) ? new Date() : null);
 
     // Player states
     const [isPaused, setIsPaused] = useState(false);
@@ -1298,7 +1394,7 @@ const AppPlayer = () => {
     // Help Guide
     const [showHelpGuide, setShowHelpGuide] = useState(false);
 
-    const activeApp = useMemo(() => apps.find((a) => a.id === activeAppId) || null, [apps, activeAppId]);
+    const activeApp = useMemo(() => apps.find((a) => a.id === activeAppId) || getLocalAppById(activeAppId) || null, [apps, activeAppId]);
     const activeStationName = useMemo(() => stations.find(s => s.id === stationIdFilter)?.name || stationIdFilter, [stations, stationIdFilter]);
 
     useEffect(() => {
@@ -1363,104 +1459,102 @@ const AppPlayer = () => {
         return `/#/terminal/${activeAppId}?${params.toString()}`;
     }, [activeAppId, stationIdFilter, operator, devMode, appLayoutMode, activeDevicePresetKey, activeOrientation, appScaleMode, activeApp?.config?.scalingMode]);
 
-    // ── Load data with caching ────────────────────────────────────────────────
+    // ── Load data with fast timeout & background reconciliation ──────────────
     const loadData = async () => {
-        setLoading(true);
+        // Only show skeleton if we have literally 0 apps cached
+        if (apps.length === 0) {
+            setLoading(true);
+        }
         setError('');
         try {
-            // Use cached apps if available and fresh (within 30 seconds)
             const now = Date.now();
             const useCachedApps = _cachedApps && (now - _cachedAppsTime) < CACHE_TTL;
 
-            const [appRows, queueRows, stationRows] = await Promise.all([
-                useCachedApps
-                    ? Promise.resolve(_cachedApps) // Return cached data synchronously
-                    : getAllFrontlineApps().then(apps => {
-                        _cachedApps = apps;
-                        _cachedAppsTime = now;
-                        return apps;
-                    }),
-                getProductionQueue().catch(() => []),
-                getStations().catch(() => [])
+            // Fetch remote data with fast fallback timeouts (prevent network hanging)
+            const fetchAppsPromise = useCachedApps
+                ? Promise.resolve(_cachedApps)
+                : Promise.race([
+                    getAllFrontlineApps(),
+                    new Promise((_, rej) => setTimeout(() => rej(new Error('Apps fetch timeout')), 2500))
+                ]).catch(err => {
+                    console.warn('[AppPlayer] Supabase apps fetch timeout/offline:', err);
+                    return null;
+                });
+
+            const fetchQueuePromise = Promise.race([
+                getProductionQueue(),
+                new Promise((_, rej) => setTimeout(() => rej(new Error('Queue timeout')), 2000))
+            ]).catch(() => []);
+
+            const fetchStationsPromise = Promise.race([
+                getStations(),
+                new Promise((_, rej) => setTimeout(() => rej(new Error('Stations timeout')), 2000))
+            ]).catch(() => []);
+
+            const [remoteApps, queueRows, stationRows] = await Promise.all([
+                fetchAppsPromise,
+                fetchQueuePromise,
+                fetchStationsPromise
             ]);
 
-            // Only update state if not using cached apps (to avoid extra renders)
-            if (!useCachedApps) {
-                setApps(appRows || []);
+            if (remoteApps && Array.isArray(remoteApps) && remoteApps.length > 0) {
+                _cachedApps = remoteApps;
+                _cachedAppsTime = now;
+                setApps(prev => {
+                    const localOnly = prev.filter(p => !remoteApps.some(r => r.id === p.id));
+                    return [...remoteApps, ...localOnly];
+                });
             } else if (apps.length === 0) {
-                // If state is empty but we have cached data, use it
-                setApps(_cachedApps || []);
+                setApps(getAllLocalApps());
             }
 
-            setQueue(queueRows || []);
-            setStations(stationRows || []);
+            if (queueRows) setQueue(queueRows);
+            if (stationRows) setStations(stationRows);
             
-            // Auto-detect station and app from URL parameters
+            // Auto-detect station from URL parameters if provided
             const params = searchParams;
-            const urlStation = params.get('station');
-            if (urlStation) {
-                setStationIdFilter(urlStation);
-            } else if (stationRows.length > 0 && !stationIdFilter) {
-                // If no station in URL, we could optionally default to the first one, 
-                // but let's allow "All Stations" if none is selected
-                // setStationIdFilter(stationRows[0].id);
+            const urlStationParam = params.get('station');
+            if (urlStationParam) {
+                setStationIdFilter(urlStationParam);
             }
 
-            const urlAppId = params.get('appId') || params.get('app');
-            if (urlAppId) {
-                let app = appRows ? appRows.find(a => a.id === urlAppId) : null;
+            const targetAppId = params.get('appId') || params.get('app');
+            if (targetAppId && !activeAppId) {
+                let app = (remoteApps && remoteApps.find(a => a.id === targetAppId)) || getLocalAppById(targetAppId);
                 if (!app) {
                     try {
-                        const fetched = await getFrontlineAppById(urlAppId);
+                        const fetched = await Promise.race([
+                            getFrontlineAppById(targetAppId),
+                            new Promise((_, rej) => setTimeout(() => rej(new Error('Single app timeout')), 2000))
+                        ]);
                         if (fetched) {
                             app = fetched;
-                            setApps(prev => [app, ...prev.filter(a => a.id !== urlAppId)]);
+                            setApps(prev => [app, ...prev.filter(a => a.id !== targetAppId)]);
                         }
                     } catch (e) {}
-                }
-                if (!app) {
-                    const localJson = localStorage.getItem(`mavi_app_${urlAppId}`);
-                    if (localJson) {
-                        try {
-                            const parsed = JSON.parse(localJson);
-                            app = {
-                                id: parsed.id || urlAppId,
-                                name: parsed.name || 'Application',
-                                builder_type: (parsed.screens && !parsed.steps) ? 'gluestack' : 'app_builder',
-                                config: parsed.config || {
-                                    screens: parsed.screens || [],
-                                    steps: parsed.steps || [],
-                                    variables: parsed.variables || []
-                                },
-                                approval_status: 'PUBLISHED'
-                            };
-                            setApps(prev => [app, ...prev.filter(a => a.id !== urlAppId)]);
-                        } catch (e) {}
-                    }
                 }
 
                 if (app) {
                     try {
-                        sessionStorage.setItem(`mavi_launch_app_${urlAppId}`, JSON.stringify(app));
-                        localStorage.setItem(`mavi_launch_app_${urlAppId}`, JSON.stringify(app));
+                        sessionStorage.setItem(`mavi_launch_app_${targetAppId}`, JSON.stringify(app));
+                        localStorage.setItem(`mavi_launch_app_${targetAppId}`, JSON.stringify(app));
                     } catch (e) {}
                     setOperator(params.get('operator') || 'Designer');
-                    setStationIdFilter(urlStation || 'Test Station 1');
-                    setActiveAppId(urlAppId);
+                    setStationIdFilter(urlStationParam || 'Test Station 1');
+                    setActiveAppId(targetAppId);
                     setSessionStartedAt(new Date());
-                    setElapsedSeconds(0);
                     setStepProgress(null);
                     setIframeError(false);
                     setIsPaused(false);
                     setSessionComments([]);
                     clearTimeout(iframeLoadTimer.current);
                     if (app.builder_type !== 'gluestack') {
-                        iframeLoadTimer.current = setTimeout(() => setIframeError(true), 8000);
+                        iframeLoadTimer.current = setTimeout(() => setIframeError(true), 20000);
                     }
                 }
             }
         } catch (err) {
-            setError(err?.message || 'Failed to load apps');
+            console.warn('[AppPlayer] loadData error:', err);
         } finally {
             setLoading(false);
         }
@@ -1483,16 +1577,7 @@ const AppPlayer = () => {
         } catch (e) {}
     }, [appLayoutMode]);
 
-    // ── Timer ────────────────────────────────────────────────────────────────
-    useEffect(() => {
-        if (!sessionStartedAt) { setElapsedSeconds(0); return; }
-        const id = setInterval(() => {
-            if (!isPaused) {
-                setElapsedSeconds(prev => prev + 1);
-            }
-        }, 1000);
-        return () => clearInterval(id);
-    }, [sessionStartedAt, isPaused]);
+    // (Eliminated 1Hz re-render storm: elapsed duration is computed on-demand from sessionStartedAt)
 
     // ── Fullscreen sync ──────────────────────────────────────────────────────
     useEffect(() => {
@@ -1544,15 +1629,12 @@ const AppPlayer = () => {
     const filteredApps = useMemo(() => {
         let list = apps;
 
-        // Station-based filtering
-        if (stationIdFilter) {
-            const stn = stations.find(s => s.id === stationIdFilter);
+        // Station-based filtering (gracefully preserves apps if station has no assigned apps)
+        if (stationIdFilter && stationIdFilter !== 'All Stations') {
+            const stn = stations.find(s => s.id === stationIdFilter || s.name === stationIdFilter);
             if (stn && stn.assignedApps && stn.assignedApps.length > 0) {
                 const assignedIds = stn.assignedApps.map(a => typeof a === 'string' ? a : a.id);
                 list = list.filter(a => assignedIds.includes(a.id));
-            } else if (stn) {
-                // If a station is selected but has no assigned apps
-                list = [];
             }
         }
 
@@ -1597,7 +1679,6 @@ const AppPlayer = () => {
 
         setActiveAppId(pendingApp.id);
         setSessionStartedAt(new Date());
-        setElapsedSeconds(0);
         setStepProgress(null);
         setIframeError(false);
         setIsPaused(false);
@@ -1784,13 +1865,14 @@ const AppPlayer = () => {
         if (activeAppId) {
             // Log session to Supabase
             try {
+                const duration = sessionStartedAt ? Math.floor((Date.now() - sessionStartedAt.getTime()) / 1000) : 0;
                 await logPlayerSession({
                     appId: activeAppId,
                     appName: activeApp?.name || 'Unknown',
                     stationId: stationIdFilter,
                     stationName: activeStationName,
                     operator: operator,
-                    durationSeconds: elapsedSeconds,
+                    durationSeconds: duration,
                     stepCount: stepProgress?.stepIndex || 0,
                     devMode: devMode,
                     comments: sessionComments,
@@ -1849,7 +1931,6 @@ const AppPlayer = () => {
             setActiveAppId('');
             setTimeout(() => setActiveAppId(id), 50);
         }
-        setElapsedSeconds(0);
         setStepProgress(null);
         setIsPaused(false);
         setTriggerHistory([]); // Clear logs on restart
@@ -2472,7 +2553,7 @@ const AppPlayer = () => {
                         ) : (
                             <iframe
                                 ref={iframeRef}
-                                key={`${activeAppId}_${activeDevicePresetKey}_${activeOrientation}_${appScaleMode}_${appLayoutMode}`}
+                                key={activeAppId}
                                 title="frontline-app-player"
                                 src={appLaunchUrl}
                                 onLoad={handleIframeLoad}

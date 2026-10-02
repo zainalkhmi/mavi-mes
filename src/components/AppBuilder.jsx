@@ -3660,10 +3660,15 @@ const AppBuilder = () => {
     const canvasPreset = DEVICE_PRESETS[previewDevice] || DEVICE_PRESETS.RESPONSIVE;
     const isPresetCanvasMode = ['DESIGN', 'PREVIEW'].includes(viewMode) && previewDevice !== 'RESPONSIVE';
     const canvasBaseSize = isPresetCanvasMode
-        ? {
-            width: previewOrientation === 'PORTRAIT' ? canvasPreset.width : canvasPreset.height,
-            height: previewOrientation === 'PORTRAIT' ? canvasPreset.height : canvasPreset.width
-        }
+        ? (() => {
+            const isLandscape = previewOrientation === 'LANDSCAPE' || (!previewOrientation && ['PC', 'TV', 'RESPONSIVE'].includes(canvasPreset.kind));
+            const dim1 = canvasPreset.width || 1280;
+            const dim2 = canvasPreset.height || 720;
+            return {
+                width: isLandscape ? Math.max(dim1, dim2) : Math.min(dim1, dim2),
+                height: isLandscape ? Math.min(dim1, dim2) : Math.max(dim1, dim2)
+            };
+        })()
         : { width: 1280, height: 720 };
 
     const canvasFrameRadius = !isPresetCanvasMode
@@ -3687,7 +3692,7 @@ const AppBuilder = () => {
             const updateScale = () => {
                 if (!wrapper) return;
                 const rect = wrapper.getBoundingClientRect();
-                const padding = 48; // Generous padding so entire canvas (header to footer) fits without scrolling
+                const padding = 32; // Comfortable padding so canvas fits nicely without needing manual zoom
                 const availableW = Math.max(100, (rect.width || wrapper.clientWidth) - padding);
                 const availableH = Math.max(100, (rect.height || wrapper.clientHeight) - padding);
 
@@ -3696,9 +3701,8 @@ const AppBuilder = () => {
 
                 const scaleW = availableW / targetW;
                 const scaleH = availableH / targetH;
-                // Tulip-style: always fit to available space, no cap for RESPONSIVE
+                // Tulip-style: fit proportional to device without manual zoom
                 const fitScale = Math.min(scaleW, scaleH);
-                // Ensure minimum scale of 0.1 and maximum of 2.0
                 const clampedScale = Math.min(2.0, Math.max(0.1, fitScale));
 
                 setZoomScale(Number(clampedScale.toFixed(2)));
@@ -4218,10 +4222,14 @@ const AppBuilder = () => {
     // --- Responsive Device Switching: proportionally scale all widgets ---
     const getCanvasSizeForDevice = (deviceKey, orientation) => {
         const preset = DEVICE_PRESETS[deviceKey] || DEVICE_PRESETS.RESPONSIVE;
-        if (!preset.width) return { width: 1280, height: 720 }; // RESPONSIVE fallback (16:9 Widescreen Laptop standard)
-        return orientation === 'PORTRAIT'
-            ? { width: preset.width, height: preset.height }
-            : { width: preset.height, height: preset.width }; // LANDSCAPE flips
+        if (!preset.width) return { width: 1280, height: 720 }; // RESPONSIVE fallback
+        const isLandscape = orientation === 'LANDSCAPE' || (!orientation && ['PC', 'TV', 'RESPONSIVE'].includes(preset.kind));
+        const dim1 = preset.width;
+        const dim2 = preset.height;
+        return {
+            width: isLandscape ? Math.max(dim1, dim2) : Math.min(dim1, dim2),
+            height: isLandscape ? Math.min(dim1, dim2) : Math.max(dim1, dim2)
+        };
     };
 
     const scaleAllComponents = (oldW, oldH, newW, newH) => {
@@ -4283,10 +4291,18 @@ const AppBuilder = () => {
     };
 
     const handleDeviceChange = (newDeviceKey) => {
+        const targetPreset = DEVICE_PRESETS[newDeviceKey];
+        let targetOrientation = previewOrientation;
+        if (targetPreset?.kind === 'PC' || targetPreset?.kind === 'TV') {
+            targetOrientation = 'LANDSCAPE';
+        } else if (targetPreset?.kind === 'PHONE') {
+            targetOrientation = 'PORTRAIT';
+        }
         const oldSize = getCanvasSizeForDevice(previewDevice, previewOrientation);
-        const newSize = getCanvasSizeForDevice(newDeviceKey, previewOrientation);
+        const newSize = getCanvasSizeForDevice(newDeviceKey, targetOrientation);
         scaleAllComponents(oldSize.width, oldSize.height, newSize.width, newSize.height);
         setPreviewDevice(newDeviceKey);
+        setPreviewOrientation(targetOrientation);
     };
     handleDeviceChangeRef.current = handleDeviceChange;
 
@@ -15022,7 +15038,7 @@ const AppBuilder = () => {
             )}
 
             {/* Main Application Area (3-Pane or Diagram) */}
-            <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+            <div style={{ flex: 1, display: 'flex', minHeight: 0, minWidth: 0, width: '100%', overflow: 'hidden', position: 'relative' }}>
                 {viewMode === 'DIAGRAM' ? (
                     <div style={{ flex: 1, position: 'relative', padding: '20px', backgroundColor: 'var(--bg-tertiary)' }}>
                         <BlocklyEditor
@@ -15412,11 +15428,15 @@ const AppBuilder = () => {
 
                         {viewMode === 'DESIGN' && (
                             <div style={{
-                                width: '380px',
+                                width: '260px',
+                                minWidth: '240px',
+                                maxWidth: '280px',
+                                flexShrink: 0,
                                 backgroundColor: 'var(--bg-panel)',
                                 borderRight: '1px solid var(--bg-tertiary)',
                                 display: 'flex',
-                                flexDirection: 'column'
+                                flexDirection: 'column',
+                                zIndex: 10
                             }}>
                                 <div style={{ display: 'flex', minHeight: '310px', borderBottom: '1px solid var(--border-primary)' }}>
                                     {/* Tulip-like Screen Browser */}
@@ -16063,7 +16083,7 @@ const AppBuilder = () => {
                         )}
 
                         {/* Center Pane: Canvas & Completions */}
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, zIndex: 1 }}>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, overflow: 'hidden', zIndex: 1 }}>
                             {/* Pro Canvas micro-animation styles */}
                             <style>{`
                                 @keyframes canvasFadeIn {
@@ -16183,53 +16203,63 @@ const AppBuilder = () => {
                                 )}
 
                                 <div
-                                    className="canvas-drawing-area"
-                                    key={`preview-stage-${refreshKey}`}
-                                    onContextMenu={(e) => {
-                                        e.preventDefault();
-                                        if (viewMode === 'PREVIEW') return;
-                                        if (e.target === e.currentTarget) {
-                                            setContextMenu({ isOpen: true, x: e.clientX, y: e.clientY, compId: null });
-                                        }
-                                    }}
+                                    className="canvas-viewport-proportional-container"
                                     style={{
-                                        width: (viewMode === 'DESIGN' || isPresetCanvasMode)
-                                            ? `${canvasBaseSize.width}px`
-                                            : '100%',
-                                        maxWidth: (viewMode === 'DESIGN' || isPresetCanvasMode) ? 'none' : '100%',
-                                        height: (viewMode === 'DESIGN' || isPresetCanvasMode)
-                                            ? `${canvasBaseSize.height}px`
-                                            : 'auto',
-                                        minHeight: (viewMode === 'DESIGN' || isPresetCanvasMode) ? `${canvasBaseSize.height}px` : '600px',
-                                        maxHeight: (viewMode === 'DESIGN' || isPresetCanvasMode) ? `${canvasBaseSize.height}px` : 'none',
-                                        aspectRatio: (viewMode === 'DESIGN' || isPresetCanvasMode) ? 'none' : '16/10',
-                                        flexShrink: 0,
-                                        boxSizing: 'border-box',
-                                        backgroundColor: appThemeMode === 'DARK' ? '#0f172a' : (currentStep?.backgroundColor || appBackgroundColor || '#ffffff'),
-                                        backgroundImage: currentStep?.backgroundImage
-                                            ? `url(${currentStep.backgroundImage})`
-                                            : showGrid
-                                                ? `linear-gradient(rgba(${appThemeMode === 'DARK' ? '30,41,59' : '203,213,225'},0.45) 1px, transparent 1px), linear-gradient(90deg, rgba(${appThemeMode === 'DARK' ? '30,41,59' : '203,213,225'},0.45) 1px, transparent 1px)`
-                                                : 'none',
-                                        backgroundSize: currentStep?.backgroundImage ? 'cover' : showGrid ? `${GRID_SIZE}px ${GRID_SIZE}px` : 'auto',
-                                        backgroundPosition: 'center',
-                                        borderRadius: canvasFrameRadius || '12px',
-                                        boxShadow: canvasFrameShadow || '0 8px 40px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06)',
-
+                                        width: `${Math.round(canvasBaseSize.width * zoomScale)}px`,
+                                        height: `${Math.round(canvasBaseSize.height * zoomScale)}px`,
                                         position: 'relative',
-                                        border: canvasFrameBorder,
                                         display: 'flex',
-                                        flexDirection: 'column',
-                                        alignItems: currentStep?.alignHorizontal === 3 ? 'center' : currentStep?.alignHorizontal === 2 ? 'flex-end' : 'flex-start',
-                                        justifyContent: currentStep?.alignVertical === 2 ? 'center' : currentStep?.alignVertical === 3 ? 'flex-end' : 'flex-start',
-                                        overflowY: (isPresetCanvasMode && currentStep?.scrollable !== true) ? 'hidden' : (currentStep?.scrollable !== false ? 'auto' : 'hidden'),
-                                        overflowX: 'hidden',
-                                        transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomScale})`,
-                                        transformOrigin: 'center center',
-                                        transition: isPanning ? 'none' : 'transform 0.1s ease-out',
-                                        cursor: isPanning ? 'grabbing' : undefined,
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        flexShrink: 0,
                                         margin: 'auto'
-                                    }}>
+                                    }}
+                                >
+                                    <div
+                                        className="canvas-drawing-area"
+                                        key={`preview-stage-${refreshKey}`}
+                                        onContextMenu={(e) => {
+                                            e.preventDefault();
+                                            if (viewMode === 'PREVIEW') return;
+                                            if (e.target === e.currentTarget) {
+                                                setContextMenu({ isOpen: true, x: e.clientX, y: e.clientY, compId: null });
+                                            }
+                                        }}
+                                        style={{
+                                            width: `${canvasBaseSize.width}px`,
+                                            maxWidth: 'none',
+                                            height: `${canvasBaseSize.height}px`,
+                                            minHeight: `${canvasBaseSize.height}px`,
+                                            maxHeight: `${canvasBaseSize.height}px`,
+                                            aspectRatio: 'none',
+                                            flexShrink: 0,
+                                            boxSizing: 'border-box',
+                                            backgroundColor: appThemeMode === 'DARK' ? '#0f172a' : (currentStep?.backgroundColor || appBackgroundColor || '#ffffff'),
+                                            backgroundImage: currentStep?.backgroundImage
+                                                ? `url(${currentStep.backgroundImage})`
+                                                : showGrid
+                                                    ? `linear-gradient(rgba(${appThemeMode === 'DARK' ? '30,41,59' : '203,213,225'},0.45) 1px, transparent 1px), linear-gradient(90deg, rgba(${appThemeMode === 'DARK' ? '30,41,59' : '203,213,225'},0.45) 1px, transparent 1px)`
+                                                    : 'none',
+                                            backgroundSize: currentStep?.backgroundImage ? 'cover' : showGrid ? `${GRID_SIZE}px ${GRID_SIZE}px` : 'auto',
+                                            backgroundPosition: 'center',
+                                            borderRadius: canvasFrameRadius || '12px',
+                                            boxShadow: canvasFrameShadow || '0 8px 40px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06)',
+
+                                            position: 'absolute',
+                                            top: '50%',
+                                            left: '50%',
+                                            border: canvasFrameBorder,
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            alignItems: currentStep?.alignHorizontal === 3 ? 'center' : currentStep?.alignHorizontal === 2 ? 'flex-end' : 'flex-start',
+                                            justifyContent: currentStep?.alignVertical === 2 ? 'center' : currentStep?.alignVertical === 3 ? 'flex-end' : 'flex-start',
+                                            overflowY: (isPresetCanvasMode && currentStep?.scrollable !== true) ? 'hidden' : (currentStep?.scrollable !== false ? 'auto' : 'hidden'),
+                                            overflowX: 'hidden',
+                                            transform: `translate(calc(-50% + ${panOffset.x}px), calc(-50% + ${panOffset.y}px)) scale(${zoomScale})`,
+                                            transformOrigin: 'center center',
+                                            transition: isPanning ? 'none' : 'transform 0.1s ease-out',
+                                            cursor: isPanning ? 'grabbing' : undefined
+                                        }}>
                                     {/* Marquee Selection Box */}
                                     {selectionBox && (
                                         <div style={{
@@ -16666,6 +16696,7 @@ const AppBuilder = () => {
                                     })}
 
                                 </div>
+                            </div>
 
 
 
@@ -16824,15 +16855,19 @@ const AppBuilder = () => {
                             )}
                         </div>
 
-                        {/* Right Pane: Context Pane */}
+                        {/* Right Pane: Context Pane (Tulip-style docked properties tab) */}
                         {viewMode === 'DESIGN' && (
                             <div style={{
-                                width: '340px',
+                                width: '310px',
+                                minWidth: '290px',
+                                maxWidth: '330px',
+                                flexShrink: 0,
                                 backgroundColor: 'var(--bg-panel)',
                                 borderLeft: '1px solid var(--bg-tertiary)',
                                 display: 'flex',
                                 flexDirection: 'column',
-                                boxShadow: '-2px 0 8px rgba(0,0,0,0.02)'
+                                boxShadow: '-2px 0 8px rgba(0,0,0,0.02)',
+                                zIndex: 20
                             }}>
                                 {/* Sidebar Header with Navigation and Tabs */}
                                 <div style={{
@@ -16842,14 +16877,14 @@ const AppBuilder = () => {
                                     backgroundColor: 'var(--bg-secondary)'
                                 }}>
                                     {/* Navigation Controls (Forward / Backward) */}
-                                    {/* Tabs */}
+                                    {/* Tabs (Tulip-style: Widget | Step | App) */}
                                     <div style={{
                                         display: 'flex',
                                         justifyContent: 'space-between',
                                         alignItems: 'center',
                                         borderBottom: '1px solid var(--border-secondary)',
                                         backgroundColor: 'var(--bg-panel)',
-                                        paddingRight: '12px'
+                                        paddingRight: '8px'
                                     }}>
                                         <div style={{ display: 'flex', width: '100%' }}>
                                             {['WIDGET', 'SCREEN', 'APP'].map(t => (
@@ -16858,24 +16893,24 @@ const AppBuilder = () => {
                                                     onClick={() => setActiveTab(t)}
                                                     style={{
                                                         flex: 1,
-                                                        padding: '24px 2px',
-                                                        fontSize: '0.75rem',
+                                                        padding: '12px 4px',
+                                                        fontSize: '0.8rem',
                                                         fontWeight: 800,
                                                         backgroundColor: t === activeTab ? '#ffffff' : 'transparent',
                                                         border: 'none',
                                                         color: activeTab === t ? 'var(--odoo-teal)' : '#64748b',
                                                         borderBottom: activeTab === t ? '2px solid var(--odoo-teal)' : '2px solid transparent',
                                                         cursor: 'pointer',
-                                                        letterSpacing: '0.05em',
+                                                        letterSpacing: '0.03em',
                                                         transition: 'all 0.2s',
                                                         display: 'flex',
                                                         flexDirection: 'row',
                                                         alignItems: 'center',
                                                         justifyContent: 'center',
-                                                        textTransform: 'uppercase'
+                                                        textTransform: 'capitalize'
                                                     }}
                                                 >
-                                                    {t === 'WIDGET' ? 'Widget' : t === 'SCREEN' ? 'Screen' : 'App'}
+                                                    {t === 'WIDGET' ? 'Widget' : t === 'SCREEN' ? 'Step' : 'App'}
                                                 </button>
                                             ))}
                                         </div>

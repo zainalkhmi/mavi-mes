@@ -2920,6 +2920,16 @@ const LiveTerminal = () => {
 
   // Modbus TCP Background Polling at Runtime
   useEffect(() => {
+    // Optimization: Skip heavy PLC polling if in embedded player and no PLC components exist
+    if (isEmbeddedPlayer) {
+      const hasPlcWidgets = activeApp?.config?.steps?.some(s => 
+        s.components?.some(c => c.type?.startsWith('ARDUINO') || c.type?.startsWith('PLC') || c.type === 'MODBUS_GAUGE')
+      );
+      if (!hasPlcWidgets && (!window.mandor_plc_controllers || window.mandor_plc_controllers.length === 0)) {
+        return;
+      }
+    }
+
     let isMounted = true;
     let activeIntervals = [];
     let activeMqttClients = [];

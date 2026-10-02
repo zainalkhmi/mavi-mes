@@ -16,9 +16,11 @@ export function useZoom() {
       window.location.hash.includes('player') ||
       window.location.hash.includes('terminal') ||
       window.location.hash.includes('checksheet') ||
+      window.location.hash.includes('builder') ||
       window.location.pathname.includes('sandbox') ||
       window.location.pathname.includes('player') ||
-      window.location.pathname.includes('terminal');
+      window.location.pathname.includes('terminal') ||
+      window.location.pathname.includes('builder');
 
     const effectiveZoom = isStandalonePage ? 1.0 : zoomLevel;
 

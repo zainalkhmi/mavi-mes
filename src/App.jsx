@@ -78,6 +78,10 @@ export default function App() {
     window.location.hash.includes('ui-engine') ||
     window.location.hash.includes('gluestack');
 
+  const isBuilderRoute = 
+    location.pathname.startsWith('/builder') ||
+    window.location.hash.includes('builder');
+
   const isOperator = user?.role === 'OPERATOR' || user?.role === 'STATION_OPERATOR';
 
   const { zoomLevel, setZoomLevel, isZoomCollapsed, setIsZoomCollapsed } = useZoom();
@@ -192,7 +196,7 @@ export default function App() {
       
       <AppRouter user={currentUser} isOperator={isOperator} />
 
-      {!isChecksheetRoute && !isUiEngineRoute && (
+      {!isChecksheetRoute && !isUiEngineRoute && !isBuilderRoute && (
         <ZoomWidget 
           zoomLevel={zoomLevel} 
           setZoomLevel={setZoomLevel} 

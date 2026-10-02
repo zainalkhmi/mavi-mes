@@ -490,8 +490,8 @@ export function useGhostPilotRPA() {
         ? cleanSpeechText(planDescription).slice(0, 160)
         : `aplikasi dengan ${commands.length} komponen`;
 
-      const openingNarration = `Halo, saya Mandor App dengan kecerdasan Jarvis. Saya akan merakit ${cleanOverview} secara otomatis dengan pergerakan presisi.`;
-      setCurrentActionLabel(`Mandor App: Merancang ${cleanOverview}...`);
+      const openingNarration = `Halo, saya Mandor Robot Assistant. Saya akan merakit ${cleanOverview} secara otomatis dengan pergerakan presisi.`;
+      setCurrentActionLabel(`Mandor Robot: Merancang ${cleanOverview}...`);
       await speakJarvis(openingNarration);
       await waitAsync(450);
 

@@ -355,10 +355,10 @@ export default function JarvisFloatingOrb({
           onMouseLeave={() => setIsHovered(false)}
           title={
             isCoding
-              ? 'J.A.R.V.I.S. sedang coding — Mohon tunggu'
+              ? 'AI Assistant sedang coding — Mohon tunggu'
               : isRunning
-              ? 'J.A.R.V.I.S. RPA sedang bekerja — Klik untuk hentikan'
-              : 'Klik untuk membuka J.A.R.V.I.S. Astra Multimodal Voice & Vision'
+              ? 'RPA sedang bekerja — Klik untuk hentikan'
+              : 'Klik untuk membuka AI Voice & Vision'
           }
           style={{
             position: 'relative',
@@ -492,26 +492,6 @@ export default function JarvisFloatingOrb({
               <Sparkles size={18} color="#020c14" />
             )}
           </div>
-
-          {/* Astra Active Pill Badge */}
-          <div
-            style={{
-              position: 'absolute',
-              top: '-6px',
-              right: '-8px',
-              backgroundColor: isProactiveActive ? '#10b981' : '#0284c7',
-              color: '#ffffff',
-              fontSize: '8px',
-              fontWeight: 900,
-              padding: '2px 5px',
-              borderRadius: '9999px',
-              border: '1.5px solid #00e5ff',
-              boxShadow: '0 0 10px rgba(0, 229, 255, 0.8)',
-              letterSpacing: '0.5px'
-            }}
-          >
-            ASTRA
-          </div>
         </div>
 
         {/* Status Label Pill */}
@@ -553,7 +533,7 @@ export default function JarvisFloatingOrb({
               ? 'SENTINEL ON'
               : visionSource !== 'none'
               ? 'VISION LIVE'
-              : 'JARVIS ASTRA'}
+              : 'ONLINE'}
           </span>
         </div>
       </div>

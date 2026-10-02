@@ -1,13 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Play, Pause, Square, Volume2, VolumeX, Sparkles, Bot,
-  MousePointer2, Hand, Grab, ChevronUp, ChevronDown, Activity, Zap, Layers, Edit3
+  MousePointer2, Hand, Grab, ChevronUp, ChevronDown, Activity, Zap, Layers, Edit3,
+  Move, Eye, EyeOff
 } from 'lucide-react';
 
 /**
  * GhostPilotOverlay
  * High-tech visual overlay rendering the Humanizer Ghost Cursor and Floating Jarvis HUD
  * when Ghost Pilot RPA is autonomously building apps in AppBuilder.
+ * 
+ * Features:
+ * - Ultra-compact, low-profile bottom dock layout (never obstructs the canvas or top builder menu)
+ * - Complete Hide / Show toggle to leave the canvas 100% visible
+ * - Free drag & drop positioning anywhere on the screen
+ * - Mini / Expanded view modes
  */
 export default function GhostPilotOverlay({
   isRunning,
@@ -30,7 +37,13 @@ export default function GhostPilotOverlay({
   onResume,
   onStop
 }) {
-  const [isMinimized, setIsMinimized] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(true); // Compact by default so canvas is never blocked!
+  const [isHudHidden, setIsHudHidden] = useState(false); // Can be completely hidden into a tiny chip
+  const [dockPreset, setDockPreset] = useState('bottom-center'); // 'bottom-center' | 'bottom-right' | 'top-right'
+  const [dragOffset, setDragOffset] = useState(null); // { x, y }
+  const isDraggingHudRef = useRef(false);
+  const dragStartRef = useRef({ startX: 0, startY: 0, initialLeft: 0, initialTop: 0 });
+  const hudRef = useRef(null);
 
   if (!isRunning) return null;
 
@@ -39,8 +52,78 @@ export default function GhostPilotOverlay({
   // Shorten action label for mini floating tag near cursor
   const getShortActionText = (label = '') => {
     if (!label) return 'Bergerak...';
-    const clean = label.replace(/Langkah \d+:\s*/i, '').replace(/Mandor App:\s*/i, '');
+    const clean = label.replace(/Langkah \d+:\s*/i, '').replace(/Mandor App:\s*/i, '').replace(/Mandor Robot:\s*/i, '');
     return clean.length > 28 ? clean.slice(0, 26) + '...' : clean;
+  };
+
+  const handleMouseDownHeader = (e) => {
+    if (e.target.closest('button') || e.target.closest('input')) return;
+    const hudEl = hudRef.current;
+    if (!hudEl) return;
+    e.preventDefault();
+    isDraggingHudRef.current = true;
+    const rect = hudEl.getBoundingClientRect();
+    dragStartRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initialLeft: rect.left,
+      initialTop: rect.top
+    };
+
+    const handleMouseMove = (moveEvent) => {
+      if (!isDraggingHudRef.current) return;
+      const dx = moveEvent.clientX - dragStartRef.current.startX;
+      const dy = moveEvent.clientY - dragStartRef.current.startY;
+      const newLeft = Math.max(10, Math.min(window.innerWidth - rect.width - 10, dragStartRef.current.initialLeft + dx));
+      const newTop = Math.max(10, Math.min(window.innerHeight - rect.height - 10, dragStartRef.current.initialTop + dy));
+      setDragOffset({ x: newLeft, y: newTop });
+    };
+
+    const handleMouseUp = () => {
+      isDraggingHudRef.current = false;
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const getHudPositionStyle = () => {
+    if (dragOffset) {
+      return {
+        position: 'fixed',
+        left: `${dragOffset.x}px`,
+        top: `${dragOffset.y}px`,
+        transform: 'none'
+      };
+    }
+
+    if (dockPreset === 'bottom-right') {
+      return {
+        position: 'fixed',
+        bottom: '18px',
+        right: '280px',
+        transform: 'none'
+      };
+    }
+
+    if (dockPreset === 'top-right') {
+      return {
+        position: 'fixed',
+        top: '65px',
+        right: '280px',
+        transform: 'none'
+      };
+    }
+
+    // Default: Docked at bottom-center — totally out of the canvas & top menu!
+    return {
+      position: 'fixed',
+      bottom: '18px',
+      left: '50%',
+      transform: 'translateX(-50%)'
+    };
   };
 
   return (
@@ -294,317 +377,328 @@ export default function GhostPilotOverlay({
         )}
       </div>
 
-      {/* ─── 2. FLOATING JARVIS HUD (Top Center) ───────────────────────── */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '20px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          pointerEvents: 'auto',
-          backgroundColor: 'rgba(15, 23, 42, 0.88)',
-          backdropFilter: 'blur(16px)',
-          border: '1px solid rgba(56, 189, 248, 0.3)',
-          borderRadius: '16px',
-          boxShadow: '0 10px 30px -5px rgba(0, 0, 0, 0.5), 0 0 20px rgba(56, 189, 248, 0.2)',
-          color: '#f8fafc',
-          padding: isMinimized ? '8px 16px' : '12px 18px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '8px',
-          minWidth: isMinimized ? '300px' : '480px',
-          maxWidth: '90vw',
-          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-          zIndex: 100001
-        }}
-      >
-        {/* HUD Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {/* Hologram Avatar */}
-            <div
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '10px',
-                background: 'linear-gradient(135deg, #0284c7, #9333ea)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: isSpeaking ? '0 0 14px #38bdf8' : 'none',
-                transition: 'box-shadow 0.2s'
-              }}
-            >
-              <Bot size={18} color="#ffffff" />
-            </div>
+      {/* ─── 2. FLOATING HUD (Ultra-Compact Dock or Full Hidden Pill) ─────── */}
+      {isHudHidden ? (
+        /* TINY FLOATING BADGE WHEN HIDDEN — 0% Canvas Obstruction */
+        <div
+          onClick={() => setIsHudHidden(false)}
+          style={{
+            position: 'fixed',
+            bottom: '18px',
+            right: '280px',
+            pointerEvents: 'auto',
+            backgroundColor: 'rgba(15, 23, 42, 0.90)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(56, 189, 248, 0.45)',
+            borderRadius: '9999px',
+            padding: '5px 12px',
+            color: '#38bdf8',
+            fontSize: '11px',
+            fontWeight: 800,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            cursor: 'pointer',
+            boxShadow: '0 4px 18px rgba(0, 0, 0, 0.5), 0 0 12px rgba(56, 189, 248, 0.3)',
+            zIndex: 100001,
+            animation: 'fadeIn 0.2s ease-out'
+          }}
+          title="Klik untuk menampilkan kembali HUD RPA"
+        >
+          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }} />
+          <span>RPA: {progressPercent}%</span>
+          <Eye size={13} color="#38bdf8" />
+        </div>
+      ) : (
+        /* COMPACT / EXPANDED SLIM FLOATING HUD */
+        <div
+          ref={hudRef}
+          style={{
+            ...getHudPositionStyle(),
+            pointerEvents: 'auto',
+            backgroundColor: 'rgba(15, 23, 42, 0.92)',
+            backdropFilter: 'blur(16px)',
+            border: '1px solid rgba(56, 189, 248, 0.35)',
+            borderRadius: isMinimized ? '9999px' : '14px',
+            boxShadow: '0 10px 30px -5px rgba(0, 0, 0, 0.55), 0 0 20px rgba(56, 189, 248, 0.2)',
+            color: '#f8fafc',
+            padding: isMinimized ? '5px 10px 5px 12px' : '8px 14px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: isMinimized ? '0px' : '6px',
+            minWidth: isMinimized ? '320px' : '440px',
+            maxWidth: '92vw',
+            transition: dragOffset ? 'none' : 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+            zIndex: 100001,
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+        >
+          {/* Main Single-Row Control Bar (Draggable) */}
+          <div
+            onMouseDown={handleMouseDownHeader}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '10px',
+              cursor: 'grab',
+              userSelect: 'none'
+            }}
+            title="Tahan & geser untuk memindahkan HUD ke mana saja"
+          >
+            {/* Left Status & Progress */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+              <div
+                style={{
+                  width: '26px',
+                  height: '26px',
+                  borderRadius: '7px',
+                  background: 'linear-gradient(135deg, #0284c7, #9333ea)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: isSpeaking ? '0 0 10px #38bdf8' : 'none',
+                  flexShrink: 0
+                }}
+              >
+                <Bot size={15} color="#ffffff" />
+              </div>
 
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '0.02em', color: '#f8fafc' }}>
-                  GHOST PILOT RPA
-                </span>
-                <span
-                  style={{
-                    fontSize: '9px',
-                    fontWeight: 800,
-                    padding: '2px 6px',
-                    borderRadius: '4px',
-                    backgroundColor: 'rgba(56, 189, 248, 0.15)',
-                    color: '#38bdf8',
-                    border: '1px solid rgba(56, 189, 248, 0.35)'
-                  }}
-                >
-                  HUMAN DYNAMICS
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: '#f8fafc', whiteSpace: 'nowrap' }}>
+                  Langkah {currentStepIndex}/{totalSteps}
                 </span>
                 <span
                   style={{
                     fontSize: '10px',
                     fontWeight: 800,
-                    padding: '2px 6px',
+                    padding: '1px 6px',
                     borderRadius: '4px',
-                    backgroundColor: isPaused ? 'rgba(245, 158, 11, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-                    color: isPaused ? '#fbbf24' : '#34d399',
-                    border: `1px solid ${isPaused ? 'rgba(245, 158, 11, 0.4)' : 'rgba(16, 185, 129, 0.4)'}`
+                    backgroundColor: isPaused ? 'rgba(245, 158, 11, 0.2)' : 'rgba(56, 189, 248, 0.2)',
+                    color: isPaused ? '#fbbf24' : '#38bdf8',
+                    border: `1px solid ${isPaused ? 'rgba(245, 158, 11, 0.4)' : 'rgba(56, 189, 248, 0.4)'}`,
+                    whiteSpace: 'nowrap'
                   }}
                 >
-                  {isPaused ? 'PAUSED' : 'AUTONOMOUS'}
+                  {isPaused ? 'PAUSED' : `${progressPercent}%`}
                 </span>
 
-                {/* Voice Status Indicator */}
-                <div
-                  onClick={() => setVoiceEnabled && setVoiceEnabled(!voiceEnabled)}
-                  title={voiceEnabled ? 'Suara Jarvis Aktif (Klik untuk mute)' : 'Suara Jarvis Nonaktif (Klik untuk aktifkan)'}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    padding: '2px 7px',
-                    borderRadius: '4px',
-                    backgroundColor: voiceEnabled
-                      ? (isSpeaking ? 'rgba(56, 189, 248, 0.25)' : 'rgba(56, 189, 248, 0.12)')
-                      : 'rgba(239, 68, 68, 0.15)',
-                    border: voiceEnabled
-                      ? (isSpeaking ? '1px solid #38bdf8' : '1px solid rgba(56, 189, 248, 0.35)')
-                      : '1px solid rgba(239, 68, 68, 0.35)',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    boxShadow: isSpeaking ? '0 0 10px rgba(56, 189, 248, 0.5)' : 'none'
-                  }}
-                >
-                  <span style={{ fontSize: '10px' }}>🎙️</span>
-                  <span
-                    style={{
-                      fontSize: '10px',
-                      fontWeight: 800,
-                      letterSpacing: '0.03em',
-                      color: voiceEnabled ? (isSpeaking ? '#38bdf8' : '#7dd3fc') : '#f87171'
-                    }}
-                  >
-                    {voiceEnabled ? (isSpeaking ? 'VOICE AKTIF' : 'VOICE ON') : 'VOICE OFF'}
-                  </span>
-                  {isSpeaking && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '2px', height: '10px', marginLeft: '2px' }}>
-                      {[0.5, 1, 0.6, 1, 0.4].map((h, i) => (
-                        <div
-                          key={i}
-                          style={{
-                            width: '2px',
-                            height: '100%',
-                            backgroundColor: '#38bdf8',
-                            borderRadius: '1px',
-                            transform: `scaleY(${h})`,
-                            animation: `soundWave 0.5s infinite ease-in-out ${i * 0.1}s`
-                          }}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
+                {/* Compact Speaking Waveform */}
+                {isSpeaking && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '2px', height: '10px', marginLeft: '2px' }}>
+                    {[0.4, 0.9, 0.5, 1, 0.4].map((h, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          width: '2px',
+                          height: '100%',
+                          backgroundColor: '#38bdf8',
+                          borderRadius: '1px',
+                          transform: `scaleY(${h})`,
+                          animation: `soundWave 0.5s infinite ease-in-out ${i * 0.1}s`
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-              <div style={{ fontSize: '11px', color: '#94a3b8' }}>
-                Langkah {currentStepIndex} dari {totalSteps} ({progressPercent}%)
-              </div>
+            </div>
+
+            {/* Right Compact Actions */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+              {/* Voice Mute/Unmute */}
+              <button
+                onClick={() => setVoiceEnabled && setVoiceEnabled(!voiceEnabled)}
+                title={voiceEnabled ? 'Suara Aktif (Klik untuk mute)' : 'Suara Nonaktif (Klik untuk aktifkan)'}
+                style={{
+                  background: voiceEnabled ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                  border: voiceEnabled ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '6px',
+                  color: voiceEnabled ? '#38bdf8' : '#64748b',
+                  width: '26px',
+                  height: '26px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+              >
+                {voiceEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
+              </button>
+
+              {/* Speed Multiplier */}
+              <button
+                onClick={() => setSpeed && setSpeed(speed === 1 ? 2 : speed === 2 ? 4 : 1)}
+                title="Kecepatan Eksekusi"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: '6px',
+                  color: '#e2e8f0',
+                  padding: '3px 6px',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                {speed}x
+              </button>
+
+              {/* Pause / Resume */}
+              <button
+                onClick={isPaused ? onResume : onPause}
+                title={isPaused ? 'Lanjutkan' : 'Jeda'}
+                style={{
+                  background: isPaused ? '#10b981' : '#f59e0b',
+                  border: 'none',
+                  borderRadius: '6px',
+                  color: '#ffffff',
+                  width: '26px',
+                  height: '26px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+              >
+                {isPaused ? <Play size={12} fill="#ffffff" /> : <Pause size={12} fill="#ffffff" />}
+              </button>
+
+              {/* Stop / Abort */}
+              <button
+                onClick={onStop}
+                title="Hentikan Ghost Pilot"
+                style={{
+                  background: '#ef4444',
+                  border: 'none',
+                  borderRadius: '6px',
+                  color: '#ffffff',
+                  width: '26px',
+                  height: '26px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+              >
+                <Square size={11} fill="#ffffff" />
+              </button>
+
+              {/* Move / Dock Position Switcher */}
+              <button
+                onClick={() => {
+                  setDragOffset(null);
+                  setDockPreset(prev => prev === 'bottom-center' ? 'bottom-right' : prev === 'bottom-right' ? 'top-right' : 'bottom-center');
+                }}
+                title={
+                  dockPreset === 'bottom-center'
+                    ? 'Posisi: Bawah Tengah (Klik untuk pindah ke Kanan Bawah)'
+                    : dockPreset === 'bottom-right'
+                    ? 'Posisi: Kanan Bawah (Klik untuk pindah ke Atas Kanan)'
+                    : 'Posisi: Atas Kanan (Klik untuk pindah ke Bawah Tengah)'
+                }
+                style={{
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: '6px',
+                  color: '#38bdf8',
+                  width: '26px',
+                  height: '26px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+              >
+                <Move size={12} />
+              </button>
+
+              {/* Hide completely toggle */}
+              <button
+                onClick={() => setIsHudHidden(true)}
+                title="Sembunyikan HUD (Biar tidak menutupi canvas sama sekali)"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: '6px',
+                  color: '#94a3b8',
+                  width: '26px',
+                  height: '26px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+              >
+                <EyeOff size={12} />
+              </button>
+
+              {/* Expand / Minimize Details toggle */}
+              <button
+                onClick={() => setIsMinimized(!isMinimized)}
+                title={isMinimized ? 'Tampilkan Narasi Lengkap' : 'Kecilkan HUD'}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  padding: '3px'
+                }}
+              >
+                {isMinimized ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
             </div>
           </div>
 
-          {/* Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            {/* Voice Mute/Unmute */}
-            <button
-              onClick={() => setVoiceEnabled && setVoiceEnabled(!voiceEnabled)}
-              title={voiceEnabled ? 'Nonaktifkan Suara Jarvis' : 'Aktifkan Suara Jarvis'}
-              style={{
-                background: voiceEnabled ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                border: voiceEnabled ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.1)',
-                borderRadius: '8px',
-                color: voiceEnabled ? '#38bdf8' : '#64748b',
-                width: '30px',
-                height: '30px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                boxShadow: isSpeaking ? '0 0 8px rgba(56, 189, 248, 0.4)' : 'none'
-              }}
-            >
-              {voiceEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
-            </button>
-
-            {/* Speed Multiplier */}
-            <button
-              onClick={() => setSpeed && setSpeed(speed === 1 ? 2 : speed === 2 ? 4 : 1)}
-              title="Kecepatan Eksekusi"
-              style={{
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: '1px solid rgba(255,255,255,0.15)',
-                borderRadius: '8px',
-                color: '#e2e8f0',
-                padding: '4px 8px',
-                fontSize: '11px',
-                fontWeight: 700,
-                cursor: 'pointer'
-              }}
-            >
-              {speed}x
-            </button>
-
-            {/* Pause / Resume */}
-            <button
-              onClick={isPaused ? onResume : onPause}
-              title={isPaused ? 'Lanjutkan' : 'Jeda'}
-              style={{
-                background: isPaused ? '#10b981' : '#f59e0b',
-                border: 'none',
-                borderRadius: '8px',
-                color: '#ffffff',
-                width: '30px',
-                height: '30px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                boxShadow: isPaused ? '0 0 10px rgba(16, 185, 129, 0.5)' : 'none'
-              }}
-            >
-              {isPaused ? <Play size={14} fill="#ffffff" /> : <Pause size={14} fill="#ffffff" />}
-            </button>
-
-            {/* Stop / Abort */}
-            <button
-              onClick={onStop}
-              title="Hentikan Ghost Pilot"
-              style={{
-                background: '#ef4444',
-                border: 'none',
-                borderRadius: '8px',
-                color: '#ffffff',
-                width: '30px',
-                height: '30px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer'
-              }}
-            >
-              <Square size={13} fill="#ffffff" />
-            </button>
-
-            {/* Minimize toggle */}
-            <button
-              onClick={() => setIsMinimized(!isMinimized)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#94a3b8',
-                cursor: 'pointer',
-                padding: '4px'
-              }}
-            >
-              {isMinimized ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-            </button>
-          </div>
-        </div>
-
-        {/* Expanded Details & Progress Bar */}
-        {!isMinimized && (
-          <>
-            {/* Live Narration */}
+          {/* Optional Expanded Narration Details */}
+          {!isMinimized && (
             <div
               style={{
-                fontSize: '12px',
+                fontSize: '11px',
                 color: '#f8fafc',
                 lineHeight: 1.4,
                 backgroundColor: isSpeaking ? 'rgba(2, 132, 199, 0.22)' : 'rgba(0, 0, 0, 0.35)',
-                padding: '8px 12px',
+                padding: '6px 10px',
                 borderRadius: '8px',
                 borderLeft: isSpeaking ? '3px solid #38bdf8' : '3px solid rgba(56, 189, 248, 0.4)',
                 border: isSpeaking ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid transparent',
-                boxShadow: isSpeaking ? '0 0 16px rgba(56, 189, 248, 0.25)' : 'none',
-                minHeight: '32px',
+                marginTop: '4px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
-                transition: 'all 0.2s ease'
+                gap: '6px'
               }}
             >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  color: isSpeaking ? '#38bdf8' : '#94a3b8',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  flexShrink: 0
-                }}
-              >
-                <span>🎙️</span>
-                <span>JARVIS:</span>
-              </div>
+              <span style={{ color: '#38bdf8', fontWeight: 700, fontSize: '10px' }}>ASISTEN:</span>
               <span style={{ flex: 1, fontWeight: isSpeaking ? 600 : 400 }}>
                 {currentActionLabel || 'Menyiapkan instruksi berikutnya...'}
               </span>
-              {isSpeaking && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '2px', height: '12px', flexShrink: 0 }}>
-                  {[0.4, 0.9, 0.6, 1.0, 0.5].map((scale, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        width: '2px',
-                        height: '100%',
-                        backgroundColor: '#38bdf8',
-                        borderRadius: '1px',
-                        transform: `scaleY(${scale})`,
-                        animation: `soundWave 0.6s infinite ease-in-out ${idx * 0.12}s`
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
             </div>
+          )}
 
-            {/* Step Progress Line */}
+          {/* Slim Glowing Progress Line at bottom border */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: '2.5px',
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              overflow: 'hidden'
+            }}
+          >
             <div
               style={{
-                width: '100%',
-                height: '4px',
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                borderRadius: '2px',
-                overflow: 'hidden'
+                width: `${progressPercent}%`,
+                height: '100%',
+                background: 'linear-gradient(90deg, #38bdf8, #818cf8)',
+                transition: 'width 0.4s ease-out'
               }}
-            >
-              <div
-                style={{
-                  width: `${progressPercent}%`,
-                  height: '100%',
-                  background: 'linear-gradient(90deg, #38bdf8, #818cf8)',
-                  transition: 'width 0.4s ease-out'
-                }}
-              />
-            </div>
-          </>
-        )}
-      </div>
+            />
+          </div>
+        </div>
+      )}
 
       <style>{`
         @keyframes ghostPulse {
@@ -627,6 +721,10 @@ export default function GhostPilotOverlay({
         @keyframes soundWave {
           0%, 100% { transform: scaleY(0.3); }
           50% { transform: scaleY(1); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </div>
