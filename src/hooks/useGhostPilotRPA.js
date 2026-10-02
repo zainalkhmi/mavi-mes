@@ -1,10 +1,15 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { animateHumanCursor, simulateHumanTyping } from '../vibe/humanizer/HumanMotionEngine';
 
 /**
  * useGhostPilotRPA
- * Autonomous RPA Controller for MaviCore AppBuilder.
- * Manages step-by-step visual execution, TTS voice narration (Jarvis),
- * ghost cursor gliding, and click/type simulation.
+ * Autonomous RPA Controller for MaviCore AppBuilder with Humanizer Motion Engine.
+ * 
+ * Features:
+ * - Real Drag & Drop simulation (picks up widget from palette, drags with Bézier physics, drops onto canvas)
+ * - Setting UI simulation (moves to inspector, types properties letter-by-letter)
+ * - Organic Bézier curve mouse trajectory with Fitts's Law velocity & micro-jitter
+ * - Audio chimes & TTS voice narration (Jarvis / Mandor)
  */
 export function useGhostPilotRPA() {
   const [isRunning, setIsRunning] = useState(false);
@@ -19,11 +24,18 @@ export function useGhostPilotRPA() {
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
 
+  // Humanizer Extended States
+  const [isDragging, setIsDragging] = useState(false);
+  const [draggedItem, setDraggedItem] = useState(null);
+  const [cursorMode, setCursorMode] = useState('pointer'); // 'pointer' | 'grab' | 'grabbing' | 'typing'
+  const [typingText, setTypingText] = useState('');
+
   const isPausedRef = useRef(false);
   const isStoppedRef = useRef(false);
-  const isExecutingRef = useRef(false); // Prevents duplicate execution
+  const isExecutingRef = useRef(false);
   const speedRef = useRef(1);
   const voiceEnabledRef = useRef(true);
+  const currentCursorPosRef = useRef({ x: 400, y: 300 });
 
   useEffect(() => {
     isPausedRef.current = isPaused;
@@ -37,7 +49,7 @@ export function useGhostPilotRPA() {
     voiceEnabledRef.current = voiceEnabled;
   }, [voiceEnabled]);
 
-  // Web Audio Synthesizer Chime for instant audible feedback on every step
+  // Web Audio Synthesizer Chime for instant audible feedback
   const playJarvisStepChime = (type = 'step') => {
     if (typeof window === 'undefined') return;
     try {
@@ -76,7 +88,7 @@ export function useGhostPilotRPA() {
         osc.stop(now + 0.22);
       }
     } catch (e) {
-      // Audio context blocked or unavailable
+      // Audio context blocked
     }
   };
 
@@ -86,7 +98,6 @@ export function useGhostPilotRPA() {
     const voices = window.speechSynthesis.getVoices();
     if (!voices || voices.length === 0) return null;
 
-    // 1. Indonesian voice
     const idVoice = voices.find(v => {
       const lang = (v.lang || '').toLowerCase();
       const name = (v.name || '').toLowerCase();
@@ -94,20 +105,15 @@ export function useGhostPilotRPA() {
     });
     if (idVoice) return idVoice;
 
-    // 2. Natural voice fallback
     const naturalVoice = voices.find(v => (v.name || '').toLowerCase().includes('natural'));
     if (naturalVoice) return naturalVoice;
 
-    // 3. Google voice fallback
     const googleVoice = voices.find(v => (v.name || '').toLowerCase().includes('google'));
     if (googleVoice) return googleVoice;
 
-    // 4. Default voice
-    const defaultVoice = voices.find(v => v.default);
-    return defaultVoice || voices[0] || null;
+    return voices.find(v => v.default) || voices[0] || null;
   };
 
-  // Initialize voices cache
   useEffect(() => {
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       const handleVoices = () => {
@@ -139,7 +145,7 @@ export function useGhostPilotRPA() {
       .trim();
   };
 
-  // Speak with Indonesian voice & guarantee speech on every step
+  // Speak with Indonesian voice
   const speakJarvis = useCallback((text) => {
     return new Promise((resolve) => {
       if (!voiceEnabledRef.current || typeof window === 'undefined' || !('speechSynthesis' in window)) {
@@ -147,18 +153,15 @@ export function useGhostPilotRPA() {
       }
 
       try {
-        // Instant audio chime on every step for crisp feedback
         playJarvisStepChime('step');
 
         const clean = cleanSpeechText(text);
         if (!clean) return resolve();
 
-        // Prevent Chromium GC bug: retain utterance in global Set
         if (!window._jarvisUtterancePool) {
           window._jarvisUtterancePool = new Set();
         }
 
-        // Cancel previous speech cleanly
         try {
           if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
             window.speechSynthesis.cancel();
@@ -194,7 +197,6 @@ export function useGhostPilotRPA() {
           }
         };
 
-        // Chromium watchdog: keep speech alive if pause bug occurs
         resumeInterval = setInterval(() => {
           if (typeof window !== 'undefined' && window.speechSynthesis) {
             if (window.speechSynthesis.paused) {
@@ -203,7 +205,6 @@ export function useGhostPilotRPA() {
           }
         }, 1500);
 
-        // Safety timeout so execution never hangs
         const safetyTimeoutMs = Math.max(3500, Math.min(8000, clean.length * 80 + 2000));
         const timerId = setTimeout(complete, safetyTimeoutMs);
 
@@ -218,7 +219,6 @@ export function useGhostPilotRPA() {
           complete();
         };
 
-        // Small timeout before speak to let cancel() settle in Chromium
         setTimeout(() => {
           try {
             if (window.speechSynthesis.paused) {
@@ -238,7 +238,54 @@ export function useGhostPilotRPA() {
     });
   }, []);
 
-  // Compute screen coordinates for a command
+  // Sleep utility with pause/stop checking
+  const waitAsync = useCallback((ms) => {
+    return new Promise((resolve) => {
+      const adjustedMs = ms / (speedRef.current || 1);
+      const startTime = Date.now();
+
+      const check = () => {
+        if (isStoppedRef.current) {
+          resolve();
+          return;
+        }
+
+        if (isPausedRef.current) {
+          setTimeout(check, 100);
+          return;
+        }
+
+        if (Date.now() - startTime >= adjustedMs) {
+          resolve();
+        } else {
+          setTimeout(check, 40);
+        }
+      };
+
+      setTimeout(check, Math.min(40, adjustedMs));
+    });
+  }, []);
+
+  // Move cursor with Humanizer Bézier Curve Physics
+  const moveCursorHuman = useCallback(async (targetPos, options = {}) => {
+    const start = { ...currentCursorPosRef.current };
+    await animateHumanCursor(
+      start,
+      targetPos,
+      (point) => {
+        currentCursorPosRef.current = { x: point.x, y: point.y };
+        setCursorPos({ x: point.x, y: point.y });
+      },
+      {
+        speed: speedRef.current || 1,
+        isAborted: () => isStoppedRef.current,
+        overshoot: options.overshoot !== false,
+        arcDirection: options.arcDirection
+      }
+    );
+  }, []);
+
+  // Compute screen coordinates on canvas for target command
   const getCommandScreenCoordinates = (cmd) => {
     const canvasContainer = document.querySelector('.konvajs-content') ||
                             document.querySelector('#app-builder-canvas') ||
@@ -258,7 +305,8 @@ export function useGhostPilotRPA() {
     const p = cmd?.payload || {};
 
     switch (cmd?.type) {
-      case 'ADD_WIDGET': {
+      case 'ADD_WIDGET':
+      case 'CREATE_WIDGET': {
         const rawX = typeof p.x === 'number' ? p.x : 200;
         const rawY = typeof p.y === 'number' ? p.y : 180;
         return {
@@ -311,6 +359,43 @@ export function useGhostPilotRPA() {
     }
   };
 
+  // Compute Left Pane / Component Palette source position for Drag & Drop
+  const getPaletteSourceCoordinates = (cmd) => {
+    const leftPane = document.querySelector('[data-left-pane="true"]') ||
+                     document.querySelector('.app-builder-left-pane') ||
+                     document.querySelector('.component-palette');
+    if (leftPane) {
+      const rect = leftPane.getBoundingClientRect();
+      return {
+        x: Math.max(25, rect.left + 65),
+        y: Math.min(window.innerHeight - 100, Math.max(140, rect.top + 180 + (Math.random() * 60)))
+      };
+    }
+    // Fallback: Left sidebar area
+    return {
+      x: 100,
+      y: 220 + (Math.random() * 60)
+    };
+  };
+
+  // Compute Right Pane / Property Inspector position for Setting UI
+  const getRightPaneCoordinates = () => {
+    const rightPane = document.querySelector('[data-right-pane="true"]') ||
+                      document.querySelector('.app-builder-right-pane') ||
+                      document.querySelector('[data-sidebar="right"]');
+    if (rightPane) {
+      const rect = rightPane.getBoundingClientRect();
+      return {
+        x: Math.min(window.innerWidth - 40, rect.left + 140),
+        y: Math.min(window.innerHeight - 100, Math.max(160, rect.top + 220))
+      };
+    }
+    return {
+      x: window.innerWidth - 180,
+      y: 280
+    };
+  };
+
   // Punchy, concise Indonesian voice narration for command
   const getNarrationForCommand = (cmd, index, total) => {
     const p = cmd?.payload || {};
@@ -323,11 +408,11 @@ export function useGhostPilotRPA() {
         const name = p.displayName || p.type || 'komponen';
         const targetStep = p.stepTitle || p.screenTitle || '';
         return targetStep
-          ? `${stepNum}: Menambahkan ${name} ke ${targetStep}.`
-          : `${stepNum}: Menambahkan ${name}.`;
+          ? `${stepNum}: Mengambil dan memasang ${name} ke ${targetStep}.`
+          : `${stepNum}: Mengambil dan memasang ${name}.`;
       }
       case 'UPDATE_WIDGET': {
-        return `${stepNum}: Mengatur konfigurasi ${p.widgetName || 'komponen'}.`;
+        return `${stepNum}: Mengatur konfigurasi properti ${p.widgetName || 'komponen'}.`;
       }
       case 'CREATE_TRIGGER': {
         return `${stepNum}: Memasang trigger otomasi.`;
@@ -362,35 +447,7 @@ export function useGhostPilotRPA() {
     }
   };
 
-  // Sleep utility with pause/stop checking
-  const waitAsync = (ms) => {
-    return new Promise((resolve) => {
-      const adjustedMs = ms / (speedRef.current || 1);
-      const startTime = Date.now();
-
-      const check = () => {
-        if (isStoppedRef.current) {
-          resolve();
-          return;
-        }
-
-        if (isPausedRef.current) {
-          setTimeout(check, 100);
-          return;
-        }
-
-        if (Date.now() - startTime >= adjustedMs) {
-          resolve();
-        } else {
-          setTimeout(check, 50);
-        }
-      };
-
-      setTimeout(check, Math.min(50, adjustedMs));
-    });
-  };
-
-  // Main start sequence
+  // Main start sequence with Human-like Drag & Drop and UI Settings
   const startRPA = useCallback(async ({
     commands = [],
     planDescription = '',
@@ -402,7 +459,6 @@ export function useGhostPilotRPA() {
   }) => {
     if (!commands || commands.length === 0) return;
 
-    // Guard: Prevent duplicate overlapping execution
     if (isExecutingRef.current) {
       console.warn('[GhostPilot] RPA already running, skipping duplicate invocation');
       return;
@@ -415,8 +471,11 @@ export function useGhostPilotRPA() {
     isStoppedRef.current = false;
     setTotalSteps(commands.length);
     setCurrentStepIndex(0);
+    setCursorMode('pointer');
+    setIsDragging(false);
+    setDraggedItem(null);
+    setTypingText('');
 
-    // Initial snapshot if callback provided
     if (onSnapshot) {
       try {
         await onSnapshot();
@@ -426,17 +485,17 @@ export function useGhostPilotRPA() {
     }
 
     try {
-      // 1. OPENING BRIEFING: Introduce Mandor App & explain what app is being built
+      // 1. OPENING BRIEFING
       const cleanOverview = planDescription
         ? cleanSpeechText(planDescription).slice(0, 160)
         : `aplikasi dengan ${commands.length} komponen`;
 
-      const openingNarration = `Halo, perkenalkan saya Mandor App, siap membantu Anda membuat aplikasi. Saya akan merancang ${cleanOverview}. Memulai perakitan dalam ${commands.length} langkah.`;
-      setCurrentActionLabel(`Mandor App: Halo! Merancang ${cleanOverview}...`);
+      const openingNarration = `Halo, saya Mandor App dengan kecerdasan Jarvis. Saya akan merakit ${cleanOverview} secara otomatis dengan pergerakan presisi.`;
+      setCurrentActionLabel(`Mandor App: Merancang ${cleanOverview}...`);
       await speakJarvis(openingNarration);
       await waitAsync(450);
 
-      // 2. STEP BY STEP VISUAL & VOICE COORDINATION
+      // 2. STEP BY STEP HUMAN EXECUTION
       for (let i = 0; i < commands.length; i++) {
         if (isStoppedRef.current) break;
 
@@ -448,82 +507,171 @@ export function useGhostPilotRPA() {
         if (isStoppedRef.current) break;
 
         const cmd = commands[i];
+        const p = cmd?.payload || {};
         setCurrentStepIndex(i + 1);
 
         const targetPos = getCommandScreenCoordinates(cmd);
         const narration = getNarrationForCommand(cmd, i, commands.length);
         setCurrentActionLabel(narration);
 
-        // 1. Move Ghost Cursor smoothly towards target
-        setCursorPos(targetPos);
-
-        // 2. Stage ghost preview after cursor starts moving
-        if (onStageCommand) {
-          setTimeout(() => {
-            if (!isStoppedRef.current) onStageCommand(cmd);
-          }, 100);
-        }
-
-        // 3. Start speech narration in parallel non-blocking promise
+        // Start speech in parallel non-blocking
         const speechPromise = speakJarvis(narration);
 
-        // 4. Wait for cursor glide duration to arrive precisely at target
-        const glideMs = Math.max(220, 450 / (speedRef.current || 1));
-        await waitAsync(glideMs);
-        if (isStoppedRef.current) break;
+        // ─── CASE A: REAL DRAG & DROP FOR WIDGETS ──────────────────────────────
+        if (cmd.type === 'ADD_WIDGET' || cmd.type === 'CREATE_WIDGET') {
+          const sourcePos = getPaletteSourceCoordinates(cmd);
 
-        // 5. Visual click simulation at target destination
-        setIsClicking(true);
-        const clickMs = Math.max(100, 160 / (speedRef.current || 1));
-        await waitAsync(clickMs);
-        setIsClicking(false);
-        if (isStoppedRef.current) break;
+          // 1. Move to component palette smoothly
+          setCursorMode('pointer');
+          await moveCursorHuman(sourcePos, { overshoot: true });
+          if (isStoppedRef.current) break;
 
-        // 6. COMMIT VISUAL ACTION FULLY & AWAIT IT TO SETTLE STATE (Prevents race conditions / missed widgets)
-        if (onApplyCommand) {
-          try {
-            await onApplyCommand(cmd);
-          } catch (err) {
-            console.error('[GhostPilot] Error executing command:', err);
+          // 2. Grab component from palette
+          setCursorMode('grab');
+          await waitAsync(80);
+          setIsClicking(true);
+          playJarvisStepChime('step');
+          setCursorMode('grabbing');
+          setIsDragging(true);
+          setDraggedItem({
+            label: p.displayName || p.name || p.type || 'Widget',
+            type: p.type || 'BUTTON'
+          });
+          await waitAsync(120);
+          setIsClicking(false);
+
+          // Stage preview on canvas
+          if (onStageCommand) {
+            setTimeout(() => {
+              if (!isStoppedRef.current) onStageCommand(cmd);
+            }, 50);
+          }
+
+          // 3. Drag across canvas to target position with natural Bézier arc
+          await moveCursorHuman(targetPos, { overshoot: false });
+          if (isStoppedRef.current) break;
+
+          // 4. Drop component at target position
+          setIsClicking(true);
+          playJarvisStepChime('step');
+          await waitAsync(110);
+          setIsDragging(false);
+          setDraggedItem(null);
+          setCursorMode('pointer');
+          setIsClicking(false);
+
+          // 5. Commit into canvas state
+          if (onApplyCommand) {
+            try {
+              await onApplyCommand(cmd);
+            } catch (err) {
+              console.error('[GhostPilot] Error executing command:', err);
+            }
+          }
+
+          if (onClearStage) {
+            onClearStage();
+          }
+
+        // ─── CASE B: SETTING UI / INSPECTOR PROPS ──────────────────────────────
+        } else if (cmd.type === 'UPDATE_WIDGET') {
+          // 1. Click widget on canvas to select
+          await moveCursorHuman(targetPos, { overshoot: true });
+          setIsClicking(true);
+          playJarvisStepChime('step');
+          await waitAsync(100);
+          setIsClicking(false);
+          if (isStoppedRef.current) break;
+
+          // 2. Move to Right Pane Inspector
+          const rightPanePos = getRightPaneCoordinates();
+          await moveCursorHuman(rightPanePos, { overshoot: true });
+          setIsClicking(true);
+          await waitAsync(90);
+          setIsClicking(false);
+          if (isStoppedRef.current) break;
+
+          // 3. Simulate human typing of widget property
+          setCursorMode('typing');
+          const textToType = p.displayName || p.widgetName || p.title || (p.props && (p.props.label || p.props.text)) || 'Aktif';
+          await simulateHumanTyping(String(textToType), (accumulated) => {
+            setTypingText(accumulated);
+          }, {
+            speed: speedRef.current || 1,
+            isAborted: () => isStoppedRef.current
+          });
+
+          await waitAsync(150);
+          setCursorMode('pointer');
+          setTypingText('');
+
+          // 4. Commit update
+          if (onApplyCommand) {
+            try {
+              await onApplyCommand(cmd);
+            } catch (err) {
+              console.error('[GhostPilot] Error executing command:', err);
+            }
+          }
+
+        // ─── CASE C: GENERAL ACTIONS (TRIGGERS, SCREENS, TABLES) ──────────────
+        } else {
+          await moveCursorHuman(targetPos, { overshoot: true });
+          if (isStoppedRef.current) break;
+
+          setIsClicking(true);
+          playJarvisStepChime('step');
+          const clickMs = Math.max(90, 140 / (speedRef.current || 1));
+          await waitAsync(clickMs);
+          setIsClicking(false);
+
+          if (onApplyCommand) {
+            try {
+              await onApplyCommand(cmd);
+            } catch (err) {
+              console.error('[GhostPilot] Error executing command:', err);
+            }
+          }
+
+          if (onClearStage) {
+            onClearStage();
           }
         }
 
-        // 7. Clear ghost stage preview
-        if (onClearStage) {
-          onClearStage();
-        }
-
-        // 8. Wait for Jarvis speech narration to finish naturally before proceeding
+        // Wait for speech narration to finish naturally
         await speechPromise;
 
-        // 9. Rhythmic pause between steps before advancing to the next command
-        const pauseMs = Math.max(180, 350 / (speedRef.current || 1));
+        // Rhythmic human pause between steps
+        const pauseMs = Math.max(160, 300 / (speedRef.current || 1));
         await waitAsync(pauseMs);
       }
 
-      // 3. CLOSING CONCLUSION: Ask user confirmation whether app is OK or needs review
+      // 3. CLOSING CONCLUSION
       if (!isStoppedRef.current) {
         setCurrentStepIndex(commands.length);
-        const outroNarration = 'Perakitan aplikasi telah selesai sepenuhnya. Apakah aplikasi yang saya buat sudah sesuai, atau ada bagian yang perlu direvisi?';
-        setCurrentActionLabel('✅ Mandor App: Apakah aplikasi sudah sesuai atau ada revisi?');
+        const outroNarration = 'Perakitan aplikasi selesai dengan sukses. Silakan periksa hasilnya di layar.';
+        setCurrentActionLabel('✅ Mandor App: Perakitan selesai sepenuhnya.');
         playJarvisStepChime('complete');
         await speakJarvis(outroNarration);
         setShowReviewDialog(true);
-        await waitAsync(500);
+        await waitAsync(450);
       } else {
         setCurrentActionLabel('Ghost Pilot dihentikan oleh operator.');
       }
     } finally {
-      // Cleanup
       isExecutingRef.current = false;
       setIsRunning(false);
       setIsPaused(false);
       setIsClicking(false);
       setIsSpeaking(false);
+      setIsDragging(false);
+      setDraggedItem(null);
+      setCursorMode('pointer');
+      setTypingText('');
       if (onClearStage) onClearStage();
       if (onFinish) onFinish();
     }
-  }, [speakJarvis]);
+  }, [speakJarvis, waitAsync, moveCursorHuman]);
 
   const pauseRPA = useCallback(() => {
     setIsPaused(true);
@@ -547,6 +695,10 @@ export function useGhostPilotRPA() {
     setIsRunning(false);
     setIsPaused(false);
     setIsSpeaking(false);
+    setIsDragging(false);
+    setDraggedItem(null);
+    setCursorMode('pointer');
+    setTypingText('');
     setShowReviewDialog(false);
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       try {
@@ -573,6 +725,10 @@ export function useGhostPilotRPA() {
     setVoiceEnabled,
     showReviewDialog,
     setShowReviewDialog,
+    isDragging,
+    draggedItem,
+    cursorMode,
+    typingText,
     speakJarvis,
     startRPA,
     pauseRPA,

@@ -30709,6 +30709,10 @@ D3:0
                 setSpeed={ghostPilot.setSpeed}
                 voiceEnabled={ghostPilot.voiceEnabled}
                 setVoiceEnabled={ghostPilot.setVoiceEnabled}
+                isDragging={ghostPilot.isDragging}
+                draggedItem={ghostPilot.draggedItem}
+                cursorMode={ghostPilot.cursorMode}
+                typingText={ghostPilot.typingText}
                 onPause={ghostPilot.pauseRPA}
                 onResume={ghostPilot.resumeRPA}
                 onStop={ghostPilot.stopRPA}

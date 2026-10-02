@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import {
   Play, Pause, Square, Volume2, VolumeX, Sparkles, Bot,
-  MousePointer2, ChevronUp, ChevronDown, Activity, Zap
+  MousePointer2, Hand, Grab, ChevronUp, ChevronDown, Activity, Zap, Layers, Edit3
 } from 'lucide-react';
 
 /**
  * GhostPilotOverlay
- * High-tech visual overlay rendering the Ghost Cursor and Floating Jarvis HUD
+ * High-tech visual overlay rendering the Humanizer Ghost Cursor and Floating Jarvis HUD
  * when Ghost Pilot RPA is autonomously building apps in AppBuilder.
  */
 export default function GhostPilotOverlay({
@@ -15,13 +15,17 @@ export default function GhostPilotOverlay({
   currentStepIndex,
   totalSteps,
   currentActionLabel,
-  cursorPos,
-  isClicking,
-  isSpeaking,
-  speed,
+  cursorPos = { x: 400, y: 300 },
+  isClicking = false,
+  isSpeaking = false,
+  speed = 1,
   setSpeed,
-  voiceEnabled,
+  voiceEnabled = true,
   setVoiceEnabled,
+  isDragging = false,
+  draggedItem = null,
+  cursorMode = 'pointer', // 'pointer' | 'grab' | 'grabbing' | 'typing'
+  typingText = '',
   onPause,
   onResume,
   onStop
@@ -31,6 +35,13 @@ export default function GhostPilotOverlay({
   if (!isRunning) return null;
 
   const progressPercent = totalSteps > 0 ? Math.min(100, Math.round((currentStepIndex / totalSteps) * 100)) : 0;
+
+  // Shorten action label for mini floating tag near cursor
+  const getShortActionText = (label = '') => {
+    if (!label) return 'Bergerak...';
+    const clean = label.replace(/Langkah \d+:\s*/i, '').replace(/Mandor App:\s*/i, '');
+    return clean.length > 28 ? clean.slice(0, 26) + '...' : clean;
+  };
 
   return (
     <div
@@ -42,48 +53,242 @@ export default function GhostPilotOverlay({
         overflow: 'hidden'
       }}
     >
-      {/* ─── 1. GHOST CURSOR (Smooth Glide & Click Ripple) ───────────────── */}
+      {/* ─── 1. HUMANIZER GHOST CURSOR (Real Pointer, Drag Ghost, Typing Pill) ── */}
       <div
         style={{
           position: 'absolute',
           left: cursorPos.x,
           top: cursorPos.y,
-          transform: 'translate(-6px, -6px)',
-          transition: 'left 0.45s cubic-bezier(0.25, 1, 0.5, 1), top 0.45s cubic-bezier(0.25, 1, 0.5, 1)',
+          transform: 'translate(-4px, -4px)',
           pointerEvents: 'none',
-          zIndex: 100000
+          zIndex: 100000,
+          willChange: 'left, top'
         }}
       >
-        {/* Glow halo */}
+        {/* Glow halo around cursor point */}
         <div
           style={{
             position: 'absolute',
-            width: '40px',
-            height: '40px',
+            width: isDragging ? '48px' : '36px',
+            height: isDragging ? '48px' : '36px',
             borderRadius: '50%',
-            backgroundColor: 'rgba(59, 130, 246, 0.25)',
-            boxShadow: '0 0 24px rgba(59, 130, 246, 0.8), 0 0 48px rgba(147, 51, 234, 0.4)',
+            backgroundColor: isDragging ? 'rgba(56, 189, 248, 0.35)' : 'rgba(59, 130, 246, 0.22)',
+            boxShadow: isDragging
+              ? '0 0 28px rgba(56, 189, 248, 0.9), 0 0 50px rgba(147, 51, 234, 0.5)'
+              : '0 0 20px rgba(59, 130, 246, 0.7)',
             transform: 'translate(-50%, -50%)',
-            left: '6px',
-            top: '6px',
-            animation: 'ghostPulse 1.8s infinite ease-in-out'
+            left: '4px',
+            top: '4px',
+            animation: 'ghostPulse 1.6s infinite ease-in-out',
+            transition: 'width 0.2s, height 0.2s, background-color 0.2s'
           }}
         />
+
+        {/* Dynamic Cursor Icon (Pointer / Grabbing / Typing) */}
+        <div
+          style={{
+            position: 'relative',
+            transform: isClicking ? 'scale(0.85) translate(1px, 1px)' : isDragging ? 'rotate(-6deg)' : 'scale(1)',
+            transition: 'transform 0.12s ease-out'
+          }}
+        >
+          {cursorMode === 'grabbing' || isDragging ? (
+            <div
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.9), rgba(147, 51, 234, 0.9))',
+                border: '1.5px solid #38bdf8',
+                boxShadow: '0 4px 16px rgba(56, 189, 248, 0.6)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <Grab size={18} color="#ffffff" />
+            </div>
+          ) : cursorMode === 'grab' ? (
+            <div
+              style={{
+                width: '30px',
+                height: '30px',
+                borderRadius: '8px',
+                background: 'rgba(15, 23, 42, 0.85)',
+                border: '1.5px solid #38bdf8',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <Hand size={17} color="#38bdf8" />
+            </div>
+          ) : cursorMode === 'typing' ? (
+            <div
+              style={{
+                width: '30px',
+                height: '30px',
+                borderRadius: '8px',
+                background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.9), rgba(236, 72, 153, 0.9))',
+                border: '1.5px solid #c084fc',
+                boxShadow: '0 4px 16px rgba(168, 85, 247, 0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <Edit3 size={16} color="#ffffff" />
+            </div>
+          ) : (
+            /* Sleek Cyber Human Pointer Arrow */
+            <svg
+              width="28"
+              height="28"
+              viewBox="0 0 24 24"
+              fill="none"
+              style={{
+                filter: 'drop-shadow(0 3px 10px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 8px rgba(56, 189, 248, 0.7))'
+              }}
+            >
+              <path
+                d="M3 3L10.07 19.97L12.58 12.58L19.97 10.07L3 3Z"
+                fill="url(#jarvisCursorGrad)"
+                stroke="#ffffff"
+                strokeWidth="1.5"
+                strokeLinejoin="round"
+              />
+              <defs>
+                <linearGradient id="jarvisCursorGrad" x1="3" y1="3" x2="20" y2="20" gradientUnits="userSpaceOnUse">
+                  <stop stopColor="#38bdf8" />
+                  <stop offset="1" stopColor="#0284c7" />
+                </linearGradient>
+              </defs>
+            </svg>
+          )}
+        </div>
+
+        {/* ─── REAL DRAG & DROP GHOST CARD ─── */}
+        {isDragging && draggedItem && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '28px',
+              left: '18px',
+              background: 'rgba(15, 23, 42, 0.92)',
+              backdropFilter: 'blur(12px)',
+              border: '1.5px solid #38bdf8',
+              borderRadius: '10px',
+              padding: '6px 12px',
+              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 20px rgba(56, 189, 248, 0.35)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              whiteSpace: 'nowrap',
+              animation: 'dragFloat 1.2s infinite ease-in-out'
+            }}
+          >
+            <div
+              style={{
+                width: '24px',
+                height: '24px',
+                borderRadius: '6px',
+                background: 'linear-gradient(135deg, #0284c7, #38bdf8)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <Layers size={13} color="#ffffff" />
+            </div>
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#f8fafc' }}>
+                {draggedItem.label || draggedItem.type}
+              </div>
+              <div style={{ fontSize: '9px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ color: '#38bdf8', fontWeight: 600 }}>DRAGGING</span>
+                <span>•</span>
+                <span>X: {Math.round(cursorPos.x)} Y: {Math.round(cursorPos.y)}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── SETTING UI / TYPING LIVE BUBBLE ─── */}
+        {cursorMode === 'typing' && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '26px',
+              left: '18px',
+              background: 'rgba(15, 23, 42, 0.94)',
+              backdropFilter: 'blur(10px)',
+              border: '1.5px solid #c084fc',
+              borderRadius: '8px',
+              padding: '6px 10px',
+              boxShadow: '0 8px 24px rgba(168, 85, 247, 0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <span style={{ fontSize: '10px', color: '#c084fc', fontWeight: 700 }}>SETTING:</span>
+            <span style={{ fontSize: '11px', color: '#f8fafc', fontFamily: 'monospace', fontWeight: 600 }}>
+              "{typingText}"
+            </span>
+            <span
+              style={{
+                display: 'inline-block',
+                width: '2px',
+                height: '13px',
+                background: '#c084fc',
+                animation: 'blink 0.75s infinite'
+              }}
+            />
+          </div>
+        )}
+
+        {/* ─── SUBTLE ACTION TAG (When not dragging/typing) ─── */}
+        {!isDragging && cursorMode !== 'typing' && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '22px',
+              left: '22px',
+              background: 'rgba(15, 23, 42, 0.85)',
+              backdropFilter: 'blur(8px)',
+              border: '1px solid rgba(56, 189, 248, 0.4)',
+              borderRadius: '6px',
+              padding: '2px 8px',
+              fontSize: '10px',
+              fontWeight: 600,
+              color: '#38bdf8',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            <Sparkles size={10} color="#38bdf8" />
+            <span>{getShortActionText(currentActionLabel)}</span>
+          </div>
+        )}
 
         {/* Click Ripple Wave */}
         {isClicking && (
           <div
             style={{
               position: 'absolute',
-              left: '6px',
-              top: '6px',
-              width: '60px',
-              height: '60px',
+              left: '4px',
+              top: '4px',
+              width: '64px',
+              height: '64px',
               borderRadius: '50%',
               border: '2px solid #38bdf8',
               transform: 'translate(-50%, -50%) scale(1.6)',
               opacity: 0,
-              transition: 'transform 0.3s ease-out, opacity 0.3s ease-out'
+              animation: 'rippleExpand 0.35s ease-out'
             }}
           />
         )}
@@ -107,7 +312,7 @@ export default function GhostPilotOverlay({
           display: 'flex',
           flexDirection: 'column',
           gap: '8px',
-          minWidth: isMinimized ? '280px' : '460px',
+          minWidth: isMinimized ? '300px' : '480px',
           maxWidth: '90vw',
           transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
           zIndex: 100001
@@ -116,7 +321,7 @@ export default function GhostPilotOverlay({
         {/* HUD Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {/* Hologram Avatar / Waveform Icon */}
+            {/* Hologram Avatar */}
             <div
               style={{
                 width: '32px',
@@ -140,6 +345,19 @@ export default function GhostPilotOverlay({
                 </span>
                 <span
                   style={{
+                    fontSize: '9px',
+                    fontWeight: 800,
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                    color: '#38bdf8',
+                    border: '1px solid rgba(56, 189, 248, 0.35)'
+                  }}
+                >
+                  HUMAN DYNAMICS
+                </span>
+                <span
+                  style={{
                     fontSize: '10px',
                     fontWeight: 800,
                     padding: '2px 6px',
@@ -152,9 +370,9 @@ export default function GhostPilotOverlay({
                   {isPaused ? 'PAUSED' : 'AUTONOMOUS'}
                 </span>
 
-                {/* Prominent Voice Status Indicator ("tampilkan voice") */}
+                {/* Voice Status Indicator */}
                 <div
-                  onClick={() => setVoiceEnabled(!voiceEnabled)}
+                  onClick={() => setVoiceEnabled && setVoiceEnabled(!voiceEnabled)}
                   title={voiceEnabled ? 'Suara Jarvis Aktif (Klik untuk mute)' : 'Suara Jarvis Nonaktif (Klik untuk aktifkan)'}
                   style={{
                     display: 'flex',
@@ -209,41 +427,11 @@ export default function GhostPilotOverlay({
             </div>
           </div>
 
-          {isSpeaking && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '3px',
-                height: '20px',
-                padding: '0 8px',
-                borderRadius: '8px',
-                backgroundColor: 'rgba(56, 189, 248, 0.15)',
-                border: '1px solid rgba(56, 189, 248, 0.3)'
-              }}
-            >
-              <span style={{ fontSize: '11px', color: '#38bdf8', marginRight: '3px' }}>🎙️</span>
-              {[0.4, 0.9, 0.5, 1.0, 0.6, 0.8].map((scale, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    width: '3px',
-                    height: '14px',
-                    backgroundColor: '#38bdf8',
-                    borderRadius: '2px',
-                    transform: `scaleY(${scale})`,
-                    animation: `soundWave 0.6s infinite ease-in-out ${idx * 0.1}s`
-                  }}
-                />
-              ))}
-            </div>
-          )}
-
           {/* Controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             {/* Voice Mute/Unmute */}
             <button
-              onClick={() => setVoiceEnabled(!voiceEnabled)}
+              onClick={() => setVoiceEnabled && setVoiceEnabled(!voiceEnabled)}
               title={voiceEnabled ? 'Nonaktifkan Suara Jarvis' : 'Aktifkan Suara Jarvis'}
               style={{
                 background: voiceEnabled ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255, 255, 255, 0.05)',
@@ -264,7 +452,7 @@ export default function GhostPilotOverlay({
 
             {/* Speed Multiplier */}
             <button
-              onClick={() => setSpeed(speed === 1 ? 2 : speed === 2 ? 4 : 1)}
+              onClick={() => setSpeed && setSpeed(speed === 1 ? 2 : speed === 2 ? 4 : 1)}
               title="Kecepatan Eksekusi"
               style={{
                 background: 'rgba(255, 255, 255, 0.08)',
@@ -340,7 +528,7 @@ export default function GhostPilotOverlay({
         {/* Expanded Details & Progress Bar */}
         {!isMinimized && (
           <>
-            {/* Live Narration with Voice Visualizer */}
+            {/* Live Narration */}
             <div
               style={{
                 fontSize: '12px',
@@ -424,13 +612,21 @@ export default function GhostPilotOverlay({
           50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.3; }
           100% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.7; }
         }
+        @keyframes dragFloat {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-4px); }
+        }
+        @keyframes rippleExpand {
+          0% { transform: translate(-50%, -50%) scale(0.4); opacity: 0.9; }
+          100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
+        }
+        @keyframes blink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0; }
+        }
         @keyframes soundWave {
           0%, 100% { transform: scaleY(0.3); }
           50% { transform: scaleY(1); }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(4px); }
-          to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </div>
