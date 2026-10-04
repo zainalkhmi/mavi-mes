@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 
 export function useZoom() {
+  const location = useLocation();
   const [zoomLevel, setZoomLevel] = useState(() => {
     const saved = localStorage.getItem('mandor-zoom-level');
     return saved ? parseFloat(saved) : 1.0;
@@ -11,16 +13,43 @@ export function useZoom() {
   });
 
   useEffect(() => {
+    const path = (location.pathname || '').toLowerCase();
+    const hash = (window.location.hash || '').toLowerCase();
+    const search = (location.search || '').toLowerCase();
+
     const isStandalonePage = 
-      window.location.hash.includes('sandbox') ||
-      window.location.hash.includes('player') ||
-      window.location.hash.includes('terminal') ||
-      window.location.hash.includes('checksheet') ||
-      window.location.hash.includes('builder') ||
-      window.location.pathname.includes('sandbox') ||
-      window.location.pathname.includes('player') ||
-      window.location.pathname.includes('terminal') ||
-      window.location.pathname.includes('builder');
+      path.startsWith('/sandbox') ||
+      path.startsWith('/player') ||
+      path.startsWith('/app-player') ||
+      path.startsWith('/standalone-player') ||
+      path.startsWith('/tulip-player') ||
+      path.startsWith('/mobile-player') ||
+      path.startsWith('/mandor-player') ||
+      path.startsWith('/dozuki-player') ||
+      path.startsWith('/terminal') ||
+      path.startsWith('/checksheet') ||
+      path.startsWith('/drawing-checksheet') ||
+      path.startsWith('/qa-checksheet') ||
+      path.startsWith('/live-checksheet') ||
+      path.startsWith('/live-player') ||
+      path.startsWith('/simple-checksheet') ||
+      path.startsWith('/builder') ||
+      path.startsWith('/ui-engine') ||
+      path.startsWith('/gluestack') ||
+      path.startsWith('/query-studio') ||
+      path.startsWith('/automations') ||
+      hash.includes('sandbox') ||
+      hash.includes('player') ||
+      hash.includes('terminal') ||
+      hash.includes('checksheet') ||
+      hash.includes('builder') ||
+      hash.includes('ui-engine') ||
+      hash.includes('gluestack') ||
+      hash.includes('query-studio') ||
+      hash.includes('automations') ||
+      search.includes('standalone=true') ||
+      search.includes('hideheader=true') ||
+      search.includes('mode=companion');
 
     const effectiveZoom = isStandalonePage ? 1.0 : zoomLevel;
 
@@ -41,7 +70,7 @@ export function useZoom() {
     if (!isStandalonePage) {
       localStorage.setItem('mandor-zoom-level', zoomLevel.toFixed(2));
     }
-  }, [zoomLevel]);
+  }, [zoomLevel, location.pathname, location.search]);
 
   useEffect(() => {
     localStorage.setItem('mandor-zoom-collapsed', isZoomCollapsed.toString());

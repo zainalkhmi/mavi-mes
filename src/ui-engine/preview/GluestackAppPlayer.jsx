@@ -222,75 +222,103 @@ export default function GluestackAppPlayer({
     setTriggerLogs(prev => [entry, ...prev.slice(0, 49)]);
   }, []);
 
+  // Helper to extract screens from any schema (screens array or flat components)
+  const extractScreens = useCallback((data) => {
+    if (!data) return null;
+    const cfg = data.config || data;
+    let rawScreens = cfg.screens || cfg.components || data.screens || data.components;
+    if (!Array.isArray(rawScreens) || rawScreens.length === 0) return null;
+    if (rawScreens[0]?.components && Array.isArray(rawScreens[0].components)) {
+      return rawScreens;
+    }
+    return [{ id: 'screen_1', title: data.name || 'Screen 1', components: rawScreens }];
+  }, []);
+
   // ── Load App Data ──────────────────────────────────────────────────────────
   useEffect(() => {
     let isMounted = true;
     setIsLoading(true);
 
+    const applyAppData = (data) => {
+      if (!data) return false;
+      const scrs = extractScreens(data);
+      if (!scrs || scrs.length === 0) return false;
+      if (isMounted) {
+        setAppName(data.name || 'GlueStack App');
+        setScreens(scrs);
+        setCurrentScreenId(scrs[0].id || 'screen_1');
+        const cfg = data.config || data;
+        if (cfg.variables) setVariables(cfg.variables);
+        if (cfg.tables) setTables(cfg.tables);
+        setIsLoading(false);
+      }
+      return true;
+    };
+
     const loadApp = async () => {
       try {
         // 1. If initialAppData provided via prop, use it directly
-        if (initialAppData) {
-          const cfg = initialAppData.config || initialAppData;
-          if (isMounted) {
-            setAppName(initialAppData.name || 'GlueStack App');
-            if (cfg.components && cfg.components.length > 0) {
-              setScreens(cfg.components);
-              setCurrentScreenId(cfg.components[0].id);
-            } else if (cfg.screens && cfg.screens.length > 0) {
-              setScreens(cfg.screens);
-              setCurrentScreenId(cfg.screens[0].id);
+        if (applyAppData(initialAppData)) return;
+
+        // 2. Try loading from localStorage by appId (`mavi_app_${appId}`)
+        if (appId) {
+          const localDataRaw = localStorage.getItem(`mavi_app_${appId}`);
+          if (localDataRaw) {
+            try {
+              const parsed = JSON.parse(localDataRaw);
+              if (applyAppData(parsed)) return;
+            } catch (e) {
+              console.warn('[GluestackAppPlayer] Corrupt localStorage app:', e);
             }
-            if (cfg.variables) setVariables(cfg.variables);
-            if (cfg.tables) setTables(cfg.tables);
-            setIsLoading(false);
           }
-          return;
         }
 
-        // 2. Try loading from localStorage (`mavi_app_${appId}`)
-        const localKey = `mavi_app_${appId}`;
-        const localDataRaw = localStorage.getItem(localKey);
-        if (localDataRaw) {
+        // 3. Try loading from latest active working draft (`mavi_app_latest`)
+        const latestDraftRaw = localStorage.getItem('mavi_app_latest');
+        if (latestDraftRaw) {
           try {
-            const parsed = JSON.parse(localDataRaw);
-            if (isMounted) {
-              setAppName(parsed.name || 'GlueStack App');
-              if (parsed.screens && parsed.screens.length > 0) {
-                setScreens(parsed.screens);
-                setCurrentScreenId(parsed.screens[0].id);
-              }
-              if (parsed.variables) setVariables(parsed.variables);
-              if (parsed.tables) setTables(parsed.tables);
-              setIsLoading(false);
+            const parsed = JSON.parse(latestDraftRaw);
+            // If the latest draft matches requested appId, or if requested appId is not found
+            if (parsed && (parsed.id === appId || !appId || appId === 'app_1' || String(appId).startsWith('app_'))) {
+              if (applyAppData(parsed)) return;
             }
-            return;
-          } catch (e) {
-            console.warn('[GluestackAppPlayer] Corrupt localStorage app:', e);
-          }
+          } catch (e) {}
         }
 
-        // 3. Try loading from Supabase
+        // 4. Try loading from Supabase by exact appId
         if (appId && appId !== 'app_1') {
-          const remoteApp = await getFrontlineAppById(appId);
-          if (remoteApp && isMounted) {
-            setAppName(remoteApp.name || 'GlueStack App');
-            const cfg = remoteApp.config || {};
-            if (cfg.components && cfg.components.length > 0) {
-              setScreens(cfg.components);
-              setCurrentScreenId(cfg.components[0].id);
-            } else if (cfg.screens && cfg.screens.length > 0) {
-              setScreens(cfg.screens);
-              setCurrentScreenId(cfg.screens[0].id);
-            }
-            if (cfg.variables) setVariables(cfg.variables);
-            if (cfg.tables) setTables(cfg.tables);
-            setIsLoading(false);
-            return;
+          try {
+            const remoteApp = await getFrontlineAppById(appId);
+            if (remoteApp && applyAppData(remoteApp)) return;
+          } catch (e) {
+            console.warn('[GluestackAppPlayer] Supabase getFrontlineAppById error:', e);
           }
         }
 
-        // 4. Fallback to default starter app
+        // 5. Try searching localStorage keys for any saved gluestack app matching ID or latest
+        try {
+          const keys = Object.keys(localStorage);
+          for (const k of keys) {
+            if (k.startsWith('mavi_app_') && k !== 'mavi_app_latest') {
+              try {
+                const parsed = JSON.parse(localStorage.getItem(k));
+                if (parsed && (parsed.id === appId || parsed.aliasFor === appId || (!appId || appId === 'app_1'))) {
+                  if (applyAppData(parsed)) return;
+                }
+              } catch (e) {}
+            }
+          }
+        } catch (e) {}
+
+        // 6. If latest draft exists at all in localStorage, prefer it over generic starter app!
+        if (latestDraftRaw) {
+          try {
+            const parsed = JSON.parse(latestDraftRaw);
+            if (applyAppData(parsed)) return;
+          } catch (e) {}
+        }
+
+        // 7. Fallback to default starter app ONLY if no user app exists anywhere
         if (isMounted) {
           setAppName(DEFAULT_STARTER_APP.name);
           setScreens(DEFAULT_STARTER_APP.screens);
@@ -310,7 +338,44 @@ export default function GluestackAppPlayer({
 
     loadApp();
     return () => { isMounted = false; };
-  }, [appId, initialAppData]);
+  }, [appId, initialAppData, extractScreens]);
+
+  // ── Live Sync with Builder Tab ─────────────────────────────────────────────
+  useEffect(() => {
+    const handleLiveSync = (data) => {
+      if (!data) return;
+      if (data.id === appId || data.aliasFor === appId || !appId || appId === 'app_1' || String(appId).startsWith('app_')) {
+        const scrs = extractScreens(data);
+        if (scrs && scrs.length > 0) {
+          setAppName(data.name || 'GlueStack App');
+          setScreens(scrs);
+          const cfg = data.config || data;
+          if (cfg.variables) setVariables(cfg.variables);
+          if (cfg.tables) setTables(cfg.tables);
+        }
+      }
+    };
+
+    const handleStorageChange = (e) => {
+      if (e.key === `mavi_app_${appId}` || e.key === 'mavi_app_latest') {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          handleLiveSync(parsed);
+        } catch (err) {}
+      }
+    };
+
+    const handleCustomSync = (e) => {
+      if (e.detail) handleLiveSync(e.detail);
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('mavi_gluestack_app_updated', handleCustomSync);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('mavi_gluestack_app_updated', handleCustomSync);
+    };
+  }, [appId, extractScreens]);
 
   // Current active screen
   const currentScreen = useMemo(() => {

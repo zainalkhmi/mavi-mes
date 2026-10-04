@@ -121,6 +121,12 @@ export default function TopNavbar() {
 
   const plmItems = [
     { path: '/plm-integration', icon: <Layers size={16} />, label: 'PLM Dashboard' },
+    { 
+      path: '/genealogy', 
+      icon: <GitBranch size={16} className="text-teal-600" />, 
+      label: 'Genealogy & Traceability (ISA-95)',
+      description: 'Multi-Tier As-Built Lot & Serial Tree'
+    },
     { path: '/drawing-management', icon: <Folder size={16} />, label: 'Drawing Management' },
     { path: '/inspector-designer', icon: <FileCode size={16} />, label: 'Inspector Designer' },
     { path: '/drawing-checksheet', icon: <ClipboardCheck size={16} />, label: 'Digital Check Sheet' },

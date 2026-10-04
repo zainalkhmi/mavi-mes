@@ -1766,7 +1766,8 @@ export default function AppCanvas({
           if (!existingId && saved.id !== currentAppId) {
             // The app got a new UUID, update localStorage with new ID
             localStorage.setItem(`mavi_app_${saved.id}`, JSON.stringify({ ...appPayload, id: saved.id }));
-            localStorage.removeItem(`mavi_app_${currentAppId}`);
+            localStorage.setItem(`mavi_app_${currentAppId}`, JSON.stringify({ ...appPayload, id: saved.id, aliasFor: saved.id }));
+            localStorage.setItem('mavi_app_latest', JSON.stringify({ ...appPayload, id: saved.id }));
             setCurrentAppId(saved.id);
           }
           console.log('[GlueStack] App saved to Supabase:', saved.id);
@@ -1829,11 +1830,48 @@ export default function AppCanvas({
     }
   }, [getCompanionUrl, appName]);
 
+  // Auto-sync working draft to localStorage so companion runner / new tab always has the latest canvas state
+  useEffect(() => {
+    if (!currentAppId) return;
+    const appPayload = {
+      id: currentAppId,
+      name: appName.trim() || 'Untitled App',
+      screens,
+      variables,
+      tables,
+      recordPlaceholders,
+      updated_at: new Date().toISOString()
+    };
+    try {
+      localStorage.setItem(`mavi_app_${currentAppId}`, JSON.stringify(appPayload));
+      localStorage.setItem('mavi_app_latest', JSON.stringify(appPayload));
+      window.dispatchEvent(new CustomEvent('mavi_gluestack_app_updated', { detail: appPayload }));
+    } catch (e) {
+      console.warn('[AppCanvas] Auto-save error:', e);
+    }
+  }, [currentAppId, appName, screens, variables, tables, recordPlaceholders]);
+
   // Listen to external companion events (from top studio header)
   useEffect(() => {
     const onSave = () => handleSaveApp();
     const onLink = () => handleCopyAppLink();
-    const onQr = () => setIsCompanionModalOpen(true);
+    const onQr = () => {
+      // Ensure working draft is strictly saved before opening companion connect
+      const appPayload = {
+        id: currentAppId,
+        name: appName.trim() || 'Untitled App',
+        screens,
+        variables,
+        tables,
+        recordPlaceholders,
+        updated_at: new Date().toISOString()
+      };
+      try {
+        localStorage.setItem(`mavi_app_${currentAppId}`, JSON.stringify(appPayload));
+        localStorage.setItem('mavi_app_latest', JSON.stringify(appPayload));
+      } catch (e) {}
+      setIsCompanionModalOpen(true);
+    };
     const onSetName = (e) => {
       if (e.detail?.appName) setAppName(e.detail.appName);
     };
@@ -2937,12 +2975,12 @@ export default function AppCanvas({
     URL.revokeObjectURL(url);
   };
 
-  // Device Width Classes mapping - Responsive height to ensure full device visibility at 100% zoom
+  // Device Width Classes mapping - Modern smartphone & tablet aspect ratios (19.5:9 for mobile)
   const deviceWidthClasses = {
-    iphone: 'w-[360px] max-w-full h-[calc(100vh-210px)] max-h-[660px] min-h-[460px]',
-    android: 'w-[760px] max-w-full h-[calc(100vh-210px)] max-h-[440px] min-h-[380px]',
-    tablet: 'w-[680px] max-w-full h-[calc(100vh-210px)] max-h-[700px] min-h-[500px]',
-    responsive: 'w-full max-w-5xl h-[calc(100vh-210px)] min-h-[500px]'
+    iphone: 'w-[380px] max-w-full h-[780px] min-h-[740px] shadow-2xl',
+    android: 'w-[780px] max-w-full h-[390px] min-h-[360px] shadow-2xl',
+    tablet: 'w-[768px] max-w-full h-[880px] min-h-[680px] shadow-2xl',
+    responsive: 'w-full max-w-5xl h-full min-h-[680px]'
   };
   const activeDeviceClass = deviceWidthClasses[currentDeviceFrame] || deviceWidthClasses.iphone;
 
@@ -4905,7 +4943,7 @@ export default function AppCanvas({
             </div>
           )}
           {/* Scrollable Canvas Viewport */}
-          <div className="flex-1 overflow-y-auto py-3 px-4 pb-16 flex flex-col items-center justify-center">
+          <div className="flex-1 overflow-y-auto py-6 px-4 pb-20 flex flex-col items-center">
             {/* Device Viewport Mockup (Responds to Device Switcher) */}
             <div
               className={`transition-all duration-300 mx-auto bg-white dark:bg-[#12131c] rounded-3xl shadow-2xl overflow-hidden border border-slate-300 dark:border-slate-700 flex flex-col relative ${activeDeviceClass}`}
@@ -5856,6 +5894,19 @@ export default function AppCanvas({
               <button
                 type="button"
                 onClick={() => {
+                  const appPayload = {
+                    id: currentAppId,
+                    name: appName.trim() || 'Untitled App',
+                    screens,
+                    variables,
+                    tables,
+                    recordPlaceholders,
+                    updated_at: new Date().toISOString()
+                  };
+                  try {
+                    localStorage.setItem(`mavi_app_${currentAppId}`, JSON.stringify(appPayload));
+                    localStorage.setItem('mavi_app_latest', JSON.stringify(appPayload));
+                  } catch (e) {}
                   window.open(getCompanionUrl(), '_blank');
                 }}
                 className="flex-1 py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"

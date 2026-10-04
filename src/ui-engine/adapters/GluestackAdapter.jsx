@@ -54,7 +54,7 @@ export function GluestackUIProvider({
   return (
     <GluestackContext.Provider value={contextValue}>
       <div 
-        className={`gluestack-scope ${colorMode === 'dark' ? 'dark' : ''} text-slate-800 dark:text-slate-100 font-sans`}
+        className={`gluestack-scope w-full h-full flex-1 flex flex-col min-w-0 min-h-0 ${colorMode === 'dark' ? 'dark' : ''} text-slate-800 dark:text-slate-100 font-sans`}
         data-theme={colorMode}
         style={{
           '--gluestack-primary': tokens.colors.primary.DEFAULT,

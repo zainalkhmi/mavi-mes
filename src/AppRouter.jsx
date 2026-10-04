@@ -108,6 +108,7 @@ const UiEngineStudio = lazy(() => import('./ui-engine/preview/UiEngineStudio'));
 const GluestackAppPlayer = lazy(() => import('./ui-engine/preview/GluestackAppPlayer'));
 const QueryStudio = lazy(() => import('./components/QueryStudio'));
 const DownloadPlayer = lazy(() => import('./components/DownloadPlayer'));
+const GenealogyViewer = lazy(() => import('./components/GenealogyViewer'));
 
 export default function AppRouter({ user, isOperator }) {
   const hasAccess = (path) => checkRoleAccess(user, path);
@@ -185,6 +186,8 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/live-player" element={<DigitalDrawingCheckSheet />} />
               <Route path="/drawing-management" element={<DrawingManagement />} />
               <Route path="/plm-integration" element={<PLMIntegrationDashboard />} />
+              <Route path="/genealogy" element={<GenealogyViewer />} />
+              <Route path="/genealogy-traceability" element={<GenealogyViewer />} />
               <Route path="/app-management" element={hasAccess('/app-management') ? <AppManagement /> : <Navigate to="/" replace />} />
               <Route path="/tables" element={hasAccess('/tables') ? <TableManager /> : <Navigate to="/" replace />} />
               <Route path="/query-studio" element={<QueryStudio />} />

@@ -286,8 +286,8 @@ import { DEFAULT_VIBE_HMI_CODE, CLEAN_BLANK_APP_CODE } from './appbuilder/VibeSa
 import { uploadManualImage, isSupabaseReady } from '../utils/supabaseManualDB';
 import iotConnector from '../utils/iotConnector';
 import { logEvent, AUDIT_EVENTS } from '../utils/auditLog';
-const ColorPicker = lazy(() => import('./ColorPicker'));
-const ShapePicker = lazy(() => import('./ShapePicker'));
+import ColorPicker from './ColorPicker';
+import ShapePicker from './ShapePicker';
 const ScadaWidgetRenderer = lazy(() => import('./ScadaWidgets'));
 import { createIncomingInspectionTemplate } from '../utils/incomingInspectionTemplate';
 import automationEngine from '../utils/automationEngine';

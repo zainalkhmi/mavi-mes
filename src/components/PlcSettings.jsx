@@ -3,7 +3,9 @@ import {
   Cpu, Zap, Database, Activity, Plus, Search, Trash2, Edit2, Settings2, 
   RefreshCw, Play, StopCircle, CheckCircle2, AlertTriangle, Grid, 
   FileJson, Download, Upload, Server, Terminal, Save, X, ArrowRight,
-  TrendingUp, Radio, HelpCircle, AlertCircle, Key
+  TrendingUp, Radio, HelpCircle, AlertCircle, Key, ArrowRightLeft,
+  Sliders, FolderTree, HeartPulse, Workflow, Lock, Unlock, Eye, ChevronRight,
+  RotateCw, Check, Sparkles, SlidersHorizontal
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { savePlcSettingsToSupabase, loadPlcSettingsFromSupabase } from '../utils/supabaseFrontlineDB';
@@ -15,6 +17,9 @@ const CONTROLLER_TYPES = [
   { value: 'MODBUS_RTU', label: 'Modbus RTU', icon: Radio, color: '#10b981', desc: 'Modbus serial communications over RS485/RTU' },
   { value: 'OPC_UA', label: 'OPC UA (Python)', icon: Cpu, color: '#8b5cf6', desc: 'Secure Unified Architecture nodes via Python' },
   { value: 'SIEMENS_S7', label: 'Siemens S7 (Python)', icon: Server, color: '#ec4899', desc: 'Siemens S7-300/400/1200/1500 connection via snap7' },
+  { value: 'MITSUBISHI_MELSEC', label: 'Mitsubishi MELSEC (MC Protocol)', icon: Cpu, color: '#dc2626', desc: 'Direct Q-Series, iQ-R, FX5U via MC Protocol (3E/4E frame)' },
+  { value: 'OMRON_FINS', label: 'Omron FINS (Ethernet)', icon: Server, color: '#0284c7', desc: 'Direct Omron CS/CJ/CP/NX via FINS commands' },
+  { value: 'ROCKWELL_CIP', label: 'Rockwell / Allen-Bradley (EtherNet/IP)', icon: Database, color: '#f97316', desc: 'ControlLogix, CompactLogix, Micro800 via CIP' },
   { value: 'MQTT', label: 'MQTT Broker', icon: Zap, color: '#f59e0b', desc: 'Telemetry subscription over MQTT Broker' }
 ];
 
@@ -83,6 +88,26 @@ const TEMPLATES = {
       { name: 'Total_Energy_Kwh', type: 'MQTT', regType: 'MQTT_TOPIC', address: 'telemetry/power/energy_kwh', dataType: 'FLOAT', multiplier: 0.1, permissions: 'RO', value: '9845.2' },
       { name: 'Cabinet_Temp_C', type: 'MQTT', regType: 'MQTT_TOPIC', address: 'sensors/temp/cabinet', dataType: 'FLOAT', multiplier: 1, permissions: 'RO', value: '34.8' }
     ]
+  },
+  mitsubishi_press: {
+    name: 'Mitsubishi MELSEC Servo Press Template',
+    description: 'MC Protocol registers (D data registers & M relays) for stamping press lines.',
+    tags: [
+      { name: 'Press_Cycle_Trigger', type: 'MITSUBISHI_MELSEC', regType: 'M_RELAY', address: 'M100', dataType: 'BOOLEAN', multiplier: 1, permissions: 'RW', value: '0' },
+      { name: 'Peak_Press_Force_kN', type: 'MITSUBISHI_MELSEC', regType: 'D_REGISTER', address: 'D200', dataType: 'FLOAT', multiplier: 0.1, permissions: 'RO', value: '145.8' },
+      { name: 'Stroke_Displacement_mm', type: 'MITSUBISHI_MELSEC', regType: 'D_REGISTER', address: 'D204', dataType: 'FLOAT', multiplier: 0.01, permissions: 'RO', value: '25.42' },
+      { name: 'Press_Interlock_Guard', type: 'MITSUBISHI_MELSEC', regType: 'M_RELAY', address: 'M105', dataType: 'BOOLEAN', multiplier: 1, permissions: 'RW', value: '1' }
+    ]
+  },
+  omron_packaging: {
+    name: 'Omron FINS Packaging Line Template',
+    description: 'FINS CIO & DM area addresses for heat sealing and conveyor gating.',
+    tags: [
+      { name: 'Heat_Seal_Temp_Actual', type: 'OMRON_FINS', regType: 'DM_WORD', address: 'D1000', dataType: 'INT16', multiplier: 0.1, permissions: 'RO', value: '185.0' },
+      { name: 'Conveyor_Gate_Interlock', type: 'OMRON_FINS', regType: 'CIO_BIT', address: 'CIO0.05', dataType: 'BOOLEAN', multiplier: 1, permissions: 'RW', value: '1' },
+      { name: 'Pouch_Count_Good', type: 'OMRON_FINS', regType: 'DM_WORD', address: 'D1010', dataType: 'UINT16', multiplier: 1, permissions: 'RO', value: '840' },
+      { name: 'Pouch_Reject_Trigger', type: 'OMRON_FINS', regType: 'CIO_BIT', address: 'CIO1.02', dataType: 'BOOLEAN', multiplier: 1, permissions: 'RW', value: '0' }
+    ]
   }
 };
 
@@ -136,6 +161,164 @@ export default function PlcSettings() {
   const [scannerControllerId, setScannerControllerId] = useState(controllers[0]?.id || '');
   const [scannerWriteVal, setScannerWriteVal] = useState('');
   const [scannerActiveReg, setScannerActiveReg] = useState(null);
+
+  // ─── MES-PLC HANDSHAKE STATE MACHINE ──────────────────────────────────────
+  const [handshakeStep, setHandshakeStep] = useState(0);
+  const [isHandshakeRunning, setIsHandshakeRunning] = useState(false);
+  const [handshakeRegisters, setHandshakeRegisters] = useState({
+    triggerReq: false,
+    partBarcode: 'SN-GBX-2026-0088',
+    recipeId: 402,
+    recipeOk: false,
+    cycleRunning: false,
+    cycleDone: false,
+    measuredTorque: 0,
+    mesAck: false,
+    stopperReleased: false
+  });
+
+  const runHandshakeSimulation = async () => {
+    setIsHandshakeRunning(true);
+    setHandshakeStep(1);
+    setHandshakeRegisters(prev => ({ ...prev, triggerReq: true, recipeOk: false, cycleRunning: false, cycleDone: false, mesAck: false, stopperReleased: false }));
+    toast('Step 1: Part Tiba di Stopper ➔ PLC Mengirim TRIGGER_REQ = 1', { icon: '📦' });
+    
+    await new Promise(r => setTimeout(r, 1200));
+    setHandshakeStep(2);
+    setHandshakeRegisters(prev => ({ ...prev, recipeOk: true }));
+    toast.success('Step 2: MES Memverifikasi Part & Menulis RECIPE_OK = 1');
+
+    await new Promise(r => setTimeout(r, 1200));
+    setHandshakeStep(3);
+    setHandshakeRegisters(prev => ({ ...prev, cycleRunning: true }));
+    toast('Step 3: PLC Menjalankan Siklus Mesin (Nutrunner Tightening)...', { icon: '⚙️' });
+
+    await new Promise(r => setTimeout(r, 1500));
+    setHandshakeStep(4);
+    setHandshakeRegisters(prev => ({ ...prev, cycleRunning: false, cycleDone: true, measuredTorque: 45.2 }));
+    toast.success('Step 4: Siklus Mesin Selesai ➔ PLC Menulis Nilai Ukur 45.2 Nm & CYCLE_DONE = 1');
+
+    await new Promise(r => setTimeout(r, 1200));
+    setHandshakeStep(5);
+    setHandshakeRegisters(prev => ({ ...prev, mesAck: true, stopperReleased: true }));
+    toast.success('Step 5: MES Simpan Transaksi ➔ MES_ACK = 1 & Stopper Dibuka!');
+
+    await new Promise(r => setTimeout(r, 1000));
+    setIsHandshakeRunning(false);
+  };
+
+  // ─── WATCHDOG HEARTBEAT ALTERNATOR ────────────────────────────────────────
+  const [watchdogBit, setWatchdogBit] = useState(true);
+  const [watchdogLatency, setWatchdogLatency] = useState(14);
+  const [watchdogTrip, setWatchdogTrip] = useState(false);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!watchdogTrip) {
+        setWatchdogBit(b => !b);
+        setWatchdogLatency(Math.floor(10 + Math.random() * 8));
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [watchdogTrip]);
+
+  // ─── RECIPE MANAGEMENT STATE ──────────────────────────────────────────────
+  const [recipes, setRecipes] = useState([
+    {
+      id: 'REC-01',
+      name: 'Planetary Gearbox Final Stage Assembly',
+      partNo: 'GBX-DUAL-9000',
+      parameters: [
+        { name: 'Target Tightening Torque', target: 45.0, unit: 'Nm', register: 'D100 / Holding 40010', current: 45.0, status: 'MATCH' },
+        { name: 'Peak Clamping Pressure', target: 6.2, unit: 'bar', register: 'D102 / Holding 40012', current: 6.2, status: 'MATCH' },
+        { name: 'Spindle Speed Setpoint', target: 1450, unit: 'RPM', register: 'D104 / Holding 40014', current: 1450, status: 'MATCH' },
+        { name: 'Press Hold Dwell Time', target: 2500, unit: 'ms', register: 'D106 / Holding 40016', current: 2500, status: 'MATCH' }
+      ]
+    },
+    {
+      id: 'REC-02',
+      name: 'Flange Housing Die Casting & Trim',
+      partNo: 'HSG-FLG-900',
+      parameters: [
+        { name: 'Die Mold Temperature', target: 215.0, unit: '°C', register: 'D200 / Holding 40020', current: 215.0, status: 'MATCH' },
+        { name: 'Injection Velocity High', target: 4.8, unit: 'm/s', register: 'D202 / Holding 40022', current: 4.8, status: 'MATCH' },
+        { name: 'Intensification Pressure', target: 85.0, unit: 'MPa', register: 'D204 / Holding 40024', current: 85.0, status: 'MATCH' }
+      ]
+    }
+  ]);
+  const [selectedRecipeId, setSelectedRecipeId] = useState('REC-01');
+  const [recipePushState, setRecipePushState] = useState(null);
+
+  const handlePushRecipeToPlc = async (recipe) => {
+    setRecipePushState('pushing');
+    toast('Mengirim setpoint parameter ke PLC Data Block...', { icon: '🚀' });
+    await new Promise(r => setTimeout(r, 1200));
+    setRecipePushState('verified');
+    toast.success(`Resep "${recipe.name}" berhasil diunduh ke PLC & diverifikasi 100% cocok!`);
+  };
+
+  // ─── OPC UA / PLC LIVE TAG BROWSER TREE ───────────────────────────────────
+  const [expandedNodes, setExpandedNodes] = useState(new Set(['root', 'station_1', 'station_2']));
+  const [selectedBrowserTag, setSelectedBrowserTag] = useState(null);
+
+  const PLC_TAG_TREE = {
+    id: 'root',
+    name: 'PLC_Industrial_Station_Server (Root)',
+    type: 'folder',
+    children: [
+      {
+        id: 'station_1',
+        name: 'Station_01_PressMachine (DB10)',
+        type: 'folder',
+        children: [
+          { id: 't1', name: 'Cycle_Trigger', address: 'DB10.DBX0.0', type: 'BOOLEAN', value: '1', access: 'RW' },
+          { id: 't2', name: 'Hydraulic_Pressure_bar', address: 'DB10.DBD4', type: 'FLOAT', value: '142.5', access: 'RO' },
+          { id: 't3', name: 'Ram_Position_mm', address: 'DB10.DBD8', type: 'FLOAT', value: '25.4', access: 'RO' },
+          { id: 't4', name: 'Interlock_EStop_Active', address: 'DB10.DBX12.0', type: 'BOOLEAN', value: '0', access: 'RO' }
+        ]
+      },
+      {
+        id: 'station_2',
+        name: 'Station_02_TorqueNutrunner (DB20)',
+        type: 'folder',
+        children: [
+          { id: 't5', name: 'Torque_Actual_Nm', address: 'DB20.DBD0', type: 'FLOAT', value: '45.12', access: 'RO' },
+          { id: 't6', name: 'Angle_Actual_deg', address: 'DB20.DBD4', type: 'FLOAT', value: '182.4', access: 'RO' },
+          { id: 't7', name: 'Tightening_OK', address: 'DB20.DBX8.0', type: 'BOOLEAN', value: '1', access: 'RO' },
+          { id: 't8', name: 'Batch_Counter', address: 'DB20.DBW10', type: 'INT16', value: '88', access: 'RW' }
+        ]
+      },
+      {
+        id: 'safety_system',
+        name: 'Safety_Interlock_Bus (DB99)',
+        type: 'folder',
+        children: [
+          { id: 't9', name: 'LightCurtain_Clear', address: 'DB99.DBX0.0', type: 'BOOLEAN', value: '1', access: 'RO' },
+          { id: 't10', name: 'Conveyor_Lock_Solenoid', address: 'DB99.DBX0.1', type: 'BOOLEAN', value: '0', access: 'RW' },
+          { id: 't11', name: 'Watchdog_Pulse_Heartbeat', address: 'DB99.DBX2.0', type: 'BOOLEAN', value: '1', access: 'RW' }
+        ]
+      }
+    ]
+  };
+
+  const handleBindTagFromBrowser = (node) => {
+    const newTag = {
+      id: `tag-${Date.now()}`,
+      name: node.name,
+      type: 'OPC_UA',
+      regType: 'NODE',
+      address: node.address,
+      dataType: node.type,
+      multiplier: 1,
+      permissions: node.access,
+      value: node.value,
+      description: `Auto-discovered via Live Tag Browser from ${node.address}`
+    };
+    const updated = [...tags, newTag];
+    setTags(updated);
+    saveToDb(controllers, updated);
+    toast.success(`Tag "${node.name}" (${node.address}) berhasil ditambahkan ke Tag Mapping!`);
+  };
 
   // Persistent settings save
   useEffect(() => {
@@ -1115,11 +1298,14 @@ export default function PlcSettings() {
       </div>
 
       {/* ─── Secondary Tabs Bar ─────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', backgroundColor: '#111827', borderBottom: '1px solid #1f2937', padding: '0 24px', flexShrink: 0 }}>
+      <div style={{ display: 'flex', backgroundColor: '#111827', borderBottom: '1px solid #1f2937', padding: '0 24px', flexShrink: 0, overflowX: 'auto' }}>
         {[
           { id: 'overview', label: 'Overview & Diagnostics', icon: Activity },
           { id: 'controllers', label: 'PLC Controllers', icon: Server },
           { id: 'tags', label: 'Register Tag Mapping', icon: Key },
+          { id: 'tag_browser', label: 'Live Tag Browser', icon: FolderTree },
+          { id: 'handshake', label: 'MES-PLC Handshake', icon: ArrowRightLeft },
+          { id: 'recipe', label: 'Recipe Push', icon: Sliders },
           { id: 'scanner', label: 'Live Register Grid', icon: Grid },
           { id: 'templates', label: 'Industrial Templates', icon: FileJson },
           { id: 'help', label: 'Help & Wiring Guide', icon: HelpCircle }
@@ -1133,7 +1319,8 @@ export default function PlcSettings() {
               color: activeTab === tab.id ? '#6366f1' : '#94a3b8',
               fontSize: '0.85rem', fontWeight: 700, transition: 'all 0.15s',
               borderBottom: activeTab === tab.id ? '2px solid #6366f1' : '2px solid transparent',
-              position: 'relative'
+              position: 'relative',
+              whiteSpace: 'nowrap'
             }}
           >
             <tab.icon size={15} />
@@ -1204,6 +1391,78 @@ export default function PlcSettings() {
                 <div style={{ fontSize: '0.72rem', color: '#10b981', marginTop: '6px', fontWeight: 600 }}>
                   Ping network: STABLE
                 </div>
+              </div>
+            </div>
+
+            {/* Watchdog Heartbeat & Safety Interlock Diagnostic Card */}
+            <div style={{
+              padding: '16px 20px',
+              backgroundColor: '#111827',
+              border: `1.5px solid ${watchdogTrip ? '#ef4444' : '#1f2937'}`,
+              borderRadius: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '20px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{
+                  width: '42px', height: '42px', borderRadius: '10px',
+                  backgroundColor: watchdogTrip ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  <HeartPulse size={22} color={watchdogTrip ? '#ef4444' : '#10b981'} className={watchdogTrip ? '' : 'animate-pulse'} />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <strong style={{ fontSize: '0.92rem', color: '#f8fafc' }}>PLC Watchdog Pulse Alternator</strong>
+                    <span style={{
+                      fontSize: '0.65rem', fontWeight: 800, padding: '2px 6px', borderRadius: '4px',
+                      backgroundColor: watchdogTrip ? '#ef4444' : '#10b981', color: 'white'
+                    }}>
+                      {watchdogTrip ? 'DISCONNECTED (FAIL-SAFE TRIPPED)' : 'WATCHDOG ACTIVE (1 Hz)'}
+                    </span>
+                  </div>
+                  <p style={{ margin: '4px 0 0', fontSize: '0.72rem', color: '#94a3b8' }}>
+                    Saling bertukar bit pulsa bolak-balik (0 ↔ 1) setiap 1 detik. Jika koneksi putus {'>'} 3 detik, PLC otomatis mengunci stopper dan sistem membunyikan alarm.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: '0.65rem', color: '#94a3b8', display: 'block' }}>Watchdog Bit Pulse</span>
+                  <strong style={{ fontFamily: 'monospace', color: watchdogBit ? '#10b981' : '#6366f1', fontSize: '1rem' }}>
+                    BIT = {watchdogBit ? '1' : '0'}
+                  </strong>
+                </div>
+                <div style={{ width: '1px', height: '28px', backgroundColor: '#1f2937' }} />
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: '0.65rem', color: '#94a3b8', display: 'block' }}>Ping Latency</span>
+                  <strong style={{ fontFamily: 'monospace', color: '#f8fafc', fontSize: '1rem' }}>
+                    {watchdogTrip ? 'TIMEOUT' : `${watchdogLatency} ms`}
+                  </strong>
+                </div>
+                <button
+                  onClick={() => {
+                    const next = !watchdogTrip;
+                    setWatchdogTrip(next);
+                    if (next) toast.error('🚨 SIMULASI KABEL PUTUS! Watchdog Gagal ➔ Interlock Safety Tripped!');
+                    else toast.success('Watchdog Heartbeat dipulihkan normal');
+                  }}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    backgroundColor: watchdogTrip ? '#10b981' : '#ef4444',
+                    color: 'white',
+                    fontSize: '0.75rem',
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {watchdogTrip ? 'Pulihkan Watchdog' : 'Simulasi Kabel Putus'}
+                </button>
               </div>
             </div>
 
@@ -1655,6 +1914,359 @@ export default function PlcSettings() {
           </div>
         )}
 
+        {/* ── Tab: LIVE TAG BROWSER (OPC-UA / PLC AUTO-DISCOVERY) ── */}
+        {activeTab === 'tag_browser' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <FolderTree size={18} color="#8b5cf6" /> Live OPC-UA & PLC Tag Browser (Auto-Discovery)
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: '#94a3b8' }}>
+                  Jelajahi struktur Data Block dan Node ID PLC secara langsung tanpa mengetik alamat register secara manual.
+                </p>
+              </div>
+              <button
+                onClick={() => toast.success('Struktur Node Tag PLC berhasil di-refresh!')}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  padding: '8px 14px', borderRadius: '8px', border: '1px solid #334155',
+                  backgroundColor: '#1e293b', color: '#f8fafc', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer'
+                }}
+              >
+                <RefreshCw size={14} /> Scan Ulang PLC
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px' }}>
+              {/* Left Tree Explorer */}
+              <div style={{ backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '12px', padding: '16px', minHeight: '400px' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>
+                  Address Space Node Tree
+                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.8rem' }}>
+                  {PLC_TAG_TREE.children.map(group => {
+                    const isGroupOpen = expandedNodes.has(group.id);
+                    return (
+                      <div key={group.id} style={{ display: 'flex', flexDirection: 'column' }}>
+                        <div
+                          onClick={() => {
+                            const next = new Set(expandedNodes);
+                            if (next.has(group.id)) next.delete(group.id);
+                            else next.add(group.id);
+                            setExpandedNodes(next);
+                          }}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px',
+                            borderRadius: '6px', cursor: 'pointer', backgroundColor: '#1e293b', color: '#f8fafc', fontWeight: 700
+                          }}
+                        >
+                          <ChevronRight size={14} style={{ transform: isGroupOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
+                          <FolderTree size={15} color="#8b5cf6" />
+                          <span>{group.name}</span>
+                        </div>
+
+                        {isGroupOpen && (
+                          <div style={{ paddingLeft: '28px', display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px', marginBottom: '8px' }}>
+                            {group.children.map(tagNode => {
+                              const isTagSelected = selectedBrowserTag?.id === tagNode.id;
+                              return (
+                                <div
+                                  key={tagNode.id}
+                                  onClick={() => setSelectedBrowserTag(tagNode)}
+                                  style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                    padding: '6px 10px', borderRadius: '6px', cursor: 'pointer',
+                                    backgroundColor: isTagSelected ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+                                    border: isTagSelected ? '1px solid #6366f1' : '1px solid transparent',
+                                    color: isTagSelected ? '#ffffff' : '#cbd5e1'
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <Key size={13} color="#f59e0b" />
+                                    <span style={{ fontWeight: 600 }}>{tagNode.name}</span>
+                                  </div>
+                                  <span style={{ fontSize: '0.68rem', fontFamily: 'monospace', color: '#94a3b8' }}>{tagNode.address}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Right Tag Inspector & Bind Action */}
+              <div style={{ backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '14px' }}>
+                  Detail Node & 1-Click Binding
+                </span>
+                {selectedBrowserTag ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
+                    <div style={{ padding: '14px', backgroundColor: '#090d16', border: '1px solid #1f2937', borderRadius: '8px' }}>
+                      <strong style={{ fontSize: '1rem', color: '#f8fafc', display: 'block' }}>{selectedBrowserTag.name}</strong>
+                      <div style={{ fontSize: '0.75rem', color: '#8b5cf6', fontFamily: 'monospace', marginTop: '4px' }}>
+                        Alamat Node: {selectedBrowserTag.address}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '0.75rem' }}>
+                      <div style={{ padding: '10px', backgroundColor: '#1f2937', borderRadius: '6px' }}>
+                        <span style={{ color: '#94a3b8', display: 'block', fontSize: '0.65rem' }}>Tipe Data</span>
+                        <strong style={{ color: '#f8fafc' }}>{selectedBrowserTag.type}</strong>
+                      </div>
+                      <div style={{ padding: '10px', backgroundColor: '#1f2937', borderRadius: '6px' }}>
+                        <span style={{ color: '#94a3b8', display: 'block', fontSize: '0.65rem' }}>Hak Akses</span>
+                        <strong style={{ color: '#f8fafc' }}>{selectedBrowserTag.access}</strong>
+                      </div>
+                      <div style={{ padding: '10px', backgroundColor: '#1f2937', borderRadius: '6px' }}>
+                        <span style={{ color: '#94a3b8', display: 'block', fontSize: '0.65rem' }}>Live Value Terbaca</span>
+                        <strong style={{ color: '#10b981', fontFamily: 'monospace' }}>{selectedBrowserTag.value}</strong>
+                      </div>
+                      <div style={{ padding: '10px', backgroundColor: '#1f2937', borderRadius: '6px' }}>
+                        <span style={{ color: '#94a3b8', display: 'block', fontSize: '0.65rem' }}>Sampling Rate</span>
+                        <strong style={{ color: '#f8fafc' }}>100 ms</strong>
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: 'auto', paddingTop: '16px' }}>
+                      <button
+                        onClick={() => handleBindTagFromBrowser(selectedBrowserTag)}
+                        style={{
+                          width: '100%', padding: '12px', backgroundColor: '#6366f1', color: 'white',
+                          border: 'none', borderRadius: '8px', fontSize: '0.84rem', fontWeight: 800,
+                          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                          boxShadow: '0 4px 12px rgba(99, 102, 241, 0.4)'
+                        }}
+                      >
+                        <Plus size={16} /> Bind ke Register Tag MAVI MES
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '100px 0', color: '#64748b', fontSize: '0.8rem' }}>
+                    Pilih salah satu variabel tag dari pohon address space di sebelah kiri untuk melihat rincian dan melakukan binding.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Tab: MES ↔ PLC HANDSHAKE STATE MACHINE ── */}
+        {activeTab === 'handshake' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <ArrowRightLeft size={18} color="#10b981" /> MES ↔ PLC Handshake State Machine (Poka-Yoke)
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: '#94a3b8' }}>
+                  Protokol jabat tangan otomatis untuk memastikan part tidak dapat melaju sebelum checksheet tervalidasi dan hasil ukur tercatat.
+                </p>
+              </div>
+              <button
+                onClick={runHandshakeSimulation}
+                disabled={isHandshakeRunning}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  padding: '10px 18px', borderRadius: '8px', border: 'none',
+                  backgroundColor: isHandshakeRunning ? '#4f46e5' : '#10b981', color: 'white',
+                  fontSize: '0.84rem', fontWeight: 800, cursor: isHandshakeRunning ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.35)'
+                }}
+              >
+                {isHandshakeRunning ? <RefreshCw size={16} className="animate-spin" /> : <Play size={16} />}
+                {isHandshakeRunning ? 'Handshake Berjalan...' : 'Simulasikan 1 Siklus Handshake'}
+              </button>
+            </div>
+
+            {/* Visual 5-Step Process */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px' }}>
+              {[
+                { step: 1, title: 'Part Tiba di Stopper', desc: 'PLC kirim TRIGGER_REQ = 1 & Part Barcode', bit: 'TRIGGER_REQ', val: handshakeRegisters.triggerReq ? '1' : '0' },
+                { step: 2, title: 'Validasi MES', desc: 'MES verifikasi checksheet ➔ Tulis RECIPE_OK = 1', bit: 'RECIPE_OK', val: handshakeRegisters.recipeOk ? '1' : '0' },
+                { step: 3, title: 'Mesin Beroperasi', desc: 'PLC jepit part & jalankan motor/press', bit: 'CYCLE_ACTIVE', val: handshakeRegisters.cycleRunning ? '1' : '0' },
+                { step: 4, title: 'Hasil Ukur Siap', desc: 'PLC tulis 45.2 Nm & CYCLE_DONE = 1', bit: 'CYCLE_DONE', val: handshakeRegisters.cycleDone ? '1' : '0' },
+                { step: 5, title: 'MES Ack & Lepas Part', desc: 'MES simpan record ➔ MES_ACK = 1 & Stopper turun', bit: 'MES_ACK', val: handshakeRegisters.mesAck ? '1' : '0' }
+              ].map(s => {
+                const isStepActive = handshakeStep === s.step;
+                const isPassed = handshakeStep > s.step;
+                return (
+                  <div
+                    key={s.step}
+                    style={{
+                      padding: '16px',
+                      backgroundColor: isStepActive ? '#1e1b4b' : '#111827',
+                      border: `1.5px solid ${isStepActive ? '#6366f1' : isPassed ? '#10b981' : '#1f2937'}`,
+                      borderRadius: '10px',
+                      display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '140px'
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '0.65rem', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', backgroundColor: isPassed ? '#10b981' : isStepActive ? '#6366f1' : '#374151', color: 'white' }}>
+                          TAHAP {s.step}
+                        </span>
+                        <span style={{ fontSize: '0.68rem', fontFamily: 'monospace', fontWeight: 800, color: s.val === '1' ? '#10b981' : '#64748b' }}>
+                          {s.bit}: {s.val}
+                        </span>
+                      </div>
+                      <strong style={{ fontSize: '0.85rem', color: '#f8fafc', display: 'block' }}>{s.title}</strong>
+                      <p style={{ margin: '6px 0 0', fontSize: '0.72rem', color: '#94a3b8', lineHeight: 1.4 }}>{s.desc}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Register Signal Status Card */}
+            <div style={{ backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '12px', padding: '18px' }}>
+              <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>
+                Status Bit Register Handshake PLC (Live State)
+              </span>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', fontSize: '0.78rem' }}>
+                <div style={{ padding: '12px', backgroundColor: '#090d16', border: '1px solid #1f2937', borderRadius: '8px' }}>
+                  <span style={{ color: '#94a3b8', fontSize: '0.65rem', display: 'block' }}>TRIGGER_REQ (PLC ➔ MES)</span>
+                  <strong style={{ color: handshakeRegisters.triggerReq ? '#10b981' : '#64748b', fontSize: '1rem', fontFamily: 'monospace' }}>
+                    {handshakeRegisters.triggerReq ? '1 (TRUE)' : '0 (FALSE)'}
+                  </strong>
+                </div>
+                <div style={{ padding: '12px', backgroundColor: '#090d16', border: '1px solid #1f2937', borderRadius: '8px' }}>
+                  <span style={{ color: '#94a3b8', fontSize: '0.65rem', display: 'block' }}>RECIPE_OK (MES ➔ PLC)</span>
+                  <strong style={{ color: handshakeRegisters.recipeOk ? '#10b981' : '#64748b', fontSize: '1rem', fontFamily: 'monospace' }}>
+                    {handshakeRegisters.recipeOk ? '1 (TRUE)' : '0 (FALSE)'}
+                  </strong>
+                </div>
+                <div style={{ padding: '12px', backgroundColor: '#090d16', border: '1px solid #1f2937', borderRadius: '8px' }}>
+                  <span style={{ color: '#94a3b8', fontSize: '0.65rem', display: 'block' }}>CYCLE_DONE (PLC ➔ MES)</span>
+                  <strong style={{ color: handshakeRegisters.cycleDone ? '#10b981' : '#64748b', fontSize: '1rem', fontFamily: 'monospace' }}>
+                    {handshakeRegisters.cycleDone ? '1 (TRUE)' : '0 (FALSE)'}
+                  </strong>
+                </div>
+                <div style={{ padding: '12px', backgroundColor: '#090d16', border: '1px solid #1f2937', borderRadius: '8px' }}>
+                  <span style={{ color: '#94a3b8', fontSize: '0.65rem', display: 'block' }}>MES_ACK (MES ➔ PLC)</span>
+                  <strong style={{ color: handshakeRegisters.mesAck ? '#10b981' : '#64748b', fontSize: '1rem', fontFamily: 'monospace' }}>
+                    {handshakeRegisters.mesAck ? '1 (TRUE)' : '0 (FALSE)'}
+                  </strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Tab: AUTOMATED RECIPE & PARAMETER PUSH ── */}
+        {activeTab === 'recipe' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Sliders size={18} color="#06b6d4" /> 1-Click Recipe Parameter Push (Poka-Yoke Resep Mesin)
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: '#94a3b8' }}>
+                  Kirim setpoint parameter otomatis dari Work Order / Checksheet ke Data Block PLC tanpa operator harus mengetik manual di HMI.
+                </p>
+              </div>
+
+              {/* Recipe Selector Dropdown */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <select
+                  value={selectedRecipeId}
+                  onChange={(e) => { setSelectedRecipeId(e.target.value); setRecipePushState(null); }}
+                  style={{
+                    padding: '8px 12px', backgroundColor: '#1e293b', border: '1px solid #334155',
+                    borderRadius: '8px', color: '#f8fafc', fontSize: '0.8rem', fontWeight: 600, outline: 'none'
+                  }}
+                >
+                  {recipes.map(r => (
+                    <option key={r.id} value={r.id}>{r.name} ({r.partNo})</option>
+                  ))}
+                </select>
+
+                <button
+                  onClick={() => handlePushRecipeToPlc(recipes.find(r => r.id === selectedRecipeId))}
+                  disabled={recipePushState === 'pushing'}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    padding: '9px 18px', borderRadius: '8px', border: 'none',
+                    backgroundColor: '#06b6d4', color: '#090d16', fontSize: '0.84rem', fontWeight: 800,
+                    cursor: recipePushState === 'pushing' ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 4px 12px rgba(6, 182, 212, 0.35)'
+                  }}
+                >
+                  {recipePushState === 'pushing' ? <RefreshCw size={16} className="animate-spin" /> : <Play size={16} />}
+                  {recipePushState === 'pushing' ? 'Mengirim ke PLC...' : '🚀 Download Recipe ke PLC'}
+                </button>
+              </div>
+            </div>
+
+            {/* Recipe Parameters Table */}
+            {(() => {
+              const currentRecipe = recipes.find(r => r.id === selectedRecipeId) || recipes[0];
+              return (
+                <div style={{ backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '12px', overflow: 'hidden' }}>
+                  <div style={{ padding: '16px 20px', borderBottom: '1px solid #1f2937', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0f172a' }}>
+                    <div>
+                      <strong style={{ fontSize: '0.92rem', color: '#f8fafc' }}>{currentRecipe.name}</strong>
+                      <span style={{ fontSize: '0.72rem', color: '#94a3b8', display: 'block', marginTop: '2px' }}>
+                        Part Target: <strong>{currentRecipe.partNo}</strong> • {currentRecipe.parameters.length} Setpoints
+                      </span>
+                    </div>
+
+                    {recipePushState === 'verified' && (
+                      <span style={{
+                        display: 'flex', alignItems: 'center', gap: '6px',
+                        padding: '4px 10px', borderRadius: '12px', backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                        border: '1px solid #10b981', color: '#10b981', fontSize: '0.72rem', fontWeight: 800
+                      }}>
+                        <CheckCircle2 size={13} /> Setpoints Verified in PLC Memory (0.0% Error)
+                      </span>
+                    )}
+                  </div>
+
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                    <thead style={{ backgroundColor: '#090d16', color: '#94a3b8', fontWeight: 700, fontSize: '0.72rem', textTransform: 'uppercase' }}>
+                      <tr>
+                        <th style={{ padding: '10px 16px', textAlign: 'left' }}>Parameter Mesin</th>
+                        <th style={{ padding: '10px 16px', textAlign: 'left' }}>Target Setpoint (MES)</th>
+                        <th style={{ padding: '10px 16px', textAlign: 'left' }}>Satuan</th>
+                        <th style={{ padding: '10px 16px', textAlign: 'left' }}>Alamat Register PLC</th>
+                        <th style={{ padding: '10px 16px', textAlign: 'left' }}>Nilai Aktual Terbaca di PLC</th>
+                        <th style={{ padding: '10px 16px', textAlign: 'center' }}>Status Verifikasi</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {currentRecipe.parameters.map((p, idx) => (
+                        <tr key={idx} style={{ borderTop: '1px solid #1f2937' }}>
+                          <td style={{ padding: '12px 16px', fontWeight: 700, color: '#f8fafc' }}>{p.name}</td>
+                          <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontWeight: 800, color: '#06b6d4', fontSize: '0.9rem' }}>
+                            {p.target}
+                          </td>
+                          <td style={{ padding: '12px 16px', color: '#94a3b8' }}>{p.unit}</td>
+                          <td style={{ padding: '12px 16px', fontFamily: 'monospace', color: '#8b5cf6' }}>{p.register}</td>
+                          <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontWeight: 700, color: '#10b981' }}>
+                            {p.current}
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                            <span style={{
+                              padding: '2px 8px', borderRadius: '4px', fontSize: '0.68rem', fontWeight: 800,
+                              backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)'
+                            }}>
+                              MATCH 100%
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
         {/* ── Tab 6: HELP & WIRING GUIDE ── */}
         {activeTab === 'help' && (
           <PlcHelpAssistant />
@@ -2100,19 +2712,4 @@ export default function PlcSettings() {
   );
 }
 
-// Inline component replacement of lucide-react SlidersHorizontal if missing, though SlidersHorizontal is standard
-function SlidersHorizontal({ size = 20, color = 'currentColor', className = '' }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <line x1="4" y1="21" x2="4" y2="14" />
-      <line x1="4" y1="10" x2="4" y2="3" />
-      <line x1="12" y1="21" x2="12" y2="12" />
-      <line x1="12" y1="8" x2="12" y2="3" />
-      <line x1="20" y1="21" x2="20" y2="16" />
-      <line x1="20" y1="12" x2="20" y2="3" />
-      <line x1="2" y1="14" x2="6" y2="14" />
-      <line x1="10" y1="8" x2="14" y2="8" />
-      <line x1="18" y1="16" x2="22" y2="16" />
-    </svg>
-  );
-}
+

@@ -183,15 +183,15 @@ export default function UiEngineStudio({ canvasMode = true }) {
   };
 
   const deviceWidths = {
-    iphone: 'w-[360px] max-w-full h-[calc(100vh-190px)] max-h-[660px] min-h-[460px]',
-    android: 'w-[760px] max-w-full h-[calc(100vh-190px)] max-h-[440px] min-h-[380px]',
-    tablet: 'w-[680px] max-w-full h-[calc(100vh-190px)] max-h-[700px] min-h-[500px]',
-    responsive: 'w-full h-full min-h-[500px] max-w-5xl'
-  }[deviceFrame] || 'w-[360px] max-w-full h-[calc(100vh-190px)] max-h-[660px]';
+    iphone: 'w-[380px] max-w-full h-[780px] min-h-[740px]',
+    android: 'w-[780px] max-w-full h-[390px] min-h-[360px]',
+    tablet: 'w-[768px] max-w-full h-[880px] min-h-[680px]',
+    responsive: 'w-full h-full min-h-[680px] max-w-5xl'
+  }[deviceFrame] || 'w-[380px] max-w-full h-[780px] min-h-[740px]';
 
   return (
     <GluestackUIProvider colorMode={colorMode}>
-      <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-100 dark:bg-[#0c0d14] text-slate-800 dark:text-slate-100 font-sans">
+      <div className="flex flex-col w-full h-full flex-1 min-w-0 min-h-0 overflow-hidden bg-slate-100 dark:bg-[#0c0d14] text-slate-800 dark:text-slate-100 font-sans">
         {/* Top Studio Bar */}
         <header className="h-14 px-4 bg-[#714b67] text-white flex items-center justify-between shadow-md shrink-0 z-30 relative">
           {/* Left: Companion Buttons (NAMA, SAVE APP, LINK APP, QRCODE) */}
@@ -518,7 +518,7 @@ export default function UiEngineStudio({ canvasMode = true }) {
             </main>
           ) : (
           /* Right Center: Device Viewport Canvas */
-          <main className="flex-1 flex flex-col items-center justify-center py-3 px-4 pb-8 overflow-y-auto relative bg-slate-200/60 dark:bg-[#090a0f]">
+          <main className="flex-1 flex flex-col items-center py-6 px-4 pb-16 overflow-y-auto relative bg-slate-200/60 dark:bg-[#090a0f]">
             {/* Viewport Frame */}
             <div className={`transition-all duration-300 bg-white dark:bg-[#12131c] shadow-2xl rounded-3xl overflow-hidden border border-slate-300 dark:border-slate-700 flex flex-col relative ${deviceWidths}`}>
               {/* Phone Notch/Status Header */}
