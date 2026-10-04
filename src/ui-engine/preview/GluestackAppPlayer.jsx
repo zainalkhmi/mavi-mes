@@ -3,11 +3,11 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, RotateCcw, Smartphone, Tablet, Monitor, Maximize2, Minimize2,
   CheckCircle2, AlertTriangle, Play, Pause, QrCode, Camera, Layers, Bug,
-  ChevronRight, ChevronDown, ChevronUp, Plus, Minus, Search, X, ExternalLink,
+  ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Plus, Minus, Search, X, ExternalLink,
   Settings, Check, Info, FileText, BarChart3, Clock, Hash, AlignLeft,
   ListFilter, CheckSquare, ToggleLeft, Video, Grid3X3, ChevronsUpDown,
   Tag, User, Table as TableIcon, Bell, RefreshCw, Sparkles, Send, Eye, Home,
-  Calendar, PenTool, List, PlusCircle
+  Calendar, PenTool, List, PlusCircle, Download, Copy, Share2
 } from 'lucide-react';
 import {
   Image as UiImage,
@@ -200,6 +200,240 @@ export default function GluestackAppPlayer({
   const [showDevPanel, setShowDevPanel] = useState(devMode);
   const [activeDevTab, setActiveDevTab] = useState('VARS'); // 'VARS' | 'LOGS' | 'FORM'
   const [triggerLogs, setTriggerLogs] = useState([]);
+
+  // WebAPK / PWA installation & companion export state
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
+  const [showInstallApkModal, setShowInstallApkModal] = useState(false);
+  const [installSuccess, setInstallSuccess] = useState(false);
+  const [isCopiedUrl, setIsCopiedUrl] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredInstallPrompt(e);
+    };
+
+    const handleAppInstalled = () => {
+      setDeferredInstallPrompt(null);
+      setInstallSuccess(true);
+      setTimeout(() => setInstallSuccess(false), 5000);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleTriggerInstall = async () => {
+    if (deferredInstallPrompt) {
+      try {
+        await deferredInstallPrompt.prompt();
+        const choice = await deferredInstallPrompt.userChoice;
+        if (choice.outcome === 'accepted') {
+          setInstallSuccess(true);
+          setDeferredInstallPrompt(null);
+          setShowInstallApkModal(false);
+        }
+      } catch (err) {
+        console.warn('Install prompt error:', err);
+        setShowInstallApkModal(true);
+      }
+    } else {
+      setShowInstallApkModal(true);
+    }
+  };
+
+  const handleCopyCurrentLink = () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(window.location.href);
+      } else {
+        const input = document.createElement('input');
+        input.value = window.location.href;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+      }
+      setIsCopiedUrl(true);
+      setTimeout(() => setIsCopiedUrl(false), 2500);
+    } catch (e) {
+      console.warn('Failed to copy link', e);
+    }
+  };
+
+  const handleDownloadCompanionPackage = () => {
+    try {
+      const companionPackage = {
+        name: appName.trim() || 'Mandor Companion App',
+        short_name: (appName.trim() || 'Mandor').substring(0, 12),
+        description: `Standalone Android WebAPK & Mobile Runner untuk ${appName}`,
+        version: '1.0.0',
+        start_url: window.location.hash || `/#/app-player?appId=${encodeURIComponent(appId)}&mode=companion`,
+        display: 'standalone',
+        orientation: 'portrait',
+        background_color: '#0f172a',
+        theme_color: '#0d9488',
+        app_id: appId,
+        screens_count: screens.length,
+        exported_at: new Date().toISOString(),
+        config: {
+          screens,
+          variables,
+          tables
+        }
+      };
+
+      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(companionPackage, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute('href', dataStr);
+      downloadAnchor.setAttribute('download', `${(appName || 'companion_app').toLowerCase().replace(/[^a-z0-9]/g, '_')}_android_package.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    } catch (err) {
+      console.error('Failed to download Android package', err);
+    }
+  };
+
+  const renderInstallApkModal = () => {
+    if (!showInstallApkModal) return null;
+    return (
+      <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+        <div className="w-full max-w-sm bg-white text-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl border border-slate-100 flex flex-col max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+          {/* Modal Header */}
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shadow-2xs">
+                <Download className="w-5 h-5" />
+              </div>
+              <div className="text-left">
+                <h3 className="text-sm font-extrabold text-slate-900 leading-tight">Pasang sebagai APK</h3>
+                <p className="text-[10px] text-slate-400">WebAPK Standalone Mobile Runner</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowInstallApkModal(false)}
+              className="p-1 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Success Banner if installed */}
+          {installSuccess && (
+            <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-2 text-emerald-800 text-xs font-bold">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>Aplikasi berhasil dipasang di layar utama!</span>
+            </div>
+          )}
+
+          {/* Native Install Button if deferred prompt available */}
+          {deferredInstallPrompt && (
+            <div className="mt-3.5 p-3.5 bg-gradient-to-r from-teal-500 to-emerald-600 rounded-2xl text-white shadow-sm space-y-2">
+              <div className="text-xs font-black">Browser Mendukung Pasang Langsung</div>
+              <p className="text-[11px] text-teal-50 leading-relaxed">
+                Android dapat langsung membuat WebAPK di layar utama tanpa masuk ke Play Store.
+              </p>
+              <button
+                type="button"
+                onClick={handleTriggerInstall}
+                className="w-full py-2 bg-white hover:bg-teal-50 text-teal-800 font-extrabold text-xs rounded-xl shadow-xs transition-transform active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <Download className="w-4 h-4 text-teal-600" />
+                <span>Pasang Sekarang ke Layar Utama</span>
+              </button>
+            </div>
+          )}
+
+          {/* Step by Step Guide */}
+          <div className="mt-3.5 space-y-3 text-left">
+            {/* Android Guide */}
+            <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-1.5">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                <span className="w-5 h-5 rounded-md bg-teal-600 text-white flex items-center justify-center text-[10px] font-black">A</span>
+                <span>Untuk Android (Chrome / Edge)</span>
+              </div>
+              <ol className="text-[11px] text-slate-600 space-y-1 pl-4 list-decimal leading-relaxed">
+                <li>Ketuk menu titik tiga (<strong>⋮</strong>) di pojok kanan atas browser.</li>
+                <li>Pilih <strong className="text-slate-800">"Instal Aplikasi"</strong> atau <strong className="text-slate-800">"Tambahkan ke Layar Utama"</strong>.</li>
+                <li>Aplikasi akan terpasang di HP layaknya APK asli dengan ikon dan tampilan fullscreen mandiri.</li>
+              </ol>
+            </div>
+
+            {/* iOS Guide */}
+            <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-1.5">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                <span className="w-5 h-5 rounded-md bg-slate-700 text-white flex items-center justify-center text-[10px] font-black">i</span>
+                <span>Untuk iPhone / iPad (Safari)</span>
+              </div>
+              <ol className="text-[11px] text-slate-600 space-y-1 pl-4 list-decimal leading-relaxed">
+                <li>Ketuk ikon <strong>Bagikan (Share)</strong> di baris menu bawah.</li>
+                <li>Gulir dan pilih <strong className="text-slate-800">"Add to Home Screen"</strong> (Tambah ke Layar Utama).</li>
+              </ol>
+            </div>
+
+            {/* Offline Package & Copy URL */}
+            <div className="pt-1 space-y-2">
+              <button
+                type="button"
+                onClick={handleCopyCurrentLink}
+                className="w-full py-2 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+              >
+                {isCopiedUrl ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="text-emerald-700">Tautan Berhasil Disalin!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Salin Tautan Companion URL</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDownloadCompanionPackage}
+                className="w-full py-2 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+              >
+                <Download className="w-3.5 h-3.5 text-teal-600" />
+                <span>Unduh Android Package (.json)</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Modal Footer */}
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setShowInstallApkModal(false);
+                window.open(`${window.location.origin}${window.location.pathname}#/download-player`, '_blank');
+              }}
+              className="flex-1 py-2 rounded-xl text-teal-700 hover:bg-teal-50 text-xs font-bold transition-colors cursor-pointer"
+            >
+              Info Kiosk APK
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowInstallApkModal(false)}
+              className="flex-1 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors cursor-pointer"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
 
   // Auto-dismiss toast
   useEffect(() => {
@@ -1488,63 +1722,188 @@ export default function GluestackAppPlayer({
     );
   }
 
-  // Pure live real device layout (No desktop runner header, no terminal dev drawer, no artificial phone bezel)
-  const isCompanionMode = mode === 'companion';
+  // Pure live real device layout for mobile devices and companion scan mode
+  const [windowWidth, setWindowWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1024));
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const isMobileScreen = windowWidth < 768;
+  const isCompanionMode = mode === 'companion' || isMobileScreen;
 
   if (isCompanionMode) {
-    return (
-      <div className="min-h-screen w-full bg-[#f8fafc] text-slate-800 flex flex-col font-sans select-none antialiased">
-        {/* Screen Body Components (Pure Real Device edge-to-edge) */}
-        {currentScreen?.layoutMode === 'free' ? (
-          <main className={`flex-1 w-full ${embedded ? 'max-w-none' : 'max-w-5xl'} mx-auto p-4 sm:p-6 relative min-h-[640px] overflow-auto`}>
-            {(!currentScreen?.components || currentScreen.components.length === 0) ? (
-              <div className="flex flex-col items-center justify-center h-64 text-slate-400 space-y-2 bg-white rounded-2xl border border-slate-200/80 p-6">
-                <Layers className="w-10 h-10 text-slate-300" />
-                <span className="text-sm font-semibold text-slate-500">Layar ini belum memiliki komponen</span>
-              </div>
-            ) : (
-              currentScreen.components.map((comp, idx) => {
-                const compX = comp.x !== undefined ? comp.x : (comp.props?.x !== undefined ? comp.props.x : 20);
-                const compY = comp.y !== undefined ? comp.y : (comp.props?.y !== undefined ? comp.props.y : (idx * 60 + 20));
-                const compW = comp.width !== undefined ? comp.width : (comp.props?.width !== undefined ? comp.props.width : 'auto');
-                const compH = comp.height !== undefined ? comp.height : (comp.props?.height !== undefined ? comp.props.height : 'auto');
-                const compZ = comp.zIndex !== undefined ? comp.zIndex : (comp.props?.zIndex !== undefined ? comp.props.zIndex : (idx + 1));
+    const screenComponents = currentScreen?.components || [];
+    const isFreeLayout = currentScreen?.layoutMode === 'free';
 
-                return (
-                  <div
-                    key={comp.id}
-                    className="transition-all"
-                    style={{
-                      position: 'absolute',
-                      left: `${compX}px`,
-                      top: `${compY}px`,
-                      width: compW === 'auto' || !compW ? 'auto' : (typeof compW === 'number' ? `${compW}px` : compW),
-                      height: compH === 'auto' || !compH ? 'auto' : (typeof compH === 'number' ? `${compH}px` : compH),
-                      zIndex: compZ
-                    }}
-                  >
+    return (
+      <div
+        className="gluestack-mobile-runner fixed inset-0 h-full w-full bg-[#f8fafc] text-slate-800 flex flex-col font-sans select-none antialiased overflow-hidden z-30"
+        style={{
+          paddingTop: 'env(safe-area-inset-top, 0px)',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)'
+        }}
+      >
+        {/* Sleek Native Mobile Runner Sticky Header */}
+        <header className="h-14 px-3 sm:px-4 bg-white/95 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between shrink-0 z-40 shadow-xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            {currentScreenIndex > 0 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (currentScreenIndex > 0) {
+                    setCurrentScreenId(screens[currentScreenIndex - 1].id);
+                  }
+                }}
+                className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 flex items-center justify-center transition-all cursor-pointer shrink-0"
+                title="Layar Sebelumnya"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+            ) : (
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-teal-600 to-emerald-500 text-white flex items-center justify-center shadow-xs shrink-0">
+                <Smartphone className="w-4 h-4" />
+              </div>
+            )}
+            <div className="flex flex-col min-w-0">
+              <span className="text-[10px] font-black uppercase tracking-wider text-teal-700 truncate leading-tight">
+                {appName || 'Mandor MES'}
+              </span>
+              <span className="text-xs font-bold text-slate-900 truncate leading-tight">
+                {currentScreen?.title || 'Screen'}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            {screens.length > 1 && (
+              <span className="px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-bold text-slate-600">
+                {currentScreenIndex + 1}/{screens.length}
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Live
+            </span>
+            <button
+              type="button"
+              onClick={handleTriggerInstall}
+              title="Pasang sebagai Aplikasi APK / WebAPK di HP"
+              className="px-2.5 py-1 rounded-xl bg-teal-600 hover:bg-teal-700 active:scale-95 text-white text-[11px] font-bold flex items-center gap-1 shadow-2xs cursor-pointer transition-all shrink-0"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>APK</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleRestartApp}
+              title="Reset Formulir"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </header>
+
+        {/* Scrollable Screen Content (100% Fluid Edge-to-Edge with Smooth Touch Momentum Scrolling) */}
+        <main
+          className="flex-1 w-full min-h-0 overflow-y-auto overflow-x-hidden p-3 sm:p-4 overscroll-contain"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
+          <div className="w-full max-w-md mx-auto space-y-3.5 pb-28 box-border">
+            {isFreeLayout ? (
+              screenComponents.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-64 text-slate-400 space-y-2 bg-white rounded-2xl border border-slate-200/80 p-6">
+                  <Layers className="w-10 h-10 text-slate-300" />
+                  <span className="text-sm font-semibold text-slate-500">Layar ini belum memiliki komponen</span>
+                </div>
+              ) : (
+                (() => {
+                  const maxY = screenComponents.reduce((acc, c) => {
+                    const y = Number(c.y !== undefined ? c.y : (c.props?.y || 0));
+                    const h = Number(c.height !== undefined ? c.height : (c.props?.height || 60));
+                    return Math.max(acc, y + (isNaN(h) ? 60 : h));
+                  }, 500);
+
+                  return (
+                    <div
+                      className="relative w-full max-w-[390px] mx-auto"
+                      style={{ minHeight: `${maxY + 80}px` }}
+                    >
+                      {screenComponents.map((comp, idx) => {
+                        const compX = comp.x !== undefined ? comp.x : (comp.props?.x !== undefined ? comp.props.x : 16);
+                        const compY = comp.y !== undefined ? comp.y : (comp.props?.y !== undefined ? comp.props.y : (idx * 60 + 16));
+                        const compW = comp.width !== undefined ? comp.width : (comp.props?.width !== undefined ? comp.props.width : 'auto');
+                        const compH = comp.height !== undefined ? comp.height : (comp.props?.height !== undefined ? comp.props.height : 'auto');
+                        const compZ = comp.zIndex !== undefined ? comp.zIndex : (comp.props?.zIndex !== undefined ? comp.props.zIndex : (idx + 1));
+
+                        return (
+                          <div
+                            key={comp.id}
+                            className="transition-all"
+                            style={{
+                              position: 'absolute',
+                              left: `${Math.min(compX, 320)}px`,
+                              top: `${compY}px`,
+                              width: compW === 'auto' || !compW ? 'auto' : (typeof compW === 'number' ? `${compW}px` : compW),
+                              maxWidth: 'calc(100% - 20px)',
+                              height: compH === 'auto' || !compH ? 'auto' : (typeof compH === 'number' ? `${compH}px` : compH),
+                              zIndex: compZ
+                            }}
+                          >
+                            {renderInteractiveWidget(comp)}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()
+              )
+            ) : (
+              screenComponents.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-64 text-slate-400 space-y-2 bg-white rounded-2xl border border-slate-200/80 p-6">
+                  <Layers className="w-10 h-10 text-slate-300" />
+                  <span className="text-sm font-semibold text-slate-500">Layar ini belum memiliki komponen</span>
+                </div>
+              ) : (
+                screenComponents.map(comp => (
+                  <div key={comp.id} className="w-full max-w-full min-w-0 box-border transition-all">
                     {renderInteractiveWidget(comp)}
                   </div>
-                );
-              })
+                ))
+              )
             )}
-          </main>
-        ) : (
-          <main className={`flex-1 w-full ${embedded ? 'max-w-none' : 'max-w-4xl'} mx-auto p-4 sm:p-6 space-y-4`}>
-            {(!currentScreen?.components || currentScreen.components.length === 0) ? (
-              <div className="flex flex-col items-center justify-center h-64 text-slate-400 space-y-2 bg-white rounded-2xl border border-slate-200/80 p-6">
-                <Layers className="w-10 h-10 text-slate-300" />
-                <span className="text-sm font-semibold text-slate-500">Layar ini belum memiliki komponen</span>
+
+            {/* Bottom Multi-Step Navigation if screens > 1 */}
+            {screens.length > 1 && (
+              <div className="pt-4 flex items-center justify-between gap-3 border-t border-slate-200/80">
+                <button
+                  type="button"
+                  disabled={currentScreenIndex <= 0}
+                  onClick={() => {
+                    if (currentScreenIndex > 0) setCurrentScreenId(screens[currentScreenIndex - 1].id);
+                  }}
+                  className="flex-1 py-2.5 px-3 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-95 transition-all"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>Sebelumnya</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={currentScreenIndex >= screens.length - 1}
+                  onClick={() => {
+                    if (currentScreenIndex < screens.length - 1) setCurrentScreenId(screens[currentScreenIndex + 1].id);
+                  }}
+                  className="flex-1 py-2.5 px-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-xs font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer active:scale-95 transition-all"
+                >
+                  <span>Selanjutnya</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
-            ) : (
-              currentScreen.components.map(comp => (
-                <div key={comp.id} className="transition-all">
-                  {renderInteractiveWidget(comp)}
-                </div>
-              ))
             )}
-          </main>
-        )}
+          </div>
+        </main>
 
         {/* Toast Notification */}
         {activeToast && (
@@ -1591,6 +1950,9 @@ export default function GluestackAppPlayer({
             </div>
           </div>
         )}
+
+        {/* APK Installation / WebAPK Modal */}
+        {renderInstallApkModal()}
       </div>
     );
   }
@@ -1687,6 +2049,17 @@ export default function GluestackAppPlayer({
               <Monitor className="w-3.5 h-3.5" />
             </button>
           </div>
+
+          {/* Convert / Install APK */}
+          <button
+            type="button"
+            onClick={handleTriggerInstall}
+            className="px-2.5 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 active:scale-95 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+            title="Convert / Pasang sebagai APK"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">Install APK</span>
+          </button>
 
           {/* Reset App */}
           <button
@@ -1968,6 +2341,9 @@ export default function GluestackAppPlayer({
           </div>
         </div>
       )}
+
+      {/* APK Installation / WebAPK Modal */}
+      {renderInstallApkModal()}
     </div>
   );
 }

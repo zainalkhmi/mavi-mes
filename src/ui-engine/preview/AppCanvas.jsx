@@ -1059,6 +1059,7 @@ export default function AppCanvas({
   const [isLoadingAppsList, setIsLoadingAppsList] = useState(false);
   const [isEditingAppName, setIsEditingAppName] = useState(false);
   const [isCompanionModalOpen, setIsCompanionModalOpen] = useState(false);
+  const [companionModalTab, setCompanionModalTab] = useState('qr'); // 'qr' | 'apk'
   const [isSavingApp, setIsSavingApp] = useState(false);
   const [isSavedAppFeedback, setIsSavedAppFeedback] = useState(false);
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
@@ -1829,6 +1830,46 @@ export default function AppCanvas({
       });
     }
   }, [getCompanionUrl, appName]);
+
+  // Download Android APK / PWA Manifest Package
+  const handleDownloadApkPackage = useCallback(() => {
+    const appPayload = {
+      id: currentAppId,
+      name: appName.trim() || 'Untitled App',
+      screens,
+      variables,
+      tables,
+      recordPlaceholders,
+      exportedAt: new Date().toISOString(),
+      pwaManifest: {
+        name: appName.trim() || 'Mandor Companion App',
+        short_name: (appName.trim() || 'MandorApp').slice(0, 12),
+        start_url: `/#/app-player?appId=${encodeURIComponent(currentAppId)}&mode=companion`,
+        display: 'standalone',
+        background_color: '#f8fafc',
+        theme_color: '#0d9488',
+        icons: [
+          { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png' }
+        ]
+      }
+    };
+
+    const blob = new Blob([JSON.stringify(appPayload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(appName || 'Mandor_App').toLowerCase().replace(/\s+/g, '_')}_android_package.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    setActiveToast({
+      message: 'Android Package configuration berhasil diunduh!',
+      type: 'SUCCESS'
+    });
+  }, [currentAppId, appName, screens, variables, tables, recordPlaceholders]);
 
   // Auto-sync working draft to localStorage so companion runner / new tab always has the latest canvas state
   useEffect(() => {
@@ -4324,33 +4365,31 @@ export default function AppCanvas({
         {/* Right: Layout Mode + Magnet + Lock + Undo/Redo + Preview Mode */}
         <div className="flex items-center gap-2">
 
-          {/* Layout Mode Toggle: Flow (Stack) vs Free (X-Y Absolute) */}
+          {/* Layout Mode Toggle: Flow (Stack) vs Free (X-Y Absolute) - Icon Only */}
           <div className="flex items-center p-0.5 bg-slate-100 rounded-xl border border-slate-200 shadow-2xs">
             <button
               type="button"
               onClick={() => toggleLayoutMode('flow')}
               title="Layout Mengalir (Responsive Vertical Stack)"
-              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+              className={`p-1.5 rounded-lg text-xs font-bold flex items-center justify-center transition-all cursor-pointer ${
                 !isFreeLayout
                   ? 'bg-white text-[#008784] shadow-xs'
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              <LayoutGrid className="w-3 h-3" />
-              <span className="hidden md:inline">Flow</span>
+              <LayoutGrid className="w-3.5 h-3.5" />
             </button>
             <button
               type="button"
               onClick={() => toggleLayoutMode('free')}
-              title="Free Design: Bebas Geser Posisi X, Y & Resize seperti MAVi App Builder"
-              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+              title="Free Design (Bebas Geser Posisi X, Y & Resize)"
+              className={`p-1.5 rounded-lg text-xs font-bold flex items-center justify-center transition-all cursor-pointer ${
                 isFreeLayout
                   ? 'bg-white text-indigo-600 shadow-xs ring-1 ring-indigo-200'
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              <Move className="w-3 h-3" />
-              <span className="hidden md:inline">Free X-Y</span>
+              <Move className="w-3.5 h-3.5" />
             </button>
           </div>
 
@@ -4360,27 +4399,26 @@ export default function AppCanvas({
               type="button"
               onClick={() => setSnapToGrid(!snapToGrid)}
               title={snapToGrid ? "Snap to Grid Aktif (10px)" : "Snap to Grid Nonaktif"}
-              className={`flex flex-col items-center justify-center px-2 py-1 rounded-xl border text-xs font-bold transition-colors min-w-[40px] cursor-pointer ${
+              className={`p-1.5 rounded-lg border text-xs font-bold transition-colors cursor-pointer flex items-center justify-center ${
                 snapToGrid
-                  ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                  ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-2xs'
                   : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'
               }`}
             >
-              <Grid3X3 className="w-3.5 h-3.5 mb-0.5" />
-              <span className="text-[9px]">Snap</span>
+              <Grid3X3 className="w-3.5 h-3.5" />
             </button>
           )}
 
-          {/* Buka / Lock Button */}
+          {/* Lock / Unlock Button (Icon Only) */}
           <button
             type="button"
             onClick={() => setIsCanvasLocked(!isCanvasLocked)}
-            className={`flex flex-col items-center justify-center px-2 py-1 rounded-xl border text-xs font-bold transition-colors min-w-[46px] ${
-              isCanvasLocked ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+            title={isCanvasLocked ? 'Kanvas Terkunci (Klik untuk membuka)' : 'Buka Kunci Kanvas (Klik untuk mengunci)'}
+            className={`p-1.5 rounded-lg border transition-colors cursor-pointer flex items-center justify-center ${
+              isCanvasLocked ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-2xs' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
             }`}
           >
-            {isCanvasLocked ? <Lock className="w-3.5 h-3.5 text-indigo-600 mb-0.5" /> : <Unlock className="w-3.5 h-3.5 text-slate-500 mb-0.5" />}
-            <span className="text-[9px]">{isCanvasLocked ? 'Terkunci' : 'Buka'}</span>
+            {isCanvasLocked ? <Lock className="w-3.5 h-3.5 text-indigo-600" /> : <Unlock className="w-3.5 h-3.5 text-slate-600" />}
           </button>
 
           {/* Undo / Redo */}
@@ -4405,15 +4443,19 @@ export default function AppCanvas({
             </button>
           </div>
 
-          {/* Preview / Edit Mode */}
-          <Button
-            size="sm"
-            variant={isPreview ? 'positive' : 'outline'}
-            onPress={() => setIsPreview(!isPreview)}
+          {/* Preview / Edit Mode (Icon Only) */}
+          <button
+            type="button"
+            onClick={() => setIsPreview(!isPreview)}
+            title={isPreview ? 'Keluar Preview (Mode Edit)' : 'Mulai Preview (Mode Interaktif)'}
+            className={`p-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
+              isPreview
+                ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
+                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-2xs'
+            }`}
           >
-            <ButtonIcon as={Eye} />
-            <ButtonText className="hidden sm:inline">{isPreview ? 'Edit' : 'Preview'}</ButtonText>
-          </Button>
+            <Eye className="w-3.5 h-3.5" />
+          </button>
         </div>
       </header>
 
@@ -5852,76 +5894,192 @@ export default function AppCanvas({
               </button>
             </div>
 
-            {/* App Name Badge */}
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-slate-50 border border-slate-200/90 rounded-full text-xs font-bold text-slate-700 shadow-3xs mb-4 max-w-full">
-              <Smartphone className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-              <span className="truncate">{appName}</span>
-            </div>
-
-            {/* QR Code Container (Local Vector SVG via react-qr-code) */}
-            <div className="p-4 bg-white rounded-2xl border-2 border-slate-100 shadow-sm mb-4 flex items-center justify-center">
-              <QRCode
-                value={getCompanionUrl()}
-                size={190}
-                level="H"
-                bgColor="#ffffff"
-                fgColor="#0f172a"
-              />
-            </div>
-
-            {/* Description */}
-            <p className="text-xs text-slate-500 mb-4 leading-relaxed max-w-xs">
-              Scan QR code ini menggunakan kamera HP atau aplikasi <strong className="text-slate-800 font-bold">MES Companion</strong> untuk menjalankan dan menguji aplikasi secara real-time.
-            </p>
-
-            {/* Shareable Link Codebox */}
-            <div className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 flex items-center gap-2 mb-4">
-              <code className="text-[11px] text-slate-600 font-mono flex-1 text-left truncate px-1">
-                {getCompanionUrl()}
-              </code>
+            {/* Modal Navigation Tabs: Scan QR vs Convert ke APK */}
+            <div className="w-full flex items-center p-1 bg-slate-100 rounded-2xl mb-4 border border-slate-200/80">
               <button
                 type="button"
-                onClick={handleCopyAppLink}
-                className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-bold transition-colors shrink-0 flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95"
+                onClick={() => setCompanionModalTab('qr')}
+                className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  companionModalTab === 'qr'
+                    ? 'bg-white text-indigo-700 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
               >
-                <Copy className="w-3 h-3" />
-                <span>Salin</span>
-              </button>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="w-full flex items-center gap-2.5">
-              <button
-                type="button"
-                onClick={() => {
-                  const appPayload = {
-                    id: currentAppId,
-                    name: appName.trim() || 'Untitled App',
-                    screens,
-                    variables,
-                    tables,
-                    recordPlaceholders,
-                    updated_at: new Date().toISOString()
-                  };
-                  try {
-                    localStorage.setItem(`mavi_app_${currentAppId}`, JSON.stringify(appPayload));
-                    localStorage.setItem('mavi_app_latest', JSON.stringify(appPayload));
-                  } catch (e) {}
-                  window.open(getCompanionUrl(), '_blank');
-                }}
-                className="flex-1 py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
-                <span>Buka di Tab Baru</span>
+                <QrCode className="w-3.5 h-3.5" />
+                <span>Scan QR Live</span>
               </button>
               <button
                 type="button"
-                onClick={() => setIsCompanionModalOpen(false)}
-                className="flex-1 py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors shadow-sm cursor-pointer"
+                onClick={() => setCompanionModalTab('apk')}
+                className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  companionModalTab === 'apk'
+                    ? 'bg-white text-teal-700 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
               >
-                Selesai
+                <Smartphone className="w-3.5 h-3.5 text-teal-600" />
+                <span>Convert ke APK</span>
               </button>
             </div>
+
+            {/* TAB 1: SCAN QR LIVE */}
+            {companionModalTab === 'qr' && (
+              <>
+                {/* App Name Badge */}
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-slate-50 border border-slate-200/90 rounded-full text-xs font-bold text-slate-700 shadow-3xs mb-4 max-w-full">
+                  <Smartphone className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  <span className="truncate">{appName}</span>
+                </div>
+
+                {/* QR Code Container (Local Vector SVG via react-qr-code) */}
+                <div className="p-4 bg-white rounded-2xl border-2 border-slate-100 shadow-sm mb-4 flex items-center justify-center">
+                  <QRCode
+                    value={getCompanionUrl()}
+                    size={180}
+                    level="H"
+                    bgColor="#ffffff"
+                    fgColor="#0f172a"
+                  />
+                </div>
+
+                {/* Description */}
+                <p className="text-xs text-slate-500 mb-4 leading-relaxed max-w-xs">
+                  Scan QR code ini menggunakan kamera HP untuk menjalankan dan menguji aplikasi secara real-time.
+                </p>
+
+                {/* Shareable Link Codebox */}
+                <div className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 flex items-center gap-2 mb-4">
+                  <code className="text-[11px] text-slate-600 font-mono flex-1 text-left truncate px-1">
+                    {getCompanionUrl()}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={handleCopyAppLink}
+                    className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-bold transition-colors shrink-0 flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95"
+                  >
+                    <Copy className="w-3 h-3" />
+                    <span>Salin</span>
+                  </button>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="w-full flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const appPayload = {
+                        id: currentAppId,
+                        name: appName.trim() || 'Untitled App',
+                        screens,
+                        variables,
+                        tables,
+                        recordPlaceholders,
+                        updated_at: new Date().toISOString()
+                      };
+                      try {
+                        localStorage.setItem(`mavi_app_${currentAppId}`, JSON.stringify(appPayload));
+                        localStorage.setItem('mavi_app_latest', JSON.stringify(appPayload));
+                      } catch (e) {}
+                      window.open(getCompanionUrl(), '_blank');
+                    }}
+                    className="flex-1 py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Buka di Tab Baru</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsCompanionModalOpen(false)}
+                    className="flex-1 py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors shadow-sm cursor-pointer"
+                  >
+                    Selesai
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* TAB 2: CONVERT KE APK ANDROID */}
+            {companionModalTab === 'apk' && (
+              <div className="w-full space-y-3.5 text-left">
+                {/* Method 1: WebAPK Instan (Paling Direkomendasikan) */}
+                <div className="p-3.5 bg-gradient-to-br from-teal-50/80 to-emerald-50/50 rounded-2xl border border-teal-200/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-lg bg-teal-600 text-white flex items-center justify-center text-xs font-black">1</span>
+                      <span className="text-xs font-bold text-teal-900">WebAPK Instan (Siap Pakai di HP)</span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full bg-teal-200/60 text-teal-800 text-[10px] font-extrabold uppercase">Rekomendasi</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Buka link Companion di <strong>Google Chrome HP</strong>, ketuk menu <strong>⋮</strong> lalu pilih <strong className="text-slate-800">"Instal Aplikasi"</strong> atau <strong className="text-slate-800">"Tambahkan ke Layar Utama"</strong>. Android akan otomatis membuat WebAPK dengan icon & fullscreen tanpa address bar.
+                  </p>
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => window.open(getCompanionUrl(), '_blank')}
+                      className="flex-1 py-1.5 px-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      <span>Buka Player</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCopyAppLink}
+                      className="py-1.5 px-3 rounded-xl border border-teal-300 bg-white hover:bg-teal-50 text-teal-800 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>Salin Link</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Method 2: Download Package Config Android */}
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-slate-800 text-white flex items-center justify-center text-xs font-black">2</span>
+                    <span className="text-xs font-bold text-slate-900">Download Package Manifest & App</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Unduh file paket konfigurasi Android yang berisi spesifikasi screen, manifest PWA, dan aset untuk dikompilasi via Bubblewrap atau Capacitor.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleDownloadApkPackage}
+                    className="w-full py-2 px-3 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                  >
+                    <Download className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Unduh Android Package (.json)</span>
+                  </button>
+                </div>
+
+                {/* Method 3: Panduan & Build Terminal */}
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
+                  <div className="min-w-0 pr-2">
+                    <div className="text-xs font-bold text-slate-800">APK Scanner & Kiosk Mandor</div>
+                    <div className="text-[10px] text-slate-500">Mendukung laser barcode Zebra & mode layar terkunci</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      window.open(`${window.location.origin}${window.location.pathname}#/download-player`, '_blank');
+                    }}
+                    className="py-1.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer shrink-0 transition-colors shadow-2xs"
+                  >
+                    <span>Buka Panduan</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                </div>
+
+                {/* Close Button */}
+                <button
+                  type="button"
+                  onClick={() => setIsCompanionModalOpen(false)}
+                  className="w-full py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Tutup
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

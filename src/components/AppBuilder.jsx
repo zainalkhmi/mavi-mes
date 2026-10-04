@@ -14979,7 +14979,6 @@ const AppBuilder = () => {
                              onMouseLeave={e => { e.currentTarget.style.backgroundColor = isCanvasLocked ? '#e0e7ff' : '#f8fafc' }}
                         >
                             {isCanvasLocked ? <Lock size={16} color="#4338ca" /> : <Unlock size={16} color="var(--text-tertiary)" />}
-                            <span style={{ fontSize: '0.6rem', color: isCanvasLocked ? '#4338ca' : '#475569', fontWeight: 600 }}>{isCanvasLocked ? 'Terkunci' : 'Buka'}</span>
                         </button>
                         <button
                              type="button"
