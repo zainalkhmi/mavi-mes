@@ -581,6 +581,38 @@ export default function GluestackAppPlayer({
           }
         }
 
+        // 2.5. Try loading from Companion Sync Server API (Local Wi-Fi Live Sync across PC & Mobile)
+        try {
+          const res = await fetch(`/api/companion-app/${encodeURIComponent(appId)}`).catch(() => null);
+          if (res && res.ok) {
+            const json = await res.json();
+            if (json && json.app && applyAppData(json.app)) {
+              try {
+                localStorage.setItem(`mavi_app_${appId}`, JSON.stringify(json.app));
+                localStorage.setItem('mavi_app_latest', JSON.stringify(json.app));
+              } catch (e) {}
+              return;
+            }
+          }
+        } catch (syncErr) {
+          console.warn('[GluestackAppPlayer] Companion sync api error:', syncErr);
+        }
+
+        // 2.6. Try loading latest live draft from Companion Sync Server API
+        try {
+          const resLatest = await fetch('/api/companion-app/latest').catch(() => null);
+          if (resLatest && resLatest.ok) {
+            const jsonLatest = await resLatest.json();
+            if (jsonLatest && jsonLatest.app && applyAppData(jsonLatest.app)) {
+              try {
+                localStorage.setItem(`mavi_app_${appId}`, JSON.stringify(jsonLatest.app));
+                localStorage.setItem('mavi_app_latest', JSON.stringify(jsonLatest.app));
+              } catch (e) {}
+              return;
+            }
+          }
+        } catch (syncErr) {}
+
         // 3. Try loading from latest active working draft (`mavi_app_latest`)
         const latestDraftRaw = localStorage.getItem('mavi_app_latest');
         if (latestDraftRaw) {

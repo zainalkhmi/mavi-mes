@@ -1199,6 +1199,8 @@ export default function AppCanvas({
   const variablesRef = useRef(variables);
   const recordPlaceholdersRef = useRef(recordPlaceholders);
   const selectedIdRef = useRef(selectedId);
+  const appNameRef = useRef(appName);
+  const currentAppIdRef = useRef(currentAppId);
 
   useEffect(() => { screensRef.current = screens; }, [screens]);
   useEffect(() => { currentScreenIdRef.current = currentScreenId; }, [currentScreenId]);
@@ -1206,6 +1208,8 @@ export default function AppCanvas({
   useEffect(() => { variablesRef.current = variables; }, [variables]);
   useEffect(() => { recordPlaceholdersRef.current = recordPlaceholders; }, [recordPlaceholders]);
   useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
+  useEffect(() => { appNameRef.current = appName; }, [appName]);
+  useEffect(() => { currentAppIdRef.current = currentAppId; }, [currentAppId]);
 
   // History for Undo/Redo
   const [history, setHistory] = useState([]);
@@ -1506,12 +1510,93 @@ export default function AppCanvas({
     return () => clearTimeout(timer);
   }, [activeToast]);
 
-  // Companion URL helper (Clean live real device runner)
+  // Companion Host (Auto-detects computer LAN IP so mobile phones can connect over Wi-Fi)
+  const [companionHost, setCompanionHost] = useState(() => {
+    if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+      return 'http://192.168.100.98:5173';
+    }
+    return typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173';
+  });
+
+  // Dynamically fetch actual LAN IP from Vite server API
+  useEffect(() => {
+    fetch('/api/network-ip')
+      .then(res => res.json())
+      .then(data => {
+        if (data?.url) {
+          setCompanionHost(data.url);
+        } else if (data?.ip) {
+          setCompanionHost(`http://${data.ip}:5173`);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Helper to sync current working draft to Companion Sync Server & Supabase Cloud
+  const syncWorkingDraftToCompanionServer = useCallback((customId, customPayload) => {
+    const targetId = customId || currentAppIdRef.current || currentAppId;
+    const payload = customPayload || {
+      id: targetId,
+      name: (appNameRef.current || appName || 'Mobile App').trim(),
+      screens: screensRef.current || screens,
+      variables: variablesRef.current || variables,
+      tables: tablesRef.current || tables,
+      recordPlaceholders: recordPlaceholdersRef.current || recordPlaceholders,
+      updated_at: new Date().toISOString()
+    };
+
+    // 1. Save to browser localStorage
+    try {
+      localStorage.setItem(`mavi_app_${targetId}`, JSON.stringify(payload));
+      localStorage.setItem('mavi_app_latest', JSON.stringify(payload));
+    } catch (e) {}
+
+    // 2. Send to local Vite Companion server (for local dev Wi-Fi sync)
+    try {
+      fetch(`/api/companion-app/${encodeURIComponent(targetId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).catch(err => console.warn('[CompanionSync] Server sync warning:', err));
+    } catch (e) {}
+
+    // 3. Auto-save to Supabase Cloud (ensures Vercel / Production deployment works across any network / 4G / 5G)
+    try {
+      const supabasePayload = {
+        name: payload.name,
+        category: 'GlueStack App',
+        config: {
+          components: payload.screens || [],
+          variables: payload.variables || [],
+          tables: payload.tables || [],
+          recordPlaceholders: payload.recordPlaceholders || []
+        },
+        builder_type: 'gluestack',
+        created_by: authUser?.id || undefined,
+        version: 1
+      };
+      if (targetId && targetId.includes('-') && targetId.length > 20) {
+        supabasePayload.id = targetId;
+      }
+      saveFrontlineApp(supabasePayload).then(saved => {
+        if (saved && saved.id) {
+          localStorage.setItem(`mavi_app_${saved.id}`, JSON.stringify({ ...payload, id: saved.id }));
+          localStorage.setItem(`mavi_app_${targetId}`, JSON.stringify({ ...payload, id: saved.id, aliasFor: saved.id }));
+          localStorage.setItem('mavi_app_latest', JSON.stringify({ ...payload, id: saved.id }));
+          if (saved.id !== targetId) {
+            setCurrentAppId(saved.id);
+          }
+        }
+      }).catch(err => console.warn('[CompanionSync] Cloud save warning:', err));
+    } catch (e) {}
+  }, [currentAppId, appName, screens, variables, tables, recordPlaceholders, authUser]);
+
+  // Companion URL helper (Points to computer's LAN IP for real device running)
   const getCompanionUrl = useCallback(() => {
-    const origin = window.location.origin || '';
-    const pathname = window.location.pathname || '';
-    return `${origin}${pathname}#/app-player?appId=${encodeURIComponent(currentAppId || 'app_1')}&mode=companion`;
-  }, [currentAppId]);
+    const host = (companionHost || window.location.origin || '').replace(/\/+$/, '');
+    const pathname = (window.location.pathname || '').replace(/\/+$/, '');
+    return `${host}${pathname}/#/app-player?appId=${encodeURIComponent(currentAppId || 'app_1')}&mode=companion`;
+  }, [companionHost, currentAppId]);
 
   // Load user's Gluestack apps from Supabase & localStorage (NO hardcoded mock apps)
   const loadGluestackApps = useCallback(async () => {
@@ -1718,6 +1803,10 @@ export default function AppCanvas({
       };
       // Save specific app state to localStorage
       localStorage.setItem(`mavi_app_${appPayload.id}`, JSON.stringify(appPayload));
+      localStorage.setItem('mavi_app_latest', JSON.stringify(appPayload));
+
+      // Sync to Companion Server for mobile phone companion runners
+      syncWorkingDraftToCompanionServer(appPayload.id, appPayload);
 
       // Update apps list in state & storage
       setAppsList(prev => {
@@ -1897,20 +1986,8 @@ export default function AppCanvas({
     const onSave = () => handleSaveApp();
     const onLink = () => handleCopyAppLink();
     const onQr = () => {
-      // Ensure working draft is strictly saved before opening companion connect
-      const appPayload = {
-        id: currentAppId,
-        name: appName.trim() || 'Untitled App',
-        screens,
-        variables,
-        tables,
-        recordPlaceholders,
-        updated_at: new Date().toISOString()
-      };
-      try {
-        localStorage.setItem(`mavi_app_${currentAppId}`, JSON.stringify(appPayload));
-        localStorage.setItem('mavi_app_latest', JSON.stringify(appPayload));
-      } catch (e) {}
+      // Ensure working draft is strictly saved & synced to companion server before opening companion connect
+      syncWorkingDraftToCompanionServer();
       setIsCompanionModalOpen(true);
     };
     const onSetName = (e) => {
@@ -4281,7 +4358,7 @@ export default function AppCanvas({
 
         {/* Center: Toolbar Komponen - Model Dropdown Icon per Kategori (Warna & Ukuran Kotak Lebih Besar) */}
         <div className="flex items-center gap-2 py-1.5 px-2 bg-slate-50/90 rounded-2xl border border-slate-200/80 shadow-2xs relative overflow-visible">
-          {COMPONENT_GROUPS.map((group) => {
+          {COMPONENT_GROUPS.map((group, groupIdx) => {
             const CatIcon = group.icon || Box;
             const isOpen = activeDropdown === `CAT_${group.category}`;
             const theme = group.theme || {
@@ -4290,6 +4367,13 @@ export default function AppCanvas({
               iconColor: 'text-slate-600',
               headerText: 'text-slate-600'
             };
+
+            const isMultiCol = group.items.length > 6;
+            const alignClass = isMultiCol 
+              ? 'left-0 sm:left-1/2 sm:-translate-x-1/2 w-[min(520px,calc(100vw-32px))]' 
+              : groupIdx >= 7 
+                ? 'right-0 w-64' 
+                : 'left-0 w-64';
 
             return (
               <div key={group.category} className="relative" data-dropdown>
@@ -4307,11 +4391,11 @@ export default function AppCanvas({
                 {/* Dropdown Menu Popover */}
                 {isOpen && (
                   <div
-                    className="absolute top-full left-0 mt-2 w-64 bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/90 shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150 divide-y divide-slate-100"
+                    className={`absolute top-full mt-2 ${alignClass} bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/90 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150 divide-y divide-slate-100`}
                     data-dropdown
                   >
                     {/* Header */}
-                    <div className="pb-1.5 mb-1 px-2.5 pt-1.5 flex items-center justify-between">
+                    <div className="pb-1.5 mb-1 px-2.5 pt-1 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${isOpen ? theme.active : 'bg-slate-100'}`}>
                           <CatIcon className="w-3.5 h-3.5 text-white" />
@@ -4326,7 +4410,7 @@ export default function AppCanvas({
                     </div>
 
                     {/* Items */}
-                    <div className="pt-1 space-y-0.5 max-h-[320px] overflow-y-auto no-scrollbar">
+                    <div className={`pt-1 ${isMultiCol ? 'grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-[480px]' : 'space-y-0.5 max-h-[380px]'} overflow-y-auto custom-scrollbar pr-1`}>
                       {group.items.map((item) => {
                         const ItemIcon = item.icon;
                         return (
@@ -4344,8 +4428,8 @@ export default function AppCanvas({
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="text-xs font-bold text-slate-800 group-hover/item:text-[#008784] transition-colors flex items-center justify-between">
-                                <span>{item.label}</span>
-                                <Plus className="w-3 h-3 text-slate-300 group-hover/item:text-[#008784] transition-colors" />
+                                <span className="truncate">{item.label}</span>
+                                <Plus className="w-3 h-3 text-slate-300 group-hover/item:text-[#008784] transition-colors shrink-0 ml-1" />
                               </div>
                               <div className="text-[10px] text-slate-400 truncate leading-tight mt-0.5">
                                 {item.desc}
@@ -5936,14 +6020,20 @@ export default function AppCanvas({
             {/* TAB 1: SCAN QR LIVE */}
             {companionModalTab === 'qr' && (
               <>
-                {/* App Name Badge */}
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-slate-50 border border-slate-200/90 rounded-full text-xs font-bold text-slate-700 shadow-3xs mb-4 max-w-full">
-                  <Smartphone className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                  <span className="truncate">{appName}</span>
+                {/* App Name & Wi-Fi Host Badges */}
+                <div className="flex flex-wrap items-center justify-center gap-2 mb-3.5 max-w-full">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-slate-50 border border-slate-200/90 rounded-full text-xs font-bold text-slate-700 shadow-3xs max-w-[200px]">
+                    <Smartphone className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                    <span className="truncate">{appName}</span>
+                  </div>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200/80 rounded-full text-xs font-bold text-emerald-800 shadow-3xs" title="Alamat IP Wi-Fi untuk HP">
+                    <Wifi className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span className="font-mono text-[11px]">{companionHost.replace(/^https?:\/\//, '')}</span>
+                  </div>
                 </div>
 
                 {/* QR Code Container (Local Vector SVG via react-qr-code) */}
-                <div className="p-4 bg-white rounded-2xl border-2 border-slate-100 shadow-sm mb-4 flex items-center justify-center">
+                <div className="p-4 bg-white rounded-2xl border-2 border-slate-100 shadow-sm mb-3.5 flex items-center justify-center">
                   <QRCode
                     value={getCompanionUrl()}
                     size={180}
@@ -5954,8 +6044,8 @@ export default function AppCanvas({
                 </div>
 
                 {/* Description */}
-                <p className="text-xs text-slate-500 mb-4 leading-relaxed max-w-xs">
-                  Scan QR code ini menggunakan kamera HP untuk menjalankan dan menguji aplikasi secara real-time.
+                <p className="text-xs text-slate-500 mb-3 leading-relaxed max-w-xs">
+                  Scan QR code ini menggunakan kamera HP untuk menjalankan dan menguji aplikasi secara real-time. Pastikan HP terhubung ke Wi-Fi yang sama.
                 </p>
 
                 {/* Shareable Link Codebox */}
@@ -5978,19 +6068,7 @@ export default function AppCanvas({
                   <button
                     type="button"
                     onClick={() => {
-                      const appPayload = {
-                        id: currentAppId,
-                        name: appName.trim() || 'Untitled App',
-                        screens,
-                        variables,
-                        tables,
-                        recordPlaceholders,
-                        updated_at: new Date().toISOString()
-                      };
-                      try {
-                        localStorage.setItem(`mavi_app_${currentAppId}`, JSON.stringify(appPayload));
-                        localStorage.setItem('mavi_app_latest', JSON.stringify(appPayload));
-                      } catch (e) {}
+                      syncWorkingDraftToCompanionServer();
                       window.open(getCompanionUrl(), '_blank');
                     }}
                     className="flex-1 py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"

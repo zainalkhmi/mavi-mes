@@ -1,3 +1,4 @@
+import os from 'os'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -5,6 +6,24 @@ import tailwindcss from '@tailwindcss/vite'
 
 // Check if running in Tauri mode
 const isTauri = process.env.TAURI === 'true';
+
+// Helper to get local network IP for mobile device companion connect
+function getLocalNetworkIp() {
+  try {
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+      for (const iface of interfaces[name]) {
+        if (iface.family === 'IPv4' && !iface.internal) {
+          return iface.address;
+        }
+      }
+    }
+  } catch (e) {}
+  return '192.168.100.98';
+}
+
+// Global in-memory store for companion apps so mobile devices can load live drafts
+const companionAppStore = new Map();
 
 // Security headers for production
 const securityHeaders = {
@@ -29,6 +48,74 @@ const securityHeaders = {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
+    {
+      name: 'companion-sync-server',
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          // Set CORS headers for API calls from mobile devices
+          if (req.url && req.url.startsWith('/api/')) {
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+            res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+            if (req.method === 'OPTIONS') {
+              res.statusCode = 204;
+              res.end();
+              return;
+            }
+          }
+
+          // Return host machine local network IP
+          if (req.url === '/api/network-ip') {
+            const ip = getLocalNetworkIp();
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 200;
+            res.end(JSON.stringify({ ip, port: 5173, url: `http://${ip}:5173` }));
+            return;
+          }
+
+          // Companion live app sync endpoint
+          if (req.url && req.url.startsWith('/api/companion-app')) {
+            const parts = req.url.split('?')[0].split('/');
+            const appId = decodeURIComponent(parts[3] || 'latest');
+
+            if (req.method === 'POST') {
+              let body = '';
+              req.on('data', chunk => { body += chunk; });
+              req.on('end', () => {
+                try {
+                  const data = JSON.parse(body);
+                  companionAppStore.set(appId, data);
+                  companionAppStore.set('latest', data);
+                  res.setHeader('Content-Type', 'application/json');
+                  res.statusCode = 200;
+                  res.end(JSON.stringify({ success: true, id: appId }));
+                } catch (e) {
+                  res.statusCode = 400;
+                  res.end(JSON.stringify({ error: 'Invalid JSON' }));
+                }
+              });
+              return;
+            }
+
+            if (req.method === 'GET') {
+              const app = companionAppStore.get(appId) || companionAppStore.get('latest');
+              res.setHeader('Content-Type', 'application/json');
+              if (app) {
+                res.statusCode = 200;
+                res.end(JSON.stringify({ success: true, app }));
+              } else {
+                res.statusCode = 404;
+                res.end(JSON.stringify({ error: 'App not found in companion store' }));
+              }
+              return;
+            }
+          }
+
+          next();
+        });
+      }
+    },
     {
       name: 'video-asset-fallback',
       configureServer(server) {
