@@ -5169,6 +5169,17 @@ export default function AppCanvas({
                         </div>
                       )}
 
+                      {/* Live PLC / IoT Bound Tag Indicator Badge */}
+                      {!isPreview && comp.props?.plcTag && (
+                        <div
+                          className="absolute -top-2.5 right-2 px-1.5 py-0.5 bg-cyan-600 text-white rounded-full text-[9px] font-mono font-bold pointer-events-none shadow-xs z-30 flex items-center gap-1 border border-cyan-400 select-none animate-in fade-in"
+                          title={`Terhubung ke Live PLC Tag: ${comp.props.plcTag}`}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-200 animate-ping" />
+                          <span>{comp.props.plcTag.split('=').pop()}</span>
+                        </div>
+                      )}
+
                       {/* Floating component actions on hover */}
                       {!isPreview && selectedId === comp.id && (
                         <div className="absolute top-1 right-1 flex items-center gap-1 bg-white/90 backdrop-blur-xs p-1 rounded-lg shadow-md z-20 border border-slate-200">

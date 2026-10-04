@@ -7,6 +7,8 @@
  * → Branching Actions (Atomic Execution) → UI State Transition + Multimodal Feedback (Audio, Haptic, Snackbar)
  */
 
+import iotConnector from '../../utils/iotConnector';
+
 // ── 1. Debounce & Double-Click Protection ────────────────────────────────────
 const clickLocks = new Map();
 
@@ -456,11 +458,92 @@ async function executeAction(act, context, execContext) {
 
       // ── Industrial IoT: PLC Write Tag ──
       case 'PLC_WRITE_TAG': {
-        const tag = payload.tag || 'START_CYCLE';
-        const val = payload.value !== undefined ? payload.value : 1;
+        const tag = payload.tag || payload.tagName || 'START_CYCLE';
+        let val = payload.value !== undefined ? payload.value : 1;
+
+        // Dynamic expression resolution: evaluate @varName or state variable if reference provided
+        if (typeof val === 'string' && val.startsWith('@')) {
+          const varName = val.substring(1);
+          if (context.state?.variables && context.state.variables[varName] !== undefined) {
+            val = context.state.variables[varName];
+          }
+        }
+
+        // P3: Two-step machine confirmation / safety interlock check
+        if (payload.requireConfirmation || payload.safetyInterlock) {
+          if (context.onRequestConfirmation) {
+            const confirmed = await context.onRequestConfirmation({
+              title: payload.confirmTitle || '⚠️ Konfirmasi Operasi Mesin / Safety Interlock',
+              message: payload.confirmMessage || `Apakah Anda yakin ingin menulis nilai "${val}" ke tag [${tag}]? Pastikan area mesin aman sebelum melanjutkan.`,
+              tag,
+              value: val,
+              requireCheckbox: payload.requireCheckboxAcknowledge !== false,
+              confirmText: payload.confirmButtonText || '⚡ Eksekusi ke Mesin',
+              cancelText: 'Batal',
+              severity: payload.severity || 'WARNING'
+            });
+
+            if (!confirmed) {
+              playIndustrialSound('ERROR');
+              triggerIndustrialHaptic('ERROR');
+              if (context.onShowMessage) {
+                context.onShowMessage({
+                  message: `Operasi PLC [${tag}] dibatalkan oleh operator.`,
+                  type: 'WARNING'
+                });
+              }
+              if (context.onLog) {
+                context.onLog(act.type || type, 'SAFETY_INTERLOCK', `Write to [${tag}] dibatalkan oleh operator`);
+              }
+              return { type, status: 'CANCELLED', reason: 'SAFETY_INTERLOCK_CANCELLED', tag };
+            }
+          }
+        }
+
+        // 1. Real Transmission via IoT Connector (MQTT Topic & Industrial Simulation)
+        try {
+          if (iotConnector) {
+            // Update internal tag buffer & trigger machine listeners
+            iotConnector.setSimValue(tag, val);
+            // Publish to MQTT broker if connected
+            iotConnector.publish(
+              `mavi/plc/write/${tag}`,
+              JSON.stringify({
+                tag,
+                value: val,
+                stationId: execContext?.stationId || 'STATION-01',
+                operatorId: execContext?.operatorId || 'OPERATOR',
+                timestamp: execContext?.timestampUtc || new Date().toISOString()
+              })
+            );
+          }
+        } catch (err) {
+          console.warn('[TriggerEngine] Warning while dispatching PLC write tag:', err);
+        }
+
+        // 2. Synchronize App State variable if a matching variable exists
+        if (context.setVariables) {
+          context.setVariables(prev => {
+            if (prev && prev[tag] !== undefined) {
+              return { ...prev, [tag]: val };
+            }
+            return prev;
+          });
+        }
+
+        // 3. Multimodal confirmation feedback
+        playIndustrialSound('CLICK');
+        triggerIndustrialHaptic('LIGHT');
+
+        if (context.onShowMessage) {
+          context.onShowMessage({
+            message: `PLC Write: [${tag}] = ${val}`,
+            type: 'INFO'
+          });
+        }
 
         if (context.onLog) {
-          context.onLog(type, `PLC.WRITE: ${tag} = ${val}`);
+          context.onLog(act.type || type, 'PLC_WRITE', `Tag [${tag}] ➔ ${val}`);
         }
 
         return { type, status: 'SUCCESS', tag, value: val };

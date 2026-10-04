@@ -7,7 +7,8 @@ import {
   Settings, Check, Info, FileText, BarChart3, Clock, Hash, AlignLeft,
   ListFilter, CheckSquare, ToggleLeft, Video, Grid3X3, ChevronsUpDown,
   Tag, User, Table as TableIcon, Bell, RefreshCw, Sparkles, Send, Eye, Home,
-  Calendar, PenTool, List, PlusCircle, Download, Copy, Share2
+  Calendar, PenTool, List, PlusCircle, Download, Copy, Share2, Cpu, Radio,
+  ShieldAlert, Lock, Zap
 } from 'lucide-react';
 import {
   Image as UiImage,
@@ -50,6 +51,7 @@ import {
   playIndustrialSound
 } from '../logic/industrialTriggerEngine';
 import { getFrontlineAppById } from '../../utils/supabaseFrontlineDB';
+import iotConnector from '../../utils/iotConnector';
 
 // Default starter screens if app is brand new / not yet persisted
 const DEFAULT_STARTER_APP = {
@@ -200,6 +202,78 @@ export default function GluestackAppPlayer({
   const [showDevPanel, setShowDevPanel] = useState(devMode);
   const [activeDevTab, setActiveDevTab] = useState('VARS'); // 'VARS' | 'LOGS' | 'FORM'
   const [triggerLogs, setTriggerLogs] = useState([]);
+
+  // ── IoT & PLC Live Telemetry State (P1 Industrial Backbone) ─────────────────
+  const [iotStatus, setIotStatus] = useState(() => iotConnector?.status || 'disconnected');
+  const [latestIotData, setLatestIotData] = useState(() => {
+    const init = {};
+    if (iotConnector?.latestValues) {
+      iotConnector.latestValues.forEach((msg, top) => {
+        init[top] = msg.parsedPayload !== undefined ? msg.parsedPayload : msg.payload;
+      });
+    }
+    return init;
+  });
+  const [lastIotPingTime, setLastIotPingTime] = useState(Date.now());
+
+  useEffect(() => {
+    if (!iotConnector) return;
+
+    // 1. Subscribe to status changes
+    const unsubStatus = iotConnector.subscribeStatus(({ status }) => {
+      if (status) setIotStatus(status);
+    });
+
+    // 2. Subscribe to incoming telemetry messages (MQTT / Modbus / OPC-UA)
+    const unsubMsg = iotConnector.subscribeMessage((msgObj) => {
+      if (!msgObj || !msgObj.topic) return;
+      const topic = msgObj.topic;
+      const value = msgObj.parsedPayload !== undefined ? msgObj.parsedPayload : msgObj.payload;
+
+      setLastIotPingTime(Date.now());
+      setLatestIotData(prev => ({
+        ...prev,
+        [topic]: value,
+        ...(topic.includes('=') ? { [topic.split('=').pop()]: value } : {})
+      }));
+
+      // Auto-update variables if a matching variable exists
+      setVariables(prev => {
+        if (!prev) return prev;
+        const matchingKey = Object.keys(prev).find(
+          k => k === topic || (topic.includes('=') && k === topic.split('=').pop())
+        );
+        if (matchingKey && prev[matchingKey] !== value) {
+          return { ...prev, [matchingKey]: value };
+        }
+        return prev;
+      });
+    });
+
+    return () => {
+      if (typeof unsubStatus === 'function') unsubStatus();
+      if (typeof unsubMsg === 'function') unsubMsg();
+    };
+  }, []);
+
+  // ── P3: Safety Interlock / Two-Step Machine Confirmation State ──────────────
+  const [safetyInterlock, setSafetyInterlock] = useState(null);
+  const [interlockAgreed, setInterlockAgreed] = useState(false);
+
+  const requestSafetyConfirmation = useCallback((options) => {
+    return new Promise((resolve) => {
+      playIndustrialSound('ERROR');
+      triggerIndustrialHaptic('ERROR');
+      setInterlockAgreed(!options.requireCheckbox);
+      setSafetyInterlock({
+        ...options,
+        resolve: (approved) => {
+          setSafetyInterlock(null);
+          resolve(approved);
+        }
+      });
+    });
+  }, []);
 
   // WebAPK / PWA installation & companion export state
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
@@ -716,7 +790,8 @@ export default function GluestackAppPlayer({
             workOrderId: productionState.workOrderId,
             stationId: 'STATION-01',
             operatorName: 'Operator Shopfloor'
-          }
+          },
+          onRequestConfirmation: requestSafetyConfirmation
         });
 
         if (result.executedActions && result.executedActions.length > 0) {
@@ -726,7 +801,109 @@ export default function GluestackAppPlayer({
         }
       }
     }
-  }, [screens, currentScreenId, variables, formValues, counters, productionState, logTrigger]);
+  }, [screens, currentScreenId, variables, formValues, counters, productionState, logTrigger, requestSafetyConfirmation]);
+
+  // ── P2 Machine-Driven Event Trigger Pipeline (Sensor / PLC Telemetry Driven) ──
+  useEffect(() => {
+    if (!latestIotData || Object.keys(latestIotData).length === 0) return;
+    const comps = currentScreen?.components || [];
+    comps.forEach(comp => {
+      if (!comp.triggers || comp.triggers.length === 0) return;
+      comp.triggers.forEach(async (trig) => {
+        if (trig.enabled === false) return;
+
+        // 1. ON_TAG_CHANGE: triggers when bound tag / any tag updates
+        if (trig.event === 'ON_TAG_CHANGE') {
+          const boundTag = trig.tag || trig.plcTag || comp.props?.plcTag;
+          if (boundTag && latestIotData[boundTag] !== undefined) {
+            const val = latestIotData[boundTag];
+            executeIndustrialTrigger(trig, {
+              componentId: comp.id,
+              tagPayload: { topic: boundTag, value: val },
+              state: {
+                variables,
+                formValues,
+                counters,
+                productionState,
+                latestIotData,
+                workOrder: {
+                  id: productionState.workOrderId,
+                  status: productionState.status === 'RUNNING' ? 'IN_PROGRESS' : 'RELEASED'
+                }
+              },
+              setVariables,
+              setFormValues,
+              setProductionState,
+              onLog: (actionName, category, detail) => {
+                logTrigger(trig.name || 'IoT Trigger', 'ON_TAG_CHANGE', `${category}: ${detail}`);
+              },
+              onShowMessage: ({ message, type }) => {
+                setActiveToast({ message, type });
+              },
+              onNavigate: (navType, payload) => {
+                if (navType === 'GO_TO_SCREEN' && payload?.targetScreenId) {
+                  setCurrentScreenId(payload.targetScreenId);
+                } else if (navType === 'NEXT_STEP') {
+                  const curIdx = screens.findIndex(s => s.id === currentScreenId);
+                  if (curIdx < screens.length - 1) setCurrentScreenId(screens[curIdx + 1].id);
+                }
+              },
+              onRequestConfirmation: requestSafetyConfirmation
+            });
+          }
+        } 
+        // 2. ON_PLC_ALARM: triggers when tag crosses critical threshold
+        else if (trig.event === 'ON_PLC_ALARM') {
+          const boundTag = trig.tag || trig.plcTag || comp.props?.plcTag || 'ns=2;s=Temperature';
+          const val = latestIotData[boundTag];
+          if (val !== undefined) {
+            const threshold = Number(trig.alarmThreshold !== undefined ? trig.alarmThreshold : 80);
+            const comparator = trig.alarmComparator || '>';
+            const numVal = Number(val);
+            let isAlarm = false;
+            if (comparator === '>') isAlarm = numVal > threshold;
+            else if (comparator === '>=') isAlarm = numVal >= threshold;
+            else if (comparator === '<') isAlarm = numVal < threshold;
+            else if (comparator === '<=') isAlarm = numVal <= threshold;
+            else if (comparator === '==') isAlarm = String(val) === String(trig.alarmThreshold);
+
+            if (isAlarm) {
+              executeIndustrialTrigger(trig, {
+                componentId: comp.id,
+                tagPayload: { topic: boundTag, value: val, isAlarm: true },
+                state: {
+                  variables,
+                  formValues,
+                  counters,
+                  productionState,
+                  latestIotData,
+                  workOrder: {
+                    id: productionState.workOrderId,
+                    status: productionState.status === 'RUNNING' ? 'IN_PROGRESS' : 'RELEASED'
+                  }
+                },
+                setVariables,
+                setFormValues,
+                setProductionState,
+                onLog: (actionName, category, detail) => {
+                  logTrigger(trig.name || 'PLC ALARM', 'ON_PLC_ALARM', `Trip [${boundTag}]: ${val} ${comparator} ${threshold}`);
+                },
+                onShowMessage: ({ message, type }) => {
+                  setActiveToast({ message: message || `🚨 PLC Alarm Trip: [${boundTag}] = ${val}`, type: 'error' });
+                },
+                onNavigate: (navType, payload) => {
+                  if (navType === 'GO_TO_SCREEN' && payload?.targetScreenId) {
+                    setCurrentScreenId(payload.targetScreenId);
+                  }
+                },
+                onRequestConfirmation: requestSafetyConfirmation
+              });
+            }
+          }
+        }
+      });
+    });
+  }, [latestIotData, currentScreen, screens, currentScreenId, variables, formValues, counters, productionState, logTrigger]);
 
   // Restart / Reset App
   const handleRestartApp = () => {
@@ -1444,25 +1621,36 @@ export default function GluestackAppPlayer({
           />
         );
 
-      // ─── SCADA HMI & INDUSTRIAL AUTOMATION (PHASE 2) ─────────────────────────
+      // ─── SCADA HMI & INDUSTRIAL AUTOMATION (P1 IOT LIVE INTEGRATION) ─────────
       case 'ScadaMotor':
-      case 'SCADA_MOTOR':
+      case 'SCADA_MOTOR': {
+        const boundTag = props.plcTag || props.tag || props.topic;
+        const liveVal = boundTag ? latestIotData[boundTag] : (latestIotData['ns=2;s=SpindleSpeed'] ?? latestIotData['SpindleSpeed']);
+        const liveState = boundTag && typeof liveVal === 'string' ? liveVal : (latestIotData['ns=2;s=Status'] ?? latestIotData['Status']);
+        const computedRpm = typeof liveVal === 'number' ? Math.round(liveVal) : (Number(props.rpm) || 1450);
+        const computedState = formValues[comp.id] !== undefined ? formValues[comp.id] : (liveState || props.motorState || 'STOPPED');
+
         return (
           <UiScadaMotor
             id={comp.id}
             label={props.label || props.title || 'Motor Penggerak'}
-            motorState={formValues[comp.id] !== undefined ? formValues[comp.id] : (props.motorState || 'STOPPED')}
-            rpm={Number(props.rpm) || 1450}
+            motorState={computedState}
+            rpm={computedRpm}
             current={Number(props.current) || 12.8}
             colorRunning={props.colorRunning}
             colorStopped={props.colorStopped}
             colorFault={props.colorFault}
             onChange={(res) => {
               setFormValues(prev => ({ ...prev, [comp.id]: res.state }));
+              if (boundTag) iotConnector?.setSimValue(boundTag, res.state === 'RUNNING' ? computedRpm : 0);
               logTrigger('ScadaMotor', 'ON_CHANGE', `Motor State: ${res.state} (${res.rpm} RPM)`);
               executeComponentTriggers(comp, 'ON_CHANGE');
             }}
             onStart={() => {
+              if (boundTag) {
+                iotConnector?.setSimValue(boundTag, computedRpm);
+                iotConnector?.publish(`mavi/plc/write/${boundTag}`, JSON.stringify({ state: 'RUNNING', rpm: computedRpm }));
+              }
               logTrigger('ScadaMotor', 'ON_START', `Motor ${props.label || comp.id} Started`);
               setActiveToast({ message: `Motor ${props.label || comp.id} RUNNING`, type: 'success' });
               triggerIndustrialHaptic('SUCCESS');
@@ -1470,6 +1658,10 @@ export default function GluestackAppPlayer({
               executeComponentTriggers(comp, 'ON_START');
             }}
             onStop={() => {
+              if (boundTag) {
+                iotConnector?.setSimValue(boundTag, 0);
+                iotConnector?.publish(`mavi/plc/write/${boundTag}`, JSON.stringify({ state: 'STOPPED', rpm: 0 }));
+              }
               logTrigger('ScadaMotor', 'ON_STOP', `Motor ${props.label || comp.id} Stopped`);
               setActiveToast({ message: `Motor ${props.label || comp.id} STOPPED`, type: 'info' });
               triggerIndustrialHaptic('LIGHT');
@@ -1477,28 +1669,42 @@ export default function GluestackAppPlayer({
             }}
           />
         );
+      }
 
       case 'ScadaValve':
-      case 'SCADA_VALVE':
+      case 'SCADA_VALVE': {
+        const boundTag = props.plcTag || props.tag || props.topic;
+        const liveVal = boundTag ? latestIotData[boundTag] : undefined;
+        const computedState = formValues[comp.id] !== undefined ? formValues[comp.id] : (liveVal !== undefined ? (liveVal ? 'OPEN' : 'CLOSED') : (props.valveState || 'CLOSED'));
+
         return (
           <UiScadaValve
             id={comp.id}
             label={props.label || props.title || 'Katup Solenoid'}
-            valveState={formValues[comp.id] !== undefined ? formValues[comp.id] : (props.valveState || 'CLOSED')}
+            valveState={computedState}
             colorOpen={props.colorOpen}
             colorClosed={props.colorClosed}
             onChange={(res) => {
               setFormValues(prev => ({ ...prev, [comp.id]: res.state }));
+              if (boundTag) iotConnector?.setSimValue(boundTag, res.state === 'OPEN' ? 1 : 0);
               logTrigger('ScadaValve', 'ON_CHANGE', `Katup: ${res.state}`);
               executeComponentTriggers(comp, 'ON_CHANGE');
             }}
             onOpen={() => {
+              if (boundTag) {
+                iotConnector?.setSimValue(boundTag, 1);
+                iotConnector?.publish(`mavi/plc/write/${boundTag}`, JSON.stringify({ state: 'OPEN', value: 1 }));
+              }
               logTrigger('ScadaValve', 'ON_OPEN', `Katup ${props.label || comp.id} DIBUKA`);
               setActiveToast({ message: `Katup ${props.label || comp.id} DIBUKA`, type: 'success' });
               triggerIndustrialHaptic('MEDIUM');
               executeComponentTriggers(comp, 'ON_OPEN');
             }}
             onClose={() => {
+              if (boundTag) {
+                iotConnector?.setSimValue(boundTag, 0);
+                iotConnector?.publish(`mavi/plc/write/${boundTag}`, JSON.stringify({ state: 'CLOSED', value: 0 }));
+              }
               logTrigger('ScadaValve', 'ON_CLOSE', `Katup ${props.label || comp.id} DITUTUP`);
               setActiveToast({ message: `Katup ${props.label || comp.id} DITUTUP`, type: 'info' });
               triggerIndustrialHaptic('LIGHT');
@@ -1506,27 +1712,34 @@ export default function GluestackAppPlayer({
             }}
           />
         );
+      }
 
       case 'ScadaTank':
       case 'SCADA_TANK':
-      case 'SCADA_TANK_LEVEL':
+      case 'SCADA_TANK_LEVEL': {
+        const boundTag = props.plcTag || props.tag || props.topic;
+        const liveVal = boundTag ? latestIotData[boundTag] : latestIotData['40001'];
+        const computedLevel = liveVal !== undefined ? (typeof liveVal === 'number' ? Math.round(liveVal * (boundTag === '40001' ? 10 : 1)) : Number(liveVal)) : (formValues[comp.id] !== undefined ? formValues[comp.id] : (Number(props.level) || 650));
+
         return (
           <UiScadaTank
             id={comp.id}
             label={props.label || props.title || 'Tangki Penampungan'}
             capacity={Number(props.capacity) || 1000}
-            level={formValues[comp.id] !== undefined ? formValues[comp.id] : (Number(props.level) || 650)}
+            level={computedLevel}
             unit={props.unit || 'L'}
             fluidColor={props.fluidColor || '#0284c7'}
             lowAlarm={Number(props.lowAlarm) || 150}
             highAlarm={Number(props.highAlarm) || 900}
             onChange={(res) => {
               setFormValues(prev => ({ ...prev, [comp.id]: res.level }));
+              if (boundTag) iotConnector?.setSimValue(boundTag, res.level);
               logTrigger('ScadaTank', 'ON_CHANGE', `Level Tangki: ${res.level} ${props.unit || 'L'} (${res.percentage}%)`);
               executeComponentTriggers(comp, 'ON_CHANGE');
             }}
           />
         );
+      }
 
       case 'ScadaPipe':
       case 'SCADA_PIPE':
@@ -1588,31 +1801,41 @@ export default function GluestackAppPlayer({
 
       case 'ScadaGauge':
       case 'SCADA_PRESSURE_GAUGE':
-      case 'SCADA_CIRCULAR_GAUGE':
+      case 'SCADA_CIRCULAR_GAUGE': {
+        const boundTag = props.plcTag || props.tag || props.topic;
+        const liveVal = boundTag ? latestIotData[boundTag] : latestIotData['ns=2;s=Temperature'];
+        const computedVal = liveVal !== undefined ? Number(Number(liveVal).toFixed(1)) : (formValues[comp.id] !== undefined ? formValues[comp.id] : (Number(props.value) || 4.2));
+
         return (
           <UiScadaGauge
             id={comp.id}
             label={props.label || props.title || 'Pressure Gauge'}
-            value={formValues[comp.id] !== undefined ? formValues[comp.id] : (Number(props.value) || 4.2)}
+            value={computedVal}
             min={Number(props.min) || 0}
-            max={Number(props.max) || 10}
-            unit={props.unit || 'bar'}
-            warnLimit={Number(props.warnLimit) || 7.0}
-            alarmLimit={Number(props.alarmLimit) || 8.5}
+            max={Number(props.max) || (boundTag?.includes('Temp') ? 100 : 10)}
+            unit={props.unit || (boundTag?.includes('Temp') ? '°C' : 'bar')}
+            warnLimit={Number(props.warnLimit) || (boundTag?.includes('Temp') ? 75.0 : 7.0)}
+            alarmLimit={Number(props.alarmLimit) || (boundTag?.includes('Temp') ? 85.0 : 8.5)}
           />
         );
+      }
 
       case 'ScadaDigitalDisplay':
-      case 'SCADA_DIGITAL_DISPLAY':
+      case 'SCADA_DIGITAL_DISPLAY': {
+        const boundTag = props.plcTag || props.tag || props.topic;
+        const liveVal = boundTag ? latestIotData[boundTag] : (latestIotData['ns=2;s=SpindleSpeed'] ?? latestIotData['40001']);
+        const computedVal = liveVal !== undefined ? (typeof liveVal === 'number' ? Number(liveVal).toFixed(1) : liveVal) : (formValues[comp.id] !== undefined ? formValues[comp.id] : (props.value || 142.8));
+
         return (
           <UiScadaDigitalDisplay
             id={comp.id}
             label={props.label || props.title || 'Digital Meter'}
-            value={formValues[comp.id] !== undefined ? formValues[comp.id] : (props.value || 142.8)}
-            unit={props.unit || 'm³/h'}
-            status={props.status || 'ONLINE'}
+            value={computedVal}
+            unit={props.unit || (boundTag?.includes('Speed') ? 'RPM' : 'm³/h')}
+            status={iotStatus === 'connected' ? 'LIVE' : (iotStatus === 'disconnected' ? 'SIM' : 'ONLINE')}
           />
         );
+      }
 
       case 'ScadaStartStop':
       case 'SCADA_BTN_START':
@@ -1664,17 +1887,19 @@ export default function GluestackAppPlayer({
         );
 
       case 'ScadaPlcStatus':
-      case 'SCADA_PLC_STATUS':
+      case 'SCADA_PLC_STATUS': {
+        const liveCycle = Math.round(14 + Math.sin(Date.now() / 1500) * 5);
         return (
           <UiScadaPlcStatus
             id={comp.id}
-            controllerName={props.controllerName}
-            ipAddress={props.ipAddress}
-            protocol={props.protocol}
-            cycleTime={Number(props.cycleTime) || 14}
-            status={props.status || 'ONLINE'}
+            controllerName={props.controllerName || 'Siemens S7-1500 / Modbus Gateway'}
+            ipAddress={props.ipAddress || '192.168.1.120'}
+            protocol={props.protocol || (iotStatus === 'connected' ? 'MQTT Sparkplug B' : 'OPC-UA / Modbus TCP')}
+            cycleTime={liveCycle}
+            status={iotStatus === 'connected' ? 'ONLINE' : (props.status || 'ONLINE (LIVE)')}
           />
         );
+      }
 
       case 'ScadaTrend':
       case 'SCADA_TREND':
@@ -1785,6 +2010,13 @@ export default function GluestackAppPlayer({
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               Live
+            </span>
+            <span
+              title={`IoT Telemetry: ${iotStatus.toUpperCase()} (OPC-UA/Modbus)`}
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-cyan-50 border border-cyan-200 text-[10px] font-bold text-cyan-700"
+            >
+              <Cpu className="w-2.5 h-2.5 text-cyan-600 animate-pulse" />
+              <span>IoT</span>
             </span>
             <button
               type="button"
@@ -2048,6 +2280,15 @@ export default function GluestackAppPlayer({
             >
               <Monitor className="w-3.5 h-3.5" />
             </button>
+          </div>
+
+          {/* IoT Telemetry Stream Status */}
+          <div
+            title={`Industrial IoT Telemetry: ${iotStatus.toUpperCase()} (MQTT, OPC-UA, Modbus)`}
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-950/70 border border-cyan-800/80 text-[10px] font-bold text-cyan-300 shadow-3xs"
+          >
+            <Cpu className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+            <span>IoT Live: {iotStatus === 'connected' ? 'MQTT Broker' : 'OPC-UA/Modbus'}</span>
           </div>
 
           {/* Convert / Install APK */}
@@ -2337,6 +2578,108 @@ export default function GluestackAppPlayer({
               >
                 Kembali ke Builder
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── P3: SAFETY INTERLOCK / TWO-STEP CONFIRMATION MODAL ───────────── */}
+      {safetyInterlock && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-3xl shadow-2xl overflow-hidden border-2 border-amber-500/80 animate-in zoom-in-95 duration-150">
+            {/* Caution Banner Header */}
+            <div className="bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 px-6 py-4 text-slate-950 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-slate-950 text-amber-400 rounded-xl shadow-md animate-pulse">
+                  <ShieldAlert className="w-6 h-6 stroke-[2.5]" />
+                </div>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wider bg-slate-950/20 px-2 py-0.5 rounded-full inline-block mb-0.5">
+                    LEVEL 2 SAFETY INTERLOCK
+                  </div>
+                  <h3 className="text-base font-black tracking-tight leading-tight">
+                    {safetyInterlock.title || 'Konfirmasi Operasi Mesin PLC'}
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => safetyInterlock.resolve(false)}
+                className="p-1 rounded-lg hover:bg-black/10 transition-colors text-slate-900 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4">
+              {/* Target Machine Tag Details */}
+              <div className="p-3.5 bg-slate-900 dark:bg-slate-950 rounded-2xl border border-slate-800 text-slate-200 space-y-2">
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-400">
+                  <span className="flex items-center gap-1.5">
+                    <Cpu className="w-3.5 h-3.5 text-teal-400" />
+                    TARGET MACHINE TAG
+                  </span>
+                  <span className="text-amber-400 font-mono">WRITE COMMAND</span>
+                </div>
+                <div className="flex items-center justify-between font-mono bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80 text-xs">
+                  <span className="text-teal-300 font-bold truncate max-w-[200px]" title={safetyInterlock.tag}>
+                    {safetyInterlock.tag || 'START_CYCLE'}
+                  </span>
+                  <span className="text-slate-500">➔</span>
+                  <span className="text-emerald-400 font-black bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/40">
+                    {String(safetyInterlock.value)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Warning Statement */}
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl text-xs text-amber-900 dark:text-amber-300 leading-relaxed flex items-start gap-2.5">
+                <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold">{safetyInterlock.message}</p>
+                </div>
+              </div>
+
+              {/* Safety Acknowledgment Checkbox */}
+              {safetyInterlock.requireCheckbox && (
+                <label className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700/60 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={interlockAgreed}
+                    onChange={(e) => setInterlockAgreed(e.target.checked)}
+                    className="mt-0.5 rounded text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                  />
+                  <span className="text-xs text-slate-700 dark:text-slate-300 font-medium">
+                    Saya menyatakan telah memeriksa kondisi visual mesin dan memastikan area kerja steril dari personel/bahaya keselamatan.
+                  </span>
+                </label>
+              )}
+
+              {/* Action Buttons */}
+              <div className="pt-2 grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => safetyInterlock.resolve(false)}
+                  className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <X className="w-4 h-4" />
+                  <span>{safetyInterlock.cancelText || 'Batalkan'}</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={safetyInterlock.requireCheckbox && !interlockAgreed}
+                  onClick={() => safetyInterlock.resolve(true)}
+                  className={`py-2.5 px-4 text-xs font-black rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer ${
+                    safetyInterlock.requireCheckbox && !interlockAgreed
+                      ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed opacity-60'
+                      : 'bg-amber-500 hover:bg-amber-600 text-slate-950 hover:shadow-amber-500/25 active:scale-95'
+                  }`}
+                >
+                  <Zap className="w-4 h-4 fill-slate-950" />
+                  <span>{safetyInterlock.confirmText || '⚡ Eksekusi ke Mesin'}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

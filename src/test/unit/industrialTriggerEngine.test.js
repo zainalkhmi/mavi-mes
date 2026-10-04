@@ -198,5 +198,84 @@ describe('Industrial Trigger & Logic Engine (Shopfloor Pipeline)', () => {
       expect(messages[0].type).toBe('ERROR');
       expect(messages[0].message).toContain('belum di-release');
     });
+
+    it('requires safety interlock confirmation on PLC_WRITE_TAG and proceeds when approved', async () => {
+      const onRequestConfirmation = vi.fn().mockResolvedValue(true);
+      const messages = [];
+      const onShowMessage = (msg) => messages.push(msg);
+
+      const trigger = {
+        id: 'trig_plc_safe',
+        name: 'Safe PLC Write',
+        clauses: [
+          {
+            match: 'ALL',
+            actions: [
+              {
+                type: 'PLC_WRITE_TAG',
+                payload: {
+                  tag: 'ns=2;s=SpindleSpeed',
+                  value: 1800,
+                  requireConfirmation: true,
+                  confirmTitle: 'Start High Speed Spindle'
+                }
+              }
+            ]
+          }
+        ]
+      };
+
+      const result = await executeIndustrialTrigger(trigger, {
+        componentId: 'btn_spindle',
+        onRequestConfirmation,
+        onShowMessage
+      });
+
+      expect(onRequestConfirmation).toHaveBeenCalledTimes(1);
+      expect(onRequestConfirmation).toHaveBeenCalledWith(expect.objectContaining({
+        tag: 'ns=2;s=SpindleSpeed',
+        value: 1800,
+        title: 'Start High Speed Spindle'
+      }));
+      expect(result.executedActions[0].status).toBe('SUCCESS');
+      expect(result.executedActions[0].value).toBe(1800);
+    });
+
+    it('cancels PLC_WRITE_TAG when operator rejects safety interlock confirmation', async () => {
+      const onRequestConfirmation = vi.fn().mockResolvedValue(false);
+      const messages = [];
+      const onShowMessage = (msg) => messages.push(msg);
+
+      const trigger = {
+        id: 'trig_plc_reject',
+        name: 'Rejected PLC Write',
+        clauses: [
+          {
+            match: 'ALL',
+            actions: [
+              {
+                type: 'PLC_WRITE_TAG',
+                payload: {
+                  tag: 'RESET_SAFETY_BARRIER',
+                  value: 1,
+                  requireConfirmation: true
+                }
+              }
+            ]
+          }
+        ]
+      };
+
+      const result = await executeIndustrialTrigger(trigger, {
+        componentId: 'btn_barrier',
+        onRequestConfirmation,
+        onShowMessage
+      });
+
+      expect(onRequestConfirmation).toHaveBeenCalledTimes(1);
+      expect(result.executedActions[0].status).toBe('CANCELLED');
+      expect(result.executedActions[0].reason).toBe('SAFETY_INTERLOCK_CANCELLED');
+      expect(messages.some(m => m.message.includes('dibatalkan oleh operator'))).toBe(true);
+    });
   });
 });

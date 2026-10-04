@@ -726,6 +726,47 @@ export default function GluestackWidgetProperties({
                   />
                 </div>
               )}
+
+              {/* Industrial IoT & PLC Tag Binding */}
+              <div className="pt-2.5 mt-2 border-t border-slate-200 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" />
+                    <span>Live PLC / IoT Tag Binding</span>
+                  </label>
+                  {props.plcTag && (
+                    <span className="px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-800 text-[9px] font-black uppercase">
+                      BOUND
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <select
+                    value={props.plcTag || ''}
+                    onChange={(e) => updateProps(selectedComponent.id, { plcTag: e.target.value })}
+                    className="w-full text-xs p-2 border border-cyan-300 rounded-lg bg-cyan-50/60 font-semibold text-slate-800 cursor-pointer"
+                  >
+                    <option value="">(None - Manual / Statis)</option>
+                    <option value="ns=2;s=SpindleSpeed">ns=2;s=SpindleSpeed (OPC-UA RPM)</option>
+                    <option value="ns=2;s=Temperature">ns=2;s=Temperature (OPC-UA Suhu °C)</option>
+                    <option value="ns=2;s=Status">ns=2;s=Status (OPC-UA Mesin RUN/IDLE)</option>
+                    <option value="40001">40001 (Modbus Holding Register)</option>
+                    <option value="10001">10001 (Modbus Discrete Input Coil)</option>
+                    <option value="mavi/machine/line1/speed">mavi/machine/line1/speed (MQTT)</option>
+                    <option value="mavi/machine/line1/pressure">mavi/machine/line1/pressure (MQTT)</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={props.plcTag || ''}
+                    onChange={(e) => updateProps(selectedComponent.id, { plcTag: e.target.value })}
+                    placeholder="Atau ketik tag / topic custom (cth: DB1.DBD20)..."
+                    className="w-full text-[11px] p-2 border border-slate-300 rounded-lg bg-white font-mono text-slate-700"
+                  />
+                  <span className="text-[10px] text-slate-400 block leading-tight">
+                    Widget akan langsung menerima telemetri live dari Edge Gateway / PLC saat aplikasi dijalankan.
+                  </span>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1039,6 +1080,76 @@ export default function GluestackWidgetProperties({
             >
               Reset Auto
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── 5C. DATA BINDING & INDUSTRIAL IOT SECTION ─────────────────────────── */}
+      {(activeSection === 'ALL' || activeSection === 'DATA') && matchesSearch('data binding plc iot tag sensor variable variabel sumber data') && (
+        <div className="space-y-3 pt-2 border-t border-slate-100">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" />
+              <span className="text-[10px] font-black text-cyan-800 uppercase tracking-wider">
+                DATA BINDING & LIVE PLC TAG
+              </span>
+            </div>
+            <span className="text-[9px] font-bold text-cyan-700 bg-cyan-50 px-1.5 py-0.5 rounded border border-cyan-200">
+              Industrial Stream
+            </span>
+          </div>
+
+          <div className="p-3 bg-cyan-50/50 rounded-xl border border-cyan-200/80 space-y-3">
+            {/* 1. App Variable Binding */}
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-700 block">Hubungkan ke Variabel Aplikasi</label>
+              <select
+                value={props.variable || props.boundVariable || ''}
+                onChange={(e) => updateProps(selectedComponent.id, { variable: e.target.value, boundVariable: e.target.value })}
+                className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white font-medium text-slate-800"
+              >
+                <option value="">(None - Nilai Statis)</option>
+                {variables.map(v => (
+                  <option key={v.id || v.name} value={v.name}>{v.name} ({v.type || 'string'})</option>
+                ))}
+              </select>
+            </div>
+
+            {/* 2. Live PLC / IoT Tag Binding */}
+            <div className="space-y-1 pt-1 border-t border-cyan-200/60">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-700 block">Live PLC / Sensor Tag Binding</label>
+                {props.plcTag && (
+                  <span className="px-1.5 py-0.5 rounded bg-cyan-200/70 text-cyan-900 text-[9px] font-black uppercase">
+                    ACTIVE
+                  </span>
+                )}
+              </div>
+              <select
+                value={props.plcTag || ''}
+                onChange={(e) => updateProps(selectedComponent.id, { plcTag: e.target.value })}
+                className="w-full text-xs p-2 border border-cyan-300 rounded-lg bg-white font-semibold text-slate-800 cursor-pointer"
+              >
+                <option value="">(None - Tidak Terhubung ke PLC)</option>
+                <option value="ns=2;s=SpindleSpeed">ns=2;s=SpindleSpeed (OPC-UA RPM)</option>
+                <option value="ns=2;s=Temperature">ns=2;s=Temperature (OPC-UA Suhu °C)</option>
+                <option value="ns=2;s=Status">ns=2;s=Status (OPC-UA Mesin State)</option>
+                <option value="40001">40001 (Modbus Holding Register)</option>
+                <option value="10001">10001 (Modbus Discrete Input Coil)</option>
+                <option value="mavi/machine/line1/speed">mavi/machine/line1/speed (MQTT)</option>
+                <option value="mavi/machine/line1/pressure">mavi/machine/line1/pressure (MQTT)</option>
+              </select>
+              <input
+                type="text"
+                value={props.plcTag || ''}
+                onChange={(e) => updateProps(selectedComponent.id, { plcTag: e.target.value })}
+                placeholder="Atau masukkan tag / topic custom (cth: DB1.DBD20)..."
+                className="w-full text-[11px] p-2 border border-slate-300 rounded-lg bg-white font-mono text-slate-700"
+              />
+              <span className="text-[10px] text-slate-400 block leading-tight">
+                Data telemetri mesin dari broker atau gateway lokal akan langsung ditampilkan oleh widget ini.
+              </span>
+            </div>
           </div>
         </div>
       )}

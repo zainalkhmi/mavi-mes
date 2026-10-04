@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   X, Plus, Trash2, Maximize2, Minimize2, Play, 
   GripVertical, CheckCircle2, AlertTriangle, Info, 
-  ChevronDown, Layers, Zap, ToggleLeft, Sparkles, Pencil
+  ChevronDown, Layers, Zap, ToggleLeft, Sparkles, Pencil,
+  ShieldAlert, Lock
 } from 'lucide-react';
 
 /**
@@ -190,42 +191,53 @@ export function TriggerEditorModal({
 
   // Event options based on component or source
   const getEventOptions = () => {
+    const iotEvents = [
+      { value: 'ON_TAG_CHANGE', label: '⚡ Industrial IoT: PLC Tag / Sensor Changes' },
+      { value: 'ON_PLC_ALARM', label: '🚨 Industrial IoT: PLC Alarm / Threshold Exceeded' }
+    ];
+
     if (sourceType === 'WIDGET') {
       const type = sourceComponent?.type || '';
       if (['Button', 'FAB', 'Dropdown'].includes(type)) {
         return [
           { value: 'ON_CLICK', label: 'button is pressed' },
-          { value: 'ON_CHANGE', label: 'data changes' }
+          { value: 'ON_CHANGE', label: 'data changes' },
+          ...iotEvents
         ];
       }
       if (['QRCodeScanner'].includes(type)) {
         return [
           { value: 'ON_SCAN', label: 'barcode/QR is scanned' },
-          { value: 'ON_CHANGE', label: 'data changes' }
+          { value: 'ON_CHANGE', label: 'data changes' },
+          ...iotEvents
         ];
       }
       if (['Camera'].includes(type)) {
         return [
           { value: 'ON_CAPTURE', label: 'photo is captured' },
-          { value: 'ON_CHANGE', label: 'data changes' }
+          { value: 'ON_CHANGE', label: 'data changes' },
+          ...iotEvents
         ];
       }
       return [
         { value: 'ON_CHANGE', label: 'data changes' },
         { value: 'ON_CLICK', label: 'widget is clicked' },
-        { value: 'ON_SUBMIT', label: 'form submitted' }
+        { value: 'ON_SUBMIT', label: 'form submitted' },
+        ...iotEvents
       ];
     }
     if (sourceType === 'SCREEN') {
       return [
         { value: 'ON_SCREEN_LOAD', label: 'Screen is opened' },
         { value: 'ON_SCREEN_LEAVE', label: 'Screen is closed' },
-        { value: 'TIMER', label: 'timer' }
+        { value: 'TIMER', label: 'timer' },
+        ...iotEvents
       ];
     }
     return [
       { value: 'ON_APP_START', label: 'App is started' },
-      { value: 'ON_APP_COMPLETE', label: 'App is completed' }
+      { value: 'ON_APP_COMPLETE', label: 'App is completed' },
+      ...iotEvents
     ];
   };
 
@@ -409,25 +421,112 @@ export function TriggerEditorModal({
 
       case 'PLC_WRITE_TAG':
         return (
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-slate-500 min-w-[55px]">PLC Tag</span>
-              <input
-                type="text"
-                value={payload.tag || 'START_CYCLE'}
-                onChange={(e) => onChangePayload({ tag: e.target.value })}
-                placeholder="e.g. DB1.DBX0.0"
-                className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs min-w-[120px]"
-              />
+          <div className="flex flex-col gap-2.5 flex-1 text-xs">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <div className="flex items-center gap-2 flex-1">
+                <span className="font-semibold text-slate-500 min-w-[55px]">PLC Tag</span>
+                <select
+                  value={['START_CYCLE', 'STOP_CYCLE', 'RESET_LINE', 'ns=2;s=SpindleSpeed', 'ns=2;s=Temperature', '40001', '10001', 'mavi/machine/line1/speed'].includes(payload.tag) ? payload.tag : 'CUSTOM'}
+                  onChange={(e) => {
+                    if (e.target.value !== 'CUSTOM') {
+                      onChangePayload({ tag: e.target.value });
+                    }
+                  }}
+                  className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs max-w-[140px]"
+                >
+                  <option value="START_CYCLE">START_CYCLE</option>
+                  <option value="STOP_CYCLE">STOP_CYCLE</option>
+                  <option value="RESET_LINE">RESET_LINE</option>
+                  <option value="ns=2;s=SpindleSpeed">ns=2;s=SpindleSpeed (OPC UA)</option>
+                  <option value="ns=2;s=Temperature">ns=2;s=Temperature (OPC UA)</option>
+                  <option value="40001">40001 (Modbus Holding)</option>
+                  <option value="10001">10001 (Modbus Discrete)</option>
+                  <option value="mavi/machine/line1/speed">MQTT Topic Speed</option>
+                  <option value="CUSTOM">Custom Tag...</option>
+                </select>
+                <input
+                  type="text"
+                  value={payload.tag || 'START_CYCLE'}
+                  onChange={(e) => onChangePayload({ tag: e.target.value })}
+                  placeholder="e.g. DB1.DBX0.0 / ns=2;s=Tag"
+                  className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs flex-1 min-w-[110px]"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-slate-500 min-w-[35px]">Value</span>
+                <input
+                  type="text"
+                  value={payload.value !== undefined ? payload.value : '1'}
+                  onChange={(e) => onChangePayload({ value: e.target.value })}
+                  placeholder="1 / 0 / @var"
+                  className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs w-24"
+                />
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-slate-500 min-w-[40px]">Value</span>
-              <input
-                type="text"
-                value={payload.value !== undefined ? payload.value : '1'}
-                onChange={(e) => onChangePayload({ value: e.target.value })}
-                className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs w-20"
-              />
+
+            {/* P3: Safety Interlock / Two-Step Confirmation Configuration */}
+            <div className="pt-2 border-t border-slate-200/80 dark:border-slate-800">
+              <label className="flex items-center gap-2 cursor-pointer font-medium text-amber-800 dark:text-amber-400 select-none">
+                <input
+                  type="checkbox"
+                  checked={payload.requireConfirmation === true}
+                  onChange={(e) => onChangePayload({ 
+                    requireConfirmation: e.target.checked,
+                    confirmTitle: payload.confirmTitle || '⚠️ Konfirmasi Operasi Mesin / Safety Interlock',
+                    confirmMessage: payload.confirmMessage || 'Pastikan area mesin aman dan steril sebelum sinyal PLC dikirimkan.',
+                    requireCheckboxAcknowledge: payload.requireCheckboxAcknowledge !== false,
+                    confirmButtonText: payload.confirmButtonText || '⚡ Eksekusi ke Mesin'
+                  })}
+                  className="rounded text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                />
+                <span className="flex items-center gap-1.5 text-xs font-semibold">
+                  <ShieldAlert className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span>Wajibkan Konfirmasi Operator (Safety Interlock Two-Step)</span>
+                </span>
+              </label>
+
+              {payload.requireConfirmation && (
+                <div className="mt-2 p-2.5 bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 rounded-lg space-y-2 animate-in fade-in duration-150">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 block mb-0.5">Judul Interlock</span>
+                      <input
+                        type="text"
+                        value={payload.confirmTitle || '⚠️ Konfirmasi Operasi Mesin / Safety Interlock'}
+                        onChange={(e) => onChangePayload({ confirmTitle: e.target.value })}
+                        className="w-full p-1.5 border border-amber-300 dark:border-amber-700/60 rounded bg-white dark:bg-slate-900 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 block mb-0.5">Label Tombol Eksekusi</span>
+                      <input
+                        type="text"
+                        value={payload.confirmButtonText || '⚡ Eksekusi ke Mesin'}
+                        onChange={(e) => onChangePayload({ confirmButtonText: e.target.value })}
+                        className="w-full p-1.5 border border-amber-300 dark:border-amber-700/60 rounded bg-white dark:bg-slate-900 text-xs"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 block mb-0.5">Pesan Peringatan / Instruksi SOP</span>
+                    <textarea
+                      value={payload.confirmMessage || 'Pastikan area mesin aman dan steril sebelum sinyal PLC dikirimkan.'}
+                      onChange={(e) => onChangePayload({ confirmMessage: e.target.value })}
+                      rows={2}
+                      className="w-full p-1.5 border border-amber-300 dark:border-amber-700/60 rounded bg-white dark:bg-slate-900 text-xs"
+                    />
+                  </div>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-700 dark:text-slate-300 font-medium select-none">
+                    <input
+                      type="checkbox"
+                      checked={payload.requireCheckboxAcknowledge !== false}
+                      onChange={(e) => onChangePayload({ requireCheckboxAcknowledge: e.target.checked })}
+                      className="rounded text-amber-600 focus:ring-amber-500 w-3.5 h-3.5 cursor-pointer"
+                    />
+                    <span>Operator wajib mencentang checkbox pernyataan verifikasi SOP</span>
+                  </label>
+                </div>
+              )}
             </div>
           </div>
         );
@@ -978,17 +1077,85 @@ export function TriggerEditorModal({
           <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-5 shadow-xs">
             
             {/* 1. When Section */}
-            <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
-              <span className="text-sm font-bold text-slate-800">When</span>
-              <select
-                value={trigger.event}
-                onChange={(e) => setTrigger({ ...trigger, event: e.target.value })}
-                className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold bg-white text-slate-700 shadow-3xs outline-none focus:border-blue-500"
-              >
-                {getEventOptions().map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
+            <div className="space-y-3 pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-bold text-slate-800">When</span>
+                <select
+                  value={trigger.event}
+                  onChange={(e) => setTrigger({ ...trigger, event: e.target.value })}
+                  className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold bg-white text-slate-700 shadow-3xs outline-none focus:border-blue-500"
+                >
+                  {getEventOptions().map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* P2: Specific Machine IoT Configuration for ON_TAG_CHANGE and ON_PLC_ALARM */}
+              {(trigger.event === 'ON_TAG_CHANGE' || trigger.event === 'ON_PLC_ALARM') && (
+                <div className="p-3 bg-cyan-50/70 border border-cyan-200 rounded-xl space-y-2.5 animate-in fade-in duration-150">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-cyan-900">
+                    <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" />
+                    <span>Konfigurasi Tag PLC & Ambang Batas Sensor</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-600 uppercase block mb-1">Target PLC Tag / Topic</label>
+                      <select
+                        value={trigger.tag || ''}
+                        onChange={(e) => setTrigger({ ...trigger, tag: e.target.value })}
+                        className="w-full p-1.5 border border-slate-300 rounded-lg bg-white text-xs font-semibold"
+                      >
+                        <option value="">(Semua Perubahan Tag / Universal)</option>
+                        <option value="ns=2;s=SpindleSpeed">ns=2;s=SpindleSpeed (OPC-UA RPM)</option>
+                        <option value="ns=2;s=Temperature">ns=2;s=Temperature (OPC-UA Suhu °C)</option>
+                        <option value="ns=2;s=Status">ns=2;s=Status (OPC-UA Mesin State)</option>
+                        <option value="40001">40001 (Modbus Holding Register)</option>
+                        <option value="10001">10001 (Modbus Discrete Input Coil)</option>
+                        <option value="mavi/machine/line1/speed">mavi/machine/line1/speed (MQTT)</option>
+                        <option value="mavi/machine/line1/pressure">mavi/machine/line1/pressure (MQTT)</option>
+                      </select>
+                      <input
+                        type="text"
+                        placeholder="Atau masukkan tag kustom (cth: DB10.DBD24)..."
+                        value={trigger.tag || ''}
+                        onChange={(e) => setTrigger({ ...trigger, tag: e.target.value })}
+                        className="w-full mt-1 p-1.5 border border-slate-300 rounded-lg bg-white font-mono text-[11px]"
+                      />
+                    </div>
+
+                    {trigger.event === 'ON_PLC_ALARM' && (
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-600 uppercase block">Syarat Alarm (Threshold)</label>
+                        <div className="flex items-center gap-1.5">
+                          <select
+                            value={trigger.alarmComparator || '>'}
+                            onChange={(e) => setTrigger({ ...trigger, alarmComparator: e.target.value })}
+                            className="p-1.5 border border-slate-300 rounded-lg bg-white font-bold text-xs"
+                          >
+                            <option value=">">&gt; (Lebih Dari)</option>
+                            <option value=">=">&gt;= (Lebih Dari / Sama)</option>
+                            <option value="<">&lt; (Kurang Dari)</option>
+                            <option value="<=">&lt;= (Kurang Dari / Sama)</option>
+                            <option value="==">== (Sama Dengan)</option>
+                          </select>
+                          <input
+                            type="text"
+                            placeholder="Nilai batas (cth: 85)"
+                            value={trigger.alarmThreshold !== undefined ? trigger.alarmThreshold : '80'}
+                            onChange={(e) => setTrigger({ ...trigger, alarmThreshold: e.target.value })}
+                            className="flex-1 p-1.5 border border-slate-300 rounded-lg bg-white font-mono text-xs font-bold"
+                          />
+                        </div>
+                        <span className="text-[10px] text-slate-400 block">
+                          Jika nilai tag melampaui batas, trigger akan dipicu otomatis oleh sensor tanpa klik operator.
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 2. Stop remaining triggers on error */}
