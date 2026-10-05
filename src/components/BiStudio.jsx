@@ -651,6 +651,117 @@ export default function BiStudio() {
         }, 300);
     };
 
+    // ─── POWER BI FEATURE 5B: AUTONOMOUS FULL DASHBOARD AUTO-GENERATOR ─
+    const handleAutoGenerateFullDashboard = () => {
+        setIsAiProcessing(true);
+        setTimeout(() => {
+            const dim1 = availableColumns.find(c => !numericColumns.includes(c)) || 'machine';
+            const dim2 = availableColumns.find(c => !numericColumns.includes(c) && c !== dim1) || dim1;
+            const met1 = numericColumns[0] || 'actualQty';
+            const met2 = numericColumns[1] || numericColumns[0] || 'goodQty';
+            const metReject = numericColumns.find(c => c.toLowerCase().includes('reject') || c.toLowerCase().includes('defect') || c.toLowerCase().includes('scrap') || c.toLowerCase().includes('downtime')) || met1;
+
+            const now = Date.now();
+            const elements = [
+                // 1. KPI Card: Total Rows
+                {
+                    id: `ai_kpi_${now}_1`,
+                    type: 'KPI_CARD',
+                    title: 'Total Records Count',
+                    dimension: dim1,
+                    metric: met1,
+                    aggregation: 'COUNT',
+                    width: 280,
+                    height: 120,
+                    x: 20,
+                    y: 20,
+                    color: '#3b82f6',
+                    pageId: activePageId
+                },
+                // 2. KPI Card: Primary Metric Total
+                {
+                    id: `ai_kpi_${now}_2`,
+                    type: 'KPI_CARD',
+                    title: `Total ${met1}`,
+                    dimension: dim1,
+                    metric: met1,
+                    aggregation: 'SUM',
+                    width: 280,
+                    height: 120,
+                    x: 320,
+                    y: 20,
+                    color: '#10b981',
+                    pageId: activePageId
+                },
+                // 3. KPI Card: Secondary / Reject Metric
+                {
+                    id: `ai_kpi_${now}_3`,
+                    type: 'KPI_CARD',
+                    title: `Total ${metReject}`,
+                    dimension: dim1,
+                    metric: metReject,
+                    aggregation: 'SUM',
+                    width: 280,
+                    height: 120,
+                    x: 620,
+                    y: 20,
+                    color: '#f59e0b',
+                    pageId: activePageId
+                },
+                // 4. Clustered Bar: Dim1 x Met1
+                {
+                    id: `ai_bar_${now}`,
+                    type: 'BAR',
+                    title: `${met1} by ${dim1}`,
+                    dimension: dim1,
+                    metric: met1,
+                    aggregation: 'SUM',
+                    width: 480,
+                    height: 300,
+                    x: 20,
+                    y: 160,
+                    color: '#6366f1',
+                    pageId: activePageId
+                },
+                // 5. Donut Chart: Dim2 Distribution
+                {
+                    id: `ai_donut_${now}`,
+                    type: 'DONUT',
+                    title: `Distribution by ${dim2}`,
+                    dimension: dim2,
+                    metric: met1,
+                    aggregation: 'SUM',
+                    width: 420,
+                    height: 300,
+                    x: 520,
+                    y: 160,
+                    color: '#ec4899',
+                    pageId: activePageId
+                },
+                // 6. Trend Line
+                {
+                    id: `ai_line_${now}`,
+                    type: 'LINE',
+                    title: `Trend of ${met2} by ${dim1}`,
+                    dimension: dim1,
+                    metric: met2,
+                    aggregation: 'AVG',
+                    width: 920,
+                    height: 280,
+                    x: 20,
+                    y: 480,
+                    color: '#06b6d4',
+                    pageId: activePageId
+                }
+            ];
+
+            setCanvasElements(elements);
+            setIsAiProcessing(false);
+            setShowAiQaModal(false);
+            toast.success(`AI Otonom berhasil merancang 6 visual dashboard lengkap dari data ${dataSourceLabel}!`, { icon: '🚀', duration: 4000 });
+        }, 400);
+    };
+
     // ─── ECHARTS OPTIONS BUILDERS ──────────────────────────────────────
     const getChartOption = (el) => {
         const dim = el.dimension || availableColumns[0] || 'machine';
@@ -1302,6 +1413,15 @@ export default function BiStudio() {
                         style={{ width: '32px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #8b5cf6, #ec4899)', color: '#ffffff', border: 'none', borderRadius: '6px', cursor: 'pointer', boxShadow: '0 2px 8px rgba(139, 92, 246, 0.4)' }}
                     >
                         <Bot size={16} />
+                    </button>
+
+                    {/* AI Autonomous Full Dashboard Generator Button */}
+                    <button
+                        onClick={handleAutoGenerateFullDashboard}
+                        title="AI Otonom: Buat Dashboard Lengkap Otomatis dari Tabel"
+                        style={{ height: '30px', padding: '0 10px', display: 'flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg, #7c3aed, #2563eb)', color: '#ffffff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 800, boxShadow: '0 2px 8px rgba(124, 58, 237, 0.4)' }}
+                    >
+                        <Wand2 size={13} /> AI Auto-Dashboard
                     </button>
 
                     {/* TV Kiosk Button */}
@@ -2910,6 +3030,46 @@ export default function BiStudio() {
                                     }}
                                 >
                                     <Wand2 size={14} /> {isAiProcessing ? 'Synthesizing...' : 'Generate Visual'}
+                                </button>
+                            </div>
+
+                            {/* 1-Click Autonomous Full Dashboard Banner */}
+                            <div style={{
+                                padding: '12px 16px',
+                                borderRadius: '10px',
+                                background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.08) 0%, rgba(37, 99, 235, 0.08) 100%)',
+                                border: '1px solid rgba(124, 58, 237, 0.25)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: '12px',
+                                flexWrap: 'wrap'
+                            }}>
+                                <div>
+                                    <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#4c1d95', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <Wand2 size={14} color="#7c3aed" />
+                                        Buat Dashboard Utuh Sekaligus (AI Otonom)
+                                    </div>
+                                    <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                                        AI menganalisis skema tabel "{dataSourceLabel}" dan otomatis menyusun 6 visual (KPIs, Bar, Donut, Line) dengan grid layout presisi.
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={handleAutoGenerateFullDashboard}
+                                    style={{
+                                        padding: '7px 14px',
+                                        borderRadius: '8px',
+                                        background: 'linear-gradient(135deg, #7c3aed 0%, #2563eb 100%)',
+                                        color: '#ffffff',
+                                        border: 'none',
+                                        fontWeight: 800,
+                                        fontSize: '0.75rem',
+                                        cursor: 'pointer',
+                                        boxShadow: '0 2px 8px rgba(124, 58, 237, 0.3)',
+                                        whiteSpace: 'nowrap'
+                                    }}
+                                >
+                                    ⚡ Generate 6 Visuals Instan
                                 </button>
                             </div>
 

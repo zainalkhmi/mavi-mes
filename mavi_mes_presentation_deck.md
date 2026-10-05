@@ -195,3 +195,13 @@ Below is the slide-by-slide structure and script content for your reference.
     *   `Proteksi Kesalahan Operasional (Poka-Yoke)`: Kegagalan kualitas di QMS atau pemicuan status downtime di Andon secara instan memblokir eksekusi perintah kerja di lini produksi.
     *   `Data Siap Pakai Langsung (Auto-Seed)`: Data demo riil terisi otomatis saat menginstal template agar simulasi alur berjalan lancar.
     *   `Kemudahan Kustomisasi Tanpa-Kode (No-Code Scaling)`: Insinyur lapangan dapat dengan mudah mendesain ulang tata letak, logika widget, dan tabel sesuai kebutuhan spesifik pabrik.
+
+---
+
+### **Slide 15: Google Cloud & Gemini AI Architecture (AI Builder Cup 2026 Edition)**
+*   **Title**: `AUTONOMOUS SHOPFLOOR BRAIN: GOOGLE GEMINI 3.8 & GOOGLE CLOUD`
+*   **Core Architectural Pillars**:
+    1.  `Multimodal Zero-Shot Vision QC`: Model Gemini 3.8 Flash memindai cacat fisik komponen (retak mikro, toleransi stroke, deviasi solder IPC-A-610) dalam <650ms.
+    2.  `1M+ Long-Context Deep Memory`: Mengkorelasikan manual mesin 1.400+ halaman + sensor IoT 30 hari untuk Root Cause Analysis (5-Why) otomatis dalam hitungan detik.
+    3.  `Autonomous Agentic Tool Calling`: Menjalankan fungsi Andon stop, rerouting Work Order, dan penugasan tiket CAPA langsung dari perintah suara/teks operator.
+    4.  `Serverless Google Cloud Run`: Containerized Docker (Node 20 + Nginx) scalable otomatis dari nol, latency rendah di region `asia-southeast1`.

@@ -140,6 +140,8 @@ export default function App() {
         <Suspense fallback={<LoadingScreen />}>
           <Routes>
             <Route path="/" element={<LandingPage />} />
+            <Route path="/gemini-ai" element={<LandingPage initialTab="gemini-ai" />} />
+            <Route path="/gemini" element={<LandingPage initialTab="gemini-ai" />} />
             <Route path="/store" element={<LandingPage initialTab="store" />} />
             <Route path="/builder" element={<LandingPage initialTab="builder" />} />
             <Route path="/sandbox" element={<Navigate to="/builder" replace />} />

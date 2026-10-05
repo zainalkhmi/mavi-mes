@@ -8,7 +8,8 @@ import {
   ClipboardCheck, FileSpreadsheet, Boxes, LayoutDashboard, FolderArchive, Layers,
   Workflow, ActivitySquare, Key, LayoutTemplate, GitBranch, Settings2,
   ChevronDown, ChevronRight, Ruler, Scale, Gauge, Shield,
-  AlertTriangle, Smartphone, Sparkles, Code, Download, Package
+  AlertTriangle, Smartphone, Sparkles, Code, Download, Package,
+  HelpCircle, Info, BookOpen, X
 } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 import { useGlobalStore } from '../../store/useGlobalStore.js';
@@ -47,6 +48,8 @@ export default function TopNavbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [activeSubmenu, setActiveSubmenu] = useState(null);
   const [isBuilderModalOpen, setIsBuilderModalOpen] = useState(false);
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
   const menuRef = useRef(null);
 
   // Listen for open-builder-selector events across the app
@@ -215,6 +218,40 @@ export default function TopNavbar() {
     hasAccess('/build-center') && { path: '/build-center', icon: <Cpu size={16} />, label: 'App Compiler' }
   ].filter(Boolean);
 
+  const helpItems = [
+    {
+      path: '/faq',
+      icon: <HelpCircle size={16} className="text-blue-600" />,
+      label: 'Pusat Bantuan & FAQ',
+      description: 'Panduan lengkap, FAQ migrasi & solusi cepat'
+    },
+    {
+      path: '/gemini-ai',
+      icon: <Sparkles size={16} className="text-purple-600" />,
+      label: 'Gemini Shopfloor AI Showcase',
+      description: 'Vision QC, 1M+ Context Memory & Tool Calling'
+    },
+    {
+      path: '/plc-settings',
+      icon: <Cpu size={16} className="text-amber-600" />,
+      label: 'Panduan PLC & Wiring Guide',
+      description: 'Integrasi hardware, Modbus & MQTT'
+    },
+    { type: 'divider' },
+    {
+      label: 'Pintasan Keyboard (Shortcuts)',
+      icon: <Key size={16} className="text-slate-600" />,
+      description: 'Daftar tombol cepat navigasi & operasi',
+      onClick: () => setShowShortcutsModal(true)
+    },
+    {
+      label: 'Tentang MANDOR MES (v3.4.0)',
+      icon: <Info size={16} className="text-emerald-600" />,
+      description: 'Informasi rilis, lisensi & arsitektur sistem',
+      onClick: () => setShowAboutModal(true)
+    }
+  ];
+
   return (
     <nav className="border-b border-slate-200 bg-white sticky top-0 z-[99998]">
       <div className="flex h-12 items-center justify-between px-4 sm:px-6">
@@ -319,6 +356,13 @@ export default function TopNavbar() {
         <div className="flex items-center gap-2">
           {consoleItems.length > 0 && <NavDropdown title="Console" items={consoleItems} />}
           {systemItems.length > 0 && <NavDropdown title="System" items={systemItems} />}
+          <NavDropdown 
+            title="Help" 
+            icon={<HelpCircle size={16} className="text-blue-600" />} 
+            items={helpItems} 
+            alwaysShowTitle={true} 
+            menuWidth="w-72" 
+          />
           <SystemStatusDropdown />
           <div className="w-px h-6 bg-slate-200 mx-2" />
           <div className="flex items-center gap-4 pl-1">
@@ -338,6 +382,82 @@ export default function TopNavbar() {
         isOpen={isBuilderModalOpen}
         onClose={() => setIsBuilderModalOpen(false)}
       />
+
+      {/* Keyboard Shortcuts Modal */}
+      {showShortcutsModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[999999] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-6 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Key size={18} className="text-blue-600" />
+                <h3 className="font-bold text-slate-800 text-base">Pintasan Keyboard (Shortcuts)</h3>
+              </div>
+              <button onClick={() => setShowShortcutsModal(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="py-4 space-y-2.5 text-xs">
+              <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50">
+                <span className="text-slate-700 font-semibold">Pencarian Universal / App Store</span>
+                <kbd className="px-2 py-1 bg-white border border-slate-300 rounded text-[11px] font-mono shadow-sm">Ctrl + K</kbd>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50">
+                <span className="text-slate-700 font-semibold">Buka App Builder Modal</span>
+                <kbd className="px-2 py-1 bg-white border border-slate-300 rounded text-[11px] font-mono shadow-sm">Ctrl + B</kbd>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50">
+                <span className="text-slate-700 font-semibold">Simpan Perubahan (Save)</span>
+                <kbd className="px-2 py-1 bg-white border border-slate-300 rounded text-[11px] font-mono shadow-sm">Ctrl + S</kbd>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50">
+                <span className="text-slate-700 font-semibold">Tutup Dialog / Modal</span>
+                <kbd className="px-2 py-1 bg-white border border-slate-300 rounded text-[11px] font-mono shadow-sm">Esc</kbd>
+              </div>
+            </div>
+            <button onClick={() => setShowShortcutsModal(false)} className="w-full mt-2 py-2 bg-slate-900 text-white font-semibold rounded-lg text-xs hover:bg-slate-800">
+              Tutup
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* About System Modal */}
+      {showAboutModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[999999] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-6 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Info size={18} className="text-emerald-600" />
+                <h3 className="font-bold text-slate-800 text-base">Tentang MANDOR MES</h3>
+              </div>
+              <button onClick={() => setShowAboutModal(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="py-4 space-y-3 text-xs text-slate-600 leading-relaxed">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white font-bold text-lg flex items-center justify-center">M</div>
+                <div>
+                  <div className="font-extrabold text-slate-900 text-sm">MANDOR MES Enterprise</div>
+                  <div className="text-[11px] text-slate-400">Versi 3.4.0 (Build 2026.10)</div>
+                </div>
+              </div>
+              <p>
+                Platform Manufacturing Execution System generasi baru bertenaga <strong>Google Gemini 3.8 Flash</strong> dan di-deploy pada <strong>Google Cloud Run</strong>.
+              </p>
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1 text-[11px]">
+                <div>• <strong>Engine:</strong> React 19 + Vite + Tailwind CSS</div>
+                <div>• <strong>AI Engine:</strong> Google Gemini 3.8 & Vertex AI</div>
+                <div>• <strong>Database:</strong> Supabase PostgreSQL & Dexie Local</div>
+                <div>• <strong>IoT Protocol:</strong> MQTT, OPC-UA, Siemens S7, Modbus</div>
+              </div>
+            </div>
+            <button onClick={() => setShowAboutModal(false)} className="w-full mt-1 py-2 bg-emerald-600 text-white font-semibold rounded-lg text-xs hover:bg-emerald-700">
+              OK, Mengerti
+            </button>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }

@@ -70,6 +70,7 @@ import {
   VolumeX
 } from 'lucide-react';
 import { categories as catalogCategories, rawTemplates as catalogTemplates } from '../utils/appStoreCatalog';
+import GeminiShopfloorShowcase from './landing/GeminiShopfloorShowcase';
 
 const LandingPage = ({ initialTab = 'overview' }) => {
   const navigate = useNavigate();
@@ -184,7 +185,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
   useEffect(() => {
     const handleHash = () => {
       const hash = window.location.hash.replace('#', '').replace('/', '');
-      if (['overview', 'store', 'builder', 'pricing', 'faq'].includes(hash)) {
+      if (['overview', 'gemini-ai', 'store', 'builder', 'pricing', 'faq'].includes(hash)) {
         setActiveTab(hash);
       }
     };
@@ -196,6 +197,13 @@ const LandingPage = ({ initialTab = 'overview' }) => {
   const switchTab = (tabKey) => {
     setActiveTab(tabKey);
     window.location.hash = `#${tabKey}`;
+    try {
+      if (tabKey === 'overview') {
+        navigate('/', { replace: true });
+      } else {
+        navigate(`/${tabKey}`, { replace: true });
+      }
+    } catch (_) {}
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -233,10 +241,11 @@ const LandingPage = ({ initialTab = 'overview' }) => {
 
   const tabsList = [
     { key: 'overview', label: 'Overview', icon: <Sparkles size={15} /> },
-    { key: 'store', label: 'Mandor Store', icon: <ShoppingBag size={15} />, highlight: true },
+    { key: 'gemini-ai', label: 'Gemini Shopfloor AI', icon: <Cpu size={15} color="#38bdf8" />, highlight: true, badge: 'Google Cloud' },
+    { key: 'store', label: 'Mandor Store', icon: <ShoppingBag size={15} /> },
     { key: 'builder', label: 'App Builder', icon: <Layout size={15} /> },
     { key: 'pricing', label: 'Pricing & Value', icon: <Flame size={15} /> },
-    { key: 'faq', label: 'FAQ & Support', icon: <HelpCircle size={15} /> }
+    { key: 'faq', label: 'Help & FAQ', icon: <HelpCircle size={15} /> }
   ];
 
   // Full Catalog of All Enterprise App Templates (Play Store style, matched 1:1 with Mandor Store)
@@ -429,10 +438,51 @@ const LandingPage = ({ initialTab = 'overview' }) => {
           }}>
             MANDOR
           </span>
+          <div 
+            onClick={(e) => { e.stopPropagation(); switchTab('gemini-ai'); }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '3px 10px',
+              borderRadius: '999px',
+              background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%)',
+              border: '1px solid rgba(168, 85, 247, 0.35)',
+              marginLeft: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            <Sparkles size={12} color="#c084fc" />
+            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#e2e8f0', letterSpacing: '0.3px' }}>
+              Powered by Google Gemini 3.8
+            </span>
+          </div>
         </div>
 
         {/* Right CTA Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }} className="desktop-only">
+          <button
+            onClick={() => switchTab('faq')}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#94a3b8',
+              padding: '8px 12px',
+              borderRadius: '8px',
+              fontWeight: 700,
+              fontSize: '0.82rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#38bdf8'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; }}
+          >
+            <HelpCircle size={15} />
+            Help & FAQ
+          </button>
           <button
             onClick={() => navigate('/login')}
             style={{
@@ -627,6 +677,73 @@ const LandingPage = ({ initialTab = 'overview' }) => {
         {activeTab === 'overview' && (
           <div style={{ animation: 'fadeIn 0.3s ease', maxWidth: '1360px', margin: '0 auto', padding: '20px 24px 60px 24px', boxSizing: 'border-box' }}>
             
+            {/* GOOGLE CLOUD AI BUILDER CUP 2026 HERO CALLOUT */}
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.2) 0%, rgba(147, 51, 234, 0.2) 50%, rgba(15, 23, 42, 0.8) 100%)',
+              border: '1px solid rgba(168, 85, 247, 0.4)',
+              borderRadius: '20px',
+              padding: '20px 24px',
+              marginBottom: '32px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '16px',
+              boxShadow: '0 10px 30px rgba(147, 51, 234, 0.2)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, #38bdf8 0%, #a855f7 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)'
+                }}>
+                  <Cpu size={24} color="white" />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '2px 8px', borderRadius: '4px', background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', textTransform: 'uppercase' }}>
+                      Google Cloud AI Builder Cup 2026 Edition
+                    </span>
+                    <span style={{ fontSize: '0.72rem', color: '#a855f7', fontWeight: 700 }}>
+                      Manufacturing Challenge
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'white', marginTop: '2px' }}>
+                    Experience the Autonomous Shopfloor Brain with Google Gemini 3.8
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+                    Multimodal Vision QC • 1M+ Long-Context Memory • Autonomous Agentic Tool Calling
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => switchTab('gemini-ai')}
+                style={{
+                  background: 'linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #c084fc 100%)',
+                  border: 'none',
+                  color: '#0b0f19',
+                  padding: '10px 20px',
+                  borderRadius: '10px',
+                  fontWeight: 800,
+                  fontSize: '0.86rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 15px rgba(56, 189, 248, 0.35)',
+                  transition: 'all 0.2s'
+                }}
+              >
+                Launch Gemini AI Simulator <ArrowRight size={15} />
+              </button>
+            </div>
+
             {/* PLATFORM OVERVIEW & DEMO VIDEO SHOWCASE (DUAL-VIDEO SELECTOR) */}
             <section style={{ marginBottom: '64px' }}>
               <div style={{
@@ -1700,6 +1817,13 @@ const LandingPage = ({ initialTab = 'overview' }) => {
             </section>
 
           </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB: GEMINI SHOPFLOOR AI (GOOGLE CLOUD AI BUILDER CUP 2026 SHOWCASE) */}
+        {/* ========================================================================= */}
+        {activeTab === 'gemini-ai' && (
+          <GeminiShopfloorShowcase onNavigateToTab={switchTab} />
         )}
 
         {/* ========================================================================= */}

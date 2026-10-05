@@ -46,7 +46,8 @@ import {
   Sparkles, Layers, Box, Cpu, Eye, CheckCircle2,
   ChevronRight, ChevronLeft, Sun, Moon, ArrowLeft,
   ExternalLink, Compass, ShieldCheck, LayoutDashboard,
-  Save, Link, QrCode, Edit3, AlertTriangle
+  Save, Link, QrCode, Edit3, AlertTriangle, Plus,
+  FolderOpen, ChevronDown
 } from 'lucide-react';
 
 export default function UiEngineStudio({ canvasMode = true }) {
@@ -62,6 +63,19 @@ export default function UiEngineStudio({ canvasMode = true }) {
   const [appName, setAppName] = useState('Mobile App');
   const [isEditingAppName, setIsEditingAppName] = useState(false);
   const [isSavedAppFeedback, setIsSavedAppFeedback] = useState(false);
+
+  // App Switcher state
+  const [studioAppsList, setStudioAppsList] = useState(() => {
+    try {
+      const s = localStorage.getItem('mavi_ui_engine_apps');
+      if (s) {
+        const parsed = JSON.parse(s);
+        return (parsed || []).filter(a => a && a.id !== 'app_1' && a.id !== 'app_2' && a.name !== 'app test');
+      }
+    } catch (e) {}
+    return [];
+  });
+  const [isAppsDropdownOpen, setIsAppsDropdownOpen] = useState(false);
 
   // Load app from Supabase if appId query param is provided
   useEffect(() => {
@@ -102,11 +116,18 @@ export default function UiEngineStudio({ canvasMode = true }) {
     const handleNameSync = (e) => {
       if (e.detail?.appName) setAppName(e.detail.appName);
     };
+    const handleAppsUpdate = (e) => {
+      if (e.detail?.apps) setStudioAppsList(e.detail.apps);
+    };
+
     window.addEventListener('mavi_ui_engine_app_saved', handleSaved);
     window.addEventListener('mavi_ui_engine_app_name_changed', handleNameSync);
+    window.addEventListener('mavi_ui_engine_apps_updated', handleAppsUpdate);
+
     return () => {
       window.removeEventListener('mavi_ui_engine_app_saved', handleSaved);
       window.removeEventListener('mavi_ui_engine_app_name_changed', handleNameSync);
+      window.removeEventListener('mavi_ui_engine_apps_updated', handleAppsUpdate);
     };
   }, []);
 
@@ -215,38 +236,125 @@ export default function UiEngineStudio({ canvasMode = true }) {
               </>
             )}
 
-            {/* NAMA APP (Editable Inline Input) */}
-            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white/15 hover:bg-white/20 border border-white/20 rounded-xl transition-all group max-w-[170px] sm:max-w-[220px]">
-              <Smartphone className="w-3.5 h-3.5 text-teal-300 shrink-0" />
-              {isEditingAppName ? (
-                <input
-                  type="text"
-                  value={appName}
-                  onChange={(e) => {
-                    setAppName(e.target.value);
-                    window.dispatchEvent(new CustomEvent('mavi_ui_engine_set_app_name', { detail: { appName: e.target.value } }));
-                  }}
-                  onBlur={() => setIsEditingAppName(false)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') setIsEditingAppName(false);
-                  }}
-                  autoFocus
-                  className="bg-white px-1.5 py-0.5 text-xs font-bold text-slate-800 border border-teal-400 rounded-md outline-none w-full shadow-inner"
-                  placeholder="Nama Aplikasi..."
-                />
-              ) : (
-                <div
-                  onClick={() => setIsEditingAppName(true)}
-                  className="flex items-center gap-1.5 cursor-pointer overflow-hidden flex-1 min-w-0"
-                  title="Klik untuk mengubah nama aplikasi"
-                >
-                  <span className="text-xs font-bold text-white truncate select-none">
-                    {appName || 'Nama Aplikasi'}
-                  </span>
-                  <Edit3 className="w-3 h-3 text-white/60 group-hover:text-teal-300 shrink-0 transition-colors ml-auto" />
+            {/* NAMA APP (Editable Inline Input + Apps Switcher Dropdown) */}
+            <div className="relative">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white/15 hover:bg-white/20 border border-white/20 rounded-xl transition-all group max-w-[200px] sm:max-w-[260px]">
+                <Smartphone className="w-3.5 h-3.5 text-teal-300 shrink-0" />
+                {isEditingAppName ? (
+                  <input
+                    type="text"
+                    value={appName}
+                    onChange={(e) => {
+                      setAppName(e.target.value);
+                      window.dispatchEvent(new CustomEvent('mavi_ui_engine_set_app_name', { detail: { appName: e.target.value } }));
+                    }}
+                    onBlur={() => setIsEditingAppName(false)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') setIsEditingAppName(false);
+                    }}
+                    autoFocus
+                    className="bg-white px-1.5 py-0.5 text-xs font-bold text-slate-800 border border-teal-400 rounded-md outline-none w-full shadow-inner"
+                    placeholder="Nama Aplikasi..."
+                  />
+                ) : (
+                  <div className="flex items-center gap-1.5 overflow-hidden flex-1 min-w-0">
+                    <span
+                      onClick={() => setIsEditingAppName(true)}
+                      className="text-xs font-bold text-white truncate select-none cursor-pointer flex-1"
+                      title="Klik untuk mengubah nama aplikasi"
+                    >
+                      {appName || 'Nama Aplikasi'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingAppName(true)}
+                      className="p-0.5 text-white/50 hover:text-teal-300 transition-colors cursor-pointer"
+                      title="Ubah Nama Aplikasi"
+                    >
+                      <Edit3 className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsAppsDropdownOpen(prev => !prev)}
+                      className="p-0.5 text-white/50 hover:text-white transition-colors cursor-pointer"
+                      title="Pilih / Tukar Aplikasi"
+                    >
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isAppsDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Apps Switcher Dropdown */}
+              {isAppsDropdownOpen && (
+                <div className="absolute left-0 top-full mt-1.5 w-64 bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95">
+                  <div className="flex items-center justify-between px-2 py-1 text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
+                    <span>Frontline Apps ({studioAppsList.length})</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAppsDropdownOpen(false);
+                        window.dispatchEvent(new CustomEvent('mavi_ui_engine_create_app'));
+                      }}
+                      className="text-[10px] text-teal-400 hover:text-teal-300 font-bold cursor-pointer"
+                    >
+                      + Buat Baru
+                    </button>
+                  </div>
+
+                  <div className="mt-1 space-y-1 max-h-48 overflow-y-auto custom-scrollbar">
+                    {studioAppsList.length === 0 ? (
+                      <div className="text-center py-3 text-[11px] text-slate-400">
+                        Belum ada aplikasi tersimpan.
+                      </div>
+                    ) : (
+                      studioAppsList.map(app => (
+                        <div
+                          key={app.id}
+                          onClick={() => {
+                            window.dispatchEvent(new CustomEvent('mavi_ui_engine_load_app', {
+                              detail: { appId: app.id, name: app.name, config: app.config }
+                            }));
+                            setIsAppsDropdownOpen(false);
+                          }}
+                          className={`px-2.5 py-1.5 rounded-xl cursor-pointer transition-colors flex items-center justify-between text-xs ${
+                            app.name === appName ? 'bg-teal-500/20 text-teal-300 font-bold border border-teal-500/40' : 'text-slate-300 hover:bg-slate-800'
+                          }`}
+                        >
+                          <span className="truncate">{app.name}</span>
+                          {app.name === appName && <CheckCircle2 className="w-3.5 h-3.5 text-teal-400 shrink-0" />}
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAppsDropdownOpen(false);
+                      window.dispatchEvent(new CustomEvent('mavi_ui_engine_create_app'));
+                    }}
+                    className="mt-2 w-full py-1.5 px-3 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Create App</span>
+                  </button>
                 </div>
               )}
             </div>
+
+            {/* CREATE APP BUTTON (Prominent in Top Navbar) */}
+            <button
+              type="button"
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('mavi_ui_engine_create_app'));
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95 bg-teal-600 hover:bg-teal-500 text-white border-teal-500/80 hover:border-teal-400"
+              title="Buat Aplikasi Baru (Create App)"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Create App</span>
+            </button>
 
             {/* SAVE APP BUTTON */}
             <button

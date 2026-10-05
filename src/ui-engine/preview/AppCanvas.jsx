@@ -1072,6 +1072,19 @@ export default function AppCanvas({
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [expandedScreens, setExpandedScreens] = useState(new Set(['screen_1']));
 
+  // Create App Modal state
+  const [showCreateAppModal, setShowCreateAppModal] = useState(false);
+  const [createAppName, setCreateAppName] = useState('');
+  const [createAppDesc, setCreateAppDesc] = useState('');
+  const [createAppTemplate, setCreateAppTemplate] = useState('blank');
+
+  const handleOpenCreateAppModal = useCallback(() => {
+    setCreateAppName(`Mobile App ${appsList.length + 1}`);
+    setCreateAppDesc('');
+    setCreateAppTemplate('blank');
+    setShowCreateAppModal(true);
+  }, [appsList.length]);
+
   // Toggle expand/collapse screen in tree
   const toggleExpandScreen = (scrId) => {
     setExpandedScreens(prev => {
@@ -1652,6 +1665,7 @@ export default function AppCanvas({
       setAppsList(finalApps);
       try {
         localStorage.setItem('mavi_ui_engine_apps', JSON.stringify(finalApps));
+        window.dispatchEvent(new CustomEvent('mavi_ui_engine_apps_updated', { detail: { apps: finalApps } }));
       } catch (e) {
         // ignore
       }
@@ -1671,6 +1685,9 @@ export default function AppCanvas({
     if (!app || !app.id) return;
     setCurrentAppId(app.id);
     setAppName(app.name || 'Untitled App');
+    try {
+      window.dispatchEvent(new CustomEvent('mavi_ui_engine_app_name_changed', { detail: { appName: app.name || 'Untitled App' } }));
+    } catch (e) {}
 
     // 1. Try to load from localStorage first
     try {
@@ -1742,7 +1759,13 @@ export default function AppCanvas({
     if (!confirmed) return;
 
     // Remove from state
-    setAppsList(prev => prev.filter(a => a.id !== app.id));
+    setAppsList(prev => {
+      const next = prev.filter(a => a.id !== app.id);
+      try {
+        window.dispatchEvent(new CustomEvent('mavi_ui_engine_apps_updated', { detail: { apps: next } }));
+      } catch (e) {}
+      return next;
+    });
 
     // Remove from localStorage
     try {
@@ -1819,6 +1842,7 @@ export default function AppCanvas({
         }
         try {
           localStorage.setItem('mavi_ui_engine_apps', JSON.stringify(nextList));
+          window.dispatchEvent(new CustomEvent('mavi_ui_engine_apps_updated', { detail: { apps: nextList } }));
         } catch (e) {
           console.warn('Failed to persist apps list:', e);
         }
@@ -1892,6 +1916,125 @@ export default function AppCanvas({
       setIsSavingApp(false);
     }
   }, [currentAppId, appName, screens, variables, tables, recordPlaceholders, authUser, loadGluestackApps]);
+
+  // Create New App with template selection and persistence
+  const handleConfirmCreateApp = useCallback(async () => {
+    const finalName = createAppName.trim() || `Mobile App ${appsList.length + 1}`;
+    const newId = `app_${Date.now()}`;
+
+    // Choose components based on template
+    let initialScreens = [];
+    if (createAppTemplate === 'blank') {
+      initialScreens = [
+        {
+          id: 'screen_1',
+          title: 'Home',
+          components: [],
+          triggers: []
+        }
+      ];
+    } else {
+      const foundTemplate = APP_TEMPLATES.find(t => t.id === createAppTemplate);
+      if (foundTemplate && foundTemplate.components) {
+        const clonedComps = foundTemplate.components.map((c, i) => ({
+          ...c,
+          id: `comp_${Date.now()}_${i}`,
+          props: { ...(c.props || {}) }
+        }));
+        initialScreens = [
+          {
+            id: 'screen_1',
+            title: foundTemplate.title || 'Home',
+            components: clonedComps,
+            triggers: []
+          }
+        ];
+      } else {
+        initialScreens = [
+          {
+            id: 'screen_1',
+            title: 'Home',
+            components: [],
+            triggers: []
+          }
+        ];
+      }
+    }
+
+    setCurrentAppId(newId);
+    setAppName(finalName);
+    setScreens(initialScreens);
+    setCurrentScreenId('screen_1');
+    setSelectedId(null);
+    setHistory([]);
+    setFuture([]);
+    setVariables([]);
+    setTables([]);
+    setRecordPlaceholders([]);
+    setShowCreateAppModal(false);
+
+    // Prepare app payload
+    const newAppItem = {
+      id: newId,
+      name: finalName,
+      description: createAppDesc || '',
+      updated_at: new Date().toISOString(),
+      builder_type: BUILDER_TYPES.GLUESTACK,
+      config: {
+        screens: initialScreens,
+        variables: [],
+        tables: [],
+        recordPlaceholders: []
+      }
+    };
+
+    // Save to local storage
+    try {
+      localStorage.setItem(`mavi_app_${newId}`, JSON.stringify(newAppItem));
+      localStorage.setItem('mavi_app_latest', JSON.stringify(newAppItem));
+      setAppsList(prev => {
+        const nextList = [newAppItem, ...prev.filter(a => a.id !== newId)];
+        try {
+          localStorage.setItem('mavi_ui_engine_apps', JSON.stringify(nextList));
+          window.dispatchEvent(new CustomEvent('mavi_ui_engine_apps_updated', { detail: { apps: nextList } }));
+        } catch (e) {}
+        return nextList;
+      });
+    } catch (e) {
+      console.warn('Failed to save new app locally:', e);
+    }
+
+    // Attempt remote save to Supabase
+    try {
+      saveFrontlineApp({
+        name: finalName,
+        builder_type: BUILDER_TYPES.GLUESTACK,
+        config: newAppItem.config,
+        status: 'draft',
+        created_by: authUser?.id || undefined,
+        version: 1
+      }).then(saved => {
+        if (saved && saved.id) {
+          console.log('[GlueStack] New app registered to Supabase:', saved.id);
+          loadGluestackApps();
+        }
+      }).catch(err => {
+        console.warn('[GlueStack] Supabase save deferred:', err);
+      });
+    } catch (err) {
+      // ignore
+    }
+
+    try {
+      window.dispatchEvent(new CustomEvent('mavi_ui_engine_app_name_changed', { detail: { appName: finalName } }));
+      window.dispatchEvent(new CustomEvent('mavi_ui_engine_app_saved', { detail: { appName: finalName } }));
+    } catch (e) {}
+
+    setActiveToast({
+      message: `Aplikasi "${finalName}" berhasil dibuat!`,
+      type: 'SUCCESS'
+    });
+  }, [createAppName, createAppDesc, createAppTemplate, appsList.length, authUser, loadGluestackApps]);
 
   // Copy Link App to clipboard
   const handleCopyAppLink = useCallback(async () => {
@@ -2018,6 +2161,11 @@ export default function AppCanvas({
       }
     };
 
+    const onCreateApp = () => {
+      handleOpenCreateAppModal();
+    };
+
+    window.addEventListener('mavi_ui_engine_create_app', onCreateApp);
     window.addEventListener('mavi_ui_engine_save_app', onSave);
     window.addEventListener('mavi_ui_engine_copy_link', onLink);
     window.addEventListener('mavi_ui_engine_open_qr', onQr);
@@ -2025,13 +2173,14 @@ export default function AppCanvas({
     window.addEventListener('mavi_ui_engine_load_app', onLoadApp);
 
     return () => {
+      window.removeEventListener('mavi_ui_engine_create_app', onCreateApp);
       window.removeEventListener('mavi_ui_engine_save_app', onSave);
       window.removeEventListener('mavi_ui_engine_copy_link', onLink);
       window.removeEventListener('mavi_ui_engine_open_qr', onQr);
       window.removeEventListener('mavi_ui_engine_set_app_name', onSetName);
       window.removeEventListener('mavi_ui_engine_load_app', onLoadApp);
     };
-  }, [handleSaveApp, handleCopyAppLink]);
+  }, [handleSaveApp, handleCopyAppLink, handleOpenCreateAppModal]);
 
   // Auto-load app directly on mount from initialAppId or URL search param
   useEffect(() => {
@@ -4302,8 +4451,21 @@ export default function AppCanvas({
       {/* 1. TOP TOOLBAR (Matching Mavi Core AppBuilder)          */}
       {/* ======================================================== */}
       <header className="h-16 px-4 bg-white border-b border-slate-200 flex items-center justify-between shadow-xs shrink-0 z-30 relative gap-3">
-        {/* Left: Add Screen Button & NAMA APP YG DIBUAT */}
+        {/* Left: Create App & Add Screen Button */}
         <div className="flex items-center gap-2.5 shrink-0">
+          {/* Create App Button */}
+          <button
+            type="button"
+            onClick={handleOpenCreateAppModal}
+            className="flex items-center gap-2 px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-xl font-bold text-xs transition-all shadow-2xs cursor-pointer active:scale-95 border border-teal-500/80"
+            title="Buat Aplikasi Gluestack Baru (Create App)"
+          >
+            <div className="w-6 h-6 rounded-lg bg-white/20 text-white flex items-center justify-center">
+              <Plus className="w-4 h-4" strokeWidth={3} />
+            </div>
+            <span>Create App</span>
+          </button>
+
           <div className="relative">
             <button
               type="button"
@@ -4839,30 +5001,12 @@ export default function AppCanvas({
                   </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      const newId = `app_${Date.now()}`;
-                      setCurrentAppId(newId);
-                      setAppName(`Mobile App ${appsList.length + 1}`);
-                      setScreens([
-                        {
-                          id: 'screen_1',
-                          title: 'Home',
-                          components: [
-                            { id: 'comp_1', type: 'Text', props: { text: 'Mobile Dashboard', size: 'lg', bold: true } },
-                            { id: 'comp_2', type: 'Card', props: { title: 'OEE Target', content: '85%' } },
-                            { id: 'comp_3', type: 'Card', props: { title: 'Output Today', content: '1,234 pcs' } },
-                            { id: 'comp_4', type: 'Card', props: { title: 'Reject Rate', content: '2.3%' } },
-                            { id: 'comp_5', type: 'Progress', props: { value: 85, label: 'Daily Target' } }
-                          ],
-                          triggers: []
-                        }
-                      ]);
-                      setActiveToast({ message: 'Kanvas baru siap didesain. Klik Simpan untuk menyimpan ke daftar aplikasi.', type: 'INFO' });
-                    }}
-                    className="p-1 hover:bg-slate-200 rounded text-slate-600 transition-colors cursor-pointer"
+                    onClick={handleOpenCreateAppModal}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 text-[10px] font-bold border border-teal-200 transition-colors cursor-pointer"
                     title="Buat Aplikasi Baru"
                   >
-                    <Plus className="w-3.5 h-3.5 text-teal-700" />
+                    <Plus className="w-3 h-3 text-teal-700" />
+                    <span>+ New App</span>
                   </button>
                 </div>
 
@@ -4873,39 +5017,62 @@ export default function AppCanvas({
                       <span>Memuat aplikasi...</span>
                     </div>
                   ) : appsList.length === 0 ? (
-                    <div className="text-center py-5 px-3 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                      <FolderOpen className="w-5 h-5 text-slate-300 mx-auto mb-1" />
-                      <div className="text-[11px] font-bold text-slate-600">Belum ada aplikasi</div>
-                      <div className="text-[9px] text-slate-400 mt-0.5">Hanya aplikasi Gluestack yang Anda simpan yang akan tampil di sini.</div>
+                    <div className="text-center py-5 px-3 bg-slate-50/80 rounded-2xl border border-dashed border-slate-200 space-y-2">
+                      <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center mx-auto">
+                        <FolderOpen className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-bold text-slate-700">Belum ada aplikasi</div>
+                        <div className="text-[9px] text-slate-400 mt-0.5">Mulai buat aplikasi Gluestack pertama Anda.</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleOpenCreateAppModal}
+                        className="w-full py-1.5 px-2.5 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-[10px] font-bold shadow-2xs transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-95"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Buat Aplikasi Pertama</span>
+                      </button>
                     </div>
                   ) : (
-                    appsList.map(app => {
-                      const isSelected = app.id === currentAppId;
-                      return (
-                        <div
-                          key={app.id}
-                          onClick={() => handleSelectApp(app)}
-                          className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-between group ${
-                            isSelected ? 'bg-teal-50 border-[#008784] text-[#008784]' : 'bg-white border-slate-200 hover:border-slate-300'
-                          }`}
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="text-xs font-bold truncate">{app.name}</div>
-                            <div className="text-[9px] text-slate-400">
-                              Updated {new Date(app.updated_at || Date.now()).toLocaleDateString('id-ID')}
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={(e) => handleDeleteApp(app, e)}
-                            className="opacity-30 group-hover:opacity-100 p-1 hover:bg-rose-50 rounded text-rose-500 transition-opacity ml-1 cursor-pointer"
-                            title="Hapus Aplikasi"
+                    <>
+                      {appsList.map(app => {
+                        const isSelected = app.id === currentAppId;
+                        return (
+                          <div
+                            key={app.id}
+                            onClick={() => handleSelectApp(app)}
+                            className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-between group ${
+                              isSelected ? 'bg-teal-50 border-[#008784] text-[#008784]' : 'bg-white border-slate-200 hover:border-slate-300'
+                            }`}
                           >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      );
-                    })
+                            <div className="min-w-0 flex-1">
+                              <div className="text-xs font-bold truncate">{app.name}</div>
+                              <div className="text-[9px] text-slate-400">
+                                Updated {new Date(app.updated_at || Date.now()).toLocaleDateString('id-ID')}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteApp(app, e)}
+                              className="opacity-30 group-hover:opacity-100 p-1 hover:bg-rose-50 rounded text-rose-500 transition-opacity ml-1 cursor-pointer"
+                              title="Hapus Aplikasi"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        );
+                      })}
+
+                      <button
+                        type="button"
+                        onClick={handleOpenCreateAppModal}
+                        className="w-full py-1.5 px-3 border border-dashed border-teal-300 hover:border-teal-400 bg-teal-50/50 hover:bg-teal-50 text-teal-700 rounded-xl text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer mt-2"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>+ Buat Aplikasi Baru</span>
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -5803,6 +5970,260 @@ export default function AppCanvas({
               >
                 Save Placeholder
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3b. MODAL: CREATE APP MODAL (Buat Aplikasi Gluestack Baru) */}
+      {showCreateAppModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 animate-in zoom-in-95 overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-5 px-6 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-teal-50 via-slate-50 to-white shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-teal-600 text-white flex items-center justify-center shadow-md shadow-teal-600/20">
+                  <Smartphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                    Buat Aplikasi Gluestack Baru
+                    <span className="text-[10px] bg-teal-100 text-teal-800 font-extrabold px-2 py-0.5 rounded-full border border-teal-200 uppercase tracking-wider">
+                      Mobile MES
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Mulai aplikasi mobile frontline dari kanvas kosong atau pilih starter template industri.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateAppModal(false)}
+                className="p-2 rounded-xl hover:bg-slate-200/80 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
+              {/* Field 1: Nama Aplikasi */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Smartphone className="w-3.5 h-3.5 text-teal-600" />
+                  Nama Aplikasi <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={createAppName}
+                  onChange={(e) => setCreateAppName(e.target.value)}
+                  placeholder="Contoh: Inspeksi QC Line 2, Checklist TPM Mesin, OEE Monitor"
+                  className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none transition-all font-semibold"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleConfirmCreateApp();
+                  }}
+                />
+              </div>
+
+              {/* Field 2: Deskripsi (Opsional) */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-slate-500" />
+                  Deskripsi Aplikasi (Opsional)
+                </label>
+                <input
+                  type="text"
+                  value={createAppDesc}
+                  onChange={(e) => setCreateAppDesc(e.target.value)}
+                  placeholder="Contoh: Digunakan oleh operator shift pagi untuk verifikasi part..."
+                  className="w-full text-xs px-3.5 py-2 rounded-xl border border-slate-200 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 outline-none transition-all text-slate-600"
+                />
+              </div>
+
+              {/* Field 3: Pilihan Starter Template */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <LayoutTemplate className="w-3.5 h-3.5 text-indigo-600" />
+                    Pilih Starter Template
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-normal">
+                    Pilih layout awal kanvas
+                  </span>
+                </label>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {/* Option 1: Blank */}
+                  <div
+                    onClick={() => setCreateAppTemplate('blank')}
+                    className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                      createAppTemplate === 'blank'
+                        ? 'border-teal-600 bg-teal-50/60 ring-2 ring-teal-600/20'
+                        : 'border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50/50'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                        createAppTemplate === 'blank' ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        <FilePlus className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-slate-900">Kanvas Kosong (Blank)</div>
+                        <div className="text-[10px] text-slate-500 mt-0.5 leading-snug">
+                          Mulai dari layar kosong tanpa komponen bawaan untuk kebebasan penuh.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Option 2: Quality Inspection */}
+                  <div
+                    onClick={() => setCreateAppTemplate('inspection')}
+                    className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                      createAppTemplate === 'inspection'
+                        ? 'border-teal-600 bg-teal-50/60 ring-2 ring-teal-600/20'
+                        : 'border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50/50'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                        createAppTemplate === 'inspection' ? 'bg-teal-600 text-white' : 'bg-amber-100 text-amber-600'
+                      }`}>
+                        <ClipboardCheck className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-slate-900">Quality Inspection</div>
+                        <div className="text-[10px] text-slate-500 mt-0.5 leading-snug">
+                          Barcode Lot, toleransi dimensi, keputusan Pass/Fail, dan output counter.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Option 3: Production Dashboard */}
+                  <div
+                    onClick={() => setCreateAppTemplate('dashboard')}
+                    className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                      createAppTemplate === 'dashboard'
+                        ? 'border-teal-600 bg-teal-50/60 ring-2 ring-teal-600/20'
+                        : 'border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50/50'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                        createAppTemplate === 'dashboard' ? 'bg-teal-600 text-white' : 'bg-emerald-100 text-emerald-600'
+                      }`}>
+                        <LayoutGrid className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-slate-900">Production Dashboard</div>
+                        <div className="text-[10px] text-slate-500 mt-0.5 leading-snug">
+                          Target OEE, progres harian, target output, dan reject rate.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Option 4: Daily TPM Checklist */}
+                  <div
+                    onClick={() => setCreateAppTemplate('checklist')}
+                    className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                      createAppTemplate === 'checklist'
+                        ? 'border-teal-600 bg-teal-50/60 ring-2 ring-teal-600/20'
+                        : 'border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50/50'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                        createAppTemplate === 'checklist' ? 'bg-teal-600 text-white' : 'bg-purple-100 text-purple-600'
+                      }`}>
+                        <List className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-slate-900">Daily TPM Checklist</div>
+                        <div className="text-[10px] text-slate-500 mt-0.5 leading-snug">
+                          Checklist mesin, level hidrolik, safety light guard, dan emergency stop.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Option 5: Industrial MES QC Showcase */}
+                  <div
+                    onClick={() => setCreateAppTemplate('industrial_mes_qc')}
+                    className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                      createAppTemplate === 'industrial_mes_qc'
+                        ? 'border-teal-600 bg-teal-50/60 ring-2 ring-teal-600/20'
+                        : 'border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50/50'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                        createAppTemplate === 'industrial_mes_qc' ? 'bg-teal-600 text-white' : 'bg-teal-100 text-teal-700'
+                      }`}>
+                        <ShieldCheck className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-slate-900">MES QC & Metrology</div>
+                        <div className="text-[10px] text-slate-500 mt-0.5 leading-snug">
+                          Alarm banner, dimensional tolerance, metrology, dan cetak label Zebra.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Option 6: SCADA Machine Telemetry */}
+                  <div
+                    onClick={() => setCreateAppTemplate('scada')}
+                    className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                      createAppTemplate === 'scada'
+                        ? 'border-teal-600 bg-teal-50/60 ring-2 ring-teal-600/20'
+                        : 'border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50/50'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                        createAppTemplate === 'scada' ? 'bg-teal-600 text-white' : 'bg-cyan-100 text-cyan-700'
+                      }`}>
+                        <Cpu className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-slate-900">SCADA Telemetry</div>
+                        <div className="text-[10px] text-slate-500 mt-0.5 leading-snug">
+                          Status mesin live, level tangki coolant, relay switch, dan emergency stop.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 px-6 border-t border-slate-100 bg-slate-50 flex items-center justify-between shrink-0">
+              <span className="text-[11px] text-slate-400">
+                Aplikasi baru akan otomatis tersimpan ke daftar aplikasi Anda.
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateAppModal(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-200/60 text-xs font-bold text-slate-600 transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmCreateApp}
+                  className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold transition-all shadow-md shadow-teal-600/20 flex items-center gap-1.5 cursor-pointer active:scale-95"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Buat Aplikasi</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
