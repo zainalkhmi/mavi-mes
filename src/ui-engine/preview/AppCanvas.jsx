@@ -65,9 +65,20 @@ import {
   AlignLeft, ListFilter, Columns, AppWindow, PanelRightClose,
   Loader2, Tag, Compass, ChevronsUpDown, MousePointerClick,
   QrCode, Video, Film, ScanLine, Cast, ExternalLink,
-  Bot, Wand2, PenTool, Cog
+  Bot, Wand2, PenTool, Cog, MonitorPlay, Hand, Shield,
+  Barcode, WifiOff, FileCheck2, History, CheckCheck, KeyRound, Radio
 } from 'lucide-react';
 import QRCode from 'react-qr-code';
+import { useBarcodeScannerWedge } from '../../hooks/useBarcodeScannerWedge';
+import {
+  isOnlineStatus,
+  getOfflineQueue,
+  enqueueOfflineAction,
+  flushOfflineQueue,
+  getAuditTrail,
+  recordAuditLog,
+  playScannerAudioFeedback
+} from '../../utils/gluestackOfflineManager';
 import BuilderCopilot from '../../components/BuilderCopilot';
 import GluestackWidgetProperties from './GluestackWidgetProperties';
 import {
@@ -1078,6 +1089,61 @@ export default function AppCanvas({
   const [createAppDesc, setCreateAppDesc] = useState('');
   const [createAppTemplate, setCreateAppTemplate] = useState('blank');
 
+  // Enterprise Governance & Kiosk states (Fase 1)
+  const [appStatus, setAppStatus] = useState('draft'); // 'draft' | 'published'
+  const [appVersion, setAppVersion] = useState('v1.0.0');
+  const [isKioskMode, setIsKioskMode] = useState(false);
+  const [isGloveMode, setIsGloveMode] = useState(false);
+  const [kioskTime, setKioskTime] = useState(() => new Date().toLocaleTimeString('id-ID'));
+  const [isExitKioskConfirmOpen, setIsExitKioskConfirmOpen] = useState(false);
+
+  // Edge Hardware & Offline Resilience states (Fase 2)
+  const [isOnline, setIsOnline] = useState(() => isOnlineStatus());
+  const [pendingSyncCount, setPendingSyncCount] = useState(() => getOfflineQueue().length);
+  const [isSyncingOfflineQueue, setIsSyncingOfflineQueue] = useState(false);
+  const [lastScannedBarcode, setLastScannedBarcode] = useState(null);
+  const [isSimulateScanModalOpen, setIsSimulateScanModalOpen] = useState(false);
+  const [simulatedBarcodeCode, setSimulatedBarcodeCode] = useState('');
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
+  const [auditTab, setAuditTab] = useState('logs'); // 'logs' | 'esign'
+  const [auditLogs, setAuditLogs] = useState(() => getAuditTrail());
+  const [esignName, setEsignName] = useState('');
+  const [esignBadgeId, setEsignBadgeId] = useState('');
+  const [esignReason, setEsignReason] = useState('Verifikasi Mutu & QC');
+  const [esignAgreed, setEsignAgreed] = useState(false);
+
+  // Kiosk mode clock timer
+  useEffect(() => {
+    if (!isKioskMode) return;
+    const interval = setInterval(() => {
+      setKioskTime(new Date().toLocaleTimeString('id-ID'));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isKioskMode]);
+
+  // Tactile audio & vibration feedback for Glove Touch Mode
+  const triggerTactileFeedback = useCallback(() => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(800, ctx.currentTime);
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.04);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.04);
+      }
+    } catch (e) {}
+    if (navigator.vibrate) {
+      try { navigator.vibrate(35); } catch (e) {}
+    }
+  }, []);
+
   const handleOpenCreateAppModal = useCallback(() => {
     setCreateAppName(`Mobile App ${appsList.length + 1}`);
     setCreateAppDesc('');
@@ -1812,21 +1878,59 @@ export default function AppCanvas({
   }, [currentAppId]);
 
   // Save App to localStorage AND Supabase
-  const handleSaveApp = useCallback(async () => {
+  const handleSaveApp = useCallback(async (overrides = {}) => {
     setIsSavingApp(true);
     try {
+      const currentStatus = overrides.status || appStatus;
+      const currentVer = overrides.version || appVersion;
       const appPayload = {
         id: currentAppId || `app_${Date.now()}`,
-        name: appName.trim() || 'Untitled App',
-        screens,
-        variables,
-        tables,
-        recordPlaceholders,
+        name: overrides.name || appName.trim() || 'Untitled App',
+        screens: overrides.screens || screens,
+        variables: overrides.variables || variables,
+        tables: overrides.tables || tables,
+        recordPlaceholders: overrides.recordPlaceholders || recordPlaceholders,
+        status: currentStatus,
+        version: currentVer,
+        station: overrides.station || 'ALL',
+        publishNotes: overrides.publishNotes || '',
+        approver: overrides.approver || '',
         updated_at: new Date().toISOString()
       };
       // Save specific app state to localStorage
       localStorage.setItem(`mavi_app_${appPayload.id}`, JSON.stringify(appPayload));
       localStorage.setItem('mavi_app_latest', JSON.stringify(appPayload));
+
+      // Check offline store-and-forward mode
+      if (!isOnlineStatus()) {
+        enqueueOfflineAction({
+          type: 'SAVE_APP',
+          payload: { ...appPayload, status: currentStatus, version: currentVer }
+        });
+        recordAuditLog({
+          action: 'OFFLINE_SAVE',
+          details: `Aplikasi disimpan offline: ${appPayload.name} (${currentVer})`,
+          appId: currentAppId,
+          station: overrides.station || 'LINE-01'
+        });
+        setIsSavedAppFeedback(true);
+        setTimeout(() => setIsSavedAppFeedback(false), 2200);
+        setActiveToast({
+          message: `Aplikasi "${appPayload.name}" disimpan ke antrian offline!`,
+          type: 'WARNING'
+        });
+        setIsSavingApp(false);
+        return;
+      }
+
+      // Record to Digital Audit Trail
+      recordAuditLog({
+        action: currentStatus === 'published' ? 'PUBLISH_APP' : 'SAVE_APP',
+        details: `Versi: ${currentVer} | Stasiun: ${overrides.station || 'ALL'}`,
+        appId: currentAppId,
+        station: overrides.station || 'LINE-01',
+        operator: overrides.approver || (authUser?.email || 'User')
+      });
 
       // Sync to Companion Server for mobile phone companion runners
       syncWorkingDraftToCompanionServer(appPayload.id, appPayload);
@@ -1835,10 +1939,17 @@ export default function AppCanvas({
       setAppsList(prev => {
         const nextList = [...prev];
         const idx = nextList.findIndex(a => a.id === appPayload.id);
+        const itemData = { 
+          id: appPayload.id, 
+          name: appPayload.name, 
+          status: appPayload.status,
+          version: appPayload.version,
+          updated_at: appPayload.updated_at 
+        };
         if (idx >= 0) {
-          nextList[idx] = { id: appPayload.id, name: appPayload.name, updated_at: appPayload.updated_at };
+          nextList[idx] = itemData;
         } else {
-          nextList.push({ id: appPayload.id, name: appPayload.name, updated_at: appPayload.updated_at });
+          nextList.push(itemData);
         }
         try {
           localStorage.setItem('mavi_ui_engine_apps', JSON.stringify(nextList));
@@ -1858,7 +1969,10 @@ export default function AppCanvas({
             components: screens || [],
             variables: variables || [],
             tables: tables || [],
-            recordPlaceholders: recordPlaceholders || []
+            recordPlaceholders: recordPlaceholders || [],
+            status: currentStatus,
+            version: currentVer,
+            station: overrides.station || 'ALL'
           },
           builder_type: 'gluestack',
           created_by: authUser?.id || undefined,
@@ -1898,6 +2012,9 @@ export default function AppCanvas({
 
       try {
         window.dispatchEvent(new CustomEvent('mavi_ui_engine_app_saved', { detail: { appName: appPayload.name } }));
+        window.dispatchEvent(new CustomEvent('mavi_ui_engine_app_status_changed', { 
+          detail: { status: currentStatus, version: currentVer } 
+        }));
       } catch (e) {
         // ignore
       }
@@ -1915,7 +2032,7 @@ export default function AppCanvas({
     } finally {
       setIsSavingApp(false);
     }
-  }, [currentAppId, appName, screens, variables, tables, recordPlaceholders, authUser, loadGluestackApps]);
+  }, [currentAppId, appName, screens, variables, tables, recordPlaceholders, appStatus, appVersion, authUser, loadGluestackApps]);
 
   // Create New App with template selection and persistence
   const handleConfirmCreateApp = useCallback(async () => {
@@ -2138,10 +2255,17 @@ export default function AppCanvas({
     };
     // Handle loading app from Supabase / Event
     const onLoadApp = (e) => {
-      const { appId, name, config } = e.detail || {};
+      const { appId, name, config, status, version } = e.detail || {};
       if (appId) {
         setCurrentAppId(appId);
         setAppName(name || 'Untitled App');
+        const nextStatus = status || config?.status || 'draft';
+        const nextVersion = version || config?.version || 'v1.0.0';
+        setAppStatus(nextStatus);
+        setAppVersion(nextVersion);
+        window.dispatchEvent(new CustomEvent('mavi_ui_engine_app_status_changed', {
+          detail: { status: nextStatus, version: nextVersion }
+        }));
         // Load config if available
         if (config) {
           const rawScreens = config.screens || config.components;
@@ -2165,12 +2289,63 @@ export default function AppCanvas({
       handleOpenCreateAppModal();
     };
 
+    const onToggleKiosk = () => {
+      setIsKioskMode(prev => {
+        const next = !prev;
+        if (next) setIsPreview(true);
+        return next;
+      });
+    };
+
+    const onPublishApp = (e) => {
+      const { version, station, notes, approver } = e.detail || {};
+      const newVer = version || 'v1.0.0';
+      setAppStatus('published');
+      setAppVersion(newVer);
+      handleSaveApp({
+        status: 'published',
+        version: newVer,
+        station: station || 'ALL',
+        publishNotes: notes || '',
+        approver: approver || 'Supervisor'
+      });
+      setActiveToast({
+        message: `Aplikasi berhasil dipublikasikan (${newVer})!`,
+        type: 'SUCCESS'
+      });
+    };
+
+    const onCreateDraftRevision = (e) => {
+      setAppStatus('draft');
+      const baseVer = e.detail?.currentVersion || appVersion || 'v1.0.0';
+      const cleanVer = baseVer.replace('-rev', '').replace('v', '');
+      const parts = cleanVer.split('.').map(Number);
+      const nextVer = parts.length === 3 && !isNaN(parts[2])
+        ? `v${parts[0]}.${parts[1]}.${parts[2] + 1}-rev`
+        : `${baseVer}-rev`;
+      setAppVersion(nextVer);
+      handleSaveApp({
+        status: 'draft',
+        version: nextVer
+      });
+      setActiveToast({
+        message: `Draft revisi baru dibuat (${nextVer})`,
+        type: 'INFO'
+      });
+      window.dispatchEvent(new CustomEvent('mavi_ui_engine_app_status_changed', {
+        detail: { status: 'draft', version: nextVer }
+      }));
+    };
+
     window.addEventListener('mavi_ui_engine_create_app', onCreateApp);
     window.addEventListener('mavi_ui_engine_save_app', onSave);
     window.addEventListener('mavi_ui_engine_copy_link', onLink);
     window.addEventListener('mavi_ui_engine_open_qr', onQr);
     window.addEventListener('mavi_ui_engine_set_app_name', onSetName);
     window.addEventListener('mavi_ui_engine_load_app', onLoadApp);
+    window.addEventListener('mavi_ui_engine_toggle_kiosk', onToggleKiosk);
+    window.addEventListener('mavi_ui_engine_publish_app', onPublishApp);
+    window.addEventListener('mavi_ui_engine_create_draft_revision', onCreateDraftRevision);
 
     return () => {
       window.removeEventListener('mavi_ui_engine_create_app', onCreateApp);
@@ -2179,8 +2354,11 @@ export default function AppCanvas({
       window.removeEventListener('mavi_ui_engine_open_qr', onQr);
       window.removeEventListener('mavi_ui_engine_set_app_name', onSetName);
       window.removeEventListener('mavi_ui_engine_load_app', onLoadApp);
+      window.removeEventListener('mavi_ui_engine_toggle_kiosk', onToggleKiosk);
+      window.removeEventListener('mavi_ui_engine_publish_app', onPublishApp);
+      window.removeEventListener('mavi_ui_engine_create_draft_revision', onCreateDraftRevision);
     };
-  }, [handleSaveApp, handleCopyAppLink, handleOpenCreateAppModal]);
+  }, [handleSaveApp, handleCopyAppLink, handleOpenCreateAppModal, appVersion]);
 
   // Auto-load app directly on mount from initialAppId or URL search param
   useEffect(() => {
@@ -2194,6 +2372,8 @@ export default function AppCanvas({
         if (local) {
           try {
             const parsed = JSON.parse(local);
+            if (parsed.status) setAppStatus(parsed.status);
+            if (parsed.version) setAppVersion(parsed.version);
             const rawScreens = parsed.screens || parsed.components || parsed.config?.screens || parsed.config?.components;
             if (Array.isArray(rawScreens) && rawScreens.length > 0) {
               setAppName(parsed.name || 'Untitled App');
@@ -2214,6 +2394,8 @@ export default function AppCanvas({
           if (appData) {
             setAppName(appData.name || 'Untitled App');
             const cfg = appData.config || {};
+            if (cfg.status || appData.status) setAppStatus(cfg.status || appData.status);
+            if (cfg.version || appData.version) setAppVersion(cfg.version || appData.version);
             const rawScreens = cfg.screens || cfg.components || appData.screens || appData.components;
             if (Array.isArray(rawScreens) && rawScreens.length > 0) {
               if (rawScreens[0]?.components && Array.isArray(rawScreens[0].components)) {
@@ -3127,6 +3309,146 @@ export default function AppCanvas({
       runTrigger(trig, eventType);
     });
   }, [screens, currentScreenId, runTrigger]);
+
+  // ========================================================
+  // EDGE HARDWARE BARCODE SCANNER WEDGE (Fase 2)
+  // ========================================================
+  const handleBarcodeScanned = useCallback((code) => {
+    if (!code || !code.trim()) return;
+    const cleanCode = code.trim();
+    setLastScannedBarcode(cleanCode);
+    playScannerAudioFeedback(true);
+
+    // Record to Digital Audit Trail (21 CFR Part 11 compliant)
+    recordAuditLog({
+      action: 'BARCODE_SCANNED',
+      details: `Hardware Scanner Wedge scan: ${cleanCode}`,
+      appId: currentAppId,
+      station: 'LINE-01 • SCANNER HID'
+    });
+
+    // Populate barcode or input component on the current screen
+    const currentScr = screens.find(s => s.id === currentScreenId);
+    const comps = currentScr?.components || [];
+    const targetComp = comps.find(c => 
+      c.type === 'BarcodeGenerator' || 
+      c.type === 'QRCodeScanner' || 
+      c.type === 'Input' ||
+      (c.props?.label && /barcode|lot|serial|part/i.test(c.props.label))
+    );
+
+    if (targetComp) {
+      setPreviewFormValues(prev => ({
+        ...prev,
+        [targetComp.id]: cleanCode
+      }));
+    }
+
+    // Execute triggers for any component on screen with ON_SCAN
+    comps.forEach(c => {
+      if (c.triggers && c.triggers.some(t => t.event === 'ON_SCAN')) {
+        executeComponentTriggers(c, 'ON_SCAN');
+      }
+    });
+
+    window.dispatchEvent(new CustomEvent('mavi_barcode_scanned', {
+      detail: { code: cleanCode, timestamp: new Date().toISOString() }
+    }));
+
+    setActiveToast({
+      message: `📷 Barcode Terdeteksi: ${cleanCode}`,
+      type: 'SUCCESS'
+    });
+  }, [currentAppId, screens, currentScreenId, executeComponentTriggers]);
+
+  // Hook Hardware Barcode Scanner Wedge listener (keyboard burst listener)
+  useBarcodeScannerWedge((scannedCode) => {
+    handleBarcodeScanned(scannedCode);
+  }, { enabled: true });
+
+  // Manual offline queue sync flush handler
+  const handleManualSyncQueue = useCallback(async () => {
+    setIsSyncingOfflineQueue(true);
+    try {
+      const result = await flushOfflineQueue(async (item) => {
+        if (item.type === 'SAVE_APP') {
+          await handleSaveApp(item.payload);
+        }
+      });
+      if (result.synced > 0) {
+        setActiveToast({
+          message: `Berhasil sinkronisasi ${result.synced} data antrian offline!`,
+          type: 'SUCCESS'
+        });
+      }
+    } catch (err) {
+      console.warn('Sync failed:', err);
+    } finally {
+      setIsSyncingOfflineQueue(false);
+    }
+  }, [handleSaveApp]);
+
+  // Network and offline queue listeners
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      setActiveToast({ message: 'Jaringan Online! Menyinkronkan antrian...', type: 'INFO' });
+      handleManualSyncQueue();
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      setActiveToast({ message: 'Jaringan Terputus! Mode Offline Store-and-Forward Aktif.', type: 'WARNING' });
+    };
+    const handleQueueUpdated = (e) => {
+      setPendingSyncCount(e.detail?.count || 0);
+    };
+    const handleAuditUpdated = () => {
+      setAuditLogs(getAuditTrail());
+    };
+    const handleOpenAuditModal = () => {
+      setIsAuditModalOpen(true);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('mavi_offline_queue_updated', handleQueueUpdated);
+    window.addEventListener('mavi_audit_trail_updated', handleAuditUpdated);
+    window.addEventListener('mavi_ui_engine_open_audit', handleOpenAuditModal);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('mavi_offline_queue_updated', handleQueueUpdated);
+      window.removeEventListener('mavi_audit_trail_updated', handleAuditUpdated);
+      window.removeEventListener('mavi_ui_engine_open_audit', handleOpenAuditModal);
+    };
+  }, [handleManualSyncQueue]);
+
+  // e-Signature submission handler (21 CFR Part 11)
+  const handleConfirmEsign = () => {
+    if (!esignName.trim()) {
+      setActiveToast({ message: 'Nama penandatangan wajib diisi!', type: 'WARNING' });
+      return;
+    }
+    const signatureHash = 'SIG-' + Math.random().toString(36).substring(2, 10).toUpperCase() + '-' + Date.now().toString(36).toUpperCase();
+    recordAuditLog({
+      action: 'ELECTRONIC_SIGNATURE',
+      operator: esignName.trim(),
+      badgeId: esignBadgeId.trim() || 'OP-01',
+      details: `Alasan: ${esignReason}`,
+      signatureHash,
+      appId: currentAppId,
+      station: 'LINE-01 • QC TERMINAL'
+    });
+    setEsignName('');
+    setEsignBadgeId('');
+    setEsignAgreed(false);
+    setActiveToast({
+      message: `Tanda tangan digital berhasil dibubuhkan (${signatureHash})!`,
+      type: 'SUCCESS'
+    });
+    setAuditTab('logs');
+  };
 
   // Screens Operations
   const addScreen = (screenType = 'Screen') => {
@@ -4445,6 +4767,572 @@ export default function AppCanvas({
     }
   };
 
+  // ========================================================
+  // FASE 2 MODALS: HARDWARE SCANNER SIMULATOR & AUDIT / E-SIGN
+  // ========================================================
+  const renderFase2Modals = () => (
+    <>
+      {/* 1. MODAL SIMULASI SCAN BARCODE HARDWARE (Fase 2) */}
+      {isSimulateScanModalOpen && (
+        <div className="fixed inset-0 z-[100001] bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full shadow-2xl p-6 text-slate-800 dark:text-slate-100 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-cyan-600 text-white flex items-center justify-center shadow-md shadow-cyan-600/20">
+                  <Barcode className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                    Simulasi Barcode Scanner
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Hardware Wedge Emulator (Zebra / Honeywell HID)
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSimulateScanModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                  Pilih Preset Barcode Pabrik:
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: 'Lot Produksi', code: 'LOT-2026-X88' },
+                    { label: 'Komponen Poros', code: 'PART-SPINDLE-772' },
+                    { label: 'Badge Operator', code: 'BADGE-OP-01' },
+                    { label: 'Nomor Seri Part', code: 'SN-882910' }
+                  ].map((preset) => (
+                    <button
+                      key={preset.code}
+                      type="button"
+                      onClick={() => {
+                        handleBarcodeScanned(preset.code);
+                        setIsSimulateScanModalOpen(false);
+                      }}
+                      className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 hover:border-cyan-500 hover:bg-cyan-50/50 dark:hover:bg-cyan-950/40 text-left transition-all cursor-pointer group"
+                    >
+                      <div className="text-[10px] text-slate-400 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 font-bold">{preset.label}</div>
+                      <div className="text-xs font-mono font-black text-slate-800 dark:text-slate-100">{preset.code}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                  Atau Ketik Kode Kustom:
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={simulatedBarcodeCode}
+                    onChange={(e) => setSimulatedBarcodeCode(e.target.value)}
+                    placeholder="Misal: WO-2026-9901"
+                    className="flex-1 px-3 py-2 rounded-xl text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-cyan-500 outline-none font-mono"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && simulatedBarcodeCode.trim()) {
+                        handleBarcodeScanned(simulatedBarcodeCode);
+                        setSimulatedBarcodeCode('');
+                        setIsSimulateScanModalOpen(false);
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (simulatedBarcodeCode.trim()) {
+                        handleBarcodeScanned(simulatedBarcodeCode);
+                        setSimulatedBarcodeCode('');
+                        setIsSimulateScanModalOpen(false);
+                      }
+                    }}
+                    className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-md cursor-pointer active:scale-95 transition-all"
+                  >
+                    Kirim Scan
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. MODAL AUDIT TRAIL & E-SIGNATURE (21 CFR Part 11 / ISO 9001) */}
+      {isAuditModalOpen && (
+        <div className="fixed inset-0 z-[100001] bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-2xl w-full shadow-2xl flex flex-col max-h-[85vh] overflow-hidden text-slate-800 dark:text-slate-100">
+            {/* Modal Header */}
+            <div className="p-5 px-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-indigo-50/70 via-purple-50/50 to-white dark:from-slate-800 dark:to-slate-900">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-600/20">
+                  <FileCheck2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black flex items-center gap-2">
+                    Digital Audit Trail & e-Sign
+                    <span className="text-[10px] bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 font-extrabold px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
+                      CFR 21 Part 11
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Ketertelusuran manufaktur dan tanda tangan digital terenkripsi
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAuditModalOpen(false)}
+                title="Tutup Modal Audit"
+                aria-label="Tutup Modal Audit"
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Tab Switcher */}
+            <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/50 px-6 pt-2 gap-4">
+              <button
+                type="button"
+                onClick={() => setAuditTab('logs')}
+                className={`pb-3 text-xs font-black border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  auditTab === 'logs'
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                <History className="w-3.5 h-3.5" />
+                <span>Log Audit Aktivitas ({auditLogs.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuditTab('esign')}
+                className={`pb-3 text-xs font-black border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  auditTab === 'esign'
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                <span>Bubuhkan e-Signature</span>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
+              {auditTab === 'logs' ? (
+                <div className="space-y-3">
+                  {auditLogs.length === 0 ? (
+                    <div className="text-center py-12 text-slate-400">
+                      <History className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+                      <p className="text-xs font-bold">Belum ada riwayat audit yang tercatat.</p>
+                    </div>
+                  ) : (
+                    auditLogs.map((log) => (
+                      <div
+                        key={log.id}
+                        className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 hover:bg-slate-50 dark:hover:bg-slate-800/70 transition-all text-xs space-y-1.5"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-[10px] text-slate-400">
+                              {new Date(log.timestamp).toLocaleTimeString('id-ID')}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                              log.action === 'ELECTRONIC_SIGNATURE' ? 'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300' :
+                              log.action === 'BARCODE_SCANNED' ? 'bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300' :
+                              log.action === 'PUBLISH_APP' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' :
+                              'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                            }`}>
+                              {log.action}
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-mono text-slate-400">
+                            {log.station}
+                          </span>
+                        </div>
+                        <div className="font-semibold text-slate-700 dark:text-slate-200">
+                          {log.details}
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800">
+                          <span>Operator: <strong className="text-slate-600 dark:text-slate-300">{log.operator}</strong></span>
+                          {log.signatureHash && (
+                            <span className="font-mono text-purple-600 dark:text-purple-400 font-bold flex items-center gap-1">
+                              <ShieldCheck className="w-3 h-3" />
+                              {log.signatureHash}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4 max-w-lg mx-auto py-2">
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                      Nama Penandatangan / Inspector *
+                    </label>
+                    <input
+                      type="text"
+                      value={esignName}
+                      onChange={(e) => setEsignName(e.target.value)}
+                      placeholder="Misal: Bambang Sutrisno (QC Lead)"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs outline-none focus:border-indigo-500 font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                      ID Lencana / PIN Operator
+                    </label>
+                    <input
+                      type="text"
+                      value={esignBadgeId}
+                      onChange={(e) => setEsignBadgeId(e.target.value)}
+                      placeholder="Misal: OP-8812"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs outline-none focus:border-indigo-500 font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                      Alasan Otorisasi (Sign-off Reason)
+                    </label>
+                    <select
+                      value={esignReason}
+                      onChange={(e) => setEsignReason(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs outline-none focus:border-indigo-500 font-semibold"
+                    >
+                      <option value="Verifikasi Mutu & QC">Verifikasi Mutu & QC (Quality Inspection Sign-off)</option>
+                      <option value="Serah Terima Shift">Serah Terima Shift (Shift Handover Sign-off)</option>
+                      <option value="Persetujuan Rilis Batch">Persetujuan Rilis Batch (Batch Release Approval)</option>
+                      <option value="Otorisasi Deviasi Toleransi">Otorisasi Deviasi Toleransi (Tolerance Override)</option>
+                    </select>
+                  </div>
+
+                  <div className="pt-2">
+                    <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={esignAgreed}
+                        onChange={(e) => setEsignAgreed(e.target.checked)}
+                        className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                        Saya dengan ini menyatakan bahwa seluruh data proses dan pengujian telah diverifikasi secara akurat sesuai standar regulasi dan integritas data manufaktur (21 CFR Part 11).
+                      </span>
+                    </label>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleConfirmEsign}
+                    disabled={!esignAgreed || !esignName.trim()}
+                    className={`w-full py-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-lg transition-all ${
+                      esignAgreed && esignName.trim()
+                        ? 'bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer active:scale-98 shadow-indigo-600/30'
+                        : 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                    }`}
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>Bubuhkan e-Signature Digital</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3.5 px-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end bg-slate-50/80 dark:bg-slate-800/50 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsAuditModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer"
+              >
+                Tutup Modal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
+  // ========================================================
+  // OPERATOR KIOSK / FULLSCREEN SHOPFLOOR RUNNER (Fase 1)
+  // ========================================================
+  if (isKioskMode) {
+    return (
+      <div 
+        className={`fixed inset-0 z-[99999] bg-slate-950 text-slate-100 flex flex-col select-none overflow-hidden ${
+          isGloveMode ? 'glove-touch-mode ring-4 ring-emerald-500/50' : ''
+        }`}
+      >
+        <style>{`
+          .glove-touch-mode button, 
+          .glove-touch-mode input, 
+          .glove-touch-mode select,
+          .glove-touch-mode [role="button"] {
+            min-height: 52px !important;
+            font-size: 15px !important;
+            touch-action: manipulation;
+          }
+          .glove-touch-mode button:active {
+            transform: scale(0.98);
+          }
+        `}</style>
+
+        {/* KIOSK HEADER */}
+        <header className="h-16 px-4 sm:px-6 bg-slate-900/95 border-b border-slate-800 flex items-center justify-between shadow-2xl shrink-0 z-30">
+          {/* Left: Station info & App status */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700/80">
+              <Factory className="w-4 h-4 text-emerald-400" />
+              <div className="flex flex-col">
+                <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold leading-none">STATION</span>
+                <span className="text-xs font-mono font-black text-emerald-300">LINE-01 • QC TERMINAL</span>
+              </div>
+            </div>
+
+            <div className="hidden md:flex items-center gap-2 pl-2">
+              <span className="text-sm font-black text-white truncate max-w-xs">{appName}</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                <Lock className="w-2.5 h-2.5" />
+                {appVersion}
+              </span>
+            </div>
+          </div>
+
+          {/* Center: Screen switch tabs for operator */}
+          <div className="flex items-center gap-1.5 bg-slate-950/80 p-1 rounded-xl border border-slate-800/80 max-w-md overflow-x-auto">
+            {screens.map((scr, idx) => {
+              const isActive = scr.id === currentScreenId;
+              return (
+                <button
+                  key={scr.id}
+                  type="button"
+                  onClick={() => {
+                    setCurrentScreenId(scr.id);
+                    if (isGloveMode) triggerTactileFeedback();
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                    isActive 
+                      ? 'bg-emerald-600 text-white shadow-md' 
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  }`}
+                >
+                  <span className="w-4 h-4 rounded-full bg-black/30 text-[9px] flex items-center justify-center font-mono">{idx + 1}</span>
+                  <span>{scr.title || `Layar ${idx + 1}`}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Right: Network, Hardware Scanner, Audit, Clock, Glove mode toggle & Exit */}
+          <div className="flex items-center gap-2">
+            {/* Live Station Clock */}
+            <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/60 border border-slate-700/50 text-slate-300 font-mono text-xs">
+              <Clock className="w-3.5 h-3.5 text-amber-400" />
+              <span>{kioskTime}</span>
+            </div>
+
+            {/* Network / Offline Store-and-Forward Pill */}
+            {isOnline && pendingSyncCount === 0 ? (
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-bold" title="Terhubung langsung ke server pabrik">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>ONLINE</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleManualSyncQueue}
+                disabled={isSyncingOfflineQueue}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95"
+                title="Sinkronisasi antrian offline ke database server"
+              >
+                <WifiOff className="w-3.5 h-3.5 text-amber-400" />
+                <span>{isOnline ? 'SYNC' : 'OFFLINE'} ({pendingSyncCount})</span>
+              </button>
+            )}
+
+            {/* Hardware Barcode Scanner Simulation Button */}
+            <button
+              type="button"
+              onClick={() => setIsSimulateScanModalOpen(true)}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 text-xs font-bold transition-all cursor-pointer"
+              title="Buka simulasi barcode scanner untuk menguji integrasi hardware wedge"
+            >
+              <Barcode className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="hidden md:inline">Scan Hardware</span>
+            </button>
+
+            {/* Audit Trail & Digital e-Signature Button */}
+            <button
+              type="button"
+              onClick={() => setIsAuditModalOpen(true)}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 text-xs font-bold transition-all cursor-pointer"
+              title="Log audit kepatuhan manufaktur CFR 21 & e-Signature"
+            >
+              <FileCheck2 className="w-3.5 h-3.5 text-indigo-400" />
+              <span className="hidden md:inline">Audit & e-Sign</span>
+            </button>
+
+            {/* Glove Mode Toggle */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsGloveMode(prev => {
+                  const next = !prev;
+                  triggerTactileFeedback();
+                  setActiveToast({
+                    message: next ? '🧤 Glove-Friendly Touch Mode AKTIF' : 'Glove Mode Dinonaktifkan',
+                    type: next ? 'SUCCESS' : 'INFO'
+                  });
+                  return next;
+                });
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                isGloveMode
+                  ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/20 font-black'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+              }`}
+              title="Aktifkan target sentuh besar dan feedback audio untuk sarung tangan"
+            >
+              <Hand className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Glove Mode</span>
+              <span className={`w-2 h-2 rounded-full ${isGloveMode ? 'bg-slate-950 animate-ping' : 'bg-slate-500'}`} />
+            </button>
+
+            {/* Exit Kiosk Button */}
+            <button
+              type="button"
+              onClick={() => setIsExitKioskConfirmOpen(true)}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/50 text-xs font-bold transition-all cursor-pointer"
+              title="Keluar dari Kiosk dan kembali ke Studio Kanvas"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Keluar</span>
+            </button>
+          </div>
+        </header>
+
+        {/* KIOSK MAIN CANVAS RUNNER */}
+        <main 
+          className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-950 flex flex-col items-center"
+          onClickCapture={isGloveMode ? triggerTactileFeedback : undefined}
+        >
+          <div className="w-full max-w-4xl bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-800 min-h-[500px] flex flex-col space-y-4">
+            {/* Screen Header in Kiosk */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
+              <div>
+                <h1 className="text-xl font-black text-slate-900 dark:text-white">
+                  {currentScreen?.title || 'Screen'}
+                </h1>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {appName} • Stasiun Produksi Mandor
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {isOnline && pendingSyncCount === 0 ? (
+                  <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold border border-emerald-500/20">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    ONLINE
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleManualSyncQueue}
+                    disabled={isSyncingOfflineQueue}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-300 text-xs font-bold border border-amber-500/40 cursor-pointer"
+                    title="Klik untuk sync data offline"
+                  >
+                    <WifiOff className="w-3 h-3 text-amber-500" />
+                    <span>{isOnline ? 'SYNC' : 'OFFLINE'} ({pendingSyncCount})</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPreviewFormValues({});
+                    setPreviewCounters({});
+                    setActiveToast({ message: 'Layar berhasil di-reset', type: 'INFO' });
+                  }}
+                  className="px-2.5 py-1 text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                >
+                  Reset Form
+                </button>
+              </div>
+            </div>
+
+            {/* Components list rendered interactively */}
+            <div className="flex-1 space-y-4 pt-2">
+              {screenComponents.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                  <Box className="w-12 h-12 text-slate-500 mb-2" />
+                  <p className="text-sm font-bold">Layar ini belum memiliki komponen.</p>
+                </div>
+              ) : (
+                screenComponents.map(comp => (
+                  <div key={comp.id} className="w-full">
+                    {renderPreview(comp)}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </main>
+
+        {/* EXIT CONFIRMATION MODAL */}
+        {isExitKioskConfirmOpen && (
+          <div className="fixed inset-0 z-[100000] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl text-center space-y-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center mx-auto">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-white">Keluar dari Mode Kiosk?</h3>
+                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                  Apakah Anda yakin ingin keluar dari layar produksi operator dan kembali ke Studio Kanvas?
+                </p>
+              </div>
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsExitKioskConfirmOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsExitKioskConfirmOpen(false);
+                    setIsKioskMode(false);
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black transition-colors cursor-pointer shadow-lg"
+                >
+                  Ya, Keluar Kiosk
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* FASE 2 MODALS */}
+        {renderFase2Modals()}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full w-full bg-[#f8fafc] text-slate-800 overflow-hidden font-sans select-none" data-palette-root>
       {/* ======================================================== */}
@@ -4453,17 +5341,14 @@ export default function AppCanvas({
       <header className="h-16 px-4 bg-white border-b border-slate-200 flex items-center justify-between shadow-xs shrink-0 z-30 relative gap-3">
         {/* Left: Create App & Add Screen Button */}
         <div className="flex items-center gap-2.5 shrink-0">
-          {/* Create App Button */}
+          {/* Create App Button (Icon) */}
           <button
             type="button"
             onClick={handleOpenCreateAppModal}
-            className="flex items-center gap-2 px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-xl font-bold text-xs transition-all shadow-2xs cursor-pointer active:scale-95 border border-teal-500/80"
+            className="w-9 h-9 rounded-xl bg-teal-600 hover:bg-teal-500 text-white flex items-center justify-center transition-all shadow-2xs cursor-pointer active:scale-95 border border-teal-500/80"
             title="Buat Aplikasi Gluestack Baru (Create App)"
           >
-            <div className="w-6 h-6 rounded-lg bg-white/20 text-white flex items-center justify-center">
-              <Plus className="w-4 h-4" strokeWidth={3} />
-            </div>
-            <span>Create App</span>
+            <Plus className="w-5 h-5" strokeWidth={2.5} />
           </button>
 
           <div className="relative">
@@ -4689,6 +5574,47 @@ export default function AppCanvas({
             </button>
           </div>
 
+          {/* Network Sync Pill */}
+          {isOnline && pendingSyncCount === 0 ? (
+            <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold" title="Online (Tersinkronisasi ke server)">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Online</span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleManualSyncQueue}
+              disabled={isSyncingOfflineQueue}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+              title="Klik untuk sinkronisasi antrian offline"
+            >
+              <WifiOff className="w-3.5 h-3.5 text-amber-600" />
+              <span>{isOnline ? 'Sync' : 'Offline'} ({pendingSyncCount})</span>
+            </button>
+          )}
+
+          {/* Hardware Barcode Simulator Button */}
+          <button
+            type="button"
+            onClick={() => setIsSimulateScanModalOpen(true)}
+            className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1"
+            title="Simulasi Scan Barcode (Hardware Wedge)"
+          >
+            <Barcode className="w-3.5 h-3.5 text-cyan-600" />
+            <span className="hidden xl:inline text-[11px]">Scan</span>
+          </button>
+
+          {/* Audit Trail & e-Sign Button */}
+          <button
+            type="button"
+            onClick={() => setIsAuditModalOpen(true)}
+            className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1"
+            title="Log Audit & e-Signature (21 CFR Part 11)"
+          >
+            <FileCheck2 className="w-3.5 h-3.5 text-indigo-600" />
+            <span className="hidden xl:inline text-[11px]">Audit</span>
+          </button>
+
           {/* Preview / Edit Mode (Icon Only) */}
           <button
             type="button"
@@ -4704,6 +5630,42 @@ export default function AppCanvas({
           </button>
         </div>
       </header>
+
+      {/* 1.1 PUBLISHED GOVERNANCE BANNER */}
+      {appStatus === 'published' && (
+        <div className="bg-amber-500/10 border-b border-amber-500/30 px-4 py-2 flex items-center justify-between text-xs text-amber-900 shrink-0">
+          <div className="flex items-center gap-2">
+            <Lock className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>
+              <strong>Aplikasi ini berstatus PUBLISHED ({appVersion})</strong> — Terkunci untuk menjaga stabilitas produksi.
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('mavi_ui_engine_create_draft_revision', {
+                  detail: { currentVersion: appVersion }
+                }));
+              }}
+              className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold shadow-2xs transition-colors cursor-pointer text-[11px]"
+            >
+              Buat Revisi Draft Baru
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsKioskMode(true);
+                setIsPreview(true);
+              }}
+              className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold shadow-2xs transition-colors cursor-pointer text-[11px] flex items-center gap-1"
+            >
+              <MonitorPlay className="w-3.5 h-3.5" />
+              Buka Operator Kiosk
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ======================================================== */}
       {/* 2. MAIN 3-PANE WORKSPACE LAYOUT                          */}
@@ -6700,6 +7662,9 @@ export default function AppCanvas({
           ]
         }}
       />
+
+      {/* FASE 2 MODALS: HARDWARE SCANNER SIMULATOR & AUDIT E-SIGN */}
+      {renderFase2Modals()}
     </div>
   );
 }

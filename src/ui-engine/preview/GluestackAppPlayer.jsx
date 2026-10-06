@@ -186,6 +186,12 @@ export default function GluestackAppPlayer({
   const [activeTabsState, setActiveTabsState] = useState({});
   const [accordionState, setAccordionState] = useState({});
   const [deviceFrame, setDeviceFrame] = useState(mode === 'companion' ? 'responsive' : 'iphone');
+  const [windowWidth, setWindowWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1024));
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeToast, setActiveToast] = useState(null);
   const [isCompletedModal, setIsCompletedModal] = useState(false);
@@ -1980,13 +1986,6 @@ export default function GluestackAppPlayer({
   }
 
   // Pure live real device layout for mobile devices and companion scan mode
-  const [windowWidth, setWindowWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1024));
-  useEffect(() => {
-    const handleResize = () => setWindowWidth(window.innerWidth);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
   const isMobileScreen = windowWidth < 768;
   const isCompanionMode = mode === 'companion' || isMobileScreen;
 

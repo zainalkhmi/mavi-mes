@@ -47,7 +47,9 @@ import {
   ChevronRight, ChevronLeft, Sun, Moon, ArrowLeft,
   ExternalLink, Compass, ShieldCheck, LayoutDashboard,
   Save, Link, QrCode, Edit3, AlertTriangle, Plus,
-  FolderOpen, ChevronDown
+  FolderOpen, ChevronDown, MonitorPlay, Maximize2,
+  UploadCloud, Lock, Unlock, Clock, Radio, X,
+  Barcode, FileCheck2, WifiOff
 } from 'lucide-react';
 
 export default function UiEngineStudio({ canvasMode = true }) {
@@ -63,6 +65,24 @@ export default function UiEngineStudio({ canvasMode = true }) {
   const [appName, setAppName] = useState('Mobile App');
   const [isEditingAppName, setIsEditingAppName] = useState(false);
   const [isSavedAppFeedback, setIsSavedAppFeedback] = useState(false);
+
+  // App Lifecycle & Governance state (Fase 1 Enterprise MES)
+  const [appStatus, setAppStatus] = useState('draft'); // 'draft' | 'published'
+  const [appVersion, setAppVersion] = useState('v1.0.0');
+  const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
+  const [publishVersion, setPublishVersion] = useState('v1.0.0');
+  const [publishStation, setPublishStation] = useState('Line 1 - Station 01 (Milling & QC)');
+  const [publishNotes, setPublishNotes] = useState('Pembaruan batas toleransi QC dan checklist harian mesin');
+  const [publishApprover, setPublishApprover] = useState('Lead Production Engineer');
+
+  // Offline store-and-forward state (Fase 2)
+  const [isOnline, setIsOnline] = useState(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [pendingSyncCount, setPendingSyncCount] = useState(() => {
+    try {
+      const q = localStorage.getItem('mavi_gluestack_offline_queue');
+      return q ? JSON.parse(q).length : 0;
+    } catch (e) { return 0; }
+  });
 
   // App Switcher state
   const [studioAppsList, setStudioAppsList] = useState(() => {
@@ -119,17 +139,57 @@ export default function UiEngineStudio({ canvasMode = true }) {
     const handleAppsUpdate = (e) => {
       if (e.detail?.apps) setStudioAppsList(e.detail.apps);
     };
+    const handleStatusSync = (e) => {
+      if (e.detail?.status) setAppStatus(e.detail.status);
+      if (e.detail?.version) setAppVersion(e.detail.version);
+    };
+    const handleQueueSync = (e) => {
+      setPendingSyncCount(e.detail?.count || 0);
+    };
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
 
     window.addEventListener('mavi_ui_engine_app_saved', handleSaved);
     window.addEventListener('mavi_ui_engine_app_name_changed', handleNameSync);
     window.addEventListener('mavi_ui_engine_apps_updated', handleAppsUpdate);
+    window.addEventListener('mavi_ui_engine_app_status_changed', handleStatusSync);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('mavi_offline_queue_updated', handleQueueSync);
 
     return () => {
       window.removeEventListener('mavi_ui_engine_app_saved', handleSaved);
       window.removeEventListener('mavi_ui_engine_app_name_changed', handleNameSync);
       window.removeEventListener('mavi_ui_engine_apps_updated', handleAppsUpdate);
+      window.removeEventListener('mavi_ui_engine_app_status_changed', handleStatusSync);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('mavi_offline_queue_updated', handleQueueSync);
     };
   }, []);
+
+  const handleConfirmPublish = () => {
+    const vStr = publishVersion.trim() || 'v1.0.0';
+    setAppStatus('published');
+    setAppVersion(vStr);
+    setIsPublishModalOpen(false);
+
+    window.dispatchEvent(new CustomEvent('mavi_ui_engine_publish_app', {
+      detail: {
+        version: vStr,
+        station: publishStation,
+        notes: publishNotes,
+        approver: publishApprover
+      }
+    }));
+  };
+
+  const handleCreateNewDraftRevision = () => {
+    setAppStatus('draft');
+    window.dispatchEvent(new CustomEvent('mavi_ui_engine_create_draft_revision', {
+      detail: { currentVersion: appVersion }
+    }));
+  };
 
   // Ensure canvas mode is maintained
   useEffect(() => {
@@ -343,18 +403,62 @@ export default function UiEngineStudio({ canvasMode = true }) {
               )}
             </div>
 
-            {/* CREATE APP BUTTON (Prominent in Top Navbar) */}
+            {/* CREATE APP BUTTON (Icon Only) */}
             <button
               type="button"
               onClick={() => {
                 window.dispatchEvent(new CustomEvent('mavi_ui_engine_create_app'));
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95 bg-teal-600 hover:bg-teal-500 text-white border-teal-500/80 hover:border-teal-400"
+              className="p-2 rounded-xl border transition-all shadow-2xs cursor-pointer active:scale-95 bg-teal-600 hover:bg-teal-500 text-white border-teal-500/80 hover:border-teal-400 flex items-center justify-center shrink-0"
               title="Buat Aplikasi Baru (Create App)"
             >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Create App</span>
+              <Plus className="w-4 h-4" strokeWidth={2.5} />
             </button>
+
+            {/* GOVERNANCE BADGE & PUBLISH/REVISION ACTION */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {appStatus === 'published' ? (
+                <div
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-bold select-none"
+                  title="Aplikasi berstatus PUBLISHED (Aktif di Produksi & Terkunci)"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="hidden sm:inline">PROD</span>
+                  <span className="text-[10px] font-mono text-emerald-200">{appVersion || 'v1.0.0'}</span>
+                  <Lock className="w-3 h-3 text-emerald-400 ml-0.5" />
+                </div>
+              ) : (
+                <div
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-bold select-none"
+                  title="Aplikasi berstatus DRAFT (Dalam Pengembangan)"
+                >
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                  <span>DRAFT</span>
+                </div>
+              )}
+
+              {appStatus === 'published' ? (
+                <button
+                  type="button"
+                  onClick={handleCreateNewDraftRevision}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-all border border-white/20 cursor-pointer"
+                  title="Buat draf revisi baru untuk diedit tanpa mengganggu versi produksi yang aktif"
+                >
+                  <Edit3 className="w-3 h-3 text-amber-300" />
+                  <span className="hidden md:inline">Draft Revisi</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsPublishModalOpen(true)}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold transition-all border border-emerald-400/50 cursor-pointer shadow-xs active:scale-95"
+                  title="Rilis aplikasi ini ke lini produksi pabrik (Publish)"
+                >
+                  <UploadCloud className="w-3.5 h-3.5" />
+                  <span className="hidden md:inline">Publish Prod</span>
+                </button>
+              )}
+            </div>
 
             {/* SAVE APP BUTTON */}
             <button
@@ -432,6 +536,65 @@ export default function UiEngineStudio({ canvasMode = true }) {
 
           {/* Right: Theme Toggle & Actions */}
           <div className="flex items-center gap-2 flex-1 justify-end">
+            {/* Store-and-Forward Offline Sync Indicator */}
+            <button
+              type="button"
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('mavi_ui_engine_trigger_sync'));
+              }}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                !isOnline 
+                  ? 'bg-amber-500/20 text-amber-200 border-amber-500/40 animate-pulse'
+                  : pendingSyncCount > 0
+                  ? 'bg-blue-500/20 text-blue-200 border-blue-500/40'
+                  : 'bg-emerald-500/15 text-emerald-200 border-emerald-500/30'
+              }`}
+              title={!isOnline ? 'Edge Offline: Data disimpan ke antrian lokal' : pendingSyncCount > 0 ? `Sinkronkan ${pendingSyncCount} perubahan antrian offline` : 'Edge Cloud Connected'}
+            >
+              {!isOnline ? (
+                <>
+                  <WifiOff className="w-3.5 h-3.5 text-amber-300" />
+                  <span className="hidden sm:inline">Offline {pendingSyncCount > 0 ? `(${pendingSyncCount})` : ''}</span>
+                </>
+              ) : pendingSyncCount > 0 ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-ping" />
+                  <span className="hidden sm:inline">Sync ({pendingSyncCount})</span>
+                </>
+              ) : (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span className="hidden sm:inline">Online</span>
+                </>
+              )}
+            </button>
+
+            {/* AUDIT TRAIL & E-SIGN CFR 21 BUTTON */}
+            <button
+              type="button"
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('mavi_ui_engine_open_audit'));
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all bg-white/10 hover:bg-white/20 text-white border-white/20 active:scale-95 cursor-pointer shadow-xs"
+              title="Audit Trail & Electronic Signatures (21 CFR Part 11)"
+            >
+              <FileCheck2 className="w-3.5 h-3.5 text-emerald-300" />
+              <span className="hidden sm:inline">Audit & e-Sign</span>
+            </button>
+
+            {/* OPERATOR KIOSK BUTTON (Full-Screen Production Runner) */}
+            <button
+              type="button"
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('mavi_ui_engine_toggle_kiosk'));
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-md cursor-pointer active:scale-95 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white border-purple-400/50"
+              title="Buka Mode Kiosk Operator (Layar Penuh Pabrik)"
+            >
+              <MonitorPlay className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Operator Kiosk</span>
+            </button>
+
             {/* Dark Mode Toggle */}
             <button
               onClick={() => setColorMode(colorMode === 'light' ? 'dark' : 'light')}
@@ -808,6 +971,119 @@ export default function UiEngineStudio({ canvasMode = true }) {
               >
                 <ExternalLink size={15} /> Buka di {incompatibleNotice.appBuilderLabel}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: PUBLISH APP TO PRODUCTION (Fase 1 Governance) */}
+      {isPublishModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full flex flex-col shadow-2xl border border-slate-200 animate-in zoom-in-95 overflow-hidden text-slate-800">
+            {/* Modal Header */}
+            <div className="p-5 px-6 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-emerald-50 via-teal-50 to-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-600/20">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                    Rilis Aplikasi ke Produksi
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-2 py-0.5 rounded-full border border-emerald-200 uppercase tracking-wider">
+                      CFR 21 / ISO 9001
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Kunci versi ini dan aktifkan untuk operator lini produksi pabrik.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPublishModalOpen(false)}
+                className="p-2 rounded-xl hover:bg-slate-200/80 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Versi Rilis (Semantic Versioning)
+                </label>
+                <input
+                  type="text"
+                  value={publishVersion}
+                  onChange={(e) => setPublishVersion(e.target.value)}
+                  placeholder="v1.0.0"
+                  className="w-full text-xs font-mono font-bold px-3 py-2 rounded-xl border border-slate-300 focus:border-emerald-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Stasiun / Lini Target Pabrik
+                </label>
+                <input
+                  type="text"
+                  value={publishStation}
+                  onChange={(e) => setPublishStation(e.target.value)}
+                  placeholder="Line 1 - Station 01 (Milling & QC)"
+                  className="w-full text-xs px-3 py-2 rounded-xl border border-slate-300 focus:border-emerald-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Catatan Rilis (Release Notes)
+                </label>
+                <textarea
+                  rows={3}
+                  value={publishNotes}
+                  onChange={(e) => setPublishNotes(e.target.value)}
+                  placeholder="Deskripsikan fitur atau parameter inspeksi yang diubah..."
+                  className="w-full text-xs px-3 py-2 rounded-xl border border-slate-300 focus:border-emerald-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Penyetuju / Approver Sign-off
+                </label>
+                <input
+                  type="text"
+                  value={publishApprover}
+                  onChange={(e) => setPublishApprover(e.target.value)}
+                  placeholder="Nama Quality / Production Engineer"
+                  className="w-full text-xs px-3 py-2 rounded-xl border border-slate-300 focus:border-emerald-500 outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 px-6 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+              <span className="text-[11px] text-slate-400">
+                Aplikasi akan berstatus Production-Locked.
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPublishModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmPublish}
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer active:scale-95"
+                >
+                  <UploadCloud className="w-4 h-4" />
+                  <span>Rilis ke Produksi</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
