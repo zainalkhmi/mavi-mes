@@ -62,11 +62,12 @@ import {
   Undo2, Redo2, Maximize2, Minimize2, ZoomIn, ZoomOut,
   FilePlus, Ruler, Scale, Cpu, Factory, Music, Shapes,
   CheckCircle2, ShieldCheck, Sliders, Wrench,
-  AlignLeft, ListFilter, Columns, AppWindow, PanelRightClose,
+  AlignLeft, ListFilter, Columns, AppWindow, AppWindowMac, PanelRightClose,
   Loader2, Tag, Compass, ChevronsUpDown, MousePointerClick,
   QrCode, Video, Film, ScanLine, Cast, ExternalLink,
   Bot, Wand2, PenTool, Cog, MonitorPlay, Hand, Shield,
-  Barcode, WifiOff, FileCheck2, History, CheckCheck, KeyRound, Radio
+  Barcode, WifiOff, FileCheck2, History, CheckCheck, KeyRound, Radio,
+  Server, Crosshair, AlertOctagon, UploadCloud
 } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { useBarcodeScannerWedge } from '../../hooks/useBarcodeScannerWedge';
@@ -79,6 +80,15 @@ import {
   recordAuditLog,
   playScannerAudioFeedback
 } from '../../utils/gluestackOfflineManager';
+import {
+  telemetryEngine,
+  DEFAULT_MACHINE_TAGS,
+  runAiVisionDefectInspection,
+  pushBatchReleaseToErp,
+  fetchErpWorkOrders,
+  DEFECT_CATALOG,
+  MOCK_ERP_WORK_ORDERS
+} from '../../utils/gluestackEnterpriseTelemetry';
 import BuilderCopilot from '../../components/BuilderCopilot';
 import GluestackWidgetProperties from './GluestackWidgetProperties';
 import {
@@ -1111,6 +1121,44 @@ export default function AppCanvas({
   const [esignBadgeId, setEsignBadgeId] = useState('');
   const [esignReason, setEsignReason] = useState('Verifikasi Mutu & QC');
   const [esignAgreed, setEsignAgreed] = useState(false);
+
+  // ========================================================
+  // ENTERPRISE FASE 3: IOT TELEMETRY, AI VISION & ERP CONNECTOR
+  // ========================================================
+  const [liveTelemetry, setLiveTelemetry] = useState(() => telemetryEngine.getSnapshot());
+  const [telemetryAlarms, setTelemetryAlarms] = useState([]);
+  const [isTelemetryDrawerOpen, setIsTelemetryDrawerOpen] = useState(false);
+
+  // AI Computer Vision Edge Defect Inspector
+  const [isAiVisionModalOpen, setIsAiVisionModalOpen] = useState(false);
+  const [isAiInspecting, setIsAiInspecting] = useState(false);
+  const [aiVisionForceDefect, setAiVisionForceDefect] = useState(true);
+  const [aiVisionResult, setAiVisionResult] = useState(null);
+
+  // Enterprise ERP / SAP Two-Way Connector
+  const [isErpSyncModalOpen, setIsErpSyncModalOpen] = useState(false);
+  const [erpTab, setErpTab] = useState('pull'); // 'pull' | 'push'
+  const [erpWorkOrders, setErpWorkOrders] = useState([]);
+  const [isLoadingErpWo, setIsLoadingErpWo] = useState(false);
+  const [selectedErpWo, setSelectedErpWo] = useState(null);
+  const [erpGoodQty, setErpGoodQty] = useState(480);
+  const [erpRejectQty, setErpRejectQty] = useState(20);
+  const [isSyncingErp, setIsSyncingErp] = useState(false);
+  const [lastErpReleaseDoc, setLastErpReleaseDoc] = useState(null);
+
+  // Telemetry Engine Subscription
+  useEffect(() => {
+    const unsubTelemetry = telemetryEngine.subscribe((snapshot) => {
+      setLiveTelemetry(snapshot);
+    });
+    const unsubAlarms = telemetryEngine.subscribeAlarms((alarms) => {
+      setTelemetryAlarms(alarms);
+    });
+    return () => {
+      unsubTelemetry();
+      unsubAlarms();
+    };
+  }, []);
 
   // Kiosk mode clock timer
   useEffect(() => {
@@ -3408,12 +3456,25 @@ export default function AppCanvas({
     const handleOpenAuditModal = () => {
       setIsAuditModalOpen(true);
     };
+    const handleOpenIot = () => setIsTelemetryDrawerOpen(true);
+    const handleOpenVision = () => setIsAiVisionModalOpen(true);
+    const handleOpenScan = () => setIsSimulateScanModalOpen(true);
+    const handleTogglePreview = () => setIsPreview(prev => !prev);
+    const handleOpenErp = () => {
+      setIsErpSyncModalOpen(true);
+      fetchErpWorkOrders().then(setErpWorkOrders);
+    };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     window.addEventListener('mavi_offline_queue_updated', handleQueueUpdated);
     window.addEventListener('mavi_audit_trail_updated', handleAuditUpdated);
     window.addEventListener('mavi_ui_engine_open_audit', handleOpenAuditModal);
+    window.addEventListener('mavi_ui_engine_open_scan', handleOpenScan);
+    window.addEventListener('mavi_ui_engine_open_iot', handleOpenIot);
+    window.addEventListener('mavi_ui_engine_open_vision', handleOpenVision);
+    window.addEventListener('mavi_ui_engine_open_erp', handleOpenErp);
+    window.addEventListener('mavi_ui_engine_toggle_preview', handleTogglePreview);
 
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -3421,8 +3482,70 @@ export default function AppCanvas({
       window.removeEventListener('mavi_offline_queue_updated', handleQueueUpdated);
       window.removeEventListener('mavi_audit_trail_updated', handleAuditUpdated);
       window.removeEventListener('mavi_ui_engine_open_audit', handleOpenAuditModal);
+      window.removeEventListener('mavi_ui_engine_open_scan', handleOpenScan);
+      window.removeEventListener('mavi_ui_engine_open_iot', handleOpenIot);
+      window.removeEventListener('mavi_ui_engine_open_vision', handleOpenVision);
+      window.removeEventListener('mavi_ui_engine_open_erp', handleOpenErp);
+      window.removeEventListener('mavi_ui_engine_toggle_preview', handleTogglePreview);
     };
   }, [handleManualSyncQueue]);
+
+  // Fase 3 Handlers: AI Vision, ERP Sync & IoT Interlocks
+  const handleTriggerAiInspection = async () => {
+    setIsAiInspecting(true);
+    try {
+      const res = await runAiVisionDefectInspection({ forceDefect: aiVisionForceDefect });
+      setAiVisionResult(res);
+      playScannerAudioFeedback(res.status === 'PASS_NO_DEFECT');
+      setActiveToast({
+        message: res.status === 'DEFECT_FOUND'
+          ? `⚠️ Cacat Terdeteksi: ${res.defects[0]?.label} (${res.confidenceAvg}%)`
+          : `✅ Hasil Inspeksi AI: PASS (Tanpa Cacat Permukaan)`,
+        type: res.status === 'DEFECT_FOUND' ? 'WARNING' : 'SUCCESS'
+      });
+    } catch (e) {
+      console.error('AI inspection failed', e);
+    } finally {
+      setIsAiInspecting(false);
+    }
+  };
+
+  const handleApplyAiDefectToChecksheet = () => {
+    if (!aiVisionResult) return;
+    recordAuditLog({
+      action: 'AI_DEFECT_LOGGED',
+      user: 'OP-QC-99 (Bambang)',
+      station: 'LINE-01 • QC TERMINAL',
+      details: `Hasil Inspeksi AI Dicatat ke Checksheet: ${aiVisionResult.status} (Defects: ${aiVisionResult.defects.length})`
+    });
+    setActiveToast({
+      message: 'Hasil Inspeksi AI Berhasil Dicatat ke Formulir & Audit Trail!',
+      type: 'SUCCESS'
+    });
+    setIsAiVisionModalOpen(false);
+  };
+
+  const handleReleaseBatchToErp = async () => {
+    setIsSyncingErp(true);
+    try {
+      const woNum = selectedErpWo?.woNumber || 'WO-2026-SAP-881';
+      const doc = await pushBatchReleaseToErp({
+        woNumber: woNum,
+        goodQty: erpGoodQty,
+        rejectQty: erpRejectQty,
+        signOffBy: 'Bambang Sutrisno (QC Lead)'
+      });
+      setLastErpReleaseDoc(doc);
+      setActiveToast({
+        message: `✅ Batch Berhasil Dirilis ke SAP S/4HANA: ${doc.erpDocumentId}`,
+        type: 'SUCCESS'
+      });
+    } catch (e) {
+      console.error('ERP release failed', e);
+    } finally {
+      setIsSyncingErp(false);
+    }
+  };
 
   // e-Signature submission handler (21 CFR Part 11)
   const handleConfirmEsign = () => {
@@ -5064,6 +5187,525 @@ export default function AppCanvas({
           </div>
         </div>
       )}
+
+      {/* ======================================================== */}
+      {/* FASE 3: 1. MODAL IOT MACHINE TELEMETRY (OPC-UA / MQTT) */}
+      {/* ======================================================== */}
+      {isTelemetryDrawerOpen && (
+        <div className="fixed inset-0 z-[100002] bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-2xl w-full shadow-2xl flex flex-col max-h-[85vh] overflow-hidden text-slate-800 dark:text-slate-100">
+            {/* Header */}
+            <div className="p-5 px-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-cyan-50/70 via-blue-50/50 to-white dark:from-slate-800 dark:to-slate-900">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-cyan-600 text-white flex items-center justify-center shadow-md shadow-cyan-600/20">
+                  <Cpu className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black flex items-center gap-2">
+                    Live IoT Machine Telemetry
+                    <span className="text-[10px] bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300 font-extrabold px-2 py-0.5 rounded-full border border-cyan-200 dark:border-cyan-800 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" />
+                      OPC-UA & MQTT Edge
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Streaming tag PLC real-time & interlock keselamatan mesin
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsTelemetryDrawerOpen(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                title="Tutup Modal Telemetry"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-4 custom-scrollbar">
+              {/* Alarms / Interlocks */}
+              {telemetryAlarms.length > 0 ? (
+                telemetryAlarms.map((alm) => (
+                  <div key={alm.id} className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between animate-pulse">
+                    <div className="flex items-center gap-2.5">
+                      <AlertOctagon className="w-5 h-5 text-rose-500 shrink-0" />
+                      <div>
+                        <div className="text-xs font-black text-rose-600 dark:text-rose-400">SAFETY INTERLOCK: {alm.tag}</div>
+                        <div className="text-[11px] text-slate-600 dark:text-slate-300">{alm.message}</div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        telemetryEngine.acknowledgeAlarm(alm.id);
+                        setActiveToast({ message: 'Alarm Interlock Berhasil Di-acknowledge', type: 'SUCCESS' });
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all cursor-pointer shrink-0 shadow-sm"
+                    >
+                      Acknowledge Interlock
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between text-xs text-emerald-700 dark:text-emerald-300">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    <span>Seluruh sensor mesin beroperasi normal dalam batas toleransi ISO 10816.</span>
+                  </div>
+                  <span className="font-mono text-[10px] font-bold">ALL CLEAR</span>
+                </div>
+              )}
+
+              {/* Real-time Telemetry Tag Stream Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {DEFAULT_MACHINE_TAGS.map((tagDef) => {
+                  const val = liveTelemetry[tagDef.tag] !== undefined ? liveTelemetry[tagDef.tag] : '--';
+                  const isWarn = tagDef.warnHigh && val >= tagDef.warnHigh;
+                  return (
+                    <div
+                      key={tagDef.tag}
+                      className={`p-3.5 rounded-2xl border transition-all ${
+                        isWarn 
+                          ? 'bg-amber-500/10 border-amber-500/40 text-amber-900 dark:text-amber-200' 
+                          : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider truncate">
+                          {tagDef.name}
+                        </span>
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10 text-slate-500 dark:text-slate-300">
+                          {tagDef.unit}
+                        </span>
+                      </div>
+                      <div className="text-xl font-mono font-black tracking-tight flex items-baseline gap-1">
+                        <span>{val}</span>
+                        <span className="text-xs font-normal text-slate-400">{tagDef.unit}</span>
+                      </div>
+                      <div className="mt-2 text-[10px] font-mono text-slate-400 truncate">
+                        {tagDef.tag}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Interlock Test Action */}
+              <div className="p-4 rounded-2xl bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">Uji Respon Interlock Suhu</h4>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Simulasikan lonjakan temperatur motor >75°C untuk menguji lockout darurat.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    telemetryEngine.currentValues.set('ns=2;s=Temperature', 82.5);
+                    telemetryEngine.checkAlarms(82.5, 1800, 3.5);
+                    setLiveTelemetry(telemetryEngine.getSnapshot());
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-slate-800 dark:bg-slate-700 hover:bg-slate-700 text-white text-xs font-bold transition-all cursor-pointer shrink-0"
+                >
+                  Picu Alarm Suhu
+                </button>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-3.5 px-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end bg-slate-50/80 dark:bg-slate-800/50 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsTelemetryDrawerOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer"
+              >
+                Tutup Telemetry
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* FASE 3: 2. MODAL AI COMPUTER VISION DEFECT INSPECTOR */}
+      {/* ======================================================== */}
+      {isAiVisionModalOpen && (
+        <div className="fixed inset-0 z-[100002] bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-2xl w-full shadow-2xl flex flex-col max-h-[90vh] overflow-hidden text-slate-800 dark:text-slate-100">
+            {/* Header */}
+            <div className="p-5 px-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-purple-50/70 via-indigo-50/50 to-white dark:from-slate-800 dark:to-slate-900">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-purple-600 text-white flex items-center justify-center shadow-md shadow-purple-600/20">
+                  <Camera className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black flex items-center gap-2">
+                    AI Computer Vision Defect Inspector
+                    <span className="text-[10px] bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 font-extrabold px-2 py-0.5 rounded-full border border-purple-200 dark:border-purple-800">
+                      MobileNetV3 Edge (FP16)
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Inspeksi visual otomatis berbasis kamera cerdas resolusi mikro
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAiVisionModalOpen(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                title="Tutup Modal AI Vision"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Viewfinder & Inference Output */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-4 custom-scrollbar">
+              {/* Simulated Industrial Camera Viewport */}
+              <div className="relative w-full h-56 rounded-2xl bg-slate-950 border border-slate-800 overflow-hidden flex items-center justify-center shadow-inner group">
+                {/* Crosshairs & Grid Overlay */}
+                <div className="absolute inset-0 bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:16px_16px] opacity-40 pointer-events-none" />
+                <div className="absolute inset-x-0 top-1/2 h-px bg-cyan-500/20 pointer-events-none" />
+                <div className="absolute inset-y-0 left-1/2 w-px bg-cyan-500/20 pointer-events-none" />
+
+                {/* Simulated Metal Component (Poros Spindle) */}
+                <div className="relative w-64 h-28 rounded-xl bg-gradient-to-r from-slate-700 via-slate-400 to-slate-800 shadow-2xl border border-slate-500/50 flex items-center justify-center">
+                  <div className="w-full h-4 bg-gradient-to-b from-white/30 to-transparent" />
+                  
+                  {/* AI Bounding Box Overlay if Defect Found */}
+                  {aiVisionResult?.status === 'DEFECT_FOUND' && aiVisionResult.defects.map((def, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        left: `${def.box.x}%`,
+                        top: `${def.box.y}%`,
+                        width: `${def.box.w}%`,
+                        height: `${def.box.h}%`
+                      }}
+                      className="absolute border-2 border-rose-500 bg-rose-500/20 rounded shadow-lg shadow-rose-500/40 animate-pulse flex flex-col justify-start"
+                    >
+                      <span className="absolute -top-5 left-0 px-1.5 py-0.5 rounded bg-rose-600 text-[9px] font-mono font-bold text-white whitespace-nowrap shadow-xs">
+                        {def.type} ({def.confidence}%)
+                      </span>
+                    </div>
+                  ))}
+
+                  {/* Pass Overlay */}
+                  {aiVisionResult?.status === 'PASS_NO_DEFECT' && (
+                    <div className="absolute inset-0 border-2 border-emerald-400 bg-emerald-500/10 rounded-xl flex items-center justify-center">
+                      <span className="px-3 py-1 rounded-xl bg-emerald-600 text-white text-xs font-black shadow-md flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4" />
+                        PASSED — ZERO DEFECTS
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Viewfinder Top Badges */}
+                <div className="absolute top-3 left-3 flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-md bg-black/60 text-cyan-400 font-mono text-[10px] font-bold border border-cyan-500/30">
+                    CAM-01 • 1920x1080@60FPS
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md bg-black/60 text-slate-300 font-mono text-[10px]">
+                    EXP: 1/250s • ISO 100
+                  </span>
+                </div>
+              </div>
+
+              {/* Controls & Trigger */}
+              <div className="flex items-center justify-between gap-3 pt-1">
+                <label className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={aiVisionForceDefect}
+                    onChange={(e) => setAiVisionForceDefect(e.target.checked)}
+                    className="rounded text-purple-600 focus:ring-purple-500"
+                  />
+                  <span>Simulasikan Cacat Produksi (Force Defect)</span>
+                </label>
+
+                <button
+                  type="button"
+                  onClick={handleTriggerAiInspection}
+                  disabled={isAiInspecting}
+                  className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-black shadow-lg shadow-purple-600/30 transition-all cursor-pointer active:scale-95 flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isAiInspecting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Memproses Gambar...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="w-4 h-4" />
+                      <span>Jalankan Inspeksi AI</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Result Summary Card */}
+              {aiVisionResult && (
+                <div className={`p-4 rounded-2xl border transition-all space-y-2 ${
+                  aiVisionResult.status === 'DEFECT_FOUND'
+                    ? 'bg-rose-500/10 border-rose-500/30 text-rose-900 dark:text-rose-200'
+                    : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-900 dark:text-emerald-200'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold uppercase tracking-wide">
+                      {aiVisionResult.status === 'DEFECT_FOUND' ? '⚠️ DEFECT FOUND (NG)' : '✅ PASS (OK)'}
+                    </span>
+                    <span className="font-mono text-xs font-bold">
+                      Confidence: {aiVisionResult.confidenceAvg}%
+                    </span>
+                  </div>
+                  <div className="text-xs">
+                    {aiVisionResult.status === 'DEFECT_FOUND' ? (
+                      <div>
+                        Ditemukan: <strong className="font-bold">{aiVisionResult.defects[0]?.label}</strong>
+                      </div>
+                    ) : (
+                      <div>Permukaan komponen bersih dan memenuhi toleransi mutu standar ISO.</div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-3.5 px-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-800/50 shrink-0">
+              <button
+                type="button"
+                onClick={handleApplyAiDefectToChecksheet}
+                disabled={!aiVisionResult}
+                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-md shadow-purple-600/20"
+              >
+                Catat Hasil AI ke Audit Trail & Checksheet
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsAiVisionModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer"
+              >
+                Tutup AI Inspector
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* FASE 3: 3. MODAL ENTERPRISE ERP & SAP S/4HANA CONNECTOR */}
+      {/* ======================================================== */}
+      {isErpSyncModalOpen && (
+        <div className="fixed inset-0 z-[100002] bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-2xl w-full shadow-2xl flex flex-col max-h-[90vh] overflow-hidden text-slate-800 dark:text-slate-100">
+            {/* Header */}
+            <div className="p-5 px-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-blue-50/70 via-indigo-50/50 to-white dark:from-slate-800 dark:to-slate-900">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-600/20">
+                  <Database className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black flex items-center gap-2">
+                    SAP S/4HANA & ERP Two-Way Connector
+                    <span className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 font-extrabold px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
+                      RFC BAPI / OData v4
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Sinkronisasi Perintah Kerja (WO) dan Pelaporan Rilis Batch Produksi
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsErpSyncModalOpen(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                title="Tutup Modal ERP"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Tab Switcher */}
+            <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/50 px-6 pt-2 gap-4">
+              <button
+                type="button"
+                onClick={() => setErpTab('pull')}
+                className={`pb-3 text-xs font-black border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  erpTab === 'pull'
+                    ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Tarik Work Order dari SAP</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setErpTab('push')}
+                className={`pb-3 text-xs font-black border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  erpTab === 'push'
+                    ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                <UploadCloud className="w-3.5 h-3.5" />
+                <span>Rilis Batch Produksi ke SAP</span>
+              </button>
+            </div>
+
+            {/* Tab Contents */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-4 custom-scrollbar">
+              {erpTab === 'pull' ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                      Work Order Terjadwal di Sistem ERP:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsLoadingErpWo(true);
+                        fetchErpWorkOrders().then((wo) => {
+                          setErpWorkOrders(wo);
+                          setIsLoadingErpWo(false);
+                          setActiveToast({ message: 'Daftar WO SAP berhasil diperbarui', type: 'SUCCESS' });
+                        });
+                      }}
+                      className="text-xs text-blue-600 font-bold flex items-center gap-1 hover:underline cursor-pointer"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${isLoadingErpWo ? 'animate-spin' : ''}`} />
+                      <span>Segarkan WO</span>
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {(erpWorkOrders.length > 0 ? erpWorkOrders : MOCK_ERP_WORK_ORDERS).map((wo) => {
+                      const isSelected = selectedErpWo?.woNumber === wo.woNumber;
+                      return (
+                        <div
+                          key={wo.woNumber}
+                          onClick={() => setSelectedErpWo(wo)}
+                          className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-blue-500/15 border-blue-500 text-blue-900 dark:text-blue-100 shadow-md'
+                              : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono font-black text-xs text-blue-700 dark:text-blue-400">
+                              {wo.woNumber}
+                            </span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700">
+                              {wo.status}
+                            </span>
+                          </div>
+                          <div className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-1">
+                            {wo.partNumber} — <span className="text-slate-500 font-normal">{wo.customer}</span>
+                          </div>
+                          <div className="text-[11px] font-mono text-slate-500 mt-1">
+                            Target: {wo.targetQty} pcs | Selesai: {wo.completedQty} pcs
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/30 text-xs text-blue-800 dark:text-blue-200">
+                    Pelaporan kuantitas rilis batch langsung menerbitkan nomor <strong>Material Document SAP S/4HANA (Good Movement Type 101)</strong>.
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                      Nomor Work Order SAP
+                    </label>
+                    <input
+                      type="text"
+                      value={selectedErpWo?.woNumber || 'WO-2026-SAP-881'}
+                      readOnly
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-xs font-mono font-bold"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                        Good Qty (Lolos QC)
+                      </label>
+                      <input
+                        type="number"
+                        value={erpGoodQty}
+                        onChange={(e) => setErpGoodQty(Number(e.target.value))}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-mono font-bold text-emerald-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                        Reject Qty (Scrap)
+                      </label>
+                      <input
+                        type="number"
+                        value={erpRejectQty}
+                        onChange={(e) => setErpRejectQty(Number(e.target.value))}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-mono font-bold text-rose-600"
+                      />
+                    </div>
+                  </div>
+
+                  {lastErpReleaseDoc && (
+                    <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-800 dark:text-emerald-200 space-y-1">
+                      <div className="font-bold flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        <span>Dokumen Material SAP Terbit:</span>
+                      </div>
+                      <div className="font-mono font-black text-sm">{lastErpReleaseDoc.erpDocumentId}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-3.5 px-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-800/50 shrink-0">
+              {erpTab === 'pull' ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const wo = selectedErpWo || MOCK_ERP_WORK_ORDERS[0];
+                    setActiveToast({ message: `Work Order ${wo.woNumber} berhasil disinkronkan ke Stasiun!`, type: 'SUCCESS' });
+                    setIsErpSyncModalOpen(false);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all cursor-pointer shadow-md shadow-blue-600/20"
+                >
+                  Terapkan WO Terpilih ke Stasiun
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleReleaseBatchToErp}
+                  disabled={isSyncingErp}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all cursor-pointer shadow-md shadow-blue-600/20 flex items-center gap-2"
+                >
+                  {isSyncingErp ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
+                  <span>Kirim & Rilis Batch ke SAP</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsErpSyncModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer"
+              >
+                Tutup ERP Connector
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 
@@ -5184,6 +5826,42 @@ export default function AppCanvas({
             >
               <FileCheck2 className="w-3.5 h-3.5 text-indigo-400" />
               <span className="hidden md:inline">Audit & e-Sign</span>
+            </button>
+
+            {/* IoT Machine Telemetry Button (Fase 3) */}
+            <button
+              type="button"
+              onClick={() => setIsTelemetryDrawerOpen(true)}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 text-xs font-bold transition-all cursor-pointer"
+              title="Live IoT & PLC Machine Telemetry (OPC-UA / MQTT)"
+            >
+              <Cpu className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="hidden md:inline">IoT Telemetry</span>
+            </button>
+
+            {/* AI Computer Vision Defect Inspector Button (Fase 3) */}
+            <button
+              type="button"
+              onClick={() => setIsAiVisionModalOpen(true)}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-purple-300 border border-slate-700 text-xs font-bold transition-all cursor-pointer"
+              title="Industrial AI Computer Vision Defect Inspector"
+            >
+              <Camera className="w-3.5 h-3.5 text-purple-400" />
+              <span className="hidden md:inline">AI Vision</span>
+            </button>
+
+            {/* Enterprise ERP / SAP Connector Button (Fase 3) */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsErpSyncModalOpen(true);
+                fetchErpWorkOrders().then(setErpWorkOrders);
+              }}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-blue-300 border border-slate-700 text-xs font-bold transition-all cursor-pointer"
+              title="Two-Way Enterprise ERP & SAP S/4HANA Connector"
+            >
+              <Database className="w-3.5 h-3.5 text-blue-400" />
+              <span className="hidden md:inline">SAP / ERP</span>
             </button>
 
             {/* Glove Mode Toggle */}
@@ -5355,13 +6033,14 @@ export default function AppCanvas({
             <button
               type="button"
               onClick={() => setActiveDropdown(prev => prev === 'ADD_SCREEN' ? null : 'ADD_SCREEN')}
-              className="flex items-center gap-2 px-3 py-1.5 bg-[#eff6ff] hover:bg-[#dbeafe] border border-[#bfdbfe] text-[#1d4ed8] rounded-xl font-bold text-xs transition-colors shadow-2xs"
+              className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-b from-blue-50 to-indigo-50/70 hover:from-blue-100/80 hover:to-indigo-100/80 border border-blue-200/90 text-blue-700 rounded-xl font-bold text-xs transition-all shadow-2xs cursor-pointer active:scale-95 group"
             >
-              <div className="w-6 h-6 rounded-lg bg-[#2563eb] text-white flex items-center justify-center">
-                <Plus className="w-4 h-4" strokeWidth={3} />
+              <div className="relative w-6 h-6 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
+                <AppWindowMac className="w-3.5 h-3.5" strokeWidth={2} />
+                <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 text-white rounded-full flex items-center justify-center text-[7px] font-black border border-white shadow-2xs leading-none">+</span>
               </div>
-              <span>Add Screen</span>
-              <ChevronDown className="w-3.5 h-3.5 text-blue-600" />
+              <span className="font-extrabold tracking-tight">Add Screen</span>
+              <ChevronDown className="w-3.5 h-3.5 text-blue-500 group-hover:text-blue-700 transition-colors" />
             </button>
 
             {/* Dropdown for Add Screen: Blank or From Template */}
@@ -5373,7 +6052,7 @@ export default function AppCanvas({
                   className="w-full text-left p-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-3 transition-all"
                 >
                   <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
-                    <FileText className="w-4 h-4" />
+                    <AppWindowMac className="w-4 h-4" />
                   </div>
                   <div>
                     <div className="font-bold text-slate-800">Blank Screen</div>
@@ -5573,61 +6252,6 @@ export default function AppCanvas({
               <Redo2 className="w-3.5 h-3.5 text-slate-600" />
             </button>
           </div>
-
-          {/* Network Sync Pill */}
-          {isOnline && pendingSyncCount === 0 ? (
-            <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold" title="Online (Tersinkronisasi ke server)">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Online</span>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={handleManualSyncQueue}
-              disabled={isSyncingOfflineQueue}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 text-xs font-bold transition-all cursor-pointer shadow-2xs"
-              title="Klik untuk sinkronisasi antrian offline"
-            >
-              <WifiOff className="w-3.5 h-3.5 text-amber-600" />
-              <span>{isOnline ? 'Sync' : 'Offline'} ({pendingSyncCount})</span>
-            </button>
-          )}
-
-          {/* Hardware Barcode Simulator Button */}
-          <button
-            type="button"
-            onClick={() => setIsSimulateScanModalOpen(true)}
-            className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1"
-            title="Simulasi Scan Barcode (Hardware Wedge)"
-          >
-            <Barcode className="w-3.5 h-3.5 text-cyan-600" />
-            <span className="hidden xl:inline text-[11px]">Scan</span>
-          </button>
-
-          {/* Audit Trail & e-Sign Button */}
-          <button
-            type="button"
-            onClick={() => setIsAuditModalOpen(true)}
-            className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1"
-            title="Log Audit & e-Signature (21 CFR Part 11)"
-          >
-            <FileCheck2 className="w-3.5 h-3.5 text-indigo-600" />
-            <span className="hidden xl:inline text-[11px]">Audit</span>
-          </button>
-
-          {/* Preview / Edit Mode (Icon Only) */}
-          <button
-            type="button"
-            onClick={() => setIsPreview(!isPreview)}
-            title={isPreview ? 'Keluar Preview (Mode Edit)' : 'Mulai Preview (Mode Interaktif)'}
-            className={`p-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
-              isPreview
-                ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
-                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-2xs'
-            }`}
-          >
-            <Eye className="w-3.5 h-3.5" />
-          </button>
         </div>
       </header>
 
@@ -5714,7 +6338,7 @@ export default function AppCanvas({
                       className="p-1 hover:bg-blue-50 text-blue-600 rounded-lg border border-blue-200 flex items-center gap-0.5 text-[10px] font-bold"
                       title="Add screen"
                     >
-                      <Plus className="w-3.5 h-3.5" />
+                      <AppWindowMac className="w-3.5 h-3.5" />
                     </button>
 
                     {/* Mini dropdown for sidebar add screen */}
@@ -5725,7 +6349,7 @@ export default function AppCanvas({
                           onClick={() => addScreen('Screen')}
                           className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2"
                         >
-                          <FileText className="w-3.5 h-3.5 text-blue-600" /> Blank Screen
+                          <AppWindowMac className="w-3.5 h-3.5 text-blue-600" /> Blank Screen
                         </button>
                         <button
                           type="button"

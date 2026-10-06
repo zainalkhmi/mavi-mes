@@ -49,7 +49,7 @@ import {
   Save, Link, QrCode, Edit3, AlertTriangle, Plus,
   FolderOpen, ChevronDown, MonitorPlay, Maximize2,
   UploadCloud, Lock, Unlock, Clock, Radio, X,
-  Barcode, FileCheck2, WifiOff
+  Barcode, FileCheck2, WifiOff, Camera, Database
 } from 'lucide-react';
 
 export default function UiEngineStudio({ canvasMode = true }) {
@@ -534,52 +534,106 @@ export default function UiEngineStudio({ canvasMode = true }) {
             </button>
           </div>
 
-          {/* Right: Theme Toggle & Actions */}
-          <div className="flex items-center gap-2 flex-1 justify-end">
-            {/* Store-and-Forward Offline Sync Indicator */}
+          {/* Right: Unified Operational Tools & Operator Kiosk */}
+          <div className="flex items-center gap-1.5 flex-1 justify-end">
+            {/* Online / Offline Sync Pill */}
+            {isOnline && pendingSyncCount === 0 ? (
+              <div
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white text-emerald-700 border border-emerald-200 text-xs font-bold shadow-2xs select-none"
+                title="Online (Tersinkronisasi ke server)"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="hidden sm:inline">Online</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('mavi_ui_engine_trigger_sync'));
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white text-amber-700 border border-amber-300 text-xs font-bold transition-all cursor-pointer shadow-2xs hover:bg-amber-50"
+                title="Klik untuk sinkronisasi antrian offline"
+              >
+                <WifiOff className="w-3.5 h-3.5 text-amber-600" />
+                <span>{isOnline ? 'Sync' : 'Offline'} ({pendingSyncCount})</span>
+              </button>
+            )}
+
+            {/* Scan Hardware Button */}
             <button
               type="button"
               onClick={() => {
-                window.dispatchEvent(new CustomEvent('mavi_ui_engine_trigger_sync'));
+                window.dispatchEvent(new CustomEvent('mavi_ui_engine_open_scan'));
               }}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
-                !isOnline 
-                  ? 'bg-amber-500/20 text-amber-200 border-amber-500/40 animate-pulse'
-                  : pendingSyncCount > 0
-                  ? 'bg-blue-500/20 text-blue-200 border-blue-500/40'
-                  : 'bg-emerald-500/15 text-emerald-200 border-emerald-500/30'
-              }`}
-              title={!isOnline ? 'Edge Offline: Data disimpan ke antrian lokal' : pendingSyncCount > 0 ? `Sinkronkan ${pendingSyncCount} perubahan antrian offline` : 'Edge Cloud Connected'}
+              className="p-1.5 px-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1.5"
+              title="Simulasi Scan Barcode (Hardware Wedge)"
             >
-              {!isOnline ? (
-                <>
-                  <WifiOff className="w-3.5 h-3.5 text-amber-300" />
-                  <span className="hidden sm:inline">Offline {pendingSyncCount > 0 ? `(${pendingSyncCount})` : ''}</span>
-                </>
-              ) : pendingSyncCount > 0 ? (
-                <>
-                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-ping" />
-                  <span className="hidden sm:inline">Sync ({pendingSyncCount})</span>
-                </>
-              ) : (
-                <>
-                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                  <span className="hidden sm:inline">Online</span>
-                </>
-              )}
+              <Barcode className="w-3.5 h-3.5 text-cyan-600" />
+              <span className="hidden sm:inline">Scan</span>
             </button>
 
-            {/* AUDIT TRAIL & E-SIGN CFR 21 BUTTON */}
+            {/* Audit Trail & e-Sign Button */}
             <button
               type="button"
               onClick={() => {
                 window.dispatchEvent(new CustomEvent('mavi_ui_engine_open_audit'));
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all bg-white/10 hover:bg-white/20 text-white border-white/20 active:scale-95 cursor-pointer shadow-xs"
-              title="Audit Trail & Electronic Signatures (21 CFR Part 11)"
+              className="p-1.5 px-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1.5"
+              title="Log Audit & e-Signature (21 CFR Part 11)"
             >
-              <FileCheck2 className="w-3.5 h-3.5 text-emerald-300" />
-              <span className="hidden sm:inline">Audit & e-Sign</span>
+              <FileCheck2 className="w-3.5 h-3.5 text-indigo-600" />
+              <span className="hidden sm:inline">Audit</span>
+            </button>
+
+            {/* IoT Telemetry Button */}
+            <button
+              type="button"
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('mavi_ui_engine_open_iot'));
+              }}
+              className="p-1.5 px-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1.5"
+              title="Live IoT & PLC Machine Telemetry"
+            >
+              <Cpu className="w-3.5 h-3.5 text-cyan-600" />
+              <span className="hidden sm:inline">IoT</span>
+            </button>
+
+            {/* AI Vision Defect Inspector Button */}
+            <button
+              type="button"
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('mavi_ui_engine_open_vision'));
+              }}
+              className="p-1.5 px-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1.5"
+              title="AI Computer Vision Defect Inspector"
+            >
+              <Camera className="w-3.5 h-3.5 text-purple-600" />
+              <span className="hidden sm:inline">AI Vision</span>
+            </button>
+
+            {/* SAP / ERP Connector Button */}
+            <button
+              type="button"
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('mavi_ui_engine_open_erp'));
+              }}
+              className="p-1.5 px-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1.5"
+              title="SAP S/4HANA & ERP Two-Way Connector"
+            >
+              <Database className="w-3.5 h-3.5 text-blue-600" />
+              <span className="hidden sm:inline">ERP</span>
+            </button>
+
+            {/* Preview / Edit Toggle */}
+            <button
+              type="button"
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('mavi_ui_engine_toggle_preview'));
+              }}
+              className="p-1.5 px-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-2xs flex items-center justify-center"
+              title="Toggle Mode Preview / Edit"
+            >
+              <Eye className="w-3.5 h-3.5" />
             </button>
 
             {/* OPERATOR KIOSK BUTTON (Full-Screen Production Runner) */}
@@ -594,29 +648,6 @@ export default function UiEngineStudio({ canvasMode = true }) {
               <MonitorPlay className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Operator Kiosk</span>
             </button>
-
-            {/* Dark Mode Toggle */}
-            <button
-              onClick={() => setColorMode(colorMode === 'light' ? 'dark' : 'light')}
-              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
-              title="Toggle Theme"
-            >
-              {colorMode === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4 text-amber-300" />}
-            </button>
-
-            {/* Walkthrough Button */}
-            <Button
-              action="positive"
-              size="sm"
-              onPress={() => {
-                setSelectedTemplateId('inspection');
-                setIsTourActive(true);
-                setTourStep(0);
-              }}
-            >
-              <ButtonIcon as={Compass} />
-              <ButtonText className="hidden sm:inline">Start Walkthrough</ButtonText>
-            </Button>
           </div>
         </header>
 

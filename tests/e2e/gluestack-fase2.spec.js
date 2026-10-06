@@ -27,8 +27,8 @@ test.describe('MAVI MES - Gluestack Enterprise Fase 2 (Edge Barcode Scanner, Off
     // Tunggu canvas termuat
     await page.waitForTimeout(2000);
 
-    // 2. Verifikasi Tombol Audit & e-Sign dan Status Online pada Header Studio
-    const auditBtn = page.locator('button:has-text("Audit & e-Sign")').first();
+    // 2. Verifikasi Tombol Audit & e-Sign dan Status Online pada Canvas Toolbar
+    const auditBtn = page.locator('button[title*="Log Audit"]').or(page.locator('button:has-text("Audit")')).first();
     await expect(auditBtn).toBeVisible({ timeout: 10000 });
 
     const onlineIndicator = page.locator('text=Online').first();
