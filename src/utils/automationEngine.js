@@ -250,7 +250,7 @@ class AutomationEngine {
         };
       });
 
-      return [...legacyAutos, ...mappedFns, ...mappedActiveWfs];
+      return [...autos, ...mappedFns, ...mappedActiveWfs];
     } catch (e) {
       console.error('Failed to load automations:', e);
       return [];

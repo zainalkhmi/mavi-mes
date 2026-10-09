@@ -6,7 +6,7 @@ import {
   AlignRight, Bold, Italic, Underline, ChevronDown, ChevronRight,
   Database, Variable, Play, Link, CheckCircle2, AlertCircle,
   ExternalLink, Layers, Smartphone, RefreshCw, Hash, SlidersHorizontal,
-  Move, Maximize2, Minimize2, Grid3X3
+  Move, Maximize2, Minimize2, Grid3X3, ScanLine, QrCode
 } from 'lucide-react';
 
 const COLOR_PRESETS = [
@@ -92,6 +92,7 @@ export default function GluestackWidgetProperties({
   const isProgressLike = ['Progress', 'Slider', 'Gauge'].includes(compType);
   const isTextLike = ['Heading', 'Text', 'Badge'].includes(compType);
   const isMediaLike = ['Image', 'Video', 'Camera', 'QRCodeScanner', 'BarcodeScanner'].includes(compType);
+  const isScannerLike = ['QRCodeScanner', 'BarcodeScanner'].includes(compType);
   const isContainerLike = ['Card', 'Container', 'Box', 'HStack', 'VStack'].includes(compType);
 
   const handleGeometryChange = (field, val) => {
@@ -513,6 +514,56 @@ export default function GluestackWidgetProperties({
                   </select>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ─── BARCODE & QR CODE SCANNER CONFIGURATION ──────────────────── */}
+          {isScannerLike && (
+            <div className="space-y-3 p-3 bg-teal-50/70 dark:bg-teal-950/20 border border-teal-200/80 dark:border-teal-900/40 rounded-xl animate-in fade-in duration-150">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-teal-800 dark:text-teal-400">
+                <ScanLine className="w-4 h-4 text-teal-600 shrink-0" />
+                <span>Parameter Barcode & QR Scanner</span>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 block">Label / Judul Scanner</label>
+                <input
+                  type="text"
+                  value={props.label || 'Pindai Barcode / QR Part'}
+                  onChange={(e) => updateProps(selectedComponent.id, { label: e.target.value })}
+                  className="w-full text-xs p-1.5 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 block">Petunjuk Subtitle</label>
+                <input
+                  type="text"
+                  value={props.subtitle || 'Arahkan kamera ke barcode part / lot traveler'}
+                  onChange={(e) => updateProps(selectedComponent.id, { subtitle: e.target.value })}
+                  className="w-full text-xs p-1.5 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 block">Simpan Hasil Scan ke Variabel</label>
+                <select
+                  value={props.targetVariable || ''}
+                  onChange={(e) => updateProps(selectedComponent.id, { targetVariable: e.target.value })}
+                  className="w-full text-xs p-1.5 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 font-medium"
+                >
+                  <option value="">Pilih variabel penampung...</option>
+                  {(variables || []).map(v => (
+                    <option key={v.id || v.name} value={v.name || v.id}>{v.name} ({v.type || 'string'})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center justify-between pt-1 border-t border-teal-200/50">
+                <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">Auto Scan Kamera</span>
+                <input
+                  type="checkbox"
+                  checked={props.autoScan !== false}
+                  onChange={(e) => updateProps(selectedComponent.id, { autoScan: e.target.checked })}
+                  className="w-4 h-4 rounded text-teal-600 cursor-pointer"
+                />
+              </div>
             </div>
           )}
 

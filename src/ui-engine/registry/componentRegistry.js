@@ -1107,6 +1107,27 @@ export const COMPONENT_REGISTRY = [
     example: `<ScadaTrend label="Trend Suhu" data={[50, 52, 55, 60]} unit="°C" />`,
     sourceFile: 'src/ui-engine/components/ScadaWidgets.jsx',
     dependencies: []
+  },
+  {
+    name: 'QRCodeScanner',
+    alias: 'BarcodeScanner',
+    category: 'Industrial MES',
+    description: 'Industrial Barcode and QR Code scanner with live camera viewfinder, auto-scan, target variable binding, and hardware keyboard wedge support.',
+    subComponents: [],
+    props: {
+      label: { type: 'string', default: 'Pindai Barcode / QR Part' },
+      subtitle: { type: 'string', default: 'Arahkan kamera ke barcode part / lot traveler' },
+      aspectRatio: { type: 'enum', options: ['square', 'video'], default: 'square' },
+      showControls: { type: 'boolean', default: true },
+      autoScan: { type: 'boolean', default: true },
+      targetVariable: { type: 'string', default: '' }
+    },
+    variants: ['square', 'video'],
+    responsiveBehavior: 'Responsive camera HUD viewfinder with active scan-line animation',
+    example: `<QRCodeScanner label="Scan Lot Barcode" onScan={(code) => handleScan(code)} />`,
+    sourceFile: 'src/ui-engine/components/QRCodeScanner.jsx',
+    dependencies: ['lucide-react']
   }
 ];
+
 

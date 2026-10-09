@@ -11,6 +11,33 @@ import {
  */
 export const ACTION_CATEGORIES = [
   {
+    label: 'Data Manipulation',
+    actions: [
+      { value: 'DATA_MANIPULATION_STORE', label: 'Data Manipulation: Store' },
+      { value: 'DATA_MANIPULATION_CLEAR', label: 'Data Manipulation: Clear' },
+      { value: 'DATA_MANIPULATION_INCREMENT', label: 'Data Manipulation: Increment Value' },
+      { value: 'DATA_MANIPULATION_DECREMENT', label: 'Data Manipulation: Decrement Value' },
+      { value: 'RESET_ALL_VARIABLES', label: 'Data Manipulation: Reset All App Variables to Defaults' },
+    ]
+  },
+  {
+    label: 'Table Records',
+    actions: [
+      { value: 'TABLE_RECORD_CREATE', label: 'Table Record: Create' },
+      { value: 'TABLE_RECORD_CREATE_OR_LOAD', label: 'Table Record: Create or Load' },
+      { value: 'TABLE_RECORD_LOAD', label: 'Table Record: Load' },
+      { value: 'TABLE_RECORD_SAVE', label: 'Table Record: Save (Update)' },
+      { value: 'TABLE_RECORD_DELETE', label: 'Table Record: Delete' },
+      { value: 'CLEAR_RECORD_PLACEHOLDER', label: 'Table Record: Clear Placeholder' },
+    ]
+  },
+  {
+    label: 'Connectors',
+    actions: [
+      { value: 'RUN_CONNECTOR_FUNCTION', label: 'Connectors: Run Connector Function' },
+    ]
+  },
+  {
     label: 'Variables',
     actions: [
       { value: 'SET_VARIABLE', label: 'Variable: Set' },
@@ -25,6 +52,8 @@ export const ACTION_CATEGORIES = [
       { value: 'STOP_PRODUCTION', label: 'Shopfloor: Stop / Complete Production' },
       { value: 'VALIDATE_WORK_ORDER', label: 'Shopfloor: Validate Work Order & Skills' },
       { value: 'PLC_WRITE_TAG', label: 'Industrial IoT: Write PLC Bit/Tag' },
+      { value: 'PLC_WRITE_RECIPE', label: 'Industrial IoT: Write Recipe (Batch Multi-Tag)' },
+      { value: 'TRIGGER_WORKFLOW', label: 'Automation: Trigger Background Workflow' },
       { value: 'TRIGGER_HAPTIC_SOUND', label: 'Feedback: Play Sound & Haptic Vibration' },
     ]
   },
@@ -40,16 +69,6 @@ export const ACTION_CATEGORIES = [
       { value: 'PLAY_SOUND', label: 'Media: Play Sound' },
       { value: 'SHOW_IMAGE', label: 'Media: Show Image' },
       { value: 'PLAY_VIDEO', label: 'Media: Play Video' },
-    ]
-  },
-  {
-    label: 'Table Records',
-    actions: [
-      { value: 'TABLE_RECORD_LOAD', label: 'Table Record: Load' },
-      { value: 'TABLE_RECORD_CREATE', label: 'Table Record: Create' },
-      { value: 'TABLE_RECORD_SAVE', label: 'Table Record: Save (Update)' },
-      { value: 'TABLE_RECORD_DELETE', label: 'Table Record: Delete' },
-      { value: 'CLEAR_RECORD_PLACEHOLDER', label: 'Table Record: Clear Placeholder' },
     ]
   },
   {
@@ -193,6 +212,7 @@ export function TriggerEditorModal({
   const getEventOptions = () => {
     const iotEvents = [
       { value: 'ON_TAG_CHANGE', label: '⚡ Industrial IoT: PLC Tag / Sensor Changes' },
+      { value: 'ON_RISING_EDGE', label: '📈 Industrial IoT: Rising Edge (0 ➔ 1 Machine Cycle)' },
       { value: 'ON_PLC_ALARM', label: '🚨 Industrial IoT: PLC Alarm / Threshold Exceeded' }
     ];
 
@@ -362,6 +382,447 @@ export function TriggerEditorModal({
     const payload = act.payload || {};
 
     switch (act.type) {
+      // ── Tulip Data Manipulation: Store (support.tulip.co/docs/triggers) ──
+      case 'DATA_MANIPULATION_STORE':
+      case 'STORE':
+      case 'DATA_MANIPULATION': {
+        const source = payload.data || payload.source || {};
+        const location = payload.location || payload.target || {};
+        const sType = source.dataSourceType || 'STATIC';
+        const lType = location.locationType || (payload.varPath ? 'VARIABLE' : 'TABLE_RECORD');
+
+        const updateSource = (srcUpdates) => {
+          onChangePayload({
+            data: { ...source, ...srcUpdates }
+          });
+        };
+        const updateLocation = (locUpdates) => {
+          onChangePayload({
+            location: { ...location, ...locUpdates }
+          });
+        };
+
+        return (
+          <div className="flex flex-col gap-2.5 flex-1 text-xs">
+            {/* Row 1: data: */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold text-slate-500 w-14 shrink-0 text-right pr-1">data:</span>
+              
+              <select
+                value={sType}
+                onChange={(e) => updateSource({ dataSourceType: e.target.value })}
+                className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs font-semibold"
+              >
+                <option value="STATIC">Static Value</option>
+                <option value="VARIABLE">Variable</option>
+                <option value="TABLE_RECORD">Table Record</option>
+                <option value="TABLE_AGGREGATION">Table Aggregation</option>
+                <option value="EXPRESSION">Expression</option>
+                <option value="APP_INFO">App Info</option>
+              </select>
+
+              {sType === 'STATIC' && (
+                <>
+                  <select
+                    value={source.staticType || 'Text'}
+                    onChange={(e) => updateSource({ staticType: e.target.value })}
+                    className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs font-medium"
+                  >
+                    <option value="Text">Text</option>
+                    <option value="Number">Number</option>
+                    <option value="Boolean">Boolean</option>
+                    <option value="Datetime">Datetime</option>
+                  </select>
+
+                  {source.staticType === 'Boolean' ? (
+                    <select
+                      value={String(source.staticValue ?? 'true')}
+                      onChange={(e) => updateSource({ staticValue: e.target.value === 'true' })}
+                      className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs font-medium"
+                    >
+                      <option value="true">true</option>
+                      <option value="false">false</option>
+                    </select>
+                  ) : (
+                    <input
+                      type={source.staticType === 'Number' ? 'number' : 'text'}
+                      value={source.staticValue !== undefined ? source.staticValue : (source.value || '')}
+                      onChange={(e) => updateSource({ staticValue: e.target.value, value: e.target.value })}
+                      placeholder={source.staticType === 'Number' ? '0' : '"enter value"'}
+                      className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs flex-1 min-w-[130px]"
+                    />
+                  )}
+                </>
+              )}
+
+              {sType === 'VARIABLE' && (
+                <select
+                  value={source.variableName || source.varPath || ''}
+                  onChange={(e) => updateSource({ variableName: e.target.value, varPath: e.target.value })}
+                  className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs flex-1 min-w-[150px] font-medium"
+                >
+                  <option value="">Select variable...</option>
+                  {variables.map(v => (
+                    <option key={v.name} value={v.name}>{v.name}</option>
+                  ))}
+                </select>
+              )}
+
+              {sType === 'TABLE_RECORD' && (
+                <>
+                  <select
+                    value={source.placeholderId || source.recordPlaceholder || ''}
+                    onChange={(e) => updateSource({ placeholderId: e.target.value, recordPlaceholder: e.target.value })}
+                    className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs min-w-[140px] font-medium"
+                  >
+                    <option value="">Select Record Placeholder...</option>
+                    {recordPlaceholders.map(rp => (
+                      <option key={rp.id} value={rp.name || rp.id}>{rp.name}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={source.fieldName || source.field || ''}
+                    onChange={(e) => updateSource({ fieldName: e.target.value, field: e.target.value })}
+                    placeholder="Field name (e.g. Status, Date Created)..."
+                    className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs flex-1 min-w-[130px]"
+                  />
+                </>
+              )}
+
+              {sType === 'TABLE_AGGREGATION' && (
+                <>
+                  <select
+                    value={source.aggregationType || 'COUNT'}
+                    onChange={(e) => updateSource({ aggregationType: e.target.value })}
+                    className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs font-medium"
+                  >
+                    <option value="COUNT">Count of Records</option>
+                    <option value="SUM">Sum</option>
+                    <option value="AVERAGE">Average</option>
+                    <option value="MIN">Min</option>
+                    <option value="MAX">Max</option>
+                  </select>
+                  <select
+                    value={source.tableId || ''}
+                    onChange={(e) => updateSource({ tableId: e.target.value })}
+                    className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs min-w-[120px]"
+                  >
+                    <option value="">Select Table...</option>
+                    {tables.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                  {source.aggregationType && source.aggregationType !== 'COUNT' && (
+                    <input
+                      type="text"
+                      value={source.fieldName || ''}
+                      onChange={(e) => updateSource({ fieldName: e.target.value })}
+                      placeholder="Column/Field..."
+                      className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs w-28"
+                    />
+                  )}
+                </>
+              )}
+
+              {sType === 'EXPRESSION' && (
+                <input
+                  type="text"
+                  value={source.expression || source.formula || ''}
+                  onChange={(e) => updateSource({ expression: e.target.value, formula: e.target.value })}
+                  placeholder="e.g. UPPER(@status) or @qty * 2"
+                  className="p-1.5 border border-slate-300 rounded-lg bg-white font-mono text-xs flex-1 min-w-[180px]"
+                />
+              )}
+
+              {sType === 'APP_INFO' && (
+                <select
+                  value={source.appInfoField || 'LOGGED_IN_USER'}
+                  onChange={(e) => updateSource({ appInfoField: e.target.value })}
+                  className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs font-medium min-w-[160px]"
+                >
+                  <option value="LOGGED_IN_USER">Logged-in User</option>
+                  <option value="STATION">Station Name</option>
+                  <option value="SHIFT">Current Shift</option>
+                  <option value="APP_NAME">App Name</option>
+                  <option value="CURRENT_DATETIME">Current Date/Time</option>
+                </select>
+              )}
+            </div>
+
+            {/* Row 2: location: */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold text-slate-500 w-14 shrink-0 text-right pr-1">location:</span>
+
+              <select
+                value={lType}
+                onChange={(e) => updateLocation({ locationType: e.target.value })}
+                className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs font-semibold"
+              >
+                <option value="TABLE_RECORD">Table Record</option>
+                <option value="VARIABLE">Variable</option>
+              </select>
+
+              {lType === 'TABLE_RECORD' ? (
+                <>
+                  <select
+                    value={location.placeholderId || location.recordPlaceholder || ''}
+                    onChange={(e) => updateLocation({ placeholderId: e.target.value, recordPlaceholder: e.target.value })}
+                    className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs min-w-[150px] font-medium"
+                  >
+                    <option value="">Select Record Placeholder...</option>
+                    {recordPlaceholders.map(rp => (
+                      <option key={rp.id} value={rp.name || rp.id}>{rp.name}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={location.fieldName || location.field || ''}
+                    onChange={(e) => updateLocation({ fieldName: e.target.value, field: e.target.value })}
+                    placeholder="Field name (e.g. Status, Lot Date)..."
+                    className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs flex-1 min-w-[130px]"
+                  />
+                </>
+              ) : (
+                <select
+                  value={location.variableName || location.varPath || ''}
+                  onChange={(e) => updateLocation({ variableName: e.target.value, varPath: e.target.value })}
+                  className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs flex-1 min-w-[160px] font-medium"
+                >
+                  <option value="">Select destination variable...</option>
+                  {variables.map(v => (
+                    <option key={v.name} value={v.name}>{v.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      // ── Tulip Data Manipulation: Clear ──
+      case 'DATA_MANIPULATION_CLEAR':
+      case 'CLEAR': {
+        const location = payload.location || payload.target || {};
+        const lType = location.locationType || (payload.varPath ? 'VARIABLE' : (payload.placeholderId ? 'TABLE_RECORD' : 'VARIABLE'));
+
+        const updateLocation = (locUpdates) => {
+          onChangePayload({
+            location: { ...location, ...locUpdates }
+          });
+        };
+
+        return (
+          <div className="flex flex-wrap items-center gap-2 flex-1 text-xs">
+            <span className="font-semibold text-slate-500 w-14 shrink-0 text-right pr-1">location:</span>
+            <select
+              value={lType}
+              onChange={(e) => updateLocation({ locationType: e.target.value })}
+              className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs font-semibold"
+            >
+              <option value="VARIABLE">Variable</option>
+              <option value="TABLE_RECORD">Table Record</option>
+              <option value="ALL_VARIABLES">All App Variables</option>
+            </select>
+
+            {lType === 'VARIABLE' && (
+              <select
+                value={location.variableName || location.varPath || ''}
+                onChange={(e) => updateLocation({ variableName: e.target.value, varPath: e.target.value })}
+                className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs min-w-[160px] font-medium"
+              >
+                <option value="">Select variable...</option>
+                {variables.map(v => (
+                  <option key={v.name} value={v.name}>{v.name}</option>
+                ))}
+              </select>
+            )}
+
+            {lType === 'TABLE_RECORD' && (
+              <>
+                <select
+                  value={location.placeholderId || location.recordPlaceholder || ''}
+                  onChange={(e) => updateLocation({ placeholderId: e.target.value, recordPlaceholder: e.target.value })}
+                  className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs min-w-[150px] font-medium"
+                >
+                  <option value="">Select Record Placeholder...</option>
+                  {recordPlaceholders.map(rp => (
+                    <option key={rp.id} value={rp.name || rp.id}>{rp.name}</option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  value={location.fieldName || location.field || ''}
+                  onChange={(e) => updateLocation({ fieldName: e.target.value, field: e.target.value })}
+                  placeholder="Field name..."
+                  className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs flex-1 min-w-[130px]"
+                />
+              </>
+            )}
+
+            {lType === 'ALL_VARIABLES' && (
+              <span className="text-[11px] text-amber-600 font-medium">
+                Reset all variables in app back to initial defaults.
+              </span>
+            )}
+          </div>
+        );
+      }
+
+      // ── Tulip Data Manipulation: Increment / Decrement ──
+      case 'DATA_MANIPULATION_INCREMENT':
+      case 'DATA_MANIPULATION_DECREMENT': {
+        const location = payload.location || payload.target || {};
+        const lType = location.locationType || (payload.varPath ? 'VARIABLE' : 'TABLE_RECORD');
+        const by = payload.by || {};
+        const byType = typeof by === 'object' ? (by.byType || 'STATIC') : 'STATIC';
+        const byValue = typeof by === 'object' ? (by.value ?? 1) : (payload.step ?? 1);
+
+        const updateLocation = (locUpdates) => {
+          onChangePayload({
+            location: { ...location, ...locUpdates }
+          });
+        };
+
+        return (
+          <div className="flex flex-col gap-2 flex-1 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold text-slate-500 w-14 shrink-0 text-right pr-1">location:</span>
+              <select
+                value={lType}
+                onChange={(e) => updateLocation({ locationType: e.target.value })}
+                className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs font-semibold"
+              >
+                <option value="VARIABLE">Variable</option>
+                <option value="TABLE_RECORD">Table Record</option>
+              </select>
+
+              {lType === 'VARIABLE' ? (
+                <select
+                  value={location.variableName || location.varPath || ''}
+                  onChange={(e) => updateLocation({ variableName: e.target.value, varPath: e.target.value })}
+                  className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs min-w-[160px] font-medium"
+                >
+                  <option value="">Select variable...</option>
+                  {variables.map(v => (
+                    <option key={v.name} value={v.name}>{v.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <>
+                  <select
+                    value={location.placeholderId || location.recordPlaceholder || ''}
+                    onChange={(e) => updateLocation({ placeholderId: e.target.value, recordPlaceholder: e.target.value })}
+                    className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs min-w-[150px] font-medium"
+                  >
+                    <option value="">Select Record Placeholder...</option>
+                    {recordPlaceholders.map(rp => (
+                      <option key={rp.id} value={rp.name || rp.id}>{rp.name}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={location.fieldName || location.field || ''}
+                    onChange={(e) => updateLocation({ fieldName: e.target.value, field: e.target.value })}
+                    placeholder="Field name..."
+                    className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs flex-1 min-w-[120px]"
+                  />
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-slate-500 w-14 shrink-0 text-right pr-1">by:</span>
+              <select
+                value={byType}
+                onChange={(e) => onChangePayload({ by: { byType: e.target.value, value: e.target.value === 'VARIABLE' ? '' : 1 } })}
+                className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs font-medium"
+              >
+                <option value="STATIC">Static Value</option>
+                <option value="VARIABLE">Variable</option>
+              </select>
+
+              {byType === 'VARIABLE' ? (
+                <select
+                  value={typeof by === 'object' ? (by.value || '') : ''}
+                  onChange={(e) => onChangePayload({ by: { byType: 'VARIABLE', value: e.target.value } })}
+                  className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs min-w-[140px]"
+                >
+                  <option value="">Select variable...</option>
+                  {variables.map(v => (
+                    <option key={v.name} value={v.name}>{v.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="number"
+                  value={byValue}
+                  onChange={(e) => onChangePayload({ by: { byType: 'STATIC', value: Number(e.target.value) }, step: Number(e.target.value) })}
+                  className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs w-24"
+                />
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      // ── Tulip Data Manipulation: Reset All App Variables to Defaults ──
+      case 'RESET_ALL_VARIABLES':
+        return (
+          <div className="flex items-center gap-2 flex-1 text-xs text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-200">
+            <span className="font-bold text-slate-700">Aksi:</span>
+            <span>Mengembalikan semua variabel aplikasi ke nilai default awalnya.</span>
+          </div>
+        );
+
+      // ── Connectors: Run Connector Function (Tulip standard) ──
+      case 'RUN_CONNECTOR_FUNCTION':
+        return (
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-slate-500">connector:</span>
+              <select
+                value={payload.connector || '*Connectors Testing - HTTP'}
+                onChange={(e) => onChangePayload({ connector: e.target.value })}
+                className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs font-semibold min-w-[180px]"
+              >
+                <option value="*Connectors Testing - HTTP">*Connectors Testing - HTTP</option>
+                <option value="Odoo ERP Connector">Odoo ERP Connector</option>
+                <option value="n8n Webhook Connector">n8n Webhook Automation</option>
+                <option value="Industrial IoT / MQTT">Industrial IoT / MQTT Gateway</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-slate-500">api method:</span>
+              <select
+                value={payload.method || 'api method - get'}
+                onChange={(e) => onChangePayload({ method: e.target.value })}
+                className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs"
+              >
+                <option value="api method - get">api method - get</option>
+                <option value="api method - post">api method - post</option>
+                <option value="api method - put">api method - put</option>
+                <option value="api method - delete">api method - delete</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2 flex-1">
+              <span className="font-semibold text-slate-500 whitespace-nowrap">and save result as:</span>
+              <select
+                value={payload.saveResultAs || ''}
+                onChange={(e) => onChangePayload({ saveResultAs: e.target.value })}
+                className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs flex-1 min-w-[120px] font-medium"
+              >
+                <option value="">Select result variable...</option>
+                {variables.map(v => (
+                  <option key={v.name} value={v.name}>{v.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        );
+
       case 'START_PRODUCTION':
         return (
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 text-xs">
@@ -527,6 +988,77 @@ export function TriggerEditorModal({
                   </label>
                 </div>
               )}
+            </div>
+          </div>
+        );
+
+      case 'PLC_WRITE_RECIPE':
+        return (
+          <div className="flex flex-col gap-2.5 flex-1 text-xs">
+            <div className="space-y-1.5">
+              <span className="font-semibold text-slate-700 dark:text-slate-300">Recipe Tags (JSON Object atau key=value)</span>
+              <textarea
+                value={typeof payload.tags === 'object' ? JSON.stringify(payload.tags, null, 2) : (payload.tags || '{\n  "ns=2;s=SpindleSpeed": 1500,\n  "ns=2;s=Temperature": 180,\n  "40001": 55\n}')}
+                onChange={(e) => {
+                  try {
+                    const parsed = JSON.parse(e.target.value);
+                    onChangePayload({ tags: parsed });
+                  } catch (err) {
+                    onChangePayload({ tags: e.target.value });
+                  }
+                }}
+                rows={3}
+                placeholder='{ "ns=2;s=SpindleSpeed": 1500, "ns=2;s=TargetTemp": 180 }'
+                className="w-full p-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 font-mono text-[11px]"
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="flex items-center gap-1.5">
+                <span className="font-semibold text-slate-500">Strobe/Req Tag:</span>
+                <input
+                  type="text"
+                  value={payload.handshakeTag || ''}
+                  onChange={(e) => onChangePayload({ handshakeTag: e.target.value })}
+                  placeholder="REQ_LOAD_RECIPE"
+                  className="p-1 border border-slate-300 rounded bg-white text-xs flex-1"
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-semibold text-slate-500">ACK Tag:</span>
+                <input
+                  type="text"
+                  value={payload.ackTag || ''}
+                  onChange={(e) => onChangePayload({ ackTag: e.target.value })}
+                  placeholder="ACK_RECIPE_LOADED"
+                  className="p-1 border border-slate-300 rounded bg-white text-xs flex-1"
+                />
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'TRIGGER_WORKFLOW':
+      case 'RUN_WORKFLOW':
+        return (
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 text-xs">
+            <div className="flex items-center gap-2 flex-1">
+              <span className="font-semibold text-slate-500 min-w-[85px]">Workflow Name/ID</span>
+              <input
+                type="text"
+                value={payload.workflowName || payload.workflowId || ''}
+                onChange={(e) => onChangePayload({ workflowName: e.target.value, workflowId: e.target.value })}
+                placeholder="e.g. Sync Order to ERP / Quality Alert Telegram"
+                className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs flex-1"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-slate-500">Event Key</span>
+              <input
+                type="text"
+                value={payload.eventType || 'TRIGGER_WORKFLOW'}
+                onChange={(e) => onChangePayload({ eventType: e.target.value })}
+                className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs w-36 font-mono"
+              />
             </div>
           </div>
         );
@@ -702,35 +1234,63 @@ export function TriggerEditorModal({
           </div>
         );
 
+      case 'TABLE_RECORD_CREATE_OR_LOAD':
       case 'TABLE_RECORD_LOAD':
-      case 'TABLE_RECORD_CREATE':
+      case 'TABLE_RECORD_CREATE': {
+        const idType = payload.idType || (payload.id?.dataSourceType) || 'STATIC';
+        const idVal = payload.idValue !== undefined ? payload.idValue : (payload.id?.staticValue || payload.id?.value || payload.id || '');
+
         return (
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 text-xs">
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-slate-500 min-w-[70px]">Placeholder</span>
+              <span className="font-semibold text-slate-500">by ID:</span>
               <select
-                value={payload.placeholderId || ''}
-                onChange={(e) => onChangePayload({ placeholderId: e.target.value })}
-                className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs min-w-[140px]"
+                value={idType}
+                onChange={(e) => onChangePayload({ idType: e.target.value, idValue: '' })}
+                className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs font-semibold"
               >
-                <option value="">Select placeholder...</option>
+                <option value="STATIC">Static Value</option>
+                <option value="VARIABLE">Variable</option>
+              </select>
+
+              {idType === 'VARIABLE' ? (
+                <select
+                  value={idVal}
+                  onChange={(e) => onChangePayload({ idValue: e.target.value })}
+                  className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs min-w-[130px] font-medium"
+                >
+                  <option value="">Select variable...</option>
+                  {variables.map(v => (
+                    <option key={v.name} value={v.name}>{v.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={idVal}
+                  onChange={(e) => onChangePayload({ idValue: e.target.value })}
+                  placeholder={act.type === 'TABLE_RECORD_CREATE' ? '000123 (Opt)' : '000123'}
+                  className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs w-28 font-mono"
+                />
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 flex-1">
+              <span className="font-semibold text-slate-500">into:</span>
+              <select
+                value={payload.placeholderId || payload.placeholder || ''}
+                onChange={(e) => onChangePayload({ placeholderId: e.target.value, placeholder: e.target.value })}
+                className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs flex-1 min-w-[150px] font-bold text-slate-800"
+              >
+                <option value="">Select Record Placeholder...</option>
                 {recordPlaceholders.map(rp => (
-                  <option key={rp.id} value={rp.id}>{rp.name}</option>
+                  <option key={rp.id} value={rp.name || rp.id}>{rp.name}</option>
                 ))}
               </select>
             </div>
-            <div className="flex items-center gap-2 flex-1">
-              <span className="font-semibold text-slate-500 min-w-[65px]">{act.type === 'TABLE_RECORD_CREATE' ? 'Record ID (Opt)' : 'Record ID'}</span>
-              <input
-                type="text"
-                value={payload.idValue || ''}
-                onChange={(e) => onChangePayload({ idValue: e.target.value })}
-                placeholder={act.type === 'TABLE_RECORD_CREATE' ? 'Empty for Auto ID' : 'Static ID / Barcode'}
-                className="p-1.5 border border-slate-300 rounded-lg bg-white text-xs flex-1"
-              />
-            </div>
           </div>
         );
+      }
 
       case 'TABLE_RECORD_SAVE':
       case 'TABLE_RECORD_DELETE':

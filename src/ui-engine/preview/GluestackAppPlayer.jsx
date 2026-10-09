@@ -1138,6 +1138,7 @@ export default function GluestackAppPlayer({
         );
 
       case 'QRCodeScanner':
+      case 'BarcodeScanner':
         return (
           <div className="w-full bg-slate-950 text-white rounded-2xl overflow-hidden border border-slate-800 shadow-md">
             <div className="p-2.5 bg-slate-900 border-b border-slate-800 flex items-center justify-between text-xs">
@@ -1145,7 +1146,7 @@ export default function GluestackAppPlayer({
                 <div className="w-6 h-6 rounded-md bg-teal-500/20 text-teal-400 flex items-center justify-center">
                   <QrCode className="w-3.5 h-3.5" />
                 </div>
-                <div className="font-bold text-slate-200 text-[11px] truncate">{props.label || 'Pindai QR / Barcode'}</div>
+                <div className="font-bold text-slate-200 text-[11px] truncate">{props.label || 'Pindai Barcode / QR'}</div>
               </div>
               <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold">READY</span>
             </div>
@@ -1162,11 +1163,26 @@ export default function GluestackAppPlayer({
                 onClick={(e) => {
                   e.stopPropagation();
                   const mockCode = `PART-LOT-${Math.floor(1000 + Math.random() * 9000)}`;
-                  setActiveToast({ message: `QR Code Terdeteksi: ${mockCode}`, type: 'SUCCESS' });
-                  logTrigger('QRCodeScanner', 'ON_SCAN', `Scan Part: ${mockCode}`);
+                  setActiveToast({ message: `Barcode / QR Terdeteksi: ${mockCode}`, type: 'SUCCESS' });
+                  logTrigger(comp.props?.label || 'BarcodeScanner', 'ON_SCAN', `Scan: ${mockCode}`);
+                  
+                  // Auto-populate target variable if configured
+                  if (props.targetVariable) {
+                    setVariables(prev => {
+                      if (Array.isArray(prev)) {
+                        return prev.map(v => (v.id === props.targetVariable || v.name === props.targetVariable) ? { ...v, value: mockCode } : v);
+                      } else if (prev && typeof prev === 'object') {
+                        return { ...prev, [props.targetVariable]: mockCode };
+                      }
+                      return prev;
+                    });
+                  }
+
+                  // Store into form values
+                  setFormValues(prev => ({ ...prev, [comp.id]: mockCode }));
                   executeComponentTriggers(comp, 'ON_SCAN');
                 }}
-                className="mt-3 px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                className="mt-3 px-3.5 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
               >
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>Simulasi Scan Barcode (OK)</span>

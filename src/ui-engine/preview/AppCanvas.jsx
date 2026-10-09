@@ -421,6 +421,7 @@ const COMPONENT_GROUPS = [
       { type: 'ProductionCounter', label: 'Production Counter', icon: Factory, color: 'text-indigo-600', bg: 'bg-indigo-50', desc: 'Target vs Good vs Defect shift logger' },
       { type: 'OEEWidget', label: 'OEE Metrics', icon: Activity, color: 'text-purple-600', bg: 'bg-purple-50', desc: 'Availability, Performance, Quality live' },
       { type: 'AlarmBanner', label: 'Alarm Banner', icon: AlertTriangle, color: 'text-rose-600', bg: 'bg-rose-50', desc: 'Flashing warning & acknowledge' },
+      { type: 'QRCodeScanner', label: 'Barcode / QR Scanner', icon: ScanLine, color: 'text-emerald-600', bg: 'bg-emerald-50', desc: 'Pemindai barcode 1D / QR code part live kamera' },
       { type: 'BarcodeGenerator', label: 'Barcode Generator', icon: QrCode, color: 'text-slate-700', bg: 'bg-slate-100', desc: 'Code128 1D bar & QR Code' },
       { type: 'PrintZebra', label: 'Cetak Zebra (ZPL)', icon: Printer, color: 'text-amber-600', bg: 'bg-amber-50', desc: 'Thermal barcode label 50x30 mm' }
     ]
@@ -481,7 +482,7 @@ const COMPONENT_GROUPS = [
       headerText: 'text-emerald-700'
     },
     items: [
-      { type: 'QRCodeScanner', label: 'QR Scanner', icon: QrCode, color: 'text-emerald-600', bg: 'bg-emerald-50', desc: 'Pindai barcode & QR code kamera' },
+      { type: 'QRCodeScanner', label: 'Barcode / QR Scanner', icon: ScanLine, color: 'text-emerald-600', bg: 'bg-emerald-50', desc: 'Pindai barcode & QR code kamera' },
       { type: 'VideoPlayer', label: 'Video Player', icon: Video, color: 'text-rose-600', bg: 'bg-rose-50', desc: 'Pemutar video SOP & pelatihan kerja' },
       { type: 'Camera', label: 'Camera', icon: Camera, color: 'text-cyan-600', bg: 'bg-cyan-50', desc: 'Viewfinder & capture foto defek QC' }
     ]
@@ -619,7 +620,9 @@ const getDefaultProps = (type) => {
     case 'Form': return { title: 'Formulir Inspeksi', description: 'Harap isi semua parameter sebelum verifikasi' };
 
     // Media & Devices
-    case 'QRCodeScanner': return { label: 'Pindai QR / Barcode Part', subtitle: 'Arahkan kamera ke label lot', aspectRatio: 'square', showControls: true, autoScan: true };
+    case 'QRCodeScanner':
+    case 'BarcodeScanner':
+      return { label: 'Pindai Barcode / QR Part', subtitle: 'Arahkan kamera ke barcode part / lot traveler', aspectRatio: 'square', showControls: true, autoScan: true, targetVariable: '' };
     case 'VideoPlayer': return { title: 'SOP Perakitan Sub-Assy Pompa Hidrolik', subtitle: 'Instruksi Kerja Standar • Rev 2.1', src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4', poster: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=800', aspectRatio: '16:9', autoPlay: false, controls: true };
     case 'Camera': return { label: 'Kamera Inspeksi Defek Visual', subtitle: 'Ambil foto bukti cacat atau kelayakan part', showGrid: true, showShutter: true, aspectRatio: 'square' };
 
@@ -892,8 +895,8 @@ const getComponentIcon = (type) => {
     case 'Select': return ListFilter;
     case 'Checkbox': return CheckSquare;
     case 'Switch': return ToggleLeft;
-    case 'Form': return FileText;
-    case 'QRCodeScanner': return QrCode;
+    case 'QRCodeScanner':
+    case 'BarcodeScanner': return ScanLine;
     case 'VideoPlayer': return Video;
     case 'Camera': return Camera;
     case 'Card': return Grid3X3;
@@ -3902,6 +3905,7 @@ export default function AppCanvas({
 
       // MEDIA & DEVICES
       case 'QRCodeScanner':
+      case 'BarcodeScanner':
         return (
           <div className="w-full bg-slate-950 text-white rounded-2xl overflow-hidden border border-slate-800 shadow-md">
             <div className="p-2.5 bg-slate-900 border-b border-slate-800 flex items-center justify-between text-xs">

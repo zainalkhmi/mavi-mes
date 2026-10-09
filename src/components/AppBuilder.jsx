@@ -5099,6 +5099,199 @@ const AppBuilder = () => {
                     }
                     break;
                 }
+
+                // ── Tulip Data Manipulation: Store (support.tulip.co/docs/triggers) ──
+                case 'DATA_MANIPULATION_STORE':
+                case 'STORE':
+                case 'DATA_MANIPULATION': {
+                    const { data: sourceCfg = {}, location: locationCfg = {} } = action.payload || {};
+                    const sType = (sourceCfg.dataSourceType || sourceCfg.valueType || 'STATIC').toUpperCase();
+                    let resolvedVal = '';
+
+                    if (sType === 'STATIC') {
+                        const sKind = (sourceCfg.staticType || 'Text').toLowerCase();
+                        const raw = sourceCfg.staticValue !== undefined ? sourceCfg.staticValue : (sourceCfg.value !== undefined ? sourceCfg.value : '');
+                        if (sKind === 'number') {
+                            resolvedVal = Number(raw) || 0;
+                        } else if (sKind === 'boolean') {
+                            resolvedVal = raw === true || raw === 'true' || raw === 1 || raw === '1';
+                        } else if (sKind === 'datetime') {
+                            resolvedVal = raw || new Date().toISOString();
+                        } else {
+                            resolvedVal = String(raw ?? '');
+                        }
+                    } else if (sType === 'VARIABLE') {
+                        const varName = sourceCfg.variableName || sourceCfg.varPath || sourceCfg.value;
+                        const v = appVariables.find(av => av.name === varName);
+                        resolvedVal = v ? v.value : '';
+                    } else if (sType === 'TABLE_RECORD') {
+                        const phId = sourceCfg.placeholderId || sourceCfg.recordPlaceholder || sourceCfg.placeholder;
+                        const fieldName = sourceCfg.fieldName || sourceCfg.field;
+                        const placeholder = recordPlaceholders.find(rp => rp.id === phId || rp.name === phId);
+                        const effectivePhId = placeholder ? placeholder.id : phId;
+                        const rec = recordPlaceholderData[effectivePhId] || recordPlaceholderData[phId];
+                        resolvedVal = rec && rec[fieldName] !== undefined ? rec[fieldName] : '';
+                    } else if (sType === 'TABLE_AGGREGATION') {
+                        const agg = (sourceCfg.aggregationType || 'COUNT').toUpperCase();
+                        const tblId = sourceCfg.tableId || sourceCfg.table;
+                        const fieldName = sourceCfg.fieldName || sourceCfg.field;
+                        let records = [];
+                        try {
+                            const raw = localStorage.getItem(`mavi_table_${tblId}`);
+                            if (raw) records = JSON.parse(raw)?.records || [];
+                        } catch (e) {}
+                        if (agg === 'COUNT' || agg === 'COUNT OF RECORDS') {
+                            resolvedVal = records.length;
+                        } else {
+                            const nums = records.map(r => Number(r[fieldName])).filter(n => !isNaN(n));
+                            if (agg === 'SUM') resolvedVal = nums.reduce((a, b) => a + b, 0);
+                            else if (agg === 'AVERAGE' || agg === 'AVG') resolvedVal = nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0;
+                            else if (agg === 'MIN') resolvedVal = nums.length ? Math.min(...nums) : 0;
+                            else if (agg === 'MAX') resolvedVal = nums.length ? Math.max(...nums) : 0;
+                            else resolvedVal = records.length;
+                        }
+                    } else if (sType === 'EXPRESSION') {
+                        let expr = sourceCfg.expression || sourceCfg.formula || '';
+                        appVariables.forEach(v => {
+                            expr = expr.replace(new RegExp(`@${v.name}\\b`, 'g'), typeof v.value === 'number' ? v.value : `"${v.value}"`);
+                        });
+                        try {
+                            resolvedVal = new Function(`return ${expr}`)();
+                        } catch (e) {
+                            resolvedVal = expr;
+                        }
+                    } else if (sType === 'APP_INFO') {
+                        const field = (sourceCfg.appInfoField || 'LOGGED_IN_USER').toUpperCase();
+                        if (field === 'LOGGED_IN_USER' || field === 'USER') resolvedVal = appContext.user || 'OPERATOR01';
+                        else if (field === 'STATION') resolvedVal = appContext.station || 'STATION-01';
+                        else if (field === 'APP_NAME') resolvedVal = appName || 'MAVI MES';
+                        else if (field === 'CURRENT_DATETIME' || field === 'DATETIME') resolvedVal = new Date().toISOString();
+                        else resolvedVal = '';
+                    }
+
+                    // Store into destination
+                    const lType = (locationCfg.locationType || (locationCfg.varPath ? 'VARIABLE' : 'TABLE_RECORD')).toUpperCase();
+                    if (lType === 'VARIABLE') {
+                        const targetVar = locationCfg.variableName || locationCfg.varPath || locationCfg.targetVar;
+                        if (targetVar) {
+                            setValidatedVariableValue(targetVar, resolvedVal, 'DATA_MANIPULATION_STORE');
+                            toast.success(`Stored to variable "${targetVar}": ${resolvedVal}`);
+                        }
+                    } else if (lType === 'TABLE_RECORD') {
+                        const phId = locationCfg.placeholderId || locationCfg.recordPlaceholder || locationCfg.placeholder;
+                        const fieldName = locationCfg.fieldName || locationCfg.field;
+                        const placeholder = recordPlaceholders.find(rp => rp.id === phId || rp.name === phId);
+                        const effectivePhId = placeholder ? placeholder.id : phId;
+                        if (effectivePhId && fieldName) {
+                            setRecordPlaceholderData(prev => {
+                                const cur = prev[effectivePhId] || {};
+                                return { ...prev, [effectivePhId]: { ...cur, [fieldName]: resolvedVal, updatedAt: new Date().toISOString() } };
+                            });
+                            // Also sync table record if persistent
+                            try {
+                                const tblId = placeholder?.tableId;
+                                const curRec = recordPlaceholderData[effectivePhId];
+                                const recId = curRec?.id || curRec?.recordId;
+                                if (tblId && recId) {
+                                    const key = `mavi_table_${tblId}`;
+                                    const tbl = JSON.parse(localStorage.getItem(key) || '{"records":[]}');
+                                    const idx = tbl.records.findIndex(r => r.id === recId || r.recordId === recId);
+                                    if (idx >= 0) {
+                                        tbl.records[idx] = { ...tbl.records[idx], [fieldName]: resolvedVal, updatedAt: new Date().toISOString() };
+                                        localStorage.setItem(key, JSON.stringify(tbl));
+                                    }
+                                }
+                            } catch (e) {}
+                            toast.success(`Stored to record [${placeholder?.name || phId}.${fieldName}]: ${resolvedVal}`);
+                        }
+                    }
+                    break;
+                }
+
+                // ── Tulip Data Manipulation: Clear ──
+                case 'DATA_MANIPULATION_CLEAR': {
+                    const { location: locationCfg = {} } = action.payload || {};
+                    const lType = (locationCfg.locationType || 'VARIABLE').toUpperCase();
+                    if (lType === 'ALL_VARIABLES') {
+                        setAppVariables(appVariables.map(v => ({ ...v, value: v.defaultValue !== undefined ? v.defaultValue : '' })));
+                        toast.success('All app variables reset to default values.');
+                    } else if (lType === 'TABLE_RECORD') {
+                        const phId = locationCfg.placeholderId || locationCfg.recordPlaceholder;
+                        const fieldName = locationCfg.fieldName || locationCfg.field;
+                        const placeholder = recordPlaceholders.find(rp => rp.id === phId || rp.name === phId);
+                        const effectivePhId = placeholder ? placeholder.id : phId;
+                        if (effectivePhId && fieldName) {
+                            setRecordPlaceholderData(prev => {
+                                const cur = prev[effectivePhId] || {};
+                                return { ...prev, [effectivePhId]: { ...cur, [fieldName]: '' } };
+                            });
+                        }
+                    } else {
+                        const targetVar = locationCfg.variableName || locationCfg.varPath;
+                        if (targetVar) {
+                            setValidatedVariableValue(targetVar, '', 'DATA_MANIPULATION_CLEAR');
+                        }
+                    }
+                    break;
+                }
+
+                // ── Tulip Data Manipulation: Increment / Decrement ──
+                case 'DATA_MANIPULATION_INCREMENT':
+                case 'DATA_MANIPULATION_DECREMENT': {
+                    const isInc = action.type === 'DATA_MANIPULATION_INCREMENT';
+                    const { location: locationCfg = {}, by = 1, step = 1 } = action.payload || {};
+                    let stepVal = 1;
+                    if (typeof by === 'object') {
+                        const v = appVariables.find(av => av.name === (by.value || by.variableName));
+                        stepVal = Number(v?.value) || 1;
+                    } else {
+                        stepVal = Number(by !== undefined ? by : step) || 1;
+                    }
+                    const lType = (locationCfg.locationType || 'VARIABLE').toUpperCase();
+                    if (lType === 'TABLE_RECORD') {
+                        const phId = locationCfg.placeholderId || locationCfg.recordPlaceholder;
+                        const fieldName = locationCfg.fieldName || locationCfg.field;
+                        const placeholder = recordPlaceholders.find(rp => rp.id === phId || rp.name === phId);
+                        const effectivePhId = placeholder ? placeholder.id : phId;
+                        const cur = Number(recordPlaceholderData[effectivePhId]?.[fieldName]) || 0;
+                        const next = isInc ? cur + stepVal : cur - stepVal;
+                        setRecordPlaceholderData(prev => ({
+                            ...prev,
+                            [effectivePhId]: { ...(prev[effectivePhId] || {}), [fieldName]: next }
+                        }));
+                    } else {
+                        const targetVar = locationCfg.variableName || locationCfg.varPath;
+                        const v = appVariables.find(av => av.name === targetVar);
+                        const cur = Number(v?.value) || 0;
+                        const next = isInc ? cur + stepVal : cur - stepVal;
+                        if (targetVar) setValidatedVariableValue(targetVar, next, action.type);
+                    }
+                    break;
+                }
+
+                // ── Tulip Data Manipulation: Reset All App Variables to Defaults ──
+                case 'RESET_ALL_VARIABLES': {
+                    setAppVariables(appVariables.map(v => ({ ...v, value: v.defaultValue !== undefined ? v.defaultValue : '' })));
+                    toast.success('Semua variabel aplikasi dikembalikan ke nilai default.');
+                    break;
+                }
+
+                // ── Tulip Connectors: Run Connector Function ──
+                case 'RUN_CONNECTOR_FUNCTION': {
+                    const { connector = 'HTTP', method = 'get', saveResultAs } = action.payload || {};
+                    const simResult = {
+                        status: 200,
+                        connector,
+                        method,
+                        timestamp: new Date().toISOString(),
+                        data: { success: true, message: `Response from ${connector}` }
+                    };
+                    if (saveResultAs) {
+                        setValidatedVariableValue(saveResultAs, JSON.stringify(simResult), 'RUN_CONNECTOR_FUNCTION');
+                    }
+                    toast.success(`Connector "${connector}" (${method}) executed successfully.`);
+                    break;
+                }
                 case 'RESET_VARIABLE':
                 case 'CLEAR_VARIABLE': {
                     const { varPath } = action.payload;
@@ -27459,6 +27652,384 @@ D3:0
                                         };
 
                                         switch (act.type) {
+                                            // ── Tulip Data Manipulation: Store (support.tulip.co/docs/triggers) ──
+                                            case 'DATA_MANIPULATION_STORE':
+                                            case 'STORE':
+                                            case 'DATA_MANIPULATION': {
+                                                const source = act.payload?.data || act.payload?.source || {};
+                                                const location = act.payload?.location || act.payload?.target || {};
+                                                const sType = source.dataSourceType || 'STATIC';
+                                                const lType = location.locationType || (act.payload?.varPath ? 'VARIABLE' : 'TABLE_RECORD');
+
+                                                const updateSource = (srcUpdates) => {
+                                                    updatePayload({ data: { ...source, ...srcUpdates } });
+                                                };
+                                                const updateLocation = (locUpdates) => {
+                                                    updatePayload({ location: { ...location, ...locUpdates } });
+                                                };
+
+                                                return (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                        {/* Row 1: data: */}
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                            <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-quaternary)', minWidth: '70px' }}>data:</label>
+                                                            <select
+                                                                value={sType}
+                                                                onChange={(e) => updateSource({ dataSourceType: e.target.value })}
+                                                                style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem', fontWeight: 600 }}
+                                                            >
+                                                                <option value="STATIC">Static Value</option>
+                                                                <option value="VARIABLE">Variable</option>
+                                                                <option value="TABLE_RECORD">Table Record</option>
+                                                                <option value="TABLE_AGGREGATION">Table Aggregation</option>
+                                                                <option value="EXPRESSION">Expression</option>
+                                                                <option value="APP_INFO">App Info</option>
+                                                            </select>
+
+                                                            {sType === 'STATIC' && (
+                                                                <>
+                                                                    <select
+                                                                        value={source.staticType || 'Text'}
+                                                                        onChange={(e) => updateSource({ staticType: e.target.value })}
+                                                                        style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
+                                                                    >
+                                                                        <option value="Text">Text</option>
+                                                                        <option value="Number">Number</option>
+                                                                        <option value="Boolean">Boolean</option>
+                                                                        <option value="Datetime">Datetime</option>
+                                                                    </select>
+                                                                    {source.staticType === 'Boolean' ? (
+                                                                        <select
+                                                                            value={String(source.staticValue ?? 'true')}
+                                                                            onChange={(e) => updateSource({ staticValue: e.target.value === 'true' })}
+                                                                            style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
+                                                                        >
+                                                                            <option value="true">true</option>
+                                                                            <option value="false">false</option>
+                                                                        </select>
+                                                                    ) : (
+                                                                        <input
+                                                                            type={source.staticType === 'Number' ? 'number' : 'text'}
+                                                                            value={source.staticValue !== undefined ? source.staticValue : (source.value || '')}
+                                                                            onChange={(e) => updateSource({ staticValue: e.target.value, value: e.target.value })}
+                                                                            placeholder={source.staticType === 'Number' ? '0' : '"enter value"'}
+                                                                            style={{ flex: 1, minWidth: '130px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
+                                                                        />
+                                                                    )}
+                                                                </>
+                                                            )}
+
+                                                            {sType === 'VARIABLE' && (
+                                                                <select
+                                                                    value={source.variableName || source.varPath || ''}
+                                                                    onChange={(e) => updateSource({ variableName: e.target.value, varPath: e.target.value })}
+                                                                    style={{ flex: 1, minWidth: '140px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
+                                                                >
+                                                                    <option value="">Select variable...</option>
+                                                                    {appVariables.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
+                                                                </select>
+                                                            )}
+
+                                                            {sType === 'TABLE_RECORD' && (
+                                                                <>
+                                                                    <select
+                                                                        value={source.placeholderId || source.recordPlaceholder || ''}
+                                                                        onChange={(e) => updateSource({ placeholderId: e.target.value, recordPlaceholder: e.target.value })}
+                                                                        style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem', minWidth: '140px' }}
+                                                                    >
+                                                                        <option value="">Select Record Placeholder...</option>
+                                                                        {recordPlaceholders.map(rp => <option key={rp.id} value={rp.name || rp.id}>{rp.name}</option>)}
+                                                                    </select>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={source.fieldName || source.field || ''}
+                                                                        onChange={(e) => updateSource({ fieldName: e.target.value, field: e.target.value })}
+                                                                        placeholder="Field (e.g. Status, Date Created)..."
+                                                                        style={{ flex: 1, minWidth: '130px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
+                                                                    />
+                                                                </>
+                                                            )}
+
+                                                            {sType === 'TABLE_AGGREGATION' && (
+                                                                <>
+                                                                    <select
+                                                                        value={source.aggregationType || 'COUNT'}
+                                                                        onChange={(e) => updateSource({ aggregationType: e.target.value })}
+                                                                        style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
+                                                                    >
+                                                                        <option value="COUNT">Count of Records</option>
+                                                                        <option value="SUM">Sum</option>
+                                                                        <option value="AVERAGE">Average</option>
+                                                                        <option value="MIN">Min</option>
+                                                                        <option value="MAX">Max</option>
+                                                                    </select>
+                                                                    <select
+                                                                        value={source.tableId || ''}
+                                                                        onChange={(e) => updateSource({ tableId: e.target.value })}
+                                                                        style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem', minWidth: '120px' }}
+                                                                    >
+                                                                        <option value="">Select Table...</option>
+                                                                        {tables.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                                                    </select>
+                                                                    {source.aggregationType && source.aggregationType !== 'COUNT' && (
+                                                                        <input
+                                                                            type="text"
+                                                                            value={source.fieldName || ''}
+                                                                            onChange={(e) => updateSource({ fieldName: e.target.value })}
+                                                                            placeholder="Field..."
+                                                                            style={{ width: '100px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
+                                                                        />
+                                                                    )}
+                                                                </>
+                                                            )}
+
+                                                            {sType === 'EXPRESSION' && (
+                                                                <input
+                                                                    type="text"
+                                                                    value={source.expression || source.formula || ''}
+                                                                    onChange={(e) => updateSource({ expression: e.target.value, formula: e.target.value })}
+                                                                    placeholder="e.g. UPPER(@status) or @qty * 2"
+                                                                    style={{ flex: 1, minWidth: '180px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem', fontFamily: 'monospace' }}
+                                                                />
+                                                            )}
+
+                                                            {sType === 'APP_INFO' && (
+                                                                <select
+                                                                    value={source.appInfoField || 'LOGGED_IN_USER'}
+                                                                    onChange={(e) => updateSource({ appInfoField: e.target.value })}
+                                                                    style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
+                                                                >
+                                                                    <option value="LOGGED_IN_USER">Logged-in User</option>
+                                                                    <option value="STATION">Station Name</option>
+                                                                    <option value="SHIFT">Current Shift</option>
+                                                                    <option value="APP_NAME">App Name</option>
+                                                                    <option value="CURRENT_DATETIME">Current Date/Time</option>
+                                                                </select>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Row 2: location: */}
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                            <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-quaternary)', minWidth: '70px' }}>location:</label>
+                                                            <select
+                                                                value={lType}
+                                                                onChange={(e) => updateLocation({ locationType: e.target.value })}
+                                                                style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem', fontWeight: 600 }}
+                                                            >
+                                                                <option value="TABLE_RECORD">Table Record</option>
+                                                                <option value="VARIABLE">Variable</option>
+                                                            </select>
+
+                                                            {lType === 'TABLE_RECORD' ? (
+                                                                <>
+                                                                    <select
+                                                                        value={location.placeholderId || location.recordPlaceholder || ''}
+                                                                        onChange={(e) => updateLocation({ placeholderId: e.target.value, recordPlaceholder: e.target.value })}
+                                                                        style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem', minWidth: '150px' }}
+                                                                    >
+                                                                        <option value="">Select Record Placeholder...</option>
+                                                                        {recordPlaceholders.map(rp => <option key={rp.id} value={rp.name || rp.id}>{rp.name}</option>)}
+                                                                    </select>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={location.fieldName || location.field || ''}
+                                                                        onChange={(e) => updateLocation({ fieldName: e.target.value, field: e.target.value })}
+                                                                        placeholder="Field (e.g. Status, Lot Date)..."
+                                                                        style={{ flex: 1, minWidth: '130px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
+                                                                    />
+                                                                </>
+                                                            ) : (
+                                                                <select
+                                                                    value={location.variableName || location.varPath || ''}
+                                                                    onChange={(e) => updateLocation({ variableName: e.target.value, varPath: e.target.value })}
+                                                                    style={{ flex: 1, minWidth: '150px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
+                                                                >
+                                                                    <option value="">Select destination variable...</option>
+                                                                    {appVariables.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
+                                                                </select>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+
+                                            // ── Tulip Data Manipulation: Clear ──
+                                            case 'DATA_MANIPULATION_CLEAR': {
+                                                const location = act.payload?.location || act.payload?.target || {};
+                                                const lType = location.locationType || (act.payload?.varPath ? 'VARIABLE' : 'TABLE_RECORD');
+                                                const updateLocation = (locUpdates) => {
+                                                    updatePayload({ location: { ...location, ...locUpdates } });
+                                                };
+                                                return (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-quaternary)', minWidth: '70px' }}>location:</label>
+                                                        <select
+                                                            value={lType}
+                                                            onChange={(e) => updateLocation({ locationType: e.target.value })}
+                                                            style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem', fontWeight: 600 }}
+                                                        >
+                                                            <option value="VARIABLE">Variable</option>
+                                                            <option value="TABLE_RECORD">Table Record</option>
+                                                            <option value="ALL_VARIABLES">All App Variables</option>
+                                                        </select>
+                                                        {lType === 'VARIABLE' && (
+                                                            <select
+                                                                value={location.variableName || location.varPath || ''}
+                                                                onChange={(e) => updateLocation({ variableName: e.target.value, varPath: e.target.value })}
+                                                                style={{ flex: 1, minWidth: '150px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
+                                                            >
+                                                                <option value="">Select variable...</option>
+                                                                {appVariables.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
+                                                            </select>
+                                                        )}
+                                                        {lType === 'TABLE_RECORD' && (
+                                                            <>
+                                                                <select
+                                                                    value={location.placeholderId || location.recordPlaceholder || ''}
+                                                                    onChange={(e) => updateLocation({ placeholderId: e.target.value, recordPlaceholder: e.target.value })}
+                                                                    style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem', minWidth: '150px' }}
+                                                                >
+                                                                    <option value="">Select Record Placeholder...</option>
+                                                                    {recordPlaceholders.map(rp => <option key={rp.id} value={rp.name || rp.id}>{rp.name}</option>)}
+                                                                </select>
+                                                                <input
+                                                                    type="text"
+                                                                    value={location.fieldName || location.field || ''}
+                                                                    onChange={(e) => updateLocation({ fieldName: e.target.value, field: e.target.value })}
+                                                                    placeholder="Field..."
+                                                                    style={{ flex: 1, minWidth: '120px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
+                                                                />
+                                                            </>
+                                                        )}
+                                                        {lType === 'ALL_VARIABLES' && (
+                                                            <span style={{ fontSize: '0.75rem', color: '#b45309' }}>Reset all variables in app back to initial defaults.</span>
+                                                        )}
+                                                    </div>
+                                                );
+                                            }
+
+                                            // ── Tulip Data Manipulation: Increment / Decrement ──
+                                            case 'DATA_MANIPULATION_INCREMENT':
+                                            case 'DATA_MANIPULATION_DECREMENT': {
+                                                const location = act.payload?.location || act.payload?.target || {};
+                                                const lType = location.locationType || (act.payload?.varPath ? 'VARIABLE' : 'TABLE_RECORD');
+                                                const by = act.payload?.by || {};
+                                                const byType = typeof by === 'object' ? (by.byType || 'STATIC') : 'STATIC';
+                                                const byValue = typeof by === 'object' ? (by.value ?? 1) : (act.payload?.step ?? 1);
+                                                const updateLocation = (locUpdates) => {
+                                                    updatePayload({ location: { ...location, ...locUpdates } });
+                                                };
+                                                return (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                            <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-quaternary)', minWidth: '70px' }}>location:</label>
+                                                            <select
+                                                                value={lType}
+                                                                onChange={(e) => updateLocation({ locationType: e.target.value })}
+                                                                style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem', fontWeight: 600 }}
+                                                            >
+                                                                <option value="VARIABLE">Variable</option>
+                                                                <option value="TABLE_RECORD">Table Record</option>
+                                                            </select>
+                                                            {lType === 'VARIABLE' ? (
+                                                                <select
+                                                                    value={location.variableName || location.varPath || ''}
+                                                                    onChange={(e) => updateLocation({ variableName: e.target.value, varPath: e.target.value })}
+                                                                    style={{ flex: 1, minWidth: '150px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
+                                                                >
+                                                                    <option value="">Select variable...</option>
+                                                                    {appVariables.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
+                                                                </select>
+                                                            ) : (
+                                                                <>
+                                                                    <select
+                                                                        value={location.placeholderId || location.recordPlaceholder || ''}
+                                                                        onChange={(e) => updateLocation({ placeholderId: e.target.value, recordPlaceholder: e.target.value })}
+                                                                        style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem', minWidth: '150px' }}
+                                                                    >
+                                                                        <option value="">Select Record Placeholder...</option>
+                                                                        {recordPlaceholders.map(rp => <option key={rp.id} value={rp.name || rp.id}>{rp.name}</option>)}
+                                                                    </select>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={location.fieldName || location.field || ''}
+                                                                        onChange={(e) => updateLocation({ fieldName: e.target.value, field: e.target.value })}
+                                                                        placeholder="Field..."
+                                                                        style={{ flex: 1, minWidth: '120px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
+                                                                    />
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-quaternary)', minWidth: '70px' }}>by:</label>
+                                                            <select
+                                                                value={byType}
+                                                                onChange={(e) => updatePayload({ by: { byType: e.target.value, value: e.target.value === 'VARIABLE' ? '' : 1 } })}
+                                                                style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
+                                                            >
+                                                                <option value="STATIC">Static Value</option>
+                                                                <option value="VARIABLE">Variable</option>
+                                                            </select>
+                                                            {byType === 'VARIABLE' ? (
+                                                                <select
+                                                                    value={typeof by === 'object' ? (by.value || '') : ''}
+                                                                    onChange={(e) => updatePayload({ by: { byType: 'VARIABLE', value: e.target.value } })}
+                                                                    style={{ flex: 1, minWidth: '130px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
+                                                                >
+                                                                    <option value="">Select variable...</option>
+                                                                    {appVariables.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
+                                                                </select>
+                                                            ) : (
+                                                                <input
+                                                                    type="number"
+                                                                    value={byValue}
+                                                                    onChange={(e) => updatePayload({ by: { byType: 'STATIC', value: Number(e.target.value) }, step: Number(e.target.value) })}
+                                                                    style={{ width: '80px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
+                                                                />
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+
+                                            // ── Tulip Data Manipulation: Reset All App Variables to Defaults ──
+                                            case 'RESET_ALL_VARIABLES':
+                                                return <div style={{ fontSize: '0.8rem', color: '#4b5563', padding: '6px 0' }}>Mengembalikan semua variabel aplikasi ke nilai default awalnya.</div>;
+
+                                            // ── Tulip Connectors: Run Connector Function ──
+                                            case 'RUN_CONNECTOR_FUNCTION':
+                                                return (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-quaternary)', minWidth: '70px' }}>connector:</label>
+                                                        <select
+                                                            value={act.payload?.connector || '*Connectors Testing - HTTP'}
+                                                            onChange={(e) => updatePayload({ connector: e.target.value })}
+                                                            style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem', fontWeight: 600 }}
+                                                        >
+                                                            <option value="*Connectors Testing - HTTP">*Connectors Testing - HTTP</option>
+                                                            <option value="Odoo ERP Connector">Odoo ERP Connector</option>
+                                                            <option value="n8n Webhook Connector">n8n Webhook Automation</option>
+                                                        </select>
+                                                        <select
+                                                            value={act.payload?.method || 'api method - get'}
+                                                            onChange={(e) => updatePayload({ method: e.target.value })}
+                                                            style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
+                                                        >
+                                                            <option value="api method - get">api method - get</option>
+                                                            <option value="api method - post">api method - post</option>
+                                                        </select>
+                                                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-quaternary)' }}>save result as:</label>
+                                                        <select
+                                                            value={act.payload?.saveResultAs || ''}
+                                                            onChange={(e) => updatePayload({ saveResultAs: e.target.value })}
+                                                            style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem', minWidth: '120px' }}
+                                                        >
+                                                            <option value="">Select variable...</option>
+                                                            {appVariables.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
+                                                        </select>
+                                                    </div>
+                                                );
+
                                             case 'SET_VARIABLE':
                                             case 'INCREMENT_VARIABLE':
                                                 return (

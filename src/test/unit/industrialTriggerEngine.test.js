@@ -277,5 +277,93 @@ describe('Industrial Trigger & Logic Engine (Shopfloor Pipeline)', () => {
       expect(result.executedActions[0].reason).toBe('SAFETY_INTERLOCK_CANCELLED');
       expect(messages.some(m => m.message.includes('dibatalkan oleh operator'))).toBe(true);
     });
+
+    it('executes PLC_WRITE_RECIPE batch multi-tag write successfully', async () => {
+      const trigger = {
+        id: 'trig_recipe',
+        name: 'Download Recipe',
+        clauses: [
+          {
+            match: 'ALL',
+            actions: [
+              {
+                type: 'PLC_WRITE_RECIPE',
+                payload: {
+                  tags: {
+                    'ns=2;s=SpindleSpeed': 1500,
+                    'ns=2;s=Temperature': 180,
+                    '40001': 55
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      };
+
+      const result = await executeIndustrialTrigger(trigger, { componentId: 'btn_recipe' });
+      expect(result.executedActions[0].status).toBe('SUCCESS');
+      expect(result.executedActions[0].count).toBe(3);
+    });
+
+    it('executes TRIGGER_WORKFLOW and passes execution context', async () => {
+      const trigger = {
+        id: 'trig_wf',
+        name: 'Run ERP Sync',
+        clauses: [
+          {
+            match: 'ALL',
+            actions: [
+              {
+                type: 'TRIGGER_WORKFLOW',
+                payload: {
+                  workflowId: 'wf_sap_sync',
+                  workflowName: 'Sync SAP S/4HANA',
+                  inputs: { orderId: 'WO-9912' }
+                }
+              }
+            ]
+          }
+        ]
+      };
+
+      const result = await executeIndustrialTrigger(trigger, { componentId: 'btn_sync_wf' });
+      expect(result.executedActions[0].status).toBe('SUCCESS');
+      expect(result.executedActions[0].workflowId).toBe('wf_sap_sync');
+    });
+
+    it('calculates dynamic arithmetic formula with CALCULATE_FORMULA', async () => {
+      let variables = [{ name: 'stockQty', value: 100 }, { name: 'consumed', value: 25 }, { name: 'remaining', value: 0 }];
+      const setVariables = (fn) => { variables = fn(variables); };
+
+      const trigger = {
+        id: 'trig_calc',
+        name: 'Calculate Balance',
+        clauses: [
+          {
+            match: 'ALL',
+            actions: [
+              {
+                type: 'CALCULATE_FORMULA',
+                payload: {
+                  formula: '@stockQty - @consumed',
+                  targetVar: 'remaining'
+                }
+              }
+            ]
+          }
+        ]
+      };
+
+      const result = await executeIndustrialTrigger(trigger, {
+        componentId: 'btn_calc',
+        state: { variables },
+        setVariables
+      });
+
+      expect(result.executedActions[0].status).toBe('SUCCESS');
+      expect(result.executedActions[0].result).toBe(75);
+      expect(variables.find(v => v.name === 'remaining').value).toBe(75);
+    });
   });
 });
