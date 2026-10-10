@@ -332,6 +332,44 @@ export const NODE_TYPES = {
             return 'DL Anomaly Score: 12.5% [PASS]';
         },
     },
+
+    // ── Google Cloud Vertex AI & Gemini Multimodal ──
+    vertex_ai: {
+        color: '#2563eb',
+        icon: '✨',
+        label: 'Google Vertex AI',
+        category: 'inspect',
+        desc: 'Google Cloud Vertex AI & Gemini Multimodal inspection for zero-shot defect detection, assembly verification, and root cause analysis',
+        defaultParams: {
+            model: 'gemini-2.0-flash',
+            taskMode: 'Defect Detection',
+            inspectionPrompt: 'Analyze this workpiece for scratches, micro-cracks, dimensional misalignment, or missing assembly components. Return verdict PASS or FAIL with defect details and confidence score.',
+            confidenceThreshold: 85,
+            location: 'asia-southeast1',
+            projectId: 'mavi-factory-ai',
+            endpointId: '',
+            autoQuarantineOnFail: true,
+            saveToMESLogs: true
+        },
+        inputs: ['image'],
+        outputs: ['verdict', 'defects', 'confidence', 'boundingBoxes', 'rcaNotes'],
+        simValue: (params) => {
+            const task = params?.taskMode || 'Defect Detection';
+            const model = params?.model || 'gemini-2.0-flash';
+            const conf = (94 + Math.random() * 5.8).toFixed(1);
+            if (task === 'Assembly Verification') {
+                return `Vertex [${model}]: 4/4 Components Present [PASS ${conf}%]`;
+            }
+            if (task === 'Visual QA / OCR') {
+                return `Vertex [${model}]: OCR "LOT-2026-X94" Verified [PASS]`;
+            }
+            const hasDefect = Math.random() > 0.65;
+            if (hasDefect) {
+                return `Vertex [${model}]: NG Surface Micro-Crack [FAIL ${conf}%]`;
+            }
+            return `Vertex [${model}]: Surface Clean & Verified [PASS ${conf}%]`;
+        },
+    },
 };
 
 // ─── Helper: Get ordered category keys for sidebar grouping ───────
@@ -478,6 +516,25 @@ export const TEMPLATES = [
             { id: 'l6', fromNode: 'n_acq', fromPin: 'image', toNode: 'n_hist', toPin: 'image' },
             { id: 'l7', fromNode: 'n_circ', fromPin: 'radius', toNode: 'n_dec', toPin: 'dimension' },
             { id: 'l8', fromNode: 'n_color', fromPin: 'colorMatch', toNode: 'n_dec', toPin: 'defects' }
+        ]
+    },
+    {
+        name: 'Google Vertex AI Zero-Shot QC',
+        description: 'Next-gen inspection pipeline combining classical alignment with Google Gemini 2.0 & Vertex AI multimodal defect detection.',
+        nodes: [
+            { id: 'n_acq', type: 'acquire', name: 'Acquire Frame', x: 60, y: 220, params: { camera: 'Main Inspection Camera', trigger: 'PLC Continuous', exposure: 'Auto', gain: 'Auto' }, inputs: [], outputs: ['image'], status: 'idle', value: null, roiRegion: null },
+            { id: 'n_pre', type: 'preprocess', name: 'Denoise Filter', x: 280, y: 110, params: { filter: 'Gaussian Blur', kernelSize: 3, threshold: 128, morphOp: 'None', morphKernel: 3 }, inputs: ['image'], outputs: ['processed'], status: 'idle', value: null, roiRegion: null },
+            { id: 'n_loc', type: 'locate', name: 'Geometric Align', x: 280, y: 330, params: { template: 'flange_rim_align', angleTolerance: 15, scoreThreshold: 85 }, inputs: ['image'], outputs: ['offset'], status: 'idle', value: null, roiRegion: null },
+            { id: 'n_vertex', type: 'vertex_ai', name: 'Vertex AI Inspector', x: 520, y: 180, params: { model: 'gemini-2.0-flash', taskMode: 'Defect Detection', inspectionPrompt: 'Inspect flange for surface scratches, micro-cracks, and seal alignment. Return verdict PASS or FAIL.', confidenceThreshold: 85, location: 'asia-southeast1', projectId: 'mavi-factory-ai', autoQuarantineOnFail: true, saveToMESLogs: true }, inputs: ['image'], outputs: ['verdict', 'defects', 'confidence', 'boundingBoxes', 'rcaNotes'], status: 'idle', value: null, roiRegion: null },
+            { id: 'n_log', type: 'data_logger', name: 'Log to MES', x: 760, y: 120, params: { target: 'Supabase', tableName: 'quality_inspections', includeImage: true, variableTarget: '' }, inputs: ['data'], outputs: ['logId'], status: 'idle', value: null, roiRegion: null },
+            { id: 'n_dec', type: 'decide', name: 'PLC Yield Judge', x: 760, y: 320, params: { minPassedScore: 90, failAction: 'Activate Reject Arm', passAction: 'Signal Green Light', writeToPlc: true, plcAddress: 'DB1.DBX0.0' }, inputs: ['dimension', 'defects'], outputs: ['status'], status: 'idle', value: null, roiRegion: null }
+        ],
+        links: [
+            { id: 'l1', fromNode: 'n_acq', fromPin: 'image', toNode: 'n_pre', toPin: 'image' },
+            { id: 'l2', fromNode: 'n_acq', fromPin: 'image', toNode: 'n_loc', toPin: 'image' },
+            { id: 'l3', fromNode: 'n_acq', fromPin: 'image', toNode: 'n_vertex', toPin: 'image' },
+            { id: 'l4', fromNode: 'n_vertex', fromPin: 'defects', toNode: 'n_log', toPin: 'data' },
+            { id: 'l5', fromNode: 'n_vertex', fromPin: 'verdict', toNode: 'n_dec', toPin: 'defects' }
         ]
     }
 ];

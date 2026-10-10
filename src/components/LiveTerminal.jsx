@@ -2971,12 +2971,12 @@ const LiveTerminal = () => {
 
       // Connect and poll MQTT brokers
       for (const ctrl of parsedCtrls) {
-        if (ctrl.type === 'MQTT') {
+        if (ctrl.type === 'MQTT' || ctrl.type === 'KEYENCE_KV') {
           try {
             let host = ctrl.ip || 'broker.emqx.io';
             let port = ctrl.port || 1883;
             // Map standard TCP ports to websocket equivalents for browser compatibility
-            if (port === 1883 || port === 1884) {
+            if (port === 1883 || port === 1884 || port === 8501) {
               if (host.includes('emqx.io')) port = 8084;
               else if (host.includes('hivemq.com')) port = 8000;
               else port = 8084;
@@ -2987,7 +2987,7 @@ const LiveTerminal = () => {
               ? host 
               : `${scheme}${host}:${port}${path}`;
 
-            console.log(`LiveTerminal: Connecting to PLC MQTT Broker: ${brokerUrl}`);
+            console.log(`LiveTerminal: Connecting to PLC MQTT Broker (${ctrl.type}): ${brokerUrl}`);
             const mqttOptions = {
               clientId: ctrl.clientId || `mandor-plc-${Math.random().toString(16).substr(2, 8)}`
             };
@@ -2999,6 +2999,12 @@ const LiveTerminal = () => {
 
             client.on('connect', () => {
               console.log(`LiveTerminal: Connected to PLC MQTT Broker at ${brokerUrl}`);
+              if (ctrl.type === 'KEYENCE_KV') {
+                const kvBridgeTopic = ctrl.topicPrefix || 'mandor/plc/keyence_kv3000';
+                client.subscribe(kvBridgeTopic);
+                client.subscribe(`${kvBridgeTopic}/#`);
+                console.log(`LiveTerminal: Subscribed to Keyence KV Bridge Topic: ${kvBridgeTopic}`);
+              }
               const ctrlTags = parsedTags.filter(t => t.controllerId === ctrl.id);
               ctrlTags.forEach(tag => {
                 const topic = (ctrl.topicPrefix || '') + (tag.address || '');
@@ -3014,8 +3020,31 @@ const LiveTerminal = () => {
               const payload = message.toString();
               
               let currentTags = window.mandor_plc_tags || parsedTags;
-
               let tagUpdates = false;
+
+              // Support Keyence JSON Telemetry format from keyence_kv3000_bridge.py
+              try {
+                if (payload.trim().startsWith('{') && payload.trim().endsWith('}')) {
+                  const telemetry = JSON.parse(payload);
+                  if (telemetry && typeof telemetry === 'object') {
+                    Object.entries(telemetry).forEach(([tKey, tVal]) => {
+                      if (tKey === 'timestamp' || tKey === 'plc_status') return;
+                      const strVal = String(tVal);
+                      currentTags = currentTags.map(t => {
+                        if (t.name === tKey || t.address === tKey || (t.controllerId === ctrl.id && t.name.toLowerCase() === tKey.toLowerCase())) {
+                          tagUpdates = true;
+                          return { ...t, value: strVal };
+                        }
+                        return t;
+                      });
+                      setAppVariables(prev => prev.map(v => (v.name === tKey || v.name.toLowerCase() === tKey.toLowerCase()) ? { ...v, value: strVal } : v));
+                    });
+                  }
+                }
+              } catch (errJson) {
+                // Not JSON, continue with normal string parsing
+              }
+
               currentTags = currentTags.map(t => {
                 if (t.controllerId === ctrl.id) {
                   const tagTopic = (ctrl.topicPrefix || '') + (t.address || '');
@@ -6356,11 +6385,48 @@ const LiveTerminal = () => {
               console.error(`[Connector] Execution failed:`, err);
             }
           } else if (action.type === 'PUBLISH_MQTT' || action.type === 'WRITE_PLC_TAG') {
-            const { topic, value, valueType } = action.payload || {};
+            const { topic, value, valueType, tagId, tagName } = action.payload || {};
             const resolvedValue = await resolveSourceValue(valueType || 'STATIC', value, '', eventPayload);
             if (topic) {
               iotConnector.publish(topic, String(resolvedValue));
               console.log(`[PLC HMI] Published ${resolvedValue} to ${topic}`);
+            }
+
+            if (action.type === 'WRITE_PLC_TAG') {
+              const tags = window.mandor_plc_tags || [];
+              const targetTag = tags.find(t => (tagId && t.id === tagId) || (tagName && t.name === tagName));
+              if (targetTag) {
+                targetTag.value = String(resolvedValue);
+                window.mandor_plc_tags = [...tags];
+                setAppVariables(prev => prev.map(v => v.name === targetTag.name ? { ...v, value: String(resolvedValue) } : v));
+
+                if (window.__TAURI_INTERNALS__) {
+                  try {
+                    const ctrls = window.mandor_plc_controllers || [];
+                    const ctrl = ctrls.find(c => c.id === targetTag.controllerId);
+                    if (ctrl && ctrl.status === 'connected' && ctrl.type === 'MODBUS_TCP') {
+                      const core = await import('@tauri-apps/api/core');
+                      let addr = parseInt(targetTag.address);
+                      let offset = addr;
+                      let regType = targetTag.regType || 'HOLDING_REGISTER';
+                      if (regType === 'COIL') offset = addr - 1;
+                      else if (regType === 'HOLDING_REGISTER') offset = addr - 40001;
+                      if (offset < 0) offset = 0;
+                      const isTrue = resolvedValue === '1' || resolvedValue === 1 || resolvedValue === true || resolvedValue === 'true' || resolvedValue === 'ON';
+                      const finalVal = isTrue ? 1 : (isNaN(resolvedValue) ? 0 : parseInt(resolvedValue));
+                      await core.invoke('modbus_write', { id: ctrl.id, regType, address: offset, value: finalVal });
+                    }
+                  } catch (err) {
+                    console.error('[PLC Write Error]', err);
+                  }
+                }
+
+                try {
+                  iotConnector.publish('mandor/plc/keyence_kv3000/write', JSON.stringify({ tag: targetTag.name, address: targetTag.address, value: resolvedValue }));
+                } catch (e) {}
+
+                toast.success(`⚡ PLC Tag ${targetTag.name} ditulis: ${resolvedValue}`, { icon: '⚙️' });
+              }
             }
           } else if (action.type === 'APP_REFRESH' || action.type === 'CLEAR_ALL_INPUTS') {
             console.log(`[${action.type}] Manually triggering data refresh...`);

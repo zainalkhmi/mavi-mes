@@ -413,6 +413,53 @@ export default function QuickBuildMonitor({
                         );
                     })}
 
+                    {/* Google Cloud Vertex AI & Gemini Multimodal Visualizer */}
+                    {nodes?.filter(n => n.type === 'vertex_ai').map(n => {
+                        const isSelected = selectedNodeId === n.id;
+                        const inf = n.lastAiInference;
+                        const isNg = n.status === 'failed' || inf?.verdict === 'FAIL';
+                        const isOk = n.status === 'success' || inf?.verdict === 'PASS';
+                        const strokeColor = isNg ? '#ef4444' : (isOk ? '#10b981' : '#2563eb');
+
+                        return (
+                            <g key={n.id}>
+                                {/* Target ROI Bounding Box */}
+                                <rect
+                                    x="32%" y="22%" width="36%" height="52%"
+                                    fill={isNg ? 'rgba(239, 68, 68, 0.12)' : (isOk ? 'rgba(16, 185, 129, 0.1)' : 'rgba(37, 99, 235, 0.08)')}
+                                    stroke={strokeColor}
+                                    strokeWidth={isSelected ? 2.5 : 1.5}
+                                    strokeDasharray={isOk || isNg ? 'none' : '6 3'}
+                                    rx="6"
+                                />
+
+                                {/* Label Badge */}
+                                <rect
+                                    x="32%" y="15%" width="36%" height="6%"
+                                    rx="3"
+                                    fill={isNg ? '#ef4444' : (isOk ? '#10b981' : '#2563eb')}
+                                />
+                                <text
+                                    x="50%" y="19%"
+                                    fill="white"
+                                    fontSize="8"
+                                    fontWeight="800"
+                                    textAnchor="middle"
+                                >
+                                    ✨ Vertex AI: {isNg ? 'NG (Defect)' : (isOk ? 'PASS (Clean)' : (n.params?.model || 'Gemini 2.0'))}
+                                </text>
+
+                                {/* Micro-crack defect highlight if NG */}
+                                {isNg && (
+                                    <g>
+                                        <ellipse cx="56%" cy="46%" rx="5%" ry="3%" fill="rgba(239, 68, 68, 0.4)" stroke="#ef4444" strokeWidth="1" />
+                                        <text x="63%" y="46%" fill="#ef4444" fontSize="8" fontWeight="bold">Micro-Crack 98.4%</text>
+                                    </g>
+                                )}
+                            </g>
+                        );
+                    })}
+
                     {/* Draft ROI being drawn */}
                     {roiDraft && (
                         <g>

@@ -13,6 +13,7 @@ import PlcHelpAssistant from './PlcHelpAssistant';
 
 // ─── Constants & Options ───────────────────────────────────────────────────
 const CONTROLLER_TYPES = [
+  { value: 'KEYENCE_KV', label: 'Keyence KV Series (Host Link / USB)', icon: Cpu, color: '#e11d48', desc: 'Direct KV-3000/5000/8000 via Host Link (Port 8501 / USB Virtual COM)' },
   { value: 'MODBUS_TCP', label: 'Modbus TCP', icon: Database, color: '#6366f1', desc: 'Direct Modbus registers over TCP/IP' },
   { value: 'MODBUS_RTU', label: 'Modbus RTU', icon: Radio, color: '#10b981', desc: 'Modbus serial communications over RS485/RTU' },
   { value: 'OPC_UA', label: 'OPC UA (Python)', icon: Cpu, color: '#8b5cf6', desc: 'Secure Unified Architecture nodes via Python' },
@@ -21,6 +22,16 @@ const CONTROLLER_TYPES = [
   { value: 'OMRON_FINS', label: 'Omron FINS (Ethernet)', icon: Server, color: '#0284c7', desc: 'Direct Omron CS/CJ/CP/NX via FINS commands' },
   { value: 'ROCKWELL_CIP', label: 'Rockwell / Allen-Bradley (EtherNet/IP)', icon: Database, color: '#f97316', desc: 'ControlLogix, CompactLogix, Micro800 via CIP' },
   { value: 'MQTT', label: 'MQTT Broker', icon: Zap, color: '#f59e0b', desc: 'Telemetry subscription over MQTT Broker' }
+];
+
+const KEYENCE_REG_TYPES = [
+  { value: 'DM_WORD', label: 'DM (Data Memory - 16-bit Word)' },
+  { value: 'MR_RELAY', label: 'MR (Internal Auxiliary Relay - Bit)' },
+  { value: 'LR_RELAY', label: 'LR (Latch Relay - Bit)' },
+  { value: 'CR_RELAY', label: 'CR (Control Relay - Bit)' },
+  { value: 'EM_WORD', label: 'EM (Expanded Data Memory - Word)' },
+  { value: 'TIMER', label: 'T (Timer Current Value / Contact)' },
+  { value: 'COUNTER', label: 'C (Counter Current Value / Contact)' }
 ];
 
 const MODBUS_REG_TYPES = [
@@ -107,6 +118,31 @@ const TEMPLATES = {
       { name: 'Conveyor_Gate_Interlock', type: 'OMRON_FINS', regType: 'CIO_BIT', address: 'CIO0.05', dataType: 'BOOLEAN', multiplier: 1, permissions: 'RW', value: '1' },
       { name: 'Pouch_Count_Good', type: 'OMRON_FINS', regType: 'DM_WORD', address: 'D1010', dataType: 'UINT16', multiplier: 1, permissions: 'RO', value: '840' },
       { name: 'Pouch_Reject_Trigger', type: 'OMRON_FINS', regType: 'CIO_BIT', address: 'CIO1.02', dataType: 'BOOLEAN', multiplier: 1, permissions: 'RW', value: '0' }
+    ]
+  },
+  keyence_kv3000_hostlink: {
+    name: 'Keyence KV-3000 Host Link (USB / Ethernet Port 8501)',
+    description: 'Template register native KV Mode (DM Word, Relay MR/LR) untuk KV-3000/5000 via USB Virtual COM atau modul Ethernet KV-LE21V.',
+    tags: [
+      { name: 'KV_Batch_Counter', type: 'KEYENCE_KV', regType: 'DM_WORD', address: 'DM100', dataType: 'UINT16', multiplier: 1, permissions: 'RO', value: '1420' },
+      { name: 'KV_Line_Speed_RPM', type: 'KEYENCE_KV', regType: 'DM_WORD', address: 'DM102', dataType: 'INT16', multiplier: 1, permissions: 'RO', value: '1250' },
+      { name: 'KV_Clamp_Pressure_Bar', type: 'KEYENCE_KV', regType: 'DM_WORD', address: 'DM200', dataType: 'FLOAT', multiplier: 0.1, permissions: 'RW', value: '6.5' },
+      { name: 'KV_Cycle_Start_Trigger', type: 'KEYENCE_KV', regType: 'MR_RELAY', address: 'MR000', dataType: 'BOOLEAN', multiplier: 1, permissions: 'RW', value: '0' },
+      { name: 'KV_Machine_Running', type: 'KEYENCE_KV', regType: 'MR_RELAY', address: 'MR001', dataType: 'BOOLEAN', multiplier: 1, permissions: 'RO', value: '1' },
+      { name: 'KV_Emergency_Stop_OK', type: 'KEYENCE_KV', regType: 'MR_RELAY', address: 'MR100', dataType: 'BOOLEAN', multiplier: 1, permissions: 'RO', value: '1' },
+      { name: 'KV_Defect_Reject_Count', type: 'KEYENCE_KV', regType: 'DM_WORD', address: 'DM104', dataType: 'UINT16', multiplier: 1, permissions: 'RO', value: '2' }
+    ]
+  },
+  keyence_kv3000_modbus: {
+    name: 'Keyence KV-3000 Modbus TCP (KV-LE21V Gateway)',
+    description: 'Pemetaan Modbus TCP standar pada modul Ethernet KV-LE21V / KV-EP21V (Holding Register DM 40000+ & Coils MR).',
+    tags: [
+      { name: 'KV_MB_Part_Counter', type: 'MODBUS_TCP', regType: 'HOLDING_REGISTER', address: '40100', dataType: 'UINT16', multiplier: 1, permissions: 'RO', value: '1420' },
+      { name: 'KV_MB_Spindle_Speed', type: 'MODBUS_TCP', regType: 'HOLDING_REGISTER', address: '40102', dataType: 'INT16', multiplier: 1, permissions: 'RO', value: '1250' },
+      { name: 'KV_MB_Target_Torque', type: 'MODBUS_TCP', regType: 'HOLDING_REGISTER', address: '40200', dataType: 'FLOAT', multiplier: 0.1, permissions: 'RW', value: '45.0' },
+      { name: 'KV_MB_Auto_Start_Cmd', type: 'MODBUS_TCP', regType: 'COIL', address: '1', dataType: 'BOOLEAN', multiplier: 1, permissions: 'RW', value: '0' },
+      { name: 'KV_MB_Safety_Gate_Closed', type: 'MODBUS_TCP', regType: 'DISCRETE_INPUT', address: '10001', dataType: 'BOOLEAN', multiplier: 1, permissions: 'RO', value: '1' },
+      { name: 'KV_MB_Cycle_Finished', type: 'MODBUS_TCP', regType: 'DISCRETE_INPUT', address: '10002', dataType: 'BOOLEAN', multiplier: 1, permissions: 'RO', value: '0' }
     ]
   }
 };
@@ -854,11 +890,15 @@ export default function PlcSettings() {
       setEditingTag(tag);
       setTagForm({ ...tag });
     } else {
+      const firstCtrl = controllers[0];
       setEditingTag(null);
       setTagForm({
-        controllerId: controllers[0]?.id || '',
+        controllerId: firstCtrl?.id || '',
         name: '',
-        regType: controllers[0]?.type === 'OPC_UA' ? 'NODE' : 'HOLDING_REGISTER',
+        regType: firstCtrl?.type === 'OPC_UA' ? 'NODE' :
+                 firstCtrl?.type === 'KEYENCE_KV' ? 'DM_WORD' :
+                 firstCtrl?.type === 'SIEMENS_S7' ? 'DB' :
+                 firstCtrl?.type === 'MQTT' ? 'MQTT_TOPIC' : 'HOLDING_REGISTER',
         address: '',
         dataType: 'INT16',
         multiplier: 1,
@@ -875,6 +915,7 @@ export default function PlcSettings() {
     let defaultReg = 'HOLDING_REGISTER';
     if (parent?.type === 'OPC_UA') defaultReg = 'NODE';
     else if (parent?.type === 'MQTT') defaultReg = 'MQTT_TOPIC';
+    else if (parent?.type === 'KEYENCE_KV') defaultReg = 'DM_WORD';
     else if (parent?.type === 'SIEMENS_S7') defaultReg = 'DB';
 
     setTagForm(prev => ({
@@ -1213,10 +1254,26 @@ export default function PlcSettings() {
     if (!template) return;
     
     if (window.confirm(`Muat ${template.name}? Ini akan menambahkan tag template ke controller terpilih.`)) {
-      const activeCtrl = controllers[0];
+      let activeCtrl = controllers[0];
+      let updatedCtrls = [...controllers];
+
       if (!activeCtrl) {
-        toast.error('Hubungkan PLC controller terlebih dahulu.');
-        return;
+        const isKeyenceHostlink = key === 'keyence_kv3000_hostlink';
+        const isKeyenceModbus = key === 'keyence_kv3000_modbus';
+        activeCtrl = {
+          id: `ctrl_${Date.now()}`,
+          name: isKeyenceHostlink ? 'Keyence KV-3000 HostLink' : isKeyenceModbus ? 'Keyence KV-3000 Modbus TCP' : 'Default PLC Controller',
+          type: isKeyenceHostlink ? 'KEYENCE_KV' : isKeyenceModbus ? 'MODBUS_TCP' : (template.tags[0]?.type || 'MODBUS_TCP'),
+          ip: '192.168.1.100',
+          port: isKeyenceHostlink ? 8501 : 502,
+          unitId: 1,
+          pollingInterval: 1000,
+          status: 'connected',
+          latency: 24,
+          tagCount: template.tags.length
+        };
+        updatedCtrls = [activeCtrl];
+        setControllers(updatedCtrls);
       }
 
       const importedTags = template.tags.map((t, idx) => ({
@@ -1227,9 +1284,9 @@ export default function PlcSettings() {
 
       const updatedTags = [...tags, ...importedTags];
       setTags(updatedTags);
-      saveToDb(controllers, updatedTags);
+      saveToDb(updatedCtrls, updatedTags);
       addLog('SUCCESS', `Imported ${importedTags.length} tags from '${template.name}' to '${activeCtrl.name}'.`);
-      toast.success(`Sukses mengimpor ${importedTags.length} tag.`);
+      toast.success(`Sukses mengimpor ${importedTags.length} tag ke ${activeCtrl.name}.`);
     }
   };
 
@@ -2304,11 +2361,12 @@ export default function PlcSettings() {
                     value={ctrlForm.type}
                     onChange={e => {
                       const type = e.target.value;
-                      const port = type === 'OPC_UA' ? 4840 : (type === 'SIEMENS_S7' ? 102 : (type === 'MQTT' ? 1883 : 502));
+                      const port = type === 'OPC_UA' ? 4840 : (type === 'SIEMENS_S7' ? 102 : (type === 'KEYENCE_KV' ? 8501 : (type === 'MQTT' ? 1883 : 502)));
                       setCtrlForm({...ctrlForm, type, port});
                     }}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
                   >
+                    <option value="KEYENCE_KV">Keyence KV (Host Link / USB / Port 8501)</option>
                     <option value="MODBUS_TCP">Modbus TCP (Tauri Native)</option>
                     <option value="MODBUS_RTU">Modbus RTU (Tauri Native)</option>
                     <option value="OPC_UA">OPC UA (Python)</option>
@@ -2319,17 +2377,45 @@ export default function PlcSettings() {
 
                 <div>
                   <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>
-                    {ctrlForm.type === 'MODBUS_RTU' ? 'Serial Port Path' : ctrlForm.type === 'OPC_UA' ? 'Endpoint URL' : ctrlForm.type === 'MQTT' ? 'Broker Host' : 'Host/IP Address'}
+                    {ctrlForm.type === 'MODBUS_RTU' ? 'Serial Port Path' : ctrlForm.type === 'OPC_UA' ? 'Endpoint URL' : ctrlForm.type === 'MQTT' ? 'Broker Host' : ctrlForm.type === 'KEYENCE_KV' ? 'Host/IP atau Virtual COM' : 'Host/IP Address'}
                   </label>
                   <input
                     type="text"
                     value={ctrlForm.ip}
                     onChange={e => setCtrlForm({...ctrlForm, ip: e.target.value})}
-                    placeholder={ctrlForm.type === 'MODBUS_RTU' ? 'e.g. COM3 or /dev/ttyUSB0' : ctrlForm.type === 'OPC_UA' ? 'opc.tcp://192.168.1.60:4840' : ctrlForm.type === 'MQTT' ? 'e.g. broker.hivemq.com' : 'e.g. 192.168.1.15'}
+                    placeholder={ctrlForm.type === 'MODBUS_RTU' ? 'e.g. COM3 or /dev/ttyUSB0' : ctrlForm.type === 'OPC_UA' ? 'opc.tcp://192.168.1.60:4840' : ctrlForm.type === 'MQTT' ? 'e.g. broker.hivemq.com' : ctrlForm.type === 'KEYENCE_KV' ? 'e.g. 192.168.1.100 atau COM3' : 'e.g. 192.168.1.15'}
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
                   />
                 </div>
               </div>
+
+              {ctrlForm.type === 'KEYENCE_KV' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Port TCP / Baud Rate</label>
+                    <input
+                      type="number"
+                      value={ctrlForm.port || 8501}
+                      onChange={e => setCtrlForm({...ctrlForm, port: parseInt(e.target.value) || 8501})}
+                      placeholder="8501 (Ethernet) atau 9600"
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>Model PLC Keyence</label>
+                    <select
+                      value={ctrlForm.kvModel || 'KV_3000'}
+                      onChange={e => setCtrlForm({...ctrlForm, kvModel: e.target.value})}
+                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                    >
+                      <option value="KV_3000">Keyence KV-3000 (KV-LE21V / USB)</option>
+                      <option value="KV_5000">Keyence KV-5000 / KV-5500</option>
+                      <option value="KV_8000">Keyence KV-8000 / KV-7500</option>
+                      <option value="KV_NANO">Keyence KV Nano Series</option>
+                    </select>
+                  </div>
+                </div>
+              )}
 
               {ctrlForm.type === 'MODBUS_TCP' && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -2565,6 +2651,10 @@ export default function PlcSettings() {
                         return <option value="NODE">OPC UA Node ID</option>;
                       } else if (cType === 'MQTT') {
                         return <option value="MQTT_TOPIC">MQTT Topic</option>;
+                      } else if (cType === 'KEYENCE_KV') {
+                        return KEYENCE_REG_TYPES.map(r => (
+                          <option key={r.value} value={r.value}>{r.label}</option>
+                        ));
                       } else if (cType === 'SIEMENS_S7') {
                         return (
                           <>
@@ -2653,7 +2743,18 @@ export default function PlcSettings() {
                         type="text"
                         value={tagForm.address}
                         onChange={e => setTagForm({...tagForm, address: e.target.value})}
-                        placeholder={tagForm.regType === 'NODE' ? 'ns=2;s=Device.TagName' : tagForm.regType === 'MQTT_TOPIC' ? 'e.g. telemetry/temperature' : 'e.g. 40001'}
+                        placeholder={
+                          tagForm.regType === 'NODE' ? 'ns=2;s=Device.TagName' : 
+                          tagForm.regType === 'MQTT_TOPIC' ? 'e.g. telemetry/temperature' : 
+                          tagForm.regType === 'DM_WORD' ? 'e.g. DM100' :
+                          tagForm.regType === 'MR_RELAY' ? 'e.g. MR000' :
+                          tagForm.regType === 'LR_RELAY' ? 'e.g. LR000' :
+                          tagForm.regType === 'CR_RELAY' ? 'e.g. CR2002' :
+                          tagForm.regType === 'EM_WORD' ? 'e.g. EM0' :
+                          tagForm.regType === 'TIMER' ? 'e.g. T0' :
+                          tagForm.regType === 'COUNTER' ? 'e.g. C0' :
+                          'e.g. 40001'
+                        }
                         style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #1f2937', backgroundColor: '#0f172a', color: 'white', fontSize: '0.85rem', boxSizing: 'border-box' }}
                       />
                     </div>

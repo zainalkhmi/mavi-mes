@@ -109,6 +109,7 @@ const GluestackAppPlayer = lazy(() => import('./ui-engine/preview/GluestackAppPl
 const QueryStudio = lazy(() => import('./components/QueryStudio'));
 const DownloadPlayer = lazy(() => import('./components/DownloadPlayer'));
 const GenealogyViewer = lazy(() => import('./components/GenealogyViewer'));
+const GoogleCloudAiShowcase = lazy(() => import('./components/GoogleCloudAiShowcase'));
 
 export default function AppRouter({ user, isOperator }) {
   const hasAccess = (path) => checkRoleAccess(user, path);
@@ -154,6 +155,9 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/gluestack" element={<UiEngineStudio />} />
               <Route path="/query-studio" element={<QueryStudio />} />
               <Route path="/sql-builder" element={<QueryStudio />} />
+              <Route path="/google-cloud-ai" element={<GoogleCloudAiShowcase />} />
+              <Route path="/ai-showcase" element={<GoogleCloudAiShowcase />} />
+              <Route path="/vertex-ai" element={<GoogleCloudAiShowcase />} />
               <Route path="*" element={<Navigate to="/terminal" replace />} />
             </>
           ) : (
@@ -262,6 +266,9 @@ export default function AppRouter({ user, isOperator }) {
               <Route path="/ui-engine" element={<UiEngineStudio />} />
               <Route path="/gluestack" element={<UiEngineStudio />} />
               <Route path="/gluestack/canvas" element={<UiEngineStudio canvasMode={true} />} />
+              <Route path="/google-cloud-ai" element={<GoogleCloudAiShowcase />} />
+              <Route path="/ai-showcase" element={<GoogleCloudAiShowcase />} />
+              <Route path="/vertex-ai" element={<GoogleCloudAiShowcase />} />
               <Route path="*" element={<Home />} />
             </>
           )}

@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, AlertCircle, CheckCircle2, Clock, Map, TrendingUp, Users, Zap, MessageSquare, Shield, Radio, RefreshCw, Cpu, Server } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Activity, AlertCircle, CheckCircle2, Clock, Map, TrendingUp, Users, Zap, MessageSquare, Shield, Radio, RefreshCw, Cpu, Server, Sparkles } from 'lucide-react';
 import { getSupabaseClient, isSupabaseReady } from '../utils/supabaseManualDB.js';
 import { acknowledgeAndon, getShopFloorRealtimeSnapshot } from '../utils/supabaseFrontlineDB.js';
 import ChatWidget from './ChatWidget';
 import { getCurrentUser } from '../utils/auth';
 
 const Home = () => {
+  const navigate = useNavigate();
   const [activeAndons, setActiveAndons] = useState([]);
   const [workstations, setWorkstations] = useState([]);
   const [oeeToday, setOeeToday] = useState(0);
@@ -248,7 +250,22 @@ const Home = () => {
         </div>
 
         {/* METRIC BADGES HEADER */}
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* GOOGLE CLOUD AI SHOWCASE BUTTON */}
+          <button
+            onClick={() => navigate('/google-cloud-ai')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px',
+              borderRadius: '12px', background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #0284c7 100%)',
+              color: '#ffffff', border: '1px solid rgba(255, 255, 255, 0.2)', fontWeight: 800, fontSize: '0.85rem',
+              cursor: 'pointer', boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)', transition: 'transform 0.15s'
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+          >
+            <Sparkles size={18} color="#fde047" /> Google Cloud AI Showcase
+          </button>
+
           {/* OEE METRIC */}
           <div style={{ 
             backgroundColor: '#ffffff', 

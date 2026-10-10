@@ -281,6 +281,7 @@ const AppDiagram = lazy(() => import('./AppDiagram'));
 const BlocklyEditor = lazy(() => import('./BlocklyEditor'));
 const AppNodeEditor = lazy(() => import('./AppNodeEditor'));
 const BuilderCopilot = lazy(() => import('./BuilderCopilot'));
+const PlcWidgetVisualizerModal = lazy(() => import('./PlcWidgetVisualizerModal'));
 const VibeSandpackViewer = lazy(() => import('./appbuilder/VibeSandpackViewer'));
 import { DEFAULT_VIBE_HMI_CODE, CLEAN_BLANK_APP_CODE } from './appbuilder/VibeSandpackViewer';
 import { uploadManualImage, isSupabaseReady } from '../utils/supabaseManualDB';
@@ -320,6 +321,7 @@ const AppBuilder = () => {
     const [jarvisPendingPrompt, setJarvisPendingPrompt] = useState(null);
     const [isJarvisCoding, setIsJarvisCoding] = useState(false);
     const [isTestStudioOpen, setIsTestStudioOpen] = useState(false);
+    const [showPlcWiringVisualizer, setShowPlcWiringVisualizer] = useState(false);
 
     // Jarvis 5-Phase App Creation Lifecycle States
     const [preCodingApproval, setPreCodingApproval] = useState({
@@ -3083,6 +3085,79 @@ const AppBuilder = () => {
 
         return (
             <div style={{ marginTop: '4px' }}>
+                {act.type === 'WRITE_PLC_TAG' && (
+                    <>
+                        <div style={fieldRowStyle}>
+                            <span style={labelStyle}>PLC</span>
+                            <select
+                                value={act.payload?.controllerId || ''}
+                                onChange={(e) => {
+                                    const cId = e.target.value;
+                                    const relevant = (window.mandor_plc_tags || []).filter(t => !cId || t.controllerId === cId);
+                                    updateAct({
+                                        controllerId: cId,
+                                        tagId: relevant[0]?.id || '',
+                                        tagName: relevant[0]?.name || '',
+                                        tagAddress: relevant[0]?.address || ''
+                                    });
+                                }}
+                                style={inputStyle}
+                            >
+                                <option value="">(Semua Controller)</option>
+                                {(window.mandor_plc_controllers || []).map(c => (
+                                    <option key={c.id} value={c.id}>{c.name} ({c.type})</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div style={fieldRowStyle}>
+                            <span style={labelStyle}>PLC Tag</span>
+                            <select
+                                value={act.payload?.tagId || ''}
+                                onChange={(e) => {
+                                    const tId = e.target.value;
+                                    const tag = (window.mandor_plc_tags || []).find(t => t.id === tId);
+                                    updateAct({
+                                        tagId: tId,
+                                        tagName: tag?.name || '',
+                                        tagAddress: tag?.address || ''
+                                    });
+                                }}
+                                style={inputStyle}
+                            >
+                                <option value="">Pilih Tag...</option>
+                                {(window.mandor_plc_tags || [])
+                                    .filter(t => !act.payload?.controllerId || t.controllerId === act.payload?.controllerId)
+                                    .map(t => (
+                                        <option key={t.id} value={t.id}>
+                                            {t.name} [{t.address || t.regType}] ({t.dataType || 'VAL'})
+                                        </option>
+                                    ))}
+                            </select>
+                        </div>
+                        <div style={fieldRowStyle}>
+                            <span style={labelStyle}>Value</span>
+                            <div style={{ flex: 1, display: 'flex', gap: '8px' }}>
+                                <input
+                                    placeholder="e.g. 1 (ON) / 0 (OFF) / 50.0"
+                                    value={act.payload?.value !== undefined ? act.payload?.value : ''}
+                                    onChange={(e) => updateAct({ value: e.target.value })}
+                                    style={inputStyle}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => updateAct({ value: '1' })}
+                                    style={{ padding: '6px 10px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                                >1 (ON)</button>
+                                <button
+                                    type="button"
+                                    onClick={() => updateAct({ value: '0' })}
+                                    style={{ padding: '6px 10px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                                >0 (OFF)</button>
+                            </div>
+                        </div>
+                    </>
+                )}
+
                 {act.type === 'SET_VARIABLE' && (
                     <>
                         <div style={fieldRowStyle}>
@@ -3644,6 +3719,87 @@ const AppBuilder = () => {
         station: 'STATION 01'
     });
 
+    const handleImportPlcTagsToVariables = async () => {
+        let plcTags = window.mandor_plc_tags || [];
+        if (plcTags.length === 0) {
+            try {
+                const { loadPlcSettingsFromSupabase } = await import('../utils/supabaseFrontlineDB');
+                const { tags } = await loadPlcSettingsFromSupabase();
+                if (tags && tags.length > 0) {
+                    plcTags = tags;
+                    window.mandor_plc_tags = tags;
+                }
+            } catch (e) {
+                console.warn('Failed to load PLC tags from Supabase for sync:', e);
+            }
+        }
+
+        if (plcTags.length === 0) {
+            toast.error('Tidak ada PLC Tag yang ditemukan di sistem. Silakan konfigurasi tag di PLC Settings terlebih dahulu.', { icon: '⚠️' });
+            return;
+        }
+
+        let addedCount = 0;
+        let updatedCount = 0;
+        const currentVars = [...appVariables];
+
+        for (const tag of plcTags) {
+            const varName = (tag.name || `TAG_${tag.address}`).trim().toUpperCase().replace(/\s+/g, '_');
+            const isBool = tag.dataType === 'BOOLEAN' || ['COIL', 'MR_RELAY', 'LR_RELAY', 'CR_RELAY'].includes(tag.regType);
+            const isNum = ['INT16', 'UINT16', 'INT32', 'FLOAT', 'DM_WORD', 'HOLDING_REGISTER', 'INPUT_REGISTER', 'COUNTER', 'TIMER'].includes(tag.dataType) || 
+                          ['DM_WORD', 'HOLDING_REGISTER', 'INPUT_REGISTER', 'COUNTER', 'TIMER'].includes(tag.regType);
+            const varType = isBool ? 'BOOLEAN' : (isNum ? 'NUMBER' : 'TEXT');
+            const defaultVal = isBool ? (tag.value === '1' || tag.value === 'true' || tag.value === true) : (isNum ? (parseFloat(tag.value) || 0) : String(tag.value || ''));
+
+            const existingIdx = currentVars.findIndex(v => v.name === varName);
+            if (existingIdx > -1) {
+                currentVars[existingIdx] = {
+                    ...currentVars[existingIdx],
+                    type: varType,
+                    value: defaultVal,
+                    plcTagId: tag.id,
+                    plcAddress: tag.address
+                };
+                updatedCount++;
+                saveVariable(currentVars[existingIdx]).catch(console.error);
+            } else {
+                const newVar = {
+                    id: `var_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                    name: varName,
+                    type: varType,
+                    defaultValue: defaultVal,
+                    value: defaultVal,
+                    clearOnCompletion: false,
+                    isPersistent: true,
+                    plcTagId: tag.id,
+                    plcAddress: tag.address
+                };
+                currentVars.push(newVar);
+                addedCount++;
+                saveVariable(newVar).catch(console.error);
+            }
+        }
+
+        setAppVariables(currentVars);
+        toast.success(`⚡ Berhasil sinkronisasi ${addedCount} tag baru & ${updatedCount} tag terupdate ke App Variables!`, { icon: '🏭' });
+    };
+
+    // Startup sync: pastikan window.mandor_plc_controllers & tags terisi dari Supabase
+    useEffect(() => {
+        const initPlcState = async () => {
+            if (!window.mandor_plc_tags || window.mandor_plc_tags.length === 0) {
+                try {
+                    const { loadPlcSettingsFromSupabase } = await import('../utils/supabaseFrontlineDB');
+                    const { controllers, tags } = await loadPlcSettingsFromSupabase();
+                    if (controllers && controllers.length > 0) window.mandor_plc_controllers = controllers;
+                    if (tags && tags.length > 0) window.mandor_plc_tags = tags;
+                } catch (e) {
+                    console.warn('Failed to load PLC settings on AppBuilder mount:', e);
+                }
+            }
+        };
+        initPlcState();
+    }, []);
 
     // --- Developer Mode State ---
     const [devModeStation, setDevModeStation] = useState('Test Station 1');
@@ -5088,6 +5244,48 @@ const AppBuilder = () => {
         if (!action) return true;
         try {
             switch (action.type) {
+                case 'WRITE_PLC_TAG': {
+                    const { controllerId, tagId, tagName, value, val, valueType } = action.payload || {};
+                    const rawVal = value !== undefined ? value : val;
+                    const resolved = resolveValue(rawVal, valueType || 'STATIC');
+                    const tags = window.mandor_plc_tags || [];
+                    const ctrls = window.mandor_plc_controllers || [];
+                    const tag = tags.find(t => (tagId && t.id === tagId) || (tagName && t.name === tagName));
+                    if (tag) {
+                        tag.value = String(resolved);
+                        window.mandor_plc_tags = [...tags];
+                        if (appVariables.some(v => v.name === tag.name)) {
+                            setValidatedVariableValue(tag.name, resolved, 'WRITE_PLC_TAG');
+                        }
+                        if (window.__TAURI_INTERNALS__) {
+                            try {
+                                const ctrl = ctrls.find(c => c.id === tag.controllerId);
+                                if (ctrl && ctrl.status === 'connected' && ctrl.type === 'MODBUS_TCP') {
+                                    const core = await import('@tauri-apps/api/core');
+                                    let addr = parseInt(tag.address);
+                                    let offset = addr;
+                                    let regType = tag.regType || 'HOLDING_REGISTER';
+                                    if (regType === 'COIL') offset = addr - 1;
+                                    else if (regType === 'HOLDING_REGISTER') offset = addr - 40001;
+                                    if (offset < 0) offset = 0;
+                                    const isTrue = resolved === '1' || resolved === 1 || resolved === true || resolved === 'true' || resolved === 'ON';
+                                    const finalVal = isTrue ? 1 : (isNaN(resolved) ? 0 : parseInt(resolved));
+                                    await core.invoke('modbus_write', { id: ctrl.id, regType, address: offset, value: finalVal });
+                                }
+                            } catch (e) {
+                                console.error('Tauri modbus_write failed:', e);
+                            }
+                        }
+                        try {
+                            const { iotConnector } = await import('../utils/iotConnector');
+                            iotConnector.publish('mandor/plc/keyence_kv3000/write', JSON.stringify({ tag: tag.name, address: tag.address, value: resolved }));
+                        } catch (e) {}
+
+                        toast.success(`⚡ PLC Tag ${tag.name} ditulis: ${resolved}`, { icon: '⚙️' });
+                    }
+                    break;
+                }
+
                 case 'SET_VARIABLE': {
                     const { varPath, value, valueType } = action.payload;
                     const resolved = resolveValue(value, valueType);
@@ -5129,7 +5327,10 @@ const AppBuilder = () => {
                         const fieldName = sourceCfg.fieldName || sourceCfg.field;
                         const placeholder = recordPlaceholders.find(rp => rp.id === phId || rp.name === phId);
                         const effectivePhId = placeholder ? placeholder.id : phId;
-                        const rec = recordPlaceholderData[effectivePhId] || recordPlaceholderData[phId];
+                        const rec = (runtimeCtx?.tx?.workingPlaceholders?.[effectivePhId] || runtimeCtx?.tx?.workingPlaceholders?.[placeholder?.name] || runtimeCtx?.tx?.workingPlaceholders?.[phId])
+                            || recordPlaceholderData[effectivePhId]
+                            || recordPlaceholderData[placeholder?.name]
+                            || recordPlaceholderData[phId];
                         resolvedVal = rec && rec[fieldName] !== undefined ? rec[fieldName] : '';
                     } else if (sType === 'TABLE_AGGREGATION') {
                         const agg = (sourceCfg.aggregationType || 'COUNT').toUpperCase();
@@ -5174,6 +5375,11 @@ const AppBuilder = () => {
                     if (lType === 'VARIABLE') {
                         const targetVar = locationCfg.variableName || locationCfg.varPath || locationCfg.targetVar;
                         if (targetVar) {
+                            if (runtimeCtx?.tx) {
+                                const vIdx = runtimeCtx.tx.workingVariables.findIndex(v => v.name === targetVar);
+                                if (vIdx >= 0) runtimeCtx.tx.workingVariables[vIdx] = { ...runtimeCtx.tx.workingVariables[vIdx], value: resolvedVal };
+                                else runtimeCtx.tx.workingVariables.push({ name: targetVar, value: resolvedVal });
+                            }
                             setValidatedVariableValue(targetVar, resolvedVal, 'DATA_MANIPULATION_STORE');
                             toast.success(`Stored to variable "${targetVar}": ${resolvedVal}`);
                         }
@@ -5183,14 +5389,25 @@ const AppBuilder = () => {
                         const placeholder = recordPlaceholders.find(rp => rp.id === phId || rp.name === phId);
                         const effectivePhId = placeholder ? placeholder.id : phId;
                         if (effectivePhId && fieldName) {
+                            // Update transaction working copy immediately (Tulip LTS 15 Sequential Propagation)
+                            if (runtimeCtx?.tx) {
+                                const curTx = runtimeCtx.tx.workingPlaceholders[effectivePhId] || runtimeCtx.tx.workingPlaceholders[placeholder?.name] || runtimeCtx.tx.workingPlaceholders[phId] || {};
+                                const nextTx = { ...curTx, [fieldName]: resolvedVal, updatedAt: new Date().toISOString() };
+                                runtimeCtx.tx.workingPlaceholders[effectivePhId] = nextTx;
+                                if (placeholder?.name) runtimeCtx.tx.workingPlaceholders[placeholder.name] = nextTx;
+                                runtimeCtx.tx.modifiedRecords.push({ placeholderId: effectivePhId, fieldName, value: resolvedVal });
+                            }
                             setRecordPlaceholderData(prev => {
-                                const cur = prev[effectivePhId] || {};
-                                return { ...prev, [effectivePhId]: { ...cur, [fieldName]: resolvedVal, updatedAt: new Date().toISOString() } };
+                                const cur = prev[effectivePhId] || prev[placeholder?.name] || prev[phId] || (runtimeCtx?.tx?.workingPlaceholders?.[effectivePhId]) || {};
+                                const nextRec = { ...cur, [fieldName]: resolvedVal, updatedAt: new Date().toISOString() };
+                                const nextState = { ...prev, [effectivePhId]: nextRec };
+                                if (placeholder?.name) nextState[placeholder.name] = nextRec;
+                                return nextState;
                             });
                             // Also sync table record if persistent
                             try {
                                 const tblId = placeholder?.tableId;
-                                const curRec = recordPlaceholderData[effectivePhId];
+                                const curRec = (runtimeCtx?.tx?.workingPlaceholders?.[effectivePhId]) || recordPlaceholderData[effectivePhId];
                                 const recId = curRec?.id || curRec?.recordId;
                                 if (tblId && recId) {
                                     const key = `mavi_table_${tblId}`;
@@ -5498,6 +5715,34 @@ const AppBuilder = () => {
                     }
                     break;
                 }
+                case 'RUN_AUTOMATION':
+                case 'AUTOMATION_WORKFLOW': {
+                    const { automationId, automationName } = action.payload || {};
+                    const automations = JSON.parse(localStorage.getItem('mes_automations') || '[]');
+                    const targetAuto = automations.find(a => a.id === automationId || a.name === automationName || a.id === action.payload?.workflowId);
+                    if (targetAuto) {
+                        try {
+                            await automationEngine.execute(targetAuto, {
+                                app: currentApp?.name || 'AppBuilder',
+                                timestamp: new Date().toISOString(),
+                                source: 'APP_BUILDER_TRIGGER',
+                                variables: appVariables.reduce((acc, v) => ({ ...acc, [v.name]: v.value }), {})
+                            });
+                            toast.success(`Workflow "${targetAuto.name}" berhasil dijalankan.`);
+                        } catch (err) {
+                            console.error('[AppBuilder] Automation error:', err);
+                            toast.error(`Automation error: ${err.message}`);
+                        }
+                    } else {
+                        automationEngine.trigger('APP_TRIGGER', {
+                            automationId,
+                            app: currentApp?.name,
+                            timestamp: new Date().toISOString()
+                        });
+                        toast.success('Event automation terpicu.');
+                    }
+                    break;
+                }
                 case 'CALCULATE_FORMULA': {
                     const { formula, resultVar } = action.payload;
                     let expr = formula || '';
@@ -5753,7 +5998,15 @@ const AppBuilder = () => {
                         // Match by Supabase row id OR by custom recordId field
                         const record = records.find(r => String(r.id) === String(id) || String(r.recordId) === String(id));
                         if (record) {
-                            setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: record }));
+                            if (runtimeCtx?.tx) {
+                                runtimeCtx.tx.workingPlaceholders[placeholder.id] = record;
+                                runtimeCtx.tx.workingPlaceholders[placeholder.name] = record;
+                            }
+                            setRecordPlaceholderData(prev => ({
+                                ...prev,
+                                [placeholder.id]: record,
+                                [placeholder.name]: record
+                            }));
                             console.log(`[Builder Dev] Loaded record for placeholder "${placeholder.name}":`, record);
                             return true;
                         }
@@ -5762,20 +6015,23 @@ const AppBuilder = () => {
                     };
                     const handleCreate = async (id) => {
                         const effectiveId = id || `rec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-                        // Create record with harvested data (reuse handleSave logic)
-                        // First set a minimal placeholder so handleSave can create with data
-                        setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: null }));
-                        const saved = await handleSave(effectiveId);
-                        if (!saved) {
-                            // Fallback: create empty record if no data harvested
-                            if (viewMode === 'PREVIEW') {
-                                const newRec = { id: effectiveId, recordId: effectiveId, _simulated: true, created_at: new Date().toISOString() };
-                                setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: newRec }));
-                            } else {
-                                const newRec = await addTableRecord(placeholder.tableId, { recordId: effectiveId });
-                                setRecordPlaceholderData(prev => ({ ...prev, [placeholder.id]: newRec || { id: effectiveId, recordId: effectiveId } }));
-                            }
+                        const newRec = {
+                            id: effectiveId,
+                            recordId: effectiveId,
+                            _isNew: true,
+                            created_at: new Date().toISOString()
+                        };
+                        if (runtimeCtx?.tx) {
+                            runtimeCtx.tx.workingPlaceholders[placeholder.id] = newRec;
+                            runtimeCtx.tx.workingPlaceholders[placeholder.name] = newRec;
+                            runtimeCtx.tx.createdRecords.push({ placeholderId: placeholder.id, recordId: effectiveId, tableId: placeholder.tableId, data: newRec });
                         }
+                        setRecordPlaceholderData(prev => ({
+                            ...prev,
+                            [placeholder.id]: newRec,
+                            [placeholder.name]: newRec
+                        }));
+                        console.log(`[Builder Dev] Created record "${effectiveId}" for placeholder "${placeholder.name}"`);
                         return true;
                     };
                     const handleSave = async (createRecordId = null) => {
@@ -5989,79 +6245,109 @@ const AppBuilder = () => {
             ? trigger.stopOnError
             : !!runtimeCtx?.stopRemainingOnError;
 
-        // Handle modern multi-clause structure
-        if (trigger.clauses && trigger.clauses.length > 0) {
-            for (const clause of trigger.clauses) {
-                const matchType = clause.match || clause.conditionMatch || 'ALL';
-                let passed = true;
+        // Transaction management (Tulip LTS 15 Parity)
+        const isRootTx = !runtimeCtx?.tx;
+        if (isRootTx && runtimeCtx) {
+            runtimeCtx.tx = {
+                snapshotVariables: JSON.parse(JSON.stringify(appVariables || [])),
+                snapshotPlaceholders: JSON.parse(JSON.stringify(recordPlaceholderData || {})),
+                workingVariables: JSON.parse(JSON.stringify(appVariables || [])),
+                workingPlaceholders: JSON.parse(JSON.stringify(recordPlaceholderData || {})),
+                modifiedRecords: [],
+                createdRecords: []
+            };
+        }
 
-                if (clause.conditions && clause.conditions.length > 0) {
-                    if (matchType === 'ALL') {
-                        passed = clause.conditions.every(evaluateCondition);
-                    } else {
-                        passed = clause.conditions.some(evaluateCondition);
-                    }
-                }
+        const rollbackTx = () => {
+            if (isRootTx && runtimeCtx?.tx) {
+                console.warn(`[Trigger Engine] Rolling back transaction for "${trigger.name}" due to failure`);
+                setAppVariables(runtimeCtx.tx.snapshotVariables);
+                setRecordPlaceholderData(runtimeCtx.tx.snapshotPlaceholders);
+            }
+        };
 
-                if (passed) {
-                    console.log(`[Trigger Engine] Clause matched in "${trigger.name}", executing actions.`);
-                    if (clause.actions) {
-                        for (const action of clause.actions) {
-                            const ok = await executeAction(action, runtimeCtx);
-                            if (!ok) {
-                                if (stopOnError) throw new Error(`Trigger action failed: ${trigger.name}`);
-                                return false;
-                            }
-                            if (runtimeCtx?.transitionExecuted) return true;
+        try {
+            // Handle modern multi-clause structure
+            if (trigger.clauses && trigger.clauses.length > 0) {
+                for (const clause of trigger.clauses) {
+                    const matchType = clause.match || clause.conditionMatch || 'ALL';
+                    let passed = true;
+
+                    if (clause.conditions && clause.conditions.length > 0) {
+                        if (matchType === 'ALL') {
+                            passed = clause.conditions.every(evaluateCondition);
+                        } else {
+                            passed = clause.conditions.some(evaluateCondition);
                         }
                     }
-                    return true; // Stop after first successful clause match (If-Then-Else logic)
-                }
-            }
-        }
 
-        // Execute Else actions if none of the clauses matched
-        if (trigger.elseActions && trigger.elseActions.length > 0) {
-            console.log(`[Trigger Engine] Executing ELSE actions for: ${trigger.name}`);
-            for (const action of trigger.elseActions) {
-                const ok = await executeAction(action, runtimeCtx);
-                if (!ok) {
-                    if (stopOnError) throw new Error(`Trigger else action failed: ${trigger.name}`);
-                    return false;
-                }
-                if (runtimeCtx?.transitionExecuted) return true;
-            }
-        }
-
-        // Backward compatibility for legacy flat triggers
-        if (trigger.actions && (!trigger.clauses || trigger.clauses.length === 0)) {
-            let passed = true;
-            if (trigger.conditions && trigger.conditions.length > 0) {
-                const matchType = trigger.conditionMatch || 'ALL';
-                passed = matchType === 'ALL' ? trigger.conditions.every(evaluateCondition) : trigger.conditions.some(evaluateCondition);
-            }
-
-            if (passed) {
-                for (const action of trigger.actions) {
-                    const ok = await executeAction(action, runtimeCtx);
-                    if (!ok) {
-                        if (stopOnError) throw new Error(`Trigger action failed: ${trigger.name}`);
-                        return false;
+                    if (passed) {
+                        console.log(`[Trigger Engine] Clause matched in "${trigger.name}", executing actions.`);
+                        if (clause.actions) {
+                            for (const action of clause.actions) {
+                                const ok = await executeAction(action, runtimeCtx);
+                                if (!ok) {
+                                    rollbackTx();
+                                    if (stopOnError) throw new Error(`Trigger action failed: ${trigger.name}`);
+                                    return false;
+                                }
+                                if (runtimeCtx?.transitionExecuted) return true;
+                            }
+                        }
+                        return true; // Stop after first successful clause match (If-Then-Else logic)
                     }
-                    if (runtimeCtx?.transitionExecuted) return true;
                 }
-            } else if (trigger.elseActions) {
+            }
+
+            // Execute Else actions if none of the clauses matched
+            if (trigger.elseActions && trigger.elseActions.length > 0) {
+                console.log(`[Trigger Engine] Executing ELSE actions for: ${trigger.name}`);
                 for (const action of trigger.elseActions) {
                     const ok = await executeAction(action, runtimeCtx);
                     if (!ok) {
+                        rollbackTx();
                         if (stopOnError) throw new Error(`Trigger else action failed: ${trigger.name}`);
                         return false;
                     }
                     if (runtimeCtx?.transitionExecuted) return true;
                 }
             }
+
+            // Backward compatibility for legacy flat triggers
+            if (trigger.actions && (!trigger.clauses || trigger.clauses.length === 0)) {
+                let passed = true;
+                if (trigger.conditions && trigger.conditions.length > 0) {
+                    const matchType = trigger.conditionMatch || 'ALL';
+                    passed = matchType === 'ALL' ? trigger.conditions.every(evaluateCondition) : trigger.conditions.some(evaluateCondition);
+                }
+
+                if (passed) {
+                    for (const action of trigger.actions) {
+                        const ok = await executeAction(action, runtimeCtx);
+                        if (!ok) {
+                            rollbackTx();
+                            if (stopOnError) throw new Error(`Trigger action failed: ${trigger.name}`);
+                            return false;
+                        }
+                        if (runtimeCtx?.transitionExecuted) return true;
+                    }
+                } else if (trigger.elseActions) {
+                    for (const action of trigger.elseActions) {
+                        const ok = await executeAction(action, runtimeCtx);
+                        if (!ok) {
+                            rollbackTx();
+                            if (stopOnError) throw new Error(`Trigger else action failed: ${trigger.name}`);
+                            return false;
+                        }
+                        if (runtimeCtx?.transitionExecuted) return true;
+                    }
+                }
+            }
+            return true;
+        } catch (err) {
+            rollbackTx();
+            throw err;
         }
-        return true;
     };
 
     const processTriggerQueue = async () => {
@@ -9149,6 +9435,7 @@ const AppBuilder = () => {
         const normalizedType = isLegacySystemInfo ? 'SYSTEM_INFO' : rawType;
         if (normalizedType === 'VARIABLE') return Boolean(String(varSource).trim());
         if (normalizedType === 'SYSTEM_INFO') return String(varSource).startsWith('APP_INFO.');
+        if (normalizedType === 'PLC_TAG') return Boolean(props.plcTagId || props.varSource || props.targetVariable);
         if (normalizedType === 'IOT') return Boolean(props.iotTopicId);
         if (normalizedType === 'TABLE_RECORD') {
             const cfg = props.bindingConfig || {};
@@ -9206,17 +9493,112 @@ const AppBuilder = () => {
                                 return;
                             }
 
+                            if (nextType === 'PLC_TAG') {
+                                const tags = window.mandor_plc_tags || [];
+                                const firstTag = tags[0];
+                                updateComponentProps(selectedComp.id, {
+                                    dataSourceType: 'PLC_TAG',
+                                    plcControllerId: firstTag?.controllerId || '',
+                                    plcTagId: firstTag?.id || '',
+                                    varSource: firstTag?.name || '',
+                                    targetVariable: firstTag?.name || ''
+                                });
+                                return;
+                            }
+
                             updateComponentProps(selectedComp.id, { dataSourceType: nextType });
                         }}
                         style={{ width: '100%', padding: '10px', backgroundColor: 'var(--bg-panel)', border: '1px solid var(--border-primary)', borderRadius: '4px', color: 'var(--text-primary)', marginBottom: '12px', fontSize: '0.85rem' }}
                     >
                         <option value="SYSTEM_INFO">System Info</option>
                         <option value="VARIABLE">Variable</option>
+                        <option value="PLC_TAG">⚡ PLC Tag (Keyence / Modbus)</option>
                         <option value="TABLE_RECORD">Supabase Table Record</option>
                         <option value="IOT">IoT / MQTT Topic</option>
                     </select>
 
-                    {normalizedType === 'TABLE_RECORD' ? (
+                    {normalizedType === 'PLC_TAG' ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', backgroundColor: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-primary)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <label style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase' }}>PLC CONTROLLER</label>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPlcWiringVisualizer(true)}
+                                        title="Buka Visual Topology Wiring PLC"
+                                        style={{ background: 'none', border: 'none', color: '#06b6d4', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+                                    >
+                                        <Zap size={11} /> Wiring Map
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleImportPlcTagsToVariables}
+                                        title="Sinkronisasi semua tag ke App Variables"
+                                        style={{ background: 'none', border: 'none', color: '#10b981', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+                                    >
+                                        <RefreshCw size={11} /> Sync Tags
+                                    </button>
+                                </div>
+                            </div>
+                            <select
+                                value={selectedComp.props.plcControllerId || ''}
+                                onChange={(e) => {
+                                    const ctrlId = e.target.value;
+                                    const relevant = (window.mandor_plc_tags || []).filter(t => !ctrlId || t.controllerId === ctrlId);
+                                    const first = relevant[0];
+                                    updateComponentProps(selectedComp.id, {
+                                        dataSourceType: 'PLC_TAG',
+                                        plcControllerId: ctrlId,
+                                        plcTagId: first ? first.id : '',
+                                        varSource: first ? first.name : '',
+                                        targetVariable: first ? first.name : ''
+                                    });
+                                }}
+                                style={{ width: '100%', padding: '8px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.75rem', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                            >
+                                <option value="">(Semua Controller)</option>
+                                {(window.mandor_plc_controllers || []).map(c => (
+                                    <option key={c.id} value={c.id}>{c.name} ({c.type})</option>
+                                ))}
+                            </select>
+
+                            <label style={{ fontSize: '0.65rem', color: 'var(--text-quaternary)', fontWeight: 800, textTransform: 'uppercase', marginTop: '4px' }}>PLC TAG REGISTER</label>
+                            <select
+                                value={selectedComp.props.plcTagId || ''}
+                                onChange={(e) => {
+                                    const tagId = e.target.value;
+                                    const tag = (window.mandor_plc_tags || []).find(t => t.id === tagId);
+                                    updateComponentProps(selectedComp.id, {
+                                        dataSourceType: 'PLC_TAG',
+                                        plcTagId: tagId,
+                                        varSource: tag ? tag.name : '',
+                                        targetVariable: tag ? tag.name : ''
+                                    });
+                                }}
+                                style={{ width: '100%', padding: '8px', border: '1px solid var(--border-secondary)', borderRadius: '4px', fontSize: '0.75rem', backgroundColor: 'var(--bg-panel)', color: 'var(--text-primary)' }}
+                            >
+                                <option value="">-- Pilih PLC Tag --</option>
+                                {(window.mandor_plc_tags || [])
+                                    .filter(t => !selectedComp.props.plcControllerId || t.controllerId === selectedComp.props.plcControllerId)
+                                    .map(t => (
+                                        <option key={t.id} value={t.id}>
+                                            {t.name} [{t.address || t.regType}] ({t.dataType || 'VAL'})
+                                        </option>
+                                    ))}
+                            </select>
+
+                            {selectedComp.props.varSource ? (
+                                <div style={{ padding: '6px 8px', borderRadius: '4px', backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', color: '#065f46', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                                    <CheckCircle2 size={12} color="#10b981" />
+                                    <span>Terhubung: <strong>{selectedComp.props.varSource}</strong></span>
+                                </div>
+                            ) : (
+                                <div style={{ fontSize: '0.7rem', color: '#b45309' }}>
+                                    Pilih tag dari daftar untuk membaca/menulis ke PLC.
+                                </div>
+                            )}
+                        </div>
+                    ) : normalizedType === 'TABLE_RECORD' ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', backgroundColor: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-primary)' }}>
                             <label style={{ fontSize: '0.7rem', color: 'var(--text-quaternary)' }}>Select Table</label>
                             <select
@@ -14791,6 +15173,38 @@ const AppBuilder = () => {
                             title="Code Blocks"
                         >
                             <Blocks size={18} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setShowPlcWiringVisualizer(true)}
+                            title="Visual Wiring / Koneksi PLC ke Widget (Keyence / Modbus)"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '0 12px',
+                                height: '36px',
+                                borderRadius: '6px',
+                                backgroundColor: 'rgba(6, 182, 212, 0.15)',
+                                border: '1px solid #06b6d4',
+                                color: '#22d3ee',
+                                fontSize: '0.78rem',
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                boxShadow: '0 0 10px rgba(6, 182, 212, 0.2)'
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'rgba(6, 182, 212, 0.25)';
+                                e.currentTarget.style.transform = 'scale(1.04)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'rgba(6, 182, 212, 0.15)';
+                                e.currentTarget.style.transform = 'none';
+                            }}
+                        >
+                            <Cpu size={16} />
+                            <span>PLC Wiring</span>
                         </button>
                     </div>
                 </div>
@@ -26797,12 +27211,28 @@ D3:0
                                                         <Variable size={16} color="var(--text-tertiary)" />
                                                         <label style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', fontWeight: 800 }}>Variables</label>
                                                     </div>
-                                                    <button
-                                                        onClick={() => setVariableEditor({ isOpen: true, isNew: true, originalName: null, variable: { name: '', type: 'TEXT', defaultValue: '', clearOnCompletion: true } })}
-                                                        style={{ border: 'none', background: 'transparent', color: '#007bff', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                                    >
-                                                        <Plus size={14} /> Create
-                                                    </button>
+                                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                        <button
+                                                            onClick={() => setShowPlcWiringVisualizer(true)}
+                                                            title="Buka Visual Topology Wiring PLC ke Widget"
+                                                            style={{ border: 'none', background: 'transparent', color: '#06b6d4', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                                        >
+                                                            <Zap size={14} /> Wiring Map
+                                                        </button>
+                                                        <button
+                                                            onClick={handleImportPlcTagsToVariables}
+                                                            title="Sinkronisasi semua PLC Tag ke App Variables"
+                                                            style={{ border: 'none', background: 'transparent', color: '#10b981', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                                        >
+                                                            <Cpu size={14} /> Sync PLC
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setVariableEditor({ isOpen: true, isNew: true, originalName: null, variable: { name: '', type: 'TEXT', defaultValue: '', clearOnCompletion: true } })}
+                                                            style={{ border: 'none', background: 'transparent', color: '#007bff', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                                        >
+                                                            <Plus size={14} /> Create
+                                                        </button>
+                                                    </div>
                                                 </div>
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                     {appVariables.map((v, i) => (
@@ -27740,13 +28170,35 @@ D3:0
                                                                         <option value="">Select Record Placeholder...</option>
                                                                         {recordPlaceholders.map(rp => <option key={rp.id} value={rp.name || rp.id}>{rp.name}</option>)}
                                                                     </select>
-                                                                    <input
-                                                                        type="text"
-                                                                        value={source.fieldName || source.field || ''}
-                                                                        onChange={(e) => updateSource({ fieldName: e.target.value, field: e.target.value })}
-                                                                        placeholder="Field (e.g. Status, Date Created)..."
-                                                                        style={{ flex: 1, minWidth: '130px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
-                                                                    />
+                                                                    {(() => {
+                                                                        const selectedPh = recordPlaceholders.find(rp => rp.id === (source.placeholderId || source.recordPlaceholder) || rp.name === (source.placeholderId || source.recordPlaceholder));
+                                                                        const targetTable = tables.find(t => t.id === selectedPh?.tableId);
+                                                                        const cols = targetTable?.columns || [];
+                                                                        if (cols.length > 0) {
+                                                                            return (
+                                                                                <select
+                                                                                    value={source.fieldName || source.field || ''}
+                                                                                    onChange={(e) => updateSource({ fieldName: e.target.value, field: e.target.value })}
+                                                                                    style={{ flex: 1, minWidth: '130px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
+                                                                                >
+                                                                                    <option value="">Select Field...</option>
+                                                                                    {cols.map(c => {
+                                                                                        const cName = typeof c === 'string' ? c : (c.name || c.title || c.key);
+                                                                                        return <option key={cName} value={cName}>{cName}</option>;
+                                                                                    })}
+                                                                                </select>
+                                                                            );
+                                                                        }
+                                                                        return (
+                                                                            <input
+                                                                                type="text"
+                                                                                value={source.fieldName || source.field || ''}
+                                                                                onChange={(e) => updateSource({ fieldName: e.target.value, field: e.target.value })}
+                                                                                placeholder="Field (e.g. Status, Date Created)..."
+                                                                                style={{ flex: 1, minWidth: '130px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
+                                                                            />
+                                                                        );
+                                                                    })()}
                                                                 </>
                                                             )}
 
@@ -27830,13 +28282,35 @@ D3:0
                                                                         <option value="">Select Record Placeholder...</option>
                                                                         {recordPlaceholders.map(rp => <option key={rp.id} value={rp.name || rp.id}>{rp.name}</option>)}
                                                                     </select>
-                                                                    <input
-                                                                        type="text"
-                                                                        value={location.fieldName || location.field || ''}
-                                                                        onChange={(e) => updateLocation({ fieldName: e.target.value, field: e.target.value })}
-                                                                        placeholder="Field (e.g. Status, Lot Date)..."
-                                                                        style={{ flex: 1, minWidth: '130px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
-                                                                    />
+                                                                    {(() => {
+                                                                        const selectedPh = recordPlaceholders.find(rp => rp.id === (location.placeholderId || location.recordPlaceholder) || rp.name === (location.placeholderId || location.recordPlaceholder));
+                                                                        const targetTable = tables.find(t => t.id === selectedPh?.tableId);
+                                                                        const cols = targetTable?.columns || [];
+                                                                        if (cols.length > 0) {
+                                                                            return (
+                                                                                <select
+                                                                                    value={location.fieldName || location.field || ''}
+                                                                                    onChange={(e) => updateLocation({ fieldName: e.target.value, field: e.target.value })}
+                                                                                    style={{ flex: 1, minWidth: '130px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
+                                                                                >
+                                                                                    <option value="">Select Field...</option>
+                                                                                    {cols.map(c => {
+                                                                                        const cName = typeof c === 'string' ? c : (c.name || c.title || c.key);
+                                                                                        return <option key={cName} value={cName}>{cName}</option>;
+                                                                                    })}
+                                                                                </select>
+                                                                            );
+                                                                        }
+                                                                        return (
+                                                                            <input
+                                                                                type="text"
+                                                                                value={location.fieldName || location.field || ''}
+                                                                                onChange={(e) => updateLocation({ fieldName: e.target.value, field: e.target.value })}
+                                                                                placeholder="Field (e.g. Status, Lot Date)..."
+                                                                                style={{ flex: 1, minWidth: '130px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.8rem' }}
+                                                                            />
+                                                                        );
+                                                                    })()}
                                                                 </>
                                                             ) : (
                                                                 <select
@@ -28030,6 +28504,71 @@ D3:0
                                                     </div>
                                                 );
 
+                                            case 'WRITE_PLC_TAG':
+                                                return (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px', backgroundColor: 'var(--bg-secondary)', borderRadius: '8px', border: '1px solid var(--border-primary)' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                            <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-quaternary)', minWidth: '80px' }}>Target PLC Tag</label>
+                                                            <select
+                                                                value={act.payload.tagId || ''}
+                                                                onChange={(e) => {
+                                                                    const tag = (window.mandor_plc_tags || []).find(t => t.id === e.target.value);
+                                                                    updatePayload({
+                                                                        tagId: e.target.value,
+                                                                        tagName: tag ? tag.name : '',
+                                                                        controllerId: tag ? tag.controllerId : ''
+                                                                    });
+                                                                }}
+                                                                style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
+                                                            >
+                                                                <option value="">Select PLC Tag...</option>
+                                                                {(window.mandor_plc_tags || []).map(t => (
+                                                                    <option key={t.id} value={t.id}>{t.name} [{t.address || t.regType}] ({t.dataType || 'VAL'})</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                            <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-quaternary)', minWidth: '80px' }}>Value to Write</label>
+                                                            <div style={{ flex: 1, display: 'flex', gap: '4px' }}>
+                                                                <select
+                                                                    value={act.payload.valueType || 'STATIC'}
+                                                                    onChange={(e) => updatePayload({ valueType: e.target.value, value: '' })}
+                                                                    style={{ padding: '4px', borderRadius: '6px', border: '1px solid var(--border-secondary)', fontSize: '0.7rem', backgroundColor: 'var(--bg-accent-light)' }}
+                                                                >
+                                                                    <option value="STATIC">Static Value</option>
+                                                                    <option value="VARIABLE">Variable</option>
+                                                                    <option value="EXPRESSION">Expression</option>
+                                                                </select>
+                                                                {act.payload.valueType === 'EXPRESSION' ? (
+                                                                    <button
+                                                                        onClick={() => setExpressionEditor({
+                                                                            isOpen: true, title: 'PLC Write Value', initialValue: act.payload.value || '',
+                                                                            onSave: (val) => updatePayload({ value: val })
+                                                                        })}
+                                                                        style={{ flex: 1, padding: '8px', backgroundColor: 'var(--bg-panel)', border: '1px solid #3b82f6', borderRadius: '8px', fontSize: '0.85rem' }}
+                                                                    >Edit Expression</button>
+                                                                ) : act.payload.valueType === 'VARIABLE' ? (
+                                                                    <select
+                                                                        value={act.payload.value}
+                                                                        onChange={(e) => updatePayload({ value: e.target.value })}
+                                                                        style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
+                                                                    >
+                                                                        <option value="">Select variable...</option>
+                                                                        {appVariables.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
+                                                                    </select>
+                                                                ) : (
+                                                                    <input
+                                                                        value={act.payload.value !== undefined ? act.payload.value : ''}
+                                                                        onChange={(e) => updatePayload({ value: e.target.value })}
+                                                                        placeholder="e.g. 1, 0, 100, ON"
+                                                                        style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
+                                                                    />
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+
                                             case 'SET_VARIABLE':
                                             case 'INCREMENT_VARIABLE':
                                                 return (
@@ -28154,6 +28693,7 @@ D3:0
                                                 return <div style={{ fontSize: '0.85rem', color: 'var(--text-quaternary)', fontStyle: 'italic', padding: '8px' }}>No additional parameters required.</div>;
                                             case 'TABLE_RECORD_LOAD':
                                             case 'TABLE_RECORD_CREATE':
+                                            case 'TABLE_RECORD_CREATE_OR_LOAD':
                                                 return (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -28549,6 +29089,40 @@ D3:0
                                                         </select>
                                                         {!act.payload?.functionName && (
                                                             <div style={{ fontSize: '0.65rem', color: '#f59e0b', minWidth: '120px' }}>⚠️ Pilih function</div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            case 'RUN_AUTOMATION':
+                                            case 'AUTOMATION_WORKFLOW':
+                                                return (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-quaternary)', minWidth: '80px' }}>Workflow</label>
+                                                        <select
+                                                            value={act.payload?.automationId || ''}
+                                                            onChange={(e) => {
+                                                                try {
+                                                                    const autos = JSON.parse(localStorage.getItem('mes_automations') || '[]');
+                                                                    const sel = autos.find(a => a.id === e.target.value);
+                                                                    updatePayload({ automationId: e.target.value, automationName: sel ? sel.name : '' });
+                                                                } catch(err) {
+                                                                    updatePayload({ automationId: e.target.value });
+                                                                }
+                                                            }}
+                                                            style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
+                                                        >
+                                                            <option value="">Pilih Automation Workflow...</option>
+                                                            {(() => {
+                                                                try {
+                                                                    const autos = JSON.parse(localStorage.getItem('mes_automations') || '[]');
+                                                                    if (autos.length === 0) return <option value="" disabled>Belum ada automation dibuat</option>;
+                                                                    return autos.map(a => (
+                                                                        <option key={a.id} value={a.id}>{a.name} ({a.active !== false ? 'Active' : 'Draft'})</option>
+                                                                    ));
+                                                                } catch(e) { return null; }
+                                                            })()}
+                                                        </select>
+                                                        {!act.payload?.automationId && (
+                                                            <div style={{ fontSize: '0.65rem', color: '#f59e0b', minWidth: '120px' }}>⚠️ Pilih workflow</div>
                                                         )}
                                                     </div>
                                                 );
@@ -29138,6 +29712,16 @@ D3:0
                                                                                     }}
                                                                                     style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                                                 >
+                                                                                    <optgroup label="Data Manipulation">
+                                                                                        <option value="DATA_MANIPULATION_STORE">Data Manipulation: Store</option>
+                                                                                        <option value="DATA_MANIPULATION_CLEAR">Data Manipulation: Clear</option>
+                                                                                        <option value="DATA_MANIPULATION_INCREMENT">Data Manipulation: Increment Value</option>
+                                                                                        <option value="DATA_MANIPULATION_DECREMENT">Data Manipulation: Decrement Value</option>
+                                                                                        <option value="RESET_ALL_VARIABLES">Data Manipulation: Reset All Variables</option>
+                                                                                    </optgroup>
+                                                                                    <optgroup label="⚡ PLC & SCADA">
+                                                                                        <option value="WRITE_PLC_TAG">⚡ PLC: Write Tag / Relay (Keyence / Modbus)</option>
+                                                                                    </optgroup>
                                                                                     <optgroup label="Variables">
                                                                                         <option value="SET_VARIABLE">Variable: Set</option>
                                                                                         <option value="INCREMENT_VARIABLE">Variable: Increment</option>
@@ -29157,11 +29741,18 @@ D3:0
                                                                                         <option value="PLAY_VIDEO">Media: Play Video</option>
                                                                                     </optgroup>
                                                                                     <optgroup label="Table Records">
+                                                                                        <option value="TABLE_RECORD_CREATE_OR_LOAD">Table Record: Create or Load Record</option>
                                                                                         <option value="TABLE_RECORD_LOAD">Table Record: Load</option>
                                                                                         <option value="TABLE_RECORD_CREATE">Table Record: Create</option>
                                                                                         <option value="TABLE_RECORD_SAVE">Table Record: Save (Update)</option>
                                                                                         <option value="TABLE_RECORD_DELETE">Table Record: Delete</option>
                                                                                         <option value="CLEAR_RECORD_PLACEHOLDER">Table Record: Clear Placeholder</option>
+                                                                                    </optgroup>
+                                                                                    <optgroup label="Connectors">
+                                                                                        <option value="RUN_CONNECTOR_FUNCTION">Connectors: Run Connector Function</option>
+                                                                                    </optgroup>
+                                                                                    <optgroup label="Automations & Workflows">
+                                                                                        <option value="RUN_AUTOMATION">Automation: Run Automation Workflow</option>
                                                                                     </optgroup>
                                                                                     <optgroup label="AI & Advanced">
                                                                                         <option value="AI_PROCESS">AI: Process with AI</option>
@@ -29268,6 +29859,16 @@ D3:0
                                                                                 }}
                                                                                 style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-secondary)', fontSize: '0.85rem' }}
                                                                             >
+                                                                                <optgroup label="Data Manipulation">
+                                                                                    <option value="DATA_MANIPULATION_STORE">Data Manipulation: Store</option>
+                                                                                    <option value="DATA_MANIPULATION_CLEAR">Data Manipulation: Clear</option>
+                                                                                    <option value="DATA_MANIPULATION_INCREMENT">Data Manipulation: Increment Value</option>
+                                                                                    <option value="DATA_MANIPULATION_DECREMENT">Data Manipulation: Decrement Value</option>
+                                                                                    <option value="RESET_ALL_VARIABLES">Data Manipulation: Reset All Variables</option>
+                                                                                </optgroup>
+                                                                                <optgroup label="⚡ PLC & SCADA">
+                                                                                    <option value="WRITE_PLC_TAG">⚡ PLC: Write Tag / Relay (Keyence / Modbus)</option>
+                                                                                </optgroup>
                                                                                 <optgroup label="Variables">
                                                                                     <option value="SET_VARIABLE">Variable: Set</option>
                                                                                     <option value="INCREMENT_VARIABLE">Variable: Increment</option>
@@ -29282,11 +29883,18 @@ D3:0
                                                                                     <option value="SHOW_MESSAGE">Notification: Show Message</option>
                                                                                 </optgroup>
                                                                                 <optgroup label="Table Records">
+                                                                                    <option value="TABLE_RECORD_CREATE_OR_LOAD">Table Record: Create or Load Record</option>
                                                                                     <option value="TABLE_RECORD_LOAD">Table Record: Load</option>
                                                                                     <option value="TABLE_RECORD_CREATE">Table Record: Create</option>
                                                                                     <option value="TABLE_RECORD_SAVE">Table Record: Save (Update)</option>
                                                                                     <option value="TABLE_RECORD_DELETE">Table Record: Delete</option>
                                                                                     <option value="CLEAR_RECORD_PLACEHOLDER">Table Record: Clear Placeholder</option>
+                                                                                </optgroup>
+                                                                                <optgroup label="Connectors">
+                                                                                    <option value="RUN_CONNECTOR_FUNCTION">Connectors: Run Connector Function</option>
+                                                                                </optgroup>
+                                                                                <optgroup label="Automations & Workflows">
+                                                                                    <option value="RUN_AUTOMATION">Automation: Run Automation Workflow</option>
                                                                                 </optgroup>
                                                                                 <optgroup label="AI & Advanced">
                                                                                     <option value="AI_PROCESS">AI: Process with AI</option>
@@ -31299,6 +31907,20 @@ D3:0
                     canvasHeight: canvasBaseSize.height
                 }}
             />
+
+            {/* PLC to Widget Visual Wiring Topology Modal */}
+            <Suspense fallback={null}>
+                {showPlcWiringVisualizer && (
+                    <PlcWidgetVisualizerModal
+                        isOpen={showPlcWiringVisualizer}
+                        onClose={() => setShowPlcWiringVisualizer(false)}
+                        components={baseComponents}
+                        activeStepName={currentStep?.title || 'Current Step'}
+                        onUpdateComponent={updateComponentProps}
+                        appVariables={appVariables}
+                    />
+                )}
+            </Suspense>
 
             {/* Ghost Pilot Autonomous In-App RPA Overlay & Jarvis HUD */}
             <GhostPilotOverlay

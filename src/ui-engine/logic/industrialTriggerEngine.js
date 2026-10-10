@@ -161,8 +161,8 @@ export function getExecutionContext(customContext = {}) {
 
   return {
     operatorId: customContext.operatorId || 'OP-DEFAULT',
-    operatorName: customContext.operatorName || 'Operator Shopfloor',
-    stationId: customContext.stationId || 'STATION-01',
+    operatorName: customContext.operatorName || customContext.user || 'Operator Shopfloor',
+    stationId: customContext.stationId || customContext.station || 'STATION-01',
     lineId: customContext.lineId || 'LINE-A',
     shiftId: customContext.shiftId || defaultShift,
     deviceId: customContext.deviceId || (typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 32) : 'TERMINAL-01'),
@@ -258,6 +258,17 @@ export function resolveDataSource(source = {}, state = {}, execContext = {}) {
     case 'VARIABLE': {
       const varName = source.variableName || source.varPath || source.value;
       if (!varName) return '';
+      // 1. Check in execContext.variables or state.variables (array or dict)
+      const varSources = [execContext?.variables, state?.variables];
+      for (const vs of varSources) {
+        if (Array.isArray(vs)) {
+          const found = vs.find(v => v.name === varName || v.id === varName);
+          if (found) return found.value;
+        } else if (vs && typeof vs === 'object' && vs[varName] !== undefined) {
+          return vs[varName];
+        }
+      }
+      if (state && state[varName] !== undefined) return state[varName];
       return resolveOperand(`@${varName}`, state);
     }
 
@@ -266,18 +277,34 @@ export function resolveDataSource(source = {}, state = {}, execContext = {}) {
       const fieldName = source.fieldName || source.field;
       if (!placeholder || !fieldName) return '';
 
-      // Check loadedRecords
-      const loaded = state.loadedRecords?.[placeholder] || state.loadedRecords?.[String(placeholder).toLowerCase()];
-      if (loaded && loaded[fieldName] !== undefined) {
-        return loaded[fieldName];
+      // Check loadedRecords or recordPlaceholderData from transaction working copy, state or execContext
+      const recDataSources = [
+        state?.txContext?.workingPlaceholders,
+        execContext?.txContext?.workingPlaceholders,
+        state?.recordPlaceholderData,
+        execContext?.recordPlaceholderData,
+        state?.loadedRecords,
+        execContext?.loadedRecords
+      ].filter(Boolean);
+
+      for (const recMap of recDataSources) {
+        if (recMap[placeholder] && recMap[placeholder][fieldName] !== undefined) {
+          return recMap[placeholder][fieldName];
+        }
+        if (recMap[String(placeholder).toLowerCase()] && recMap[String(placeholder).toLowerCase()][fieldName] !== undefined) {
+          return recMap[String(placeholder).toLowerCase()][fieldName];
+        }
       }
 
       // Check placeholder object matching in recordPlaceholders
-      if (state.recordPlaceholders && state.loadedRecords) {
-        const phObj = state.recordPlaceholders.find(rp => rp.id === placeholder || rp.name === placeholder);
+      const phList = state?.recordPlaceholders || execContext?.recordPlaceholders;
+      if (phList && Array.isArray(phList)) {
+        const phObj = phList.find(rp => rp.id === placeholder || rp.name === placeholder);
         if (phObj) {
-          const rec = state.loadedRecords[phObj.id] || state.loadedRecords[phObj.name];
-          if (rec && rec[fieldName] !== undefined) return rec[fieldName];
+          for (const recMap of recDataSources) {
+            const r = recMap[phObj.id] || recMap[phObj.name];
+            if (r && r[fieldName] !== undefined) return r[fieldName];
+          }
         }
       }
 
@@ -349,16 +376,16 @@ export function resolveDataSource(source = {}, state = {}, execContext = {}) {
     case 'APP_INFO': {
       const field = (source.appInfoField || source.field || 'LOGGED_IN_USER').toUpperCase();
       if (['LOGGED_IN_USER', 'USER', 'OPERATOR'].includes(field)) {
-        return execContext.operatorName || execContext.operatorId || 'Operator';
+        return execContext.user || execContext.operatorName || execContext.operatorId || 'Operator';
       }
       if (['STATION', 'STATION_NAME'].includes(field)) {
-        return execContext.stationId || 'STATION-01';
+        return execContext.station || execContext.stationId || 'STATION-01';
       }
       if (['SHIFT', 'SHIFT_NAME'].includes(field)) {
-        return execContext.shiftId || 'Shift 1';
+        return execContext.shift || execContext.shiftId || 'Shift 1';
       }
       if (['APP_NAME', 'APPLICATION'].includes(field)) {
-        return state.appName || 'MAVI MES';
+        return execContext.appName || state.appName || 'MAVI MES';
       }
       if (['CURRENT_DATETIME', 'DATETIME', 'TIME'].includes(field)) {
         return execContext.timestampUtc || new Date().toISOString();
@@ -372,6 +399,127 @@ export function resolveDataSource(source = {}, state = {}, execContext = {}) {
 }
 
 /**
+ * Tulip LTS 15: Create Atomic Trigger Transaction Scope
+ * "Sequential Create and Data Manipulations to the same table record.
+ *  These would either all succeed or all fail in LTS15, but not pre-LTS12."
+ */
+export function createTriggerTransaction(context = {}) {
+  const rawPlaceholders = context.recordPlaceholderData || context.state?.recordPlaceholderData || {};
+  const rawVars = context.variables !== undefined ? context.variables : context.state?.variables;
+
+  let initialPlaceholders = {};
+  try {
+    initialPlaceholders = JSON.parse(JSON.stringify(rawPlaceholders || {}));
+  } catch (e) {
+    initialPlaceholders = { ...(rawPlaceholders || {}) };
+  }
+
+  let initialVariables;
+  try {
+    initialVariables = Array.isArray(rawVars)
+      ? JSON.parse(JSON.stringify(rawVars))
+      : JSON.parse(JSON.stringify(rawVars || {}));
+  } catch (e) {
+    initialVariables = Array.isArray(rawVars) ? [...(rawVars || [])] : { ...(rawVars || {}) };
+  }
+
+  return {
+    active: true,
+    snapshot: {
+      recordPlaceholderData: initialPlaceholders,
+      variables: initialVariables
+    },
+    workingPlaceholders: { ...initialPlaceholders },
+    workingVariables: Array.isArray(initialVariables) ? [...initialVariables] : { ...initialVariables },
+    createdRecords: [],
+    modifiedRecords: [],
+    status: 'IN_PROGRESS'
+  };
+}
+
+export function commitTriggerTransaction(tx, context = {}) {
+  if (!tx || !tx.active) return;
+  console.log('[Tulip LTS15 Engine] Trigger Transaction COMMITTED: All table records and variables committed atomically.');
+
+  // 1. Commit working placeholders to state
+  if (context.setRecordPlaceholderData) {
+    context.setRecordPlaceholderData(tx.workingPlaceholders);
+  }
+  if (context.setLoadedRecords) {
+    context.setLoadedRecords(tx.workingPlaceholders);
+  }
+
+  // 2. Commit working variables to state
+  if (context.setVariables) {
+    context.setVariables(tx.workingVariables);
+  }
+
+  // 3. Persist records to table storage if localStorage available
+  try {
+    if (typeof localStorage !== 'undefined') {
+      Object.entries(tx.workingPlaceholders).forEach(([phId, rec]) => {
+        if (!rec || !rec.id) return;
+        const foundPh = (context.recordPlaceholders || context.state?.recordPlaceholders || []).find(p => p.id === phId || p.name === phId);
+        const tableId = foundPh?.tableId || rec.tableId;
+        if (tableId) {
+          const key = `mavi_table_${tableId}`;
+          const tbl = JSON.parse(localStorage.getItem(key) || '{"records":[]}');
+          const idx = tbl.records.findIndex(r => r.id === rec.id || r.recordId === rec.id);
+          if (idx >= 0) {
+            tbl.records[idx] = { ...tbl.records[idx], ...rec };
+          } else {
+            tbl.records.push({ ...rec });
+          }
+          localStorage.setItem(key, JSON.stringify(tbl));
+        }
+      });
+    }
+  } catch (e) {}
+
+  tx.active = false;
+  tx.status = 'COMMITTED';
+}
+
+export function rollbackTriggerTransaction(tx, context = {}) {
+  if (!tx || !tx.active) return;
+  console.warn('[Tulip LTS15 Engine] Trigger Transaction ROLLED BACK: Reverting all table records and variables to pre-trigger snapshot.');
+
+  // 1. Revert recordPlaceholderData
+  if (context.setRecordPlaceholderData) {
+    context.setRecordPlaceholderData(tx.snapshot.recordPlaceholderData);
+  }
+  if (context.setLoadedRecords) {
+    context.setLoadedRecords(tx.snapshot.recordPlaceholderData);
+  }
+
+  // 2. Revert variables
+  if (context.setVariables) {
+    context.setVariables(tx.snapshot.variables);
+  }
+
+  // 3. Revert any persistent storage if records were newly created in this transaction
+  try {
+    for (const created of tx.createdRecords) {
+      const tableId = created.tableId;
+      if (tableId && typeof localStorage !== 'undefined') {
+        const key = `mavi_table_${tableId}`;
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const tbl = JSON.parse(raw);
+          if (tbl.records) {
+            tbl.records = tbl.records.filter(r => r.id !== created.recordId && r.recordId !== created.recordId);
+            localStorage.setItem(key, JSON.stringify(tbl));
+          }
+        }
+      }
+    }
+  } catch (e) {}
+
+  tx.active = false;
+  tx.status = 'ROLLED_BACK';
+}
+
+/**
  * Stores a value into a Data Manipulation location (Variable or Table Record field).
  */
 export function storeDataToLocation(location = {}, value, context = {}, execContext = {}) {
@@ -380,6 +528,19 @@ export function storeDataToLocation(location = {}, value, context = {}, execCont
   if (locType === 'VARIABLE') {
     const varName = location.variableName || location.varPath || location.targetVar || location.target;
     if (!varName) return false;
+
+    // Immediately update transaction working copy (Tulip LTS 15)
+    if (context.txContext && context.txContext.active) {
+      const tx = context.txContext;
+      if (Array.isArray(tx.workingVariables)) {
+        const idx = tx.workingVariables.findIndex(v => v.name === varName || v.id === varName);
+        if (idx >= 0) tx.workingVariables[idx] = { ...tx.workingVariables[idx], value };
+        else tx.workingVariables.push({ id: `var_${Date.now()}`, name: varName, value, type: typeof value });
+      } else if (tx.workingVariables && typeof tx.workingVariables === 'object') {
+        tx.workingVariables[varName] = value;
+      }
+      tx.modifiedRecords.push({ targetType: 'VARIABLE', varName, value });
+    }
 
     if (context.setVariables) {
       context.setVariables(prev => {
@@ -404,9 +565,32 @@ export function storeDataToLocation(location = {}, value, context = {}, execCont
     const fieldName = location.fieldName || location.field;
     if (!placeholder || !fieldName) return false;
 
-    // 1. Update loadedRecords in context state
+    // 0. Update transaction working copy immediately (Tulip LTS 15 Sequential Propagation)
+    if (context.txContext && context.txContext.active) {
+      const tx = context.txContext;
+      const cur = tx.workingPlaceholders[placeholder] || {};
+      const updated = { ...cur, [fieldName]: value, updatedAt: execContext?.timestampUtc || new Date().toISOString() };
+      tx.workingPlaceholders[placeholder] = updated;
+      const foundPh = (context.recordPlaceholders || context.state?.recordPlaceholders || []).find(rp => rp.id === placeholder || rp.name === placeholder);
+      if (foundPh) {
+        tx.workingPlaceholders[foundPh.id] = updated;
+        tx.workingPlaceholders[foundPh.name] = updated;
+      }
+      tx.modifiedRecords.push({ placeholderId: placeholder, fieldName, value });
+    }
+
+    // 1. Update loadedRecords and recordPlaceholderData in context state
     if (context.setLoadedRecords) {
       context.setLoadedRecords(prev => {
+        const cur = prev?.[placeholder] || {};
+        return {
+          ...prev,
+          [placeholder]: { ...cur, [fieldName]: value, updatedAt: execContext?.timestampUtc || new Date().toISOString() }
+        };
+      });
+    }
+    if (context.setRecordPlaceholderData) {
+      context.setRecordPlaceholderData(prev => {
         const cur = prev?.[placeholder] || {};
         return {
           ...prev,
@@ -566,6 +750,9 @@ export async function executeIndustrialTrigger(trigger, context = {}) {
   const executionContext = getExecutionContext(context.customContext || {});
   const evalState = {
     ...(context.state || {}),
+    variables: context.variables !== undefined ? context.variables : context.state?.variables,
+    recordPlaceholderData: context.recordPlaceholderData || context.state?.recordPlaceholderData,
+    loadedRecords: context.loadedRecords || context.state?.loadedRecords,
     context: executionContext,
     operator: { id: executionContext.operatorId, name: executionContext.operatorName },
     station: { id: executionContext.stationId },
@@ -573,10 +760,25 @@ export async function executeIndustrialTrigger(trigger, context = {}) {
   };
 
   const executedActions = [];
-  const clauses = trigger.clauses || [];
+  const clauses = (trigger.clauses && trigger.clauses.length > 0)
+    ? trigger.clauses
+    : (trigger.actions && trigger.actions.length > 0 ? [{ actions: trigger.actions }] : []);
   let clauseMatched = false;
 
-  // 4. Pre-Condition / Guard Check Pipeline
+  // 4. Tulip LTS15 Transactional Scope (Atomic: All Succeed or All Fail)
+  const tx = createTriggerTransaction(context);
+  const txContext = {
+    ...context,
+    txContext: tx,
+    state: {
+      ...(context.state || {}),
+      txContext: tx
+    }
+  };
+
+  let hasError = false;
+  let errorReason = null;
+
   for (const clause of clauses) {
     const passed = evaluateClause(clause, evalState);
 
@@ -585,10 +787,19 @@ export async function executeIndustrialTrigger(trigger, context = {}) {
       const actions = clause.actions || [];
 
       for (const act of actions) {
-        const actionResult = await executeAction(act, context, executionContext);
-        executedActions.push(actionResult);
+        try {
+          const actionResult = await executeAction(act, txContext, executionContext);
+          executedActions.push(actionResult);
 
-        if (trigger.stopOnError && actionResult.status === 'ERROR') {
+          if (actionResult && actionResult.status === 'ERROR') {
+            hasError = true;
+            errorReason = actionResult.message || `Action ${act.type} failed`;
+            break;
+          }
+        } catch (err) {
+          hasError = true;
+          errorReason = err.message || 'Action execution error';
+          executedActions.push({ type: act.type, status: 'ERROR', message: errorReason });
           break;
         }
       }
@@ -602,17 +813,51 @@ export async function executeIndustrialTrigger(trigger, context = {}) {
     triggerIndustrialHaptic('ERROR');
 
     for (const act of trigger.elseActions) {
-      const actionResult = await executeAction(act, context, executionContext);
-      executedActions.push(actionResult);
+      try {
+        const actionResult = await executeAction(act, txContext, executionContext);
+        executedActions.push(actionResult);
+        if (actionResult && actionResult.status === 'ERROR') {
+          hasError = true;
+          errorReason = actionResult.message;
+          break;
+        }
+      } catch (err) {
+        hasError = true;
+        errorReason = err.message;
+        executedActions.push({ type: act.type, status: 'ERROR', message: errorReason });
+        break;
+      }
     }
   }
 
-  return {
-    success: clauseMatched,
-    triggerName: trigger.name,
-    executedActions,
-    context: executionContext
-  };
+  // ── 6. Tulip LTS15 Transaction Finalization ──
+  // "These would either all succeed or all fail in LTS15, but not pre-LTS12."
+  if (hasError) {
+    rollbackTriggerTransaction(tx, context);
+    playIndustrialSound('ERROR');
+    triggerIndustrialHaptic('ERROR');
+    return {
+      success: false,
+      transactionStatus: 'ROLLED_BACK',
+      reason: errorReason,
+      triggerName: trigger.name,
+      executedActions,
+      context: executionContext,
+      workingPlaceholders: tx.workingPlaceholders,
+      workingVariables: tx.workingVariables
+    };
+  } else {
+    commitTriggerTransaction(tx, context);
+    return {
+      success: clauseMatched,
+      transactionStatus: 'COMMITTED',
+      triggerName: trigger.name,
+      executedActions,
+      context: executionContext,
+      workingPlaceholders: tx.workingPlaceholders,
+      workingVariables: tx.workingVariables
+    };
+  }
 }
 
 // ── 6. Atomic Action Handlers ────────────────────────────────────────────────
@@ -734,7 +979,16 @@ async function executeAction(act, context, execContext) {
           fieldName: payload.fieldName
         };
 
-        const resolvedVal = resolveDataSource(sourceCfg, { ...(context.state || {}), context: execContext }, execContext);
+        const combinedState = {
+          ...(context.state || {}),
+          variables: context.variables !== undefined ? context.variables : context.state?.variables,
+          recordPlaceholderData: context.recordPlaceholderData || context.state?.recordPlaceholderData,
+          loadedRecords: context.loadedRecords || context.state?.loadedRecords,
+          recordPlaceholders: context.recordPlaceholders || context.state?.recordPlaceholders,
+          context: execContext
+        };
+
+        const resolvedVal = resolveDataSource(sourceCfg, combinedState, execContext);
         storeDataToLocation(locationCfg, resolvedVal, context, execContext);
 
         playIndustrialSound('CLICK');
@@ -752,13 +1006,13 @@ async function executeAction(act, context, execContext) {
       case 'DATA_MANIPULATION_CLEAR':
       case 'CLEAR': {
         const locationCfg = payload.location || {
-          locationType: payload.varPath ? 'VARIABLE' : (payload.placeholderId ? 'TABLE_RECORD' : 'ALL_VARIABLES'),
-          variableName: payload.varPath,
+          locationType: (payload.targetType || (payload.varPath ? 'VARIABLE' : (payload.placeholderId ? 'TABLE_RECORD' : 'ALL_VARIABLES'))).toUpperCase(),
+          variableName: payload.varPath || payload.variableName || payload.targetVar,
           placeholderId: payload.placeholderId,
           fieldName: payload.fieldName
         };
 
-        if (locationCfg.locationType === 'ALL_VARIABLES' || payload.targetAll) {
+        if (locationCfg.locationType === 'ALL_VARIABLES' || payload.targetAll || payload.targetType === 'ALL_VARIABLES') {
           if (context.setVariables) {
             context.setVariables(prev => {
               if (Array.isArray(prev)) {
@@ -789,10 +1043,21 @@ async function executeAction(act, context, execContext) {
           fieldName: payload.fieldName
         };
 
+        const combinedState = {
+          ...(context.state || {}),
+          variables: context.variables !== undefined ? context.variables : context.state?.variables,
+          recordPlaceholderData: context.recordPlaceholderData || context.state?.recordPlaceholderData,
+          loadedRecords: context.loadedRecords || context.state?.loadedRecords,
+          recordPlaceholders: context.recordPlaceholders || context.state?.recordPlaceholders,
+          context: execContext
+        };
+
         let step = 1;
-        if (payload.by !== undefined) {
+        if (payload.value !== undefined) {
+          step = Number(payload.value) || 1;
+        } else if (payload.by !== undefined) {
           if (typeof payload.by === 'object') {
-            step = Number(resolveDataSource(payload.by, context.state, execContext)) || 1;
+            step = Number(resolveDataSource(payload.by, combinedState, execContext)) || 1;
           } else {
             step = Number(payload.by) || 1;
           }
@@ -801,11 +1066,11 @@ async function executeAction(act, context, execContext) {
         }
 
         const curVal = Number(resolveDataSource({
-          dataSourceType: locationCfg.locationType,
+          dataSourceType: locationCfg.locationType || 'VARIABLE',
           variableName: locationCfg.variableName,
           placeholderId: locationCfg.placeholderId,
           fieldName: locationCfg.fieldName
-        }, context.state, execContext)) || 0;
+        }, combinedState, execContext)) || 0;
 
         const nextVal = curVal + step;
         storeDataToLocation(locationCfg, nextVal, context, execContext);
@@ -824,10 +1089,21 @@ async function executeAction(act, context, execContext) {
           fieldName: payload.fieldName
         };
 
+        const combinedState = {
+          ...(context.state || {}),
+          variables: context.variables !== undefined ? context.variables : context.state?.variables,
+          recordPlaceholderData: context.recordPlaceholderData || context.state?.recordPlaceholderData,
+          loadedRecords: context.loadedRecords || context.state?.loadedRecords,
+          recordPlaceholders: context.recordPlaceholders || context.state?.recordPlaceholders,
+          context: execContext
+        };
+
         let step = 1;
-        if (payload.by !== undefined) {
+        if (payload.value !== undefined) {
+          step = Number(payload.value) || 1;
+        } else if (payload.by !== undefined) {
           if (typeof payload.by === 'object') {
-            step = Number(resolveDataSource(payload.by, context.state, execContext)) || 1;
+            step = Number(resolveDataSource(payload.by, combinedState, execContext)) || 1;
           } else {
             step = Number(payload.by) || 1;
           }
@@ -836,11 +1112,11 @@ async function executeAction(act, context, execContext) {
         }
 
         const curVal = Number(resolveDataSource({
-          dataSourceType: locationCfg.locationType,
+          dataSourceType: locationCfg.locationType || 'VARIABLE',
           variableName: locationCfg.variableName,
           placeholderId: locationCfg.placeholderId,
           fieldName: locationCfg.fieldName
-        }, context.state, execContext)) || 0;
+        }, combinedState, execContext)) || 0;
 
         const nextVal = curVal - step;
         storeDataToLocation(locationCfg, nextVal, context, execContext);
@@ -851,6 +1127,16 @@ async function executeAction(act, context, execContext) {
 
       // ── Tulip Data Manipulation: Reset All App Variables to Defaults ──
       case 'RESET_ALL_VARIABLES': {
+        if (context.txContext && context.txContext.active) {
+          const tx = context.txContext;
+          if (Array.isArray(tx.workingVariables)) {
+            tx.workingVariables = tx.workingVariables.map(v => ({ ...v, value: v.defaultValue !== undefined ? v.defaultValue : '' }));
+          } else if (tx.workingVariables && typeof tx.workingVariables === 'object') {
+            const res = {};
+            Object.keys(tx.workingVariables).forEach(k => { res[k] = ''; });
+            tx.workingVariables = res;
+          }
+        }
         if (context.setVariables) {
           context.setVariables(prev => {
             if (Array.isArray(prev)) {
@@ -873,7 +1159,7 @@ async function executeAction(act, context, execContext) {
         const method = payload.method || payload.apiMethod || 'GET';
         const resultVar = payload.saveResultAs || payload.resultVar;
 
-        const simulatedResult = {
+        let resultData = {
           status: 200,
           connector,
           method,
@@ -881,20 +1167,92 @@ async function executeAction(act, context, execContext) {
           data: { success: true, message: `Response from ${connector} [${method}]` }
         };
 
-        if (resultVar && context.setVariables) {
-          context.setVariables(prev => {
-            if (Array.isArray(prev)) {
-              return prev.map(v => (v.name === resultVar || v.id === resultVar) ? { ...v, value: typeof v.value === 'object' ? simulatedResult : JSON.stringify(simulatedResult) } : v);
-            } else if (prev && typeof prev === 'object') {
-              return { ...prev, [resultVar]: simulatedResult };
+        if (context.connectors && Array.isArray(context.connectors)) {
+          const foundConn = context.connectors.find(c => c.id === connector || c.name === connector);
+          if (foundConn && Array.isArray(foundConn.functions)) {
+            const fn = foundConn.functions.find(f => f.id === (payload.functionId || payload.function) || f.name === (payload.functionId || payload.function));
+            if (fn && fn.mockResponse !== undefined) {
+              resultData = fn.mockResponse;
             }
-            return prev;
-          });
+          }
+        }
+
+        if (resultVar) {
+          storeDataToLocation({ locationType: 'VARIABLE', variableName: resultVar }, resultData, context, execContext);
         }
 
         playIndustrialSound('SUCCESS');
         triggerIndustrialHaptic('LIGHT');
-        return { type, status: 'SUCCESS', connector, method, result: simulatedResult };
+        return { type, status: 'SUCCESS', connector, method, result: resultData };
+      }
+
+      // ── Table Records: Create or Load / Load / Create ──
+      case 'TABLE_RECORD_CREATE_OR_LOAD':
+      case 'TABLE_RECORD_LOAD':
+      case 'TABLE_RECORD_CREATE': {
+        const phId = payload.placeholderId;
+        const idType = payload.idType || 'STATIC';
+        let recordId = payload.idValue;
+        if (idType === 'VARIABLE') {
+          const combinedState = {
+            ...(context.state || {}),
+            variables: context.variables !== undefined ? context.variables : context.state?.variables,
+            context: execContext
+          };
+          recordId = resolveDataSource({ dataSourceType: 'VARIABLE', variableName: payload.idValue }, combinedState, execContext);
+        }
+
+        const existing = (context.tableRecords || []).find(r => String(r.id) === String(recordId) || String(r.recordId) === String(recordId));
+        const targetData = (type === 'TABLE_RECORD_CREATE')
+          ? { id: recordId || `REC-${Date.now()}`, recordId: recordId || `REC-${Date.now()}`, _isNew: true }
+          : (existing ? { ...existing } : { id: recordId || `REC-${Date.now()}`, recordId: recordId || `REC-${Date.now()}`, _isNew: true });
+
+        // Update transaction working copy immediately (Tulip LTS 15 Sequential Propagation)
+        if (context.txContext && context.txContext.active) {
+          const tx = context.txContext;
+          tx.workingPlaceholders[phId] = targetData;
+          const foundPh = (context.recordPlaceholders || context.state?.recordPlaceholders || []).find(rp => rp.id === phId || rp.name === phId);
+          if (foundPh) {
+            tx.workingPlaceholders[foundPh.id] = targetData;
+            tx.workingPlaceholders[foundPh.name] = targetData;
+          }
+          if (targetData._isNew) {
+            tx.createdRecords.push({ placeholderId: phId, recordId: targetData.id, tableId: foundPh?.tableId, data: targetData });
+          }
+        }
+
+        if (phId && context.setRecordPlaceholderData) {
+          context.setRecordPlaceholderData(prev => ({
+            ...(prev || {}),
+            [phId]: targetData
+          }));
+        }
+
+        playIndustrialSound('CLICK');
+        return { type, status: 'SUCCESS', placeholderId: phId, recordId: targetData.id, data: targetData };
+      }
+
+      // ── Table Records: Delete / Clear Placeholder ──
+      case 'TABLE_RECORD_DELETE':
+      case 'CLEAR_RECORD_PLACEHOLDER': {
+        const phId = payload.placeholderId;
+        if (context.txContext && context.txContext.active) {
+          delete context.txContext.workingPlaceholders[phId];
+          const foundPh = (context.recordPlaceholders || context.state?.recordPlaceholders || []).find(rp => rp.id === phId || rp.name === phId);
+          if (foundPh) {
+            delete context.txContext.workingPlaceholders[foundPh.id];
+            delete context.txContext.workingPlaceholders[foundPh.name];
+          }
+        }
+        if (phId && context.setRecordPlaceholderData) {
+          context.setRecordPlaceholderData(prev => {
+            const next = { ...(prev || {}) };
+            delete next[phId];
+            return next;
+          });
+        }
+        playIndustrialSound('CLICK');
+        return { type, status: 'SUCCESS', placeholderId: phId };
       }
 
       // ── Notifications: Show Message ──
@@ -918,9 +1276,15 @@ async function executeAction(act, context, execContext) {
       }
 
       // ── Industrial IoT: PLC Write Tag ──
+      case 'WRITE_PLC_TAG':
       case 'PLC_WRITE_TAG': {
-        const tag = payload.tag || payload.tagName || 'START_CYCLE';
-        let val = payload.value !== undefined ? payload.value : 1;
+        let tag = payload.tag || payload.tagName || '';
+        if (!tag && payload.tagId && window.mandor_plc_tags) {
+          const matched = window.mandor_plc_tags.find(t => t.id === payload.tagId);
+          if (matched) tag = matched.name;
+        }
+        if (!tag) tag = 'START_CYCLE';
+        let val = payload.value !== undefined ? payload.value : (payload.val !== undefined ? payload.val : 1);
 
         // Dynamic expression resolution: evaluate @varName or state variable if reference provided
         if (typeof val === 'string' && val.startsWith('@')) {
@@ -988,6 +1352,31 @@ async function executeAction(act, context, execContext) {
           console.warn('[TriggerEngine] Warning while dispatching PLC write tag:', err);
           if (payload.handshake || payload.ackTag) {
             throw err;
+          }
+        }
+
+        if (typeof window !== 'undefined' && window.__TAURI_INTERNALS__) {
+          try {
+            const tags = window.mandor_plc_tags || [];
+            const ctrls = window.mandor_plc_controllers || [];
+            const tObj = tags.find(t => t.name === tag || t.id === payload.tagId);
+            if (tObj) {
+              const ctrl = ctrls.find(c => c.id === tObj.controllerId);
+              if (ctrl && ctrl.status === 'connected' && ctrl.type === 'MODBUS_TCP') {
+                const core = await import('@tauri-apps/api/core');
+                let addr = parseInt(tObj.address);
+                let offset = addr;
+                let regType = tObj.regType || 'HOLDING_REGISTER';
+                if (regType === 'COIL') offset = addr - 1;
+                else if (regType === 'HOLDING_REGISTER') offset = addr - 40001;
+                if (offset < 0) offset = 0;
+                const isTrue = val === '1' || val === 1 || val === true || val === 'true' || val === 'ON';
+                const finalVal = isTrue ? 1 : (isNaN(val) ? 0 : parseInt(val));
+                await core.invoke('modbus_write', { id: ctrl.id, regType, address: offset, value: finalVal });
+              }
+            }
+          } catch (e) {
+            console.warn('[TriggerEngine] Tauri modbus_write failed:', e);
           }
         }
 
@@ -1461,6 +1850,9 @@ async function executeAction(act, context, execContext) {
       }
 
       default:
+        if (context.customActionHandler) {
+          return await context.customActionHandler(act, context, execContext);
+        }
         return { type, status: 'SUCCESS', info: 'Custom or unhandled action' };
     }
   } catch (err) {
