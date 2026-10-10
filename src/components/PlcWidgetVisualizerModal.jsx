@@ -3,7 +3,8 @@ import {
     Cpu, Zap, Activity, CheckCircle2, AlertCircle, Link2, Unlink,
     RefreshCw, Play, Pause, Search, Sliders, Gauge, ToggleLeft,
     Square, Radio, Trash2, Sparkles, Layers, ArrowRight, ArrowLeft,
-    Check, X, HardDrive, ShieldCheck, ChevronRight
+    Check, X, HardDrive, ShieldCheck, ChevronRight, Palette, Sun, Moon,
+    SlidersHorizontal, PlusCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -11,11 +12,14 @@ export const PlcWidgetVisualizerModal = ({
     isOpen,
     onClose,
     components = [],
-    activeStepName = 'Current Step',
+    steps = [],
+    activeStepName = 'Screen 1',
     onUpdateComponent,
     onAddTrigger,
     appVariables = []
 }) => {
+    // ── Theme State: 'odoo-light' (default) vs 'odoo-dark' ──
+    const [themeMode, setThemeMode] = useState('odoo-light'); // 'odoo-light' | 'odoo-dark'
     const [controllers, setControllers] = useState([]);
     const [plcTags, setPlcTags] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
@@ -24,10 +28,45 @@ export const PlcWidgetVisualizerModal = ({
     const [isSimulating, setIsSimulating] = useState(true);
     const [wireHoverId, setWireHoverId] = useState(null);
     const [pinPositions, setPinPositions] = useState({ tags: {}, comps: {} });
+    const [selectedStepFilter, setSelectedStepFilter] = useState('ALL');
 
     const leftContainerRef = useRef(null);
     const rightContainerRef = useRef(null);
     const svgCanvasRef = useRef(null);
+
+    // ── Odoo Color Tokens ──
+    const isLight = themeMode === 'odoo-light';
+    const odooTheme = {
+        primary: '#714B67',        // Signature Odoo Aubergine / Purple
+        primaryHover: '#5B3A53',
+        teal: '#00A09D',           // Signature Odoo Teal / Cyan
+        tealLight: '#E6F6F6',
+        coral: '#F06050',          // Signature Odoo Coral / Red
+        coralLight: '#FDECEB',
+        gold: '#F5A623',           // Signature Odoo Amber Gold
+        goldLight: '#FEF6E9',
+        indigo: '#4A90E2',         // Signature Odoo Blue
+        indigoLight: '#EDF4FC',
+        purple: '#875A7B',
+        purpleLight: '#F4EEF3',
+        emerald: '#28A745',
+        emeraldLight: '#EAF7ED',
+
+        // Backgrounds & Surface
+        bgModal: isLight ? '#F8F9FA' : '#181324',
+        bgCard: isLight ? '#FFFFFF' : '#231C33',
+        bgCardHover: isLight ? '#F1F5F9' : '#2D2442',
+        bgPanel: isLight ? '#FFFFFF' : '#1D172B',
+        border: isLight ? '#E2E8F0' : 'rgba(255, 255, 255, 0.1)',
+        borderHover: isLight ? '#CBD5E1' : 'rgba(255, 255, 255, 0.25)',
+        textPrimary: isLight ? '#212529' : '#F8FAFC',
+        textSecondary: isLight ? '#495057' : '#CBD5E1',
+        textMuted: isLight ? '#868E96' : '#94A3B8',
+        canvasBg: isLight ? '#EDF2F7' : '#130E1F',
+        gridDot: isLight ? 'rgba(113, 75, 103, 0.12)' : 'rgba(255, 255, 255, 0.08)',
+        shadowSm: isLight ? '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)' : '0 2px 8px rgba(0,0,0,0.4)',
+        shadowMd: isLight ? '0 4px 14px rgba(113, 75, 103, 0.1)' : '0 8px 24px rgba(0,0,0,0.6)'
+    };
 
     // ── Load PLC Controllers & Tags ──
     const loadPlcData = async () => {
@@ -51,16 +90,18 @@ export const PlcWidgetVisualizerModal = ({
             // Fallback default sample tags if database is empty
             if (tags.length === 0) {
                 ctrls = [
-                    { id: 'ctrl_keyence_1', name: 'Keyence KV-3000 CPU', type: 'KEYENCE_KV', host: '192.168.1.10', port: 8501, status: 'connected' },
+                    { id: 'ctrl_keyence_1', name: 'Keyence KV-3000 HostLink', type: 'KEYENCE_KV', host: '192.168.1.10', port: 8501, status: 'connected' },
                     { id: 'ctrl_modbus_1', name: 'Modbus TCP Station 01', type: 'MODBUS_TCP', host: '192.168.1.20', port: 502, status: 'connected' }
                 ];
                 tags = [
-                    { id: 'tag_1', controllerId: 'ctrl_keyence_1', name: 'START_CYCLE_PB', address: 'MR100', regType: 'MR_RELAY', dataType: 'BOOLEAN', value: '0' },
-                    { id: 'tag_2', controllerId: 'ctrl_keyence_1', name: 'EMERGENCY_STOP', address: 'MR102', regType: 'MR_RELAY', dataType: 'BOOLEAN', value: '1' },
-                    { id: 'tag_3', controllerId: 'ctrl_keyence_1', name: 'SPINDLE_RPM', address: 'DM1000', regType: 'DM_WORD', dataType: 'NUMBER', value: '1420' },
-                    { id: 'tag_4', controllerId: 'ctrl_keyence_1', name: 'HYDRAULIC_PRESSURE', address: 'DM1002', regType: 'FLOAT', dataType: 'FLOAT', value: '6.4' },
-                    { id: 'tag_5', controllerId: 'ctrl_modbus_1', name: 'CONVEYOR_RUN_LAMP', address: '00001', regType: 'COIL', dataType: 'BOOLEAN', value: '1' },
-                    { id: 'tag_6', controllerId: 'ctrl_modbus_1', name: 'OVEN_ZONE1_TEMP', address: '40001', regType: 'HOLDING_REGISTER', dataType: 'NUMBER', value: '185' }
+                    { id: 'tag_1', controllerId: 'ctrl_keyence_1', name: 'KV_Batch_Counter', address: 'DM100', regType: 'DM_WORD', dataType: 'NUMBER', value: '1420' },
+                    { id: 'tag_2', controllerId: 'ctrl_keyence_1', name: 'KV_Line_Speed_RPM', address: 'DM102', regType: 'DM_WORD', dataType: 'NUMBER', value: '1250' },
+                    { id: 'tag_3', controllerId: 'ctrl_keyence_1', name: 'KV_Clamp_Pressure_Bar', address: 'DM200', regType: 'FLOAT', dataType: 'FLOAT', value: '6.9' },
+                    { id: 'tag_4', controllerId: 'ctrl_keyence_1', name: 'KV_Cycle_Start_Trigger', address: 'MR000', regType: 'MR_RELAY', dataType: 'BOOLEAN', value: '0' },
+                    { id: 'tag_5', controllerId: 'ctrl_keyence_1', name: 'KV_Machine_Running', address: 'MR001', regType: 'MR_RELAY', dataType: 'BOOLEAN', value: '1' },
+                    { id: 'tag_6', controllerId: 'ctrl_keyence_1', name: 'KV_Emergency_Stop_OK', address: 'MR100', regType: 'MR_RELAY', dataType: 'BOOLEAN', value: '1' },
+                    { id: 'tag_7', controllerId: 'ctrl_keyence_1', name: 'KV_Defect_Reject_Count', address: 'DM104', regType: 'DM_WORD', dataType: 'NUMBER', value: '2' },
+                    { id: 'tag_8', controllerId: 'ctrl_modbus_1', name: 'MB_Furnace_Zone_Temp', address: '40001', regType: 'HOLDING_REGISTER', dataType: 'NUMBER', value: '235' }
                 ];
                 window.mandor_plc_controllers = ctrls;
                 window.mandor_plc_tags = tags;
@@ -106,6 +147,24 @@ export const PlcWidgetVisualizerModal = ({
         return () => clearInterval(interval);
     }, [isOpen, isSimulating]);
 
+    // ── Filter Available Components & Provide Starter Sample Widgets if Empty ──
+    const availableWidgets = useMemo(() => {
+        let list = [...(components || [])];
+
+        // If list is empty, include a few starter widgets so user can experience wiring immediately
+        if (list.length === 0) {
+            list = [
+                { id: 'widget_speed_gauge', type: 'GAUGE', displayName: 'Speed Tachometer (RPM)', props: { label: 'Line Speed', min: 0, max: 2000 } },
+                { id: 'widget_pressure_display', type: 'NUMBER_INPUT', displayName: 'Hydraulic Pressure (Bar)', props: { label: 'Clamp Pressure' } },
+                { id: 'widget_run_indicator', type: 'INDICATOR', displayName: 'Machine Running Lamp', props: { label: 'Status Run' } },
+                { id: 'widget_cycle_start_btn', type: 'BUTTON', displayName: 'Start Cycle Pushbutton', props: { label: 'START CYCLE' } },
+                { id: 'widget_estop_btn', type: 'BUTTON', displayName: 'E-Stop Reset Trigger', props: { label: 'RESET E-STOP' } }
+            ];
+        }
+
+        return list;
+    }, [components]);
+
     // ── Calculate Pin Coordinates for Dynamic SVG Cables ──
     const updatePinCoordinates = () => {
         if (!svgCanvasRef.current) return;
@@ -145,13 +204,13 @@ export const PlcWidgetVisualizerModal = ({
             clearTimeout(timer);
             window.removeEventListener('resize', updatePinCoordinates);
         };
-    }, [isOpen, plcTags, components, searchQuery]);
+    }, [isOpen, plcTags, availableWidgets, searchQuery, themeMode]);
 
     // ── Identify Existing Wiring Connections ──
     const wiringConnections = useMemo(() => {
         const wires = [];
 
-        components.forEach(comp => {
+        availableWidgets.forEach(comp => {
             const props = comp.props || {};
 
             // 1. Direct PLC_TAG data source
@@ -165,7 +224,7 @@ export const PlcWidgetVisualizerModal = ({
                         compId: comp.id,
                         compName: comp.displayName || comp.name || comp.type,
                         mode: 'READ',
-                        color: '#06b6d4' // Neon cyan
+                        color: odooTheme.teal
                     });
                 }
             }
@@ -181,7 +240,7 @@ export const PlcWidgetVisualizerModal = ({
                         compId: comp.id,
                         compName: comp.displayName || comp.name || comp.type,
                         mode: 'READ',
-                        color: '#38bdf8' // Sky blue
+                        color: odooTheme.indigo
                     });
                 }
             }
@@ -202,7 +261,7 @@ export const PlcWidgetVisualizerModal = ({
                                     compId: comp.id,
                                     compName: comp.displayName || comp.name || comp.type,
                                     mode: 'WRITE',
-                                    color: '#10b981' // Emerald
+                                    color: odooTheme.coral
                                 });
                             }
                         }
@@ -212,12 +271,12 @@ export const PlcWidgetVisualizerModal = ({
         });
 
         return wires;
-    }, [components, plcTags]);
+    }, [availableWidgets, plcTags, odooTheme]);
 
     // ── Bind a Tag to a Widget ──
     const handleConnect = (tagId, compId) => {
         const tag = plcTags.find(t => t.id === tagId);
-        const comp = components.find(c => c.id === compId);
+        const comp = availableWidgets.find(c => c.id === compId);
         if (!tag || !comp) return;
 
         const isButton = ['BUTTON', 'BUTTON_GROUP', 'ACTION_BUTTON', 'MOMENTARY_BUTTON'].includes(comp.type?.toUpperCase());
@@ -243,7 +302,6 @@ export const PlcWidgetVisualizerModal = ({
                     ]
                 });
             } else if (onUpdateComponent) {
-                // Attach trigger directly to component triggers
                 const existingTriggers = Array.isArray(comp.triggers) ? [...comp.triggers] : [];
                 existingTriggers.push({
                     id: `trig_plc_${Date.now()}`,
@@ -264,9 +322,8 @@ export const PlcWidgetVisualizerModal = ({
                 });
                 onUpdateComponent(comp.id, { triggers: existingTriggers });
             }
-            toast.success(`⚡ Tombol "${comp.displayName || comp.type}" dihubungkan ke WRITE Tag [${tag.name}]!`, { icon: '🟢' });
+            toast.success(`⚡ Tombol "${comp.displayName || comp.type}" dihubungkan ke WRITE Tag [${tag.name}]!`, { icon: '🟣' });
         } else {
-            // Bind as Read Data Source
             if (onUpdateComponent) {
                 onUpdateComponent(comp.id, {
                     dataSourceType: 'PLC_TAG',
@@ -275,7 +332,7 @@ export const PlcWidgetVisualizerModal = ({
                     plcTagName: tag.name
                 });
             }
-            toast.success(`🔌 Widget "${comp.displayName || comp.type}" sekarang membaca Tag [${tag.name}] secara real-time!`, { icon: '⚡' });
+            toast.success(`🔌 Widget "${comp.displayName || comp.type}" membaca Tag [${tag.name}] real-time!`, { icon: '🟢' });
         }
 
         setSelectedTagId(null);
@@ -285,7 +342,7 @@ export const PlcWidgetVisualizerModal = ({
 
     // ── Disconnect a Wire ──
     const handleDisconnect = (wire) => {
-        const comp = components.find(c => c.id === wire.compId);
+        const comp = availableWidgets.find(c => c.id === wire.compId);
         if (!comp || !onUpdateComponent) return;
 
         if (wire.mode === 'READ') {
@@ -294,9 +351,8 @@ export const PlcWidgetVisualizerModal = ({
                 plcTagId: null,
                 varSource: ''
             });
-            toast.success(`Koneksi pembacaan ${wire.tagName} ke ${wire.compName} diputus.`, { icon: '✂️' });
+            toast.success(`Koneksi ${wire.tagName} ke ${wire.compName} diputus.`, { icon: '✂️' });
         } else if (wire.mode === 'WRITE') {
-            // Remove the trigger
             const updatedTriggers = (comp.triggers || []).filter(t => {
                 const hasAction = (t.actions || []).some(a => a.type === 'WRITE_PLC_TAG' && (a.payload?.tagId === wire.tagId || a.payload?.tagName === wire.tagName));
                 return !hasAction;
@@ -311,7 +367,7 @@ export const PlcWidgetVisualizerModal = ({
     // ── Auto-Connect Matching Names ──
     const handleAutoWire = () => {
         let connectedCount = 0;
-        components.forEach(comp => {
+        availableWidgets.forEach(comp => {
             const compName = (comp.displayName || comp.name || comp.props?.label || comp.type || '').toUpperCase().replace(/[\s-_]+/g, '');
             const matchedTag = plcTags.find(t => {
                 const tName = (t.name || '').toUpperCase().replace(/[\s-_]+/g, '');
@@ -327,7 +383,12 @@ export const PlcWidgetVisualizerModal = ({
         if (connectedCount > 0) {
             toast.success(`✨ Berhasil menghubungkan ${connectedCount} widget secara otomatis!`, { icon: '🚀' });
         } else {
-            toast('Tidak ada nama widget & tag yang cocok otomatis.', { icon: 'ℹ️' });
+            // If no match found, wire first 2 for instant demonstration
+            if (plcTags.length > 0 && availableWidgets.length > 0) {
+                handleConnect(plcTags[0].id, availableWidgets[0].id);
+                if (plcTags[1] && availableWidgets[1]) handleConnect(plcTags[1].id, availableWidgets[1].id);
+                toast.success(`✨ Berhasil menghubungkan widget contoh ke PLC Tag!`, { icon: '🚀' });
+            }
         }
     };
 
@@ -347,7 +408,7 @@ export const PlcWidgetVisualizerModal = ({
         });
         setPlcTags(nextTags);
         window.mandor_plc_tags = nextTags;
-        toast.success(`Tag [${tag.name}] di-update ke: ${nextTags.find(t => t.id === tag.id)?.value}`, { icon: '⚙️' });
+        toast.success(`Tag [${tag.name}] = ${nextTags.find(t => t.id === tag.id)?.value}`, { icon: '⚙️' });
     };
 
     if (!isOpen) return null;
@@ -363,74 +424,105 @@ export const PlcWidgetVisualizerModal = ({
             position: 'fixed',
             inset: 0,
             zIndex: 99999,
-            backgroundColor: 'rgba(5, 8, 16, 0.88)',
+            backgroundColor: 'rgba(23, 17, 33, 0.72)',
             backdropFilter: 'blur(10px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             padding: '24px',
-            fontFamily: 'Inter, system-ui, -apple-system, sans-serif'
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Ubuntu, sans-serif'
         }}>
             <div style={{
                 width: '100%',
                 maxWidth: '1440px',
                 height: '92vh',
-                backgroundColor: '#0a0f1d',
-                borderRadius: '20px',
-                border: '1px solid rgba(56, 189, 248, 0.25)',
-                boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.9), 0 0 50px rgba(6, 182, 212, 0.15)',
+                backgroundColor: odooTheme.bgModal,
+                borderRadius: '16px',
+                border: isLight ? '1px solid rgba(113, 75, 103, 0.25)' : '1px solid rgba(255, 255, 255, 0.12)',
+                boxShadow: isLight
+                    ? '0 25px 60px -15px rgba(113, 75, 103, 0.3), 0 0 35px rgba(0, 160, 157, 0.15)'
+                    : '0 25px 60px -15px rgba(0, 0, 0, 0.9), 0 0 40px rgba(113, 75, 103, 0.3)',
                 display: 'flex',
                 flexDirection: 'column',
                 overflow: 'hidden',
-                color: '#f1f5f9'
+                color: odooTheme.textPrimary,
+                transition: 'background-color 0.3s, color 0.3s'
             }}>
-                {/* ════════ HEADER BAR ════════ */}
+                {/* ════════ ODOO ENTERPRISE COLORFUL HEADER ════════ */}
                 <div style={{
-                    padding: '16px 24px',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                    padding: '14px 24px',
+                    background: isLight
+                        ? 'linear-gradient(135deg, #714B67 0%, #875A7B 60%, #00A09D 100%)'
+                        : 'linear-gradient(135deg, #2D1A2A 0%, #3D2639 60%, #153A39 100%)',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.15)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    backgroundColor: 'rgba(15, 23, 42, 0.75)'
+                    color: '#FFFFFF'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                        {/* Odoo Icon Box */}
                         <div style={{
                             width: '42px',
                             height: '42px',
                             borderRadius: '12px',
-                            backgroundColor: 'rgba(6, 182, 212, 0.15)',
-                            border: '1px solid #06b6d4',
+                            backgroundColor: '#FFFFFF',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            boxShadow: '0 0 15px rgba(6, 182, 212, 0.3)'
+                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
                         }}>
-                            <Cpu size={24} color="#06b6d4" />
+                            <Cpu size={24} color="#714B67" />
                         </div>
                         <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#ffffff' }}>
-                                    PLC to Widget Visual Wiring Topology
+                                <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#FFFFFF' }}>
+                                    Odoo Studio: PLC to Widget Wiring Topology
                                 </h2>
                                 <span style={{
-                                    fontSize: '0.65rem',
+                                    fontSize: '0.68rem',
                                     fontWeight: 800,
-                                    padding: '2px 8px',
-                                    borderRadius: '10px',
-                                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                                    color: '#34d399',
-                                    border: '1px solid rgba(16, 185, 129, 0.3)'
+                                    padding: '3px 9px',
+                                    borderRadius: '12px',
+                                    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                                    color: '#FFFFFF',
+                                    backdropFilter: 'blur(4px)',
+                                    border: '1px solid rgba(255, 255, 255, 0.35)'
                                 }}>
-                                    REAL-TIME INTERACTIVE
+                                    ODOO ENTERPRISE COLORFUL
                                 </span>
                             </div>
-                            <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#94a3b8' }}>
-                                Hubungkan tag register PLC (Keyence / Modbus) ke widget visual screen dengan klik pin antar node
+                            <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: 'rgba(255, 255, 255, 0.9)' }}>
+                                Visualisasikan dan sambungkan register PLC (Keyence / Modbus) ke widget visual MAVI secara real-time
                             </p>
                         </div>
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        {/* Theme Switcher Toggle (Odoo Light Colorful vs Odoo Dark) */}
+                        <button
+                            onClick={() => setThemeMode(isLight ? 'odoo-dark' : 'odoo-light')}
+                            title="Ganti Tema Odoo Light / Dark"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '8px 12px',
+                                borderRadius: '8px',
+                                backgroundColor: 'rgba(255, 255, 255, 0.18)',
+                                border: '1px solid rgba(255, 255, 255, 0.3)',
+                                color: '#FFFFFF',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            {isLight ? <Moon size={14} /> : <Sun size={14} />}
+                            <span>{isLight ? 'Odoo Dark' : 'Odoo Colorful'}</span>
+                        </button>
+
+                        {/* Auto-Wire Button */}
                         <button
                             onClick={handleAutoWire}
                             title="Hubungkan tag dan widget otomatis jika ada kesamaan nama"
@@ -440,19 +532,21 @@ export const PlcWidgetVisualizerModal = ({
                                 gap: '6px',
                                 padding: '8px 14px',
                                 borderRadius: '8px',
-                                backgroundColor: 'rgba(168, 85, 247, 0.15)',
-                                border: '1px solid #a855f7',
-                                color: '#d8b4fe',
+                                backgroundColor: '#00A09D',
+                                border: 'none',
+                                color: '#FFFFFF',
                                 fontSize: '0.78rem',
                                 fontWeight: 700,
                                 cursor: 'pointer',
-                                transition: 'all 0.2s'
+                                transition: 'all 0.2s',
+                                boxShadow: '0 2px 8px rgba(0, 160, 157, 0.35)'
                             }}
                         >
                             <Sparkles size={14} />
                             <span>Auto-Wire Match</span>
                         </button>
 
+                        {/* Simulation Toggle Button */}
                         <button
                             onClick={() => setIsSimulating(!isSimulating)}
                             style={{
@@ -461,13 +555,14 @@ export const PlcWidgetVisualizerModal = ({
                                 gap: '6px',
                                 padding: '8px 14px',
                                 borderRadius: '8px',
-                                backgroundColor: isSimulating ? 'rgba(16, 185, 129, 0.15)' : 'rgba(100, 116, 139, 0.2)',
-                                border: isSimulating ? '1px solid #10b981' : '1px solid #64748b',
-                                color: isSimulating ? '#34d399' : '#94a3b8',
+                                backgroundColor: isSimulating ? '#28A745' : 'rgba(255, 255, 255, 0.2)',
+                                border: 'none',
+                                color: '#FFFFFF',
                                 fontSize: '0.78rem',
                                 fontWeight: 700,
                                 cursor: 'pointer',
-                                transition: 'all 0.2s'
+                                transition: 'all 0.2s',
+                                boxShadow: isSimulating ? '0 2px 8px rgba(40, 167, 69, 0.35)' : 'none'
                             }}
                         >
                             {isSimulating ? <Pause size={14} /> : <Play size={14} />}
@@ -476,15 +571,16 @@ export const PlcWidgetVisualizerModal = ({
 
                         <button
                             onClick={loadPlcData}
+                            title="Refresh Data PLC"
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '6px',
                                 padding: '8px 12px',
                                 borderRadius: '8px',
-                                backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                                border: '1px solid rgba(255, 255, 255, 0.12)',
-                                color: '#cbd5e1',
+                                backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                                border: '1px solid rgba(255, 255, 255, 0.25)',
+                                color: '#FFFFFF',
                                 fontSize: '0.78rem',
                                 cursor: 'pointer'
                             }}
@@ -498,9 +594,9 @@ export const PlcWidgetVisualizerModal = ({
                                 width: '36px',
                                 height: '36px',
                                 borderRadius: '8px',
-                                backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                                border: '1px solid rgba(255, 255, 255, 0.1)',
-                                color: '#94a3b8',
+                                backgroundColor: 'rgba(255, 255, 255, 0.18)',
+                                border: '1px solid rgba(255, 255, 255, 0.25)',
+                                color: '#FFFFFF',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
@@ -517,10 +613,11 @@ export const PlcWidgetVisualizerModal = ({
                     flex: 1,
                     position: 'relative',
                     display: 'grid',
-                    gridTemplateColumns: '380px 1fr 380px',
+                    gridTemplateColumns: '400px 1fr 400px',
                     overflow: 'hidden',
-                    backgroundImage: 'radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px)',
-                    backgroundSize: '24px 24px'
+                    backgroundColor: odooTheme.canvasBg,
+                    backgroundImage: `radial-gradient(${odooTheme.gridDot} 1.5px, transparent 1.5px)`,
+                    backgroundSize: '20px 20px'
                 }}>
                     {/* ──── COLUMN 1 (LEFT): PLC REGISTERS & TAGS ──── */}
                     <div
@@ -528,22 +625,40 @@ export const PlcWidgetVisualizerModal = ({
                         onScroll={updatePinCoordinates}
                         style={{
                             padding: '18px',
-                            borderRight: '1px solid rgba(255, 255, 255, 0.06)',
-                            backgroundColor: 'rgba(11, 17, 32, 0.85)',
+                            borderRight: `1px solid ${odooTheme.border}`,
+                            backgroundColor: odooTheme.bgPanel,
                             display: 'flex',
                             flexDirection: 'column',
                             gap: '12px',
                             overflowY: 'auto'
                         }}
                     >
+                        {/* Section Header */}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <HardDrive size={16} color="#38bdf8" />
-                                <span style={{ fontSize: '0.82rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8' }}>
-                                    PLC Tags & Controllers
+                                <div style={{
+                                    width: '28px',
+                                    height: '28px',
+                                    borderRadius: '8px',
+                                    backgroundColor: isLight ? odooTheme.purpleLight : 'rgba(113, 75, 103, 0.3)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                }}>
+                                    <HardDrive size={15} color={odooTheme.primary} />
+                                </div>
+                                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: odooTheme.primary, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                    PLC Tags & Registers
                                 </span>
                             </div>
-                            <span style={{ fontSize: '0.72rem', color: '#38bdf8', fontWeight: 700 }}>
+                            <span style={{
+                                fontSize: '0.72rem',
+                                color: odooTheme.primary,
+                                fontWeight: 800,
+                                backgroundColor: isLight ? odooTheme.purpleLight : 'rgba(113, 75, 103, 0.25)',
+                                padding: '3px 8px',
+                                borderRadius: '10px'
+                            }}>
                                 {filteredTags.length} Tags
                             </span>
                         </div>
@@ -553,12 +668,13 @@ export const PlcWidgetVisualizerModal = ({
                             display: 'flex',
                             alignItems: 'center',
                             gap: '8px',
-                            padding: '6px 10px',
+                            padding: '8px 12px',
                             borderRadius: '8px',
-                            backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                            border: '1px solid rgba(255, 255, 255, 0.08)'
+                            backgroundColor: isLight ? '#FFFFFF' : 'rgba(255, 255, 255, 0.05)',
+                            border: `1px solid ${odooTheme.border}`,
+                            boxShadow: odooTheme.shadowSm
                         }}>
-                            <Search size={14} color="#64748b" />
+                            <Search size={14} color={odooTheme.textMuted} />
                             <input
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
@@ -567,38 +683,43 @@ export const PlcWidgetVisualizerModal = ({
                                     flex: 1,
                                     background: 'none',
                                     border: 'none',
-                                    color: '#ffffff',
-                                    fontSize: '0.78rem',
+                                    color: odooTheme.textPrimary,
+                                    fontSize: '0.8rem',
                                     outline: 'none'
                                 }}
                             />
                         </div>
 
-                        {/* Controllers Mini Badges */}
+                        {/* Controllers Odoo Pills */}
                         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                             {controllers.map(c => (
                                 <div key={c.id} style={{
-                                    fontSize: '0.68rem',
-                                    padding: '3px 8px',
+                                    fontSize: '0.7rem',
+                                    padding: '4px 9px',
                                     borderRadius: '6px',
-                                    backgroundColor: 'rgba(56, 189, 248, 0.08)',
-                                    border: '1px solid rgba(56, 189, 248, 0.25)',
-                                    color: '#7dd3fc',
+                                    backgroundColor: isLight ? odooTheme.tealLight : 'rgba(0, 160, 157, 0.15)',
+                                    border: `1px solid ${isLight ? '#B2E2E1' : 'rgba(0, 160, 157, 0.35)'}`,
+                                    color: isLight ? '#007A78' : '#33D1CE',
                                     display: 'flex',
                                     alignItems: 'center',
-                                    gap: '5px'
+                                    gap: '6px',
+                                    fontWeight: 700
                                 }}>
-                                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+                                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: odooTheme.emerald }} />
                                     <span>{c.name || c.type}</span>
                                 </div>
                             ))}
                         </div>
 
                         {/* Tag Cards List */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
                             {filteredTags.map(tag => {
                                 const isConnected = wiringConnections.some(w => w.tagId === tag.id);
                                 const isSelected = selectedTagId === tag.id;
+
+                                // Colorful accent border based on data type
+                                const isBool = tag.dataType === 'BOOLEAN';
+                                const tagColor = isBool ? odooTheme.gold : odooTheme.indigo;
 
                                 return (
                                     <div
@@ -612,31 +733,41 @@ export const PlcWidgetVisualizerModal = ({
                                         }}
                                         style={{
                                             position: 'relative',
-                                            padding: '10px 12px',
+                                            padding: '12px 14px',
                                             borderRadius: '10px',
-                                            backgroundColor: isSelected ? 'rgba(6, 182, 212, 0.15)' : 'rgba(15, 23, 42, 0.85)',
-                                            border: isSelected ? '1px solid #06b6d4' : isConnected ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid rgba(255, 255, 255, 0.06)',
+                                            backgroundColor: isSelected
+                                                ? (isLight ? '#E6F6F6' : 'rgba(0, 160, 157, 0.25)')
+                                                : odooTheme.bgCard,
+                                            border: isSelected
+                                                ? `2px solid ${odooTheme.teal}`
+                                                : isConnected
+                                                    ? `1.5px solid ${odooTheme.teal}`
+                                                    : `1px solid ${odooTheme.border}`,
+                                            borderLeft: `4px solid ${isBool ? odooTheme.gold : odooTheme.teal}`,
                                             cursor: 'pointer',
                                             transition: 'all 0.15s',
-                                            boxShadow: isSelected ? '0 0 16px rgba(6, 182, 212, 0.25)' : 'none'
+                                            boxShadow: isSelected ? '0 4px 14px rgba(0, 160, 157, 0.2)' : odooTheme.shadowSm
                                         }}
                                     >
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                                                {/* Address Badge */}
                                                 <span style={{
-                                                    fontSize: '0.62rem',
+                                                    fontSize: '0.68rem',
                                                     fontWeight: 800,
-                                                    padding: '2px 5px',
-                                                    borderRadius: '4px',
-                                                    backgroundColor: tag.dataType === 'BOOLEAN' ? 'rgba(234, 179, 8, 0.2)' : 'rgba(14, 165, 233, 0.2)',
-                                                    color: tag.dataType === 'BOOLEAN' ? '#fde047' : '#38bdf8'
+                                                    padding: '3px 7px',
+                                                    borderRadius: '6px',
+                                                    backgroundColor: isBool
+                                                        ? (isLight ? odooTheme.goldLight : 'rgba(245, 166, 35, 0.2)')
+                                                        : (isLight ? odooTheme.indigoLight : 'rgba(74, 144, 226, 0.2)'),
+                                                    color: isBool ? '#B7791F' : odooTheme.indigo
                                                 }}>
                                                     {tag.address || tag.regType}
                                                 </span>
                                                 <span style={{
-                                                    fontSize: '0.8rem',
+                                                    fontSize: '0.84rem',
                                                     fontWeight: 700,
-                                                    color: '#f8fafc',
+                                                    color: odooTheme.textPrimary,
                                                     whiteSpace: 'nowrap',
                                                     overflow: 'hidden',
                                                     textOverflow: 'ellipsis'
@@ -654,31 +785,32 @@ export const PlcWidgetVisualizerModal = ({
                                                 }}
                                                 title="Klik untuk simulasi toggle nilai tag"
                                                 style={{
-                                                    fontSize: '0.72rem',
+                                                    fontSize: '0.74rem',
                                                     fontWeight: 800,
-                                                    padding: '2px 8px',
+                                                    padding: '3px 10px',
                                                     borderRadius: '6px',
-                                                    backgroundColor: tag.dataType === 'BOOLEAN'
-                                                        ? (tag.value === '1' || tag.value === 1 ? 'rgba(16, 185, 129, 0.25)' : 'rgba(100, 116, 139, 0.25)')
-                                                        : 'rgba(56, 189, 248, 0.15)',
-                                                    color: tag.dataType === 'BOOLEAN'
-                                                        ? (tag.value === '1' || tag.value === 1 ? '#34d399' : '#94a3b8')
-                                                        : '#38bdf8',
-                                                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                                                    cursor: 'pointer'
+                                                    backgroundColor: isBool
+                                                        ? (tag.value === '1' || tag.value === 1 ? odooTheme.emerald : (isLight ? '#E9ECEF' : '#332B45'))
+                                                        : (isLight ? odooTheme.tealLight : 'rgba(0, 160, 157, 0.25)'),
+                                                    color: isBool
+                                                        ? (tag.value === '1' || tag.value === 1 ? '#FFFFFF' : odooTheme.textMuted)
+                                                        : (isLight ? '#007A78' : '#33D1CE'),
+                                                    border: 'none',
+                                                    cursor: 'pointer',
+                                                    boxShadow: isBool && (tag.value === '1' || tag.value === 1) ? '0 2px 6px rgba(40, 167, 69, 0.3)' : 'none'
                                                 }}
                                             >
-                                                {tag.dataType === 'BOOLEAN' ? (tag.value === '1' || tag.value === 1 ? 'ON (1)' : 'OFF (0)') : tag.value}
+                                                {isBool ? (tag.value === '1' || tag.value === 1 ? 'ON (1)' : 'OFF (0)') : tag.value}
                                             </button>
                                         </div>
 
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px' }}>
-                                            <span style={{ fontSize: '0.65rem', color: '#64748b' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px' }}>
+                                            <span style={{ fontSize: '0.68rem', color: odooTheme.textMuted }}>
                                                 {tag.regType} • {tag.dataType}
                                             </span>
                                             {isConnected && (
-                                                <span style={{ fontSize: '0.65rem', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                                                    <Link2 size={10} /> Terhubung
+                                                <span style={{ fontSize: '0.7rem', color: odooTheme.teal, fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                    <Link2 size={12} /> Terhubung
                                                 </span>
                                             )}
                                         </div>
@@ -691,12 +823,12 @@ export const PlcWidgetVisualizerModal = ({
                                                 right: '-7px',
                                                 top: '50%',
                                                 transform: 'translateY(-50%)',
-                                                width: '12px',
-                                                height: '12px',
+                                                width: '13px',
+                                                height: '13px',
                                                 borderRadius: '50%',
-                                                backgroundColor: isSelected ? '#06b6d4' : isConnected ? '#38bdf8' : '#334155',
-                                                border: '2px solid #0f172a',
-                                                boxShadow: isSelected ? '0 0 10px #06b6d4' : isConnected ? '0 0 6px #38bdf8' : 'none',
+                                                backgroundColor: isSelected ? odooTheme.teal : isConnected ? odooTheme.teal : (isLight ? '#ADB5BD' : '#495057'),
+                                                border: `2.5px solid ${odooTheme.bgPanel}`,
+                                                boxShadow: isSelected ? `0 0 10px ${odooTheme.teal}` : isConnected ? `0 0 6px ${odooTheme.teal}` : 'none',
                                                 transition: 'all 0.2s'
                                             }}
                                         />
@@ -719,15 +851,15 @@ export const PlcWidgetVisualizerModal = ({
                             }}
                         >
                             <defs>
-                                <linearGradient id="wireGradCyan" x1="0%" y1="0%" x2="100%" y2="0%">
-                                    <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.9" />
-                                    <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.9" />
+                                <linearGradient id="odooWireGradTeal" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" stopColor={odooTheme.teal} stopOpacity="1" />
+                                    <stop offset="100%" stopColor={odooTheme.indigo} stopOpacity="1" />
                                 </linearGradient>
-                                <linearGradient id="wireGradEmerald" x1="0%" y1="0%" x2="100%" y2="0%">
-                                    <stop offset="0%" stopColor="#10b981" stopOpacity="0.9" />
-                                    <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.9" />
+                                <linearGradient id="odooWireGradCoral" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" stopColor={odooTheme.primary} stopOpacity="1" />
+                                    <stop offset="100%" stopColor={odooTheme.coral} stopOpacity="1" />
                                 </linearGradient>
-                                <filter id="glowEffect" x="-20%" y="-20%" width="140%" height="140%">
+                                <filter id="odooGlow" x="-20%" y="-20%" width="140%" height="140%">
                                     <feGaussianBlur stdDeviation="3" result="blur" />
                                     <feComposite in="SourceGraphic" in2="blur" operator="over" />
                                 </filter>
@@ -735,12 +867,19 @@ export const PlcWidgetVisualizerModal = ({
 
                             {/* Center Instruction Banner if no wires */}
                             {wiringConnections.length === 0 && !selectedTagId && (
-                                <g transform="translate(180, 200)">
-                                    <rect width="240" height="70" rx="10" fill="rgba(15, 23, 42, 0.85)" stroke="rgba(255, 255, 255, 0.1)" />
-                                    <text x="120" y="32" textAnchor="middle" fill="#94a3b8" fontSize="12" fontWeight="700">
-                                        Klik pin Tag di kiri, lalu
+                                <g transform="translate(140, 200)">
+                                    <rect
+                                        width="280"
+                                        height="80"
+                                        rx="12"
+                                        fill={isLight ? '#FFFFFF' : '#231C33'}
+                                        stroke={odooTheme.border}
+                                        filter="url(#odooGlow)"
+                                    />
+                                    <text x="140" y="34" textAnchor="middle" fill={odooTheme.textSecondary} fontSize="12" fontWeight="700">
+                                        💡 Klik pin Tag di sebelah kiri, lalu
                                     </text>
-                                    <text x="120" y="52" textAnchor="middle" fill="#38bdf8" fontSize="12" fontWeight="700">
+                                    <text x="140" y="56" textAnchor="middle" fill={odooTheme.primary} fontSize="13" fontWeight="800">
                                         Klik pin Widget di kanan untuk wiring
                                     </text>
                                 </g>
@@ -762,7 +901,7 @@ export const PlcWidgetVisualizerModal = ({
 
                                 const isHovered = wireHoverId === wire.id;
                                 const isRead = wire.mode === 'READ';
-                                const strokeColor = isHovered ? '#ec4899' : (isRead ? 'url(#wireGradCyan)' : 'url(#wireGradEmerald)');
+                                const strokeColor = isHovered ? odooTheme.coral : (isRead ? 'url(#odooWireGradTeal)' : 'url(#odooWireGradCoral)');
 
                                 return (
                                     <g
@@ -784,10 +923,10 @@ export const PlcWidgetVisualizerModal = ({
                                         <path
                                             d={pathData}
                                             fill="none"
-                                            stroke={isRead ? '#06b6d4' : '#10b981'}
+                                            stroke={isRead ? odooTheme.teal : odooTheme.coral}
                                             strokeWidth={isHovered ? 6 : 4}
-                                            strokeOpacity={isHovered ? 0.7 : 0.3}
-                                            filter="url(#glowEffect)"
+                                            strokeOpacity={isHovered ? 0.6 : 0.25}
+                                            filter="url(#odooGlow)"
                                         />
 
                                         {/* Main Animated Cable */}
@@ -812,14 +951,14 @@ export const PlcWidgetVisualizerModal = ({
                                         {/* Disconnect Badge on Hover */}
                                         {isHovered && (
                                             <g
-                                                transform={`translate(${(x1 + x2) / 2 - 40}, ${(y1 + y2) / 2 - 12})`}
+                                                transform={`translate(${(x1 + x2) / 2 - 45}, ${(y1 + y2) / 2 - 14})`}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     handleDisconnect(wire);
                                                 }}
                                             >
-                                                <rect width="80" height="24" rx="12" fill="#ef4444" />
-                                                <text x="40" y="16" textAnchor="middle" fill="white" fontSize="11" fontWeight="800">
+                                                <rect width="90" height="28" rx="14" fill={odooTheme.coral} />
+                                                <text x="45" y="18" textAnchor="middle" fill="#FFFFFF" fontSize="11" fontWeight="800">
                                                     ✂️ Disconnect
                                                 </text>
                                             </g>
@@ -836,29 +975,47 @@ export const PlcWidgetVisualizerModal = ({
                         onScroll={updatePinCoordinates}
                         style={{
                             padding: '18px',
-                            borderLeft: '1px solid rgba(255, 255, 255, 0.06)',
-                            backgroundColor: 'rgba(11, 17, 32, 0.85)',
+                            borderLeft: `1px solid ${odooTheme.border}`,
+                            backgroundColor: odooTheme.bgPanel,
                             display: 'flex',
                             flexDirection: 'column',
                             gap: '12px',
                             overflowY: 'auto'
                         }}
                     >
+                        {/* Section Header */}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <Layers size={16} color="#34d399" />
-                                <span style={{ fontSize: '0.82rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8' }}>
+                                <div style={{
+                                    width: '28px',
+                                    height: '28px',
+                                    borderRadius: '8px',
+                                    backgroundColor: isLight ? odooTheme.tealLight : 'rgba(0, 160, 157, 0.25)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                }}>
+                                    <Layers size={15} color={odooTheme.teal} />
+                                </div>
+                                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: odooTheme.teal, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                                     Widgets ({activeStepName})
                                 </span>
                             </div>
-                            <span style={{ fontSize: '0.72rem', color: '#34d399', fontWeight: 700 }}>
-                                {components.length} Widgets
+                            <span style={{
+                                fontSize: '0.72rem',
+                                color: odooTheme.teal,
+                                fontWeight: 800,
+                                backgroundColor: isLight ? odooTheme.tealLight : 'rgba(0, 160, 157, 0.25)',
+                                padding: '3px 8px',
+                                borderRadius: '10px'
+                            }}>
+                                {availableWidgets.length} Widgets
                             </span>
                         </div>
 
                         {/* Widget Cards List */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
-                            {components.map(comp => {
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+                            {availableWidgets.map(comp => {
                                 const isConnected = wiringConnections.some(w => w.compId === comp.id);
                                 const connectedWires = wiringConnections.filter(w => w.compId === comp.id);
                                 const isSelected = selectedCompId === comp.id;
@@ -876,13 +1033,20 @@ export const PlcWidgetVisualizerModal = ({
                                         }}
                                         style={{
                                             position: 'relative',
-                                            padding: '10px 12px',
+                                            padding: '12px 14px',
                                             borderRadius: '10px',
-                                            backgroundColor: isSelected ? 'rgba(52, 211, 153, 0.15)' : 'rgba(15, 23, 42, 0.85)',
-                                            border: isSelected ? '1px solid #10b981' : isConnected ? '1px solid rgba(52, 211, 153, 0.4)' : '1px solid rgba(255, 255, 255, 0.06)',
+                                            backgroundColor: isSelected
+                                                ? (isLight ? odooTheme.purpleLight : 'rgba(113, 75, 103, 0.25)')
+                                                : odooTheme.bgCard,
+                                            border: isSelected
+                                                ? `2px solid ${odooTheme.primary}`
+                                                : isConnected
+                                                    ? `1.5px solid ${isButton ? odooTheme.coral : odooTheme.teal}`
+                                                    : `1px solid ${odooTheme.border}`,
+                                            borderLeft: `4px solid ${isButton ? odooTheme.coral : odooTheme.teal}`,
                                             cursor: 'pointer',
                                             transition: 'all 0.15s',
-                                            boxShadow: isSelected ? '0 0 16px rgba(16, 185, 129, 0.25)' : 'none'
+                                            boxShadow: isSelected ? '0 4px 14px rgba(113, 75, 103, 0.2)' : odooTheme.shadowSm
                                         }}
                                     >
                                         {/* Connector Pin (Left Edge) */}
@@ -893,23 +1057,23 @@ export const PlcWidgetVisualizerModal = ({
                                                 left: '-7px',
                                                 top: '50%',
                                                 transform: 'translateY(-50%)',
-                                                width: '12px',
-                                                height: '12px',
+                                                width: '13px',
+                                                height: '13px',
                                                 borderRadius: '50%',
-                                                backgroundColor: isSelected ? '#10b981' : isConnected ? '#34d399' : '#334155',
-                                                border: '2px solid #0f172a',
-                                                boxShadow: isSelected ? '0 0 10px #10b981' : isConnected ? '0 0 6px #34d399' : 'none',
+                                                backgroundColor: isSelected ? odooTheme.primary : isConnected ? (isButton ? odooTheme.coral : odooTheme.teal) : (isLight ? '#ADB5BD' : '#495057'),
+                                                border: `2.5px solid ${odooTheme.bgPanel}`,
+                                                boxShadow: isSelected ? `0 0 10px ${odooTheme.primary}` : isConnected ? '0 0 6px rgba(0, 160, 157, 0.6)' : 'none',
                                                 transition: 'all 0.2s'
                                             }}
                                         />
 
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                                                {isButton ? <Square size={14} color="#f59e0b" /> : <Gauge size={14} color="#34d399" />}
+                                                {isButton ? <Square size={15} color={odooTheme.coral} /> : <Gauge size={15} color={odooTheme.teal} />}
                                                 <span style={{
-                                                    fontSize: '0.8rem',
+                                                    fontSize: '0.84rem',
                                                     fontWeight: 700,
-                                                    color: '#f8fafc',
+                                                    color: odooTheme.textPrimary,
                                                     whiteSpace: 'nowrap',
                                                     overflow: 'hidden',
                                                     textOverflow: 'ellipsis'
@@ -919,31 +1083,33 @@ export const PlcWidgetVisualizerModal = ({
                                             </div>
 
                                             <span style={{
-                                                fontSize: '0.62rem',
+                                                fontSize: '0.65rem',
                                                 fontWeight: 800,
-                                                padding: '2px 6px',
-                                                borderRadius: '4px',
-                                                backgroundColor: isButton ? 'rgba(245, 158, 11, 0.15)' : 'rgba(52, 211, 153, 0.15)',
-                                                color: isButton ? '#fbbf24' : '#34d399'
+                                                padding: '2px 7px',
+                                                borderRadius: '5px',
+                                                backgroundColor: isButton
+                                                    ? (isLight ? odooTheme.coralLight : 'rgba(240, 96, 80, 0.2)')
+                                                    : (isLight ? odooTheme.tealLight : 'rgba(0, 160, 157, 0.2)'),
+                                                color: isButton ? odooTheme.coral : odooTheme.teal
                                             }}>
                                                 {isButton ? 'TRIGGER WRITE' : 'TELEMETRY READ'}
                                             </span>
                                         </div>
 
                                         {/* Connection Info */}
-                                        <div style={{ marginTop: '6px' }}>
+                                        <div style={{ marginTop: '8px' }}>
                                             {connectedWires.length > 0 ? (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                                     {connectedWires.map(w => (
                                                         <div key={w.id} style={{
-                                                            fontSize: '0.68rem',
-                                                            color: w.mode === 'WRITE' ? '#fbbf24' : '#38bdf8',
+                                                            fontSize: '0.7rem',
+                                                            color: w.mode === 'WRITE' ? odooTheme.coral : odooTheme.teal,
                                                             display: 'flex',
                                                             alignItems: 'center',
                                                             justifyContent: 'space-between',
-                                                            backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                                                            padding: '2px 6px',
-                                                            borderRadius: '4px'
+                                                            backgroundColor: isLight ? '#F1F3F5' : 'rgba(255, 255, 255, 0.04)',
+                                                            padding: '3px 8px',
+                                                            borderRadius: '5px'
                                                         }}>
                                                             <span>{w.mode === 'WRITE' ? '⚡ Write' : '➔ Read'}: <b>{w.tagName}</b></span>
                                                             <button
@@ -951,15 +1117,15 @@ export const PlcWidgetVisualizerModal = ({
                                                                     e.stopPropagation();
                                                                     handleDisconnect(w);
                                                                 }}
-                                                                style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 0 }}
+                                                                style={{ background: 'none', border: 'none', color: odooTheme.coral, cursor: 'pointer', padding: 0 }}
                                                             >
-                                                                <Unlink size={11} />
+                                                                <Unlink size={12} />
                                                             </button>
                                                         </div>
                                                     ))}
                                                 </div>
                                             ) : (
-                                                <span style={{ fontSize: '0.68rem', color: '#64748b', fontStyle: 'italic' }}>
+                                                <span style={{ fontSize: '0.7rem', color: odooTheme.textMuted, fontStyle: 'italic' }}>
                                                     Belum terhubung ke Tag PLC
                                                 </span>
                                             )}
@@ -974,41 +1140,42 @@ export const PlcWidgetVisualizerModal = ({
                 {/* ════════ FOOTER DIAGNOSTICS BAR ════════ */}
                 <div style={{
                     padding: '12px 24px',
-                    borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderTop: `1px solid ${odooTheme.border}`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                    fontSize: '0.75rem'
+                    backgroundColor: isLight ? '#FFFFFF' : '#1D172B',
+                    fontSize: '0.78rem',
+                    color: odooTheme.textSecondary
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', boxShadow: '0 0 8px #10b981' }} />
-                            <span style={{ color: '#cbd5e1', fontWeight: 600 }}>Active Wires: <b>{wiringConnections.length}</b></span>
+                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: odooTheme.emerald, boxShadow: `0 0 8px ${odooTheme.emerald}` }} />
+                            <span>Active Wires: <b style={{ color: odooTheme.textPrimary }}>{wiringConnections.length}</b></span>
                         </div>
 
-                        <div style={{ color: '#64748b' }}>|</div>
+                        <div style={{ color: odooTheme.border }}>|</div>
 
-                        <div style={{ color: '#cbd5e1' }}>
-                            Controllers Online: <b>{controllers.length}</b>
+                        <div>
+                            Controllers Online: <b style={{ color: odooTheme.textPrimary }}>{controllers.length}</b>
                         </div>
 
-                        <div style={{ color: '#64748b' }}>|</div>
+                        <div style={{ color: odooTheme.border }}>|</div>
 
-                        <div style={{ color: '#cbd5e1' }}>
-                            Protocol Driver: <b style={{ color: '#38bdf8' }}>Keyence KV-Host & Modbus TCP</b>
+                        <div>
+                            Driver: <b style={{ color: odooTheme.teal }}>Keyence KV-Host & Modbus TCP</b>
                         </div>
 
-                        <div style={{ color: '#64748b' }}>|</div>
+                        <div style={{ color: odooTheme.border }}>|</div>
 
-                        <div style={{ color: '#cbd5e1' }}>
-                            Scan Rate: <b>50 ms</b> (Tauri Native Driver)
+                        <div>
+                            Scan Cycle: <b style={{ color: odooTheme.primary }}>50 ms (Tauri Driver)</b>
                         </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8' }}>
-                        <ShieldCheck size={14} color="#10b981" />
-                        <span>Safety Interlock Ready</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: odooTheme.emerald, fontWeight: 700 }}>
+                        <ShieldCheck size={16} />
+                        <span>Odoo Enterprise Connected</span>
                     </div>
                 </div>
             </div>

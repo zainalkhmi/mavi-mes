@@ -31914,7 +31914,15 @@ D3:0
                     <PlcWidgetVisualizerModal
                         isOpen={showPlcWiringVisualizer}
                         onClose={() => setShowPlcWiringVisualizer(false)}
-                        components={baseComponents}
+                        components={
+                            [
+                                ...(baseComponents || []),
+                                ...(currentStep?.components || [])
+                            ].length > 0 
+                                ? [ ...(baseComponents || []), ...(currentStep?.components || []) ]
+                                : (steps.flatMap(s => s.components || []).length > 0 ? steps.flatMap(s => s.components || []) : (baseComponents || []))
+                        }
+                        steps={steps}
                         activeStepName={currentStep?.title || 'Current Step'}
                         onUpdateComponent={updateComponentProps}
                         appVariables={appVariables}
