@@ -706,10 +706,7 @@ const LandingPage = ({ initialTab = 'overview' }) => {
                 </div>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '2px 8px', borderRadius: '4px', background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8', textTransform: 'uppercase' }}>
-                      Google Cloud AI Builder Cup 2026 Edition
-                    </span>
-                    <span style={{ fontSize: '0.72rem', color: '#a855f7', fontWeight: 700 }}>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '2px 8px', borderRadius: '4px', background: 'rgba(168, 85, 247, 0.2)', color: '#c084fc', textTransform: 'uppercase' }}>
                       Manufacturing Challenge
                     </span>
                   </div>
