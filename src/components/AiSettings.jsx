@@ -12,8 +12,10 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getIntegrationConnectors, saveIntegrationConnector } from '../utils/database';
+import VertexAiService from '../services/ai/VertexAiService';
 
 const PROVIDERS = [
+  { id: 'VertexAI', label: 'Vertex AI (GCP)' },
   { id: 'Gemini', label: 'Gemini' },
   { id: 'OpenAI', label: 'Openai' },
   { id: 'Groq', label: 'Grok' },
@@ -23,6 +25,12 @@ const PROVIDERS = [
 ];
 
 const DEFAULT_MODELS = {
+  VertexAI: [
+    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (GCP Vertex AI - High Throughput & Vision)' },
+    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro (GCP Vertex AI - 1M+ Long Context Factory Deep Memory)' },
+    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (GCP Vertex AI - Fast Inference)' },
+    { id: 'custom-endpoint', name: 'Vertex AI Custom Model Garden Endpoint' }
+  ],
   Gemini: [
     { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash (Recommended - Super Cepat & Next Gen)' },
     { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash (Stabil Fallback)' },
@@ -66,6 +74,8 @@ const AiSettings = () => {
   const [activeProvider, setActiveProvider] = useState('Gemini');
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
+  const [projectId, setProjectId] = useState('mavi-mes-production');
+  const [location, setLocation] = useState('asia-southeast1');
   const [modelId, setModelId] = useState('gemini-3.8-flash');
   const [availableModels, setAvailableModels] = useState([]);
   const [isFetchingModels, setIsFetchingModels] = useState(false);
@@ -89,7 +99,9 @@ const AiSettings = () => {
         setActiveProvider(provider);
         setApiKey(aiSettings.apiKey || '');
         setBaseUrl(aiSettings.baseUrl || '');
-        let mid = aiSettings.modelId || (provider === 'Gemini' ? 'gemini-3.8-flash' : 'gpt-4o-mini');
+        setProjectId(aiSettings.projectId || 'mavi-mes-production');
+        setLocation(aiSettings.location || 'asia-southeast1');
+        let mid = aiSettings.modelId || (provider === 'Gemini' ? 'gemini-3.8-flash' : provider === 'VertexAI' ? 'gemini-2.0-flash' : 'gpt-4o-mini');
         const isBogusOrOld = (id) => {
           if (!id) return true;
           const s = String(id).toLowerCase();
@@ -118,6 +130,8 @@ const AiSettings = () => {
             [provider]: {
               apiKey: aiSettings.apiKey || '',
               baseUrl: aiSettings.baseUrl || '',
+              projectId: aiSettings.projectId || 'mavi-mes-production',
+              location: aiSettings.location || 'asia-southeast1',
               modelId: mid,
               availableModels: combined
             }
@@ -135,6 +149,8 @@ const AiSettings = () => {
       [activeProvider]: {
         apiKey,
         baseUrl,
+        projectId,
+        location,
         modelId,
         availableModels
       }
@@ -144,11 +160,13 @@ const AiSettings = () => {
     const defaultModelsForNewProvider = DEFAULT_MODELS[newProviderId] || [];
     const defaultModelIdForNewProvider = defaultModelsForNewProvider.length > 0 
       ? defaultModelsForNewProvider[0].id 
-      : (newProviderId === 'Gemini' ? 'gemini-3.8-flash' : '');
+      : (newProviderId === 'Gemini' ? 'gemini-3.8-flash' : newProviderId === 'VertexAI' ? 'gemini-2.0-flash' : '');
 
     const nextConfig = configs[newProviderId] || {
       apiKey: '',
       baseUrl: newProviderId.includes('Ollama') ? 'http://localhost:11434/v1' : '',
+      projectId: 'mavi-mes-production',
+      location: 'asia-southeast1',
       modelId: defaultModelIdForNewProvider,
       availableModels: defaultModelsForNewProvider
     };
@@ -156,6 +174,8 @@ const AiSettings = () => {
     setActiveProvider(newProviderId);
     setApiKey(nextConfig.apiKey || '');
     setBaseUrl(nextConfig.baseUrl || '');
+    setProjectId(nextConfig.projectId || 'mavi-mes-production');
+    setLocation(nextConfig.location || 'asia-southeast1');
     setModelId(nextConfig.modelId || '');
     setAvailableModels(nextConfig.availableModels || []);
     setTestResult(null);
@@ -163,7 +183,7 @@ const AiSettings = () => {
 
   const handleTestConnection = async () => {
     const trimmedKey = apiKey.trim();
-    if (!trimmedKey) {
+    if (!trimmedKey && activeProvider !== 'VertexAI') {
       setTestResult({ success: false, message: 'Please enter an API Key first.' });
       return;
     }
@@ -176,7 +196,22 @@ const AiSettings = () => {
       let errorMsg = '';
       let models = [];
 
-      if (activeProvider === 'Gemini') {
+      if (activeProvider === 'VertexAI') {
+        const vRes = await VertexAiService.testConnection({
+          projectId: projectId.trim() || 'mavi-mes-production',
+          location: location.trim() || 'asia-southeast1',
+          apiKey: trimmedKey,
+          proxyUrl: baseUrl.trim(),
+          modelId
+        });
+        if (vRes.success) {
+          success = true;
+          models = DEFAULT_MODELS.VertexAI;
+          setTestResult({ success: true, message: vRes.message });
+        } else {
+          errorMsg = vRes.message;
+        }
+      } else if (activeProvider === 'Gemini') {
         const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${trimmedKey}`;
         const listResp = await fetch(listUrl);
         const listData = await listResp.json();
@@ -239,7 +274,9 @@ const AiSettings = () => {
         if (models.length > 0 && !models.find(m => m.id === modelId)) {
           setModelId(models[0].id);
         }
-        setTestResult({ success: true, message: `Connection Successful! ${models.length} models found.` });
+        if (activeProvider !== 'VertexAI') {
+          setTestResult({ success: true, message: `Connection Successful! ${models.length} models found.` });
+        }
       } else {
         setTestResult({ success: false, message: errorMsg });
       }
@@ -264,6 +301,8 @@ const AiSettings = () => {
           modelId: modelId,
           apiKey: apiKey.trim(),
           baseUrl: baseUrl.trim(),
+          projectId: projectId.trim(),
+          location: location.trim(),
           basePrompt: dbSettings?.basePrompt || 'You are a professional MES assistant helping frontline operators and engineers.',
           copilotSafetyThreshold: Number(copilotSafetyThreshold),
           configCache: {
@@ -271,6 +310,8 @@ const AiSettings = () => {
             [activeProvider]: {
               apiKey: apiKey.trim(),
               baseUrl: baseUrl.trim(),
+              projectId: projectId.trim(),
+              location: location.trim(),
               modelId,
               availableModels
             }
@@ -281,6 +322,8 @@ const AiSettings = () => {
           modelId: modelId,
           apiKey: apiKey.trim(),
           baseUrl: baseUrl.trim(),
+          projectId: projectId.trim(),
+          location: location.trim(),
           basePrompt: dbSettings?.basePrompt || 'You are a professional MES assistant helping frontline operators and engineers.',
           copilotSafetyThreshold: Number(copilotSafetyThreshold),
           configCache: {
@@ -288,6 +331,8 @@ const AiSettings = () => {
             [activeProvider]: {
               apiKey: apiKey.trim(),
               baseUrl: baseUrl.trim(),
+              projectId: projectId.trim(),
+              location: location.trim(),
               modelId,
               availableModels
             }
@@ -298,6 +343,16 @@ const AiSettings = () => {
       const saved = await saveIntegrationConnector(payload);
       if (saved && saved.id) setConnectorId(saved.id);
       setDbSettings(payload.aiSettings);
+      
+      if (activeProvider === 'VertexAI') {
+        VertexAiService.saveConfig({
+          projectId: projectId.trim(),
+          location: location.trim(),
+          apiKey: apiKey.trim(),
+          proxyUrl: baseUrl.trim(),
+          modelId
+        });
+      }
       try {
         localStorage.setItem('mandor_primary_ai_connector', JSON.stringify(saved || payload));
         localStorage.setItem('vibe_active_provider', activeProvider);
@@ -458,11 +513,55 @@ const AiSettings = () => {
                     </div>
                   </div>
 
+                  {/* Vertex AI Specific Configuration */}
+                  {activeProvider === 'VertexAI' && (
+                    <>
+                      <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: '24px' }}>
+                        <div>
+                          <label style={{ fontSize: '0.9rem', fontWeight: 700, color: '#495057' }}>GCP Project ID</label>
+                          <p style={{ fontSize: '0.75rem', color: '#adb5bd', marginTop: '4px' }}>Google Cloud Project Identifier</p>
+                        </div>
+                        <input
+                          type="text"
+                          value={projectId}
+                          onChange={(e) => setProjectId(e.target.value)}
+                          placeholder="e.g. mavi-mes-production"
+                          style={{
+                            padding: '8px 12px', borderRadius: '4px', backgroundColor: '#fff',
+                            border: '1px solid #dee2e6', color: '#495057', fontSize: '0.9rem', outline: 'none'
+                          }}
+                        />
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: '24px' }}>
+                        <div>
+                          <label style={{ fontSize: '0.9rem', fontWeight: 700, color: '#495057' }}>GCP Region / Location</label>
+                          <p style={{ fontSize: '0.75rem', color: '#adb5bd', marginTop: '4px' }}>Vertex AI processing region</p>
+                        </div>
+                        <select
+                          value={location}
+                          onChange={(e) => setLocation(e.target.value)}
+                          style={{
+                            padding: '8px 12px', borderRadius: '4px', backgroundColor: '#fff',
+                            border: '1px solid #dee2e6', color: '#495057', fontSize: '0.9rem', outline: 'none'
+                          }}
+                        >
+                          <option value="asia-southeast1">asia-southeast1 (Jakarta - Low Latency)</option>
+                          <option value="asia-southeast2">asia-southeast2 (Singapore)</option>
+                          <option value="asia-east1">asia-east1 (Taiwan)</option>
+                          <option value="us-central1">us-central1 (Iowa - Flagship Tier)</option>
+                          <option value="us-east4">us-east4 (N. Virginia)</option>
+                          <option value="europe-west1">europe-west1 (Belgium)</option>
+                        </select>
+                      </div>
+                    </>
+                  )}
+
                   {/* API Key Row */}
                   <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: '24px' }}>
                     <div>
                       <label style={{ fontSize: '0.9rem', fontWeight: 700, color: '#495057' }}>
-                        {activeProvider === 'Ollama' || activeProvider.includes('Ollama') ? 'API Key (Optional)' : 'API Key'}
+                        {activeProvider === 'VertexAI' ? 'API Key / Bearer Token' : (activeProvider === 'Ollama' || activeProvider.includes('Ollama') ? 'API Key (Optional)' : 'API Key')}
                       </label>
                       <p style={{ fontSize: '0.75rem', color: '#adb5bd', marginTop: '4px' }}>Secret key for authentication</p>
                     </div>

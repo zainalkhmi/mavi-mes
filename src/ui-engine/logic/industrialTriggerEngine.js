@@ -9,6 +9,7 @@
 
 import iotConnector from '../../utils/iotConnector';
 import automationEngine from '../../utils/automationEngine';
+import VertexAiService from '../../services/ai/VertexAiService';
 
 /**
  * Executes industrial 3-way PLC handshake:
@@ -1846,7 +1847,113 @@ async function executeAction(act, context, execContext) {
         if (context.onNavigate) {
           context.onNavigate(type, payload);
         }
-        return { type, status: 'SUCCESS' };
+      // ── Google Cloud Vertex AI: Vision Defect Inspection ──
+      case 'VERTEX_AI_VISION_INSPECT':
+      case 'CALL_VERTEX_AI_PREDICTION': {
+        const imageSource = payload.imageBase64 || payload.image || context.state?.capturedImage || null;
+        const partName = payload.partName || payload.part || context.state?.partName || 'Workpiece Inspection';
+        const tolerance = payload.tolerance || '±0.02 mm';
+
+        const result = await VertexAiService.inspectVisionQC({
+          imageBase64: imageSource,
+          partName,
+          tolerance,
+          customPrompt: payload.prompt || payload.instructions || ''
+        });
+
+        // Store result attributes into app variables if variable bindings provided
+        if (context.setVariables) {
+          context.setVariables(prev => {
+            const updates = {
+              qc_status: result.status,
+              qc_confidence: result.confidence,
+              qc_defect_type: result.defectType || 'None',
+              qc_root_cause: result.rootCauseDraft || '',
+              qc_action: result.recommendedAction || '',
+              ...(payload.targetVar ? { [payload.targetVar]: result.status } : {})
+            };
+            if (Array.isArray(prev)) {
+              return prev.map(v => updates[v.name] !== undefined ? { ...v, value: updates[v.name] } : v);
+            } else if (prev && typeof prev === 'object') {
+              return { ...prev, ...updates };
+            }
+            return prev;
+          });
+        }
+
+        if (result.status === 'PASS') {
+          playIndustrialSound('SUCCESS');
+          triggerIndustrialHaptic('SUCCESS');
+          if (context.onShowMessage) {
+            context.onShowMessage({
+              message: `✅ Vertex AI Vision QC: PASS (${result.confidence}%) — ${result.defectType}`,
+              type: 'SUCCESS'
+            });
+          }
+        } else {
+          playIndustrialSound('ERROR');
+          triggerIndustrialHaptic('ERROR');
+          if (context.onShowMessage) {
+            context.onShowMessage({
+              message: `⚠️ Vertex AI Defect Detected (${result.confidence}%): ${result.defectType}`,
+              type: 'ERROR'
+            });
+          }
+        }
+
+        return { type, status: 'SUCCESS', result };
+      }
+
+      // ── Google Cloud Vertex AI: 1M+ Long Context Root Cause Analysis ──
+      case 'VERTEX_AI_ROOT_CAUSE_ANALYSIS': {
+        const query = payload.query || 'Analisis penyebab lonjakan vibrasi dan suhu spindle mesin CNC';
+        const result = await VertexAiService.runFactoryMemoryRCA({
+          query,
+          manualText: payload.manualText || '',
+          telemetryData: payload.telemetryData || ''
+        });
+
+        if (payload.targetVar && context.setVariables) {
+          context.setVariables(prev => {
+            const val = JSON.stringify(result.fiveWhyAnalysis);
+            if (Array.isArray(prev)) {
+              return prev.map(v => v.name === payload.targetVar ? { ...v, value: val } : v);
+            } else if (prev && typeof prev === 'object') {
+              return { ...prev, [payload.targetVar]: val };
+            }
+            return prev;
+          });
+        }
+
+        playIndustrialSound('SUCCESS');
+        if (context.onShowMessage) {
+          context.onShowMessage({
+            message: `🧠 Vertex AI Deep Memory: 5-Why Analysis Generated (${result.tokensAnalyzed})`,
+            type: 'INFO'
+          });
+        }
+
+        return { type, status: 'SUCCESS', result };
+      }
+
+      // ── Google Cloud Vertex AI: Autonomous Agent Tool Action ──
+      case 'VERTEX_AI_AGENT_ACTION': {
+        const instruction = payload.instruction || 'Karantina lini dan dispatch tiket CAPA darurat';
+        const result = await VertexAiService.executeAgenticToolAction({
+          instruction,
+          contextState: context.state || {}
+        });
+
+        playIndustrialSound('START');
+        triggerIndustrialHaptic('SUCCESS');
+        if (context.onShowMessage) {
+          context.onShowMessage({
+            message: `🤖 Vertex AI Agent: ${result.toolsInvoked.length} Tools Dispatched (${result.toolsInvoked.map(t => t.tool).join(', ')})`,
+            type: 'SUCCESS'
+          });
+        }
+
+        return { type, status: 'SUCCESS', result };
       }
 
       default:

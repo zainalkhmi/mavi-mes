@@ -6,6 +6,10 @@
 import { getPrimaryAiConnector, saveIntegrationConnector } from './database';
 
 export const SHARED_AI_MODELS = [
+  // Google Cloud Vertex AI Enterprise
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Vertex AI Enterprise)', provider: 'VertexAI', icon: '☁️', description: 'Google Cloud Vertex AI Enterprise - Multimodal & Ultralow Latency' },
+  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro (Vertex AI Enterprise)', provider: 'VertexAI', icon: '🧠', description: 'Google Cloud Vertex AI - 1M+ Long Context Factory Deep Memory' },
+  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Vertex AI Enterprise)', provider: 'VertexAI', icon: '⚡', description: 'Google Cloud Vertex AI - Fast Inference & Cost-Optimized' },
   // Google Gemini
   { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', provider: 'Gemini', icon: '⚡', description: 'Google Resmi, Super Cepat & Kuota Terbesar (Paling Stabil & Rekomendasi)' },
   { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', provider: 'Gemini', icon: '🚀', description: 'Model Stabil Fallback' },

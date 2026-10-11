@@ -15,6 +15,7 @@ export class AIProvider {
   static normalizeProvider(provider = '') {
     const p = String(provider || '').trim().toLowerCase();
     if (['gemini', 'google', 'google gemini'].includes(p)) return 'gemini';
+    if (['vertexai', 'vertex_ai', 'vertex', 'google vertex ai', 'google cloud vertex ai'].includes(p)) return 'vertexai';
     if (['anthropic', 'claude'].includes(p)) return 'anthropic';
     if (['openai'].includes(p)) return 'openai';
     if (['groq', 'meta/groq', 'grok'].includes(p)) return 'groq';
@@ -88,19 +89,22 @@ export class AIProvider {
     const apiKey = settings.apiKey;
     const modelId = String(settings.modelId || '').trim();
 
-    // 1. Google Gemini SSE streaming
-    if (provider === 'gemini') {
+    // 1. Google Gemini & Google Cloud Vertex AI SSE streaming
+    if (provider === 'gemini' || provider === 'vertexai') {
+      const isVertex = provider === 'vertexai';
       const primaryModel = this.sanitizeGeminiModel(modelId);
 
-      const candidateModels = [
-        primaryModel,
-        'gemini-3.6-flash',
-        'gemini-3.5-flash',
-        'gemini-flash-latest',
-        'gemini-3.8-flash',
-        'gemini-3.5-flash-lite',
-        'gemini-3.1-flash-lite'
-      ].filter(Boolean).filter((m, idx, arr) => arr.indexOf(m) === idx);
+      const candidateModels = isVertex
+        ? [primaryModel, 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'].filter(Boolean).filter((m, idx, arr) => arr.indexOf(m) === idx)
+        : [
+            primaryModel,
+            'gemini-3.6-flash',
+            'gemini-3.5-flash',
+            'gemini-flash-latest',
+            'gemini-3.8-flash',
+            'gemini-3.5-flash-lite',
+            'gemini-3.1-flash-lite'
+          ].filter(Boolean).filter((m, idx, arr) => arr.indexOf(m) === idx);
 
       const systemMsg = messages.find(m => m.role === 'system');
       const userAndAssistant = messages
@@ -134,22 +138,39 @@ export class AIProvider {
         const currentModel = candidateModels[i];
         if (failedModels.has(currentModel)) continue;
 
-        // Gemini 3.x models are served on v1beta
-        const versionsToTry = ['v1beta'];
+        // Gemini models on v1beta or Vertex AI endpoint
+        const versionsToTry = isVertex ? ['v1'] : ['v1beta'];
 
         versionLoop:
         for (const apiVer of versionsToTry) {
-          const url = `https://generativelanguage.googleapis.com/${apiVer}/models/${currentModel}:streamGenerateContent?key=${apiKey}&alt=sse`;
+          let url = '';
+          const headers = { 'Content-Type': 'application/json' };
+
+          if (isVertex) {
+            const loc = settings.location || 'asia-southeast1';
+            const proj = settings.projectId || 'mavi-mes-production';
+            if (settings.baseUrl) {
+              const base = settings.baseUrl.replace(/\/+$/, '');
+              url = `${base}/v1/projects/${proj}/locations/${loc}/publishers/google/models/${currentModel}:streamGenerateContent${apiKey ? `?key=${apiKey}&alt=sse` : '?alt=sse'}`;
+            } else {
+              url = `https://${loc}-aiplatform.googleapis.com/v1/projects/${proj}/locations/${loc}/publishers/google/models/${currentModel}:streamGenerateContent${apiKey ? `?key=${apiKey}&alt=sse` : '?alt=sse'}`;
+            }
+            if (settings.bearerToken) {
+              headers['Authorization'] = `Bearer ${settings.bearerToken.trim()}`;
+            }
+          } else {
+            url = `https://generativelanguage.googleapis.com/${apiVer}/models/${currentModel}:streamGenerateContent?key=${apiKey}&alt=sse`;
+          }
 
           try {
             response = await fetch(url, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers,
               body: JSON.stringify(payload)
             });
 
             if (response.ok) {
-              console.log(`[AIProvider] ✅ Successfully streaming from Gemini model: "${currentModel}" (${apiVer})`);
+              console.log(`[AIProvider] ✅ Successfully streaming from ${isVertex ? 'Vertex AI' : 'Gemini'} model: "${currentModel}" (${apiVer})`);
               break modelLoop;
             }
 

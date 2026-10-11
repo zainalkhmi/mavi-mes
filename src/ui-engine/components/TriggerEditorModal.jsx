@@ -72,6 +72,14 @@ export const ACTION_CATEGORIES = [
     ]
   },
   {
+    label: 'Google Cloud Vertex AI',
+    actions: [
+      { value: 'VERTEX_AI_VISION_INSPECT', label: 'Vertex AI: Multimodal Vision Defect Inspection' },
+      { value: 'VERTEX_AI_ROOT_CAUSE_ANALYSIS', label: 'Vertex AI: 1M+ Long-Context Root Cause Analysis (5-Why)' },
+      { value: 'VERTEX_AI_AGENT_ACTION', label: 'Vertex AI: Autonomous Agent Tool Execution (Andon/CAPA)' },
+    ]
+  },
+  {
     label: 'AI & Advanced',
     actions: [
       { value: 'AI_PROCESS', label: 'AI: Process with AI' },

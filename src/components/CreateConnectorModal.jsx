@@ -52,6 +52,13 @@ const CreateConnectorModal = ({ isOpen, onClose, onSave }) => {
             modelId: 'gpt-4o',
             basePrompt: 'You are a helpful manufacturing assistant. Answers should be safe and concise.'
         },
+        vertexAiSettings: {
+            projectId: 'mavi-mes-production',
+            location: 'asia-southeast1',
+            modelId: 'gemini-1.5-pro',
+            apiKey: '',
+            bearerToken: ''
+        },
         canvaSettings: {
             apiKey: '',
             defaultFolderId: '',
@@ -239,6 +246,13 @@ const CreateConnectorModal = ({ isOpen, onClose, onSave }) => {
                                             <div>
                                                 <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>AI Assistant (Copilot)</div>
                                                 <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Connect to LLMs (OpenAI, Gemini) for smart operator assistance.</div>
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                                            <input type="radio" checked={formData.type === 'VERTEX_AI'} onChange={() => setFormData({...formData, type: 'VERTEX_AI', name: 'Google Cloud Vertex AI Enterprise', serverAddress: 'https://asia-southeast1-aiplatform.googleapis.com'})} />
+                                            <div>
+                                                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0284c7' }}>Google Cloud Vertex AI</div>
+                                                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Enterprise GCP AI endpoints for Vision QC, 1M+ context RCA & Model Garden.</div>
                                             </div>
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
