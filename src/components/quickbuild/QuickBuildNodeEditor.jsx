@@ -1,10 +1,17 @@
 import React, { useState } from 'react';
-import { Trash2, HelpCircle, Link, Sparkles, Cpu, CheckCircle2, AlertTriangle, Play, RefreshCw } from 'lucide-react';
+import { Trash2, HelpCircle, Link, Sparkles, Cpu, CheckCircle2, AlertTriangle, Play, RefreshCw, Eye, EyeOff, Key, Bot, Cloud, Database } from 'lucide-react';
 import { NODE_TYPES } from './quickbuildToolTypes';
 import toast from 'react-hot-toast';
+import {
+    GOOGLE_VISION_MODELS,
+    runGeminiVisionInspection,
+    runTeachableMachineClassifier,
+    runGoogleCloudVisionOcr,
+    syncToGoogleSheets
+} from '../../utils/googleVisionService';
 
 /**
- * QuickBuildNodeEditor — Full parameter editor for all 18 tool types.
+ * QuickBuildNodeEditor — Full parameter editor for all tool types including Google Cloud & Edge AI.
  */
 export default function QuickBuildNodeEditor({
     selectedNode,
@@ -15,6 +22,7 @@ export default function QuickBuildNodeEditor({
     appVariables = [],
     onTrainOcrFont = () => { },
     cameraConfigs = [],
+    onNavigateToCameraSettings = () => { },
 }) {
     if (!selectedNode) {
         return (
@@ -33,49 +41,175 @@ export default function QuickBuildNodeEditor({
 
     const typeInfo = NODE_TYPES[selectedNode.type] || {};
     const [isTestingAi, setIsTestingAi] = useState(false);
+    const [isTestingTeachable, setIsTestingTeachable] = useState(false);
+    const [isTestingOcr, setIsTestingOcr] = useState(false);
+    const [isTestingLogger, setIsTestingLogger] = useState(false);
+    const [showApiKey, setShowApiKey] = useState(false);
 
+    // Google Vertex AI & Gemini Multimodal Execution
     const handleTestVertexAi = async () => {
         setIsTestingAi(true);
-        const model = selectedNode.params?.model || 'gemini-2.0-flash';
-        const task = selectedNode.params?.taskMode || 'Defect Detection';
+        const { apiKey, model, taskMode, inspectionPrompt, confidenceThreshold } = selectedNode.params || {};
 
-        await new Promise(r => setTimeout(r, 650));
-        setIsTestingAi(false);
+        try {
+            const res = await runGeminiVisionInspection({
+                apiKey,
+                model: model || 'gemini-2.0-flash',
+                taskMode: taskMode || 'Defect Detection',
+                prompt: inspectionPrompt || '',
+                confidenceThreshold: confidenceThreshold || 85
+            });
 
-        const isNg = Math.random() > 0.6;
-        const confidence = (96.2 + Math.random() * 3.5).toFixed(1);
-        let resultMsg = '';
-        if (task === 'Assembly Verification') {
-            resultMsg = `Vertex [${model}]: Assembly 4/4 Verified [PASS ${confidence}%]`;
-        } else if (isNg) {
-            resultMsg = `Vertex [${model}]: NG Surface Micro-Crack [FAIL ${confidence}%]`;
-        } else {
-            resultMsg = `Vertex [${model}]: Zero Defects Detected [PASS ${confidence}%]`;
-        }
+            const isNg = res.verdict === 'FAIL';
+            const resultMsg = `Vertex [${res.model}]: ${isNg ? 'NG ' + (res.detectedLabels[0] || 'Defect') : 'PASS'} [${res.confidence}%]`;
 
-        setNodes(prev => prev.map(n => {
-            if (n.id === selectedNode.id) {
-                return {
-                    ...n,
-                    status: isNg ? 'failed' : 'success',
-                    value: resultMsg,
-                    lastAiInference: {
-                        model,
-                        task,
-                        latencyMs: 240,
-                        confidence,
-                        verdict: isNg ? 'FAIL' : 'PASS',
-                        detectedLabels: isNg ? ['Micro-Crack', 'Surface Roughness Deviation'] : ['Flange Surface Clean', 'Bolt Holes Spec OK']
-                    }
-                };
+            setNodes(prev => prev.map(n => {
+                if (n.id === selectedNode.id) {
+                    return {
+                        ...n,
+                        status: isNg ? 'failed' : 'success',
+                        value: resultMsg,
+                        lastAiInference: {
+                            model: res.model,
+                            task: taskMode || 'Defect Detection',
+                            latencyMs: res.latencyMs,
+                            confidence: res.confidence,
+                            verdict: res.verdict,
+                            detectedLabels: res.detectedLabels,
+                            boundingBoxes: res.boundingBoxes,
+                            summary: res.summary,
+                            rcaNotes: res.rcaNotes,
+                            isLiveApi: res.isLiveApi
+                        }
+                    };
+                }
+                return n;
+            }));
+
+            if (isNg) {
+                toast.error(`Vertex AI: Defect Detected! (${res.confidence}%)`);
+            } else {
+                toast.success(`Vertex AI: Inspection Passed! (${res.confidence}%)`);
             }
-            return n;
-        }));
+        } catch (err) {
+            toast.error(`Vertex AI Error: ${err.message}`);
+        } finally {
+            setIsTestingAi(false);
+        }
+    };
 
-        if (isNg) {
-            toast.error(`Vertex AI: Defect Detected! (${confidence}%)`);
-        } else {
-            toast.success(`Vertex AI: Inspection Passed! (${confidence}%)`);
+    // Google Teachable Machine Execution
+    const handleTestTeachableMachine = async () => {
+        setIsTestingTeachable(true);
+        const { modelUrl, classes, minConfidence, targetPassClass } = selectedNode.params || {};
+
+        try {
+            const res = await runTeachableMachineClassifier({
+                modelUrl: modelUrl || '',
+                classes: classes || 'OK, NG_Scratch, NG_Dent, Misaligned',
+                minConfidence: minConfidence || 85
+            });
+
+            const passClass = (targetPassClass || 'OK').toUpperCase();
+            const isPass = res.topClass.toUpperCase() === passClass || res.topClass.toUpperCase().includes('PASS');
+            const resultMsg = `Teachable: ${res.topClass} [${res.confidence}%] → ${isPass ? 'PASS' : 'FAIL'}`;
+
+            setNodes(prev => prev.map(n => {
+                if (n.id === selectedNode.id) {
+                    return {
+                        ...n,
+                        status: isPass ? 'success' : 'failed',
+                        value: resultMsg,
+                        lastTeachableInference: {
+                            topClass: res.topClass,
+                            confidence: res.confidence,
+                            verdict: isPass ? 'PASS' : 'FAIL',
+                            latencyMs: res.latencyMs,
+                            allScores: res.allScores
+                        }
+                    };
+                }
+                return n;
+            }));
+
+            if (isPass) {
+                toast.success(`Teachable Machine: Classified ${res.topClass} (${res.confidence}%) [PASS]`);
+            } else {
+                toast.error(`Teachable Machine: Defect ${res.topClass} (${res.confidence}%) [FAIL]`);
+            }
+        } catch (err) {
+            toast.error(`Teachable Machine Error: ${err.message}`);
+        } finally {
+            setIsTestingTeachable(false);
+        }
+    };
+
+    // Google Cloud Vision OCR Execution
+    const handleTestGoogleOcr = async () => {
+        setIsTestingOcr(true);
+        const { apiKey, expectedPattern, exactMatch } = selectedNode.params || {};
+
+        try {
+            const res = await runGoogleCloudVisionOcr({
+                apiKey,
+                expectedPattern: expectedPattern || 'LOT-[A-Z0-9]+',
+                exactMatch: exactMatch || ''
+            });
+
+            const isPass = res.verdict === 'PASS';
+            const resultMsg = `Google OCR: "${res.detectedText.split('\n')[0]}" [${isPass ? 'MATCH' : 'MISMATCH'}]`;
+
+            setNodes(prev => prev.map(n => {
+                if (n.id === selectedNode.id) {
+                    return {
+                        ...n,
+                        status: isPass ? 'success' : 'failed',
+                        value: resultMsg,
+                        lastOcrInference: {
+                            detectedText: res.detectedText,
+                            verdict: res.verdict,
+                            confidence: res.confidence || 98.5,
+                            latencyMs: res.latencyMs,
+                            isLiveApi: res.isLiveApi
+                        }
+                    };
+                }
+                return n;
+            }));
+
+            toast.success(`Google Cloud OCR: "${res.detectedText.split('\n')[0]}"`);
+        } catch (err) {
+            toast.error(`Google OCR Error: ${err.message}`);
+        } finally {
+            setIsTestingOcr(false);
+        }
+    };
+
+    // Google Sheets & GCS Logger Execution
+    const handleTestGoogleLogger = async () => {
+        setIsTestingLogger(true);
+        const { webhookUrl, targetType, sheetName } = selectedNode.params || {};
+
+        try {
+            const res = await syncToGoogleSheets({
+                webhookUrl,
+                inspectionRecord: {
+                    jobName: 'Visual Inspection Pipeline',
+                    status: 'PASS',
+                    confidence: 97.5,
+                    target: sheetName || 'QC_Inspections_Live'
+                }
+            });
+
+            if (res.success) {
+                toast.success(`Logged to ${targetType || 'Google Sheets'} row #${res.sheetRowId}`);
+            } else {
+                toast.error(`Sync error: ${res.error}`);
+            }
+        } catch (e) {
+            toast.error(`Logger error: ${e.message}`);
+        } finally {
+            setIsTestingLogger(false);
         }
     };
 
@@ -152,11 +286,52 @@ export default function QuickBuildNodeEditor({
                 {/* ── ACQUIRE ──────────────────────────── */}
                 {selectedNode.type === 'acquire' && (<>
                     <Field label="Camera Source">
-                        <select value={selectedNode.params.camera || ''} onChange={e => updateParam('camera', e.target.value)} style={selectStyle}>
-                            {cameraNames.map(name => (
-                                <option key={name} value={name}>{name}</option>
-                            ))}
+                        <select
+                            value={selectedNode.params.camera || (cameraConfigs[0]?.name || '')}
+                            onChange={e => {
+                                const chosenName = e.target.value;
+                                updateParam('camera', chosenName);
+                                const matchedCam = cameraConfigs.find(c => c.name === chosenName);
+                                if (matchedCam) {
+                                    updateParam('cameraId', matchedCam.id);
+                                    updateParam('cameraSource', matchedCam.cameraSource || matchedCam.url);
+                                }
+                            }}
+                            style={selectStyle}
+                        >
+                            {cameraConfigs && cameraConfigs.length > 0 ? (
+                                cameraConfigs.map(c => (
+                                    <option key={c.id || c.name} value={c.name}>
+                                        {c.name} {c.cameraSource ? `(${c.cameraSource})` : ''}
+                                    </option>
+                                ))
+                            ) : (
+                                cameraNames.map(name => (
+                                    <option key={name} value={name}>{name}</option>
+                                ))
+                            )}
                         </select>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                            <span style={{ fontSize: '0.65rem', color: '#64748b' }}>
+                                {cameraConfigs.find(c => c.name === selectedNode.params.camera)?.cameraSource || 'IP RTSP / USB Vision'}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={onNavigateToCameraSettings}
+                                style={{
+                                    border: 'none',
+                                    background: 'transparent',
+                                    color: '#2563eb',
+                                    fontSize: '0.68rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    textDecoration: 'underline',
+                                    padding: 0
+                                }}
+                            >
+                                ⚙️ Atur di Menu Kamera
+                            </button>
+                        </div>
                     </Field>
                     <Field label="Trigger Mode">
                         <select value={selectedNode.params.trigger || ''} onChange={e => updateParam('trigger', e.target.value)} style={selectStyle}>
@@ -422,11 +597,48 @@ export default function QuickBuildNodeEditor({
                 {/* ── CAMERA INSPECTION ────────────────── */}
                 {selectedNode.type === 'camera_inspect' && (<>
                     <Field label="Camera Source">
-                        <select value={selectedNode.params.camera || ''} onChange={e => updateParam('camera', e.target.value)} style={selectStyle}>
-                            {cameraNames.map(name => (
-                                <option key={name} value={name}>{name}</option>
-                            ))}
+                        <select
+                            value={selectedNode.params.camera || (cameraConfigs[0]?.name || '')}
+                            onChange={e => {
+                                const chosenName = e.target.value;
+                                updateParam('camera', chosenName);
+                                const matchedCam = cameraConfigs.find(c => c.name === chosenName);
+                                if (matchedCam) {
+                                    updateParam('cameraId', matchedCam.id);
+                                }
+                            }}
+                            style={selectStyle}
+                        >
+                            {cameraConfigs && cameraConfigs.length > 0 ? (
+                                cameraConfigs.map(c => (
+                                    <option key={c.id || c.name} value={c.name}>
+                                        {c.name} {c.cameraSource ? `(${c.cameraSource})` : ''}
+                                    </option>
+                                ))
+                            ) : (
+                                cameraNames.map(name => (
+                                    <option key={name} value={name}>{name}</option>
+                                ))
+                            )}
                         </select>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+                            <button
+                                type="button"
+                                onClick={onNavigateToCameraSettings}
+                                style={{
+                                    border: 'none',
+                                    background: 'transparent',
+                                    color: '#2563eb',
+                                    fontSize: '0.68rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    textDecoration: 'underline',
+                                    padding: 0
+                                }}
+                            >
+                                ⚙️ Konfigurasi Kamera
+                            </button>
+                        </div>
                     </Field>
                     <Field label="Filter Regions">
                         <select value={selectedNode.params.filterRegions || 'All Regions'} onChange={e => updateParam('filterRegions', e.target.value)} style={selectStyle}>
@@ -732,16 +944,38 @@ export default function QuickBuildNodeEditor({
                         </div>
                     )}
 
+                    {/* API Key */}
+                    <Field label="Google Gemini / Vertex API Key">
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                            <input
+                                type={showApiKey ? 'text' : 'password'}
+                                value={selectedNode.params.apiKey || ''}
+                                onChange={e => updateParam('apiKey', e.target.value)}
+                                style={{ ...inputStyle, paddingRight: '28px' }}
+                                placeholder="Optional: Enter AI Studio Key (or use offline simulator)"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowApiKey(!showApiKey)}
+                                style={{ position: 'absolute', right: '6px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', padding: '2px' }}
+                                title={showApiKey ? 'Hide key' : 'Show key'}
+                            >
+                                {showApiKey ? <EyeOff size={13} /> : <Eye size={13} />}
+                            </button>
+                        </div>
+                    </Field>
+
                     <Field label="Foundation Model / Endpoint">
                         <select
                             value={selectedNode.params.model || 'gemini-2.0-flash'}
                             onChange={e => updateParam('model', e.target.value)}
                             style={selectStyle}
                         >
+                            <option value="gemini-2.5-flash">Gemini 2.5 Flash (Ultra Fast & Accurate)</option>
                             <option value="gemini-2.0-flash">Gemini 2.0 Flash (Sub-Second Latency)</option>
                             <option value="gemini-1.5-flash">Gemini 1.5 Flash (Factory Edge Optimized)</option>
                             <option value="gemini-1.5-pro">Gemini 1.5 Pro (Deep 1M+ Reasoning)</option>
-                            <option value="automl-vision-custom">Vertex AI AutoML Vision (Custom Model)</option>
+                            <option value="automl-vision-custom">Vertex AI AutoML Vision (Custom Endpoint)</option>
                         </select>
                     </Field>
 
@@ -825,6 +1059,347 @@ export default function QuickBuildNodeEditor({
                         <ToggleSwitch
                             checked={selectedNode.params.saveToMESLogs !== false}
                             onChange={v => updateParam('saveToMESLogs', v)}
+                        />
+                    </Field>
+                </>)}
+
+                {/* ── GOOGLE TEACHABLE MACHINE (EDGE AI) ── */}
+                {selectedNode.type === 'teachable_machine' && (<>
+                    <div style={{
+                        padding: '10px 12px',
+                        background: 'linear-gradient(135deg, rgba(66, 133, 244, 0.08) 0%, rgba(52, 168, 83, 0.08) 100%)',
+                        border: '1px solid rgba(66, 133, 244, 0.25)',
+                        borderRadius: '10px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#1a73e8', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <Bot size={13} color="#4285f4" /> Google Teachable Machine
+                            </span>
+                            <span style={{ fontSize: '0.55rem', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', backgroundColor: '#e8f0fe', color: '#1a73e8', border: '1px solid #d2e3fc' }}>
+                                ON-PREMISE EDGE
+                            </span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: '0.62rem', color: '#475569', lineHeight: 1.35 }}>
+                            Zero-cloud-cost model inference in browser/IPC. Train models visually with webcams on Google Teachable Machine.
+                        </p>
+                    </div>
+
+                    <button
+                        onClick={handleTestTeachableMachine}
+                        disabled={isTestingTeachable}
+                        style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                            padding: '8px 12px', borderRadius: '8px', border: 'none',
+                            backgroundColor: isTestingTeachable ? '#94a3b8' : '#4285f4', color: 'white',
+                            fontWeight: 700, fontSize: '0.7rem', cursor: isTestingTeachable ? 'default' : 'pointer',
+                            boxShadow: '0 2px 4px rgba(66, 133, 244, 0.2)'
+                        }}
+                    >
+                        {isTestingTeachable ? (
+                            <><RefreshCw size={13} className="animate-spin" /><span>Classifying Frame...</span></>
+                        ) : (
+                            <><Play size={12} fill="white" /><span>⚡ Run Teachable Machine Inference</span></>
+                        )}
+                    </button>
+
+                    {selectedNode.lastTeachableInference && (
+                        <div style={{
+                            backgroundColor: selectedNode.lastTeachableInference.verdict === 'PASS' ? '#f0fdf4' : '#fef2f2',
+                            border: `1px solid ${selectedNode.lastTeachableInference.verdict === 'PASS' ? '#bbf7d0' : '#fecaca'}`,
+                            borderRadius: '8px', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.65rem'
+                        }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontWeight: 800, color: selectedNode.lastTeachableInference.verdict === 'PASS' ? '#15803d' : '#b91c1c' }}>
+                                    Detected: {selectedNode.lastTeachableInference.topClass} ({selectedNode.lastTeachableInference.verdict})
+                                </span>
+                                <span style={{ color: '#64748b', fontSize: '0.58rem' }}>
+                                    {selectedNode.lastTeachableInference.latencyMs}ms ({selectedNode.lastTeachableInference.confidence}%)
+                                </span>
+                            </div>
+                        </div>
+                    )}
+
+                    <Field label="Hosted Model URL (Teachable Machine)">
+                        <input
+                            type="text"
+                            value={selectedNode.params.modelUrl || ''}
+                            onChange={e => updateParam('modelUrl', e.target.value)}
+                            style={inputStyle}
+                            placeholder="https://teachablemachine.withgoogle.com/models/.../"
+                        />
+                    </Field>
+
+                    <Field label="Trained Classes (comma-separated)">
+                        <input
+                            type="text"
+                            value={selectedNode.params.classes || 'OK, NG_Scratch, NG_Dent, Misaligned'}
+                            onChange={e => updateParam('classes', e.target.value)}
+                            style={inputStyle}
+                            placeholder="OK, NG_Scratch, NG_Dent"
+                        />
+                    </Field>
+
+                    <Row>
+                        <Field label="Target PASS Class">
+                            <input
+                                type="text"
+                                value={selectedNode.params.targetPassClass || 'OK'}
+                                onChange={e => updateParam('targetPassClass', e.target.value)}
+                                style={inputStyle}
+                            />
+                        </Field>
+                        <Field label="Min Confidence (%)">
+                            <input
+                                type="number"
+                                min={50} max={99}
+                                value={selectedNode.params.minConfidence || 85}
+                                onChange={e => updateParam('minConfidence', Number(e.target.value))}
+                                style={inputStyle}
+                            />
+                        </Field>
+                    </Row>
+
+                    <Field label="Reject on Unknown / Low Confidence">
+                        <ToggleSwitch
+                            checked={selectedNode.params.rejectOnUnknown !== false}
+                            onChange={v => updateParam('rejectOnUnknown', v)}
+                        />
+                    </Field>
+                </>)}
+
+                {/* ── GOOGLE CLOUD VISION OCR ── */}
+                {selectedNode.type === 'google_ocr' && (<>
+                    <div style={{
+                        padding: '10px 12px',
+                        background: 'linear-gradient(135deg, rgba(52, 168, 83, 0.08) 0%, rgba(251, 188, 5, 0.08) 100%)',
+                        border: '1px solid rgba(52, 168, 83, 0.25)',
+                        borderRadius: '10px',
+                        display: 'flex', flexDirection: 'column', gap: '6px'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#137333', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <Sparkles size={13} color="#34a853" /> Google Cloud Vision OCR
+                            </span>
+                            <span style={{ fontSize: '0.55rem', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', backgroundColor: '#e6f4ea', color: '#137333', border: '1px solid #ceead6' }}>
+                                INDUSTRIAL OCR
+                            </span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: '0.62rem', color: '#475569', lineHeight: 1.35 }}>
+                            High-precision text reading for laser-etched barcodes, dot-peen batch codes, and expiration stamps.
+                        </p>
+                    </div>
+
+                    <button
+                        onClick={handleTestGoogleOcr}
+                        disabled={isTestingOcr}
+                        style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                            padding: '8px 12px', borderRadius: '8px', border: 'none',
+                            backgroundColor: isTestingOcr ? '#94a3b8' : '#34a853', color: 'white',
+                            fontWeight: 700, fontSize: '0.7rem', cursor: isTestingOcr ? 'default' : 'pointer',
+                            boxShadow: '0 2px 4px rgba(52, 168, 83, 0.2)'
+                        }}
+                    >
+                        {isTestingOcr ? (
+                            <><RefreshCw size={13} className="animate-spin" /><span>Reading Text via Google Vision...</span></>
+                        ) : (
+                            <><Play size={12} fill="white" /><span>⚡ Run Google OCR Inspection</span></>
+                        )}
+                    </button>
+
+                    {selectedNode.lastOcrInference && (
+                        <div style={{
+                            backgroundColor: selectedNode.lastOcrInference.verdict === 'PASS' ? '#f0fdf4' : '#fef2f2',
+                            border: `1px solid ${selectedNode.lastOcrInference.verdict === 'PASS' ? '#bbf7d0' : '#fecaca'}`,
+                            borderRadius: '8px', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.65rem'
+                        }}>
+                            <div style={{ fontWeight: 800, color: '#1e293b' }}>
+                                Read: "{selectedNode.lastOcrInference.detectedText.split('\n')[0]}"
+                            </div>
+                            <span style={{ color: selectedNode.lastOcrInference.verdict === 'PASS' ? '#15803d' : '#b91c1c', fontWeight: 700 }}>
+                                Verdict: {selectedNode.lastOcrInference.verdict} ({selectedNode.lastOcrInference.latencyMs}ms)
+                            </span>
+                        </div>
+                    )}
+
+                    <Field label="Google Cloud Vision API Key">
+                        <input
+                            type="password"
+                            value={selectedNode.params.apiKey || ''}
+                            onChange={e => updateParam('apiKey', e.target.value)}
+                            style={inputStyle}
+                            placeholder="Optional: Google Cloud API Key"
+                        />
+                    </Field>
+
+                    <Field label="Expected Regex Pattern">
+                        <input
+                            type="text"
+                            value={selectedNode.params.expectedPattern || 'LOT-[A-Z0-9]+'}
+                            onChange={e => updateParam('expectedPattern', e.target.value)}
+                            style={inputStyle}
+                            placeholder="e.g. LOT-[A-Z0-9]+"
+                        />
+                    </Field>
+
+                    <Field label="Exact Match Requirement (Optional)">
+                        <input
+                            type="text"
+                            value={selectedNode.params.exactMatch || ''}
+                            onChange={e => updateParam('exactMatch', e.target.value)}
+                            style={inputStyle}
+                            placeholder="e.g. BATCH-2026-X9"
+                        />
+                    </Field>
+                </>)}
+
+                {/* ── GOOGLE SHEETS & GCS LOGGER ── */}
+                {selectedNode.type === 'google_logger' && (<>
+                    <div style={{
+                        padding: '10px 12px',
+                        background: 'linear-gradient(135deg, rgba(15, 157, 88, 0.08) 0%, rgba(66, 133, 244, 0.08) 100%)',
+                        border: '1px solid rgba(15, 157, 88, 0.25)',
+                        borderRadius: '10px',
+                        display: 'flex', flexDirection: 'column', gap: '6px'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#0f9d58', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <Database size={13} color="#0f9d58" /> Google Sheets & GCS Logger
+                            </span>
+                            <span style={{ fontSize: '0.55rem', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', backgroundColor: '#e6f4ea', color: '#137333', border: '1px solid #ceead6' }}>
+                                STREAMING LOG
+                            </span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: '0.62rem', color: '#475569', lineHeight: 1.35 }}>
+                            Stream live QC passes, defect rates, and snapshot URLs to Google Sheets and Looker Studio.
+                        </p>
+                    </div>
+
+                    <button
+                        onClick={handleTestGoogleLogger}
+                        disabled={isTestingLogger}
+                        style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                            padding: '8px 12px', borderRadius: '8px', border: 'none',
+                            backgroundColor: isTestingLogger ? '#94a3b8' : '#0f9d58', color: 'white',
+                            fontWeight: 700, fontSize: '0.7rem', cursor: isTestingLogger ? 'default' : 'pointer',
+                            boxShadow: '0 2px 4px rgba(15, 157, 88, 0.2)'
+                        }}
+                    >
+                        {isTestingLogger ? (
+                            <><RefreshCw size={13} className="animate-spin" /><span>Syncing to Google Sheets...</span></>
+                        ) : (
+                            <><Play size={12} fill="white" /><span>⚡ Test Live Sync</span></>
+                        )}
+                    </button>
+
+                    <Field label="Logger Destination">
+                        <select
+                            value={selectedNode.params.targetType || 'Google Sheets Webhook'}
+                            onChange={e => updateParam('targetType', e.target.value)}
+                            style={selectStyle}
+                        >
+                            <option value="Google Sheets Webhook">Google Sheets (Apps Script Webhook)</option>
+                            <option value="Google BigQuery">Google BigQuery Real-Time Stream</option>
+                            <option value="Google Cloud Storage Archive">GCS Defect Snapshot Archive</option>
+                        </select>
+                    </Field>
+
+                    <Field label="Google Sheets Webhook / Apps Script URL">
+                        <input
+                            type="text"
+                            value={selectedNode.params.webhookUrl || ''}
+                            onChange={e => updateParam('webhookUrl', e.target.value)}
+                            style={inputStyle}
+                            placeholder="https://script.google.com/macros/s/.../exec"
+                        />
+                    </Field>
+
+                    <Field label="Target Sheet / Table Name">
+                        <input
+                            type="text"
+                            value={selectedNode.params.sheetName || 'QC_Inspections_Live'}
+                            onChange={e => updateParam('sheetName', e.target.value)}
+                            style={inputStyle}
+                        />
+                    </Field>
+
+                    <Field label="GCS Defect Bucket URL">
+                        <input
+                            type="text"
+                            value={selectedNode.params.archiveGcsBucket || 'gs://mavi-ng-archive/'}
+                            onChange={e => updateParam('archiveGcsBucket', e.target.value)}
+                            style={inputStyle}
+                        />
+                    </Field>
+
+                    <Field label="Log Only NG (Defects) Frames">
+                        <ToggleSwitch
+                            checked={selectedNode.params.logDefectsOnly === true}
+                            onChange={v => updateParam('logDefectsOnly', v)}
+                        />
+                    </Field>
+                </>)}
+
+                {/* ── GOOGLE CLOUD STORAGE SOURCE ── */}
+                {selectedNode.type === 'gcs_source' && (<>
+                    <div style={{
+                        padding: '10px 12px',
+                        background: 'linear-gradient(135deg, rgba(26, 115, 232, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%)',
+                        border: '1px solid rgba(26, 115, 232, 0.25)',
+                        borderRadius: '10px',
+                        display: 'flex', flexDirection: 'column', gap: '6px'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#1a73e8', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <Cloud size={13} color="#1a73e8" /> GCS Image Stream Source
+                            </span>
+                            <span style={{ fontSize: '0.55rem', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', backgroundColor: '#e8f0fe', color: '#1a73e8', border: '1px solid #d2e3fc' }}>
+                                CLOUD SOURCE
+                            </span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: '0.62rem', color: '#475569', lineHeight: 1.35 }}>
+                            Stream raw factory images or replay inspection batches stored in Google Cloud Storage or Google Drive.
+                        </p>
+                    </div>
+
+                    <Field label="Google Cloud Storage Bucket URI">
+                        <input
+                            type="text"
+                            value={selectedNode.params.bucketUrl || 'gs://mavi-quality-images-bucket/station-1/'}
+                            onChange={e => updateParam('bucketUrl', e.target.value)}
+                            style={inputStyle}
+                            placeholder="gs://bucket-name/folder/"
+                        />
+                    </Field>
+
+                    <Row>
+                        <Field label="Poll Interval (sec)">
+                            <input
+                                type="number"
+                                min={1} max={60}
+                                value={selectedNode.params.pollIntervalSec || 5}
+                                onChange={e => updateParam('pollIntervalSec', Number(e.target.value))}
+                                style={inputStyle}
+                            />
+                        </Field>
+                        <Field label="Prefix Filter">
+                            <input
+                                type="text"
+                                value={selectedNode.params.filterPrefix || 'batch_2026'}
+                                onChange={e => updateParam('filterPrefix', e.target.value)}
+                                style={inputStyle}
+                            />
+                        </Field>
+                    </Row>
+
+                    <Field label="Auto-Loop Dataset Replay">
+                        <ToggleSwitch
+                            checked={selectedNode.params.autoLoop !== false}
+                            onChange={v => updateParam('autoLoop', v)}
                         />
                     </Field>
                 </>)}

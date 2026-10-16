@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
     Activity, Eye, Download, Camera, RefreshCw, Square, Circle, Minus,
-    Crosshair, Move, MousePointer, Trash2
+    Crosshair, Move, MousePointer, Trash2, Settings, Wifi
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Webcam from 'react-webcam';
+import { saveFrameToDataset } from '../../utils/googleVisionService';
 
 // Custom icons for Cognex advanced ROIs
 const RotatedSquare = ({ size = 12 }) => (
@@ -42,6 +43,12 @@ export default function QuickBuildMonitor({
     setIsContinuous,
     roiRegions,
     setRoiRegions,
+    // Connected Vision Camera props
+    cameraConfigs = [],
+    activeCamera = null,
+    selectedCameraId = '',
+    onSelectCameraId = () => {},
+    onNavigateToCameraSettings = () => {},
     // Filmstrip Props
     filmstripFrames = [],
     activeFilmstripIndex = -1,
@@ -151,6 +158,88 @@ export default function QuickBuildMonitor({
                 }}>
                     {(processedImage || useLiveCamera) ? 'ACTIVE' : 'NO FEED'}
                 </span>
+            </div>
+
+            {/* Connected Vision Camera Selector Bar */}
+            <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '6px',
+                padding: '8px 10px',
+                backgroundColor: '#f8fafc',
+                borderRadius: '10px',
+                border: '1px solid #e2e8f0',
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0 }}>
+                        <span style={{
+                            width: '8px', height: '8px', borderRadius: '50%',
+                            backgroundColor: activeCamera?.status === 'ACTIVE' ? '#10b981' : '#94a3b8',
+                            boxShadow: activeCamera?.status === 'ACTIVE' ? '0 0 6px rgba(16,185,129,0.6)' : 'none',
+                            flexShrink: 0
+                        }} />
+                        <span style={{ fontSize: '0.66rem', fontWeight: 800, color: '#334155', whiteSpace: 'nowrap' }}>
+                            CAMERA:
+                        </span>
+                        <select
+                            value={selectedCameraId}
+                            onChange={e => onSelectCameraId(e.target.value)}
+                            style={{
+                                flex: 1, minWidth: 0, padding: '4px 8px', borderRadius: '6px',
+                                border: '1px solid #cbd5e1', fontSize: '0.72rem', fontWeight: 700,
+                                backgroundColor: 'white', color: '#0f172a', outline: 'none', cursor: 'pointer'
+                            }}
+                        >
+                            {cameraConfigs && cameraConfigs.length > 0 ? (
+                                cameraConfigs.map(c => (
+                                    <option key={c.id} value={c.id}>
+                                        {c.name} {c.cameraSource === 'IP_CAMERA' ? '📡 [IP Camera]' : '📹 [USB/Device]'} {c.status === 'ACTIVE' ? '(● Active)' : ''}
+                                    </option>
+                                ))
+                            ) : (
+                                <option value="">No cameras configured</option>
+                            )}
+                        </select>
+                    </div>
+
+                    <button
+                        onClick={onNavigateToCameraSettings}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '4px',
+                            padding: '4px 8px', borderRadius: '6px', border: '1px solid #bfdbfe',
+                            backgroundColor: '#eff6ff', color: '#1d4ed8', fontSize: '0.66rem',
+                            fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s'
+                        }}
+                        title="Open Camera Settings in Vision Manager"
+                    >
+                        <Settings size={12} color="#1d4ed8" />
+                        <span>Camera Settings</span>
+                    </button>
+                </div>
+
+                {/* Camera metadata & IP stream badge if IP Camera */}
+                {activeCamera && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.62rem', color: '#64748b', padding: '0 2px' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            {activeCamera.cameraSource === 'IP_CAMERA' ? (
+                                <>
+                                    <Wifi size={11} color="#3b82f6" />
+                                    <span style={{ fontFamily: 'monospace', color: '#2563eb' }}>
+                                        {activeCamera.ipCameraUrl || 'RTSP / HTTP Stream'}
+                                    </span>
+                                </>
+                            ) : (
+                                <>
+                                    <Camera size={11} color="#10b981" />
+                                    <span>Direct Sensor / Device Input</span>
+                                </>
+                            )}
+                        </span>
+                        <span>
+                            {activeCamera.regions || 0} monitored ROIs • {activeCamera.detectors?.length || 0} detectors
+                        </span>
+                    </div>
+                )}
             </div>
 
             {/* ROI Toolbar */}
@@ -446,16 +535,50 @@ export default function QuickBuildMonitor({
                                     fontWeight="800"
                                     textAnchor="middle"
                                 >
-                                    ✨ Vertex AI: {isNg ? 'NG (Defect)' : (isOk ? 'PASS (Clean)' : (n.params?.model || 'Gemini 2.0'))}
+                                    ✨ Vertex AI: {isNg ? `NG (${inf?.detectedLabels?.[0] || 'Defect'})` : (isOk ? 'PASS (Clean)' : (n.params?.model || 'Gemini 2.0'))}
                                 </text>
 
-                                {/* Micro-crack defect highlight if NG */}
+                                {/* Micro-crack or dynamic defect highlight if NG */}
                                 {isNg && (
                                     <g>
                                         <ellipse cx="56%" cy="46%" rx="5%" ry="3%" fill="rgba(239, 68, 68, 0.4)" stroke="#ef4444" strokeWidth="1" />
-                                        <text x="63%" y="46%" fill="#ef4444" fontSize="8" fontWeight="bold">Micro-Crack 98.4%</text>
+                                        <text x="63%" y="46%" fill="#ef4444" fontSize="8" fontWeight="bold">
+                                            {inf?.detectedLabels?.[0] || 'Micro-Crack'} {inf?.confidence ? `${inf.confidence}%` : '98.4%'}
+                                        </text>
                                     </g>
                                 )}
+                            </g>
+                        );
+                    })}
+
+                    {/* Google Teachable Machine Visualizer */}
+                    {nodes?.filter(n => n.type === 'teachable_machine').map(n => {
+                        const inf = n.lastTeachableInference;
+                        const isNg = n.status === 'failed' || inf?.verdict === 'FAIL';
+                        const isOk = n.status === 'success' || inf?.verdict === 'PASS';
+                        const strokeColor = isNg ? '#ef4444' : (isOk ? '#10b981' : '#4285f4');
+                        return (
+                            <g key={n.id}>
+                                <rect x="24%" y="24%" width="52%" height="52%" fill={isNg ? 'rgba(239, 68, 68, 0.08)' : (isOk ? 'rgba(16, 185, 129, 0.08)' : 'rgba(66, 133, 244, 0.06)')} stroke={strokeColor} strokeWidth="1.5" strokeDasharray={isOk || isNg ? 'none' : '4 3'} rx="8" />
+                                <rect x="24%" y="17%" width="52%" height="6%" rx="3" fill={isNg ? '#ef4444' : (isOk ? '#10b981' : '#4285f4')} />
+                                <text x="50%" y="21.2%" fill="white" fontSize="7.5" fontWeight="800" textAnchor="middle">
+                                    🤖 Teachable Machine: {inf?.topClass ? `${inf.topClass} (${inf.confidence}%) [${inf.verdict}]` : (n.name || 'Edge Classifier')}
+                                </text>
+                            </g>
+                        );
+                    })}
+
+                    {/* Google Cloud Vision OCR Visualizer */}
+                    {nodes?.filter(n => n.type === 'google_ocr').map(n => {
+                        const inf = n.lastOcrInference;
+                        const isOk = n.status === 'success' || inf?.verdict === 'PASS';
+                        const strokeColor = isOk ? '#10b981' : '#34a853';
+                        return (
+                            <g key={n.id}>
+                                <rect x="28%" y="74%" width="44%" height="15%" fill="rgba(52, 168, 83, 0.12)" stroke={strokeColor} strokeWidth="1.5" rx="4" />
+                                <text x="50%" y="83.5%" fill="#10b981" fontSize="7.5" fontWeight="bold" textAnchor="middle">
+                                    🔍 Google OCR: {inf?.detectedText ? `"${inf.detectedText.split('\n')[0]}"` : (n.params?.expectedPattern || 'LOT-OCR')}
+                                </text>
                             </g>
                         );
                     })}
@@ -532,6 +655,30 @@ export default function QuickBuildMonitor({
                             style={{ padding: '2px 6px', fontSize: '0.55rem', fontWeight: 700, backgroundColor: '#fecaca', color: '#dc2626', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
                         >
                             🔴 Rec
+                        </button>
+                        <button 
+                            onClick={() => {
+                                const currentImage = processedImage || imagePreviewUrl || (filmstripFrames && filmstripFrames[activeFilmstripIndex]);
+                                if (!currentImage) {
+                                    toast.error('No frame to export.');
+                                    return;
+                                }
+                                const res = saveFrameToDataset({
+                                    frameBase64: currentImage,
+                                    datasetName: 'Google_Vertex_AI_Defect_Dataset',
+                                    verdict: 'OK',
+                                    label: 'Filmstrip_Capture'
+                                });
+                                if (res.success) {
+                                    toast.success(`📤 Frame saved to Google Dataset (${res.count} images)`);
+                                } else {
+                                    toast.error(`Export failed: ${res.error}`);
+                                }
+                            }}
+                            title="Save to Google Visual Inspection Dataset" 
+                            style={{ padding: '2px 6px', fontSize: '0.55rem', fontWeight: 700, backgroundColor: '#dbeafe', color: '#1e40af', border: '1px solid #bfdbfe', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                            📤 Google Dataset
                         </button>
                         <button 
                             onClick={onClearFilmstrip} 

@@ -25,6 +25,19 @@ export const NODE_TYPES = {
         outputs: ['image'],
         simValue: () => 'Frame Captured (2048×1536)',
     },
+    gcs_source: {
+        color: '#1a73e8', icon: '☁️', label: 'Google Cloud Storage Source', category: 'source',
+        desc: 'Stream inspection frames or replay historical datasets directly from Google Cloud Storage bucket or Google Drive',
+        defaultParams: {
+            bucketUrl: 'gs://mavi-quality-images-bucket/station-1/',
+            pollIntervalSec: 5,
+            filterPrefix: 'batch_2026',
+            autoLoop: true
+        },
+        inputs: [],
+        outputs: ['image'],
+        simValue: () => 'GCS Stream: gs://.../frame_0492.jpg Loaded (2048×1536)',
+    },
 
     // ── Filter ──
     preprocess: {
@@ -250,6 +263,20 @@ export const NODE_TYPES = {
         outputs: ['status'],
         simValue: () => 'PIPELINE PASS',
     },
+    google_logger: {
+        color: '#0f9d58', icon: '📊', label: 'Google Sheets & GCS Logger', category: 'output',
+        desc: 'Sync quality metrics to Google Sheets, BigQuery, or archive NG defect snapshots to Google Cloud Storage',
+        defaultParams: {
+            targetType: 'Google Sheets Webhook',
+            webhookUrl: '',
+            sheetName: 'QC_Inspections_Live',
+            logDefectsOnly: false,
+            archiveGcsBucket: 'gs://mavi-ng-archive/'
+        },
+        inputs: ['data', 'verdict', 'image'],
+        outputs: ['status', 'sheetRowId'],
+        simValue: () => `Synced → Google Sheets row #${Math.floor(Math.random()*5000+1200)} [OK]`,
+    },
     geom_construction: {
         color: '#14b8a6', icon: '📐', label: 'Geometry Construct', category: 'measure',
         desc: 'Constructs geometric relations (Line-Line intersection, Point-Line distance)',
@@ -341,6 +368,7 @@ export const NODE_TYPES = {
         category: 'inspect',
         desc: 'Google Cloud Vertex AI & Gemini Multimodal inspection for zero-shot defect detection, assembly verification, and root cause analysis',
         defaultParams: {
+            apiKey: '',
             model: 'gemini-2.0-flash',
             taskMode: 'Defect Detection',
             inspectionPrompt: 'Analyze this workpiece for scratches, micro-cracks, dimensional misalignment, or missing assembly components. Return verdict PASS or FAIL with defect details and confidence score.',
@@ -368,6 +396,51 @@ export const NODE_TYPES = {
                 return `Vertex [${model}]: NG Surface Micro-Crack [FAIL ${conf}%]`;
             }
             return `Vertex [${model}]: Surface Clean & Verified [PASS ${conf}%]`;
+        },
+    },
+
+    // ── Google Teachable Machine (Client-Side Edge AI) ──
+    teachable_machine: {
+        color: '#4285f4',
+        icon: '🤖',
+        label: 'Google Teachable Machine',
+        category: 'inspect',
+        desc: 'Browser-based Edge AI classification (OK / NG / Part Type) trained on Google Teachable Machine (no cloud cost)',
+        defaultParams: {
+            modelUrl: 'https://teachablemachine.withgoogle.com/models/sample-mavi-qc/',
+            classes: 'OK, NG_Scratch, NG_Dent, Misaligned',
+            minConfidence: 85,
+            targetPassClass: 'OK',
+            rejectOnUnknown: true
+        },
+        inputs: ['image'],
+        outputs: ['classLabel', 'confidence', 'verdict'],
+        simValue: (params) => {
+            const conf = (94.5 + Math.random() * 5.0).toFixed(1);
+            const pass = Math.random() > 0.35;
+            return `Teachable: ${pass ? 'OK' : 'NG_Scratch'} (${conf}%) [${pass ? 'PASS' : 'FAIL'}]`;
+        },
+    },
+
+    // ── Google Cloud Vision OCR ──
+    google_ocr: {
+        color: '#34a853',
+        icon: '🔍',
+        label: 'Google Cloud Vision OCR',
+        category: 'inspect',
+        desc: 'Industrial high-accuracy OCR & document text detection using Google Cloud Vision API',
+        defaultParams: {
+            apiKey: '',
+            feature: 'TEXT_DETECTION',
+            expectedPattern: 'LOT-[A-Z0-9]+',
+            exactMatch: '',
+            detectOrientation: true
+        },
+        inputs: ['image'],
+        outputs: ['detectedText', 'confidence', 'matchVerdict'],
+        simValue: (params) => {
+            const lot = `LOT-2026-X${Math.floor(Math.random() * 90 + 10)}`;
+            return `Google OCR: "${lot}" [VERIFIED PASS]`;
         },
     },
 };
@@ -526,7 +599,7 @@ export const TEMPLATES = [
             { id: 'n_pre', type: 'preprocess', name: 'Denoise Filter', x: 280, y: 110, params: { filter: 'Gaussian Blur', kernelSize: 3, threshold: 128, morphOp: 'None', morphKernel: 3 }, inputs: ['image'], outputs: ['processed'], status: 'idle', value: null, roiRegion: null },
             { id: 'n_loc', type: 'locate', name: 'Geometric Align', x: 280, y: 330, params: { template: 'flange_rim_align', angleTolerance: 15, scoreThreshold: 85 }, inputs: ['image'], outputs: ['offset'], status: 'idle', value: null, roiRegion: null },
             { id: 'n_vertex', type: 'vertex_ai', name: 'Vertex AI Inspector', x: 520, y: 180, params: { model: 'gemini-2.0-flash', taskMode: 'Defect Detection', inspectionPrompt: 'Inspect flange for surface scratches, micro-cracks, and seal alignment. Return verdict PASS or FAIL.', confidenceThreshold: 85, location: 'asia-southeast1', projectId: 'mavi-factory-ai', autoQuarantineOnFail: true, saveToMESLogs: true }, inputs: ['image'], outputs: ['verdict', 'defects', 'confidence', 'boundingBoxes', 'rcaNotes'], status: 'idle', value: null, roiRegion: null },
-            { id: 'n_log', type: 'data_logger', name: 'Log to MES', x: 760, y: 120, params: { target: 'Supabase', tableName: 'quality_inspections', includeImage: true, variableTarget: '' }, inputs: ['data'], outputs: ['logId'], status: 'idle', value: null, roiRegion: null },
+            { id: 'n_log', type: 'google_logger', name: 'Google Sheets & GCS Log', x: 760, y: 120, params: { targetType: 'Google Sheets Webhook', webhookUrl: '', sheetName: 'QC_Inspections_Live', logDefectsOnly: false, archiveGcsBucket: 'gs://mavi-ng-archive/' }, inputs: ['data', 'verdict', 'image'], outputs: ['status', 'sheetRowId'], status: 'idle', value: null, roiRegion: null },
             { id: 'n_dec', type: 'decide', name: 'PLC Yield Judge', x: 760, y: 320, params: { minPassedScore: 90, failAction: 'Activate Reject Arm', passAction: 'Signal Green Light', writeToPlc: true, plcAddress: 'DB1.DBX0.0' }, inputs: ['dimension', 'defects'], outputs: ['status'], status: 'idle', value: null, roiRegion: null }
         ],
         links: [
@@ -535,6 +608,36 @@ export const TEMPLATES = [
             { id: 'l3', fromNode: 'n_acq', fromPin: 'image', toNode: 'n_vertex', toPin: 'image' },
             { id: 'l4', fromNode: 'n_vertex', fromPin: 'defects', toNode: 'n_log', toPin: 'data' },
             { id: 'l5', fromNode: 'n_vertex', fromPin: 'verdict', toNode: 'n_dec', toPin: 'defects' }
+        ]
+    },
+    {
+        name: 'Google Teachable Machine Edge QC',
+        description: 'Zero-cloud-cost on-premise classification using custom trained Google Teachable Machine TensorFlow model.',
+        nodes: [
+            { id: 'n_acq', type: 'acquire', name: 'Acquire Frame', x: 80, y: 220, params: { camera: 'Main Inspection Camera', trigger: 'Continuous', exposure: 'Auto', gain: 'Auto' }, inputs: [], outputs: ['image'], status: 'idle', value: null, roiRegion: null },
+            { id: 'n_pre', type: 'preprocess', name: 'Normalize Filter', x: 300, y: 140, params: { filter: 'Histogram Equalization', kernelSize: 3, threshold: 128 }, inputs: ['image'], outputs: ['processed'], status: 'idle', value: null, roiRegion: null },
+            { id: 'n_tm', type: 'teachable_machine', name: 'Teachable Machine Classifier', x: 530, y: 220, params: { modelUrl: 'https://teachablemachine.withgoogle.com/models/sample-mavi-qc/', classes: 'OK, NG_Scratch, NG_Dent, Misaligned', minConfidence: 85, targetPassClass: 'OK', rejectOnUnknown: true }, inputs: ['image'], outputs: ['classLabel', 'confidence', 'verdict'], status: 'idle', value: null, roiRegion: null },
+            { id: 'n_dec', type: 'decide', name: 'Pneumatic Ejector', x: 770, y: 220, params: { minPassedScore: 90, failAction: 'Activate Reject Arm', passAction: 'Signal Green Light', writeToPlc: true, plcAddress: 'DB1.DBX1.0' }, inputs: ['dimension', 'defects'], outputs: ['status'], status: 'idle', value: null, roiRegion: null }
+        ],
+        links: [
+            { id: 'l1', fromNode: 'n_acq', fromPin: 'image', toNode: 'n_pre', toPin: 'image' },
+            { id: 'l2', fromNode: 'n_pre', fromPin: 'processed', toNode: 'n_tm', toPin: 'image' },
+            { id: 'l3', fromNode: 'n_tm', fromPin: 'verdict', toNode: 'n_dec', toPin: 'defects' }
+        ]
+    },
+    {
+        name: 'Google Cloud Vision OCR & Verification',
+        description: 'Read laser-marked batch numbers, expiration date, and serial codes using Google Cloud Vision OCR.',
+        nodes: [
+            { id: 'n_acq', type: 'acquire', name: 'Acquire Package', x: 80, y: 220, params: { camera: 'Packaging Line Camera', trigger: 'Sensor Trigger', exposure: 'Auto', gain: 'Auto' }, inputs: [], outputs: ['image'], status: 'idle', value: null, roiRegion: null },
+            { id: 'n_enh', type: 'dpm_enhancer', name: 'DPM Contrast Repair', x: 300, y: 130, params: { localRadius: 15, morphCloseSize: 3, contrastGain: 1.5 }, inputs: ['image'], outputs: ['enhancedImage'], status: 'idle', value: null, roiRegion: null },
+            { id: 'n_gocr', type: 'google_ocr', name: 'Google Cloud OCR', x: 530, y: 130, params: { feature: 'TEXT_DETECTION', expectedPattern: 'LOT-[A-Z0-9]+', exactMatch: '' }, inputs: ['image'], outputs: ['detectedText', 'confidence', 'matchVerdict'], status: 'idle', value: null, roiRegion: null },
+            { id: 'n_log', type: 'google_logger', name: 'Log to Google Sheets', x: 770, y: 130, params: { targetType: 'Google Sheets Webhook', webhookUrl: '', sheetName: 'Lot_Traceability_Logs' }, inputs: ['data', 'verdict', 'image'], outputs: ['status', 'sheetRowId'], status: 'idle', value: null, roiRegion: null }
+        ],
+        links: [
+            { id: 'l1', fromNode: 'n_acq', fromPin: 'image', toNode: 'n_enh', toPin: 'image' },
+            { id: 'l2', fromNode: 'n_enh', fromPin: 'enhancedImage', toNode: 'n_gocr', toPin: 'image' },
+            { id: 'l3', fromNode: 'n_gocr', fromPin: 'detectedText', toNode: 'n_log', toPin: 'data' }
         ]
     }
 ];
