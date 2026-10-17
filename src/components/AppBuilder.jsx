@@ -14450,6 +14450,7 @@ const AppBuilder = () => {
                     </div>
                 );
             case 'OPENCV_CAMERA':
+            case 'VISION_PIPELINE':
                 if (viewMode === 'PREVIEW') {
                     return (
                         <Suspense fallback={<div style={{ padding: '10px', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Loading Camera...</div>}>
@@ -14462,14 +14463,26 @@ const AppBuilder = () => {
                         </Suspense>
                     );
                 }
+                const isQuickBuildPipe = comp.props.filterType === 'FULL_PIPELINE' || comp.type === 'VISION_PIPELINE';
                 return (
                     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', padding: '10px', boxSizing: 'border-box' }}>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '8px' }}>{comp.props.label || 'OpenCV Live Stream'}</div>
-                        <div style={{ flex: 1, border: '1px dashed #7c3aed', borderRadius: '12px', backgroundColor: 'rgba(124,58,237,0.05)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#7c3aed', gap: '10px' }}>
-                            <Eye size={48} color="#7c3aed" />
-                            <div style={{ fontSize: '0.85rem', fontWeight: 800 }}>OpenCV Vision Preview</div>
-                            <div style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', backgroundColor: 'rgba(124,58,237,0.1)', padding: '2px 8px', borderRadius: '12px' }}>
-                                Filter: {comp.props.filterType || 'CANNY'}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 700 }}>
+                                {comp.props.label || (isQuickBuildPipe ? 'Vision Pipeline Inspector' : 'OpenCV Live Stream')}
+                            </span>
+                            {isQuickBuildPipe && (
+                                <span style={{ fontSize: '0.62rem', backgroundColor: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                                    ⚡ QUICKBUILD
+                                </span>
+                            )}
+                        </div>
+                        <div style={{ flex: 1, border: isQuickBuildPipe ? '1px dashed #f59e0b' : '1px dashed #7c3aed', borderRadius: '12px', backgroundColor: isQuickBuildPipe ? 'rgba(245, 158, 11, 0.05)' : 'rgba(124,58,237,0.05)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: isQuickBuildPipe ? '#d97706' : '#7c3aed', gap: '8px', padding: '12px', textAlign: 'center' }}>
+                            {isQuickBuildPipe ? <Sparkles size={42} color="#f59e0b" /> : <Eye size={42} color="#7c3aed" />}
+                            <div style={{ fontSize: '0.84rem', fontWeight: 800, color: isQuickBuildPipe ? '#92400e' : '#6d28d9' }}>
+                                {isQuickBuildPipe ? (comp.props.quickbuildPipelineName || 'QuickBuild Vision Pipeline') : 'OpenCV Vision Preview'}
+                            </div>
+                            <div style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)', backgroundColor: isQuickBuildPipe ? 'rgba(245,158,11,0.12)' : 'rgba(124,58,237,0.1)', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+                                {isQuickBuildPipe ? 'Cognitive Inspection Pipeline' : `Filter: ${comp.props.filterType || 'CANNY'}`}
                             </div>
                         </div>
                     </div>

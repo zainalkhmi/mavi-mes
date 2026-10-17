@@ -23,6 +23,7 @@ import {
     Zap,
     Video,
     ClipboardList,
+    Sparkles,
     Image as ImageIcon,
     RectangleHorizontal,
     Database,
@@ -94,7 +95,6 @@ import {
     Download,
     Maximize,
     Minimize,
-    Sparkles,
     Wand2,
     ShoppingBag,
     GripVertical,
@@ -289,6 +289,24 @@ export const COMPONENT_TYPES = {
             pipelineSteps: '["anomaly"]',
             visible: true, 
             triggers: [] 
+        }
+    },
+    VISION_PIPELINE: {
+        id: 'VISION_PIPELINE',
+        label: 'Vision Pipeline (QuickBuild)',
+        icon: Sparkles,
+        defaultSize: { w: 460, h: 360 },
+        defaultProps: {
+            label: 'Vision Pipeline Inspector',
+            filterType: 'FULL_PIPELINE',
+            quickbuildPipelineName: 'Google Vertex AI Zero-Shot QC',
+            targetVerdictVariable: 'Inspection_Verdict',
+            targetScoreVariable: 'Inspection_Score',
+            cameraSource: 'DEVICE',
+            ipCameraUrl: '',
+            autoRunOnAcquire: true,
+            visible: true,
+            triggers: []
         }
     },
     CHECKBOX: {

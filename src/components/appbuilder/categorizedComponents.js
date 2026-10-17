@@ -23,7 +23,7 @@ export const CATEGORIZED_COMPONENTS = {
         icon: Activity,
         color: '#f59e0b',
         types: [
-            'CHECKLIST', 'QUALITY_TOLERANCE', 'QUALITY_PASS_FAIL', 'CAMERA_CAPTURE', 'OPENCV_CAMERA', 'RADIO_GROUP', 'VARIABLE_TEXT'
+            'CHECKLIST', 'QUALITY_TOLERANCE', 'QUALITY_PASS_FAIL', 'CAMERA_CAPTURE', 'OPENCV_CAMERA', 'VISION_PIPELINE', 'RADIO_GROUP', 'VARIABLE_TEXT'
         ]
     },
     // 2. Tables, records, storage

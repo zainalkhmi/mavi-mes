@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-    Play, Plus, Save, Sliders, Sparkles, ChevronDown, Layers, Undo, Redo, Monitor, Layout, Columns, Split
+    Play, Plus, Save, Sliders, Sparkles, ChevronDown, Layers, Undo, Redo, Monitor, Layout, Columns, Split,
+    Smartphone, ArrowRight, CheckCircle2, ExternalLink, X, Cpu, CheckCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getAllCameras } from '../utils/supabaseUtilityDB';
+import { getAllFrontlineApps, saveFrontlineApp } from '../utils/supabaseFrontlineDB';
+import { createVisionInspectionAppTemplate, createVisionInspectionStep } from '../utils/visionAppTemplate';
 import './QuickBuildPipeline.css';
 
 // Sub-components
@@ -247,6 +250,14 @@ const [drawingsList] = useState(() => {
 
 // ═══ Modal State ═══════════════════════════════════════════
 const [modalConfig, setModalConfig] = useState(null);
+
+// ═══ App Builder Integration State ═════════════════════════
+const [isIntegrateModalOpen, setIsIntegrateModalOpen] = useState(false);
+const [existingAppsList, setExistingAppsList] = useState([]);
+const [selectedExistingAppId, setSelectedExistingAppId] = useState('');
+const [integrateMode, setIntegrateMode] = useState('new_app'); // 'new_app' | 'append_step' | 'library_only'
+const [customAppName, setCustomAppName] = useState('');
+const [isGeneratingApp, setIsGeneratingApp] = useState(false);
 
 // ═══ Floating Categories Widget ═════════════════════════════
 const renderCategoriesWidget = () => {
@@ -661,6 +672,131 @@ const handleSaveWorkspace = () => {
     });
 };
 
+// ═══ App Builder Integration Handlers ══════════════════════
+const handleOpenIntegrateModal = async () => {
+    const pipelineName = workspace?.name || 'Google Vertex AI Zero-Shot QC';
+    setCustomAppName(`MES Quality App - ${pipelineName}`);
+    setIsIntegrateModalOpen(true);
+    try {
+        const apps = await getAllFrontlineApps();
+        const filtered = (apps || []).filter(a => a && a.id);
+        setExistingAppsList(filtered);
+        if (filtered.length > 0) {
+            setSelectedExistingAppId(filtered[0].id);
+        }
+    } catch (err) {
+        console.warn('Could not load frontline apps:', err);
+    }
+};
+
+const syncPipelineToStorage = () => {
+    try {
+        const pipelines = (workspace.jobs || []).map(j => ({
+            name: j.name,
+            nodes: j.nodes,
+            links: j.links,
+            roiRegions: j.roiRegions || []
+        }));
+        if (!pipelines.some(p => p.name === workspace.name)) {
+            const activeJob = workspace.jobs?.[0] || {};
+            pipelines.push({
+                name: workspace.name,
+                nodes: activeJob.nodes || nodes,
+                links: activeJob.links || links,
+                roiRegions: activeJob.roiRegions || roiRegions
+            });
+        }
+        localStorage.setItem('mandor_quickbuild_pipelines', JSON.stringify(pipelines));
+    } catch (e) {
+        console.error('Failed to sync pipeline to storage:', e);
+    }
+};
+
+const handleExecuteIntegration = async () => {
+    setIsGeneratingApp(true);
+    syncPipelineToStorage();
+
+    try {
+        if (integrateMode === 'new_app') {
+            const newApp = createVisionInspectionAppTemplate(workspace, activeCamera, customAppName);
+            await saveFrontlineApp(newApp);
+            try {
+                localStorage.setItem(`mavi_app_${newApp.id}`, JSON.stringify(newApp));
+                const existingCache = JSON.parse(localStorage.getItem('mavi_ui_engine_apps') || '[]');
+                if (!existingCache.some(a => a.id === newApp.id)) {
+                    existingCache.unshift({ id: newApp.id, name: newApp.name, category: newApp.category, updated_at: newApp.updated_at });
+                    localStorage.setItem('mavi_ui_engine_apps', JSON.stringify(existingCache));
+                }
+            } catch (e) {}
+
+            toast.success(`🎉 Aplikasi "${newApp.name}" berhasil dibuat! Membuka App Builder...`, { duration: 3000 });
+            setIsIntegrateModalOpen(false);
+            setTimeout(() => {
+                window.location.hash = `#/builder?appId=${newApp.id}`;
+            }, 600);
+        } else if (integrateMode === 'append_step') {
+            if (!selectedExistingAppId) {
+                toast.error('Pilih aplikasi MES terlebih dahulu!');
+                setIsGeneratingApp(false);
+                return;
+            }
+            const targetApp = existingAppsList.find(a => String(a.id) === String(selectedExistingAppId));
+            if (!targetApp) {
+                toast.error('Aplikasi tidak ditemukan!');
+                setIsGeneratingApp(false);
+                return;
+            }
+
+            const appCopy = JSON.parse(JSON.stringify(targetApp));
+            if (!appCopy.config) appCopy.config = {};
+            if (!appCopy.config.steps) appCopy.config.steps = [];
+            if (!appCopy.config.appVariables) appCopy.config.appVariables = [];
+
+            const visionStep = createVisionInspectionStep(workspace, activeCamera);
+            appCopy.config.steps.push(visionStep);
+
+            const requiredVars = [
+                { name: 'Inspection_Verdict', type: 'string', defaultValue: 'PASS' },
+                { name: 'Inspection_Score', type: 'number', defaultValue: 98.4 }
+            ];
+            requiredVars.forEach(rv => {
+                if (!appCopy.config.appVariables.some(v => v.name === rv.name)) {
+                    appCopy.config.appVariables.push({
+                        id: `var_${rv.name.toLowerCase()}_${Date.now()}`,
+                        name: rv.name,
+                        type: rv.type,
+                        defaultValue: rv.defaultValue,
+                        persisted: false
+                    });
+                }
+            });
+
+            appCopy.updated_at = new Date().toISOString();
+            await saveFrontlineApp(appCopy);
+            try {
+                localStorage.setItem(`mavi_app_${appCopy.id}`, JSON.stringify(appCopy));
+            } catch (e) {}
+
+            toast.success(`✅ Step Inspeksi berhasil ditambahkan ke "${appCopy.name}"! Membuka App Builder...`);
+            setIsIntegrateModalOpen(false);
+            setTimeout(() => {
+                window.location.hash = `#/builder?appId=${appCopy.id}`;
+            }, 600);
+        } else {
+            toast.success(`💾 Pipeline "${workspace.name}" tersimpan di library global! Membuka App Builder...`);
+            setIsIntegrateModalOpen(false);
+            setTimeout(() => {
+                window.location.hash = `#/builder`;
+            }, 600);
+        }
+    } catch (err) {
+        console.error('Integration error:', err);
+        toast.error('Gagal integrasi ke App Builder: ' + (err.message || 'Error'));
+    } finally {
+        setIsGeneratingApp(false);
+    }
+};
+
 // Tool groups for sidebar
 const toolGroups = getToolsByCategory();
 const selectedNode = nodes.find(n => n.id === selectedNodeId);
@@ -751,15 +887,28 @@ return (
 
                 <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.15)', margin: '0 4px' }} />
 
-                {/* App Builder link */}
-                <a
-                    href="#/builder"
+                {/* App Builder Integration Button */}
+                <button
+                    onClick={handleOpenIntegrateModal}
                     className="qb-btn-action"
-                    style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: 'rgba(59, 130, 246, 0.25)', border: '1px solid rgba(59, 130, 246, 0.5)' }}
-                    title="Open in MES App Builder"
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        backgroundColor: '#2563eb',
+                        border: '1px solid #3b82f6',
+                        color: '#ffffff',
+                        fontWeight: 700,
+                        padding: '4px 11px',
+                        borderRadius: '6px',
+                        boxShadow: '0 2px 6px rgba(37, 99, 235, 0.4)',
+                        cursor: 'pointer'
+                    }}
+                    title="Integrasikan Pipeline Vision ke Aplikasi MES di App Builder"
                 >
-                    <span>📱 App Builder</span>
-                </a>
+                    <Smartphone size={13} color="white" />
+                    <span>🚀 Integrasikan ke App Builder</span>
+                </button>
             </div>
 
             {/* Right side: Template Loader */}
@@ -1174,6 +1323,200 @@ return (
                 />
             </div>
         </div>
+
+        {/* ═══ APP BUILDER INTEGRATION MODAL ═════════════════ */}
+        {isIntegrateModalOpen && (
+            <div style={{
+                position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                backgroundColor: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(6px)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200,
+                fontFamily: "'Inter', sans-serif"
+            }}>
+                <div style={{
+                    backgroundColor: '#ffffff',
+                    borderRadius: '16px',
+                    border: '1px solid #e2e8f0',
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                    padding: '24px',
+                    width: '560px',
+                    maxWidth: '92vw',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '16px'
+                }}>
+                    {/* Header */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '14px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', boxShadow: '0 4px 10px rgba(37,99,235,0.3)' }}>
+                                <Smartphone size={20} />
+                            </div>
+                            <div>
+                                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>Integrasikan ke Frontline App Builder</h3>
+                                <div style={{ fontSize: '0.72rem', color: '#64748b' }}>Workflow: <strong style={{ color: '#2563eb' }}>{workspace.name}</strong></div>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setIsIntegrateModalOpen(false)}
+                            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px' }}
+                        >
+                            <X size={18} />
+                        </button>
+                    </div>
+
+                    {/* Options list */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {/* Option 1: New App */}
+                        <div
+                            onClick={() => setIntegrateMode('new_app')}
+                            style={{
+                                padding: '12px 14px',
+                                borderRadius: '10px',
+                                border: integrateMode === 'new_app' ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                                backgroundColor: integrateMode === 'new_app' ? '#eff6ff' : '#ffffff',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s'
+                            }}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <Sparkles size={16} color={integrateMode === 'new_app' ? '#2563eb' : '#64748b'} />
+                                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a' }}>
+                                        Buat Aplikasi MES Quality Inspection Baru (1-Click)
+                                    </span>
+                                </div>
+                                <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', backgroundColor: '#dbeafe', color: '#1d4ed8' }}>
+                                    RECOMMENDED
+                                </span>
+                            </div>
+                            <p style={{ margin: 0, fontSize: '0.74rem', color: '#64748b', lineHeight: 1.4 }}>
+                                Template lengkap 3-Step Frontline App: Setup Work Order & Lot Batch → Inline Vision Inspection dengan real-time verdict & score cards → Quality Audit Trail MES Log Table.
+                            </p>
+
+                            {integrateMode === 'new_app' && (
+                                <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid #bfdbfe' }}>
+                                    <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 700, color: '#1e40af', marginBottom: '4px', textTransform: 'uppercase' }}>
+                                        Nama Aplikasi MES
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={customAppName}
+                                        onChange={e => setCustomAppName(e.target.value)}
+                                        style={{ width: '100%', padding: '7px 10px', fontSize: '0.8rem', borderRadius: '6px', border: '1px solid #93c5fd', outline: 'none', boxSizing: 'border-box' }}
+                                        placeholder="Nama aplikasi..."
+                                    />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Option 2: Append to Existing App */}
+                        <div
+                            onClick={() => setIntegrateMode('append_step')}
+                            style={{
+                                padding: '12px 14px',
+                                borderRadius: '10px',
+                                border: integrateMode === 'append_step' ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                                backgroundColor: integrateMode === 'append_step' ? '#eff6ff' : '#ffffff',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s'
+                            }}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                                <Layers size={16} color={integrateMode === 'append_step' ? '#2563eb' : '#64748b'} />
+                                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a' }}>
+                                    Pasang ke Aplikasi MES yang Sudah Ada
+                                </span>
+                            </div>
+                            <p style={{ margin: 0, fontSize: '0.74rem', color: '#64748b', lineHeight: 1.4 }}>
+                                Tambahkan Step Baru "Vision Inspection ({workspace.name})" ke dalam alur kerja aplikasi Frontline yang telah ada di stasiun kerja.
+                            </p>
+
+                            {integrateMode === 'append_step' && (
+                                <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid #bfdbfe' }}>
+                                    <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 700, color: '#1e40af', marginBottom: '4px', textTransform: 'uppercase' }}>
+                                        Pilih Aplikasi Tujuan
+                                    </label>
+                                    {existingAppsList.length > 0 ? (
+                                        <select
+                                            value={selectedExistingAppId}
+                                            onChange={e => setSelectedExistingAppId(e.target.value)}
+                                            style={{ width: '100%', padding: '7px 10px', fontSize: '0.8rem', borderRadius: '6px', border: '1px solid #93c5fd', outline: 'none' }}
+                                        >
+                                            {existingAppsList.map(app => (
+                                                <option key={app.id} value={app.id}>
+                                                    {app.name || 'Untitled App'} ({app.category || 'General'})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <div style={{ fontSize: '0.75rem', color: '#dc2626' }}>Tidak ada aplikasi lain yang tersimpan. Gunakan Opsi 1 untuk membuat aplikasi baru.</div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Option 3: Global Library only */}
+                        <div
+                            onClick={() => setIntegrateMode('library_only')}
+                            style={{
+                                padding: '12px 14px',
+                                borderRadius: '10px',
+                                border: integrateMode === 'library_only' ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                                backgroundColor: integrateMode === 'library_only' ? '#eff6ff' : '#ffffff',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s'
+                            }}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                                <Box size={16} color={integrateMode === 'library_only' ? '#2563eb' : '#64748b'} />
+                                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a' }}>
+                                    Simpan ke Library Global & Buka App Builder Kosong
+                                </span>
+                            </div>
+                            <p style={{ margin: 0, fontSize: '0.74rem', color: '#64748b', lineHeight: 1.4 }}>
+                                Daftarkan pipeline ini ke shared catalog sehingga dapat dipilih secara manual dari palet widget <code>VISION_PIPELINE</code> di App Builder.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Bottom Actions */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '6px', paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
+                        <button
+                            onClick={() => setIsIntegrateModalOpen(false)}
+                            style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#64748b', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}
+                        >
+                            Batal
+                        </button>
+                        <button
+                            onClick={handleExecuteIntegration}
+                            disabled={isGeneratingApp}
+                            style={{
+                                padding: '8px 20px',
+                                borderRadius: '8px',
+                                border: 'none',
+                                background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                                color: '#ffffff',
+                                fontSize: '0.8rem',
+                                fontWeight: 800,
+                                cursor: isGeneratingApp ? 'not-allowed' : 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                boxShadow: '0 4px 12px rgba(37,99,235,0.35)'
+                            }}
+                        >
+                            {isGeneratingApp ? (
+                                <span>Menyimpan & Menyiapkan...</span>
+                            ) : (
+                                <>
+                                    <span>Generate & Buka di App Builder</span>
+                                    <ArrowRight size={15} />
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
 
         {/* ═══ MODAL OVERLAY ══════════════════════════════════ */}
         {modalConfig && (
