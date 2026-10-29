@@ -1384,6 +1384,7 @@ return (
                                 selectedCameraId={selectedCameraId}
                                 onSelectCameraId={handleSelectCameraId}
                                 onNavigateToCameraSettings={onNavigateToCameraSettings}
+                                backendStatus={backendStatus}
                             />
                         </div>
                     )}

@@ -59,6 +59,7 @@ export default function QuickBuildMonitor({
     onPlayPauseFilmstrip = () => {},
     nodes = [],
     selectedNodeId = null,
+    backendStatus = 'checking',
 }) {
     // ROI drawing state
     const [activeRoiTool, setActiveRoiTool] = useState(null); // 'rect' | 'circle' | 'line' | null
@@ -151,13 +152,28 @@ export default function QuickBuildMonitor({
                 <span style={{ fontSize: '0.82rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <Activity size={14} color="#3b82f6" /> Live Monitor
                 </span>
-                <span style={{
-                    fontSize: '0.62rem', padding: '3px 6px', borderRadius: '4px',
-                    backgroundColor: (processedImage || useLiveCamera) ? '#e2fbe8' : '#f1f5f9',
-                    color: (processedImage || useLiveCamera) ? '#10b981' : '#64748b', fontWeight: 700,
-                }}>
-                    {(processedImage || useLiveCamera) ? 'ACTIVE' : 'NO FEED'}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{
+                        fontSize: '0.62rem', padding: '3px 7px', borderRadius: '4px',
+                        backgroundColor: backendStatus === 'online' ? '#ecfdf5' : backendStatus === 'offline' ? '#fef2f2' : '#fefce8',
+                        color: backendStatus === 'online' ? '#059669' : backendStatus === 'offline' ? '#dc2626' : '#ca8a04',
+                        border: backendStatus === 'online' ? '1px solid #a7f3d0' : backendStatus === 'offline' ? '1px solid #fecaca' : '1px solid #fef08a',
+                        fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px'
+                    }}>
+                        <span style={{
+                            width: '6px', height: '6px', borderRadius: '50%',
+                            backgroundColor: backendStatus === 'online' ? '#10b981' : backendStatus === 'offline' ? '#ef4444' : '#eab308'
+                        }} />
+                        {backendStatus === 'online' ? 'Python :8000 OK' : backendStatus === 'offline' ? 'Python Offline (Sim)' : 'Checking...'}
+                    </span>
+                    <span style={{
+                        fontSize: '0.62rem', padding: '3px 6px', borderRadius: '4px',
+                        backgroundColor: (processedImage || useLiveCamera) ? '#e2fbe8' : '#f1f5f9',
+                        color: (processedImage || useLiveCamera) ? '#10b981' : '#64748b', fontWeight: 700,
+                    }}>
+                        {(processedImage || useLiveCamera) ? 'ACTIVE' : 'NO FEED'}
+                    </span>
+                </div>
             </div>
 
             {/* Connected Vision Camera Selector Bar */}

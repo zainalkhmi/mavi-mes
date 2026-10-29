@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
-import { Activity, Database, BrainCircuit } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Activity, Database, BrainCircuit, Cpu } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useSystemStatus } from '../../hooks/useSystemStatus.jsx';
 import { useGlobalStore } from '../../store/useGlobalStore.js';
@@ -20,6 +20,26 @@ export default function SystemStatusDropdown() {
     updateAllStatuses
   } = useSystemStatus({ user, isOperatorRoute: false, isOperator });
 
+  const [pythonActive, setPythonActive] = useState(false);
+
+  const checkPythonStatus = useCallback(async () => {
+    try {
+      const ctrl = new AbortController();
+      const timeoutId = setTimeout(() => ctrl.abort(), 1800);
+      const res = await fetch('http://localhost:8000/', { signal: ctrl.signal });
+      clearTimeout(timeoutId);
+      setPythonActive(res.ok);
+    } catch {
+      setPythonActive(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkPythonStatus();
+    const interval = setInterval(checkPythonStatus, 10000);
+    return () => clearInterval(interval);
+  }, [checkPythonStatus]);
+
   const hasAccess = (path) => checkRoleAccess(user, path);
 
   useEffect(() => {
@@ -37,7 +57,10 @@ export default function SystemStatusDropdown() {
       <button
         onClick={() => {
           setIsOpen(!isOpen);
-          if (!isOpen) updateAllStatuses();
+          if (!isOpen) {
+            updateAllStatuses();
+            checkPythonStatus();
+          }
         }}
         className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 hover:border-slate-400 transition-colors shadow-sm outline-none h-8"
       >
@@ -47,6 +70,7 @@ export default function SystemStatusDropdown() {
         <div className="flex gap-1 items-center">
           <span className={`w-1.5 h-1.5 rounded-full ${supabaseActive ? 'bg-emerald-500 shadow-[0_0_4px_#10b981]' : 'bg-red-500 shadow-[0_0_4px_#ef4444]'}`} title="Supabase DB" />
           <span className={`w-1.5 h-1.5 rounded-full ${aiActive.active ? 'bg-emerald-500 shadow-[0_0_4px_#10b981]' : 'bg-red-500 shadow-[0_0_4px_#ef4444]'}`} title="AI Assistant" />
+          <span className={`w-1.5 h-1.5 rounded-full ${pythonActive ? 'bg-emerald-500 shadow-[0_0_4px_#10b981]' : 'bg-red-500 shadow-[0_0_4px_#ef4444]'}`} title="Python Vision Backend (:8000)" />
         </div>
       </button>
 
@@ -99,6 +123,24 @@ export default function SystemStatusDropdown() {
             </div>
           </div>
 
+          {/* Python Vision & YOLO Backend */}
+          <div className="flex gap-2.5 items-start">
+            <div className={`p-1.5 rounded-lg flex items-center ${pythonActive ? 'bg-emerald-50 text-emerald-500' : 'bg-red-50 text-red-500'}`}>
+              <Cpu size={16} />
+            </div>
+            <div className="flex-1 flex flex-col">
+              <div className="flex justify-between items-center">
+                <span className="text-[0.75rem] font-bold text-slate-700">Python Vision Backend</span>
+                <span className={`text-[0.62rem] font-extrabold px-1.5 py-[1px] rounded-full ${pythonActive ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                  {pythonActive ? 'ONLINE (:8000)' : 'OFFLINE'}
+                </span>
+              </div>
+              <span className="text-[0.65rem] text-slate-500 mt-[2px]">
+                {pythonActive ? 'FastAPI, OpenCV & YOLOv8 local inference ready.' : 'Server offline. Vision runs in JS simulation mode.'}
+              </span>
+            </div>
+          </div>
+
           <div className="h-px bg-slate-100 my-1" />
 
           {/* Nav Shortcuts */}
@@ -121,6 +163,13 @@ export default function SystemStatusDropdown() {
                 AI Config
               </Link>
             )}
+            <Link
+              to="/vision/quickbuild"
+              onClick={() => setIsOpen(false)}
+              className="flex-1 text-center py-1.5 text-[0.68rem] font-bold bg-purple-50 text-purple-600 rounded-md border border-purple-100"
+            >
+              Vision Studio
+            </Link>
           </div>
         </div>
       )}
