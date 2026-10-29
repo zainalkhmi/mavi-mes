@@ -307,13 +307,44 @@ export const getChatCompletion = async (messages, connector) => {
             'gemini-3.1-pro-preview'
         ].filter(Boolean).filter((m, i, a) => a.indexOf(m) === i);
 
+        let systemInstruction = null;
+        const contents = [];
+
+        for (const m of messages) {
+            if (m.role === 'system') {
+                if (!systemInstruction) {
+                    systemInstruction = { parts: [{ text: String(m.content || '') }] };
+                } else {
+                    systemInstruction.parts.push({ text: String(m.content || '') });
+                }
+            } else {
+                const role = m.role === 'assistant' ? 'model' : 'user';
+                const textContent = String(m.content || '');
+                // Google Gemini requires strictly alternating roles: user -> model -> user -> model
+                if (contents.length > 0 && contents[contents.length - 1].role === role) {
+                    contents[contents.length - 1].parts.push({ text: textContent });
+                } else {
+                    contents.push({ role, parts: [{ text: textContent }] });
+                }
+            }
+        }
+
+        // If no user content exists, provide fallback
+        if (contents.length === 0) {
+            contents.push({ role: 'user', parts: [{ text: 'Halo' }] });
+        }
+        // First content in Gemini must have role: 'user'
+        if (contents[0].role !== 'user') {
+            contents.unshift({ role: 'user', parts: [{ text: 'Please analyze and respond.' }] });
+        }
+
         const payload = {
-            contents: messages.map(m => ({
-                role: m.role === 'assistant' ? 'model' : 'user',
-                parts: [{ text: m.content }]
-            })),
+            contents,
             generationConfig: { temperature: 0.7 }
         };
+        if (systemInstruction) {
+            payload.systemInstruction = systemInstruction;
+        }
 
         let lastErr = null;
         let hasDiscovered = false;

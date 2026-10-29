@@ -222,6 +222,12 @@ export default function TopNavbar() {
 
   const helpItems = [
     {
+      path: '/help?guide=vision-builder',
+      icon: <Eye size={16} className="text-orange-500" />,
+      label: 'Panduan Vision Builder & Pipeline Nodes',
+      description: 'Panduan lengkap 24 node block, parameter & contoh manufaktur'
+    },
+    {
       path: '/faq',
       icon: <HelpCircle size={16} className="text-blue-600" />,
       label: 'Pusat Bantuan & FAQ',

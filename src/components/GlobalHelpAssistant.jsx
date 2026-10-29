@@ -65,6 +65,107 @@ Gunakan format markdown yang rapi (bullet points, bold, code block).
 
 const MANDOR_GUIDES = [
   {
+    id: 'vision-builder',
+    title: 'Vision Builder Pipeline & Nodes',
+    icon: Eye,
+    color: '#ea580c', // Orange
+    content: `
+# 👁️ Panduan Komprehensif MAVI Vision Builder & Pipeline Nodes
+
+Vision Builder (**QuickBuild**) adalah studio perancangan alur inspeksi mutu berbasis Machine Vision & Edge AI untuk mendeteksi cacat visual, mengukur dimensi presisi, membaca kode serial, dan memandu robot/operator di lantai pabrik.
+
+---
+
+## 🚀 5 Langkah Praktis Membuat Pipeline
+
+1. **Ambil Citra (Source)**: Letakkan node \`Acquire Image\` (kamera industri USB/GigE/IP RTSP) atau \`Google Cloud Storage Source\` untuk memuat dataset.
+2. **Pra-pemrosesan (Filter)**: Pasang node \`Pre-Process\` (Gaussian Blur/CLAHE) untuk menajamkan kontras dan \`Grid Calibration\` untuk mengonversi satuan piksel ke milimeter.
+3. **Penyelarasan Part (Locate)**: Pasang node \`PatMax Finder\` atau \`Pattern Locate\` untuk mengunci koordinat fiducial acuan part yang bergerak di conveyor.
+4. **Inspeksi & Pengukuran (Measure & Inspect)**:
+   - Hubungkan output \`offset\` dari node Locate ke node ukur (\`Caliper Measure\`, \`Circle Gauge\`, dll.) agar area ukur otomatis mengikuti part.
+   - Pasang node AI seperti \`Google Vertex AI (Gemini 2.0)\` untuk inspeksi kelengkapan assembly secara *zero-shot*.
+5. **Keputusan & Output (Logic & Output)**: Evaluasi hasil ukur dengan node \`Comparator\` dan \`Yield Judge\`, lalu picu rejector PLC dan catat data ke \`Data Logger\`.
+
+---
+
+## 🧩 Katalog Lengkap 24 Node Blocks & Parameter
+
+### 1. Kategori Source (Sumber Citra)
+- **📷 Acquire Image (\`acquire\`)**: Menangkap frame citra dari kamera fisik (GigE, RTSP, USB).
+  - *Parameter*: \`camera\`, \`trigger\` (Continuous/Hardware PLC), \`exposure\`, \`gain\`.
+- **☁️ Google Cloud Storage Source (\`gcs_source\`)**: Replay stream citra dari cloud storage bucket.
+  - *Parameter*: \`bucketUrl\`, \`pollIntervalSec\`, \`filterPrefix\`.
+
+### 2. Kategori Filter (Pra-Pemrosesan)
+- **🔧 Pre-Process (\`preprocess\`)**: Reduksi noise & segmentasi biner.
+  - *Parameter*: \`filter\` (Gaussian, Median, Bilateral, CLAHE, Sharpen), \`kernelSize\`, \`threshold\`, \`morphOp\` (Erode, Dilate, Open, Close).
+- **🏁 Grid Calibration (\`grid_calibration\`)**: Kalibrasi matriks ruang fisik dunia nyata (px ➔ mm) & distorsi lensa.
+  - *Parameter*: \`calibMode\` (Checkerboard Grid, Dot Grid), \`pxPerMm\`, \`originX\`, \`originY\`.
+- **🔲 Barcode DPM Enhancer (\`dpm_enhancer\`)**: Binarisasi adaptif Otsu untuk kode laser metal kasar.
+  - *Parameter*: \`localRadius\`, \`morphCloseSize\`, \`contrastGain\`.
+- **🍩 Polar Unwrapper (\`polar_unwrap\`)**: Meluruskan objek lingkaran menjadi strip datar.
+  - *Parameter*: \`cx\`, \`cy\`, \`innerRadius\`, \`outerRadius\`, \`direction\` (Clockwise).
+
+### 3. Kategori Locate (Penentuan Posisi)
+- **🎯 Pattern Locate (\`locate\`)**: Pencocokan template geometris dasar.
+  - *Parameter*: \`template\`, \`angleTolerance\`, \`scoreThreshold\`.
+- **🧲 PatMax Finder (\`patmax\`)**: Pencarian fitur geometris tahan rotasi 360° & variasi skala.
+  - *Parameter*: \`angleRange\` (360°), \`scaleMin\`, \`scaleMax\`, \`acceptScore\`.
+- **🫧 Blob Analyzer (\`blob\`)**: Deteksi bercak area partikel, porositas, dan jumlah lubang.
+  - *Parameter*: \`minArea\`, \`maxArea\`, \`circularity\`, \`polarity\`.
+- **📐 Edge Detector (\`edge\`)**: Deteksi kontur tepi fisik (Canny / Sobel).
+- **🎨 SearchMax Color (\`searchmax\`)**: Pencocokan pola geometris warna tahan variasi cahaya.
+
+### 4. Kategori Measure (Pengukuran Dimensi)
+- **📏 Caliper Measure (\`measure\`)**: Mengukur jarak tepi-ke-tepi sub-piksel dengan batas toleransi.
+  - *Parameter*: \`nominalSize\`, \`lsl\` (Lower Limit), \`usl\` (Upper Limit), \`linkedDrawingId\`.
+- **⭕ Circle Gauge (\`circle_gauge\`)**: Mengukur diameter lubang bore, radius, dan kebulatan (*runout*).
+  - *Parameter*: \`expectedRadius\`, \`radiusTolerance\`, \`minScore\`.
+- **📈 Line Fitter (\`line_fitter\`)**: Menghitung sudut kemiringan dan kelurusan garis tepi.
+- **📐 Angle Measure (\`angle_measure\`)**: Mengukur sudut perpotongan antar dua garis (derajat).
+- **📏 Caliper Array (\`caliper_array\`)**: Puluhan caliper paralel untuk mengecek celah celah bodi (*gap & flush*).
+- **🌀 Radial Caliper (\`radial_caliper\`)**: Caliper melingkar memancar untuk mengecek ketebalan pipa.
+- **📐 Geometry Construct (\`geom_construction\`)**: Menghitung titik potong virtual garis atau jarak point-to-line.
+
+### 5. Kategori Inspect (Cacat Visual & AI)
+- **🔬 OCR / OCV / Anomaly (\`inspect\`)**: Pembacaan teks part, verifikasi nomor lot, dan anomali.
+- **📱 Barcode & QR Reader (\`barcode\`)**: Decode barcode 1D (Code128) dan 2D (QR, DataMatrix).
+- **〰️ Bead Inspector (\`bead_inspection\`)**: Menginspeksi lebar jalur lem sealant dan celah bocor (*gap*).
+- **🕸️ Spatial Flaw Detector (\`spatial_flaw\`)**: Filter FFT untuk mendeteksi goresan mikro (*micro-scratch*).
+- **🔍 Golden Comparator (\`golden_template\`)**: Komparasi piksel vs CAD DXF / Master Golden Image.
+- **🧠 ViDi AI Segmenter (\`vidi_ai\`)**: Deep learning segmentasi cacat tekstur (Red-Analyze & Green-Classify).
+- **✨ Google Vertex AI (\`vertex_ai\`)**: Multimodal Gemini 2.0 Flash zero-shot visual inspection & RCA.
+- **🤖 Google Teachable Machine (\`teachable_machine\`)**: Edge AI klasifikasi produk di browser offline.
+
+### 6. Kategori Logic & Output
+- **🧮 Math / Formula (\`math_formula\`)**: Operasi aritmatika antar hasil pengukuran (misal \`A - B\`).
+- **⚖️ Comparator (\`comparator\`)**: Evaluasi apakah nilai berada di dalam batas aman spesifikasi (*LSL/USL*).
+- **⚡ Yield Judge (\`decide\`)**: Mengambil keputusan akhir \`PASS\` atau \`FAIL\` dan memicu output PLC.
+- **💾 Data Logger (\`data_logger\`)**: Menyimpan log inspeksi ke database PostgreSQL / Supabase MES.
+- **📊 Google Sheets & GCS Logger (\`google_logger\`)**: Stream metrics ke BigQuery/Sheets & arsip foto NG ke Cloud Storage.
+
+---
+
+## 🏭 Contoh Kasus Implementasi Nyata di Lantai Pabrik
+
+### Kasus 1: Inspeksi Flange Otomotif (Bore, Baut & Goresan)
+\`Acquire\` ➔ \`Gaussian Filter\` ➔ \`PatMax Locator\` ➔ \`Circle Gauge (Bore Ø 50mm)\` + \`Blob (4 Baut M6)\` + \`Spatial Flaw (Bebas Goresan)\` ➔ \`Yield Judge\` ➔ \`Solenoid Rejector PLC\`.
+- Part lolos jika diameter lubang presisi ±0.2 mm, 4 baut lengkap, dan permukaan bibir bebas goresan.
+
+### Kasus 2: Pengecekan Sealant Lem (*Bead Inspection*)
+\`Acquire\` ➔ \`Color Extractor (Lem Biru)\` ➔ \`Bead Inspector (Lebar Min 3mm, Gap = 0)\` ➔ \`Yield Judge\`.
+- Mencegah kebocoran oli mesin dengan memastikan aplikasi lem silikon pada bak transmisi tidak terputus.
+
+### Kasus 3: Verifikasi Serialization Obat Farmasi
+\`Acquire\` ➔ \`DPM Enhancer\` ➔ \`Barcode Reader (DataMatrix)\` + \`Google Vision OCR (EXP Date)\` ➔ \`Comparator\` ➔ \`Audit Trail MES (FDA 21 CFR)\`.
+- Memastikan obat belum kedaluwarsa dan nomor seri tercatat di cloud sebelum masuk kardus karton.
+
+### Kasus 4: Zero-Shot PCB Assembly Inspection (Google Cloud Vertex AI)
+\`Acquire 4K\` ➔ \`Vertex AI (Gemini 2.0 Flash)\` ➔ \`Output RCA Bounding Box & Rejection Signal\`.
+- Mengidentifikasi komponen salah arah atau solder dingin (*cold solder joint*) secara otomatis tanpa training manual.
+    `
+  },
+  {
     id: 'workflow-roadmap',
     title: 'Workflow & Roadmap',
     icon: Route,
@@ -1498,6 +1599,29 @@ export default function GlobalHelpAssistant() {
         setKnowledgeFiles(JSON.parse(saved));
       } catch (e) {}
     }
+  }, []);
+
+  // Handle URL query param for direct guide linking (e.g. #/help?guide=vision-builder)
+  useEffect(() => {
+    const handleUrlGuide = () => {
+      const fullUrl = window.location.href;
+      const match = fullUrl.match(/[?&]guide=([^&#]+)/);
+      if (match && match[1]) {
+        const guideId = decodeURIComponent(match[1]);
+        const exists = MANDOR_GUIDES.some(g => g.id === guideId);
+        if (exists) {
+          setActiveGuide(guideId);
+        }
+      }
+    };
+
+    handleUrlGuide();
+    window.addEventListener('hashchange', handleUrlGuide);
+    window.addEventListener('popstate', handleUrlGuide);
+    return () => {
+      window.removeEventListener('hashchange', handleUrlGuide);
+      window.removeEventListener('popstate', handleUrlGuide);
+    };
   }, []);
 
   // Close model dropdown when clicking outside
