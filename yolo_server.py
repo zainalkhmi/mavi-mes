@@ -4631,7 +4631,7 @@ async def quickbuild_run(
             return (0, 0)
 
         def run_node(node):
-            nonlocal alignment_offset, overall_pass
+            nonlocal alignment_offset, overall_pass, annotated
             nid = node['id']
             if nid in executed_nodes:
                 return executed_nodes[nid]

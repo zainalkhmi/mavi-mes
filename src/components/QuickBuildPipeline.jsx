@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     Play, Plus, Save, Sliders, Sparkles, ChevronDown, Layers, Undo, Redo, Monitor, Layout, Columns, Split,
-    Smartphone, ArrowRight, CheckCircle2, ExternalLink, X, Cpu, CheckCircle
+    Smartphone, ArrowRight, CheckCircle2, ExternalLink, X, Cpu, CheckCircle, Box, RefreshCw, Activity
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getAllCameras } from '../utils/supabaseUtilityDB';
@@ -194,6 +194,35 @@ const [useLiveCamera, setUseLiveCamera] = useState(false);
 const [devices, setDevices] = useState([]);
 const [selectedDeviceId, setSelectedDeviceId] = useState('');
 const [isContinuous, setIsContinuous] = useState(false);
+
+// ═══ Python Backend Health State ══════════════════════════
+const [backendStatus, setBackendStatus] = useState('checking'); // 'online' | 'offline' | 'checking'
+const [isCheckingBackend, setIsCheckingBackend] = useState(false);
+
+const checkBackendHealth = useCallback(async () => {
+    setIsCheckingBackend(true);
+    try {
+        const ctrl = new AbortController();
+        const timeoutId = setTimeout(() => ctrl.abort(), 2000);
+        const res = await fetch('http://localhost:8000/', { signal: ctrl.signal });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+            setBackendStatus('online');
+        } else {
+            setBackendStatus('offline');
+        }
+    } catch {
+        setBackendStatus('offline');
+    } finally {
+        setIsCheckingBackend(false);
+    }
+}, []);
+
+useEffect(() => {
+    checkBackendHealth();
+    const interval = setInterval(checkBackendHealth, 8000);
+    return () => clearInterval(interval);
+}, [checkBackendHealth]);
 
 // ═══ Filmstrip Buffer States & Handlers ═════════════════════
 const [filmstripFrames, setFilmstripFrames] = useState([]);
@@ -825,6 +854,58 @@ return (
                 <span style={{ fontSize: '0.55rem', fontWeight: 800, backgroundColor: 'rgba(16, 185, 129, 0.2)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.4)', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     DEV MODE
                 </span>
+
+                {/* ── Python Backend Status Indicator ── */}
+                <div
+                    onClick={() => {
+                        toast('Mengecek status Python backend...');
+                        checkBackendHealth();
+                    }}
+                    title={
+                        backendStatus === 'online'
+                            ? "Python Vision & YOLO Backend (FastAPI :8000) ONLINE. OpenCV & PyTorch siap. Klik untuk refresh."
+                            : "Python Backend (FastAPI :8000) OFFLINE. Menggunakan simulator client-side. Klik untuk cek ulang."
+                    }
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        fontSize: '0.65rem',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        transition: 'all 0.18s ease',
+                        backgroundColor: backendStatus === 'online' 
+                            ? 'rgba(16, 185, 129, 0.2)' 
+                            : backendStatus === 'offline' 
+                                ? 'rgba(239, 68, 68, 0.2)' 
+                                : 'rgba(234, 179, 8, 0.2)',
+                        border: backendStatus === 'online'
+                            ? '1px solid rgba(16, 185, 129, 0.5)'
+                            : backendStatus === 'offline'
+                                ? '1px solid rgba(239, 68, 68, 0.5)'
+                                : '1px solid rgba(234, 179, 8, 0.5)',
+                        color: backendStatus === 'online' ? '#34d399' : backendStatus === 'offline' ? '#f87171' : '#facc15',
+                        marginLeft: '4px'
+                    }}
+                >
+                    <span style={{
+                        width: '7px',
+                        height: '7px',
+                        borderRadius: '50%',
+                        backgroundColor: backendStatus === 'online' ? '#10b981' : backendStatus === 'offline' ? '#ef4444' : '#eab308',
+                        boxShadow: backendStatus === 'online' ? '0 0 6px #10b981' : backendStatus === 'offline' ? '0 0 6px #ef4444' : 'none',
+                    }} />
+                    <span>
+                        {backendStatus === 'online' 
+                            ? 'PYTHON AI :8000 ONLINE' 
+                            : backendStatus === 'offline' 
+                                ? 'PYTHON AI :8000 OFFLINE' 
+                                : 'CHECKING BACKEND...'}
+                    </span>
+                    <RefreshCw size={10} className={isCheckingBackend ? 'animate-spin' : ''} style={{ opacity: 0.8 }} />
+                </div>
             </div>
 
             {/* Center actions like in MES App Builder (Save, Undo, Redo, Play, Layout toggle) */}
@@ -1198,6 +1279,7 @@ return (
                             onPlayPauseFilmstrip={() => setIsFilmstripPlaying(!isFilmstripPlaying)}
                             nodes={nodes}
                             selectedNodeId={selectedNodeId}
+                            backendStatus={backendStatus}
                         />
                     </div>
                 </div>
@@ -1317,7 +1399,7 @@ return (
                     onDeleteNode={handleDeleteNode}
                     drawingsList={drawingsList}
                     appVariables={appVariables}
-                    onTrainOcrFont={() => setOcrTrainingModalOpen(true)}
+                    onTrainOcrFont={() => toast('OCR Font Trainer Studio is active in Tools menu') }
                     cameraConfigs={cameraConfigs}
                     onNavigateToCameraSettings={onNavigateToCameraSettings}
                 />

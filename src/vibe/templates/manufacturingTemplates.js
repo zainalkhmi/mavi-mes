@@ -14,9 +14,19 @@
  * - Executive Manufacturing Dashboard
  */
 
-import { PRO_OEE_DASHBOARD_CODE, PRO_KANBAN_BOARD_CODE, PRO_CHECK_SHEET_CODE } from './proStarterCodes';
+import { PRO_OEE_DASHBOARD_CODE, PRO_KANBAN_BOARD_CODE, PRO_CHECK_SHEET_CODE, PRO_AI_VISION_QUALITY_DASHBOARD_CODE } from './proStarterCodes';
 
 export const MANUFACTURING_TEMPLATES = [
+  {
+    id: 'ai_vision_quality_dashboard',
+    title: 'AI Vision Quality & Copilot Dashboard (Google Cloud / PRO)',
+    category: 'Quality Control',
+    icon: 'ShieldCheck',
+    isPro: true,
+    code: PRO_AI_VISION_QUALITY_DASHBOARD_CODE,
+    description: 'Solusi AI terintegrasi Google Cloud: Visual Quality Inspection (Vision AI), Gemini Operational Copilot reasoning, dan Executive Dashboard terintegrasi BigQuery.',
+    prompt: 'Buatkan aplikasi AI Vision Quality Inspection terintegrasi Gemini Copilot & Dashboard OEE: inspeksi visual kamera dengan bounding box defect, penalaran akar masalah Gemini AI, rekomendasi mitigasi scrap, dan analitik BigQuery real-time.'
+  },
   {
     id: 'oee_dashboard',
     title: 'OEE Dashboard Real-Time (PRO)',

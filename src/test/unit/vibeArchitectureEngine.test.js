@@ -121,9 +121,10 @@ export default function Legacy() { return <h1>Legacy</h1>; }
   });
 
   describe('Manufacturing Templates', () => {
-    it('contains all 11 required manufacturing templates', () => {
-      expect(MANUFACTURING_TEMPLATES.length).toBe(11);
+    it('contains all required manufacturing templates including AI Vision & Copilot', () => {
+      expect(MANUFACTURING_TEMPLATES.length).toBe(12);
       const ids = MANUFACTURING_TEMPLATES.map(t => t.id);
+      expect(ids).toContain('ai_vision_quality_dashboard');
       expect(ids).toContain('digital_checksheet');
       expect(ids).toContain('digital_inspection');
       expect(ids).toContain('quality_inspection');

@@ -8,7 +8,20 @@ import {
   ChevronRight,
   Loader2,
   CheckCircle2,
-  Cpu
+  Cpu,
+  BookOpen,
+  ExternalLink,
+  Copy,
+  Check,
+  HelpCircle,
+  Sparkles,
+  Cloud,
+  Terminal,
+  ShieldCheck,
+  ArrowRight,
+  Server,
+  Layers,
+  AlertCircle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getIntegrationConnectors, saveIntegrationConnector } from '../utils/database';
@@ -65,7 +78,8 @@ const DEFAULT_MODELS = {
 };
 
 const TABS = [
-  { id: 'ai', label: 'AI Configuration', icon: Settings }
+  { id: 'ai', label: 'AI Configuration', icon: Settings },
+  { id: 'guide', label: 'Panduan & Tutorial AI', icon: BookOpen }
 ];
 
 const AiSettings = () => {
@@ -86,6 +100,25 @@ const AiSettings = () => {
   const [dbSettings, setDbSettings] = useState(null);
   const [configs, setConfigs] = useState({}); // Stores { apiKey, baseUrl, modelId, availableModels } per provider ID
   const [copilotSafetyThreshold, setCopilotSafetyThreshold] = useState(0.6);
+  const [guideCategory, setGuideCategory] = useState('vertex'); // 'vertex' | 'gemini' | 'openai_groq' | 'ollama' | 'faq'
+  const [copiedSnippet, setCopiedSnippet] = useState(null);
+
+  const handleCopySnippet = (text, id) => {
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(text);
+      setCopiedSnippet(id);
+      setTimeout(() => setCopiedSnippet(null), 2200);
+    }
+  };
+
+  const handleApplyTemplate = (provId, customVals = {}) => {
+    handleProviderSwitch(provId);
+    if (customVals.projectId) setProjectId(customVals.projectId);
+    if (customVals.location) setLocation(customVals.location);
+    if (customVals.baseUrl !== undefined) setBaseUrl(customVals.baseUrl);
+    if (customVals.modelId) setModelId(customVals.modelId);
+    setActiveTab('ai');
+  };
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -357,7 +390,9 @@ const AiSettings = () => {
         localStorage.setItem('mandor_primary_ai_connector', JSON.stringify(saved || payload));
         localStorage.setItem('vibe_active_provider', activeProvider);
         localStorage.setItem('vibe_active_model', modelId);
-      } catch (_) {}
+      } catch (err) {
+        void err;
+      }
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('mavicore_ai_connector_updated', {
           detail: {
@@ -480,6 +515,42 @@ const AiSettings = () => {
                   <div style={{ fontSize: '0.9rem', color: '#495057' }}>
                     <strong style={{ color: '#017E84' }}>{dbSettings?.provider || 'Gemini'}</strong> is currently active using <strong>{dbSettings?.modelId || 'gemini-1.5-flash-002'}</strong>
                   </div>
+                </div>
+
+                {/* Quick Guide Helper Banner */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '14px 18px', borderRadius: '6px',
+                  backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0',
+                  color: '#166534', gap: '16px', flexWrap: 'wrap'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '260px', flex: 1 }}>
+                    <div style={{
+                      width: '34px', height: '34px', borderRadius: '6px',
+                      backgroundColor: '#dcfce7', display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', color: '#15803d', flexShrink: 0
+                    }}>
+                      <BookOpen size={18} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.875rem', fontWeight: 600 }}>Butuh panduan koneksi ke Google Cloud / Vertex AI / Gemini?</div>
+                      <div style={{ fontSize: '0.775rem', color: '#166534', opacity: 0.85 }}>
+                        Pelajari cara mendapatkan API Key, GCP Project ID, serta integrasi Vision QC & Copilot.
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('guide')}
+                    style={{
+                      padding: '7px 16px', borderRadius: '4px', border: 'none',
+                      backgroundColor: '#15803d', color: '#fff', fontSize: '0.8rem',
+                      fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center',
+                      gap: '6px', transition: 'all 0.15s'
+                    }}
+                  >
+                    Buka Menu Panduan <ArrowRight size={14} />
+                  </button>
                 </div>
 
                 {/* Settings Grid */}
@@ -707,6 +778,559 @@ const AiSettings = () => {
                   </div>
 
                 </div>
+              </div>
+            )}
+
+            {/* TAB: PANDUAN & TUTORIAL AI */}
+            {activeTab === 'guide' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                
+                {/* Header Guide */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{
+                        padding: '3px 8px', borderRadius: '4px', backgroundColor: '#e6f7f7',
+                        color: '#017E84', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase'
+                      }}>
+                        Tutorial & Dokumentasi
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: '#6c757d' }}>MAVI AI Intelligence Hub</span>
+                    </div>
+                    <h2 style={{ fontSize: '1.35rem', fontWeight: 700, color: '#212529', margin: '4px 0 0 0' }}>
+                      Panduan Koneksi AI & Model MES
+                    </h2>
+                    <p style={{ fontSize: '0.85rem', color: '#6c757d', margin: 0 }}>
+                      Ikuti petunjuk di bawah untuk menghubungkan provider kecerdasan buatan ke seluruh modul MAVI MES.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('ai')}
+                    style={{
+                      padding: '8px 16px', borderRadius: '4px', border: '1px solid #dee2e6',
+                      backgroundColor: '#fff', color: '#017E84', fontSize: '0.85rem',
+                      fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                    }}
+                  >
+                    Kembali ke Konfigurasi <ChevronRight size={14} />
+                  </button>
+                </div>
+
+                {/* Platform Selector Buttons */}
+                <div style={{
+                  display: 'flex', gap: '8px', padding: '4px', backgroundColor: '#f0f2f5',
+                  borderRadius: '6px', overflowX: 'auto'
+                }}>
+                  {[
+                    { id: 'vertex', label: 'Google Cloud Vertex AI', icon: Cloud, badge: 'Enterprise' },
+                    { id: 'gemini', label: 'Google Gemini', icon: Sparkles, badge: 'Cepat & Gratis' },
+                    { id: 'openai_groq', label: 'OpenAI & Groq', icon: Zap, badge: 'High-Speed' },
+                    { id: 'ollama', label: 'Local AI (Ollama)', icon: Server, badge: 'Offline' },
+                    { id: 'faq', label: 'Troubleshooting & FAQ', icon: AlertCircle, badge: 'Solusi Error' }
+                  ].map(cat => {
+                    const isActive = guideCategory === cat.id;
+                    const Icon = cat.icon;
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setGuideCategory(cat.id)}
+                        style={{
+                          flex: 1, minWidth: '150px', padding: '10px 14px', borderRadius: '4px',
+                          border: 'none', backgroundColor: isActive ? '#fff' : 'transparent',
+                          color: isActive ? '#017E84' : '#495057', fontSize: '0.825rem',
+                          fontWeight: isActive ? 700 : 500, cursor: 'pointer',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px',
+                          boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                          transition: 'all 0.15s'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Icon size={16} />
+                          <span>{cat.label}</span>
+                        </div>
+                        <span style={{
+                          fontSize: '0.65rem', padding: '1px 6px', borderRadius: '10px',
+                          backgroundColor: isActive ? '#e6f7f7' : '#e9ecef',
+                          color: isActive ? '#017E84' : '#6c757d', fontWeight: 600
+                        }}>
+                          {cat.badge}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* SECTION 1: GOOGLE CLOUD VERTEX AI */}
+                {guideCategory === 'vertex' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    
+                    <div style={{
+                      padding: '20px', borderRadius: '6px', border: '1px solid #b8daff',
+                      backgroundColor: '#ebf8ff', display: 'flex', justifyContent: 'space-between',
+                      alignItems: 'center', flexWrap: 'wrap', gap: '16px'
+                    }}>
+                      <div style={{ maxWidth: '600px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#004085', fontWeight: 700, fontSize: '1rem' }}>
+                          <Cloud size={20} />
+                          Google Cloud Vertex AI Enterprise
+                        </div>
+                        <p style={{ fontSize: '0.85rem', color: '#004085', margin: '6px 0 0 0', lineHeight: 1.5 }}>
+                          Vertex AI menghubungkan MAVI MES langsung ke infrastruktur enterprise Google Cloud. Digunakan untuk zero-shot visual defect inspection (Vision QC), long-context synthesis telemetry pabrik (hingga 1M token), dan autonomous MES tool calling.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyTemplate('VertexAI', {
+                          projectId: 'mavi-mes-production',
+                          location: 'asia-southeast1',
+                          modelId: 'gemini-2.0-flash'
+                        })}
+                        style={{
+                          padding: '10px 18px', borderRadius: '4px', border: 'none',
+                          backgroundColor: '#0056b3', color: '#fff', fontSize: '0.85rem',
+                          fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center',
+                          gap: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                        }}
+                      >
+                        <Zap size={16} /> Terapkan Template Vertex AI
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#343a40', margin: 0 }}>Langkah-Langkah Setup Google Cloud Vertex AI:</h3>
+
+                      {/* Step 1 */}
+                      <div style={{ display: 'flex', gap: '16px', padding: '16px', border: '1px solid #e9ecef', borderRadius: '6px', backgroundColor: '#fdfdfd' }}>
+                        <div style={{
+                          width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#017E84',
+                          color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontWeight: 700, fontSize: '0.85rem', flexShrink: 0
+                        }}>1</div>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#212529' }}>Buka Google Cloud Console & Siapkan Project</div>
+                          <div style={{ fontSize: '0.825rem', color: '#6c757d', lineHeight: 1.5 }}>
+                            Kunjungi Google Cloud Console dan buat project baru atau gunakan project yang sudah ada. Catat <strong>Project ID</strong> Anda.
+                          </div>
+                          <a
+                            href="https://console.cloud.google.com"
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#017E84', fontSize: '0.8rem', fontWeight: 600, textDecoration: 'none', marginTop: '4px' }}
+                          >
+                            Buka Google Cloud Console <ExternalLink size={13} />
+                          </a>
+                        </div>
+                      </div>
+
+                      {/* Step 2 */}
+                      <div style={{ display: 'flex', gap: '16px', padding: '16px', border: '1px solid #e9ecef', borderRadius: '6px', backgroundColor: '#fdfdfd' }}>
+                        <div style={{
+                          width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#017E84',
+                          color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontWeight: 700, fontSize: '0.85rem', flexShrink: 0
+                        }}>2</div>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#212529' }}>Aktifkan Vertex AI API</div>
+                          <div style={{ fontSize: '0.825rem', color: '#6c757d', lineHeight: 1.5 }}>
+                            Di menu <strong>APIs & Services &gt; Enable APIs and Services</strong>, cari <code>Vertex AI API</code> dan klik <strong>ENABLE</strong>.
+                          </div>
+                          <div style={{
+                            padding: '8px 12px', backgroundColor: '#212529', color: '#38d9a9',
+                            borderRadius: '4px', fontFamily: 'monospace', fontSize: '0.775rem',
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px'
+                          }}>
+                            <span>gcloud services enable aiplatform.googleapis.com</span>
+                            <button
+                              type="button"
+                              onClick={() => handleCopySnippet('gcloud services enable aiplatform.googleapis.com', 'gcloud_enable')}
+                              style={{ background: 'none', border: 'none', color: '#adb5bd', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            >
+                              {copiedSnippet === 'gcloud_enable' ? <Check size={14} color="#38d9a9" /> : <Copy size={14} />}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Step 3 */}
+                      <div style={{ display: 'flex', gap: '16px', padding: '16px', border: '1px solid #e9ecef', borderRadius: '6px', backgroundColor: '#fdfdfd' }}>
+                        <div style={{
+                          width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#017E84',
+                          color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontWeight: 700, fontSize: '0.85rem', flexShrink: 0
+                        }}>3</div>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#212529' }}>Buat Kredensial (API Key / Service Account)</div>
+                          <div style={{ fontSize: '0.825rem', color: '#6c757d', lineHeight: 1.5 }}>
+                            Untuk direct call via REST API: Buat <strong>API Key</strong> di <i>APIs & Services &gt; Credentials</i> (batasi ke Vertex AI API), atau jika menggunakan gateway backend, gunakan Service Account dengan role <code>roles/aiplatform.user</code>.
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Step 4 */}
+                      <div style={{ display: 'flex', gap: '16px', padding: '16px', border: '1px solid #e9ecef', borderRadius: '6px', backgroundColor: '#fdfdfd' }}>
+                        <div style={{
+                          width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#017E84',
+                          color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontWeight: 700, fontSize: '0.85rem', flexShrink: 0
+                        }}>4</div>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#212529' }}>Isi Form di Tab AI Configuration</div>
+                          <div style={{ fontSize: '0.825rem', color: '#6c757d', lineHeight: 1.5 }}>
+                            Pilih Provider <strong>Vertex AI (GCP)</strong>, lalu masukkan:
+                          </div>
+                          <ul style={{ margin: '4px 0 0 0', paddingLeft: '20px', fontSize: '0.825rem', color: '#495057', lineHeight: 1.6 }}>
+                            <li><strong>GCP Project ID:</strong> Project ID Google Cloud Anda (misal: <code>mavi-factory-prod</code>).</li>
+                            <li><strong>Location / Region:</strong> <code>asia-southeast1</code> (Singapura/Jakarta) untuk latensi tercepat ke pabrik di Indonesia.</li>
+                            <li><strong>API Key / Bearer Token:</strong> Masukkan kunci yang sudah dibuat.</li>
+                            <li><strong>Model ID:</strong> <code>gemini-2.0-flash</code> (Super cepat untuk Vision QC) atau <code>gemini-1.5-pro</code>.</li>
+                          </ul>
+                          <div style={{ marginTop: '8px' }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleProviderSwitch('VertexAI');
+                                setActiveTab('ai');
+                              }}
+                              style={{
+                                padding: '6px 14px', borderRadius: '4px', border: '1px solid #017E84',
+                                backgroundColor: '#fff', color: '#017E84', fontSize: '0.8rem',
+                                fontWeight: 600, cursor: 'pointer'
+                              }}
+                            >
+                              Buka Form Vertex AI Sekarang &rarr;
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                )}
+
+                {/* SECTION 2: GOOGLE GEMINI */}
+                {guideCategory === 'gemini' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    
+                    <div style={{
+                      padding: '20px', borderRadius: '6px', border: '1px solid #d4edda',
+                      backgroundColor: '#f6fff8', display: 'flex', justifyContent: 'space-between',
+                      alignItems: 'center', flexWrap: 'wrap', gap: '16px'
+                    }}>
+                      <div style={{ maxWidth: '600px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#155724', fontWeight: 700, fontSize: '1rem' }}>
+                          <Sparkles size={20} />
+                          Google Gemini (Google AI Studio - Cara Paling Cepat & Gratis)
+                        </div>
+                        <p style={{ fontSize: '0.85rem', color: '#155724', margin: '6px 0 0 0', lineHeight: 1.5 }}>
+                          Rekomendasi utama untuk testing dan implementasi cepat. Dapatkan API Key gratis hanya dalam 1 menit tanpa perlu konfigurasi cloud yang kompleks.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyTemplate('Gemini', {
+                          modelId: 'gemini-3.8-flash'
+                        })}
+                        style={{
+                          padding: '10px 18px', borderRadius: '4px', border: 'none',
+                          backgroundColor: '#155724', color: '#fff', fontSize: '0.85rem',
+                          fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center',
+                          gap: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                        }}
+                      >
+                        <Zap size={16} /> Terapkan Template Gemini
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#343a40', margin: 0 }}>Langkah Mendapatkan Kunci Gemini:</h3>
+
+                      <div style={{ display: 'flex', gap: '16px', padding: '16px', border: '1px solid #e9ecef', borderRadius: '6px', backgroundColor: '#fdfdfd' }}>
+                        <div style={{
+                          width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#017E84',
+                          color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontWeight: 700, fontSize: '0.85rem', flexShrink: 0
+                        }}>1</div>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#212529' }}>Buka Google AI Studio</div>
+                          <div style={{ fontSize: '0.825rem', color: '#6c757d', lineHeight: 1.5 }}>
+                            Kunjungi Google AI Studio dan login menggunakan akun Google Anda.
+                          </div>
+                          <a
+                            href="https://aistudio.google.com/app/apikey"
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#017E84', fontSize: '0.8rem', fontWeight: 600, textDecoration: 'none' }}
+                          >
+                            Buka aistudio.google.com/app/apikey <ExternalLink size={13} />
+                          </a>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '16px', padding: '16px', border: '1px solid #e9ecef', borderRadius: '6px', backgroundColor: '#fdfdfd' }}>
+                        <div style={{
+                          width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#017E84',
+                          color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontWeight: 700, fontSize: '0.85rem', flexShrink: 0
+                        }}>2</div>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#212529' }}>Klik tombol "Create API Key"</div>
+                          <div style={{ fontSize: '0.825rem', color: '#6c757d', lineHeight: 1.5 }}>
+                            Pilih opsi <i>"Create API key in new project"</i>. Kunci akan muncul dalam format <code>AIzaSy...</code>. Salin kunci tersebut.
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '16px', padding: '16px', border: '1px solid #e9ecef', borderRadius: '6px', backgroundColor: '#fdfdfd' }}>
+                        <div style={{
+                          width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#017E84',
+                          color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontWeight: 700, fontSize: '0.85rem', flexShrink: 0
+                        }}>3</div>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#212529' }}>Paste ke Tab AI Configuration & Test Connection</div>
+                          <div style={{ fontSize: '0.825rem', color: '#6c757d', lineHeight: 1.5 }}>
+                            Kembali ke tab <strong>AI Configuration</strong>, pastikan Provider adalah <strong>Gemini</strong>, paste API Key Anda, lalu klik <strong>Verify & Retrieve Models</strong>. MAVI MES otomatis memuat model-model aktif seperti <code>gemini-3.8-flash</code>.
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '16px', padding: '16px', border: '1px solid #e9ecef', borderRadius: '6px', backgroundColor: '#fdfdfd' }}>
+                        <div style={{
+                          width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#017E84',
+                          color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontWeight: 700, fontSize: '0.85rem', flexShrink: 0
+                        }}>4</div>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#212529' }}>Klik Tombol SAVE di Atas</div>
+                          <div style={{ fontSize: '0.825rem', color: '#6c757d', lineHeight: 1.5 }}>
+                            Simpan konfigurasi. Seluruh fitur AI di MAVI MES (Copilot, Vision, Predictive Maintenance) akan langsung aktif!
+                          </div>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                )}
+
+                {/* SECTION 3: OPENAI & GROQ */}
+                {guideCategory === 'openai_groq' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    <div style={{
+                      padding: '20px', borderRadius: '6px', border: '1px solid #fed7aa',
+                      backgroundColor: '#fffbeb', display: 'flex', justifyContent: 'space-between',
+                      alignItems: 'center', flexWrap: 'wrap', gap: '16px'
+                    }}>
+                      <div style={{ maxWidth: '600px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#9a3412', fontWeight: 700, fontSize: '1rem' }}>
+                          <Zap size={20} />
+                          OpenAI (GPT-4o) & Groq (Ultra-Fast Llama 3)
+                        </div>
+                        <p style={{ fontSize: '0.85rem', color: '#9a3412', margin: '6px 0 0 0', lineHeight: 1.5 }}>
+                          Gunakan <strong>Groq</strong> untuk respon AI sub-detik (300+ token/detik) dengan model Llama 3.1 70B, atau <strong>OpenAI</strong> untuk standar GPT-4o mini.
+                        </p>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleApplyTemplate('Groq', { modelId: 'llama-3.1-70b-versatile' })}
+                          style={{
+                            padding: '8px 14px', borderRadius: '4px', border: 'none',
+                            backgroundColor: '#ea580c', color: '#fff', fontSize: '0.825rem',
+                            fontWeight: 600, cursor: 'pointer'
+                          }}
+                        >
+                          Template Groq
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleApplyTemplate('OpenAI', { modelId: 'gpt-4o-mini' })}
+                          style={{
+                            padding: '8px 14px', borderRadius: '4px', border: 'none',
+                            backgroundColor: '#10a37f', color: '#fff', fontSize: '0.825rem',
+                            fontWeight: 600, cursor: 'pointer'
+                          }}
+                        >
+                          Template OpenAI
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div style={{ padding: '16px', border: '1px solid #e9ecef', borderRadius: '6px', backgroundColor: '#fff' }}>
+                        <h4 style={{ margin: '0 0 8px 0', fontSize: '0.95rem', color: '#212529', fontWeight: 700 }}>Groq (Super Cepat)</h4>
+                        <ol style={{ margin: 0, paddingLeft: '20px', fontSize: '0.825rem', color: '#495057', lineHeight: 1.6 }}>
+                          <li>Buka <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{ color: '#017E84' }}>console.groq.com</a></li>
+                          <li>Login &amp; buka menu <strong>API Keys</strong></li>
+                          <li>Klik <strong>Create API Key</strong> dan salin kodenya</li>
+                          <li>Di AI Configuration, pilih Provider <strong>Grok</strong></li>
+                          <li>Paste API Key dan pilih model <code>llama-3.1-70b-versatile</code></li>
+                        </ol>
+                      </div>
+                      <div style={{ padding: '16px', border: '1px solid #e9ecef', borderRadius: '6px', backgroundColor: '#fff' }}>
+                        <h4 style={{ margin: '0 0 8px 0', fontSize: '0.95rem', color: '#212529', fontWeight: 700 }}>OpenAI</h4>
+                        <ol style={{ margin: 0, paddingLeft: '20px', fontSize: '0.825rem', color: '#495057', lineHeight: 1.6 }}>
+                          <li>Buka <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer" style={{ color: '#017E84' }}>platform.openai.com/api-keys</a></li>
+                          <li>Buat secret key baru (format <code>sk-...</code>)</li>
+                          <li>Pastikan akun Anda memiliki kredit aktif</li>
+                          <li>Di AI Configuration, pilih Provider <strong>Openai</strong></li>
+                          <li>Paste API Key dan pilih model <code>gpt-4o-mini</code></li>
+                        </ol>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* SECTION 4: OLLAMA LOCAL AI */}
+                {guideCategory === 'ollama' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    <div style={{
+                      padding: '20px', borderRadius: '6px', border: '1px solid #e2e8f0',
+                      backgroundColor: '#f8fafc', display: 'flex', justifyContent: 'space-between',
+                      alignItems: 'center', flexWrap: 'wrap', gap: '16px'
+                    }}>
+                      <div style={{ maxWidth: '600px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#334155', fontWeight: 700, fontSize: '1rem' }}>
+                          <Server size={20} />
+                          Local AI (Ollama) - Offline &amp; On-Premise Pabrik
+                        </div>
+                        <p style={{ fontSize: '0.85rem', color: '#475569', margin: '6px 0 0 0', lineHeight: 1.5 }}>
+                          Solusi ideal untuk pabrik dengan standar kerahasiaan data tinggi atau jaringan air-gapped tanpa internet. LLM dijalankan langsung di server lokal pabrik.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyTemplate('Ollama', {
+                          baseUrl: 'http://localhost:11434/v1',
+                          modelId: 'llama3'
+                        })}
+                        style={{
+                          padding: '10px 18px', borderRadius: '4px', border: 'none',
+                          backgroundColor: '#334155', color: '#fff', fontSize: '0.85rem',
+                          fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center',
+                          gap: '8px'
+                        }}
+                      >
+                        <Zap size={16} /> Terapkan Template Ollama
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#343a40', margin: 0 }}>Langkah Menjalankan Ollama:</h3>
+
+                      <div style={{ display: 'flex', gap: '16px', padding: '16px', border: '1px solid #e9ecef', borderRadius: '6px', backgroundColor: '#fdfdfd' }}>
+                        <div style={{
+                          width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#017E84',
+                          color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontWeight: 700, fontSize: '0.85rem', flexShrink: 0
+                        }}>1</div>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#212529' }}>Install Ollama di Server Lokal</div>
+                          <div style={{ fontSize: '0.825rem', color: '#6c757d', lineHeight: 1.5 }}>
+                            Download dan install installer Ollama dari situs resmi <a href="https://ollama.com" target="_blank" rel="noreferrer" style={{ color: '#017E84' }}>ollama.com</a>.
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '16px', padding: '16px', border: '1px solid #e9ecef', borderRadius: '6px', backgroundColor: '#fdfdfd' }}>
+                        <div style={{
+                          width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#017E84',
+                          color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontWeight: 700, fontSize: '0.85rem', flexShrink: 0
+                        }}>2</div>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#212529' }}>Jalankan Model AI di Terminal Pabrik</div>
+                          <div style={{ fontSize: '0.825rem', color: '#6c757d', lineHeight: 1.5 }}>
+                            Jalankan perintah berikut di PowerShell atau Command Prompt server:
+                          </div>
+                          <div style={{
+                            padding: '8px 12px', backgroundColor: '#212529', color: '#38d9a9',
+                            borderRadius: '4px', fontFamily: 'monospace', fontSize: '0.775rem',
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px'
+                          }}>
+                            <span>ollama run llama3</span>
+                            <button
+                              type="button"
+                              onClick={() => handleCopySnippet('ollama run llama3', 'ollama_cmd')}
+                              style={{ background: 'none', border: 'none', color: '#adb5bd', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            >
+                              {copiedSnippet === 'ollama_cmd' ? <Check size={14} color="#38d9a9" /> : <Copy size={14} />}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '16px', padding: '16px', border: '1px solid #e9ecef', borderRadius: '6px', backgroundColor: '#fdfdfd' }}>
+                        <div style={{
+                          width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#017E84',
+                          color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontWeight: 700, fontSize: '0.85rem', flexShrink: 0
+                        }}>3</div>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#212529' }}>Hubungkan ke MAVI MES</div>
+                          <div style={{ fontSize: '0.825rem', color: '#6c757d', lineHeight: 1.5 }}>
+                            Pilih Provider <strong>Local AI (Ollama)</strong>, isi Base URL dengan <code>http://localhost:11434/v1</code> (atau IP server internal), lalu klik <strong>Verify</strong> dan <strong>SAVE</strong>.
+                          </div>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                )}
+
+                {/* SECTION 5: FAQ & TROUBLESHOOTING */}
+                {guideCategory === 'faq' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    
+                    <div style={{ padding: '16px', borderRadius: '6px', backgroundColor: '#f8f9fa', border: '1px solid #dee2e6' }}>
+                      <h4 style={{ margin: '0 0 6px 0', fontSize: '0.95rem', color: '#c92a2a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <AlertCircle size={18} /> Error: "403 / API Key not valid"
+                      </h4>
+                      <p style={{ margin: 0, fontSize: '0.825rem', color: '#495057', lineHeight: 1.5 }}>
+                        <strong>Penyebab:</strong> Kunci API salah ketik atau belum diaktifkan izinnya.<br />
+                        <strong>Solusi:</strong> Jika menggunakan Google Gemini, buat kunci baru di <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style={{ color: '#017E84' }}>Google AI Studio</a>. Jika menggunakan Vertex AI, pastikan API <code>aiplatform.googleapis.com</code> sudah aktif pada Google Cloud Console.
+                      </p>
+                    </div>
+
+                    <div style={{ padding: '16px', borderRadius: '6px', backgroundColor: '#f8f9fa', border: '1px solid #dee2e6' }}>
+                      <h4 style={{ margin: '0 0 6px 0', fontSize: '0.95rem', color: '#d97706', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <AlertCircle size={18} /> Error: "429 / Quota Exceeded / Resource Exhausted"
+                      </h4>
+                      <p style={{ margin: 0, fontSize: '0.825rem', color: '#495057', lineHeight: 1.5 }}>
+                        <strong>Penyebab:</strong> Batas limit gratis per menit (RPM/TPM) dari provider telah tercapai.<br />
+                        <strong>Solusi:</strong> MAVI MES otomatis melakukan failover ke model backup. Namun untuk produksi pabrik 24/7, disarankan beralih ke <strong>Google Cloud Vertex AI</strong> dengan billing aktif untuk quota enterprise unlimited.
+                      </p>
+                    </div>
+
+                    <div style={{ padding: '16px', borderRadius: '6px', backgroundColor: '#f8f9fa', border: '1px solid #dee2e6' }}>
+                      <h4 style={{ margin: '0 0 6px 0', fontSize: '0.95rem', color: '#099268', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <ShieldCheck size={18} /> Di Mana Saja AI Digunakan di MAVI MES?
+                      </h4>
+                      <div style={{ marginTop: '8px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px' }}>
+                        <div style={{ padding: '10px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #dee2e6' }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.825rem', color: '#212529' }}>Vision Camera QC</div>
+                          <div style={{ fontSize: '0.75rem', color: '#6c757d' }}>Deteksi cacat zero-shot multimodal pada produk/kemasan</div>
+                        </div>
+                        <div style={{ padding: '10px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #dee2e6' }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.825rem', color: '#212529' }}>Builder Copilot</div>
+                          <div style={{ fontSize: '0.75rem', color: '#6c757d' }}>Membuat UI, widget, dan form secara otomatis via percakapan</div>
+                        </div>
+                        <div style={{ padding: '10px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #dee2e6' }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.825rem', color: '#212529' }}>Text-to-SQL Analytics</div>
+                          <div style={{ fontSize: '0.75rem', color: '#6c757d' }}>Query data produksi OEE & downtime dengan bahasa alami</div>
+                        </div>
+                        <div style={{ padding: '10px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #dee2e6' }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.825rem', color: '#212529' }}>Predictive Maintenance</div>
+                          <div style={{ fontSize: '0.75rem', color: '#6c757d' }}>Analisis sensor getaran & suhu mesin untuk cegah breakdown</div>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                )}
+
               </div>
             )}
           </div>

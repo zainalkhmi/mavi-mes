@@ -444,6 +444,19 @@ export default function QuickBuildMonitor({
                         </g>
                     ))}
 
+                    {nodes?.filter(n => n.type === 'grid_calibration' && n.params?.showGrid !== false).map(n => (
+                        <g key={n.id} opacity="0.6">
+                            {[15, 30, 45, 60, 75, 90].map(pct => (
+                                <line key={`gx_${pct}`} x1={`${pct}%`} y1="0%" x2={`${pct}%`} y2="100%" stroke="#8b5cf6" strokeWidth="0.8" strokeDasharray="3 3" />
+                            ))}
+                            {[20, 40, 60, 80].map(pct => (
+                                <line key={`gy_${pct}`} x1="0%" y1={`${pct}%`} x2="100%" y2={`${pct}%`} stroke="#8b5cf6" strokeWidth="0.8" strokeDasharray="3 3" />
+                            ))}
+                            <rect x="10" y="10" width="130" height="20" rx="4" fill="rgba(15, 23, 42, 0.75)" />
+                            <text x="16" y="24" fill="#c084fc" fontSize="9" fontWeight="bold">Grid: 1px = {(1 / (n.params?.pxPerMm || 4.25)).toFixed(3)}mm</text>
+                        </g>
+                    ))}
+
                     {nodes?.filter(n => n.type === 'dpm_enhancer').map(n => (
                         <g key={n.id}>
                             <rect x="25%" y="65%" width="50%" height="25%" fill="rgba(168, 85, 247, 0.1)" stroke="#a855f7" strokeWidth="1.5" strokeDasharray="4 4" />

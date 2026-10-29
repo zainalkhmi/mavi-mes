@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 
 import { useNavigate } from 'react-router-dom';
+import { createAiVisionCopilotDashboardTemplate } from '../utils/aiVisionCopilotDashboardTemplate';
 import { createIncomingInspectionTemplate } from '../utils/incomingInspectionTemplate';
 import { createWeighDispenseTemplate } from '../utils/weighDispenseTemplate';
 import { createVisionInspectionTemplate } from '../utils/visionInspectionTemplate';
@@ -392,7 +393,9 @@ const AppStore = () => {
 
         const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             t.description.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesCategory = activeCategory === 'All' || t.category === activeCategory;
+        const isBuilderCupMatch = (activeCategory === '🏆 Builder Cup' || activeCategory === 'Builder Cup') && 
+            (t.isBuilderCup || t.category === '🏆 Builder Cup' || t.category === 'Builder Cup' || Boolean(t.builderCupRole));
+        const matchesCategory = activeCategory === 'All' || t.category === activeCategory || isBuilderCupMatch;
         const isArchived = archivedTemplates.includes(t.id);
         if (!isAdmin && isArchived) return false;
         return matchesSearch && matchesCategory;
@@ -436,6 +439,34 @@ const AppStore = () => {
                     templateApp.config.appTables = tableIds;
                 } catch (skErr) {
                     console.warn('Could not setup skill tables:', skErr);
+                }
+            } else if (templateId === 'ai-vision-copilot-dashboard') {
+                templateApp = createAiVisionCopilotDashboardTemplate();
+                try {
+                    const bqTable = await getOrCreateTableAndSeed(allTables, {
+                        name: 'BigQuery_Vision_Quality_Events',
+                        fields: [
+                            { name: 'event_id', type: 'text' },
+                            { name: 'work_order', type: 'text' },
+                            { name: 'lot_number', type: 'text' },
+                            { name: 'part_sku', type: 'text' },
+                            { name: 'defect_type', type: 'text' },
+                            { name: 'verdict', type: 'text' },
+                            { name: 'confidence', type: 'number' },
+                            { name: 'copilot_root_cause', type: 'text' },
+                            { name: 'sop_action', type: 'text' },
+                            { name: 'scrap_saved_kg', type: 'number' },
+                            { name: 'timestamp', type: 'datetime' },
+                            { name: 'bigquery_synced', type: 'boolean' }
+                        ]
+                    });
+                    if (bqTable && bqTable.id) {
+                        const appStr = JSON.stringify(templateApp).replace(/BigQuery_Vision_Quality_Events/g, bqTable.id);
+                        templateApp = JSON.parse(appStr);
+                        templateApp.config.appTables = [bqTable.id];
+                    }
+                } catch (bqErr) {
+                    console.warn('Could not setup BigQuery quality events table:', bqErr);
                 }
             } else if (templateId === 'quickstart-hello-world') {
                 templateApp = createQuickStartHelloWorldTemplate();
@@ -3411,22 +3442,45 @@ const AppStore = () => {
 
                 {/* CATEGORIES */}
                 <div style={{ display: 'flex', gap: '8px', marginBottom: '40px', overflowX: 'auto', paddingBottom: '10px' }}>
-                    {categories.map(cat => (
-                        <button
-                            key={cat}
-                            onClick={() => setActiveCategory(cat)}
-                            style={{
-                                padding: '10px 24px', borderRadius: '100px',
-                                backgroundColor: activeCategory === cat ? '#0f172a' : 'white',
-                                color: activeCategory === cat ? 'white' : '#64748b',
-                                fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer',
-                                transition: 'all 0.2s', boxShadow: activeCategory === cat ? '0 4px 12px rgba(15,23,42,0.2)' : '0 1px 3px rgba(0,0,0,0.05)',
-                                whiteSpace: 'nowrap', border: activeCategory === cat ? 'none' : '1px solid #e2e8f0'
-                            }}
-                        >
-                            {cat}
-                        </button>
-                    ))}
+                    {categories.map(cat => {
+                        const isBuilderCupBtn = cat === '🏆 Builder Cup' || cat === 'Builder Cup';
+                        const isSelected = activeCategory === cat;
+                        
+                        let btnBg = isSelected ? '#0f172a' : 'white';
+                        let btnColor = isSelected ? 'white' : '#64748b';
+                        let btnBorder = isSelected ? 'none' : '1px solid #e2e8f0';
+                        let btnShadow = isSelected ? '0 4px 12px rgba(15,23,42,0.2)' : '0 1px 3px rgba(0,0,0,0.05)';
+
+                        if (isBuilderCupBtn) {
+                            if (isSelected) {
+                                btnBg = 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #db2777 100%)';
+                                btnColor = 'white';
+                                btnBorder = 'none';
+                                btnShadow = '0 6px 18px rgba(124,58,237,0.4)';
+                            } else {
+                                btnBg = '#f5f3ff';
+                                btnColor = '#6d28d9';
+                                btnBorder = '1px solid #ddd6fe';
+                            }
+                        }
+
+                        return (
+                            <button
+                                key={cat}
+                                onClick={() => setActiveCategory(cat)}
+                                style={{
+                                    padding: '10px 24px', borderRadius: '100px',
+                                    background: btnBg,
+                                    color: btnColor,
+                                    fontWeight: isBuilderCupBtn ? 800 : 700, fontSize: '0.85rem', cursor: 'pointer',
+                                    transition: 'all 0.2s', boxShadow: btnShadow,
+                                    whiteSpace: 'nowrap', border: btnBorder
+                                }}
+                            >
+                                {cat}
+                            </button>
+                        );
+                    })}
                 </div>
 
                 {/* TEMPLATE GRID */}
@@ -3452,6 +3506,19 @@ const AppStore = () => {
                         >
                             {/* Card Top: Gradient & Icon */}
                             <div style={{ height: '140px', background: t.bg, padding: '24px', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                {(t.isBuilderCup || t.builderCupRole) && (
+                                    <div style={{
+                                        position: 'absolute', top: '14px', left: '14px',
+                                        padding: '4px 10px', borderRadius: '100px',
+                                        background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #db2777 100%)',
+                                        color: '#ffffff', fontSize: '0.62rem', fontWeight: 900,
+                                        letterSpacing: '0.5px', boxShadow: '0 4px 12px rgba(124, 58, 237, 0.35)',
+                                        display: 'flex', alignItems: 'center', gap: '4px', zIndex: 2
+                                    }}>
+                                        <span>🏆 BUILDER CUP</span>
+                                        {t.builderCupRole && <span style={{ opacity: 0.9, fontWeight: 700 }}>• {t.builderCupRole}</span>}
+                                    </div>
+                                )}
                                 <div style={{
                                     width: '64px', height: '64px', borderRadius: '18px', backgroundColor: 'white',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',

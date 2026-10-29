@@ -2,11 +2,12 @@ import React from 'react';
 import {
     Award, Sparkles, Activity, Search, ClipboardList, Package, Cpu,
     Boxes, Wrench, ArrowRight, FileText, Truck, PlayCircle, HeartPulse,
-    Settings, Layout, Zap, Sliders, BarChart3, ShieldCheck, ShieldAlert, Tag, Smartphone, FolderArchive, GraduationCap, Ruler
+    Settings, Layout, Zap, Sliders, BarChart3, ShieldCheck, ShieldAlert, Tag, Smartphone, FolderArchive, GraduationCap, Ruler, Camera
 } from 'lucide-react';
 
 export const categories = [
     'All',
+    '🏆 Builder Cup',
     'Mobile',
     'App Management',
     'Quality',
@@ -22,6 +23,44 @@ export const categories = [
 ];
 
 export const rawTemplates = [
+    {
+        id: 'ai-vision-copilot-dashboard',
+        name: 'AI Vision Quality, Gemini Copilot & BigQuery Dashboard',
+        category: 'Quality',
+        isBuilderCup: true,
+        builderCupRole: 'Flagship AI & Gemini Copilot',
+        description: 'Solusi AI lengkap Google Cloud: Inspeksi visual otomatis (Vision AI), penalaran akar masalah Gemini on Vertex AI, dan analitik BigQuery real-time.',
+        longDescription: 'Aplikasi flagship industri berdaya AI terintegrasi Google Cloud. Menggabungkan 3 pilar: Stasiun Inspeksi Kualitas Visual Kamera (deteksi goresan, cacat dimensi, baut hilang), Asisten Operasional Gemini Copilot untuk diagnosa penyebab dan mitigasi scrap, serta Executive Dashboard telemetri OEE & audit log BigQuery.',
+        icon: <Camera size={28} color="#6366f1" />,
+        bg: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)',
+        accent: '#6366f1',
+        rating: 5.0,
+        installs: '5.8k',
+        targetRoute: '/builder',
+        features: [
+            'Visual Quality Inspection (Vision AI): Deteksi cacat permukaan, missing fastener, weld porosity',
+            'Gemini on Vertex AI Copilot: Analisis akar masalah (root cause) & panduan SOP operator',
+            'Sustainability & Waste Reduction: Kalkulator pencegahan scrap (kg) dan emisi karbon',
+            'Real-Time BigQuery Telemetry: Log audit inspeksi otomatis via Cloud Pub/Sub stream',
+            '4 KPI Industri: Total Diinspeksi, First-Pass Yield (FPY %), Scrap Rate %, OEE %',
+            'Multi-Step Frontline Workflow: Setup Lot -> Visual Inspection -> Copilot -> Executive Dashboard'
+        ],
+        guide: {
+            operation: '1. Input Work Order, Lot Number, dan SKU di Step 1 Setup.\n2. Arahkan part ke kamera pada Step 2 untuk deteksi otomatis bounding box dan kriteria toleransi PASS/FAIL.\n3. Konsultasi rekomendasi perbaikan dan SOP di Step 3 Gemini Copilot.\n4. Pantau performa OEE, Pareto cacat, dan ekspor event stream BigQuery di Step 4.',
+            widgets: ['Optical Camera (OpenCV/Vision)', 'Gemini AI Chat Copilot', 'Quality Tolerance Evaluator', 'Interactive Table (BigQuery)', 'KPI Metrics Cards'],
+            components: ['OPENCV_CAMERA', 'AI_CHAT', 'INTERACTIVE_TABLE', 'TEXT_INPUT', 'BUTTON with Triggers'],
+            tables: [
+                {
+                    name: 'BigQuery_Vision_Quality_Events',
+                    description: 'Audit log inspeksi real-time: event_id, work_order, lot, sku, defect_type, verdict, confidence, copilot_root_cause, scrap_saved_kg, timestamp.'
+                }
+            ],
+            triggers: [
+                { event: 'ON_APP_START', function: 'Menginisialisasi pipeline kamera Vision AI dan koneksi Vertex AI.' },
+                { event: 'ON_CLICK', function: 'Menjalankan navigasi antar stasiun dan sinkronisasi log audit ke BigQuery.' }
+            ]
+        }
+    },
     {
         id: 'checksheet-management-suite',
         name: 'Checksheet Management (ISO 9001 / IATF 16949)',
@@ -175,6 +214,8 @@ export const rawTemplates = [
         id: 'production-plant-dashboard',
         name: 'Production Plant Dashboard & Cell Tracker',
         category: 'MES Production Suite',
+        isBuilderCup: true,
+        builderCupRole: 'Production Optimization & OEE',
         description: 'Complete plant production dashboard with 6-cell status tracking (Complete, Target, Defects), 4 Top KPIs, Cell Loading, Downtime Pareto analytics, Orders by Status, and WIP inventory tracking with live shopfloor input form.',
         longDescription: 'Comprehensive production plant operational dashboard and frontline terminal. Visualizes real-time performance across production cells (Rotor, Endbell, Housing, Motor Assembly, Final Inspection, Shipping), orders due today, backlog, and Pareto downtime analytics with an integrated Shopfloor Data Entry mode.',
         icon: <BarChart3 size={28} color="#3b82f6" />,
@@ -274,6 +315,8 @@ export const rawTemplates = [
         id: 'vision-inspection-suite',
         name: 'Cognitive Vision & QC Suite',
         category: 'Drawing/Check Sheet',
+        isBuilderCup: true,
+        builderCupRole: 'Visual Quality & Metrology',
         description: 'Automated vision inspection system utilizing edge detection, dial gauge needles, digital calipers (OCR), part counting, and barcode scanning in real-time.',
         longDescription: 'Deploy computer vision algorithms to automate quality control checks. Features pre-configured steps for caliper OCR reading, dial gauge pointer angle analysis, part counting, laser scanner barcode verification, and green/red quality pass/fail overlays. Automatically commits inspection records to database logs.',
         icon: <Activity size={28} color="#7c3aed" />,
@@ -565,6 +608,8 @@ export const rawTemplates = [
         id: 'andon-system',
         name: 'Andon Alert System',
         category: 'Manufacturing',
+        isBuilderCup: true,
+        builderCupRole: 'Operational Efficiency & Rapid Alert',
         description: 'Empower operators to instantly raise issues, notify support teams, and track resolution metrics.',
         longDescription: 'A complete Andon system for manufacturing lines. Includes a large touch-friendly operator call board, a central dashboard for supervisors to acknowledge and track active issues, and a resolution form to capture root causes and downtime metrics.',
         icon: <Activity size={28} color="#f59e0b" />,
@@ -630,6 +675,8 @@ export const rawTemplates = [
         id: 'defect-tracking',
         name: 'Defect Tracking',
         category: 'Quality',
+        isBuilderCup: true,
+        builderCupRole: 'Predictive Defect & Anomaly Analytics',
         description: 'Report and monitor defect events effectively, organize defect events, and provide rework details.',
         longDescription: 'A complete defect tracking system inspired by standard manufacturing quality apps. Users can log defects, generate printable labels with barcodes, view defect details, and manage rework dispositions.',
         icon: <ShieldAlert size={28} color="#dc2626" />,
@@ -691,6 +738,8 @@ export const rawTemplates = [
         id: 'kanban-suite',
         name: 'Kanban App Suite',
         category: 'Manufacturing',
+        isBuilderCup: true,
+        builderCupRole: 'Supply-Chain & Waste Reduction',
         description: 'Lean manufacturing kanban system with card manager, material consumption, water spider, and supplier flows.',
         longDescription: 'The Kanban app suite offers a lean and efficient framework tailored for material management, integrating the concept of "Kanban loops" to establish replenishment relationships between suppliers and consumers through customizable bins/cards. Includes Kanban Manager, Material Consumption, Water Spider, and Material Supplier modules seamlessly integrated.',
         icon: <ArrowRight size={28} color="#2563eb" />,

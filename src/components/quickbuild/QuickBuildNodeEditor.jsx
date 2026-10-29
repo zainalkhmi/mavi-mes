@@ -782,6 +782,28 @@ export default function QuickBuildNodeEditor({
                     <Field label="Max Defects Allowed"><input type="number" value={selectedNode.params.maxDefects || 5} onChange={e => updateParam('maxDefects', Number(e.target.value))} style={inputStyle} /></Field>
                 </>)}
 
+                {/* ── GRID CALIBRATION ───────────────────── */}
+                {selectedNode.type === 'grid_calibration' && (<>
+                    <Field label="Calibration Mode">
+                        <select value={selectedNode.params.calibMode || 'Checkerboard Grid'} onChange={e => updateParam('calibMode', e.target.value)} style={selectStyle}>
+                            <option>Checkerboard Grid</option>
+                            <option>Dot Grid Target</option>
+                            <option>Manual 2-Point Reference</option>
+                        </select>
+                    </Field>
+                    <Row>
+                        <Field label="Pixels per mm (px/mm)"><input type="number" step="0.01" min={0.1} value={selectedNode.params.pxPerMm || 4.25} onChange={e => updateParam('pxPerMm', Number(e.target.value))} style={inputStyle} /></Field>
+                        <Field label="Target 1px = mm"><input type="text" readOnly value={`${(1 / (selectedNode.params.pxPerMm || 4.25)).toFixed(4)} mm`} style={{ ...inputStyle, backgroundColor: '#f1f5f9', color: '#64748b' }} /></Field>
+                    </Row>
+                    <Row>
+                        <Field label="Origin X (px)"><input type="number" value={selectedNode.params.originX || 0} onChange={e => updateParam('originX', Number(e.target.value))} style={inputStyle} /></Field>
+                        <Field label="Origin Y (px)"><input type="number" value={selectedNode.params.originY || 0} onChange={e => updateParam('originY', Number(e.target.value))} style={inputStyle} /></Field>
+                    </Row>
+                    <Field label="Show Real-World Coordinate Grid">
+                        <ToggleSwitch checked={selectedNode.params.showGrid !== false} onChange={v => updateParam('showGrid', v)} />
+                    </Field>
+                </>)}
+
                 {/* ── BARCODE DPM ENHANCER ─────────────── */}
                 {selectedNode.type === 'dpm_enhancer' && (<>
                     <Field label="Local Adaptive Radius"><input type="number" min={3} max={99} step={2} value={selectedNode.params.localRadius || 15} onChange={e => updateParam('localRadius', Number(e.target.value))} style={inputStyle} /></Field>
