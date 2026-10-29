@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { agentManager, AGENT_TYPES, AGENT_CAPABILITIES, triggerAgentEvent } from '../utils/agentSystem';
 import { getPrimaryAiConnector } from '../utils/database';
+import VisualAgentBuilder from './VisualAgentBuilder';
 
 // Capability categories with manufacturing labels
 const CAPABILITY_CATEGORIES = {
@@ -954,6 +955,18 @@ window.maviAgentEngine.triggerAgentEvent('APP_ACTION', {
             Agent Studio
           </button>
           <button
+            onClick={() => setActiveTab('visual-builder')}
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              activeTab === 'visual-builder'
+                ? 'bg-purple-600 text-white shadow'
+                : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+            }`}
+          >
+            <Sparkles size={15} />
+            Visual Agent Builder
+            <span className="px-1.5 py-0.2 rounded text-[10px] bg-purple-900 text-purple-300 border border-purple-700">Canvas</span>
+          </button>
+          <button
             onClick={() => setActiveTab('triggers')}
             className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
               activeTab === 'triggers'
@@ -988,93 +1001,97 @@ window.maviAgentEngine.triggerAgentEvent('APP_ACTION', {
       </div>
 
       {/* Main Workspace */}
-      <div className="flex-1 flex gap-4 min-h-0">
-        {/* Left sidebar - Agent list */}
-        <div className="w-80 flex flex-col bg-gray-900 rounded-lg border border-gray-700 flex-shrink-0">
-          <div className="p-4 border-b border-gray-700">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-gray-200 flex items-center gap-2">
-                <Bot size={20} className="text-blue-400" />
-                AI Agents
-              </h2>
-              <button
-                onClick={handleCreateNew}
-                className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg"
-                title="Create new agent"
-              >
-                <Plus size={18} />
-              </button>
-            </div>
-            <div className="text-sm text-gray-500">
-              {agents.length} agent{agents.length !== 1 ? 's' : ''} configured
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-3 space-y-2">
-            {agents.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <Bot size={48} className="mx-auto mb-3 opacity-30" />
-                <p className="text-sm">No agents yet</p>
+      {activeTab === 'visual-builder' ? (
+        <VisualAgentBuilder onNavigateToAiSettings={() => navigate('/ai-settings')} />
+      ) : (
+        <div className="flex-1 flex gap-4 min-h-0">
+          {/* Left sidebar - Agent list */}
+          <div className="w-80 flex flex-col bg-gray-900 rounded-lg border border-gray-700 flex-shrink-0">
+            <div className="p-4 border-b border-gray-700">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-bold text-gray-200 flex items-center gap-2">
+                  <Bot size={20} className="text-blue-400" />
+                  AI Agents
+                </h2>
                 <button
                   onClick={handleCreateNew}
-                  className="mt-3 text-sm text-blue-400 hover:text-blue-300"
+                  className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg"
+                  title="Create new agent"
                 >
-                  Create your first agent
+                  <Plus size={18} />
                 </button>
               </div>
-            ) : (
-              agents.map(renderAgentCard)
-            )}
-          </div>
+              <div className="text-sm text-gray-500">
+                {agents.length} agent{agents.length !== 1 ? 's' : ''} configured
+              </div>
+            </div>
 
-          {/* Quick actions */}
-          <div className="p-3 border-t border-gray-700">
-            <div className="text-xs text-gray-600 mb-2">Quick Actions</div>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={loadAgents}
-                className="p-2 bg-gray-800 hover:bg-gray-700 rounded text-xs text-gray-400 flex items-center justify-center gap-1"
-                title="Muat ulang status agen"
-              >
-                <RotateCcw size={12} />
-                Refresh
-              </button>
-              <button
-                onClick={handleResetDefaults}
-                className="p-2 bg-gray-800 hover:bg-gray-700 rounded text-xs text-orange-400 flex items-center justify-center gap-1"
-                title="Muat ulang 5 Template Agen Standar Pabrik"
-              >
-                <Layers size={12} />
-                Seed Defaults
-              </button>
+            <div className="flex-1 overflow-y-auto p-3 space-y-2">
+              {agents.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <Bot size={48} className="mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">No agents yet</p>
+                  <button
+                    onClick={handleCreateNew}
+                    className="mt-3 text-sm text-blue-400 hover:text-blue-300"
+                  >
+                    Create your first agent
+                  </button>
+                </div>
+              ) : (
+                agents.map(renderAgentCard)
+              )}
+            </div>
+
+            {/* Quick actions */}
+            <div className="p-3 border-t border-gray-700">
+              <div className="text-xs text-gray-600 mb-2">Quick Actions</div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={loadAgents}
+                  className="p-2 bg-gray-800 hover:bg-gray-700 rounded text-xs text-gray-400 flex items-center justify-center gap-1"
+                  title="Muat ulang status agen"
+                >
+                  <RotateCcw size={12} />
+                  Refresh
+                </button>
+                <button
+                  onClick={handleResetDefaults}
+                  className="p-2 bg-gray-800 hover:bg-gray-700 rounded text-xs text-orange-400 flex items-center justify-center gap-1"
+                  title="Muat ulang 5 Template Agen Standar Pabrik"
+                >
+                  <Layers size={12} />
+                  Seed Defaults
+                </button>
+              </div>
             </div>
           </div>
+
+          {/* Center / Right Content */}
+          {activeTab === 'triggers' ? (
+            renderTriggersView()
+          ) : isEditing ? (
+            renderForm()
+          ) : selectedAgent ? (
+            renderAgentDetail()
+          ) : (
+            <div className="flex-1 flex items-center justify-center bg-gray-900 rounded-lg border border-gray-700">
+              <div className="text-center">
+                <Bot size={64} className="mx-auto mb-4 text-gray-700" />
+                <h3 className="text-xl font-bold text-gray-400 mb-2">Select an Agent</h3>
+                <p className="text-gray-600 mb-4">Choose an agent from the list to view details or test</p>
+                <button
+                  onClick={handleCreateNew}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center gap-2 mx-auto"
+                >
+                  <Plus size={18} />
+                  Create New Agent
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-
-        {/* Center / Right Content */}
-        {activeTab === 'triggers' ? (
-          renderTriggersView()
-        ) : isEditing ? (
-          renderForm()
-        ) : selectedAgent ? (
-          renderAgentDetail()
-        ) : (
-          <div className="flex-1 flex items-center justify-center bg-gray-900 rounded-lg border border-gray-700">
-            <div className="text-center">
-              <Bot size={64} className="mx-auto mb-4 text-gray-700" />
-              <h3 className="text-xl font-bold text-gray-400 mb-2">Select an Agent</h3>
-              <p className="text-gray-600 mb-4">Choose an agent from the list to view details or test</p>
-              <button
-                onClick={handleCreateNew}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center gap-2 mx-auto"
-              >
-                <Plus size={18} />
-                Create New Agent
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 };
