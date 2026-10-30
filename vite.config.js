@@ -1,8 +1,60 @@
 import os from 'os'
+import fs from 'fs'
+import path from 'path'
+import http from 'http'
+import { spawn } from 'child_process'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import tailwindcss from '@tailwindcss/vite'
+
+// Python Server Management & Auto-Run Helper
+let pythonChildProcess = null;
+
+function checkPythonHealth() {
+  return new Promise((resolve) => {
+    const req = http.get('http://127.0.0.1:8000/', { timeout: 1500 }, (res) => {
+      resolve(res.statusCode === 200);
+    });
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => {
+      req.destroy();
+      resolve(false);
+    });
+  });
+}
+
+function startPythonProcess() {
+  const venvPythonWin = path.resolve(process.cwd(), '.venv', 'Scripts', 'python.exe');
+  const venvPythonUnix = path.resolve(process.cwd(), '.venv', 'bin', 'python');
+  let pythonBin = 'python';
+
+  if (fs.existsSync(venvPythonWin)) {
+    pythonBin = venvPythonWin;
+  } else if (fs.existsSync(venvPythonUnix)) {
+    pythonBin = venvPythonUnix;
+  }
+
+  const scriptPath = path.resolve(process.cwd(), 'yolo_server.py');
+  if (!fs.existsSync(scriptPath)) {
+    return { success: false, error: 'yolo_server.py not found in project root' };
+  }
+
+  try {
+    const proc = spawn(pythonBin, [scriptPath], {
+      cwd: process.cwd(),
+      detached: true,
+      stdio: 'ignore'
+    });
+    proc.unref();
+    pythonChildProcess = proc;
+    console.log(`[Python Vision Backend] Auto-started via ${pythonBin} (PID: ${proc.pid})`);
+    return { success: true, pid: proc.pid, pythonBin };
+  } catch (err) {
+    console.error('[Python Vision Backend] Failed to spawn process:', err.message);
+    return { success: false, error: err.message };
+  }
+}
 
 // Check if running in Tauri mode
 const isTauri = process.env.TAURI === 'true';
@@ -112,7 +164,51 @@ export default defineConfig({
             }
           }
 
+          // Python backend status & auto-run control
+          if (req.url && req.url.startsWith('/api/python-server')) {
+            const urlPath = req.url.split('?')[0];
+
+            if (urlPath === '/api/python-server/status') {
+              checkPythonHealth().then(online => {
+                res.setHeader('Content-Type', 'application/json');
+                res.statusCode = 200;
+                res.end(JSON.stringify({
+                  online,
+                  port: 8000,
+                  pid: pythonChildProcess?.pid || null
+                }));
+              });
+              return;
+            }
+
+            if (urlPath === '/api/python-server/start' && req.method === 'POST') {
+              checkPythonHealth().then(online => {
+                if (online) {
+                  res.setHeader('Content-Type', 'application/json');
+                  res.statusCode = 200;
+                  res.end(JSON.stringify({ success: true, alreadyRunning: true, message: 'Server already running on :8000' }));
+                } else {
+                  const result = startPythonProcess();
+                  res.setHeader('Content-Type', 'application/json');
+                  res.statusCode = result.success ? 200 : 500;
+                  res.end(JSON.stringify(result));
+                }
+              });
+              return;
+            }
+          }
+
           next();
+        });
+
+        // Auto-run Python Server on Vite Dev Server startup if not already running
+        checkPythonHealth().then(online => {
+          if (!online) {
+            console.log('[Python Vision Backend] Port 8000 is offline on startup. Auto-starting...');
+            startPythonProcess();
+          } else {
+            console.log('[Python Vision Backend] Port 8000 is already online.');
+          }
         });
       }
     },

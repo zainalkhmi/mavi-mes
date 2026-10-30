@@ -1,6 +1,7 @@
 /**
  * AI Agent Manager - Mandor MES
  * UI for managing autonomous AI agents & shopfloor integrations
+ * Theme: Modern Colourful Odoo Enterprise Theme (#714B67 / #017E84 / Vibrant Modules)
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -15,21 +16,73 @@ import { agentManager, AGENT_TYPES, AGENT_CAPABILITIES, triggerAgentEvent } from
 import { getPrimaryAiConnector } from '../utils/database';
 import VisualAgentBuilder from './VisualAgentBuilder';
 
-// Capability categories with manufacturing labels
+// Capability categories with vibrant Odoo module color schemes
 const CAPABILITY_CATEGORIES = {
-  database: { name: 'Database & MES', icon: Database, color: '#3b82f6' },
-  communication: { name: 'Communication & Andon', icon: MessageSquare, color: '#10b981' },
-  api: { name: 'API / HTTP', icon: Zap, color: '#f59e0b' },
-  file: { name: 'File Operations', icon: Database, color: '#8b5cf6' },
-  vision: { name: 'Vision & Inspection', icon: Sparkles, color: '#ec4899' },
-  control: { name: 'PLC & Hardware', icon: Zap, color: '#ef4444' },
-  utility: { name: 'OEE & Calculations', icon: Settings, color: '#06b6d4' }
+  database: { name: 'Database & MES', icon: Database, color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
+  communication: { name: 'Communication & Andon', icon: MessageSquare, color: '#059669', bg: '#ecfdf5', border: '#a7f3d0' },
+  api: { name: 'API / HTTP', icon: Zap, color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
+  file: { name: 'File Operations', icon: Database, color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
+  vision: { name: 'Vision & Inspection', icon: Sparkles, color: '#db2777', bg: '#fdf2f8', border: '#fbcfe8' },
+  control: { name: 'PLC & Hardware', icon: Zap, color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
+  utility: { name: 'OEE & Calculations', icon: Settings, color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc' }
+};
+
+// Odoo App Icon style helper
+const getAgentIconStyle = (type = '', name = '') => {
+  const str = (type + ' ' + name).toLowerCase();
+  if (str.includes('data') || str.includes('analyst')) {
+    return {
+      gradient: 'from-blue-500 via-indigo-600 to-cyan-500',
+      tagBg: 'bg-blue-50 text-blue-700 border-blue-200',
+      badge: 'Data & Analytics',
+      activeBorder: 'border-blue-500 ring-blue-100'
+    };
+  }
+  if (str.includes('quality') || str.includes('inspect') || str.includes('vision')) {
+    return {
+      gradient: 'from-emerald-500 via-teal-600 to-green-500',
+      tagBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      badge: 'Quality Control',
+      activeBorder: 'border-emerald-500 ring-emerald-100'
+    };
+  }
+  if (str.includes('maintenance') || str.includes('plc') || str.includes('repair')) {
+    return {
+      gradient: 'from-amber-500 via-orange-600 to-yellow-500',
+      tagBg: 'bg-amber-50 text-amber-800 border-amber-200',
+      badge: 'Preventive Maint',
+      activeBorder: 'border-amber-500 ring-amber-100'
+    };
+  }
+  if (str.includes('plan') || str.includes('order') || str.includes('schedule')) {
+    return {
+      gradient: 'from-purple-500 via-fuchsia-600 to-pink-500',
+      tagBg: 'bg-purple-50 text-purple-700 border-purple-200',
+      badge: 'Production Plan',
+      activeBorder: 'border-purple-500 ring-purple-100'
+    };
+  }
+  if (str.includes('safety') || str.includes('ehs') || str.includes('alert')) {
+    return {
+      gradient: 'from-rose-500 via-red-600 to-pink-600',
+      tagBg: 'bg-rose-50 text-rose-700 border-rose-200',
+      badge: 'Safety & EHS',
+      activeBorder: 'border-rose-500 ring-rose-100'
+    };
+  }
+  // Signature Odoo Aubergine fallback
+  return {
+    gradient: 'from-[#714B67] via-[#855779] to-[#017E84]',
+    tagBg: 'bg-purple-50 text-[#714B67] border-purple-200',
+    badge: 'Custom Agent',
+    activeBorder: 'border-[#714B67] ring-purple-100'
+  };
 };
 
 const AgentManager = () => {
   const navigate = useNavigate();
 
-  // Navigation View: 'studio' | 'triggers'
+  // Navigation View: 'studio' | 'visual-builder' | 'triggers'
   const [activeTab, setActiveTab] = useState('studio');
 
   // Central Primary AI Configuration from /ai-settings
@@ -59,7 +112,6 @@ const AgentManager = () => {
 
   // Test mode state
   const [testInput, setTestInput] = useState('');
-  const [testOutput, setTestOutput] = useState('');
   const [isRunning, setIsRunning] = useState(false);
 
   // Playground history
@@ -106,7 +158,7 @@ const AgentManager = () => {
   };
 
   const handleResetDefaults = async () => {
-    if (window.confirm('Muat ulang 5 Template Agen Standar Pabrik (Data Analyst, Quality, Maintenance, Planner, Safety)?')) {
+    if (window.confirm('Muat ulang 5 Template Agen Standar Odoo & Pabrik (Data Analyst, Quality, Maintenance, Planner, Safety)?')) {
       const seeded = await agentManager.seedDefaultAgents();
       setAgents(seeded);
       setSelectedAgent(seeded[0]);
@@ -150,7 +202,6 @@ const AgentManager = () => {
     }
 
     if (selectedAgent) {
-      // Update existing
       agentManager.updateAgent(selectedAgent.id, {
         name: formData.name,
         description: formData.description,
@@ -163,8 +214,6 @@ const AgentManager = () => {
         ...formData
       });
     } else {
-      // Create new
-      const agentType = AGENT_TYPES.find(t => t.id === formData.type);
       await agentManager.initializeAgent({
         id: `agent_${Date.now()}`,
         ...formData
@@ -267,39 +316,49 @@ const AgentManager = () => {
     });
 
     return (
-      <div className="mt-4">
-        <label className="block text-sm font-medium text-gray-300 mb-2">Capabilities</label>
+      <div className="mt-5">
+        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2.5">
+          Pilih Tools & Capabilities Terintegrasi
+        </label>
         <div className="space-y-3">
           {Object.entries(grouped).map(([category, caps]) => {
-            const catInfo = CAPABILITY_CATEGORIES[category] || { name: category, color: '#6b7280' };
+            const catInfo = CAPABILITY_CATEGORIES[category] || { name: category, color: '#64748b', bg: '#f1f5f9', border: '#cbd5e1' };
+            const IconComp = catInfo.icon || Zap;
             return (
-              <div key={category} className="border border-gray-700 rounded-lg p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: catInfo.color }} />
-                  <span className="text-sm font-medium text-gray-400">{catInfo.name}</span>
+              <div key={category} className="border border-slate-200 rounded-xl p-3 bg-white shadow-2xs">
+                <div className="flex items-center gap-2 mb-2.5">
+                  <div className="p-1.5 rounded-lg" style={{ backgroundColor: catInfo.bg, color: catInfo.color }}>
+                    <IconComp size={14} />
+                  </div>
+                  <span className="text-xs font-bold text-slate-700">{catInfo.name}</span>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {caps.map(cap => (
-                    <label
-                      key={cap.id}
-                      className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${
-                        formData.capabilities.includes(cap.id)
-                          ? 'bg-blue-900/30 border border-blue-500'
-                          : 'bg-gray-800/50 border border-gray-700 hover:border-gray-600'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={formData.capabilities.includes(cap.id)}
-                        onChange={() => toggleCapability(cap.id)}
-                        className="rounded"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm text-gray-200 truncate">{cap.name}</div>
-                        <div className="text-xs text-gray-500 truncate">{cap.description}</div>
-                      </div>
-                    </label>
-                  ))}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {caps.map(cap => {
+                    const isSelected = formData.capabilities.includes(cap.id);
+                    return (
+                      <label
+                        key={cap.id}
+                        className={`flex items-start gap-2.5 p-2.5 rounded-xl cursor-pointer transition-all border ${
+                          isSelected
+                            ? 'bg-purple-50/70 border-[#714B67] shadow-2xs'
+                            : 'bg-slate-50/60 border-slate-200/80 hover:bg-slate-100 hover:border-slate-300'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleCapability(cap.id)}
+                          className="mt-0.5 rounded text-[#714B67] accent-[#714B67] focus:ring-0 cursor-pointer"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className={`text-xs font-bold ${isSelected ? 'text-[#714B67]' : 'text-slate-800'} truncate`}>
+                            {cap.name}
+                          </div>
+                          <div className="text-[11px] text-slate-500 line-clamp-1">{cap.description}</div>
+                        </div>
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -309,57 +368,63 @@ const AgentManager = () => {
     );
   };
 
-  // Render agent card
+  // Render agent card in sidebar (Odoo Colorful App tile style)
   const renderAgentCard = (agent) => {
-    const statusColors = {
-      idle: 'bg-gray-500',
-      running: 'bg-yellow-500 animate-pulse',
-      error: 'bg-red-500'
-    };
+    const isSelected = selectedAgent?.id === agent.id;
+    const iconStyle = getAgentIconStyle(agent.type, agent.name);
 
     return (
       <div
         key={agent.id}
         onClick={() => handleSelectAgent(agent)}
-        className={`p-3 rounded-lg cursor-pointer transition-all ${
-          selectedAgent?.id === agent.id
-            ? 'bg-blue-900/30 border border-blue-500'
-            : 'bg-gray-800/50 border border-gray-700 hover:border-gray-600'
+        className={`p-3 rounded-xl cursor-pointer transition-all border relative flex flex-col gap-2 ${
+          isSelected
+            ? `bg-purple-50/70 border-[#714B67] shadow-sm ring-1 ring-[#714B67]/20`
+            : `bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80 shadow-2xs`
         }`}
       >
         <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <Bot size={18} className="text-blue-400" />
-            <span className="font-medium text-gray-200">{agent.name}</span>
-            <div className={`w-2 h-2 rounded-full ${statusColors[agent.status]}`} />
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${iconStyle.gradient} flex items-center justify-center text-white shadow-xs flex-shrink-0`}>
+              <Bot size={18} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-slate-800 text-xs truncate">{agent.name}</span>
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                  agent.status === 'running' ? 'bg-amber-500 animate-pulse' :
+                  agent.status === 'error' ? 'bg-rose-500' : 'bg-emerald-500'
+                }`} />
+              </div>
+              <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{agent.description}</p>
+            </div>
           </div>
-          <div className="flex gap-1">
+
+          <div className="flex items-center gap-1 ml-1 flex-shrink-0">
             <button
               onClick={(e) => { e.stopPropagation(); handleEdit(agent); }}
-              className="p-1 hover:bg-gray-700 rounded"
-              title="Edit"
+              className="p-1 hover:bg-slate-200/80 rounded-lg text-slate-400 hover:text-slate-700 transition-colors"
+              title="Edit Agent"
             >
-              <Settings size={14} className="text-gray-400" />
+              <Settings size={13} />
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); handleDelete(agent.id); }}
-              className="p-1 hover:bg-red-900/50 rounded"
-              title="Delete"
+              className="p-1 hover:bg-rose-100 rounded-lg text-slate-400 hover:text-rose-600 transition-colors"
+              title="Delete Agent"
             >
-              <Trash2 size={14} className="text-red-400" />
+              <Trash2 size={13} />
             </button>
           </div>
         </div>
-        <p className="text-xs text-gray-500 mt-1 line-clamp-2">{agent.description}</p>
-        <div className="flex items-center gap-2 mt-2">
-          <span className="text-xs px-2 py-0.5 bg-gray-700 rounded-full text-gray-400">
+
+        <div className="flex items-center justify-between text-[10px] pt-1 border-t border-slate-100">
+          <span className="px-2 py-0.5 rounded-full font-bold bg-slate-100 text-slate-600 border border-slate-200">
             {agent.capabilities?.length || 0} tools
           </span>
-          {agent.lastRun && (
-            <span className="text-xs text-gray-600">
-              Last run: {new Date(agent.lastRun).toLocaleTimeString()}
-            </span>
-          )}
+          <span className="text-slate-400 font-medium">
+            {agent.lastRun ? `Last: ${new Date(agent.lastRun).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Ready'}
+          </span>
         </div>
       </div>
     );
@@ -368,82 +433,85 @@ const AgentManager = () => {
   // Render agent detail / playground
   const renderAgentDetail = () => {
     if (!selectedAgent) return null;
+    const iconStyle = getAgentIconStyle(selectedAgent.type, selectedAgent.name);
 
     if (isTesting) {
       return (
-        <div className="flex-1 flex flex-col bg-gray-900 rounded-lg border border-gray-700">
+        <div className="flex-1 flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-700">
+          <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50/70">
             <div className="flex items-center gap-3">
-              <Bot size={24} className="text-blue-400" />
+              <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${iconStyle.gradient} flex items-center justify-center text-white shadow-xs`}>
+                <Bot size={22} />
+              </div>
               <div>
-                <h2 className="font-bold text-gray-200">Agent Playground</h2>
-                <p className="text-sm text-gray-500">{selectedAgent.name}</p>
+                <h2 className="font-extrabold text-slate-800 text-sm">Agent Live Playground</h2>
+                <p className="text-xs text-slate-500 font-medium">{selectedAgent.name}</p>
               </div>
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() => setTestHistory([])}
-                className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold shadow-2xs transition-all"
               >
-                <RotateCcw size={14} />
-                Clear
+                <RotateCcw size={13} />
+                Clear Chat
               </button>
               <button
                 onClick={() => setIsTesting(false)}
-                className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold shadow-2xs transition-all"
               >
-                <Settings size={14} />
-                Config
+                <Settings size={13} />
+                Tutup Playground
               </button>
             </div>
           </div>
 
           {/* Subheader: Central AI Configuration Link */}
-          <div className="px-4 py-2 bg-gray-800/40 border-b border-gray-800 flex items-center justify-between text-xs text-gray-400">
+          <div className="px-4 py-2 bg-purple-50/60 border-b border-purple-100 flex items-center justify-between text-xs text-slate-600">
             <div className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${centralAiConfig?.aiSettings?.apiKey ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-              <span>
-                Engine Terintegrasi: <strong className="text-gray-200">{centralAiConfig?.aiSettings?.provider || 'Gemini'}</strong> ({centralAiConfig?.aiSettings?.modelId || 'gemini-3.6-flash'})
+              <span className={`w-2 h-2 rounded-full ${centralAiConfig?.aiSettings?.apiKey ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+              <span className="text-[11px] font-semibold">
+                Engine Aktif: <strong className="text-purple-900">{centralAiConfig?.aiSettings?.provider || 'Gemini'}</strong> ({centralAiConfig?.aiSettings?.modelId || 'gemini-3.6-flash'})
               </span>
             </div>
             <button
               onClick={() => navigate('/ai-settings')}
-              className="text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1 font-medium"
+              className="text-[#714B67] hover:text-[#52334a] hover:underline flex items-center gap-1 font-bold text-[11px]"
             >
-              <Settings size={12} /> Buka AI Settings ↗
+              <Settings size={11} /> Konfigurasi AI Engine ↗
             </button>
           </div>
 
           {/* Chat history */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            <div className="text-center text-sm text-gray-600 py-4">
-              Test your agent by sending a message. It will use its configured tools and capabilities.
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/40">
+            <div className="text-center text-xs text-slate-400 py-3 font-medium">
+              Kirim instruksi ke agen untuk menguji eksekusi tool shopfloor dan penalaran kognitif.
             </div>
             {testHistory.map((msg, i) => (
               <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div
-                  className={`max-w-[80%] p-3 rounded-lg ${
+                  className={`max-w-[80%] p-3.5 rounded-2xl shadow-xs text-xs leading-relaxed ${
                     msg.role === 'user'
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-[#714B67] text-white rounded-br-xs'
                       : msg.role === 'error'
-                        ? 'bg-red-900/50 text-red-200 border border-red-700'
-                        : 'bg-gray-800 text-gray-200'
+                        ? 'bg-rose-50 text-rose-800 border border-rose-200 rounded-bl-xs'
+                        : 'bg-white border border-slate-200 text-slate-800 rounded-bl-xs'
                   }`}
                 >
-                  <div className="text-xs opacity-70 mb-1 flex items-center justify-between">
-                    <span>{msg.role === 'user' ? 'You' : msg.role === 'error' ? 'Error' : 'Agent'}</span>
+                  <div className={`text-[10px] font-bold mb-1 flex items-center justify-between ${msg.role === 'user' ? 'text-purple-200' : 'text-slate-400'}`}>
+                    <span>{msg.role === 'user' ? 'Operator' : msg.role === 'error' ? 'Peringatan Error' : selectedAgent.name}</span>
                   </div>
 
                   {msg.toolResults && msg.toolResults.length > 0 && (
-                    <div className="mb-2.5 p-2 bg-gray-900/80 border border-emerald-500/30 rounded text-xs flex flex-col gap-1">
-                      <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
-                        <Zap size={13} />
-                        <span>Eksekusi Tool Terintegrasi ({msg.toolResults.length}):</span>
+                    <div className="mb-2 p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs flex flex-col gap-1">
+                      <div className="flex items-center gap-1.5 text-emerald-800 font-bold text-[11px]">
+                        <Zap size={12} className="text-emerald-600" />
+                        <span>Tool Shopfloor Dijalankan ({msg.toolResults.length}):</span>
                       </div>
                       <div className="flex flex-wrap gap-1 mt-0.5">
                         {msg.toolResults.map((t, tidx) => (
-                          <span key={tidx} className="px-1.5 py-0.5 bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 rounded font-mono text-[11px] flex items-center gap-1">
+                          <span key={tidx} className="px-2 py-0.5 bg-white text-emerald-700 border border-emerald-300 rounded-md font-mono text-[10px] font-semibold flex items-center gap-1 shadow-2xs">
                             <span>⚙️</span> {t.tool}
                           </span>
                         ))}
@@ -451,7 +519,7 @@ const AgentManager = () => {
                     </div>
                   )}
 
-                  <div className="text-sm whitespace-pre-wrap leading-relaxed">
+                  <div className="whitespace-pre-wrap">
                     {(msg.content || '').replace(/<Action>[\s\S]*?<\/Action>/gi, '').trim() || msg.content}
                   </div>
                 </div>
@@ -459,10 +527,10 @@ const AgentManager = () => {
             ))}
             {isRunning && (
               <div className="flex justify-start">
-                <div className="bg-gray-800 p-3 rounded-lg">
-                  <div className="flex items-center gap-2 text-gray-400">
-                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" />
-                    Agent is thinking...
+                <div className="bg-white border border-slate-200 p-3 rounded-2xl shadow-xs">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                    <div className="w-2 h-2 bg-[#714B67] rounded-full animate-bounce" />
+                    Agen sedang memproses instruksi & memanggil tool...
                   </div>
                 </div>
               </div>
@@ -471,7 +539,7 @@ const AgentManager = () => {
           </div>
 
           {/* Input */}
-          <div className="p-4 border-t border-gray-700">
+          <div className="p-3.5 border-t border-slate-200 bg-white">
             <div className="flex gap-2">
               <textarea
                 value={testInput}
@@ -482,130 +550,140 @@ const AgentManager = () => {
                     handleRunTest();
                   }
                 }}
-                placeholder="Send a message to test the agent..."
-                className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-gray-200 resize-none focus:outline-none focus:border-blue-500"
+                placeholder="Tulis pesan atau instruksi untuk agen (contoh: Analisa hasil inspeksi hari ini)..."
+                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 resize-none focus:outline-none focus:border-[#714B67] focus:bg-white transition-all"
                 rows={2}
                 disabled={isRunning}
               />
               <button
                 onClick={handleRunTest}
                 disabled={!testInput.trim() || isRunning}
-                className="px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg flex items-center gap-2"
+                className="px-4 bg-[#714B67] hover:bg-[#5b3852] disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl flex items-center justify-center gap-1.5 font-bold shadow-xs transition-all cursor-pointer"
               >
-                <Send size={18} />
+                <Send size={16} />
               </button>
             </div>
-            <div className="mt-2 text-xs text-gray-600">
-              Press Enter to send, Shift+Enter for new line
+            <div className="mt-1.5 text-[10px] text-slate-400">
+              Tekan Enter untuk kirim, Shift+Enter untuk baris baru
             </div>
           </div>
         </div>
       );
     }
 
-    // Agent config view
+    // Agent config view (Odoo Clean & Colorful Dashboard)
     return (
-      <div className="flex-1 bg-gray-900 rounded-lg border border-gray-700 p-6">
-        <div className="flex items-start justify-between mb-6">
+      <div className="flex-1 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm overflow-y-auto flex flex-col">
+        {/* Header Profile */}
+        <div className="flex items-start justify-between pb-6 mb-6 border-b border-slate-100">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-blue-900/50 rounded-xl flex items-center justify-center">
-              <Bot size={32} className="text-blue-400" />
+            <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${iconStyle.gradient} flex items-center justify-center text-white shadow-md flex-shrink-0`}>
+              <Bot size={34} />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-gray-200">{selectedAgent.name}</h2>
-              <p className="text-gray-500 mt-1">{selectedAgent.description}</p>
-              <div className="flex items-center gap-3 mt-2">
-                <span className={`px-2 py-0.5 rounded text-xs ${
-                  selectedAgent.status === 'running' ? 'bg-yellow-900/50 text-yellow-400' :
-                  selectedAgent.status === 'error' ? 'bg-red-900/50 text-red-400' :
-                  'bg-gray-700 text-gray-400'
-                }`}>
-                  {selectedAgent.status}
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-xl font-extrabold text-slate-900">{selectedAgent.name}</h2>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-purple-50 text-[#714B67] border border-purple-200">
+                  {iconStyle.badge}
                 </span>
-                {selectedAgent.lastRun && (
-                  <span className="text-xs text-gray-600">
-                    Last: {new Date(selectedAgent.lastRun).toLocaleString()}
-                  </span>
-                )}
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                  selectedAgent.status === 'running' ? 'bg-amber-100 text-amber-800' :
+                  selectedAgent.status === 'error' ? 'bg-rose-100 text-rose-800' :
+                  'bg-emerald-100 text-emerald-800'
+                }`}>
+                  {selectedAgent.status || 'Active'}
+                </span>
               </div>
+              <p className="text-xs text-slate-600 mt-1 max-w-2xl leading-relaxed">{selectedAgent.description}</p>
             </div>
           </div>
+
           <div className="flex gap-2">
             <button
               onClick={handleTest}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg"
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#714B67] to-[#8c587f] hover:opacity-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
             >
-              <TestTube size={18} />
+              <TestTube size={15} />
               Test Agent
             </button>
             <button
               onClick={() => handleEdit(selectedAgent)}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg"
+              className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-bold text-xs rounded-xl shadow-2xs transition-all cursor-pointer"
             >
-              <Settings size={18} />
+              <Settings size={15} />
               Edit
             </button>
           </div>
         </div>
 
-        {/* Stats */}
+        {/* Odoo Colorful KPI Metric Tiles */}
         <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="bg-gray-800/50 rounded-lg p-4">
-            <div className="text-2xl font-bold text-blue-400">{selectedAgent.capabilities?.length || 0}</div>
-            <div className="text-sm text-gray-500">Capabilities</div>
+          <div className="bg-gradient-to-br from-blue-50/70 to-indigo-50/70 border border-blue-200/80 rounded-2xl p-4 shadow-2xs">
+            <div className="text-2xl font-black text-blue-600">{selectedAgent.capabilities?.length || 0}</div>
+            <div className="text-[11px] font-bold text-blue-800 uppercase tracking-wider mt-0.5">Capabilities & Tools</div>
           </div>
-          <div className="bg-gray-800/50 rounded-lg p-4">
-            <div className="text-2xl font-bold text-green-400">
+          <div className="bg-gradient-to-br from-emerald-50/70 to-teal-50/70 border border-emerald-200/80 rounded-2xl p-4 shadow-2xs">
+            <div className="text-2xl font-black text-emerald-600">
               {agentManager.getAgent(selectedAgent.id)?.memory?.shortTerm?.length || 0}
             </div>
-            <div className="text-sm text-gray-500">Memory Items</div>
+            <div className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider mt-0.5">Memory Items</div>
           </div>
-          <div className="bg-gray-800/50 rounded-lg p-4">
-            <div className="text-2xl font-bold text-yellow-400">
+          <div className="bg-gradient-to-br from-amber-50/70 to-orange-50/70 border border-amber-200/80 rounded-2xl p-4 shadow-2xs">
+            <div className="text-2xl font-black text-amber-600">
               {selectedAgent.error ? '1' : '0'}
             </div>
-            <div className="text-sm text-gray-500">Errors</div>
+            <div className="text-[11px] font-bold text-amber-800 uppercase tracking-wider mt-0.5">Errors / Alarms</div>
           </div>
         </div>
 
-        {/* System Prompt */}
+        {/* System Prompt Box */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="font-medium text-gray-300">System Prompt</h3>
+            <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+              <span>System Prompt & Behavior Instructions</span>
+            </h3>
             <button
               onClick={handleDuplicatePrompt}
-              className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300"
+              className="flex items-center gap-1 text-xs text-purple-700 hover:text-purple-900 font-bold bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg border border-purple-200 transition-colors"
             >
               <Copy size={12} />
-              Copy
+              Salin Prompt
             </button>
           </div>
-          <div className="bg-gray-800/50 rounded-lg p-4 text-sm text-gray-400 whitespace-pre-wrap max-h-48 overflow-y-auto">
-            {selectedAgent.systemPrompt || 'No system prompt configured'}
+          <div className="bg-slate-50/80 rounded-xl p-4 text-xs font-mono text-slate-700 border border-slate-200 whitespace-pre-wrap max-h-52 overflow-y-auto leading-relaxed shadow-inner">
+            {selectedAgent.systemPrompt || 'Belum ada system prompt terkonfigurasi'}
           </div>
         </div>
 
-        {/* Capabilities */}
+        {/* Capabilities Badges */}
         <div>
-          <h3 className="font-medium text-gray-300 mb-3">Capabilities</h3>
+          <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2.5">
+            Daftar Tools & Hak Akses Agen
+          </h3>
           <div className="flex flex-wrap gap-2">
             {selectedAgent.capabilities?.map(capId => {
               const cap = AGENT_CAPABILITIES[capId];
               const cat = CAPABILITY_CATEGORIES[cap?.category];
+              const Icon = cat?.icon || Zap;
               return (
                 <span
                   key={capId}
-                  className="px-3 py-1 rounded-full text-sm flex items-center gap-2"
-                  style={{ backgroundColor: `${cat?.color}20`, color: cat?.color, border: `1px solid ${cat?.color}40` }}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 border shadow-2xs transition-transform hover:scale-102"
+                  style={{
+                    backgroundColor: cat?.bg || '#f1f5f9',
+                    color: cat?.color || '#334155',
+                    borderColor: cat?.border || '#cbd5e1'
+                  }}
                 >
-                  {cat?.name || 'Tool'}
-                  <span className="opacity-70">•</span>
-                  {cap?.name || capId}
+                  <Icon size={13} />
+                  <span>{cat?.name || 'Tool'}</span>
+                  <span className="opacity-40">•</span>
+                  <span>{cap?.name || capId}</span>
                 </span>
               );
             })}
             {!selectedAgent.capabilities?.length && (
-              <span className="text-gray-600 text-sm">No capabilities configured</span>
+              <span className="text-slate-400 text-xs italic">Belum ada capabilities yang dipilih</span>
             )}
           </div>
         </div>
@@ -613,81 +691,89 @@ const AgentManager = () => {
     );
   };
 
-  // Render create/edit form
+  // Render create/edit form (Odoo Clean Form Style)
   const renderForm = () => {
     return (
-      <div className="flex-1 bg-gray-900 rounded-lg border border-gray-700 p-6 overflow-y-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-gray-200">
-            {isCreating ? 'Create New Agent' : 'Edit Agent'}
+      <div className="flex-1 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm overflow-y-auto">
+        <div className="flex items-center justify-between pb-4 mb-5 border-b border-slate-100">
+          <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+            <span className="w-8 h-8 rounded-lg bg-purple-100 text-[#714B67] flex items-center justify-center font-bold">
+              <Bot size={18} />
+            </span>
+            {isCreating ? 'Buat Agen AI Baru' : `Edit Agen: ${formData.name || 'AI Agent'}`}
           </h2>
           <button
             onClick={() => { setIsEditing(false); setIsCreating(false); }}
-            className="p-2 hover:bg-gray-800 rounded"
+            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700 transition-colors"
           >
-            <X size={20} className="text-gray-400" />
+            <X size={18} />
           </button>
         </div>
 
-        {/* Templates */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-300 mb-2">Quick Templates</label>
-          <div className="grid grid-cols-2 gap-2">
-            {AGENT_TYPES.filter(t => t.id !== 'custom').map(type => (
-              <button
-                key={type.id}
-                onClick={() => handleApplyTemplate(type.id)}
-                className={`p-3 rounded-lg border text-left transition-colors ${
-                  formData.type === type.id
-                    ? 'bg-blue-900/30 border-blue-500'
-                    : 'bg-gray-800/50 border-gray-700 hover:border-gray-600'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">{type.icon}</span>
-                  <span className="font-medium text-gray-200">{type.name}</span>
-                </div>
-                <p className="text-xs text-gray-500 mt-1">{type.description}</p>
-              </button>
-            ))}
+        {/* Quick Templates */}
+        <div className="mb-5">
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+            Pilih Template Pabrik (Odoo Manufacturing Standard)
+          </label>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+            {AGENT_TYPES.filter(t => t.id !== 'custom').map(type => {
+              const iconStyle = getAgentIconStyle(type.id, type.name);
+              return (
+                <button
+                  key={type.id}
+                  onClick={() => handleApplyTemplate(type.id)}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    formData.type === type.id
+                      ? 'bg-purple-50/70 border-[#714B67] shadow-xs ring-1 ring-[#714B67]/20'
+                      : 'bg-slate-50/70 border-slate-200 hover:border-slate-300 hover:bg-slate-100/70'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-lg">{type.icon}</span>
+                    <span className="font-bold text-slate-800 text-xs truncate">{type.name}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">{type.description}</p>
+                </button>
+              );
+            })}
           </div>
         </div>
 
         {/* Form fields */}
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Name</label>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Nama Agen</label>
             <input
               type="text"
               value={formData.name}
               onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-              placeholder="My AI Agent"
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-gray-200 focus:outline-none focus:border-blue-500"
+              placeholder="Contoh: Quality Inspector Part Flange"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#714B67] focus:bg-white transition-all"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Description</label>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Deskripsi Singkat</label>
             <input
               type="text"
               value={formData.description}
               onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              placeholder="What this agent does..."
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-gray-200 focus:outline-none focus:border-blue-500"
+              placeholder="Tugas dan lingkup kerja agen di lini produksi..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:border-[#714B67] focus:bg-white transition-all"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">System Prompt</label>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">System Prompt (Instruksi Penalaran)</label>
             <textarea
               value={formData.systemPrompt}
               onChange={(e) => setFormData(prev => ({ ...prev, systemPrompt: e.target.value }))}
-              placeholder="You are an expert AI agent..."
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-gray-200 focus:outline-none focus:border-blue-500"
-              rows={8}
+              placeholder="Anda adalah Senior AI Agent di pabrik MAVI MES..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-800 focus:outline-none focus:border-[#714B67] focus:bg-white transition-all leading-relaxed"
+              rows={7}
             />
-            <p className="mt-1 text-xs text-gray-600">
-              Define the agent's personality, role, and behavior guidelines
+            <p className="mt-1 text-[11px] text-slate-400">
+              Instruksi ini menjadi pedoman perilaku agen saat menerima pemicu otomatis atau pesan operator.
             </p>
           </div>
 
@@ -695,19 +781,19 @@ const AgentManager = () => {
         </div>
 
         {/* Actions */}
-        <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-gray-700">
+        <div className="flex justify-end gap-2.5 mt-6 pt-5 border-t border-slate-100">
           <button
             onClick={() => { setIsEditing(false); setIsCreating(false); }}
-            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg"
+            className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold text-xs rounded-xl transition-all cursor-pointer"
           >
-            Cancel
+            Batal
           </button>
           <button
             onClick={handleSave}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg"
+            className="flex items-center gap-1.5 px-5 py-2 bg-[#714B67] hover:bg-[#5a3851] text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
           >
-            <Save size={18} />
-            {selectedAgent ? 'Update Agent' : 'Create Agent'}
+            <Save size={15} />
+            {selectedAgent ? 'Perbarui Agen' : 'Simpan Agen Baru'}
           </button>
         </div>
       </div>
@@ -748,107 +834,107 @@ window.maviAgentEngine.triggerAgentEvent('APP_ACTION', {
     setTimeout(() => setCopiedSnippet(false), 2000);
   };
 
-  // Render Autonomous Triggers & App Integration View
+  // Render Autonomous Triggers & App Integration View (Odoo Colorful Integration Hub)
   const renderTriggersView = () => {
     return (
-      <div className="flex-1 bg-gray-900 rounded-lg border border-gray-700 p-6 overflow-y-auto space-y-6">
-        <div className="flex items-center justify-between pb-4 border-b border-gray-800">
+      <div className="flex-1 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm overflow-y-auto space-y-6">
+        <div className="flex items-center justify-between pb-4 border-b border-slate-100">
           <div>
-            <h2 className="text-xl font-bold text-gray-200 flex items-center gap-2">
-              <Radio className="text-emerald-400 animate-pulse" size={22} />
+            <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+              <Radio className="text-emerald-600 animate-pulse" size={20} />
               Autonomous Triggers & Shopfloor App Integration
             </h2>
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs text-slate-500 mt-1">
               Hubungkan AI Agents dengan kejadian otomatis di lantai pabrik (Vision, PLC, Jadwal Shift, dan Tombol App Builder).
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800">
-              <Activity size={13} /> Engine Active
+            <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <Activity size={13} className="text-emerald-600" /> Engine Active (Live)
             </span>
           </div>
         </div>
 
         {/* Integration Status Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="p-3 bg-gray-800/60 rounded-lg border border-gray-700/60 flex items-center gap-3">
-            <div className="p-2.5 rounded-lg bg-orange-500/10 text-orange-400 border border-orange-500/20">
+          <div className="p-3.5 bg-orange-50/60 rounded-xl border border-orange-200/80 flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-orange-500 text-white shadow-2xs">
               <Sparkles size={18} />
             </div>
             <div>
-              <div className="text-xs text-gray-400 font-medium">Vision QuickBuild / YOLO</div>
-              <div className="text-sm font-bold text-gray-200">Port 8000 & Camera RT</div>
+              <div className="text-[11px] text-orange-800 font-bold uppercase tracking-wider">Vision QuickBuild / YOLO</div>
+              <div className="text-xs font-bold text-slate-800">Port 8000 & Camera RT</div>
             </div>
           </div>
-          <div className="p-3 bg-gray-800/60 rounded-lg border border-gray-700/60 flex items-center gap-3">
-            <div className="p-2.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20">
+          <div className="p-3.5 bg-blue-50/60 rounded-xl border border-blue-200/80 flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-blue-600 text-white shadow-2xs">
               <Cpu size={18} />
             </div>
             <div>
-              <div className="text-xs text-gray-400 font-medium">PLC & Sensor Gateway</div>
-              <div className="text-sm font-bold text-gray-200">Modbus / MQTT Telemetry</div>
+              <div className="text-[11px] text-blue-800 font-bold uppercase tracking-wider">PLC & Sensor Gateway</div>
+              <div className="text-xs font-bold text-slate-800">Modbus / MQTT Telemetry</div>
             </div>
           </div>
-          <div className="p-3 bg-gray-800/60 rounded-lg border border-gray-700/60 flex items-center gap-3">
-            <div className="p-2.5 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20">
+          <div className="p-3.5 bg-purple-50/60 rounded-xl border border-purple-200/80 flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-[#714B67] text-white shadow-2xs">
               <Database size={18} />
             </div>
             <div>
-              <div className="text-xs text-gray-400 font-medium">Shopfloor Database</div>
-              <div className="text-sm font-bold text-gray-200">Work Orders & History</div>
+              <div className="text-[11px] text-purple-800 font-bold uppercase tracking-wider">Shopfloor Database</div>
+              <div className="text-xs font-bold text-slate-800">Work Orders & History</div>
             </div>
           </div>
         </div>
 
         {/* 4 Triggers Grid */}
-        <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">
+        <div className="space-y-3">
+          <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
             Pre-Configured Manufacturing Triggers
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
             {/* Trigger 1: Vision Defect */}
-            <div className="p-4 bg-gray-800/50 rounded-xl border border-gray-700 hover:border-gray-600 transition-all flex flex-col justify-between">
+            <div className="p-4 bg-orange-50/40 rounded-2xl border border-orange-200 flex flex-col justify-between shadow-2xs">
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="px-2.5 py-0.5 rounded text-xs font-bold bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-orange-100 text-orange-800 border border-orange-200">
                     EVENT: VISION_DEFECT
                   </span>
-                  <span className="text-xs text-gray-400">Target: Quality Inspector</span>
+                  <span className="text-[11px] text-slate-500 font-semibold">Target: Quality Inspector</span>
                 </div>
-                <h4 className="font-semibold text-gray-200 mb-1">Deteksi Cacat Machine Vision</h4>
-                <p className="text-xs text-gray-400 mb-3">
+                <h4 className="font-bold text-slate-800 text-sm mb-1">Deteksi Cacat Machine Vision</h4>
+                <p className="text-xs text-slate-500 mb-3 leading-relaxed">
                   Dipicu otomatis saat pipeline QuickBuild mendeteksi cacat visual (misal goresan, gap lem sealant, atau baut hilang).
                 </p>
               </div>
               <button
                 onClick={() => handleSimulateTrigger('VISION_DEFECT', { stationId: 'QC-01', defect: 'Bead Glue Gap > 2.5mm', metric: 'Confidence 96.8%' })}
                 disabled={isSimulatingTrigger}
-                className="w-full py-2 px-3 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-medium text-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                className="w-full py-2 px-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer disabled:opacity-50"
               >
-                <Play size={13} />
+                <Play size={13} fill="currentColor" />
                 Simulasikan Defect Vision
               </button>
             </div>
 
             {/* Trigger 2: PLC Over-Temperature */}
-            <div className="p-4 bg-gray-800/50 rounded-xl border border-gray-700 hover:border-gray-600 transition-all flex flex-col justify-between">
+            <div className="p-4 bg-rose-50/40 rounded-2xl border border-rose-200 flex flex-col justify-between shadow-2xs">
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="px-2.5 py-0.5 rounded text-xs font-bold bg-red-500/20 text-red-400 border border-red-500/30">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200">
                     EVENT: PLC_ALARM
                   </span>
-                  <span className="text-xs text-gray-400">Target: Maintenance Agent</span>
+                  <span className="text-[11px] text-slate-500 font-semibold">Target: Maintenance Agent</span>
                 </div>
-                <h4 className="font-semibold text-gray-200 mb-1">Threshold Sensor PLC Terlampaui</h4>
-                <p className="text-xs text-gray-400 mb-3">
+                <h4 className="font-bold text-slate-800 text-sm mb-1">Threshold Sensor PLC Terlampaui</h4>
+                <p className="text-xs text-slate-500 mb-3 leading-relaxed">
                   Dipicu saat tag Modbus/MQTT (misal suhu motor spindle &gt; 80°C) melebihi batas toleransi aman.
                 </p>
               </div>
               <button
                 onClick={() => handleSimulateTrigger('PLC_ALARM', { tag: 'MTR_TEMP_SPINDLE', value: '88.5°C' })}
                 disabled={isSimulatingTrigger}
-                className="w-full py-2 px-3 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium text-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                className="w-full py-2 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer disabled:opacity-50"
               >
                 <ShieldAlert size={13} />
                 Simulasikan Alarm Suhu Motor (88.5°C)
@@ -856,23 +942,23 @@ window.maviAgentEngine.triggerAgentEvent('APP_ACTION', {
             </div>
 
             {/* Trigger 3: Shift Handoff */}
-            <div className="p-4 bg-gray-800/50 rounded-xl border border-gray-700 hover:border-gray-600 transition-all flex flex-col justify-between">
+            <div className="p-4 bg-blue-50/40 rounded-2xl border border-blue-200 flex flex-col justify-between shadow-2xs">
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="px-2.5 py-0.5 rounded text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800 border border-blue-200">
                     EVENT: SHIFT_CHANGE
                   </span>
-                  <span className="text-xs text-gray-400">Target: Data Analyst</span>
+                  <span className="text-[11px] text-slate-500 font-semibold">Target: Data Analyst</span>
                 </div>
-                <h4 className="font-semibold text-gray-200 mb-1">Pergantian Shift Produksi</h4>
-                <p className="text-xs text-gray-400 mb-3">
+                <h4 className="font-bold text-slate-800 text-sm mb-1">Pergantian Shift Produksi</h4>
+                <p className="text-xs text-slate-500 mb-3 leading-relaxed">
                   Dipicu pada akhir shift (pukul 07:00, 15:00, 23:00) untuk merangkum OEE harian dan mengirim notifikasi email/chat.
                 </p>
               </div>
               <button
                 onClick={() => handleSimulateTrigger('SHIFT_CHANGE', { shift: '1' })}
                 disabled={isSimulatingTrigger}
-                className="w-full py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                className="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer disabled:opacity-50"
               >
                 <Clock size={13} />
                 Picu Rangkuman Shift 1
@@ -880,22 +966,22 @@ window.maviAgentEngine.triggerAgentEvent('APP_ACTION', {
             </div>
 
             {/* Trigger 4: App Builder Snippet */}
-            <div className="p-4 bg-gray-800/50 rounded-xl border border-gray-700 hover:border-gray-600 transition-all flex flex-col justify-between">
+            <div className="p-4 bg-emerald-50/40 rounded-2xl border border-emerald-200 flex flex-col justify-between shadow-2xs">
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="px-2.5 py-0.5 rounded text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
                     API: APP_BUILDER
                   </span>
-                  <span className="text-xs text-gray-400">Target: HMI Screens</span>
+                  <span className="text-[11px] text-slate-500 font-semibold">Target: HMI Screens</span>
                 </div>
-                <h4 className="font-semibold text-gray-200 mb-1">Panggil Agen dari Tombol HMI</h4>
-                <p className="text-xs text-gray-400 mb-3">
+                <h4 className="font-bold text-slate-800 text-sm mb-1">Panggil Agen dari Tombol HMI</h4>
+                <p className="text-xs text-slate-500 mb-3 leading-relaxed">
                   Gunakan kode Javascript satu baris di App Builder / Checksheet untuk meminta konsultasi AI langsung dari layar stasiun operator.
                 </p>
               </div>
               <button
                 onClick={copyAppBuilderSnippet}
-                className="w-full py-2 px-3 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-medium text-xs flex items-center justify-center gap-2 transition-all"
+                className="w-full py-2 px-3 rounded-xl bg-[#017E84] hover:bg-[#01656a] text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer"
               >
                 {copiedSnippet ? <Check size={13} /> : <Copy size={13} />}
                 {copiedSnippet ? 'Kode Tersalin ke Clipboard!' : 'Salin Snippet Kode App Builder'}
@@ -904,30 +990,30 @@ window.maviAgentEngine.triggerAgentEvent('APP_ACTION', {
           </div>
         </div>
 
-        {/* Live Simulation Log */}
+        {/* Live Simulation Log Stream */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-gray-300 flex items-center gap-2">
-              <Terminal size={15} className="text-gray-400" />
+            <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+              <Terminal size={14} className="text-slate-500" />
               Live Autonomous Trigger Log Stream
             </h3>
             {triggerLogs.length > 0 && (
               <button
                 onClick={() => setTriggerLogs([])}
-                className="text-xs text-gray-500 hover:text-gray-400"
+                className="text-xs text-purple-700 hover:text-purple-900 font-bold cursor-pointer"
               >
                 Hapus Log
               </button>
             )}
           </div>
-          <div className="p-4 bg-gray-950 rounded-xl border border-gray-800 font-mono text-xs text-gray-300 max-h-56 overflow-y-auto space-y-2">
+          <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800 font-mono text-xs text-emerald-300 max-h-56 overflow-y-auto space-y-2 shadow-inner">
             {triggerLogs.length === 0 ? (
-              <div className="text-gray-600 italic">
+              <div className="text-slate-500 italic">
                 Belum ada pemicu trigger yang dijalankan. Klik tombol simulasi di atas untuk melihat respons otonom agen secara langsung.
               </div>
             ) : (
               triggerLogs.map((log, idx) => (
-                <div key={idx} className="whitespace-pre-wrap leading-relaxed border-b border-gray-800/50 pb-1.5 last:border-b-0">
+                <div key={idx} className="whitespace-pre-wrap leading-relaxed border-b border-slate-800/80 pb-1.5 last:border-b-0 text-[11px]">
                   {log}
                 </div>
               ))
@@ -939,16 +1025,16 @@ window.maviAgentEngine.triggerAgentEvent('APP_ACTION', {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-950 p-4 overflow-hidden">
-      {/* Top Navigation Tabs */}
-      <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-800 flex-shrink-0">
+    <div className="h-full flex flex-col bg-[#F8F9FA] p-4 text-slate-800 overflow-hidden">
+      {/* Top Navigation Bar with Odoo Signature Styling */}
+      <div className="flex items-center justify-between px-4 py-2.5 bg-white rounded-2xl border border-slate-200/90 shadow-xs mb-3 flex-shrink-0">
         <div className="flex items-center gap-2">
           <button
             onClick={() => setActiveTab('studio')}
-            className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
               activeTab === 'studio'
-                ? 'bg-blue-600 text-white shadow'
-                : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+                ? 'bg-[#714B67] text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
             }`}
           >
             <Bot size={15} />
@@ -956,46 +1042,46 @@ window.maviAgentEngine.triggerAgentEvent('APP_ACTION', {
           </button>
           <button
             onClick={() => setActiveTab('visual-builder')}
-            className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
               activeTab === 'visual-builder'
-                ? 'bg-purple-600 text-white shadow'
-                : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+                ? 'bg-[#6366f1] text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
             }`}
           >
             <Sparkles size={15} />
             Visual Agent Builder
-            <span className="px-1.5 py-0.2 rounded text-[10px] bg-purple-900 text-purple-300 border border-purple-700">Canvas</span>
+            <span className="px-1.5 py-0.2 rounded-md text-[10px] bg-indigo-100 text-indigo-700 font-bold">Canvas</span>
           </button>
           <button
             onClick={() => setActiveTab('triggers')}
-            className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
               activeTab === 'triggers'
-                ? 'bg-emerald-600 text-white shadow'
-                : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+                ? 'bg-[#017E84] text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
             }`}
           >
             <Radio size={15} />
             Autonomous Triggers & App Integration
-            <span className="px-1.5 py-0.2 rounded text-[10px] bg-emerald-900 text-emerald-300 border border-emerald-700">Live</span>
+            <span className="px-1.5 py-0.2 rounded-md text-[10px] bg-emerald-100 text-emerald-800 font-bold">Live</span>
           </button>
         </div>
 
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/ai-settings')}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-800/90 hover:bg-gray-750 text-gray-200 border border-gray-700 hover:border-blue-500 transition-all group"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/90 hover:border-[#714B67] transition-all group shadow-2xs"
             title="Buka Halaman AI Configuration (Settings)"
           >
-            <span className={`w-2 h-2 rounded-full ${centralAiConfig?.aiSettings?.apiKey ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+            <span className={`w-2 h-2 rounded-full ${centralAiConfig?.aiSettings?.apiKey ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
             <span>
-              AI Engine: <strong className="text-blue-400">{centralAiConfig?.aiSettings?.provider || 'Gemini'}</strong> ({centralAiConfig?.aiSettings?.modelId || 'gemini-3.6-flash'})
+              AI Engine: <strong className="text-purple-900">{centralAiConfig?.aiSettings?.provider || 'Gemini'}</strong> ({centralAiConfig?.aiSettings?.modelId || 'gemini-3.6-flash'})
             </span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-900 text-gray-400 border border-gray-700 flex items-center gap-1 group-hover:text-blue-400 group-hover:border-blue-500 transition-colors">
+            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-white text-slate-500 border border-slate-200 flex items-center gap-1 group-hover:text-[#714B67] group-hover:border-[#714B67] transition-colors">
               <Settings size={10} /> AI Settings ↗
             </span>
           </button>
-          <div className="text-xs text-gray-500">
-            {agents.length} Agent Aktif di Sistem
+          <div className="text-xs font-bold text-slate-400">
+            {agents.length} Agent Aktif
           </div>
         </div>
       </div>
@@ -1005,37 +1091,37 @@ window.maviAgentEngine.triggerAgentEvent('APP_ACTION', {
         <VisualAgentBuilder onNavigateToAiSettings={() => navigate('/ai-settings')} />
       ) : (
         <div className="flex-1 flex gap-4 min-h-0">
-          {/* Left sidebar - Agent list */}
-          <div className="w-80 flex flex-col bg-gray-900 rounded-lg border border-gray-700 flex-shrink-0">
-            <div className="p-4 border-b border-gray-700">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="font-bold text-gray-200 flex items-center gap-2">
-                  <Bot size={20} className="text-blue-400" />
+          {/* Left sidebar - Agent list (Odoo style cards) */}
+          <div className="w-80 flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm flex-shrink-0 overflow-hidden">
+            <div className="p-4 border-b border-slate-100 bg-slate-50/60">
+              <div className="flex items-center justify-between mb-1.5">
+                <h2 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+                  <Bot size={18} className="text-[#714B67]" />
                   AI Agents
                 </h2>
                 <button
                   onClick={handleCreateNew}
-                  className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg"
+                  className="p-1.5 bg-[#714B67] hover:bg-[#5a3851] text-white rounded-xl shadow-xs transition-all cursor-pointer"
                   title="Create new agent"
                 >
-                  <Plus size={18} />
+                  <Plus size={16} />
                 </button>
               </div>
-              <div className="text-sm text-gray-500">
+              <div className="text-[11px] text-slate-500 font-medium">
                 {agents.length} agent{agents.length !== 1 ? 's' : ''} configured
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
               {agents.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <Bot size={48} className="mx-auto mb-3 opacity-30" />
-                  <p className="text-sm">No agents yet</p>
+                <div className="text-center py-10 text-slate-400">
+                  <Bot size={44} className="mx-auto mb-2 opacity-30 text-[#714B67]" />
+                  <p className="text-xs font-semibold">Belum ada agen terdaftar</p>
                   <button
                     onClick={handleCreateNew}
-                    className="mt-3 text-sm text-blue-400 hover:text-blue-300"
+                    className="mt-2 text-xs font-bold text-[#714B67] hover:underline"
                   >
-                    Create your first agent
+                    + Buat agen pertama
                   </button>
                 </div>
               ) : (
@@ -1044,12 +1130,12 @@ window.maviAgentEngine.triggerAgentEvent('APP_ACTION', {
             </div>
 
             {/* Quick actions */}
-            <div className="p-3 border-t border-gray-700">
-              <div className="text-xs text-gray-600 mb-2">Quick Actions</div>
+            <div className="p-3 border-t border-slate-100 bg-slate-50/70">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Quick Actions</div>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={loadAgents}
-                  className="p-2 bg-gray-800 hover:bg-gray-700 rounded text-xs text-gray-400 flex items-center justify-center gap-1"
+                  className="p-2 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 flex items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer"
                   title="Muat ulang status agen"
                 >
                   <RotateCcw size={12} />
@@ -1057,7 +1143,7 @@ window.maviAgentEngine.triggerAgentEvent('APP_ACTION', {
                 </button>
                 <button
                   onClick={handleResetDefaults}
-                  className="p-2 bg-gray-800 hover:bg-gray-700 rounded text-xs text-orange-400 flex items-center justify-center gap-1"
+                  className="p-2 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl text-xs font-bold text-amber-800 flex items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer"
                   title="Muat ulang 5 Template Agen Standar Pabrik"
                 >
                   <Layers size={12} />
@@ -1075,17 +1161,19 @@ window.maviAgentEngine.triggerAgentEvent('APP_ACTION', {
           ) : selectedAgent ? (
             renderAgentDetail()
           ) : (
-            <div className="flex-1 flex items-center justify-center bg-gray-900 rounded-lg border border-gray-700">
-              <div className="text-center">
-                <Bot size={64} className="mx-auto mb-4 text-gray-700" />
-                <h3 className="text-xl font-bold text-gray-400 mb-2">Select an Agent</h3>
-                <p className="text-gray-600 mb-4">Choose an agent from the list to view details or test</p>
+            <div className="flex-1 flex items-center justify-center bg-white rounded-2xl border border-slate-200 p-8 text-center shadow-sm">
+              <div>
+                <div className="w-16 h-16 rounded-2xl bg-purple-50 text-[#714B67] flex items-center justify-center mx-auto mb-3 shadow-inner">
+                  <Bot size={36} />
+                </div>
+                <h3 className="text-base font-extrabold text-slate-800 mb-1">Pilih Agen untuk Membuka Detail</h3>
+                <p className="text-xs text-slate-500 mb-4 max-w-sm">Pilih salah satu agen di daftar sebelah kiri untuk melihat hak akses tool, prompt, atau menjalankan pengujian.</p>
                 <button
                   onClick={handleCreateNew}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center gap-2 mx-auto"
+                  className="px-4 py-2 bg-[#714B67] hover:bg-[#5b3852] text-white font-bold text-xs rounded-xl shadow-xs inline-flex items-center gap-2 cursor-pointer transition-all"
                 >
-                  <Plus size={18} />
-                  Create New Agent
+                  <Plus size={15} />
+                  Buat Agen Baru
                 </button>
               </div>
             </div>

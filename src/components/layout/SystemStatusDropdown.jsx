@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Activity, Database, BrainCircuit, Cpu } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Activity, Database, BrainCircuit, Cpu, Play, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useSystemStatus } from '../../hooks/useSystemStatus.jsx';
 import { useGlobalStore } from '../../store/useGlobalStore.js';
@@ -11,34 +11,18 @@ export default function SystemStatusDropdown() {
   
   const user = useGlobalStore((state) => state.user);
   const isOperator = useGlobalStore((state) => state.getIsOperator());
-  // Determine if it's an operator route could be tricky here without location, 
-  // but if the component is hidden on operator routes (in TopNavbar), we can pass false or just use hook defaults
+  
   const {
     supabaseActive,
     aiActive,
+    pythonActive,
+    pythonStarting,
+    autoRunPython,
     statusLoading,
-    updateAllStatuses
+    updateAllStatuses,
+    handleTogglePythonServer,
+    handleToggleAutoRun
   } = useSystemStatus({ user, isOperatorRoute: false, isOperator });
-
-  const [pythonActive, setPythonActive] = useState(false);
-
-  const checkPythonStatus = useCallback(async () => {
-    try {
-      const ctrl = new AbortController();
-      const timeoutId = setTimeout(() => ctrl.abort(), 1800);
-      const res = await fetch('http://localhost:8000/', { signal: ctrl.signal });
-      clearTimeout(timeoutId);
-      setPythonActive(res.ok);
-    } catch {
-      setPythonActive(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    checkPythonStatus();
-    const interval = setInterval(checkPythonStatus, 10000);
-    return () => clearInterval(interval);
-  }, [checkPythonStatus]);
 
   const hasAccess = (path) => checkRoleAccess(user, path);
 
@@ -70,7 +54,11 @@ export default function SystemStatusDropdown() {
         <div className="flex gap-1 items-center">
           <span className={`w-1.5 h-1.5 rounded-full ${supabaseActive ? 'bg-emerald-500 shadow-[0_0_4px_#10b981]' : 'bg-red-500 shadow-[0_0_4px_#ef4444]'}`} title="Supabase DB" />
           <span className={`w-1.5 h-1.5 rounded-full ${aiActive.active ? 'bg-emerald-500 shadow-[0_0_4px_#10b981]' : 'bg-red-500 shadow-[0_0_4px_#ef4444]'}`} title="AI Assistant" />
-          <span className={`w-1.5 h-1.5 rounded-full ${pythonActive ? 'bg-emerald-500 shadow-[0_0_4px_#10b981]' : 'bg-red-500 shadow-[0_0_4px_#ef4444]'}`} title="Python Vision Backend (:8000)" />
+          <span className={`w-1.5 h-1.5 rounded-full ${
+            pythonActive ? 'bg-emerald-500 shadow-[0_0_4px_#10b981]' :
+            pythonStarting ? 'bg-amber-500 shadow-[0_0_4px_#f59e0b]' :
+            'bg-red-500 shadow-[0_0_4px_#ef4444]'
+          }`} title={pythonActive ? "Python Vision Backend (:8000) ONLINE" : pythonStarting ? "Python Vision Backend STARTING..." : "Python Vision Backend (:8000) OFFLINE"} />
         </div>
       </button>
 
@@ -125,19 +113,69 @@ export default function SystemStatusDropdown() {
 
           {/* Python Vision & YOLO Backend */}
           <div className="flex gap-2.5 items-start">
-            <div className={`p-1.5 rounded-lg flex items-center ${pythonActive ? 'bg-emerald-50 text-emerald-500' : 'bg-red-50 text-red-500'}`}>
-              <Cpu size={16} />
+            <div className={`p-1.5 rounded-lg flex items-center ${
+              pythonActive ? 'bg-emerald-50 text-emerald-500' :
+              pythonStarting ? 'bg-amber-50 text-amber-500' :
+              'bg-red-50 text-red-500'
+            }`}>
+              <Cpu size={16} className={pythonStarting ? 'animate-pulse' : ''} />
             </div>
             <div className="flex-1 flex flex-col">
               <div className="flex justify-between items-center">
                 <span className="text-[0.75rem] font-bold text-slate-700">Python Vision Backend</span>
-                <span className={`text-[0.62rem] font-extrabold px-1.5 py-[1px] rounded-full ${pythonActive ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
-                  {pythonActive ? 'ONLINE (:8000)' : 'OFFLINE'}
+                <span className={`text-[0.62rem] font-extrabold px-1.5 py-[1px] rounded-full ${
+                  pythonActive ? 'bg-emerald-100 text-emerald-800' :
+                  pythonStarting ? 'bg-amber-100 text-amber-800' :
+                  'bg-red-100 text-red-800'
+                }`}>
+                  {pythonActive ? 'ONLINE (:8000)' : pythonStarting ? 'STARTING...' : 'OFFLINE'}
                 </span>
               </div>
               <span className="text-[0.65rem] text-slate-500 mt-[2px]">
-                {pythonActive ? 'FastAPI, OpenCV & YOLOv8 local inference ready.' : 'Server offline. Vision runs in JS simulation mode.'}
+                {pythonActive 
+                  ? 'FastAPI, OpenCV & YOLOv8 local inference ready.' 
+                  : pythonStarting
+                    ? 'Menjalankan server yolo_server.py di port 8000...'
+                    : 'Server offline. Vision runs in JS simulation mode.'}
               </span>
+
+              {/* Auto Run & Start Controls */}
+              <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                <label className="flex items-center gap-1.5 cursor-pointer text-[0.65rem] font-bold text-slate-600 select-none">
+                  <input
+                    type="checkbox"
+                    checked={autoRunPython}
+                    onChange={(e) => handleToggleAutoRun(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded text-blue-600 accent-blue-600 cursor-pointer"
+                  />
+                  <span>Auto-run jika offline</span>
+                </label>
+
+                {!pythonActive && (
+                  <button
+                    onClick={handleTogglePythonServer}
+                    disabled={pythonStarting}
+                    className={`px-2 py-0.5 rounded text-[0.65rem] font-bold flex items-center gap-1 transition-all ${
+                      pythonStarting 
+                        ? 'bg-amber-100 text-amber-700 cursor-not-allowed' 
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer'
+                    }`}
+                    title="Jalankan server Python yolo_server.py sekarang"
+                  >
+                    {pythonStarting ? (
+                      <>
+                        <RefreshCw size={10} className="animate-spin" />
+                        <span>Memulai...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play size={9} fill="currentColor" />
+                        <span>Nyalakan</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 

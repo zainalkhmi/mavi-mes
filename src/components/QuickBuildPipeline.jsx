@@ -199,15 +199,17 @@ const [isContinuous, setIsContinuous] = useState(false);
 const [backendStatus, setBackendStatus] = useState('checking'); // 'online' | 'offline' | 'checking'
 const [isCheckingBackend, setIsCheckingBackend] = useState(false);
 
-const checkBackendHealth = useCallback(async () => {
+const checkBackendHealth = useCallback(async (allowAutoStart = true) => {
     setIsCheckingBackend(true);
+    let isUp = false;
     try {
         const ctrl = new AbortController();
-        const timeoutId = setTimeout(() => ctrl.abort(), 2000);
+        const timeoutId = setTimeout(() => ctrl.abort(), 1800);
         const res = await fetch('http://localhost:8000/', { signal: ctrl.signal });
         clearTimeout(timeoutId);
         if (res.ok) {
             setBackendStatus('online');
+            isUp = true;
         } else {
             setBackendStatus('offline');
         }
@@ -216,11 +218,18 @@ const checkBackendHealth = useCallback(async () => {
     } finally {
         setIsCheckingBackend(false);
     }
+
+    const autoRun = localStorage.getItem('mavi_python_auto_run') !== 'false';
+    if (!isUp && allowAutoStart && autoRun) {
+        try {
+            await fetch('/api/python-server/start', { method: 'POST' });
+        } catch {}
+    }
 }, []);
 
 useEffect(() => {
-    checkBackendHealth();
-    const interval = setInterval(checkBackendHealth, 8000);
+    checkBackendHealth(true);
+    const interval = setInterval(() => checkBackendHealth(true), 8000);
     return () => clearInterval(interval);
 }, [checkBackendHealth]);
 
@@ -857,9 +866,16 @@ return (
 
                 {/* ── Python Backend Status Indicator ── */}
                 <div
-                    onClick={() => {
-                        toast('Mengecek status Python backend...');
-                        checkBackendHealth();
+                    onClick={async () => {
+                        if (backendStatus === 'offline') {
+                            toast('Memicu start Python server (:8000)...');
+                            try {
+                                await fetch('/api/python-server/start', { method: 'POST' });
+                            } catch {}
+                        } else {
+                            toast('Mengecek status Python backend...');
+                        }
+                        checkBackendHealth(false);
                     }}
                     title={
                         backendStatus === 'online'

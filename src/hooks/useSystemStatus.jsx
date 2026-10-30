@@ -20,7 +20,74 @@ export async function getTauriApi() {
 export function useSystemStatus({ user, isOperatorRoute, isOperator }) {
   const [supabaseActive, setSupabaseActive] = useState(false);
   const [aiActive, setAiActive] = useState({ active: false, provider: '', model: '' });
+  const [pythonActive, setPythonActive] = useState(false);
+  const [pythonStarting, setPythonStarting] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
+  const [autoRunPython, setAutoRunPython] = useState(() => {
+    const saved = localStorage.getItem('mavi_python_auto_run');
+    return saved !== null ? saved === 'true' : true; // Default auto-run ON
+  });
+
+  // Check Python Server health & trigger auto-run if offline
+  const checkPythonStatus = async (allowAutoStart = true) => {
+    let isUp = false;
+    try {
+      const ctrl = new AbortController();
+      const timeoutId = setTimeout(() => ctrl.abort(), 1500);
+      const res = await fetch('http://127.0.0.1:8000/', { signal: ctrl.signal });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        isUp = true;
+      }
+    } catch {
+      isUp = false;
+    }
+
+    setPythonActive(isUp);
+
+    // If server is offline and auto-run is enabled, auto-start via Vite endpoint
+    if (!isUp && allowAutoStart && autoRunPython && !pythonStarting) {
+      triggerPythonAutoStart();
+    }
+
+    return isUp;
+  };
+
+  const triggerPythonAutoStart = async () => {
+    setPythonStarting(true);
+    try {
+      const res = await fetch('/api/python-server/start', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        // Poll for server to become ready
+        let attempts = 0;
+        const poll = setInterval(async () => {
+          attempts++;
+          try {
+            const ctrl = new AbortController();
+            const tid = setTimeout(() => ctrl.abort(), 1200);
+            const check = await fetch('http://127.0.0.1:8000/', { signal: ctrl.signal });
+            clearTimeout(tid);
+            if (check.ok) {
+              setPythonActive(true);
+              setPythonStarting(false);
+              clearInterval(poll);
+              toast.success("Python Vision Server (Port 8000) otomatis aktif!", { id: 'py-auto-start' });
+            }
+          } catch {
+            if (attempts >= 12) {
+              setPythonStarting(false);
+              clearInterval(poll);
+            }
+          }
+        }, 1500);
+      } else {
+        setPythonStarting(false);
+      }
+    } catch {
+      setPythonStarting(false);
+    }
+  };
 
   const updateAllStatuses = async () => {
     setStatusLoading(true);
@@ -55,6 +122,9 @@ export function useSystemStatus({ user, isOperatorRoute, isOperator }) {
         ai = { active: false, provider: '', model: '' };
       }
       setAiActive(ai);
+
+      // 3. Python Backend
+      await checkPythonStatus(true);
     } catch (err) {
       console.warn("Failed to check status:", err);
     } finally {
@@ -65,21 +135,80 @@ export function useSystemStatus({ user, isOperatorRoute, isOperator }) {
   useEffect(() => {
     if (user && !isOperatorRoute && !isOperator) {
       updateAllStatuses();
-      const interval = setInterval(updateAllStatuses, 25000);
+      const interval = setInterval(() => {
+        updateAllStatuses();
+      }, 15000);
       return () => clearInterval(interval);
     }
-  }, [user, isOperatorRoute, isOperator]);
+  }, [user, isOperatorRoute, isOperator, autoRunPython]);
 
   const handleTogglePythonServer = async () => {
-    toast.error("Server Python Sidecar telah dinonaktifkan dari sistem.");
+    if (pythonActive) {
+      toast("Server Python Vision sudah aktif di port 8000.", { icon: '🟢' });
+      return;
+    }
+
+    setPythonStarting(true);
+    const toastId = toast.loading("Menjalankan Python Vision Server (yolo_server.py)...");
+    try {
+      const res = await fetch('/api/python-server/start', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        let attempts = 0;
+        const interval = setInterval(async () => {
+          attempts++;
+          try {
+            const ctrl = new AbortController();
+            const tid = setTimeout(() => ctrl.abort(), 1200);
+            const test = await fetch('http://127.0.0.1:8000/', { signal: ctrl.signal });
+            clearTimeout(tid);
+            if (test.ok) {
+              setPythonActive(true);
+              setPythonStarting(false);
+              clearInterval(interval);
+              toast.success("Python Vision Server (Port 8000) ONLINE!", { id: toastId });
+            }
+          } catch {
+            if (attempts >= 12) {
+              setPythonStarting(false);
+              clearInterval(interval);
+              toast.error("Timeout: Python server memakan waktu terlalu lama.", { id: toastId });
+            }
+          }
+        }, 1200);
+      } else {
+        setPythonStarting(false);
+        toast.error(`Gagal memulai: ${data.error || 'Unknown error'}`, { id: toastId });
+      }
+    } catch (err) {
+      setPythonStarting(false);
+      toast.error(`Gagal menghubungi server: ${err.message}`, { id: toastId });
+    }
+  };
+
+  const handleToggleAutoRun = (enabled) => {
+    setAutoRunPython(enabled);
+    localStorage.setItem('mavi_python_auto_run', String(enabled));
+    if (enabled) {
+      toast.success("Auto-Run Python aktif jika server offline");
+      if (!pythonActive) {
+        checkPythonStatus(true);
+      }
+    } else {
+      toast("Auto-Run Python dinonaktifkan", { icon: '⏸️' });
+    }
   };
 
   return {
-    pythonActive: false,
+    pythonActive,
+    pythonStarting,
+    autoRunPython,
     supabaseActive,
     aiActive,
     statusLoading,
     updateAllStatuses,
-    handleTogglePythonServer
+    checkPythonStatus,
+    handleTogglePythonServer,
+    handleToggleAutoRun
   };
 }
