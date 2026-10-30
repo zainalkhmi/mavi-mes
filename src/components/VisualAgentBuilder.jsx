@@ -381,6 +381,39 @@ if (window.maviAgentEngine) {
                 </button>
 
                 <button
+                  onClick={() => handleAddNode('trigger', 'vision_defect', 'Cacat Vision QuickBuild', 'Deviasi visual terdeteksi kamera :8000', { defect: 'Bead Glue Gap', threshold: 85 })}
+                  className="w-full text-left p-2.5 bg-orange-50/50 hover:bg-orange-100/70 border border-orange-200 rounded-xl text-xs transition-all flex items-center gap-2 group cursor-pointer shadow-2xs"
+                >
+                  <span className="p-1.5 rounded-lg bg-orange-500 text-white shadow-2xs group-hover:scale-105 transition-transform"><Eye size={13} /></span>
+                  <div>
+                    <div className="font-bold text-slate-800">Defect Vision QuickBuild</div>
+                    <div className="text-[10px] text-slate-500">Pemicu kamera edge AI YOLO</div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handleAddNode('trigger', 'checksheet_ng', 'Checksheet NG Alert', 'Poin inspeksi QC out of tolerance', { checksheetId: 'CS-QC-FLANGE-01' })}
+                  className="w-full text-left p-2.5 bg-teal-50/50 hover:bg-teal-100/70 border border-teal-200 rounded-xl text-xs transition-all flex items-center gap-2 group cursor-pointer shadow-2xs"
+                >
+                  <span className="p-1.5 rounded-lg bg-[#017E84] text-white shadow-2xs group-hover:scale-105 transition-transform"><CheckCircle2 size={13} /></span>
+                  <div>
+                    <div className="font-bold text-slate-800">Checksheet NG Alert</div>
+                    <div className="text-[10px] text-slate-500">Pemicu hasil QC tidak lolos</div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handleAddNode('trigger', 'table_change', 'Update MaviCore Table', 'Record baru di Work Orders / Stock', { tableName: 'Kanban_Work_Orders' })}
+                  className="w-full text-left p-2.5 bg-purple-50/50 hover:bg-purple-100/70 border border-purple-200 rounded-xl text-xs transition-all flex items-center gap-2 group cursor-pointer shadow-2xs"
+                >
+                  <span className="p-1.5 rounded-lg bg-[#714B67] text-white shadow-2xs group-hover:scale-105 transition-transform"><Database size={13} /></span>
+                  <div>
+                    <div className="font-bold text-slate-800">Update MaviCore Table</div>
+                    <div className="text-[10px] text-slate-500">Perubahan baris database MES</div>
+                  </div>
+                </button>
+
+                <button
                   onClick={() => handleAddNode('trigger', 'plc_alarm', 'Alarm Sensor PLC', 'Nilai register melebihi batas batas aman', { tag: 'MTR_TEMP_01', threshold: 80 })}
                   className="w-full text-left p-2.5 bg-rose-50/50 hover:bg-rose-100/70 border border-rose-200 rounded-xl text-xs transition-all flex items-center gap-2 group cursor-pointer shadow-2xs"
                 >
@@ -430,6 +463,39 @@ if (window.maviAgentEngine) {
               </div>
               <div className="space-y-1.5">
                 <button
+                  onClick={() => handleAddNode('tool', 'run_vision_pipeline', 'Inspeksi Kamera YOLO', 'Jalankan model visual edge AI di port 8000', { tool: 'run_vision_pipeline', pipelineId: 'Flange-QC' })}
+                  className="w-full text-left p-2.5 bg-pink-50/50 hover:bg-pink-100/70 border border-pink-200 rounded-xl text-xs transition-all flex items-center gap-2 group cursor-pointer shadow-2xs"
+                >
+                  <span className="p-1.5 rounded-lg bg-pink-500 text-white shadow-2xs group-hover:scale-105 transition-transform"><Sparkles size={13} /></span>
+                  <div>
+                    <div className="font-bold text-slate-800">Vision QuickBuild / YOLO</div>
+                    <div className="text-[10px] text-slate-500">Model AI edge port 8000</div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handleAddNode('tool', 'get_checksheets', 'Digital Checksheet QC', 'Baca kriteria toleransi & isi form inspeksi', { tool: 'get_checksheets', stationId: 'QC-01' })}
+                  className="w-full text-left p-2.5 bg-teal-50/50 hover:bg-teal-100/70 border border-teal-200 rounded-xl text-xs transition-all flex items-center gap-2 group cursor-pointer shadow-2xs"
+                >
+                  <span className="p-1.5 rounded-lg bg-[#017E84] text-white shadow-2xs group-hover:scale-105 transition-transform"><CheckCircle2 size={13} /></span>
+                  <div>
+                    <div className="font-bold text-slate-800">Digital Checksheet Tool</div>
+                    <div className="text-[10px] text-slate-500">Validasi & simpan hasil QC</div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handleAddNode('tool', 'read_mavi_table', 'MaviCore Table Reader', 'Query tabel Work Orders & log produksi', { tool: 'read_mavi_table', tableName: 'Kanban_Work_Orders' })}
+                  className="w-full text-left p-2.5 bg-purple-50/50 hover:bg-purple-100/70 border border-purple-200 rounded-xl text-xs transition-all flex items-center gap-2 group cursor-pointer shadow-2xs"
+                >
+                  <span className="p-1.5 rounded-lg bg-[#714B67] text-white shadow-2xs group-hover:scale-105 transition-transform"><Database size={13} /></span>
+                  <div>
+                    <div className="font-bold text-slate-800">MaviCore Table CRUD</div>
+                    <div className="text-[10px] text-slate-500">Akses data tabel shopfloor</div>
+                  </div>
+                </button>
+
+                <button
                   onClick={() => handleAddNode('tool', 'calculate_oee', 'Kalkulator OEE', 'Hitung Availability x Perf x Quality', { tool: 'calculate_oee' })}
                   className="w-full text-left p-2.5 bg-amber-50/50 hover:bg-amber-100/70 border border-amber-200 rounded-xl text-xs transition-all flex items-center gap-2 group cursor-pointer shadow-2xs"
                 >
@@ -442,23 +508,12 @@ if (window.maviAgentEngine) {
 
                 <button
                   onClick={() => handleAddNode('tool', 'read_plc', 'Baca Register PLC', 'Baca sensor Modbus / MQTT real-time', { tool: 'read_plc', address: 'MTR_TEMP_01' })}
-                  className="w-full text-left p-2.5 bg-teal-50/50 hover:bg-teal-100/70 border border-teal-200 rounded-xl text-xs transition-all flex items-center gap-2 group cursor-pointer shadow-2xs"
+                  className="w-full text-left p-2.5 bg-blue-50/50 hover:bg-blue-100/70 border border-blue-200 rounded-xl text-xs transition-all flex items-center gap-2 group cursor-pointer shadow-2xs"
                 >
-                  <span className="p-1.5 rounded-lg bg-teal-600 text-white shadow-2xs group-hover:scale-105 transition-transform"><Cpu size={13} /></span>
+                  <span className="p-1.5 rounded-lg bg-blue-600 text-white shadow-2xs group-hover:scale-105 transition-transform"><Cpu size={13} /></span>
                   <div>
                     <div className="font-bold text-slate-800">Baca Sensor PLC</div>
                     <div className="text-[10px] text-slate-500">Modbus/OPC-UA register</div>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => handleAddNode('tool', 'run_vision_pipeline', 'Inspeksi Kamera YOLO', 'Jalankan model visual edge AI di port 8000', { tool: 'run_vision_pipeline', pipelineId: 'Flange-QC' })}
-                  className="w-full text-left p-2.5 bg-pink-50/50 hover:bg-pink-100/70 border border-pink-200 rounded-xl text-xs transition-all flex items-center gap-2 group cursor-pointer shadow-2xs"
-                >
-                  <span className="p-1.5 rounded-lg bg-pink-500 text-white shadow-2xs group-hover:scale-105 transition-transform"><Sparkles size={13} /></span>
-                  <div>
-                    <div className="font-bold text-slate-800">Inspeksi Kamera YOLO</div>
-                    <div className="text-[10px] text-slate-500">Model AI QuickBuild :8000</div>
                   </div>
                 </button>
               </div>

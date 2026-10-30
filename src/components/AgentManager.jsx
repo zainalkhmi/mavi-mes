@@ -19,6 +19,7 @@ import VisualAgentBuilder from './VisualAgentBuilder';
 // Capability categories with vibrant Odoo module color schemes
 const CAPABILITY_CATEGORIES = {
   database: { name: 'Database & MES', icon: Database, color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
+  checksheet: { name: 'Digital Checksheets', icon: CheckCheck, color: '#0d9488', bg: '#f0fdfa', border: '#99f6e4' },
   communication: { name: 'Communication & Andon', icon: MessageSquare, color: '#059669', bg: '#ecfdf5', border: '#a7f3d0' },
   api: { name: 'API / HTTP', icon: Zap, color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
   file: { name: 'File Operations', icon: Database, color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
@@ -856,23 +857,23 @@ window.maviAgentEngine.triggerAgentEvent('APP_ACTION', {
         </div>
 
         {/* Integration Status Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
           <div className="p-3.5 bg-orange-50/60 rounded-xl border border-orange-200/80 flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-orange-500 text-white shadow-2xs">
               <Sparkles size={18} />
             </div>
             <div>
-              <div className="text-[11px] text-orange-800 font-bold uppercase tracking-wider">Vision QuickBuild / YOLO</div>
+              <div className="text-[10px] text-orange-800 font-bold uppercase tracking-wider">Vision QuickBuild / YOLO</div>
               <div className="text-xs font-bold text-slate-800">Port 8000 & Camera RT</div>
             </div>
           </div>
-          <div className="p-3.5 bg-blue-50/60 rounded-xl border border-blue-200/80 flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-blue-600 text-white shadow-2xs">
-              <Cpu size={18} />
+          <div className="p-3.5 bg-teal-50/60 rounded-xl border border-teal-200/80 flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-[#017E84] text-white shadow-2xs">
+              <CheckCheck size={18} />
             </div>
             <div>
-              <div className="text-[11px] text-blue-800 font-bold uppercase tracking-wider">PLC & Sensor Gateway</div>
-              <div className="text-xs font-bold text-slate-800">Modbus / MQTT Telemetry</div>
+              <div className="text-[10px] text-teal-800 font-bold uppercase tracking-wider">Digital Checksheets</div>
+              <div className="text-xs font-bold text-slate-800">QC Forms & Inspections</div>
             </div>
           </div>
           <div className="p-3.5 bg-purple-50/60 rounded-xl border border-purple-200/80 flex items-center gap-3">
@@ -880,31 +881,40 @@ window.maviAgentEngine.triggerAgentEvent('APP_ACTION', {
               <Database size={18} />
             </div>
             <div>
-              <div className="text-[11px] text-purple-800 font-bold uppercase tracking-wider">Shopfloor Database</div>
-              <div className="text-xs font-bold text-slate-800">Work Orders & History</div>
+              <div className="text-[10px] text-purple-800 font-bold uppercase tracking-wider">MaviCore Tables</div>
+              <div className="text-xs font-bold text-slate-800">Work Orders & Inventory</div>
+            </div>
+          </div>
+          <div className="p-3.5 bg-blue-50/60 rounded-xl border border-blue-200/80 flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-blue-600 text-white shadow-2xs">
+              <Cpu size={18} />
+            </div>
+            <div>
+              <div className="text-[10px] text-blue-800 font-bold uppercase tracking-wider">PLC & Sensor Gateway</div>
+              <div className="text-xs font-bold text-slate-800">Modbus / MQTT Telemetry</div>
             </div>
           </div>
         </div>
 
-        {/* 4 Triggers Grid */}
+        {/* Triggers Grid */}
         <div className="space-y-3">
           <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-            Pre-Configured Manufacturing Triggers
+            Pre-Configured Manufacturing Triggers (Vision, Checksheet, Data Table, PLC)
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {/* Trigger 1: Vision Defect */}
             <div className="p-4 bg-orange-50/40 rounded-2xl border border-orange-200 flex flex-col justify-between shadow-2xs">
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-orange-100 text-orange-800 border border-orange-200">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-orange-100 text-orange-800 border border-orange-200">
                     EVENT: VISION_DEFECT
                   </span>
-                  <span className="text-[11px] text-slate-500 font-semibold">Target: Quality Inspector</span>
+                  <span className="text-[11px] text-slate-500 font-semibold">Quality Inspector</span>
                 </div>
-                <h4 className="font-bold text-slate-800 text-sm mb-1">Deteksi Cacat Machine Vision</h4>
+                <h4 className="font-bold text-slate-800 text-sm mb-1">Cacat Vision QuickBuild</h4>
                 <p className="text-xs text-slate-500 mb-3 leading-relaxed">
-                  Dipicu otomatis saat pipeline QuickBuild mendeteksi cacat visual (misal goresan, gap lem sealant, atau baut hilang).
+                  Dipicu saat pipeline YOLO / QuickBuild mendeteksi deviasi visual pada kamera stasiun inspeksi.
                 </p>
               </div>
               <button
@@ -917,18 +927,66 @@ window.maviAgentEngine.triggerAgentEvent('APP_ACTION', {
               </button>
             </div>
 
-            {/* Trigger 2: PLC Over-Temperature */}
+            {/* Trigger 2: Checksheet Defect NG */}
+            <div className="p-4 bg-teal-50/40 rounded-2xl border border-teal-200 flex flex-col justify-between shadow-2xs">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-teal-100 text-teal-800 border border-teal-200">
+                    EVENT: CHECKSHEET_NG
+                  </span>
+                  <span className="text-[11px] text-slate-500 font-semibold">Quality Inspector</span>
+                </div>
+                <h4 className="font-bold text-slate-800 text-sm mb-1">Temuan NG pada Checksheet</h4>
+                <p className="text-xs text-slate-500 mb-3 leading-relaxed">
+                  Dipicu saat operator submit checksheet dengan poin pengukuran di luar toleransi (Out of Spec).
+                </p>
+              </div>
+              <button
+                onClick={() => handleSimulateTrigger('CHECKSHEET_NG', { stationId: 'QC-01', item: 'Diameter Inner Bore', value: '50.48 mm', spec: '50.0 ± 0.2 mm' })}
+                disabled={isSimulatingTrigger}
+                className="w-full py-2 px-3 rounded-xl bg-[#017E84] hover:bg-[#01656a] text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+              >
+                <CheckCheck size={13} />
+                Simulasikan Checksheet NG
+              </button>
+            </div>
+
+            {/* Trigger 3: MaviCore Table Update */}
+            <div className="p-4 bg-purple-50/40 rounded-2xl border border-purple-200 flex flex-col justify-between shadow-2xs">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-800 border border-purple-200">
+                    EVENT: TABLE_CHANGE
+                  </span>
+                  <span className="text-[11px] text-slate-500 font-semibold">Production Planner</span>
+                </div>
+                <h4 className="font-bold text-slate-800 text-sm mb-1">Update MaviCore Table</h4>
+                <p className="text-xs text-slate-500 mb-3 leading-relaxed">
+                  Dipicu saat ada perubahan baris pada tabel Work Orders, inventaris part, atau log cacat.
+                </p>
+              </div>
+              <button
+                onClick={() => handleSimulateTrigger('TABLE_RECORD_SAVED', { tableName: 'Kanban_Work_Orders', action: 'INSERT', part: 'FLANGE-ALU-50', qty: 500 })}
+                disabled={isSimulatingTrigger}
+                className="w-full py-2 px-3 rounded-xl bg-[#714B67] hover:bg-[#5a3851] text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+              >
+                <Database size={13} />
+                Simulasikan Tabel WO Update
+              </button>
+            </div>
+
+            {/* Trigger 4: PLC Over-Temperature */}
             <div className="p-4 bg-rose-50/40 rounded-2xl border border-rose-200 flex flex-col justify-between shadow-2xs">
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200">
                     EVENT: PLC_ALARM
                   </span>
-                  <span className="text-[11px] text-slate-500 font-semibold">Target: Maintenance Agent</span>
+                  <span className="text-[11px] text-slate-500 font-semibold">Maintenance Agent</span>
                 </div>
-                <h4 className="font-bold text-slate-800 text-sm mb-1">Threshold Sensor PLC Terlampaui</h4>
+                <h4 className="font-bold text-slate-800 text-sm mb-1">Alarm Sensor Suhu PLC</h4>
                 <p className="text-xs text-slate-500 mb-3 leading-relaxed">
-                  Dipicu saat tag Modbus/MQTT (misal suhu motor spindle &gt; 80°C) melebihi batas toleransi aman.
+                  Dipicu saat tag Modbus/MQTT (misal suhu motor spindle &gt; 80°C) melebihi batas toleransi.
                 </p>
               </div>
               <button
@@ -937,22 +995,22 @@ window.maviAgentEngine.triggerAgentEvent('APP_ACTION', {
                 className="w-full py-2 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer disabled:opacity-50"
               >
                 <ShieldAlert size={13} />
-                Simulasikan Alarm Suhu Motor (88.5°C)
+                Simulasikan Alarm Motor (88.5°C)
               </button>
             </div>
 
-            {/* Trigger 3: Shift Handoff */}
+            {/* Trigger 5: Shift Handoff */}
             <div className="p-4 bg-blue-50/40 rounded-2xl border border-blue-200 flex flex-col justify-between shadow-2xs">
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800 border border-blue-200">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800 border border-blue-200">
                     EVENT: SHIFT_CHANGE
                   </span>
-                  <span className="text-[11px] text-slate-500 font-semibold">Target: Data Analyst</span>
+                  <span className="text-[11px] text-slate-500 font-semibold">Data Analyst</span>
                 </div>
                 <h4 className="font-bold text-slate-800 text-sm mb-1">Pergantian Shift Produksi</h4>
                 <p className="text-xs text-slate-500 mb-3 leading-relaxed">
-                  Dipicu pada akhir shift (pukul 07:00, 15:00, 23:00) untuk merangkum OEE harian dan mengirim notifikasi email/chat.
+                  Dipicu otomatis saat akhir shift untuk menghitung OEE, scrap, dan mengirim laporan shift.
                 </p>
               </div>
               <button
@@ -965,26 +1023,26 @@ window.maviAgentEngine.triggerAgentEvent('APP_ACTION', {
               </button>
             </div>
 
-            {/* Trigger 4: App Builder Snippet */}
+            {/* Trigger 6: App Builder Snippet */}
             <div className="p-4 bg-emerald-50/40 rounded-2xl border border-emerald-200 flex flex-col justify-between shadow-2xs">
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
                     API: APP_BUILDER
                   </span>
-                  <span className="text-[11px] text-slate-500 font-semibold">Target: HMI Screens</span>
+                  <span className="text-[11px] text-slate-500 font-semibold">HMI & Screens</span>
                 </div>
                 <h4 className="font-bold text-slate-800 text-sm mb-1">Panggil Agen dari Tombol HMI</h4>
                 <p className="text-xs text-slate-500 mb-3 leading-relaxed">
-                  Gunakan kode Javascript satu baris di App Builder / Checksheet untuk meminta konsultasi AI langsung dari layar stasiun operator.
+                  Gunakan kode Javascript satu baris di App Builder / Checksheet untuk integrasi kustom.
                 </p>
               </div>
               <button
                 onClick={copyAppBuilderSnippet}
-                className="w-full py-2 px-3 rounded-xl bg-[#017E84] hover:bg-[#01656a] text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer"
+                className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer"
               >
                 {copiedSnippet ? <Check size={13} /> : <Copy size={13} />}
-                {copiedSnippet ? 'Kode Tersalin ke Clipboard!' : 'Salin Snippet Kode App Builder'}
+                {copiedSnippet ? 'Kode Tersalin ke Clipboard!' : 'Salin Snippet Kode App'}
               </button>
             </div>
           </div>

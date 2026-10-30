@@ -64,15 +64,7 @@ export const AGENT_CAPABILITIES = {
     parameters: { path: 'string', content: 'string' }
   },
 
-  // Vision/Image
-  analyze_image: {
-    name: 'Analyze Image',
-    description: 'Use AI vision to analyze images',
-    category: 'vision',
-    parameters: { imageUrl: 'string', prompt: 'string' }
-  },
-
-  // Vision & Inspection
+  // Vision & Inspection (QuickBuild / YOLO)
   analyze_image: {
     name: 'Analyze Image',
     description: 'Use AI vision to analyze images and detect visual defects',
@@ -90,6 +82,34 @@ export const AGENT_CAPABILITIES = {
     description: 'Retrieve latest inspection pass/fail rate, defect counts, and inspection telemetry',
     category: 'vision',
     parameters: { recentCount: 'number' }
+  },
+
+  // Digital Checksheets & Quality
+  get_checksheets: {
+    name: 'Get Digital Checksheets',
+    description: 'Query inspection check sheets, items, tolerances, and operator submission history',
+    category: 'checksheet',
+    parameters: { stationId: 'string', status: 'string' }
+  },
+  submit_checksheet: {
+    name: 'Submit Checksheet Entry',
+    description: 'Submit an automated QA or machine inspection record directly to MaviCore Checksheet Table',
+    category: 'checksheet',
+    parameters: { checksheetId: 'string', stationId: 'string', items: 'array', status: 'string' }
+  },
+
+  // MaviCore Tables & Database
+  read_mavi_table: {
+    name: 'Read MaviCore Table',
+    description: 'Read rows directly from any MaviCore Table (Work Orders, Inventory, Defect Logs)',
+    category: 'database',
+    parameters: { tableName: 'string', limit: 'number' }
+  },
+  write_mavi_table: {
+    name: 'Write MaviCore Table',
+    description: 'Insert or update records in MaviCore Table with real-time UI synchronization',
+    category: 'database',
+    parameters: { tableName: 'string', data: 'object' }
   },
 
   // PLC & Hardware Control
@@ -590,6 +610,18 @@ class AgentManager {
       case 'get_work_orders':
         return await this.executeGetWorkOrders(params.status, params.stationId);
 
+      case 'get_checksheets':
+        return await this.executeGetChecksheets(params.stationId, params.status);
+
+      case 'submit_checksheet':
+        return await this.executeSubmitChecksheet(params);
+
+      case 'read_mavi_table':
+        return await this.executeReadMaviTable(params.tableName, params.limit);
+
+      case 'write_mavi_table':
+        return await this.executeWriteMaviTable(params.tableName, params.data);
+
       case 'trigger_andon_alert':
         return await this.executeTriggerAndon(params.stationId, params.reason, params.severity);
 
@@ -779,6 +811,162 @@ class AgentManager {
       }
 
       return { success: true, count: filtered.length, workOrders: filtered };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  }
+
+  async executeGetChecksheets(stationId = null, status = 'ALL') {
+    try {
+      const defaultChecksheets = [
+        {
+          id: 'CS-QC-FLANGE-01',
+          name: 'Flange Quality & Dimensional Inspection',
+          station: 'QC-01',
+          partNumber: 'FLANGE-ALU-50',
+          items: [
+            { item: 'Diameter Inner Bore', spec: '50.0 ± 0.2 mm', method: 'Bore Micrometer / Vision', status: 'PASS' },
+            { item: 'Baut Lubang 4-Point', spec: 'PCD 75mm (4 holes)', method: 'QuickBuild Vision AI', status: 'PASS' },
+            { item: 'Permukaan Seal Flange', spec: 'Ra < 1.6 μm, Bebas Gores', method: 'Visual / Tactile', status: 'PASS' },
+            { item: 'Ketebalan Flange', spec: '12.0 ± 0.1 mm', method: 'Vernier Caliper', status: 'PASS' }
+          ],
+          lastInspected: new Date(Date.now() - 3600000).toISOString(),
+          inspector: 'Jarvis AI & Operator Budi'
+        },
+        {
+          id: 'CS-STAMP-PREV-02',
+          name: 'Stamping Press Daily Safety Check',
+          station: 'ST-02',
+          partNumber: 'STAMPING-PRESS-400T',
+          items: [
+            { item: 'Tekanan Hidrolik Utama', spec: '140 - 160 Bar', method: 'PLC Pressure Tag', status: 'PASS' },
+            { item: 'Light Curtain Safety Sensor', spec: 'Response < 20ms', method: 'Safety Relay Trip Test', status: 'PASS' },
+            { item: 'Level Oli Pelumas Spindle', spec: 'Level MIN-MAX', method: 'Sight Glass', status: 'PASS' }
+          ],
+          lastInspected: new Date(Date.now() - 7200000).toISOString(),
+          inspector: 'Teknisi Ahmad'
+        }
+      ];
+
+      const local = localStorage.getItem('mavi_digital_checksheets') || localStorage.getItem('mavi_checksheets');
+      let allChecksheets = local ? JSON.parse(local) : defaultChecksheets;
+
+      if (stationId) {
+        allChecksheets = allChecksheets.filter(c => c.station === stationId || c.stationId === stationId);
+      }
+
+      return {
+        success: true,
+        count: allChecksheets.length,
+        checksheets: allChecksheets
+      };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  }
+
+  async executeSubmitChecksheet(params = {}) {
+    try {
+      const submission = {
+        id: `CS-SUB-${Date.now()}`,
+        checksheetId: params.checksheetId || 'CS-QC-FLANGE-01',
+        stationId: params.stationId || 'QC-01',
+        status: params.status || 'PASS',
+        items: params.items || [
+          { item: 'Visual Surface Inspection', result: 'PASS', verifiedBy: 'Vision Builder' },
+          { item: 'Bore Diameter', result: '50.04 mm (PASS)', verifiedBy: 'QuickBuild AI' }
+        ],
+        notes: params.notes || 'Automated validation by MAVI AI Agent',
+        submittedAt: new Date().toISOString()
+      };
+
+      const key = 'table_Digital_Checksheets';
+      const existing = JSON.parse(localStorage.getItem(key) || '[]');
+      existing.unshift(submission);
+      localStorage.setItem(key, JSON.stringify(existing.slice(0, 100)));
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('mavicore_checksheet_submitted', { detail: submission }));
+        window.dispatchEvent(new CustomEvent('mavicore_record_change', {
+          detail: { type: 'MAVICORE_RECORD_SAVED', table: 'Digital_Checksheets', tableName: 'Digital_Checksheets', record: submission }
+        }));
+      }
+
+      return {
+        success: true,
+        submissionId: submission.id,
+        status: submission.status,
+        message: 'Checksheet inspection record successfully stored in MaviCore Table',
+        submission
+      };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  }
+
+  async executeReadMaviTable(tableName = 'Digital_Checksheets', limit = 20) {
+    try {
+      const key = tableName.startsWith('table_') ? tableName : `table_${tableName}`;
+      const altKey = `mavi_db_${tableName}`;
+      const dataStr = localStorage.getItem(key) || localStorage.getItem(altKey) || localStorage.getItem(tableName);
+      let records = dataStr ? JSON.parse(dataStr) : [];
+
+      if (!records || records.length === 0) {
+        if (tableName.toLowerCase().includes('order')) {
+          records = [
+            { id: 'WO-101', part: 'FLANGE-ALU-50', qty: 500, produced: 382, status: 'IN_PROGRESS' },
+            { id: 'WO-102', part: 'VALVE-BODY-V4', qty: 250, produced: 250, status: 'COMPLETED' }
+          ];
+        } else if (tableName.toLowerCase().includes('checksheet')) {
+          records = [
+            { id: 'CS-01', station: 'QC-01', operator: 'Budi', result: 'PASS', score: '100%' },
+            { id: 'CS-02', station: 'ST-02', operator: 'Siti', result: 'PASS', score: '98%' }
+          ];
+        } else {
+          records = [
+            { id: 'REC-01', status: 'ACTIVE', timestamp: new Date().toISOString() }
+          ];
+        }
+      }
+
+      const sliced = records.slice(0, limit);
+      return {
+        success: true,
+        table: tableName,
+        totalRows: records.length,
+        returnedRows: sliced.length,
+        data: sliced
+      };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  }
+
+  async executeWriteMaviTable(tableName = 'Mavi_Log', data = {}) {
+    try {
+      const record = {
+        id: data.id || `REC_${Date.now()}`,
+        ...data,
+        updatedAt: new Date().toISOString()
+      };
+
+      const key = tableName.startsWith('table_') ? tableName : `table_${tableName}`;
+      const existing = JSON.parse(localStorage.getItem(key) || '[]');
+      existing.unshift(record);
+      localStorage.setItem(key, JSON.stringify(existing.slice(0, 200)));
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('mavicore_record_change', {
+          detail: { type: 'MAVICORE_RECORD_SAVED', table: tableName, tableName, record }
+        }));
+      }
+
+      return {
+        success: true,
+        table: tableName,
+        recordId: record.id,
+        stored: true
+      };
     } catch (e) {
       return { success: false, error: e.message };
     }
@@ -1241,6 +1429,18 @@ export async function triggerAgentEvent(eventType, eventData = {}) {
     case 'SHIFT_CHANGE':
       targetType = 'data_analyst';
       defaultTask = `Shift ${eventData.shift || '1'} handoff requested. Calculate Overall Equipment Effectiveness (OEE), scrap count, and generate automated shift handover report.`;
+      break;
+    case 'CHECKSHEET_NG':
+      targetType = 'quality_inspector';
+      defaultTask = `Alert: Digital Checksheet at station ${eventData.stationId || 'QC-01'} reported non-conformance (NG). Item: "${eventData.item || 'Diameter Outer'}". Value: ${eventData.value || '50.45 mm'} (Tolerance spec: ${eventData.spec || '50.0 ± 0.2 mm'}). Verify defect severity and trigger necessary corrective actions.`;
+      break;
+    case 'CHECKSHEET_SUBMIT':
+      targetType = 'quality_inspector';
+      defaultTask = `Operator completed Digital Checksheet at station ${eventData.stationId || 'QC-01'}. Overall status: ${eventData.status || 'PASS'}. Audit submission records and update QA tracking logs.`;
+      break;
+    case 'TABLE_RECORD_SAVED':
+      targetType = 'production_planner';
+      defaultTask = `Table Update detected on table "${eventData.tableName || 'Kanban_Work_Orders'}". Re-evaluate station scheduling and material replenishment.`;
       break;
     case 'APP_ACTION':
       targetType = eventData.agentType || 'data_analyst';
