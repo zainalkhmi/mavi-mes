@@ -28,7 +28,8 @@ import {
     ChevronDown,
     ChevronUp,
     HelpCircle,
-    Save
+    Save,
+    Upload
 } from 'lucide-react';
 import JSZip from 'jszip';
 import toast from 'react-hot-toast';
@@ -406,6 +407,12 @@ const VisionManager = ({ initialTab = 'cameras' }) => {
     const [cameraError, setCameraError] = useState('');
     const [isCapturing, setIsCapturing] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
+    const [availableVideoDevices, setAvailableVideoDevices] = useState([]);
+    const [selectedVideoDeviceId, setSelectedVideoDeviceId] = useState(() => {
+        return (typeof localStorage !== 'undefined' ? localStorage.getItem('mandor-selected-camera-id') : '') || '';
+    });
+    const [isSimulatedFeed, setIsSimulatedFeed] = useState(false);
+    const simAnimRef = useRef(null);
 
     // Load Datasets & Cameras on mount or tab switch
     useEffect(() => {
@@ -719,14 +726,34 @@ const VisionManager = ({ initialTab = 'cameras' }) => {
                     settings: settings
                 };
             });
-            setCameraConfigs(mappedConfigs);
+            if (mappedConfigs.length > 0) {
+                setCameraConfigs(mappedConfigs);
 
-            const newRegionsByCamera = {};
-            data.forEach(c => {
-                const settings = c.settings || {};
-                newRegionsByCamera[c.id] = settings.regions || [];
-            });
-            setRegionsByCamera(newRegionsByCamera);
+                const newRegionsByCamera = {};
+                data.forEach(c => {
+                    const settings = c.settings || {};
+                    newRegionsByCamera[c.id] = settings.regions || [];
+                });
+                setRegionsByCamera(newRegionsByCamera);
+            } else {
+                const defaultCams = [
+                    { id: 'cam_gige_1', name: 'Basler GigE Vision - Station 1', cameraSource: 'IP_CAMERA', ipCameraUrl: 'rtsp://192.168.1.51:554/live', status: 'ACTIVE', regions: 2, detectors: ['Presence Check', 'Defect Anomaly'] },
+                    { id: 'cam_packaging', name: 'Packaging Line High-Speed Camera', cameraSource: 'IP_CAMERA', ipCameraUrl: 'rtsp://192.168.1.52:554/h264', status: 'ACTIVE', regions: 1, detectors: ['OCR / Barcode'] },
+                    { id: 'cam_qc_bench', name: 'QC Bench Microscope Webcam', cameraSource: 'DEVICE', ipCameraUrl: '', status: 'ACTIVE', regions: 1, detectors: ['Caliper Measurement'] },
+                ];
+                setCameraConfigs(defaultCams);
+                setRegionsByCamera({
+                    'cam_gige_1': [
+                        { id: 'reg_1', name: 'Outer Ring Flange ROI', x: 100, y: 100, w: 200, h: 200, detectors: { changeDetector: { enabled: true } } },
+                        { id: 'reg_2', name: 'Bore Hole ROI', x: 150, y: 150, w: 100, h: 100, detectors: { dimensionDetector: { enabled: true } } }
+                    ]
+                });
+                if (typeof window !== 'undefined') {
+                    try {
+                        localStorage.setItem('mandor_local_cameras', JSON.stringify(defaultCams));
+                    } catch (e) {}
+                }
+            }
         } catch (err) {
             console.error('Failed to load cameras:', err);
         } finally {
@@ -915,34 +942,145 @@ const VisionManager = ({ initialTab = 'cameras' }) => {
         };
     }, [activeTab, activeDataset]);
 
-    const startCameraStream = () => {
+    const enumerateCameras = async () => {
+        if (typeof navigator === 'undefined' || !navigator.mediaDevices?.enumerateDevices) return;
+        try {
+            const allDevices = await navigator.mediaDevices.enumerateDevices();
+            const videoInputs = allDevices.filter(d => d.kind === 'videoinput');
+            setAvailableVideoDevices(videoInputs);
+            if (videoInputs.length > 0 && !selectedVideoDeviceId) {
+                const defaultId = videoInputs[0].deviceId;
+                setSelectedVideoDeviceId(defaultId);
+                localStorage.setItem('mandor-selected-camera-id', defaultId);
+            }
+        } catch (e) {
+            console.warn('[Camera] enumerateDevices error:', e);
+        }
+    };
+
+    const startCameraStream = async (deviceIdOverride) => {
         stopCameraStream();
         setCameraError('');
 
-        const savedCameraId = localStorage.getItem('mandor-selected-camera-id');
-        const videoConstraints = savedCameraId
-            ? { width: { ideal: 640 }, height: { ideal: 480 }, deviceId: { exact: savedCameraId } }
-            : { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'environment' };
+        if (deviceIdOverride === 'SIMULATED') {
+            startSimulatedCameraFeed();
+            return;
+        }
 
-        navigator.mediaDevices.getUserMedia({
-            video: videoConstraints
-        })
-            .then((stream) => {
-                setHasCameraPermission(true);
-                streamRef.current = stream;
-                if (videoRef.current) {
-                    videoRef.current.srcObject = stream;
-                    videoRef.current.play().catch(e => console.warn('Stream play interrupted:', e));
-                }
-            })
-            .catch((err) => {
-                console.error('Webcam stream access failed:', err);
+        setIsSimulatedFeed(false);
+
+        if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+            setHasCameraPermission(false);
+            setCameraError('Browser tidak mendukung akses kamera (getUserMedia).');
+            return;
+        }
+
+        const targetDeviceId = deviceIdOverride || selectedVideoDeviceId || localStorage.getItem('mandor-selected-camera-id');
+
+        let stream = null;
+        try {
+            const constraints = targetDeviceId
+                ? { video: { deviceId: { exact: targetDeviceId }, width: { ideal: 1280 }, height: { ideal: 720 } } }
+                : { video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'environment' } };
+
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (err) {
+            console.warn('[Camera Access] Strict constraint failed, falling back to basic video constraint:', err);
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            } catch (fallbackErr) {
+                console.warn('[Camera Access] Fallback getUserMedia also failed:', fallbackErr);
                 setHasCameraPermission(false);
-                setCameraError(err.message || 'Webcam permission denied or camera not found.');
-            });
+                setCameraError(fallbackErr.message || 'Kamera tidak terdeteksi atau izin belum diberikan.');
+                return;
+            }
+        }
+
+        if (stream) {
+            setHasCameraPermission(true);
+            streamRef.current = stream;
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                try {
+                    await videoRef.current.play();
+                } catch (e) {
+                    console.warn('video.play() failed:', e);
+                }
+            }
+            enumerateCameras();
+        }
+    };
+
+    const startSimulatedCameraFeed = () => {
+        stopCameraStream();
+        setIsSimulatedFeed(true);
+        setHasCameraPermission(true);
+        setCameraError('');
+
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+
+        let angle = 0;
+        const renderSim = () => {
+            if (!canvasRef.current) return;
+            const cv = canvasRef.current;
+            const w = cv.width || 640;
+            const h = cv.height || 480;
+            const cx = w / 2;
+            const cy = h / 2;
+
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, w, h);
+
+            // Draw machined flange disk
+            ctx.beginPath();
+            ctx.arc(cx, cy, 140, 0, Math.PI * 2);
+            ctx.fillStyle = '#cbd5e1';
+            ctx.fill();
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#64748b';
+            ctx.stroke();
+
+            // Inner bore hole
+            ctx.beginPath();
+            ctx.arc(cx, cy, 55, 0, Math.PI * 2);
+            ctx.fillStyle = '#1e293b';
+            ctx.fill();
+
+            // 4 Bolt holes
+            for (let i = 0; i < 4; i++) {
+                const a = angle + (i * Math.PI / 2);
+                const bx = cx + Math.cos(a) * 98;
+                const by = cy + Math.sin(a) * 98;
+                ctx.beginPath();
+                ctx.arc(bx, by, 15, 0, Math.PI * 2);
+                ctx.fillStyle = '#334155';
+                ctx.fill();
+                ctx.strokeStyle = '#94a3b8';
+                ctx.stroke();
+            }
+
+            // Status OSD Watermark
+            ctx.fillStyle = '#10b981';
+            ctx.font = 'bold 13px monospace';
+            ctx.fillText('● SIMULATED INDUSTRIAL FEED [60 FPS]', 20, 30);
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '11px sans-serif';
+            ctx.fillText(`Part: FLANGE-ALU-50 • ${new Date().toLocaleTimeString()} • READY TO CAPTURE`, 20, 50);
+
+            angle += 0.012;
+            simAnimRef.current = requestAnimationFrame(renderSim);
+        };
+
+        renderSim();
     };
 
     const stopCameraStream = () => {
+        if (simAnimRef.current) {
+            cancelAnimationFrame(simAnimRef.current);
+            simAnimRef.current = null;
+        }
         if (streamRef.current) {
             streamRef.current.getTracks().forEach(track => track.stop());
             streamRef.current = null;
@@ -954,14 +1092,17 @@ const VisionManager = ({ initialTab = 'cameras' }) => {
         if (!activeDataset || isCapturing) return;
         const video = videoRef.current;
         const canvas = canvasRef.current;
-        if (!video || !canvas) return;
+        if (!canvas) return;
 
         setIsCapturing(true);
         try {
             const ctx = canvas.getContext('2d');
-            // Draw video frame to compressed 320x240 canvas to optimize base64 database cell storage
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+            if (!isSimulatedFeed && video && video.videoWidth > 0) {
+                canvas.width = video.videoWidth || 640;
+                canvas.height = video.videoHeight || 480;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            }
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
             // Construct new sample record
             const newSample = {
@@ -1018,6 +1159,52 @@ const VisionManager = ({ initialTab = 'cameras' }) => {
         } catch (err) {
             console.error('Failed to delete sample:', err);
             alert(`Failed to delete sample: ${err.message}`);
+        }
+    };
+
+    // Upload images directly from disk to dataset
+    const handleUploadSampleImages = async (e) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0 || !activeDataset) return;
+
+        setIsCapturing(true);
+        try {
+            const readPromises = files.map(file => {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve({
+                        id: `sample_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                        image: reader.result,
+                        label: (customLabel.trim() || 'PASS').toUpperCase(),
+                        timestamp: new Date().toISOString()
+                    });
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+            });
+
+            const newSamples = await Promise.all(readPromises);
+            const existingSamples = activeDataset.metadata?.samples || [];
+            const updatedSamples = [...newSamples, ...existingSamples];
+
+            const updatedDataset = {
+                ...activeDataset,
+                metadata: {
+                    ...activeDataset.metadata,
+                    samples: updatedSamples
+                }
+            };
+
+            const saved = await saveDataset(updatedDataset);
+            setActiveDataset(saved);
+            setDatasets(prev => prev.map(d => d.id === saved.id ? saved : d));
+            toast.success(`${newSamples.length} foto sampel berhasil diunggah!`);
+        } catch (err) {
+            console.error('Failed to upload samples:', err);
+            toast.error('Gagal mengunggah file foto.');
+        } finally {
+            setIsCapturing(false);
+            e.target.value = '';
         }
     };
 
@@ -1851,11 +2038,95 @@ const VisionManager = ({ initialTab = 'cameras' }) => {
                                     {/* Left Panel: Camera Stream & Capture Guide */}
                                     <div style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                                         {/* Camera Sub-header */}
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid #e2e8f0', flexWrap: 'wrap', gap: '8px' }}>
                                             <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                 <Camera size={16} /> LIVE CAMERA CAPTURE
+                                                {isSimulatedFeed && (
+                                                    <span style={{ fontSize: '0.62rem', padding: '2px 6px', borderRadius: '4px', backgroundColor: '#fef3c7', color: '#b45309', fontWeight: 700 }}>
+                                                        SIMULASI
+                                                    </span>
+                                                )}
                                             </span>
-                                            <div style={{ display: 'flex', gap: '10px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                <select
+                                                    value={isSimulatedFeed ? 'SIMULATED' : (selectedVideoDeviceId || '')}
+                                                    onChange={(e) => {
+                                                        const newId = e.target.value;
+                                                        if (newId === 'SIMULATED') {
+                                                            startSimulatedCameraFeed();
+                                                        } else {
+                                                            setSelectedVideoDeviceId(newId);
+                                                            localStorage.setItem('mandor-selected-camera-id', newId);
+                                                            startCameraStream(newId);
+                                                        }
+                                                    }}
+                                                    style={{
+                                                        border: '1px solid #cbd5e1',
+                                                        borderRadius: '6px',
+                                                        padding: '4px 8px',
+                                                        fontSize: '0.72rem',
+                                                        backgroundColor: 'white',
+                                                        color: '#0f172a',
+                                                        fontWeight: 700,
+                                                        cursor: 'pointer',
+                                                        maxWidth: '180px'
+                                                    }}
+                                                >
+                                                    <option value="SIMULATED">⚡ Feed Simulasi (Flange 60 FPS)</option>
+                                                    {availableVideoDevices.map((dev, idx) => (
+                                                        <option key={dev.deviceId || idx} value={dev.deviceId}>
+                                                            📹 {dev.label || `Webcam ${idx + 1}`}
+                                                        </option>
+                                                    ))}
+                                                    {cameraConfigs.filter(c => c.cameraSource === 'IP_CAMERA').map(c => (
+                                                        <option key={c.id} value={c.id}>
+                                                            🌐 {c.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+
+                                                <label
+                                                    style={{
+                                                        display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                                        border: '1px solid #cbd5e1', backgroundColor: '#f8fafc',
+                                                        color: '#475569', fontSize: '0.7rem', fontWeight: 700,
+                                                        padding: '4px 8px', borderRadius: '6px', cursor: 'pointer'
+                                                    }}
+                                                    title="Unggah file foto langsung ke dataset dari komputer"
+                                                >
+                                                    <Upload size={12} />
+                                                    <span>Upload Foto</span>
+                                                    <input
+                                                        type="file"
+                                                        multiple
+                                                        accept="image/*"
+                                                        onChange={handleUploadSampleImages}
+                                                        style={{ display: 'none' }}
+                                                    />
+                                                </label>
+
+                                                <button
+                                                    onClick={() => {
+                                                        if (isSimulatedFeed) {
+                                                            startCameraStream();
+                                                        } else {
+                                                            startSimulatedCameraFeed();
+                                                        }
+                                                    }}
+                                                    style={{
+                                                        border: '1px solid #cbd5e1',
+                                                        backgroundColor: isSimulatedFeed ? '#fef3c7' : '#f8fafc',
+                                                        color: isSimulatedFeed ? '#b45309' : '#475569',
+                                                        fontSize: '0.7rem',
+                                                        fontWeight: 700,
+                                                        padding: '4px 8px',
+                                                        borderRadius: '6px',
+                                                        cursor: 'pointer'
+                                                    }}
+                                                    title="Beralih antara kamera nyata dan kamera simulasi"
+                                                >
+                                                    {isSimulatedFeed ? '⚡ Feed Simulasi' : '📹 Mode Nyata'}
+                                                </button>
                                                 <button
                                                     onClick={() => setShowCameraGrid(p => !p)}
                                                     style={{
@@ -1867,7 +2138,7 @@ const VisionManager = ({ initialTab = 'cameras' }) => {
                                                     Grid Overlay
                                                 </button>
                                                 <button
-                                                    onClick={startCameraStream}
+                                                    onClick={() => isSimulatedFeed ? startSimulatedCameraFeed() : startCameraStream()}
                                                     style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#64748b' }}
                                                     title="Refresh stream"
                                                 >
@@ -1877,29 +2148,60 @@ const VisionManager = ({ initialTab = 'cameras' }) => {
                                         </div>
 
                                         {/* Viewfinder Canvas */}
-                                        <div style={{ flex: 1, backgroundColor: '#000', position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <div style={{ flex: 1, backgroundColor: '#000', position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '280px' }}>
                                             {hasCameraPermission === false ? (
-                                                <div style={{ textAlign: 'center', color: '#cbd5e1', padding: '20px' }}>
-                                                    <AlertCircle size={36} color="#ef4444" style={{ margin: '0 auto 10px' }} />
-                                                    <div style={{ fontSize: '0.8rem', fontWeight: 700 }}>Kamera tidak terdeteksi</div>
-                                                    <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '4px' }}>{cameraError}</div>
+                                                <div style={{ textAlign: 'center', color: '#cbd5e1', padding: '24px', maxWidth: '380px' }}>
+                                                    <AlertCircle size={40} color="#ef4444" style={{ margin: '0 auto 10px' }} />
+                                                    <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#f8fafc' }}>Kamera Fisik Belum Terhubung</div>
+                                                    <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '6px', lineHeight: '1.4' }}>
+                                                        {cameraError || 'Browser tidak dapat mengakses webcam atau izin akses belum diberikan.'}
+                                                    </div>
+                                                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '16px' }}>
+                                                        <button
+                                                            onClick={() => startCameraStream()}
+                                                            style={{
+                                                                padding: '6px 14px', borderRadius: '6px', backgroundColor: '#3b82f6',
+                                                                color: 'white', border: 'none', fontSize: '0.74rem', fontWeight: 700, cursor: 'pointer'
+                                                            }}
+                                                        >
+                                                            🔄 Coba Sambungkan Kamera
+                                                        </button>
+                                                        <button
+                                                            onClick={startSimulatedCameraFeed}
+                                                            style={{
+                                                                padding: '6px 14px', borderRadius: '6px', backgroundColor: '#10b981',
+                                                                color: 'white', border: 'none', fontSize: '0.74rem', fontWeight: 700, cursor: 'pointer'
+                                                            }}
+                                                        >
+                                                            ⚙️ Gunakan Feed Simulasi Part
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             ) : (
                                                 <>
                                                     <video
                                                         ref={videoRef}
-                                                        style={{ display: 'none' }}
-                                                        width="640"
-                                                        height="480"
+                                                        autoPlay
                                                         playsInline
                                                         muted
+                                                        style={{
+                                                            width: '100%',
+                                                            height: '100%',
+                                                            objectFit: 'contain',
+                                                            display: isSimulatedFeed ? 'none' : 'block'
+                                                        }}
                                                     />
                                                     {/* Real-time scaling canvas */}
                                                     <canvas
                                                         ref={canvasRef}
-                                                        width="320"
-                                                        height="240"
-                                                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                                                        width="640"
+                                                        height="480"
+                                                        style={{
+                                                            width: '100%',
+                                                            height: '100%',
+                                                            objectFit: 'contain',
+                                                            display: isSimulatedFeed ? 'block' : 'none'
+                                                        }}
                                                     />
 
                                                     {/* Grid alignment overlay */}
@@ -1917,6 +2219,16 @@ const VisionManager = ({ initialTab = 'cameras' }) => {
                                                             <div style={{ borderRight: '1px dashed rgba(255,255,255,0.25)' }}></div>
                                                             <div style={{ borderRight: '1px dashed rgba(255,255,255,0.25)' }}></div>
                                                             <div></div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Helper info banner when in real mode */}
+                                                    {!isSimulatedFeed && (
+                                                        <div style={{ position: 'absolute', bottom: 10, left: 12, right: 12, pointerEvents: 'none', display: 'flex', justifyContent: 'center' }}>
+                                                            <div style={{ backgroundColor: 'rgba(15, 23, 42, 0.8)', backdropFilter: 'blur(6px)', color: '#f1f5f9', fontSize: '0.68rem', padding: '5px 12px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                                                <Info size={13} color="#38bdf8" />
+                                                                <span>Kamera gelap/hitam? Buka shutter privasi webcam Anda, atau pilih <strong>⚡ Feed Simulasi</strong> di dropdown atas.</span>
+                                                            </div>
                                                         </div>
                                                     )}
                                                 </>

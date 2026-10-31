@@ -114,6 +114,16 @@ export default function QuickBuildPipeline({
         }
     };
 
+    // Navigate to Vision Manager Camera Configurations
+    const handleNavigateToCameraSettings = () => {
+        if (typeof onNavigateToCameraSettings === 'function') {
+            onNavigateToCameraSettings();
+        }
+        if (typeof window !== 'undefined') {
+            window.location.hash = '#/vision';
+        }
+    };
+
     // ═══ Workspace State ═══════════════════════════════════════
     const [workspace, setWorkspace] = useState(() => {
         const saved = localStorage.getItem('mandor_quickbuild_workspace');
@@ -1295,6 +1305,11 @@ return (
                             onPlayPauseFilmstrip={() => setIsFilmstripPlaying(!isFilmstripPlaying)}
                             nodes={nodes}
                             selectedNodeId={selectedNodeId}
+                            cameraConfigs={cameraConfigs}
+                            activeCamera={activeCamera}
+                            selectedCameraId={selectedCameraId}
+                            onSelectCameraId={handleSelectCameraId}
+                            onNavigateToCameraSettings={handleNavigateToCameraSettings}
                             backendStatus={backendStatus}
                         />
                     </div>
@@ -1399,7 +1414,7 @@ return (
                                 activeCamera={activeCamera}
                                 selectedCameraId={selectedCameraId}
                                 onSelectCameraId={handleSelectCameraId}
-                                onNavigateToCameraSettings={onNavigateToCameraSettings}
+                                onNavigateToCameraSettings={handleNavigateToCameraSettings}
                                 backendStatus={backendStatus}
                             />
                         </div>

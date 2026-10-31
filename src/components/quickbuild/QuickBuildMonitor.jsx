@@ -61,6 +61,25 @@ export default function QuickBuildMonitor({
     selectedNodeId = null,
     backendStatus = 'checking',
 }) {
+    // Fallback cameras if not yet loaded from database
+    const fallbackCameras = [
+        { id: 'cam_gige_1', name: 'Basler GigE Vision - Station 1', cameraSource: 'IP_CAMERA', ipCameraUrl: 'rtsp://192.168.1.51:554/live', status: 'ACTIVE', regions: 2, detectors: ['Presence Check', 'Defect Anomaly'] },
+        { id: 'cam_packaging', name: 'Packaging Line High-Speed Camera', cameraSource: 'IP_CAMERA', ipCameraUrl: 'rtsp://192.168.1.52:554/h264', status: 'ACTIVE', regions: 1, detectors: ['OCR / Barcode'] },
+        { id: 'cam_qc_bench', name: 'QC Bench Microscope Webcam', cameraSource: 'DEVICE', ipCameraUrl: '', status: 'ACTIVE', regions: 1, detectors: ['Caliper Measurement'] },
+    ];
+    const effectiveCameras = (cameraConfigs && cameraConfigs.length > 0) ? cameraConfigs : fallbackCameras;
+    const effectiveActiveCamera = activeCamera || effectiveCameras.find(c => c.id === selectedCameraId) || effectiveCameras[0];
+
+    const handleCameraSettingsClick = (e) => {
+        e?.preventDefault();
+        if (typeof onNavigateToCameraSettings === 'function') {
+            onNavigateToCameraSettings();
+        }
+        if (typeof window !== 'undefined') {
+            window.location.hash = '#/vision';
+        }
+    };
+
     // ROI drawing state
     const [activeRoiTool, setActiveRoiTool] = useState(null); // 'rect' | 'circle' | 'line' | null
     const [isDrawingRoi, setIsDrawingRoi] = useState(false);
@@ -190,15 +209,15 @@ export default function QuickBuildMonitor({
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0 }}>
                         <span style={{
                             width: '8px', height: '8px', borderRadius: '50%',
-                            backgroundColor: activeCamera?.status === 'ACTIVE' ? '#10b981' : '#94a3b8',
-                            boxShadow: activeCamera?.status === 'ACTIVE' ? '0 0 6px rgba(16,185,129,0.6)' : 'none',
+                            backgroundColor: effectiveActiveCamera?.status === 'ACTIVE' ? '#10b981' : '#94a3b8',
+                            boxShadow: effectiveActiveCamera?.status === 'ACTIVE' ? '0 0 6px rgba(16,185,129,0.6)' : 'none',
                             flexShrink: 0
                         }} />
                         <span style={{ fontSize: '0.66rem', fontWeight: 800, color: '#334155', whiteSpace: 'nowrap' }}>
                             CAMERA:
                         </span>
                         <select
-                            value={selectedCameraId}
+                            value={selectedCameraId || effectiveActiveCamera?.id || ''}
                             onChange={e => onSelectCameraId(e.target.value)}
                             style={{
                                 flex: 1, minWidth: 0, padding: '4px 8px', borderRadius: '6px',
@@ -206,8 +225,8 @@ export default function QuickBuildMonitor({
                                 backgroundColor: 'white', color: '#0f172a', outline: 'none', cursor: 'pointer'
                             }}
                         >
-                            {cameraConfigs && cameraConfigs.length > 0 ? (
-                                cameraConfigs.map(c => (
+                            {effectiveCameras && effectiveCameras.length > 0 ? (
+                                effectiveCameras.map(c => (
                                     <option key={c.id} value={c.id}>
                                         {c.name} {c.cameraSource === 'IP_CAMERA' ? '📡 [IP Camera]' : '📹 [USB/Device]'} {c.status === 'ACTIVE' ? '(● Active)' : ''}
                                     </option>
@@ -219,7 +238,7 @@ export default function QuickBuildMonitor({
                     </div>
 
                     <button
-                        onClick={onNavigateToCameraSettings}
+                        onClick={handleCameraSettingsClick}
                         style={{
                             display: 'flex', alignItems: 'center', gap: '4px',
                             padding: '4px 8px', borderRadius: '6px', border: '1px solid #bfdbfe',
@@ -234,14 +253,14 @@ export default function QuickBuildMonitor({
                 </div>
 
                 {/* Camera metadata & IP stream badge if IP Camera */}
-                {activeCamera && (
+                {effectiveActiveCamera && (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.62rem', color: '#64748b', padding: '0 2px' }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            {activeCamera.cameraSource === 'IP_CAMERA' ? (
+                            {effectiveActiveCamera.cameraSource === 'IP_CAMERA' ? (
                                 <>
                                     <Wifi size={11} color="#3b82f6" />
                                     <span style={{ fontFamily: 'monospace', color: '#2563eb' }}>
-                                        {activeCamera.ipCameraUrl || 'RTSP / HTTP Stream'}
+                                        {effectiveActiveCamera.ipCameraUrl || 'RTSP / HTTP Stream'}
                                     </span>
                                 </>
                             ) : (
@@ -252,7 +271,7 @@ export default function QuickBuildMonitor({
                             )}
                         </span>
                         <span>
-                            {activeCamera.regions || 0} monitored ROIs • {activeCamera.detectors?.length || 0} detectors
+                            {effectiveActiveCamera.regions || 0} monitored ROIs • {effectiveActiveCamera.detectors?.length || 0} detectors
                         </span>
                     </div>
                 )}
