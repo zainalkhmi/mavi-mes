@@ -42,6 +42,50 @@ async def health_check():
     """Health check endpoint so the frontend can detect that the server is running."""
     return {"status": "ok", "service": "YOLOv8 Local Inference API"}
 
+@app.get("/vision/hardware_cameras")
+async def detect_hardware_cameras():
+    """Scans physical USB & DirectShow cameras connected to the Windows host."""
+    cameras = []
+    # Test indices 0 to 5
+    for idx in range(6):
+        try:
+            # On Windows, cv2.CAP_DSHOW is non-blocking and directly accesses DirectShow USB drivers
+            cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
+            if cap is not None and cap.isOpened():
+                ret, frame = cap.read()
+                w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                fps = int(cap.get(cv2.CAP_PROP_FPS))
+                
+                preview_b64 = None
+                if ret and frame is not None:
+                    thumb = cv2.resize(frame, (160, 120))
+                    _, buf = cv2.imencode('.jpg', thumb, [cv2.IMWRITE_JPEG_QUALITY, 60])
+                    preview_b64 = f"data:image/jpeg;base64,{base64.b64encode(buf).decode('utf-8')}"
+                
+                cap.release()
+                cameras.append({
+                    "index": idx,
+                    "name": f"USB Video Device (Index {idx})",
+                    "backend": "Windows DirectShow",
+                    "resolution": f"{w}x{h}" if w > 0 else "Default",
+                    "fps": fps if fps > 0 else 30,
+                    "status": "ONLINE" if ret else "CONNECTED_NO_FRAME",
+                    "preview": preview_b64
+                })
+            else:
+                if cap is not None:
+                    cap.release()
+        except Exception:
+            pass
+            
+    return {
+        "success": True,
+        "total_cameras": len(cameras),
+        "cameras": cameras,
+        "timestamp": time.time()
+    }
+
 @app.post("/detect")
 async def detect_objects(file: UploadFile = File(...)):
     if model is None:

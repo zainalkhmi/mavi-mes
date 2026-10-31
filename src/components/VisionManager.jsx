@@ -34,13 +34,21 @@ import {
     ExternalLink,
     Database,
     Share2,
-    Check
+    Check,
+    Usb,
+    Wrench,
+    AlertTriangle,
+    Cpu,
+    Volume2,
+    VolumeX,
+    Bell
 } from 'lucide-react';
 import JSZip from 'jszip';
 import toast from 'react-hot-toast';
 import { getAllCameras, saveCamera, deleteCamera, getAllDatasets, saveDataset, deleteDataset } from '../utils/supabaseUtilityDB';
 import { getStations, getAllVariables } from '../utils/supabaseFrontlineDB';
 import QuickBuildPipeline from './QuickBuildPipeline';
+import { INDUSTRIAL_BEEP_WAV, playVisionMatchBeep, unlockAudioContext } from '../utils/visionBeepSound';
 
 // Fuzzy similarity score calculation (Levenshtein Distance based)
 const calculateLevenshteinSimilarity = (s1, s2) => {
@@ -441,6 +449,15 @@ const VisionManager = ({ initialTab = 'cameras' }) => {
     });
     const [isSimulatedFeed, setIsSimulatedFeed] = useState(false);
     const simAnimRef = useRef(null);
+
+    // Camera Detector & Diagnostic Tool States
+    const [showCameraDetectorModal, setShowCameraDetectorModal] = useState(false);
+    const [isScanningCameras, setIsScanningCameras] = useState(false);
+    const [hardwareCameras, setHardwareCameras] = useState([]);
+    const [browserPermissionStatus, setBrowserPermissionStatus] = useState('unknown');
+    const [activeTestDeviceId, setActiveTestDeviceId] = useState(null);
+    const [testStreamActive, setTestStreamActive] = useState(false);
+    const testVideoRef = useRef(null);
 
     // Load Datasets & Cameras on mount or tab switch
     useEffect(() => {
@@ -984,6 +1001,91 @@ const VisionManager = ({ initialTab = 'cameras' }) => {
         } catch (e) {
             console.warn('[Camera] enumerateDevices error:', e);
         }
+    };
+
+    const runCameraDiagnosticScan = async () => {
+        setIsScanningCameras(true);
+        try {
+            // 1. Query browser permissions API
+            if (navigator?.permissions?.query) {
+                try {
+                    const status = await navigator.permissions.query({ name: 'camera' });
+                    setBrowserPermissionStatus(status.state);
+                    status.onchange = () => setBrowserPermissionStatus(status.state);
+                } catch (e) {
+                    setBrowserPermissionStatus('unsupported');
+                }
+            }
+
+            // 2. Request user media with video: true to trigger permission prompt if not yet granted and reveal device labels
+            try {
+                const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                setBrowserPermissionStatus('granted');
+                tempStream.getTracks().forEach(t => t.stop());
+            } catch (err) {
+                console.warn('[Camera Scanner] Browser getUserMedia prompt:', err);
+                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                    setBrowserPermissionStatus('denied');
+                }
+            }
+
+            // 3. Enumerate all videoinput devices
+            if (navigator?.mediaDevices?.enumerateDevices) {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const vInputs = devices.filter(d => d.kind === 'videoinput');
+                setAvailableVideoDevices(vInputs);
+                if (vInputs.length > 0 && !selectedVideoDeviceId) {
+                    setSelectedVideoDeviceId(vInputs[0].deviceId);
+                }
+            }
+
+            // 4. Also scan OS hardware cameras via Python server if available
+            try {
+                const res = await fetch('http://127.0.0.1:8000/vision/hardware_cameras');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.cameras) {
+                        setHardwareCameras(data.cameras);
+                    }
+                }
+            } catch (e) {
+                // python server may be offline
+            }
+
+            toast.success('Pemindaian kamera selesai!');
+        } catch (err) {
+            console.error('Camera diagnostic scan failed:', err);
+            toast.error('Gagal menjalankan diagnosa kamera.');
+        } finally {
+            setIsScanningCameras(false);
+        }
+    };
+
+    const testCameraDevice = async (deviceId) => {
+        stopTestCamera();
+        setActiveTestDeviceId(deviceId);
+        setTestStreamActive(true);
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { deviceId: { exact: deviceId } }
+            });
+            if (testVideoRef.current) {
+                testVideoRef.current.srcObject = stream;
+                await testVideoRef.current.play();
+            }
+        } catch (err) {
+            toast.error(`Kamera gagal dibuka: ${err.message}`);
+            setTestStreamActive(false);
+        }
+    };
+
+    const stopTestCamera = () => {
+        if (testVideoRef.current && testVideoRef.current.srcObject) {
+            testVideoRef.current.srcObject.getTracks().forEach(t => t.stop());
+            testVideoRef.current.srcObject = null;
+        }
+        setTestStreamActive(false);
+        setActiveTestDeviceId(null);
     };
 
     const startCameraStream = async (deviceIdOverride) => {
@@ -4468,6 +4570,37 @@ function CameraRegionEditor({
     const [brightness, setBrightness] = useState(100);
     const [contrast, setContrast] = useState(100);
     const [activityLogs, setActivityLogs] = useState([]);
+    const beepAudioElRef = useRef(null);
+    const matchStatesRef = useRef({});
+
+    // Sound beep when detection MATCH occurs
+    const [soundEnabled, setSoundEnabled] = useState(() => {
+        const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('mandor-vision-beep-enabled') : null;
+        return saved !== null ? saved === 'true' : true;
+    });
+    const soundEnabledRef = useRef(soundEnabled);
+    useEffect(() => {
+        soundEnabledRef.current = soundEnabled;
+        if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('mandor-vision-beep-enabled', soundEnabled);
+        }
+    }, [soundEnabled]);
+
+    const lastBeepTimeRef = useRef(0);
+    const triggerMatchBeep = () => {
+        if (!soundEnabledRef.current) return;
+        const now = Date.now();
+        if (now - lastBeepTimeRef.current < 160) return; // rate-limit debounce
+        lastBeepTimeRef.current = now;
+        if (beepAudioElRef.current) {
+            try {
+                beepAudioElRef.current.currentTime = 0;
+                beepAudioElRef.current.volume = 1.0;
+                beepAudioElRef.current.play().catch(() => {});
+            } catch (e) {}
+        }
+        playVisionMatchBeep();
+    };
 
     // Periodic synchronization of activity logs to local state to avoid high frequency render thrashing
     useEffect(() => {
@@ -5404,6 +5537,10 @@ function CameraRegionEditor({
                                                             status: finalPass ? 'MATCH' : 'NO MATCH'
                                                         };
                                                         logsRef.current = [newLog, ...logsRef.current].slice(0, 20);
+                                                        // Bunyi BEEP jika MATCH
+                                                        if (finalPass) {
+                                                            triggerMatchBeep();
+                                                        }
                                                     }
                                                 })
                                                 .catch(err => {
@@ -5437,17 +5574,32 @@ function CameraRegionEditor({
                                 similarityRef.current[region.id] = colorSimilarity;
                             }
 
-                            const oldMatching = region.isMatching;
-                            let isMatching = region.isMatching || false;
+                            const prevMatch = matchStatesRef.current[region.id];
+                            let isMatching = prevMatch || false;
                             if (colorSimilarity >= colorDet.beginThreshold) {
                                 isMatching = true;
                             } else if (colorSimilarity < colorDet.endThreshold) {
                                 isMatching = false;
                             }
+                            matchStatesRef.current[region.id] = isMatching;
                             region.isMatching = isMatching;
 
-                            // Log event on transition
-                            if (oldMatching !== undefined && oldMatching !== isMatching) {
+                            // Log event and beep on transition OR if initially matching
+                            if (prevMatch === undefined) {
+                                if (isMatching) {
+                                    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                                    const newLog = {
+                                        id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                                        time: timestamp,
+                                        regionName: region.name,
+                                        detectorType: 'Color',
+                                        value: `Sim: ${colorSimilarity}%`,
+                                        status: 'MATCH'
+                                    };
+                                    logsRef.current = [newLog, ...logsRef.current].slice(0, 20);
+                                    triggerMatchBeep();
+                                }
+                            } else if (prevMatch !== isMatching) {
                                 const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                                 const newLog = {
                                     id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -5458,6 +5610,10 @@ function CameraRegionEditor({
                                     status: isMatching ? 'MATCH' : 'NO MATCH'
                                 };
                                 logsRef.current = [newLog, ...logsRef.current].slice(0, 20);
+                                // Bunyi BEEP jika status MATCH
+                                if (isMatching) {
+                                    triggerMatchBeep();
+                                }
                             }
                         }
 
@@ -5500,6 +5656,9 @@ function CameraRegionEditor({
                                     status: changeTriggered ? 'TRIGGERED' : 'IDLE'
                                 };
                                 logsRef.current = [newLog, ...logsRef.current].slice(0, 20);
+                                if (changeTriggered) {
+                                    triggerMatchBeep();
+                                }
                             }
                         }
 
@@ -5675,6 +5834,9 @@ function CameraRegionEditor({
                                     status: isPass ? 'PASS' : 'FAIL'
                                 };
                                 logsRef.current = [newLog, ...logsRef.current].slice(0, 20);
+                                if (isPass) {
+                                    triggerMatchBeep();
+                                }
                             }
                         } else {
                             region.objectBox = null;
@@ -6103,8 +6265,9 @@ function CameraRegionEditor({
                             gap: '20px',
                             minWidth: 0
                         }}>
-                            {/* Hidden video element */}
+                            {/* Hidden video & audio elements */}
                             <video ref={videoRef} style={{ display: 'none' }} width="1280" height="720" playsInline muted />
+                            <audio ref={beepAudioElRef} src={INDUSTRIAL_BEEP_WAV} preload="auto" style={{ display: 'none' }} />
 
                             {/* Camera Monitor Card */}
                             <div style={{
@@ -6398,14 +6561,70 @@ function CameraRegionEditor({
                                             Real-time Detection Activity Stream
                                         </span>
                                     </div>
-                                    <span style={{ fontSize: '0.65rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
-                                        <span style={{
-                                            width: '6px', height: '6px', borderRadius: '50%',
-                                            backgroundColor: '#10b981', display: 'inline-block',
-                                            boxShadow: '0 0 6px #10b981'
-                                        }} />
-                                        LIVE FEED
-                                    </span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                        {/* Audio Beep Controls */}
+                                        <button
+                                            onClick={() => {
+                                                const next = !soundEnabled;
+                                                setSoundEnabled(next);
+                                                if (next) {
+                                                    playVisionMatchBeep('match');
+                                                    toast.success('Suara BEEP MATCH diaktifkan 🔊');
+                                                } else {
+                                                    toast('Suara BEEP dimatikan 🔇');
+                                                }
+                                            }}
+                                            style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '5px',
+                                                padding: '3px 8px',
+                                                borderRadius: '6px',
+                                                border: soundEnabled ? '1px solid #16a34a' : '1px solid #cbd5e1',
+                                                backgroundColor: soundEnabled ? '#dcfce7' : '#f8fafc',
+                                                color: soundEnabled ? '#15803d' : '#64748b',
+                                                fontSize: '0.68rem',
+                                                fontWeight: 700,
+                                                cursor: 'pointer',
+                                                transition: 'all 0.15s ease'
+                                            }}
+                                            title="Nyalakan/matikan bunyi BEEP saat MATCH"
+                                        >
+                                            {soundEnabled ? <Volume2 size={13} color="#16a34a" /> : <VolumeX size={13} color="#64748b" />}
+                                            <span>{soundEnabled ? 'BEEP ON 🔊' : 'BEEP MUTE 🔇'}</span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                playVisionMatchBeep('match');
+                                                toast('🔊 Beep Test!', { icon: '🔔' });
+                                            }}
+                                            style={{
+                                                border: '1px solid #bfdbfe',
+                                                backgroundColor: '#eff6ff',
+                                                color: '#2563eb',
+                                                borderRadius: '6px',
+                                                fontSize: '0.68rem',
+                                                cursor: 'pointer',
+                                                fontWeight: 700,
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '3px',
+                                                padding: '3px 7px'
+                                            }}
+                                            title="Uji coba bunyi Beep sekarang"
+                                        >
+                                            <Bell size={12} />
+                                            <span>Test</span>
+                                        </button>
+                                        <span style={{ fontSize: '0.65rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                                            <span style={{
+                                                width: '6px', height: '6px', borderRadius: '50%',
+                                                backgroundColor: '#10b981', display: 'inline-block',
+                                                boxShadow: '0 0 6px #10b981'
+                                            }} />
+                                            LIVE FEED
+                                        </span>
+                                    </div>
                                 </div>
 
                                 {/* Table content */}
